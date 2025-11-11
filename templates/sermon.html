@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>설교 도움 페이지</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; }
+    .page-wrap { display: flex; gap: 1rem; padding: 1rem; height: 100vh; box-sizing: border-box; }
+    .left-col { width: 360px; display: flex; flex-direction: column; gap: .75rem; }
+    .right-col { flex: 1; display: flex; flex-direction: column; gap: .75rem; min-width: 0; }
+    .box { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: .75rem; }
+    .label-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .35rem; }
+    .label { font-weight: 600; }
+    input[type="text"], input[type="date"], select { width: 100%; padding: .35rem .5rem; box-sizing: border-box; }
+    textarea { width: 100%; min-height: 80px; resize: vertical; box-sizing: border-box; font-family: inherit; line-height: 1.4; }
+    .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    button { padding: .35rem .6rem; border: 1px solid #ccc; background: #f0f0f0; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #e0e0e0; }
+    .storage-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: .25rem 0; gap: .5rem; }
+    .storage-item:last-child { border-bottom: none; }
+    .storage-actions button { font-size: .7rem; padding: .25rem .45rem; }
+    .toggle-header { display: flex; justify-content: space-between; align-items: center; }
+    .copy-btn { font-size: .7rem; padding: .2rem .5rem; background: #fff; }
+    .status-bar { position: fixed; bottom: 10px; right: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: .4rem .7rem; font-size: .8rem; box-shadow: 0 2px 6px rgba(0,0,0,.08); display: none; }
+    .guide-tab-active { background: #dfe6ff; border-color: #b5c6ff; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- 왼쪽 -->
+    <div class="left-col">
+      <!-- 날짜 -->
+      <div class="box">
+        <div class="label-row">
+          <label class="label" for="sermon-date">날짜</label>
+          <input type="date" id="sermon-date" style="max-width: 160px;">
+        </div>
+      </div>
+
+      <!-- 카테고리 -->
+      <div class="box">
+        <label class="label" for="sermon-category">설교 카테고리</label>
+        <select id="sermon-category">
+          <option value="dawn">새벽설교</option>
+          <option value="wednesday">수요성경공부</option>
+          <option value="friday">금요기도회</option>
+          <option value="youth">청년부</option>
+          <option value="teen">청소년부</option>
+          <option value="women">여선교회</option>
+          <option value="men">남선교회</option>
+          <option value="etc">기타</option>
+        </select>
+      </div>
+
+      <!-- 성경구절 -->
+      <div class="box">
+        <label class="label">성경구절</label>
+        <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
+      </div>
+
+      <!-- 성경 본문 -->
+      <div class="box">
+        <label class="label">성경 본문</label>
+        <textarea id="sermon-text" placeholder="본문을 여기에 붙여넣으세요."></textarea>
+      </div>
+
+      <!-- 실행 버튼 -->
+      <div class="box">
+        <div class="btn-row">
+          <button id="btn-analyze">본문 분석</button>
+          <button id="btn-prompt">설교 제작 프롬포트</button>
+        </div>
+      </div>
+
+      <!-- 저장 공간 -->
+      <div class="box">
+        <label class="label">저장된 설교 자료</label>
+        <div class="btn-row" style="margin-bottom: .5rem;">
+          <button id="btn-save">현재 내용 저장</button>
+        </div>
+        <div id="saved-list"></div>
+      </div>
+    </div>
+
+    <!-- 오른쪽 -->
+    <div class="right-col">
+      <!-- 지침 영역 -->
+      <div class="box" id="guide-box">
+        <div class="toggle-header">
+          <span class="label">지침 영역</span>
+          <button id="toggle-guides">닫기</button>
+        </div>
+        <div class="btn-row" style="margin: .5rem 0;">
+          <button id="save-guide">지침 저장</button>
+          <button id="tab-guide-analysis" class="guide-tab-active">본문 분석 지침</button>
+          <button id="tab-guide-prompt">설교문 제작 프롬포트</button>
+        </div>
+        <textarea id="guide-text" style="min-height: 90px;" placeholder="선택한 지침 유형의 내용을 작성합니다. 카테고리마다 따로 저장됩니다."></textarea>
+      </div>
+
+      <!-- 본문 분석 결과 -->
+      <div class="box">
+        <div class="toggle-header">
+          <label class="label">본문 분석</label>
+          <button class="copy-btn" data-copy="analysis-box">복사</button>
+        </div>
+        <textarea id="analysis-box" style="min-height: 140px;" placeholder="본문 분석 결과가 표시됩니다. (해당 카테고리의 '본문 분석 지침'을 1순위로 적용)"></textarea>
+      </div>
+
+      <!-- 설교문 제작 프롬포트 결과 -->
+      <div class="box">
+        <div class="toggle-header">
+          <label class="label">설교문 제작 프롬포트</label>
+          <button class="copy-btn" data-copy="sermon-prompt-box">복사</button>
+        </div>
+        <textarea id="sermon-prompt-box" style="min-height: 140px;" placeholder="GPT에 던질 프롬포트를 여기서 만듭니다. (해당 카테고리의 '설교문 제작 프롬포트' 지침을 1순위로 적용)"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- 진행 상태 -->
+  <div id="status-bar" class="status-bar">GPT로 작업 중...</div>
+
+  <script>
+    // 날짜 기본값
+    const today = new Date().toISOString().substring(0, 10);
+    document.getElementById('sermon-date').value = today;
+
+    const categorySelect = document.getElementById('sermon-category');
+    const guideTextArea = document.getElementById('guide-text');
+    const tabGuideAnalysis = document.getElementById('tab-guide-analysis');
+    const tabGuidePrompt = document.getElementById('tab-guide-prompt');
+    const statusBar = document.getElementById('status-bar');
+
+    let currentGuideType = 'analysis'; // 현재 보고 있는 지침 종류
+
+    function showStatus(msg) {
+      statusBar.textContent = msg;
+      statusBar.style.display = 'block';
+    }
+    function hideStatus() {
+      statusBar.style.display = 'none';
+    }
+
+    // 카테고리 + 지침타입 기반 key
+    function getGuideKey(cat, type) {
+      return `sermon-guide-${cat}-${type}`;
+    }
+
+    // 현재 선택된 카테고리의, 현재 탭의 지침을 textarea에 반영
+    function loadCurrentGuide() {
+      const cat = categorySelect.value;
+      const key = getGuideKey(cat, currentGuideType);
+      const saved = localStorage.getItem(key) || "";
+      guideTextArea.value = saved;
+    }
+
+    // 탭 활성화
+    function activateTab(type) {
+      currentGuideType = type;
+      if (type === 'analysis') {
+        tabGuideAnalysis.classList.add('guide-tab-active');
+        tabGuidePrompt.classList.remove('guide-tab-active');
+      } else {
+        tabGuidePrompt.classList.add('guide-tab-active');
+        tabGuideAnalysis.classList.remove('guide-tab-active');
+      }
+      loadCurrentGuide();
+    }
+
+    tabGuideAnalysis.addEventListener('click', () => activateTab('analysis'));
+    tabGuidePrompt.addEventListener('click', () => activateTab('prompt'));
+
+    // 지침 저장
+    document.getElementById('save-guide').addEventListener('click', () => {
+      const cat = categorySelect.value;
+      const key = getGuideKey(cat, currentGuideType);
+      localStorage.setItem(key, guideTextArea.value);
+      showStatus("이 카테고리의 지침이 저장되었습니다.");
+      setTimeout(hideStatus, 1500);
+    });
+
+    // 카테고리 바뀌면 해당 카테고리의 지침/저장목록 보여주기
+    categorySelect.addEventListener('change', () => {
+      renderSaved();
+      loadCurrentGuide();
+    });
+
+    // 지침 영역 열고닫기
+    document.getElementById('toggle-guides').addEventListener('click', () => {
+      const isHidden = guideTextArea.style.display === 'none';
+      guideTextArea.style.display = isHidden ? 'block' : 'none';
+      document.getElementById('toggle-guides').textContent = isHidden ? '닫기' : '열기';
+    });
+
+    // 저장된 설교 자료 렌더링 (카테고리별)
+    const savedList = document.getElementById('saved-list');
+    const saveBtn = document.getElementById('btn-save');
+
+    function renderSaved() {
+      const cat = categorySelect.value;
+      const data = JSON.parse(localStorage.getItem('sermon-data-' + cat) || '[]');
+      savedList.innerHTML = '';
+      data.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'storage-item';
+        div.innerHTML = `
+          <span>${item.label}</span>
+          <div class="storage-actions">
+            <button data-idx="${idx}" data-act="load">불러오기</button>
+            <button data-idx="${idx}" data-act="del">삭제</button>
+          </div>
+        `;
+        savedList.appendChild(div);
+      });
+    }
+
+    saveBtn.addEventListener('click', () => {
+      const cat = categorySelect.value;
+      const key = 'sermon-data-' + cat;
+      const existing = JSON.parse(localStorage.getItem(key) || '[]');
+
+      const date = document.getElementById('sermon-date').value;
+      const ref = document.getElementById('sermon-ref').value;
+      const text = document.getElementById('sermon-text').value;
+      const analysis = document.getElementById('analysis-box').value;
+      const prompt = document.getElementById('sermon-prompt-box').value;
+
+      const label = `${date} ${ref}`;
+      existing.unshift({ label, date, ref, text, analysis, prompt });
+      localStorage.setItem(key, JSON.stringify(existing));
+      renderSaved();
+    });
+
+    savedList.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      const act = e.target.dataset.act;
+      const idx = Number(e.target.dataset.idx);
+      const cat = categorySelect.value;
+      const key = 'sermon-data-' + cat;
+      const data = JSON.parse(localStorage.getItem(key) || '[]');
+
+      if (act === 'load') {
+        const item = data[idx];
+        document.getElementById('sermon-date').value = item.date;
+        document.getElementById('sermon-ref').value = item.ref;
+        document.getElementById('sermon-text').value = item.text;
+        document.getElementById('analysis-box').value = item.analysis;
+        document.getElementById('sermon-prompt-box').value = item.prompt;
+      } else if (act === 'del') {
+        data.splice(idx, 1);
+        localStorage.setItem(key, JSON.stringify(data));
+        renderSaved();
+      }
+    });
+
+// ✅ 여기에 추가
+// 공통: fetch 타임아웃 헬퍼 함수 (응답 없을 때 자동 중단)
+function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 10000 } = options; // 기본 10초
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(resource, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(id));
+}
+
+    // 복사 버튼
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.dataset.copy;
+        const el = document.getElementById(targetId);
+        navigator.clipboard.writeText(el.value || "").then(() => {
+          showStatus("복사되었습니다.");
+          setTimeout(hideStatus, 1500);
+        });
+      });
+    });
+
+    // 본문 분석 → Flask GPT API 호출
+    document.getElementById('btn-analyze').addEventListener('click', () => {
+      showStatus("GPT로 본문 분석 중입니다...");
+
+      const cat = categorySelect.value;
+      const guide = localStorage.getItem(getGuideKey(cat, 'analysis')) || "";
+      const payload = {
+        guide: guide,
+        text: document.getElementById('sermon-text').value,
+        ref: document.getElementById('sermon-ref').value,
+        category: cat
+      };
+
+      fetch("/api/sermon/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('analysis-box').value = data.result || "";
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById('analysis-box').value = "본문 분석 중 오류가 발생했습니다.";
+      })
+      .finally(() => {
+        hideStatus();
+      });
+    });
+
+
+// 설교 프롬포트 → Flask GPT API 호출
+document.getElementById('btn-prompt').addEventListener('click', () => {
+  showStatus("GPT로 설교문 프롬포트 생성 중입니다...");
+
+  const cat = categorySelect.value;
+  const guide = localStorage.getItem(getGuideKey(cat, 'prompt')) || "";
+  const payload = {
+    guide: guide,
+    text: document.getElementById('sermon-text').value,
+    ref: document.getElementById('sermon-ref').value,
+    category: cat
+  };
+
+  fetchWithTimeout("/api/sermon/prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeout: 15000
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error("서버 오류: " + text);
+      }
+      return res.json();
+    })
+    .then(data => {
+      document.getElementById('sermon-prompt-box').value = data.result || "";
+    })
+    .catch(err => {
+      console.error(err);
+      document.getElementById('sermon-prompt-box').value =
+        "프롬포트 생성 중 오류가 발생했습니다.\n" + err.message;
+    })
+    .finally(() => {
+      hideStatus();
+    });
+});
+
+    // 처음 진입 시
+    renderSaved();
+    loadCurrentGuide();
+  </script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>매일성경 메시지</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- 왼쪽 영역 -->
+    <div class="left-col">
+      <h1 class="page-title">📖 매일성경 메시지</h1>
+
+      <!-- 날짜 한 줄 -->
+      <label class="field-label" for="dateMonth">날짜</label>
+      <div class="date-row">
+        <input id="dateMonth" type="number" min="1" max="12" placeholder="월" />
+        <span>월</span>
+        <input id="dateDay" type="number" min="1" max="31" placeholder="일" />
+        <span>일</span>
+        <input id="dateWeekday" type="text" readonly />
+      </div>
+
+      <label class="field-label" for="verse">본문</label>
+      <input id="verse" type="text" placeholder="예: 레위기 26:13" />
+
+      <label class="field-label" for="verseText">본문 내용</label>
+      <textarea id="verseText" class="auto-resize" placeholder="성경 구절 전체를 여기에 붙여넣으세요."></textarea>
+
+      <div class="btn-row">
+        <button id="btnMakeMorning" class="btn primary">📘 아침 메시지 생성</button>
+        <button id="btnMakeEvening" class="btn secondary">🌙 저녁 메시지 생성</button>
+      </div>
+
+      <!-- 👉 GPT 상태 표시를 여기로 옮김 -->
+      <div id="loadingBar" class="loading hidden">GPT 생성 중… 잠시만요.</div>
+    </div>
+
+    <!-- 오른쪽 영역 -->
+    <div class="right-col">
+      <!-- 지침 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>지침</h3>
+          <button id="btnGuideToggle" class="btn light small">열기/닫기</button>
+        </div>
+
+        <div id="guideBox">
+          <div class="guide-tabs">
+            <button class="g-tab active" data-g="morning">오전 메시지</button>
+            <button class="g-tab" data-g="evening">저녁 메시지</button>
+            <button class="g-tab" data-g="image">이미지·음악 프롬프트</button>
+            <button class="g-tab" data-g="translate">번역</button>
+          </div>
+          <div class="guide-body">
+            <textarea id="guideMorning" class="auto-resize"></textarea>
+            <textarea id="guideEvening" class="auto-resize hidden"></textarea>
+            <textarea id="guideImgPrompt" class="auto-resize hidden"></textarea>
+            <textarea id="guideTranslate" class="auto-resize hidden"></textarea>
+          </div>
+          <button id="btnSaveGuides" class="btn small">저장</button>
+          <span id="guideSaveStatus" class="save-status"></span>
+        </div>
+      </div>
+
+      <!-- 아침/저녁 2칸 -->
+      <div class="msg-row">
+        <div class="panel half">
+          <div class="panel-head">
+            <h3>🌅 아침 메시지</h3>
+            <button id="btnCopyMorning" class="btn light small">복사</button>
+          </div>
+          <textarea id="morningMessage" class="auto-resize" placeholder="아침 메시지가 여기 표시됩니다."></textarea>
+        </div>
+
+        <div class="panel half">
+          <div class="panel-head">
+            <h3>🌙 저녁 메시지</h3>
+            <button id="btnCopyEvening" class="btn light small">복사</button>
+          </div>
+          <textarea id="eveningMessage" class="auto-resize" placeholder="저녁 메시지가 여기 표시됩니다."></textarea>
+        </div>
+      </div>
+
+      <!-- 번역 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>번역</h3>
+          <div class="trans-controls">
+            <select id="selLang">
+              <option value="en">영어</option>
+              <option value="ja">일본어</option>
+            </select>
+            <button id="btnTransMorning" class="btn small">아침 → 번역</button>
+            <button id="btnTransEvening" class="btn small">저녁 → 번역</button>
+            <button id="btnCopyTrans" class="btn light small">복사</button>
+          </div>
+        </div>
+        <textarea id="transOutput" class="auto-resize" placeholder="번역 결과가 여기 표시됩니다."></textarea>
+      </div>
+
+      <!-- 이미지/음악 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>🖼 이미지 프롬프트 & 🎵 음악 프롬프트</h3>
+          <div>
+            <button id="btnGenMorningImg" class="btn small">아침에서 생성</button>
+            <button id="btnGenEveningImg" class="btn small">저녁에서 생성</button>
+          </div>
+        </div>
+        <div id="imgPromptArea"></div>
+
+        <div class="music-row">
+          <label for="musicPrompt">음악 프롬프트</label>
+          <textarea id="musicPrompt" class="auto-resize"></textarea>
+          <button id="btnCopyMusic" class="btn light small">복사</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/bible.js"></script>
+</body>
+</html>
