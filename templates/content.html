@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI 판매 콘텐츠 생성기</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: .5rem;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+    .main-grid {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 1.5rem;
+    }
+    .box {
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    .box-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 3px solid #667eea;
+    }
+    .label {
+      display: block;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+    .input-group {
+      margin-bottom: 1.25rem;
+    }
+    
+    /* 이미지 업로드 영역 */
+    .image-upload-area {
+      border: 3px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 1rem;
+    }
+    .image-upload-area:hover {
+      border-color: #667eea;
+      background: #f0f4ff;
+    }
+    .image-upload-area.dragover {
+      border-color: #667eea;
+      background: #e0e7ff;
+      transform: scale(1.02);
+    }
+    .upload-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    .image-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .image-preview-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 2px solid #e2e8f0;
+    }
+    .image-preview-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .image-preview-item .remove-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(239, 68, 68, 0.9);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .image-count {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    
+    /* 버튼 */
+    button {
+      width: 100%;
+      padding: 0.875rem 1.5rem;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: white;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    .btn-primary:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: #64748b;
+      margin-top: 0.75rem;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .btn-small {
+      width: auto;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      margin-top: 0.75rem;
+    }
+    
+    /* 결과 박스 */
+    .result-section {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .result-section h3 {
+      color: #667eea;
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .result-content {
+      background: white;
+      padding: 1.25rem;
+      border-radius: 12px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      max-height: 600px;
+      overflow-y: auto;
+      font-size: 0.95rem;
+    }
+    .copy-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .copy-btn:hover {
+      background: #059669;
+    }
+    
+    /* 탭 */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 0.75rem 1.5rem;
+      border: 2px solid #e2e8f0;
+      background: white;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      border-color: #cbd5e1;
+    }
+    .tab.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    /* 로딩 */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 2rem;
+    }
+    .loading.show {
+      display: block;
+    }
+    .spinner {
+      border: 4px solid #f3f4f6;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* 알림 */
+    .alert {
+      padding: 1rem;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      font-weight: 500;
+    }
+    .alert-info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 2px solid #93c5fd;
+    }
+    .alert-success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 2px solid #6ee7b7;
+    }
+    .alert-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 2px solid #fbbf24;
+    }
+    
+    /* 스크롤바 커스텀 */
+    .result-content::-webkit-scrollbar {
+      width: 8px;
+    }
+    .result-content::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 10px;
+    }
+    .result-content::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    .result-content::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    
+    @media (max-width: 1024px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚀 AI 판매 콘텐츠 생성기</h1>
+      <p>제품 사진과 정보를 입력하면 네이버·쿠팡 최적화 콘텐츠를 자동으로 생성합니다</p>
+    </div>
+
+    <div class="main-grid">
+      <!-- 왼쪽: 입력 -->
+      <div>
+        <div class="box">
+          <div class="box-title">
+            📸 제품 이미지 
+            <span class="image-count" id="image-count">0/5</span>
+          </div>
+          
+          <div class="image-upload-area" id="upload-area">
+            <div class="upload-icon">📷</div>
+            <p style="font-size: 1.1rem; color: #475569; font-weight: 600; margin-bottom: 0.5rem;">
+              클릭하거나 드래그해서 이미지 업로드
+            </p>
+            <p style="font-size: 0.9rem; color: #94a3b8;">
+              최대 5장 | JPG, PNG, WEBP
+            </p>
+          </div>
+          <input type="file" id="file-input" multiple accept="image/*" style="display: none;">
+          
+          <div class="image-preview-grid" id="preview-grid"></div>
+        </div>
+
+        <div class="box" style="margin-top: 1.5rem;">
+          <div class="box-title">📝 제품 정보</div>
+          
+          <div class="input-group">
+            <label class="label">제품명</label>
+            <input type="text" id="product-name" placeholder="예: 프리미엄 무선 블루투스 이어폰">
+          </div>
+          
+          <div class="input-group">
+            <label class="label">제품 설명</label>
+            <textarea id="product-desc" placeholder="제품의 주요 특징, 재질, 용도 등을 입력하세요"></textarea>
+          </div>
+          
+          <div class="input-group">
+            <label class="label">판매 가격 (원)</label>
+            <input type="number" id="product-price" placeholder="29900">
+          </div>
+          
+          <div class="input-group">
+            <label class="label">타겟 고객</label>
+            <select id="target-customer">
+              <option value="일반">일반</option>
+              <option value="20대여성">20대 여성</option>
+              <option value="30대직장인">30대 직장인</option>
+              <option value="주부">주부</option>
+              <option value="시니어">시니어</option>
+              <option value="학생">학생</option>
+            </select>
+          </div>
+          
+          <div class="input-group">
+            <label class="label">콘텐츠 스타일</label>
+            <select id="content-style">
+              <option value="감성형">감성형 (스토리텔링)</option>
+              <option value="이성형">이성형 (스펙 중심)</option>
+              <option value="혼합형">혼합형 (균형)</option>
+            </select>
+          </div>
+          
+          <button class="btn-primary" id="btn-generate" disabled>
+            ✨ 모든 콘텐츠 생성하기
+          </button>
+          
+          <button class="btn-secondary btn-small" id="btn-quality">
+            🔍 이미지 품질 분석
+          </button>
+          
+          <button class="btn-secondary btn-small" id="btn-thumbnail">
+            🎯 썸네일 추천
+          </button>
+          
+          <button class="btn-secondary btn-small" id="btn-competitor">
+            📊 경쟁사 분석
+          </button>
+        </div>
+      </div>
+
+      <!-- 오른쪽: 결과 -->
+      <div>
+        <div class="box">
+          <div class="tabs">
+            <div class="tab active" data-tab="all">📦 전체 콘텐츠</div>
+            <div class="tab" data-tab="quality">🔍 품질 분석</div>
+            <div class="tab" data-tab="thumbnail">🎯 썸네일</div>
+            <div class="tab" data-tab="competitor">📊 경쟁 분석</div>
+            <div class="tab" data-tab="target">🎭 타겟별</div>
+            <div class="tab" data-tab="social">📱 소셜미디어</div>
+          </div>
+          
+          <!-- 로딩 -->
+          <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p style="color: #64748b; font-weight: 600;">AI가 콘텐츠를 생성하고 있습니다...</p>
+          </div>
+          
+          <!-- 전체 콘텐츠 -->
+          <div class="tab-content" id="content-all">
+            <div class="alert alert-info">
+              👈 왼쪽에서 제품 이미지와 정보를 입력한 후 생성 버튼을 클릭하세요!
+            </div>
+          </div>
+          
+          <!-- 품질 분석 -->
+          <div class="tab-content" id="content-quality" style="display: none;">
+            <div class="alert alert-info">
+              이미지를 업로드한 후 "이미지 품질 분석" 버튼을 클릭하세요.
+            </div>
+          </div>
+          
+          <!-- 썸네일 추천 -->
+          <div class="tab-content" id="content-thumbnail" style="display: none;">
+            <div class="alert alert-info">
+              2장 이상의 이미지를 업로드한 후 "썸네일 추천" 버튼을 클릭하세요.
+            </div>
+          </div>
+          
+          <!-- 경쟁 분석 -->
+          <div class="tab-content" id="content-competitor" style="display: none;">
+            <div class="alert alert-info">
+              제품명과 가격을 입력한 후 "경쟁사 분석" 버튼을 클릭하세요.
+            </div>
+          </div>
+          
+          <!-- 타겟별 -->
+          <div class="tab-content" id="content-target" style="display: none;">
+            <div class="alert alert-info">
+              타겟 고객을 선택하고 생성 버튼을 클릭하세요.
+            </div>
+          </div>
+          
+          <!-- 소셜미디어 -->
+          <div class="tab-content" id="content-social" style="display: none;">
+            <div class="input-group">
+              <label class="label">플랫폼 선택</label>
+              <select id="social-platform">
+                <option value="인스타그램">인스타그램</option>
+                <option value="페이스북">페이스북</option>
+                <option value="블로그">블로그</option>
+                <option value="유튜브">유튜브</option>
+              </select>
+            </div>
+            <button class="btn-primary btn-small" id="btn-social">
+              📱 소셜미디어 콘텐츠 생성
+            </button>
+            <div id="social-result" style="margin-top: 1rem;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let uploadedImages = [];
+  let currentTab = 'all';
+
+  // DOM 요소
+  const uploadArea = document.getElementById('upload-area');
+  const fileInput = document.getElementById('file-input');
+  const previewGrid = document.getElementById('preview-grid');
+  const imageCount = document.getElementById('image-count');
+  const generateBtn = document.getElementById('btn-generate');
+  const loading = document.getElementById('loading');
+
+  // 이미지 업로드 영역 클릭
+  uploadArea.addEventListener('click', () => fileInput.click());
+
+  // 파일 선택
+  fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+  });
+
+  // 드래그 앤 드롭
+  uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.classList.add('dragover');
+  });
+
+  uploadArea.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('dragover');
+  });
+
+  uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  // 파일 처리
+  function handleFiles(files) {
+    const maxFiles = 5;
+    const remainingSlots = maxFiles - uploadedImages.length;
+    
+    if (remainingSlots <= 0) {
+      alert('최대 5장까지만 업로드할 수 있습니다.');
+      return;
+    }
+    
+    const filesToAdd = Array.from(files).slice(0, remainingSlots);
+    
+    filesToAdd.forEach(file => {
+      if (!file.type.startsWith('image/')) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`${file.name}은(는) 5MB를 초과합니다.`);
+        return;
+      }
+      
+      uploadedImages.push(file);
+      
+      // 미리보기
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const div = document.createElement('div');
+        div.className = 'image-preview-item';
+        div.innerHTML = `
+          <img src="${e.target.result}" alt="Preview">
+          <button class="remove-btn" onclick="removeImage(${uploadedImages.length - 1})">×</button>
+        `;
+        previewGrid.appendChild(div);
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    updateImageCount();
+    checkGenerateButton();
+  }
+
+  // 이미지 제거
+  window.removeImage = function(index) {
+    uploadedImages.splice(index, 1);
+    renderPreviews();
+    updateImageCount();
+    checkGenerateButton();
+  };
+
+  // 미리보기 다시 그리기
+  function renderPreviews() {
+    previewGrid.innerHTML = '';
+    uploadedImages.forEach((file, idx) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const div = document.createElement('div');
+        div.className = 'image-preview-item';
+        div.innerHTML = `
+          <img src="${e.target.result}" alt="Preview">
+          <button class="remove-btn" onclick="removeImage(${idx})">×</button>
+        `;
+        previewGrid.appendChild(div);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // 이미지 카운트 업데이트
+  function updateImageCount() {
+    imageCount.textContent = `${uploadedImages.length}/5`;
+  }
+
+  // 생성 버튼 활성화 체크
+  function checkGenerateButton() {
+    const hasImages = uploadedImages.length > 0;
+    const hasName = document.getElementById('product-name').value.trim() !== '';
+    generateBtn.disabled = !(hasImages && hasName);
+  }
+
+  document.getElementById('product-name').addEventListener('input', checkGenerateButton);
+
+  // 탭 전환
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      const tabName = tab.dataset.tab;
+      currentTab = tabName;
+      
+      document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+      document.getElementById('content-' + tabName).style.display = 'block';
+    });
+  });
+
+  // 전체 콘텐츠 생성
+  generateBtn.addEventListener('click', async () => {
+    loading.classList.add('show');
+    
+    const formData = new FormData();
+    uploadedImages.forEach(img => formData.append('images', img));
+    formData.append('product_name', document.getElementById('product-name').value);
+    formData.append('product_desc', document.getElementById('product-desc').value);
+    formData.append('price', document.getElementById('product-price').value);
+    formData.append('target', document.getElementById('target-customer').value);
+    formData.append('style', document.getElementById('content-style').value);
+    
+    try {
+      const res = await fetch('/api/content/generate-all', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        showResult('all', data.result);
+      } else {
+        showError('all', data.error);
+      }
+    } catch (err) {
+      showError('all', err.message);
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  // 이미지 품질 분석
+  document.getElementById('btn-quality').addEventListener('click', async () => {
+    if (uploadedImages.length === 0) {
+      alert('먼저 이미지를 업로드하세요.');
+      return;
+    }
+    
+    switchTab('quality');
+    loading.classList.add('show');
+    
+    const formData = new FormData();
+    uploadedImages.forEach(img => formData.append('images', img));
+    
+    try {
+      const res = await fetch('/api/content/analyze-quality', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        showResult('quality', data.result);
+      } else {
+        showError('quality', data.error);
+      }
+    } catch (err) {
+      showError('quality', err.message);
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  // 썸네일 추천
+  document.getElementById('btn-thumbnail').addEventListener('click', async () => {
+    if (uploadedImages.length < 2) {
+      alert('비교할 이미지가 2장 이상 필요합니다.');
+      return;
+    }
+    
+    switchTab('thumbnail');
+    loading.classList.add('show');
+    
+    const formData = new FormData();
+    uploadedImages.forEach(img => formData.append('images', img));
+    
+    try {
+      const res = await fetch('/api/content/recommend-thumbnail', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        showResult('thumbnail', data.result);
+      } else {
+        showError('thumbnail', data.error);
+      }
+    } catch (err) {
+      showError('thumbnail', err.message);
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  // 경쟁사 분석
+  document.getElementById('btn-competitor').addEventListener('click', async () => {
+    const productName = document.getElementById('product-name').value;
+    const price = document.getElementById('product-price').value;
+    
+    if (!productName) {
+      alert('제품명을 입력하세요.');
+      return;
+    }
+    
+    switchTab('competitor');
+    loading.classList.add('show');
+    
+    try {
+      const res = await fetch('/api/content/competitor-analysis', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          product_name: productName,
+          price: price
+        })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        showResult('competitor', data.result);
+      } else {
+        showError('competitor', data.error);
+      }
+    } catch (err) {
+      showError('competitor', err.message);
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  // 소셜미디어 콘텐츠
+  document.getElementById('btn-social').addEventListener('click', async () => {
+    const productName = document.getElementById('product-name').value;
+    const productDesc = document.getElementById('product-desc').value;
+    const platform = document.getElementById('social-platform').value;
+    
+    if (!productName) {
+      alert('제품명을 입력하세요.');
+      return;
+    }
+    
+    loading.classList.add('show');
+    
+    try {
+      const res = await fetch('/api/content/social-media', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          product_name: productName,
+          product_desc: productDesc,
+          platform: platform
+        })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        document.getElementById('social-result').innerHTML = createResultHTML(data.result);
+      } else {
+        document.getElementById('social-result').innerHTML = `<div class="alert alert-warning">오류: ${data.error}</div>`;
+      }
+    } catch (err) {
+      document.getElementById('social-result').innerHTML = `<div class="alert alert-warning">오류: ${err.message}</div>`;
+    } finally {
+      loading.classList.remove('show');
+    }
+  });
+
+  // 탭 전환 헬퍼
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(tc => tc.style.display = 'none');
+    document.getElementById('content-' + tabName).style.display = 'block';
+  }
+
+  // 결과 표시
+  function showResult(tab, content) {
+    const container = document.getElementById('content-' + tab);
+    container.innerHTML = createResultHTML(content);
+  }
+
+  // 에러 표시
+  function showError(tab, error) {
+    const container = document.getElementById('content-' + tab);
+    container.innerHTML = `<div class="alert alert-warning">⚠️ 오류 발생: ${error}</div>`;
+  }
+
+  // 결과 HTML 생성
+  function createResultHTML(content) {
+    return `
+      <div class="result-section">
+        <h3>
+          생성된 콘텐츠
+          <button class="copy-btn" onclick="copyToClipboard(this)">📋 전체 복사</button>
+        </h3>
+        <div class="result-content">${formatContent(content)}</div>
+      </div>
+    `;
+  }
+
+  // 콘텐츠 포맷팅
+  function formatContent(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/###\s(.+)/g, '<h3 style="color: #667eea; margin: 1.5rem 0 0.75rem 0; font-size: 1.2rem;">$1</h3>')
+      .replace(/##\s(.+)/g, '<h2 style="color: #764ba2; margin: 1.5rem 0 0.75rem 0; font-size: 1.4rem;">$1</h2>')
+      .replace(/\n/g, '<br>');
+  }
+
+  // 클립보드 복사
+  window.copyToClipboard = function(btn) {
+    const content = btn.parentElement.nextElementSibling.innerText;
+    navigator.clipboard.writeText(content).then(() => {
+      const originalText = btn.textContent;
+      btn.textContent = '✅ 복사됨!';
+      btn.style.background = '#10b981';
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = '';
+      }, 2000);
+    });
+  };
+  </script>
+</body>
+</html>
