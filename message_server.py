@@ -160,7 +160,7 @@ def api_image_prompt():
     data = request.json or {}
     guide = data.get("guide", "")
     message = data.get("message", "")
-    time = data.get("time", "morning")  # morning or evening
+    time = data.get("time", "morning")
 
     time_name = "오전" if time == "morning" else "저녁"
     print(f"[IMAGE_PROMPT] {time_name} =>", {"len_message": len(message)})
@@ -171,11 +171,32 @@ def api_image_prompt():
             messages=[
                 {
                     "role": "system",
-                    "content": "You create image and music generation prompts based on devotional messages."
+                    "content": "You create image and music generation prompts IN ENGLISH based on devotional messages. Always respond in English."
                 },
                 {
                     "role": "user",
-                    "content": f"[이미지 프롬프트 지침]\n{guide}\n\n[{time_name} 메시지]\n{message}\n\n위 메시지에 맞는 이미지 3개와 배경음악 1개를 생성하는 프롬프트를 작성해주세요."
+                    "content": f"""[Image Prompt Guidelines]
+{guide}
+
+[Message]
+{message}
+
+Create 3 separate image prompts and 1 music prompt based on the message above. 
+Format your response EXACTLY like this:
+
+### Image Prompt 1
+[detailed English prompt for first image]
+
+### Image Prompt 2
+[detailed English prompt for second image]
+
+### Image Prompt 3
+[detailed English prompt for third image]
+
+### Music Prompt
+[detailed English prompt for background music]
+
+IMPORTANT: Write ALL prompts in English only."""
                 }
             ],
             temperature=0.7,

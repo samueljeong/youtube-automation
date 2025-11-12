@@ -295,27 +295,80 @@
         <textarea id="translation" class="autosize" placeholder="번역된 내용이 여기에 표시됩니다." readonly></textarea>
       </div>
 
-      <!-- 이미지 프롬프트 -->
-      <div class="split-boxes">
-        <div class="box">
-          <div class="toggle-header">
-            <label class="label">오전 이미지 프롬프트</label>
-            <button class="copy-btn" data-copy="morning-img-prompt">📋 복사</button>
-          </div>
-          <textarea id="morning-img-prompt" class="autosize" placeholder="오전 이미지 프롬프트가 여기에 표시됩니다." readonly></textarea>
-        </div>
-
-        <div class="box">
-          <div class="toggle-header">
-            <label class="label">저녁 이미지 프롬프트</label>
-            <button class="copy-btn" data-copy="evening-img-prompt">📋 복사</button>
-          </div>
-          <textarea id="evening-img-prompt" class="autosize" placeholder="저녁 이미지 프롬프트가 여기에 표시됩니다." readonly></textarea>
-        </div>
+<!-- 이미지 프롬프트 -->
+<div class="split-boxes">
+  <div class="box">
+    <label class="label" style="margin-bottom: 1rem;">오전 이미지 프롬프트</label>
+    
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 1</span>
+        <button class="copy-btn" data-copy="morning-img-1">📋 복사</button>
       </div>
+      <textarea id="morning-img-1" class="autosize" style="min-height: 60px;" placeholder="Image prompt 1" readonly></textarea>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 2</span>
+        <button class="copy-btn" data-copy="morning-img-2">📋 복사</button>
+      </div>
+      <textarea id="morning-img-2" class="autosize" style="min-height: 60px;" placeholder="Image prompt 2" readonly></textarea>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 3</span>
+        <button class="copy-btn" data-copy="morning-img-3">📋 복사</button>
+      </div>
+      <textarea id="morning-img-3" class="autosize" style="min-height: 60px;" placeholder="Image prompt 3" readonly></textarea>
+    </div>
+
+    <div>
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Music Prompt</span>
+        <button class="copy-btn" data-copy="morning-music">📋 복사</button>
+      </div>
+      <textarea id="morning-music" class="autosize" style="min-height: 60px;" placeholder="Music prompt" readonly></textarea>
     </div>
   </div>
 
+  <div class="box">
+    <label class="label" style="margin-bottom: 1rem;">저녁 이미지 프롬프트</label>
+    
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 1</span>
+        <button class="copy-btn" data-copy="evening-img-1">📋 복사</button>
+      </div>
+      <textarea id="evening-img-1" class="autosize" style="min-height: 60px;" placeholder="Image prompt 1" readonly></textarea>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 2</span>
+        <button class="copy-btn" data-copy="evening-img-2">📋 복사</button>
+      </div>
+      <textarea id="evening-img-2" class="autosize" style="min-height: 60px;" placeholder="Image prompt 2" readonly></textarea>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Image Prompt 3</span>
+        <button class="copy-btn" data-copy="evening-img-3">📋 복사</button>
+      </div>
+      <textarea id="evening-img-3" class="autosize" style="min-height: 60px;" placeholder="Image prompt 3" readonly></textarea>
+    </div>
+
+    <div>
+      <div class="toggle-header" style="margin-bottom: .5rem;">
+        <span style="font-size: .9rem; color: #94a3b8;">Music Prompt</span>
+        <button class="copy-btn" data-copy="evening-music">📋 복사</button>
+      </div>
+      <textarea id="evening-music" class="autosize" style="min-height: 60px;" placeholder="Music prompt" readonly></textarea>
+    </div>
+  </div>
+</div>
   <!-- 진행 상태 -->
   <div id="status-bar" class="status-bar">작업 중...</div>
 
@@ -532,69 +585,111 @@
     });
   });
 
-  // 오전 이미지 프롬프트
-  document.getElementById('btn-morning-img').addEventListener('click', () => {
-    const message = document.getElementById('morning-message').value;
-    if (!message) {
-      alert('먼저 오전 메시지를 생성하세요.');
-      return;
+// 오전 이미지 프롬프트
+document.getElementById('btn-morning-img').addEventListener('click', () => {
+  const message = document.getElementById('morning-message').value;
+  if (!message) {
+    alert('먼저 오전 메시지를 생성하세요.');
+    return;
+  }
+
+  showStatus("오전 이미지 프롬프트 생성 중...");
+  const guide = document.getElementById('guide-image').value;
+
+  fetch("/api/message/image-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guide, message, time: 'morning' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.result) {
+      // 응답을 파싱해서 각 프롬프트로 분리
+      const result = data.result;
+      const sections = result.split('###').filter(s => s.trim());
+      
+      sections.forEach(section => {
+        const lines = section.trim().split('\n');
+        const title = lines[0].trim().toLowerCase();
+        const content = lines.slice(1).join('\n').trim();
+        
+        if (title.includes('image prompt 1') || title.includes('image 1')) {
+          document.getElementById('morning-img-1').value = content;
+        } else if (title.includes('image prompt 2') || title.includes('image 2')) {
+          document.getElementById('morning-img-2').value = content;
+        } else if (title.includes('image prompt 3') || title.includes('image 3')) {
+          document.getElementById('morning-img-3').value = content;
+        } else if (title.includes('music')) {
+          document.getElementById('morning-music').value = content;
+        }
+      });
+      
+      // 모든 textarea 높이 재조정
+      ['morning-img-1', 'morning-img-2', 'morning-img-3', 'morning-music'].forEach(id => {
+        autoResize(document.getElementById(id));
+      });
+    } else if (data.error) {
+      alert("오류: " + data.error);
     }
+  })
+  .catch(err => {
+    alert("오류 발생: " + err.message);
+  })
+  .finally(hideStatus);
+});
 
-    showStatus("오전 이미지 프롬프트 생성 중...");
-    const guide = document.getElementById('guide-image').value;
+// 저녁 이미지 프롬프트
+document.getElementById('btn-evening-img').addEventListener('click', () => {
+  const message = document.getElementById('evening-message').value;
+  if (!message) {
+    alert('먼저 저녁 메시지를 생성하세요.');
+    return;
+  }
 
-    fetch("/api/message/image-prompt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guide, message, time: 'morning' })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const box = document.getElementById('morning-img-prompt');
-      if (data.result) {
-        box.value = data.result;
-      } else if (data.error) {
-        box.value = "오류: " + data.error;
-      }
-      autoResize(box);
-    })
-    .catch(err => {
-      document.getElementById('morning-img-prompt').value = "오류 발생: " + err.message;
-    })
-    .finally(hideStatus);
-  });
+  showStatus("저녁 이미지 프롬프트 생성 중...");
+  const guide = document.getElementById('guide-image').value;
 
-  // 저녁 이미지 프롬프트
-  document.getElementById('btn-evening-img').addEventListener('click', () => {
-    const message = document.getElementById('evening-message').value;
-    if (!message) {
-      alert('먼저 저녁 메시지를 생성하세요.');
-      return;
+  fetch("/api/message/image-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guide, message, time: 'evening' })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.result) {
+      // 응답을 파싱해서 각 프롬프트로 분리
+      const result = data.result;
+      const sections = result.split('###').filter(s => s.trim());
+      
+      sections.forEach(section => {
+        const lines = section.trim().split('\n');
+        const title = lines[0].trim().toLowerCase();
+        const content = lines.slice(1).join('\n').trim();
+        
+        if (title.includes('image prompt 1') || title.includes('image 1')) {
+          document.getElementById('evening-img-1').value = content;
+        } else if (title.includes('image prompt 2') || title.includes('image 2')) {
+          document.getElementById('evening-img-2').value = content;
+        } else if (title.includes('image prompt 3') || title.includes('image 3')) {
+          document.getElementById('evening-img-3').value = content;
+        } else if (title.includes('music')) {
+          document.getElementById('evening-music').value = content;
+        }
+      });
+      
+      // 모든 textarea 높이 재조정
+      ['evening-img-1', 'evening-img-2', 'evening-img-3', 'evening-music'].forEach(id => {
+        autoResize(document.getElementById(id));
+      });
+    } else if (data.error) {
+      alert("오류: " + data.error);
     }
-
-    showStatus("저녁 이미지 프롬프트 생성 중...");
-    const guide = document.getElementById('guide-image').value;
-
-    fetch("/api/message/image-prompt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guide, message, time: 'evening' })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const box = document.getElementById('evening-img-prompt');
-      if (data.result) {
-        box.value = data.result;
-      } else if (data.error) {
-        box.value = "오류: " + data.error;
-      }
-      autoResize(box);
-    })
-    .catch(err => {
-      document.getElementById('evening-img-prompt').value = "오류 발생: " + err.message;
-    })
-    .finally(hideStatus);
-  });
+  })
+  .catch(err => {
+    alert("오류 발생: " + err.message);
+  })
+  .finally(hideStatus);
+});
   </script>
 </body>
 </html>
