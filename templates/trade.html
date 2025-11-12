@@ -351,31 +351,78 @@
     🔄 환율 불러오는 중...
   </div>
   
-  <!-- 1688 링크 분석 추가 -->
+  <!-- 스크린샷 붙여넣기 영역 -->
   <div class="input-group">
-    <label class="label">🔗 1688/타오바오 링크</label>
-    <input type="text" id="product-link" placeholder="https://detail.1688.com/...">
+    <label class="label">📸 제품 스크린샷</label>
+    <div id="paste-area" style="
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s;
+    ">
+      <div id="paste-placeholder">
+        <p style="margin: 0; font-size: 1.1rem; color: #64748b;">
+          📋 여기를 클릭하고 <strong style="color: #3b82f6;">Ctrl+V</strong>로 스크린샷 붙여넣기
+        </p>
+        <p style="margin: .5rem 0 0 0; font-size: .85rem; color: #94a3b8;">
+          또는 이미지 파일을 드래그해서 놓으세요
+        </p>
+      </div>
+      <div id="paste-preview" style="display: none;">
+        <img id="preview-img" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-bottom: 1rem;">
+        <p style="margin: 0; color: #10b981; font-weight: 600;">✅ 이미지가 준비되었습니다!</p>
+      </div>
+    </div>
   </div>
   
-  <button id="btn-parse-link" class="secondary" style="margin-bottom: 1rem;">
-    🤖 링크에서 제품 정보 자동 추출
+  <button id="btn-analyze-image" class="success" style="margin-bottom: 1rem;" disabled>
+    🤖 이미지에서 제품 정보 자동 추출
   </button>
   
-  <div id="parse-result" style="display: none; margin-bottom: 1rem;"></div>
+  <div id="image-result" style="display: none; margin-bottom: 1rem;"></div>
   
+  <div style="text-align: center; color: #94a3b8; margin: 1rem 0; font-size: .9rem;">
+    또는 수동 입력
+  </div>
+  
+  <!-- 수동 입력 -->
   <div class="input-group">
     <label class="label">제품명</label>
     <input type="text" id="product-name" placeholder="예: 무선 블루투스 이어폰">
   </div>
   
   <div class="input-group">
-    <label class="label">제품 설명 (HS코드 추천용)</label>
-    <textarea id="product-desc" placeholder="제품의 재질, 용도, 특징 등을 입력하세요"></textarea>
+    <label class="label">제품 설명</label>
+    <textarea id="product-desc" placeholder="제품의 재질, 용도, 특징 등"></textarea>
   </div>
   
   <button id="btn-hs-recommend" class="secondary">🔍 HS코드 추천받기</button>
   
-  <!-- 나머지 코드 동일 -->
+  <div class="input-row" style="margin-top: 1rem;">
+    <div>
+      <label class="label">제품 가격 (위안 ¥)</label>
+      <input type="number" id="product-price" placeholder="0" step="0.01">
+    </div>
+    <div>
+      <label class="label">수량</label>
+      <input type="number" id="product-qty" placeholder="0" min="1">
+    </div>
+  </div>
+  
+  <div class="input-row">
+    <div>
+      <label class="label">무게 (kg/개)</label>
+      <input type="number" id="product-weight" placeholder="0" step="0.1">
+    </div>
+    <div>
+      <label class="label">HS코드</label>
+      <input type="text" id="hs-code" placeholder="0000.00.0000">
+    </div>
+  </div>
+</div>
         
         <div class="input-group">
           <label class="label">제품명</label>
@@ -1352,79 +1399,157 @@
     link.click();
   });
 
-  // 1688 링크 파싱
-document.getElementById('btn-parse-link').addEventListener('click', () => {
-  const link = document.getElementById('product-link').value.trim();
+  // 전역 변수
+let capturedImage = null;
+
+// 붙여넣기 영역 설정
+const pasteArea = document.getElementById('paste-area');
+const pastePlaceholder = document.getElementById('paste-placeholder');
+const pastePreview = document.getElementById('paste-preview');
+const previewImg = document.getElementById('preview-img');
+const analyzeBtn = document.getElementById('btn-analyze-image');
+
+// 붙여넣기 영역 클릭 시 포커스
+pasteArea.addEventListener('click', () => {
+  pasteArea.focus();
+});
+
+// 붙여넣기 영역 hover 효과
+pasteArea.addEventListener('mouseenter', () => {
+  pasteArea.style.borderColor = '#3b82f6';
+  pasteArea.style.background = '#eff6ff';
+});
+pasteArea.addEventListener('mouseleave', () => {
+  pasteArea.style.borderColor = '#cbd5e1';
+  pasteArea.style.background = '#f8fafc';
+});
+
+// 드래그 앤 드롭 지원
+pasteArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  pasteArea.style.borderColor = '#3b82f6';
+  pasteArea.style.background = '#dbeafe';
+});
+
+pasteArea.addEventListener('dragleave', () => {
+  pasteArea.style.borderColor = '#cbd5e1';
+  pasteArea.style.background = '#f8fafc';
+});
+
+pasteArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  pasteArea.style.borderColor = '#cbd5e1';
+  pasteArea.style.background = '#f8fafc';
   
-  if (!link) {
-    alert('링크를 입력해주세요.');
+  const files = e.dataTransfer.files;
+  if (files.length > 0 && files[0].type.startsWith('image/')) {
+    handleImageFile(files[0]);
+  }
+});
+
+// 붙여넣기 이벤트
+pasteArea.addEventListener('paste', (e) => {
+  const items = e.clipboardData.items;
+  
+  for (let item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile();
+      handleImageFile(file);
+      break;
+    }
+  }
+});
+
+// 이미지 파일 처리
+function handleImageFile(file) {
+  // 파일 크기 체크 (5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    alert('이미지 크기가 너무 큽니다. 5MB 이하의 이미지를 사용해주세요.');
     return;
   }
   
-  if (!link.includes('1688.com') && !link.includes('taobao.com') && !link.includes('tmall.com')) {
-    alert('1688, 타오바오, 티몰 링크만 지원됩니다.');
+  // 미리보기 표시
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    previewImg.src = e.target.result;
+    pastePlaceholder.style.display = 'none';
+    pastePreview.style.display = 'block';
+    analyzeBtn.disabled = false;
+    analyzeBtn.style.opacity = '1';
+  };
+  reader.readAsDataURL(file);
+  
+  // 파일 저장
+  capturedImage = file;
+}
+
+// 이미지 분석 버튼
+analyzeBtn.addEventListener('click', () => {
+  if (!capturedImage) {
+    alert('먼저 이미지를 붙여넣거나 드래그해주세요.');
     return;
   }
   
-  const btn = document.getElementById('btn-parse-link');
-  const originalText = btn.textContent;
-  btn.textContent = '🔄 분석 중...';
-  btn.disabled = true;
+  const originalText = analyzeBtn.textContent;
+  analyzeBtn.textContent = '🔄 분석 중...';
+  analyzeBtn.disabled = true;
   
-  const parseResult = document.getElementById('parse-result');
-  parseResult.style.display = 'block';
-  parseResult.innerHTML = '<div class="alert alert-info">🔍 페이지를 분석하고 있습니다...</div>';
+  const imageResult = document.getElementById('image-result');
+  imageResult.style.display = 'block';
+  imageResult.innerHTML = `
+    <div class="alert alert-info">
+      🤖 AI가 이미지를 분석하고 있습니다...<br>
+      제품 사진, 제목, 가격, 스펙 등을 확인 중입니다.
+    </div>
+  `;
   
-  fetch('/api/trade/parse-1688', {
+  // FormData로 이미지 전송
+  const formData = new FormData();
+  formData.append('image', capturedImage);
+  
+  fetch('/api/trade/analyze-image', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ url: link })
+    body: formData
   })
   .then(res => res.json())
   .then(data => {
     if (data.ok && data.result) {
-      parseResult.innerHTML = `
+      imageResult.innerHTML = `
         <div class="alert alert-success">
-          <strong>✅ 제품 정보 추출 완료!</strong><br><br>
+          <strong>✅ 이미지 분석 완료!</strong><br><br>
           ${data.result.replace(/\n/g, '<br>')}
         </div>
-        <button class="small success" onclick="applyParsedInfo()">⬇️ 정보 적용하기</button>
+        <button class="small success" onclick="applyAnalyzedInfo()">⬇️ 정보 적용하기</button>
       `;
       
-      // 결과를 임시 저장
-      window.parsedProductInfo = data.result;
+      window.analyzedProductInfo = data.result;
     } else {
-      parseResult.innerHTML = `
+      imageResult.innerHTML = `
         <div class="alert alert-warning">
-          ⚠️ ${data.error || '제품 정보를 추출할 수 없습니다.'}<br><br>
-          <strong>수동으로 입력해주세요:</strong><br>
-          1. 페이지에서 제품명 복사<br>
-          2. 제품 설명 복사<br>
-          3. 아래 입력란에 붙여넣기
+          ⚠️ ${data.error || '이미지를 분석할 수 없습니다.'}<br><br>
+          다른 스크린샷을 시도하거나 수동으로 입력해주세요.
         </div>
       `;
     }
   })
   .catch(err => {
-    parseResult.innerHTML = `
+    imageResult.innerHTML = `
       <div class="alert alert-warning">
         ⚠️ 오류 발생: ${err.message}<br><br>
-        1688 페이지가 로그인을 요구하거나 차단했을 수 있습니다.<br>
-        수동으로 제품명과 설명을 복사해서 입력해주세요.
+        다시 시도하거나 수동으로 입력해주세요.
       </div>
     `;
   })
   .finally(() => {
-    btn.textContent = originalText;
-    btn.disabled = false;
+    analyzeBtn.textContent = originalText;
+    analyzeBtn.disabled = false;
   });
 });
 
-// 추출된 정보 적용
-window.applyParsedInfo = function() {
-  if (!window.parsedProductInfo) return;
-  
-  const info = window.parsedProductInfo;
+// 분석된 정보 적용
+window.applyAnalyzedInfo = function() {
+  const info = window.analyzedProductInfo;
+  if (!info) return;
   
   // 제품명 추출
   const nameMatch = info.match(/\*\*제품명\*\*[:\s]+(.+?)(?:\n|$)/);
@@ -1450,11 +1575,23 @@ window.applyParsedInfo = function() {
     document.getElementById('product-price').value = priceMatch[1].trim();
   }
   
-  alert('정보가 적용되었습니다! 필요시 수정해주세요.');
+  // 무게 추출
+  const weightMatch = info.match(/무게[:\s]+([\d.]+)\s*kg/i);
+  if (weightMatch) {
+    document.getElementById('product-weight').value = weightMatch[1].trim();
+  }
   
-  // 파싱 결과 박스 숨기기
-  document.getElementById('parse-result').style.display = 'none';
+  alert('✅ 정보가 적용되었습니다! 필요시 수정해주세요.');
+  
+  // 결과 박스 숨기기
+  document.getElementById('image-result').style.display = 'none';
+  
+  // 이미지 영역 초기화
+  pastePlaceholder.style.display = 'block';
+  pastePreview.style.display = 'none';
+  capturedImage = null;
 };
+
   </script>
 </body>
 </html>
