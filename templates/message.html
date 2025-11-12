@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>묵상 메시지 생성기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { 
+      margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .page-wrap { 
+      display: flex; 
+      gap: 1rem; 
+      padding: 1rem; 
+      min-height: 100vh;
+    }
+    .left-col { 
+      width: 360px; 
+      display: flex; 
+      flex-direction: column; 
+      gap: .75rem; 
+    }
+    .right-col { 
+      flex: 1; 
+      display: flex; 
+      flex-direction: column; 
+      gap: .75rem; 
+      min-width: 0; 
+    }
+    .box { 
+      background: #1e293b; 
+      border: 1px solid #334155; 
+      border-radius: 12px; 
+      padding: 1rem; 
+    }
+    .label { 
+      font-weight: 600; 
+      margin-bottom: .5rem; 
+      display: block;
+      color: #f1f5f9;
+    }
+    input[type="text"], input[type="number"], select { 
+      width: 100%; 
+      padding: .5rem; 
+      background: #0f172a; 
+      border: 1px solid #475569; 
+      border-radius: 8px; 
+      color: #e2e8f0;
+      font-size: 0.95rem;
+    }
+    textarea { 
+      width: 100%; 
+      min-height: 80px; 
+      resize: vertical; 
+      box-sizing: border-box; 
+      font-family: inherit; 
+      line-height: 1.6; 
+      padding: .75rem;
+      background: #0f172a; 
+      border: 1px solid #475569; 
+      border-radius: 8px; 
+      color: #e2e8f0;
+      font-size: 0.95rem;
+    }
+    textarea.autosize { overflow: hidden; }
+    
+    .date-input {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .date-input input {
+      width: 70px;
+      text-align: center;
+    }
+    .date-input span {
+      color: #94a3b8;
+    }
+    
+    .btn-row { 
+      display: flex; 
+      gap: .5rem; 
+      flex-wrap: wrap; 
+    }
+    button { 
+      padding: .6rem 1rem; 
+      border: 1px solid #3b82f6; 
+      background: #2563eb; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      color: white;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    button:hover { 
+      background: #1d4ed8; 
+      transform: translateY(-1px);
+    }
+    button.secondary {
+      background: #475569;
+      border-color: #64748b;
+    }
+    button.secondary:hover {
+      background: #334155;
+    }
+    
+    .toggle-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: .75rem;
+    }
+    .copy-btn { 
+      font-size: .85rem; 
+      padding: .35rem .7rem; 
+      background: #0f172a; 
+      border: 1px solid #475569;
+    }
+    .status-bar { 
+      position: fixed; 
+      bottom: 20px; 
+      right: 20px; 
+      background: #1e293b; 
+      border: 1px solid #3b82f6; 
+      border-radius: 8px; 
+      padding: .75rem 1.25rem; 
+      font-size: .9rem; 
+      box-shadow: 0 4px 12px rgba(0,0,0,.3); 
+      display: none;
+      color: #60a5fa;
+    }
+    .guide-tabs {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: .75rem;
+    }
+    .guide-tab {
+      padding: .5rem 1rem;
+      background: #0f172a;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .9rem;
+      transition: all 0.2s;
+    }
+    .guide-tab.active {
+      background: #2563eb;
+      border-color: #3b82f6;
+      color: white;
+    }
+    .guide-content {
+      display: none;
+    }
+    .guide-content.active {
+      display: block;
+    }
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .75rem;
+    }
+    .message-actions {
+      display: flex;
+      gap: .5rem;
+    }
+    .split-boxes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 1200px) {
+      .split-boxes {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- 왼쪽 -->
+    <div class="left-col">
+      <!-- 날짜 -->
+      <div class="box">
+        <label class="label">날짜</label>
+        <div class="date-input">
+          <input type="number" id="month" min="1" max="12" value="11">
+          <span>월</span>
+          <input type="number" id="day" min="1" max="31" value="12">
+          <span>일 (<span id="day-of-week">수</span>)</span>
+        </div>
+      </div>
+
+      <!-- 본문 -->
+      <div class="box">
+        <label class="label">본문</label>
+        <input type="text" id="bible-ref" placeholder="예: 레위기 26:13">
+      </div>
+
+      <!-- 본문 내용 -->
+      <div class="box">
+        <label class="label">본문 내용</label>
+        <textarea id="bible-text" class="autosize" placeholder="성경 구절 전체를 여기에 붙여넣으세요."></textarea>
+      </div>
+
+      <!-- 메시지 생성 버튼 -->
+      <div class="box">
+        <div class="btn-row">
+          <button id="btn-morning">☀️ 오전 메시지</button>
+          <button id="btn-evening">🌙 저녁 메시지</button>
+        </div>
+      </div>
+
+      <!-- 이미지 프롬프트 생성 버튼 -->
+      <div class="box">
+        <div class="btn-row">
+          <button id="btn-morning-img" class="secondary">🖼️ 오전 이미지 프롬프트</button>
+          <button id="btn-evening-img" class="secondary">🖼️ 저녁 이미지 프롬프트</button>
+        </div>
+      </div>
+
+      <!-- 생성 상태 -->
+      <div id="status-indicator" style="text-align: center; color: #60a5fa; display: none;">
+        ⏳ GPT 생성 중...
+      </div>
+    </div>
+
+    <!-- 오른쪽 -->
+    <div class="right-col">
+      <!-- 지침 영역 -->
+      <div class="box" id="guide-box">
+        <div class="toggle-header">
+          <span class="label">지침 영역</span>
+          <button id="toggle-guides" class="secondary">닫기</button>
+        </div>
+        <div id="guide-inner">
+          <div class="guide-tabs">
+            <button class="guide-tab active" data-tab="morning">오전 지침</button>
+            <button class="guide-tab" data-tab="evening">저녁 지침</button>
+            <button class="guide-tab" data-tab="image">이미지 프롬프트 지침</button>
+            <button class="guide-tab" data-tab="translate">번역 지침</button>
+          </div>
+          <div class="guide-content active" data-content="morning">
+            <textarea id="guide-morning" class="autosize" placeholder="오전 메시지 생성 지침을 작성하세요."></textarea>
+          </div>
+          <div class="guide-content" data-content="evening">
+            <textarea id="guide-evening" class="autosize" placeholder="저녁 메시지 생성 지침을 작성하세요."></textarea>
+          </div>
+          <div class="guide-content" data-content="image">
+            <textarea id="guide-image" class="autosize" placeholder="이미지는 맑음 목상 메시지 배경으로 사용할거야. 사원이나 절, 이슬람 등 기독교가 아닌 다른 종교적 이미지를 사용하면 안된다."></textarea>
+          </div>
+          <div class="guide-content" data-content="translate">
+            <textarea id="guide-translate" class="autosize" placeholder="번역 지침을 작성하세요."></textarea>
+          </div>
+          <button id="save-guide" style="margin-top: .75rem;">💾 지침 저장</button>
+        </div>
+      </div>
+
+      <!-- 메시지 출력 -->
+      <div class="split-boxes">
+        <div class="box">
+          <div class="message-header">
+            <label class="label">오전 메시지</label>
+            <div class="message-actions">
+              <button class="copy-btn" data-copy="morning-message">📋 복사</button>
+              <button class="copy-btn" data-translate="morning" data-lang="en">🌐 영어</button>
+              <button class="copy-btn" data-translate="morning" data-lang="ja">🇯🇵 일본어</button>
+            </div>
+          </div>
+          <textarea id="morning-message" class="autosize" placeholder="오전 메시지가 여기에 표시됩니다." readonly></textarea>
+        </div>
+
+        <div class="box">
+          <div class="message-header">
+            <label class="label">저녁 메시지</label>
+            <div class="message-actions">
+              <button class="copy-btn" data-copy="evening-message">📋 복사</button>
+              <button class="copy-btn" data-translate="evening" data-lang="en">🌐 영어</button>
+              <button class="copy-btn" data-translate="evening" data-lang="ja">🇯🇵 일본어</button>
+            </div>
+          </div>
+          <textarea id="evening-message" class="autosize" placeholder="저녁 메시지가 여기에 표시됩니다." readonly></textarea>
+        </div>
+      </div>
+
+      <!-- 번역 -->
+      <div class="box">
+        <div class="toggle-header">
+          <label class="label">번역</label>
+          <button class="copy-btn" data-copy="translation">📋 복사</button>
+        </div>
+        <textarea id="translation" class="autosize" placeholder="번역된 내용이 여기에 표시됩니다." readonly></textarea>
+      </div>
+
+      <!-- 이미지 프롬프트 -->
+      <div class="split-boxes">
+        <div class="box">
+          <div class="toggle-header">
+            <label class="label">오전 이미지 프롬프트</label>
+            <button class="copy-btn" data-copy="morning-img-prompt">📋 복사</button>
+          </div>
+          <textarea id="morning-img-prompt" class="autosize" placeholder="오전 이미지 프롬프트가 여기에 표시됩니다." readonly></textarea>
+        </div>
+
+        <div class="box">
+          <div class="toggle-header">
+            <label class="label">저녁 이미지 프롬프트</label>
+            <button class="copy-btn" data-copy="evening-img-prompt">📋 복사</button>
+          </div>
+          <textarea id="evening-img-prompt" class="autosize" placeholder="저녁 이미지 프롬프트가 여기에 표시됩니다." readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 진행 상태 -->
+  <div id="status-bar" class="status-bar">작업 중...</div>
+
+  <script>
+  // 자동 높이 조절
+  function autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // 페이지 로드 시 autosize 적용
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('textarea.autosize').forEach(t => {
+      autoResize(t);
+      t.addEventListener('input', () => autoResize(t));
+    });
+    
+    // 초기 지침 로드
+    loadAllGuides();
+    
+    // 날짜 변경 시 요일 업데이트
+    document.getElementById('month').addEventListener('change', updateDayOfWeek);
+    document.getElementById('day').addEventListener('change', updateDayOfWeek);
+    updateDayOfWeek();
+  });
+
+  // 요일 계산 (서울 기준)
+  function updateDayOfWeek() {
+    const month = parseInt(document.getElementById('month').value);
+    const day = parseInt(document.getElementById('day').value);
+    const year = new Date().getFullYear();
+    const date = new Date(year, month - 1, day);
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    document.getElementById('day-of-week').textContent = days[date.getDay()];
+  }
+
+  // 상태 표시
+  const statusBar = document.getElementById('status-bar');
+  const statusIndicator = document.getElementById('status-indicator');
+  function showStatus(msg) {
+    statusBar.textContent = msg;
+    statusBar.style.display = 'block';
+    statusIndicator.style.display = 'block';
+  }
+  function hideStatus() {
+    statusBar.style.display = 'none';
+    statusIndicator.style.display = 'none';
+  }
+
+  // 지침 탭 전환
+  document.querySelectorAll('.guide-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.tab;
+      
+      // 탭 활성화
+      document.querySelectorAll('.guide-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      
+      // 콘텐츠 표시
+      document.querySelectorAll('.guide-content').forEach(c => c.classList.remove('active'));
+      document.querySelector(`[data-content="${tabName}"]`).classList.add('active');
+    });
+  });
+
+  // 지침 열기/닫기
+  document.getElementById('toggle-guides').addEventListener('click', () => {
+    const inner = document.getElementById('guide-inner');
+    const btn = document.getElementById('toggle-guides');
+    if (inner.style.display === 'none') {
+      inner.style.display = 'block';
+      btn.textContent = '닫기';
+    } else {
+      inner.style.display = 'none';
+      btn.textContent = '열기';
+    }
+  });
+
+  // 지침 저장
+  document.getElementById('save-guide').addEventListener('click', () => {
+    localStorage.setItem('guide-morning', document.getElementById('guide-morning').value);
+    localStorage.setItem('guide-evening', document.getElementById('guide-evening').value);
+    localStorage.setItem('guide-image', document.getElementById('guide-image').value);
+    localStorage.setItem('guide-translate', document.getElementById('guide-translate').value);
+    showStatus('지침이 저장되었습니다.');
+    setTimeout(hideStatus, 1500);
+  });
+
+  // 지침 로드
+  function loadAllGuides() {
+    document.getElementById('guide-morning').value = localStorage.getItem('guide-morning') || '';
+    document.getElementById('guide-evening').value = localStorage.getItem('guide-evening') || '';
+    document.getElementById('guide-image').value = localStorage.getItem('guide-image') || '';
+    document.getElementById('guide-translate').value = localStorage.getItem('guide-translate') || '';
+    
+    document.querySelectorAll('textarea.autosize').forEach(autoResize);
+  }
+
+  // 복사 버튼
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.copy;
+      const el = document.getElementById(targetId);
+      navigator.clipboard.writeText(el.value || "").then(() => {
+        showStatus("복사되었습니다.");
+        setTimeout(hideStatus, 1500);
+      });
+    });
+  });
+
+  // 공통 데이터 가져오기
+  function getCommonData() {
+    const month = document.getElementById('month').value;
+    const day = document.getElementById('day').value;
+    const dayOfWeek = document.getElementById('day-of-week').textContent;
+    return {
+      date: `${month}월 ${day}일 (${dayOfWeek})`,
+      ref: document.getElementById('bible-ref').value,
+      text: document.getElementById('bible-text').value
+    };
+  }
+
+  // 오전 메시지 생성
+  document.getElementById('btn-morning').addEventListener('click', () => {
+    showStatus("오전 메시지 생성 중...");
+    const common = getCommonData();
+    const guide = document.getElementById('guide-morning').value;
+
+    fetch("/api/message/morning", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guide, ...common })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const box = document.getElementById('morning-message');
+      if (data.result) {
+        box.value = data.result;
+      } else if (data.error) {
+        box.value = "오류: " + data.error;
+      }
+      autoResize(box);
+    })
+    .catch(err => {
+      document.getElementById('morning-message').value = "오류 발생: " + err.message;
+    })
+    .finally(hideStatus);
+  });
+
+  // 저녁 메시지 생성
+  document.getElementById('btn-evening').addEventListener('click', () => {
+    showStatus("저녁 메시지 생성 중...");
+    const common = getCommonData();
+    const guide = document.getElementById('guide-evening').value;
+
+    fetch("/api/message/evening", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guide, ...common })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const box = document.getElementById('evening-message');
+      if (data.result) {
+        box.value = data.result;
+      } else if (data.error) {
+        box.value = "오류: " + data.error;
+      }
+      autoResize(box);
+    })
+    .catch(err => {
+      document.getElementById('evening-message').value = "오류 발생: " + err.message;
+    })
+    .finally(hideStatus);
+  });
+
+  // 번역
+  document.querySelectorAll('[data-translate]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const source = btn.dataset.translate;
+      const lang = btn.dataset.lang;
+      const sourceBox = document.getElementById(source + '-message');
+      const text = sourceBox.value;
+      
+      if (!text) {
+        alert('번역할 메시지가 없습니다.');
+        return;
+      }
+
+      const langName = lang === 'en' ? '영어' : '일본어';
+      showStatus(`${langName} 번역 중...`);
+      
+      const guide = document.getElementById('guide-translate').value;
+
+      fetch("/api/message/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guide, text, lang })
+      })
+      .then(res => res.json())
+      .then(data => {
+        const box = document.getElementById('translation');
+        if (data.result) {
+          box.value = data.result;
+        } else if (data.error) {
+          box.value = "오류: " + data.error;
+        }
+        autoResize(box);
+      })
+      .catch(err => {
+        document.getElementById('translation').value = "오류 발생: " + err.message;
+      })
+      .finally(hideStatus);
+    });
+  });
+
+  // 오전 이미지 프롬프트
+  document.getElementById('btn-morning-img').addEventListener('click', () => {
+    const message = document.getElementById('morning-message').value;
+    if (!message) {
+      alert('먼저 오전 메시지를 생성하세요.');
+      return;
+    }
+
+    showStatus("오전 이미지 프롬프트 생성 중...");
+    const guide = document.getElementById('guide-image').value;
+
+    fetch("/api/message/image-prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guide, message, time: 'morning' })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const box = document.getElementById('morning-img-prompt');
+      if (data.result) {
+        box.value = data.result;
+      } else if (data.error) {
+        box.value = "오류: " + data.error;
+      }
+      autoResize(box);
+    })
+    .catch(err => {
+      document.getElementById('morning-img-prompt').value = "오류 발생: " + err.message;
+    })
+    .finally(hideStatus);
+  });
+
+  // 저녁 이미지 프롬프트
+  document.getElementById('btn-evening-img').addEventListener('click', () => {
+    const message = document.getElementById('evening-message').value;
+    if (!message) {
+      alert('먼저 저녁 메시지를 생성하세요.');
+      return;
+    }
+
+    showStatus("저녁 이미지 프롬프트 생성 중...");
+    const guide = document.getElementById('guide-image').value;
+
+    fetch("/api/message/image-prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guide, message, time: 'evening' })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const box = document.getElementById('evening-img-prompt');
+      if (data.result) {
+        box.value = data.result;
+      } else if (data.error) {
+        box.value = "오류: " + data.error;
+      }
+      autoResize(box);
+    })
+    .catch(err => {
+      document.getElementById('evening-img-prompt').value = "오류 발생: " + err.message;
+    })
+    .finally(hideStatus);
+  });
+  </script>
+</body>
+</html>
