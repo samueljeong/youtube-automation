@@ -97,7 +97,7 @@
           <button id="tab-guide-analysis" class="guide-tab-active">본문 분석 지침</button>
           <button id="tab-guide-prompt">설교문 제작 프롬포트</button>
         </div>
-        <textarea id="guide-text" style="min-height: 90px;" placeholder="선택한 지침 유형의 내용을 작성합니다. 카테고리마다 따로 저장됩니다."></textarea>
+        <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="선택한 지침 유형의 내용을 작성합니다. 카테고리마다 따로 저장됩니다."></textarea>
       </div>
 
       <!-- 본문 분석 결과 -->
@@ -165,12 +165,13 @@
     }
 
     // 현재 선택된 카테고리의, 현재 탭의 지침을 textarea에 반영
-    function loadCurrentGuide() {
-      const cat = categorySelect.value;
-      const key = getGuideKey(cat, currentGuideType);
-      const saved = localStorage.getItem(key) || "";
-      guideTextArea.value = saved;
-    }
+function loadCurrentGuide() {
+  const cat = categorySelect.value;
+  const key = getGuideKey(cat, currentGuideType);
+  const saved = localStorage.getItem(key) || "";
+  guideTextArea.value = saved;
+  autoResize(guideTextArea); // ← 이 줄 추가!
+}
 
     // 탭 활성화
     function activateTab(type) {
@@ -189,13 +190,14 @@
     tabGuidePrompt.addEventListener('click', () => activateTab('prompt'));
 
     // 지침 저장
-    document.getElementById('save-guide').addEventListener('click', () => {
-      const cat = categorySelect.value;
-      const key = getGuideKey(cat, currentGuideType);
-      localStorage.setItem(key, guideTextArea.value);
-      showStatus("이 카테고리의 지침이 저장되었습니다.");
-      setTimeout(hideStatus, 1500);
-    });
+document.getElementById('save-guide').addEventListener('click', () => {
+  const cat = categorySelect.value;
+  const key = getGuideKey(cat, currentGuideType);
+  localStorage.setItem(key, guideTextArea.value);
+  autoResize(guideTextArea); // ← 이 줄 추가!
+  showStatus("이 카테고리의 지침이 저장되었습니다.");
+  setTimeout(hideStatus, 1500);
+});
 
     // 카테고리 바뀌면 해당 카테고리의 지침/저장목록 보여주기
     categorySelect.addEventListener('change', () => {
@@ -293,37 +295,64 @@ function fetchWithTimeout(resource, options = {}) {
       });
     });
 
-    // 본문 분석 → Flask GPT API 호출
-    document.getElementById('btn-analyze').addEventListener('click', () => {
-      showStatus("GPT로 본문 분석 중입니다...");
+// 본문 분석 → Flask GPT API 호출 (개선)
+// 본문 분석 버튼 클릭 부분 찾기 (약 190줄 근처)
+document.getElementById('btn-analyze').addEventListener('click', () => {
+  showStatus("GPT로 본문 분석 중입니다...");
 
-      const cat = categorySelect.value;
-      const guide = localStorage.getItem(getGuideKey(cat, 'analysis')) || "";
-      const payload = {
-        guide: guide,
-        text: document.getElementById('sermon-text').value,
-        ref: document.getElementById('sermon-ref').value,
-        category: cat
-      };
+  const cat = categorySelect.value;
+  const guide = localStorage.getItem(getGuideKey(cat, 'analysis')) || "";
+  const payload = {
+    guide: guide,
+    text: document.getElementById('sermon-text').value,
+    ref: document.getElementById('sermon-ref').value,
+    category: cat
+  };
 
-      fetch("/api/sermon/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-      .then(data => {
-        const box = document.getElementById('analysis-box');
-        box.value = data.result || "";
-        autoResize(box);
-      })
-      .catch(err => {
-        console.error(err);
-        document.getElementById('analysis-box').value = "본문 분석 중 오류가 발생했습니다.";
-      })
-      .finally(() => {
-        hideStatus();
-      });
-    });
+  console.log("[ANALYZE] sending payload", {
+    len_guide: guide.length,
+    len_text: payload.text.length,
+    ref: payload.ref,
+    category: payload.category,
+  });
+
+  fetchWithTimeout("/api/sermon/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    timeout: 30000
+  })
+  .then(async (res) => {
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { data = { ok: false, error: "응답이 JSON이 아닙니다:\n" + raw }; }
+
+    console.log("[ANALYZE] response", data);
+
+    const box = document.getElementById('analysis-box');
+    if (!res.ok) {
+      box.value = "서버 오류(" + res.status + "):\n" + (data.error || raw);
+    } else if (data && data.result) {  // ← 이 부분 수정! (data.ok 대신 data.result)
+      box.value = data.result;
+    } else if (data && data.ok && data.result) {
+      box.value = data.result;
+    } else {
+      box.value = "오류: " + (data && data.error ? data.error : "(원인 불명)");
+    }
+
+    box.dispatchEvent(new Event('input'));
+  })
+  .catch((err) => {
+    console.error("[ANALYZE][FETCH ERROR]", err);
+    const box = document.getElementById('analysis-box');
+    box.value = "본문 분석 중 오류가 발생했습니다.\n" + (err && err.message ? err.message : String(err));
+    box.dispatchEvent(new Event('input'));
+  })
+  .finally(() => {
+    hideStatus();
+  });
+});
 
 
 // 설교 프롬포트 → Flask GPT API 호출
