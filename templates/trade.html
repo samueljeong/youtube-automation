@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>중국 수입 원가 계산기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { 
+      margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    .page-wrap { 
+      display: flex; 
+      gap: 1.5rem; 
+      padding: 1.5rem; 
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+    .left-col { 
+      width: 380px; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 1rem; 
+    }
+    .center-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+    .right-col {
+      width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .box { 
+      background: white; 
+      border: 1px solid #e2e8f0; 
+      border-radius: 12px; 
+      padding: 1.25rem; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .box-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 1rem;
+      padding-bottom: .75rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .label { 
+      font-weight: 600; 
+      margin-bottom: .4rem; 
+      display: block;
+      color: #334155;
+      font-size: .9rem;
+    }
+    input[type="text"], input[type="number"], select, textarea { 
+      width: 100%; 
+      padding: .6rem; 
+      background: #f8fafc; 
+      border: 1px solid #cbd5e1; 
+      border-radius: 8px; 
+      color: #1e293b;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: white;
+    }
+    textarea { 
+      min-height: 60px; 
+      resize: vertical; 
+      font-family: inherit; 
+      line-height: 1.5; 
+    }
+    textarea.autosize { overflow: hidden; }
+    
+    .input-group {
+      margin-bottom: 1rem;
+    }
+    .input-row {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: 1rem;
+    }
+    .input-row > div {
+      flex: 1;
+    }
+    
+    button { 
+      padding: .7rem 1.2rem; 
+      border: none;
+      background: #3b82f6; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      color: white;
+      font-weight: 600;
+      font-size: .95rem;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    button:hover { 
+      background: #2563eb; 
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    button.secondary {
+      background: #64748b;
+    }
+    button.secondary:hover {
+      background: #475569;
+    }
+    button.success {
+      background: #10b981;
+    }
+    button.success:hover {
+      background: #059669;
+    }
+    button.small {
+      padding: .45rem .8rem;
+      font-size: .85rem;
+      width: auto;
+    }
+    
+    .result-box {
+      background: #f0f9ff;
+      border: 2px solid #3b82f6;
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-top: 1rem;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: .6rem 0;
+      border-bottom: 1px solid #bfdbfe;
+    }
+    .result-row:last-child {
+      border-bottom: none;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #1e40af;
+      padding-top: 1rem;
+      margin-top: .5rem;
+      border-top: 2px solid #3b82f6;
+    }
+    .result-label {
+      color: #475569;
+      font-weight: 500;
+    }
+    .result-value {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    
+    .saved-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .75rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: .5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .saved-item:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .saved-item-info {
+      flex: 1;
+    }
+    .saved-item-name {
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: .25rem;
+    }
+    .saved-item-meta {
+      font-size: .8rem;
+      color: #64748b;
+    }
+    .saved-item-actions {
+      display: flex;
+      gap: .5rem;
+    }
+    
+    .platform-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .platform-box.naver {
+      background: linear-gradient(135deg, #06d6a0 0%, #118ab2 100%);
+    }
+    .platform-box.coupang {
+      background: linear-gradient(135deg, #ef476f 0%, #ffd166 100%);
+    }
+    .platform-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .platform-row {
+      display: flex;
+      justify-content: space-between;
+      padding: .5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    .platform-row:last-child {
+      border-bottom: none;
+      font-size: 1.3rem;
+      font-weight: 700;
+      padding-top: 1rem;
+      margin-top: .5rem;
+      border-top: 2px solid rgba(255,255,255,0.3);
+    }
+    
+    .tab-buttons {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1rem;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: .7rem;
+      background: #f1f5f9;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: white;
+    }
+    
+    .shipping-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: .9rem;
+    }
+    .shipping-table th,
+    .shipping-table td {
+      padding: .6rem;
+      text-align: center;
+      border: 1px solid #e2e8f0;
+    }
+    .shipping-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+    
+    .history-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: .75rem;
+    }
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .75rem;
+      padding-bottom: .75rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .history-date {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .history-actions {
+      display: flex;
+      gap: .5rem;
+    }
+    .history-detail {
+      font-size: .9rem;
+      color: #475569;
+      line-height: 1.6;
+    }
+    
+    .exchange-rate {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .5rem 1rem;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      font-weight: 600;
+      color: #92400e;
+      margin-bottom: 1rem;
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-weight: 500;
+    }
+    .alert-info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+    .alert-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fbbf24;
+    }
+    .alert-success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+    
+    @media (max-width: 1400px) {
+      .page-wrap {
+        flex-direction: column;
+      }
+      .left-col, .right-col {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- 왼쪽: 입력 -->
+    <div class="left-col">
+      <div class="box">
+        <div class="box-title">💰 제품 정보</div>
+        
+        <div class="exchange-rate" id="exchange-rate-display">
+          🔄 환율 불러오는 중...
+        </div>
+        
+        <div class="input-group">
+          <label class="label">제품명</label>
+          <input type="text" id="product-name" placeholder="예: 무선 블루투스 이어폰">
+        </div>
+        
+        <div class="input-group">
+          <label class="label">제품 설명 (HS코드 추천용)</label>
+          <textarea id="product-desc" placeholder="제품의 재질, 용도, 특징 등을 입력하세요"></textarea>
+        </div>
+        
+        <button id="btn-hs-recommend" class="secondary">🔍 HS코드 추천받기</button>
+        
+        <div class="input-group" style="margin-top: 1rem;">
+          <label class="label">구매 링크</label>
+          <input type="text" id="product-link" placeholder="https://...">
+        </div>
+        
+        <div class="input-row">
+          <div>
+            <label class="label">제품 가격 (위안 ¥)</label>
+            <input type="number" id="product-price" placeholder="0" step="0.01">
+          </div>
+          <div>
+            <label class="label">수량</label>
+            <input type="number" id="product-qty" placeholder="0" min="1">
+          </div>
+        </div>
+        
+        <div class="input-row">
+          <div>
+            <label class="label">무게 (kg/개)</label>
+            <input type="number" id="product-weight" placeholder="0" step="0.1">
+          </div>
+          <div>
+            <label class="label">HS코드</label>
+            <input type="text" id="hs-code" placeholder="0000.00.0000">
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📦 배송 정보</div>
+        
+        <div class="tab-buttons">
+          <button class="tab-btn active" data-shipping="sea">일반 해운</button>
+          <button class="tab-btn" data-shipping="lcl">LCL</button>
+        </div>
+        
+        <div id="shipping-sea">
+          <div class="alert alert-info">
+            0.5kg 단위로 절상하여 계산됩니다.
+          </div>
+        </div>
+        
+        <div id="shipping-lcl" style="display: none;">
+          <div class="input-row">
+            <div>
+              <label class="label">가로 (cm)</label>
+              <input type="number" id="box-width" placeholder="0" step="0.1">
+            </div>
+            <div>
+              <label class="label">세로 (cm)</label>
+              <input type="number" id="box-length" placeholder="0" step="0.1">
+            </div>
+            <div>
+              <label class="label">높이 (cm)</label>
+              <input type="number" id="box-height" placeholder="0" step="0.1">
+            </div>
+          </div>
+          <div class="alert alert-info">
+            CBM = (가로 × 세로 × 높이) ÷ 1,000,000<br>
+            0.5CBM 미만은 0.5CBM으로 계산됩니다.
+          </div>
+        </div>
+        
+        <div class="input-group">
+          <label class="label">추가 배송비 (원)</label>
+          <input type="number" id="extra-shipping" placeholder="0">
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">💳 수수료</div>
+        
+        <div class="input-row">
+          <div>
+            <label class="label">카드 수수료 (%)</label>
+            <input type="number" id="card-fee" placeholder="1.5" step="0.1" value="1.5">
+          </div>
+          <div>
+            <label class="label">관세 (%)</label>
+            <input type="number" id="customs-fee" placeholder="8" step="0.1" value="8">
+          </div>
+        </div>
+        
+        <div class="input-row">
+          <div>
+            <label class="label">부가세 (%)</label>
+            <input type="number" id="vat-fee" placeholder="10" step="0.1" value="10">
+          </div>
+          <div>
+            <label class="label">기타 수수료 (원)</label>
+            <input type="number" id="other-fee" placeholder="0">
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-calculate" class="success">📊 원가 계산하기</button>
+      <button id="btn-save-product" class="secondary">💾 현재 제품 저장</button>
+      
+      <div class="box">
+        <div class="box-title">⭐ 자주 쓰는 품목</div>
+        <div id="saved-products-list">
+          <p style="color: #94a3b8; text-align: center; padding: 1rem;">저장된 품목이 없습니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 중앙: 계산 결과 -->
+    <div class="center-col">
+      <div class="box">
+        <div class="box-title">📋 HS코드 추천 결과</div>
+        <textarea id="hs-result" readonly style="min-height: 150px; font-size: .9rem;"></textarea>
+      </div>
+
+      <div class="box">
+        <div class="box-title">💰 총 원가 계산</div>
+        <div id="cost-result">
+          <p style="color: #94a3b8; text-align: center; padding: 2rem;">계산 버튼을 눌러주세요.</p>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📈 수량별 단가 시뮬레이션</div>
+        <div class="input-row" style="margin-bottom: 1rem;">
+          <div>
+            <label class="label">시뮬레이션 수량 1</label>
+            <input type="number" id="sim-qty-1" placeholder="100" value="100">
+          </div>
+          <div>
+            <label class="label">시뮬레이션 수량 2</label>
+            <input type="number" id="sim-qty-2" placeholder="500" value="500">
+          </div>
+          <div>
+            <label class="label">시뮬레이션 수량 3</label>
+            <input type="number" id="sim-qty-3" placeholder="1000" value="1000">
+          </div>
+        </div>
+        <button id="btn-simulate" class="secondary">🔄 시뮬레이션 실행</button>
+        <div id="simulation-result" style="margin-top: 1rem;"></div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📊 손익분기점 분석</div>
+        <div class="input-row">
+          <div>
+            <label class="label">총 투자 비용 (원)</label>
+            <input type="number" id="total-investment" placeholder="1000000">
+          </div>
+          <div>
+            <label class="label">목표 순이익 (원)</label>
+            <input type="number" id="target-profit" placeholder="2000000">
+          </div>
+        </div>
+        <button id="btn-break-even" class="secondary">계산하기</button>
+        <div id="break-even-result" style="margin-top: 1rem;"></div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 판매가 계산 & 이력 -->
+    <div class="right-col">
+      <div class="box">
+        <div class="box-title">🏪 판매가 계산</div>
+        
+        <div class="input-group">
+          <label class="label">희망 마진율 (%)</label>
+          <input type="number" id="margin-rate" placeholder="30" value="30" step="1">
+        </div>
+        
+        <div class="input-row">
+          <div>
+            <label class="label">국내 배송비 (원)</label>
+            <input type="number" id="domestic-shipping" placeholder="3000" value="3000">
+          </div>
+          <div>
+            <label class="label">포장비 (원)</label>
+            <input type="number" id="packaging-cost" placeholder="800" value="800">
+          </div>
+        </div>
+        
+        <div class="input-group">
+          <label class="label">예비비 (원)</label>
+          <input type="number" id="reserve-cost" placeholder="500" value="500">
+        </div>
+        
+        <button id="btn-calc-selling-price">판매가 계산하기</button>
+        
+        <div id="selling-price-result" style="margin-top: 1.5rem;"></div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">🎯 경쟁사 가격 비교</div>
+        <div class="input-group">
+          <label class="label">경쟁사 최저가 (원)</label>
+          <input type="number" id="competitor-price" placeholder="19900">
+        </div>
+        <button id="btn-compare-price" class="secondary">비교하기</button>
+        <div id="price-compare-result" style="margin-top: 1rem;"></div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📦 구입 내역</div>
+        <button id="btn-save-history" class="success" style="margin-bottom: 1rem;">현재 계산 결과 저장</button>
+        <div id="purchase-history">
+          <p style="color: #94a3b8; text-align: center; padding: 1rem;">저장된 내역이 없습니다.</p>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📥 내보내기</div>
+        <button id="btn-export-pdf" class="secondary">PDF 다운로드</button>
+        <button id="btn-export-excel" class="secondary" style="margin-top: .5rem;">엑셀 내보내기</button>
+      </div>
+
+      <div class="box">
+        <div class="box-title">📚 배송비 요금표</div>
+        <table class="shipping-table">
+          <thead>
+            <tr>
+              <th colspan="2">일반 해운</th>
+            </tr>
+            <tr>
+              <th>무게</th>
+              <th>배송비</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1kg</td><td>₩5,800</td></tr>
+            <tr><td>1.5kg</td><td>₩6,500</td></tr>
+            <tr><td>2kg</td><td>₩7,200</td></tr>
+            <tr><td>2.5kg</td><td>₩7,900</td></tr>
+            <tr><td>3kg</td><td>₩8,600</td></tr>
+            <tr><td colspan="2" style="text-align: center; font-size: .85rem; color: #64748b;">0.5kg당 ₩700 추가</td></tr>
+          </tbody>
+        </table>
+        
+        <table class="shipping-table" style="margin-top: 1rem;">
+          <thead>
+            <tr>
+              <th colspan="2">LCL</th>
+            </tr>
+            <tr>
+              <th>CBM</th>
+              <th>배송비</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>0.5CBM</td><td>₩42,500</td></tr>
+            <tr><td>1CBM</td><td>₩85,000</td></tr>
+            <tr><td>1.5CBM</td><td>₩127,500</td></tr>
+            <tr><td>2CBM</td><td>₩170,000</td></tr>
+            <tr><td colspan="2" style="text-align: center; font-size: .85rem; color: #64748b;">
+              + BL비용 ₩22,000<br>
+              + 핸들링비 ₩33,000<br>
+              + 통관수수료 ₩33,000
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // 전역 변수
+  let exchangeRate = 180; // 기본 환율
+  let currentShipping = 'sea'; // 현재 배송 방법
+  let lastCalculation = null; // 마지막 계산 결과
+
+  // 자동 높이 조절
+  function autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // 페이지 로드 시
+  document.addEventListener('DOMContentLoaded', () => {
+    loadExchangeRate();
+    loadSavedProducts();
+    loadPurchaseHistory();
+    
+    document.querySelectorAll('textarea').forEach(t => {
+      t.addEventListener('input', () => autoResize(t));
+    });
+  });
+
+  // 환율 불러오기
+  function loadExchangeRate() {
+    fetch('/api/trade/exchange-rate')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          exchangeRate = data.rate;
+          const display = document.getElementById('exchange-rate-display');
+          display.textContent = `1위안 = ${exchangeRate.toFixed(2)}원`;
+          if (data.fallback) {
+            display.textContent += ' (기본값)';
+          }
+        }
+      })
+      .catch(err => console.error('환율 로드 실패:', err));
+  }
+
+  // 배송 방법 선택
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      currentShipping = btn.dataset.shipping;
+      
+      if (currentShipping === 'sea') {
+        document.getElementById('shipping-sea').style.display = 'block';
+        document.getElementById('shipping-lcl').style.display = 'none';
+      } else {
+        document.getElementById('shipping-sea').style.display = 'none';
+        document.getElementById('shipping-lcl').style.display = 'block';
+      }
+    });
+  });
+
+  // HS코드 추천
+  document.getElementById('btn-hs-recommend').addEventListener('click', () => {
+    const productName = document.getElementById('product-name').value;
+    const description = document.getElementById('product-desc').value;
+    
+    if (!productName) {
+      alert('제품명을 입력해주세요.');
+      return;
+    }
+    
+    const resultBox = document.getElementById('hs-result');
+    resultBox.value = '🔍 HS코드 추천 중...';
+    
+    fetch('/api/trade/hs-code', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        product_name: productName,
+        description: description
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.result) {
+        resultBox.value = data.result;
+        autoResize(resultBox);
+      } else {
+        resultBox.value = '오류: ' + (data.error || '알 수 없는 오류');
+      }
+    })
+    .catch(err => {
+      resultBox.value = '오류 발생: ' + err.message;
+    });
+  });
+
+  // 배송비 계산
+  function calculateShipping(weight, qty) {
+    if (currentShipping === 'sea') {
+      // 일반 해운: 0.5kg 단위 절상
+      const totalWeight = weight * qty;
+      const roundedWeight = Math.ceil(totalWeight * 2) / 2; // 0.5kg 단위 절상
+      
+      // 기본 1kg = 5800원, 0.5kg당 700원 추가
+      let shipping = 5800;
+      if (roundedWeight > 1) {
+        shipping += Math.floor((roundedWeight - 1) * 2) * 700;
+      }
+      
+      return {
+        type: '일반 해운',
+        weight: roundedWeight,
+        cost: shipping,
+        detail: `${roundedWeight}kg × ${roundedWeight <= 1 ? '₩5,800' : '₩5,800 + ' + Math.floor((roundedWeight - 1) * 2) + ' × ₩700'}`
+      };
+    } else {
+      // LCL: CBM 계산
+      const width = parseFloat(document.getElementById('box-width').value) || 0;
+      const length = parseFloat(document.getElementById('box-length').value) || 0;
+      const height = parseFloat(document.getElementById('box-height').value) || 0;
+      
+      if (width === 0 || length === 0 || height === 0) {
+        return {
+          type: 'LCL',
+          cbm: 0,
+          cost: 0,
+          detail: '박스 크기를 입력해주세요.'
+        };
+      }
+      
+      const cbmPerUnit = (width * length * height) / 1000000;
+      const totalCBM = cbmPerUnit * qty;
+      
+      // 0.5CBM 미만은 0.5CBM으로
+      const roundedCBM = Math.max(0.5, Math.ceil(totalCBM * 2) / 2);
+      
+      // CBM당 85,000원
+      const cbmCost = roundedCBM * 85000;
+      
+      // 추가 비용
+      const blCost = 22000;
+      const handlingCost = 33000;
+      const customsCost = 33000;
+      
+      const totalCost = cbmCost + blCost + handlingCost + customsCost;
+      
+      return {
+        type: 'LCL',
+        cbm: roundedCBM,
+        cost: totalCost,
+        detail: `${roundedCBM}CBM (₩${cbmCost.toLocaleString()}) + BL(₩22,000) + 핸들링(₩33,000) + 통관(₩33,000)`
+      };
+    }
+  }
+
+  // 원가 계산
+  document.getElementById('btn-calculate').addEventListener('click', () => {
+    const price = parseFloat(document.getElementById('product-price').value) || 0;
+    const qty = parseInt(document.getElementById('product-qty').value) || 0;
+    const weight = parseFloat(document.getElementById('product-weight').value) || 0;
+    const extraShipping = parseFloat(document.getElementById('extra-shipping').value) || 0;
+    const cardFee = parseFloat(document.getElementById('card-fee').value) || 0;
+    const customsFee = parseFloat(document.getElementById('customs-fee').value) || 0;
+    const vatFee = parseFloat(document.getElementById('vat-fee').value) || 0;
+    const otherFee = parseFloat(document.getElementById('other-fee').value) || 0;
+    
+    if (price === 0 || qty === 0) {
+      alert('제품 가격과 수량을 입력해주세요.');
+      return;
+    }
+    
+    // 1. 제품 금액 (원화)
+    const productCost = price * qty * exchangeRate;
+    
+    // 2. 카드 수수료
+    const cardFeeCost = productCost * (cardFee / 100);
+    
+    // 3. 배송비
+    const shipping = calculateShipping(weight, qty);
+    const shippingCost = shipping.cost + extraShipping;
+    
+    // 4. 관세 (제품 금액 + 배송비 기준)
+    const customsBase = productCost + shippingCost;
+    const customsFeeCost = customsBase * (customsFee / 100);
+    
+    // 5. 부가세 (제품 금액 + 배송비 + 관세 기준)
+    const vatBase = customsBase + customsFeeCost;
+    const vatFeeCost = vatBase * (vatFee / 100);
+    
+    // 6. 총 원가
+    const totalCost = productCost + cardFeeCost + shippingCost + customsFeeCost + vatFeeCost + otherFee;
+    const costPerUnit = totalCost / qty;
+    
+    // 결과 저장
+    lastCalculation = {
+      productCost,
+      cardFeeCost,
+      shippingCost,
+      customsFeeCost,
+      vatFeeCost,
+      otherFee,
+      totalCost,
+      costPerUnit,
+      qty,
+      shipping
+    };
+    
+    // 결과 표시
+    const resultBox = document.getElementById('cost-result');
+    resultBox.innerHTML = `
+      <div class="result-box">
+        <div class="result-row">
+          <span class="result-label">제품 금액 (${qty}개)</span>
+          <span class="result-value">₩${productCost.toLocaleString()}</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">카드 수수료 (${cardFee}%)</span>
+          <span class="result-value">₩${cardFeeCost.toLocaleString()}</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">배송비 (${shipping.detail})</span>
+          <span class="result-value">₩${shippingCost.toLocaleString()}</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">관세 (${customsFee}%)</span>
+          <span class="result-value">₩${customsFeeCost.toLocaleString()}</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">부가세 (${vatFee}%)</span>
+          <span class="result-value">₩${vatFeeCost.toLocaleString()}</span>
+        </div>
+        ${otherFee > 0 ? `<div class="result-row">
+          <span class="result-label">기타 수수료</span>
+          <span class="result-value">₩${otherFee.toLocaleString()}</span>
+        </div>` : ''}
+        <div class="result-row">
+          <span class="result-label">총 원가</span>
+          <span class="result-value">₩${totalCost.toLocaleString()}</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">개당 원가</span>
+          <span class="result-value">₩${costPerUnit.toLocaleString()}</span>
+        </div>
+      </div>
+      <div class="alert alert-success" style="margin-top: 1rem;">
+        ✅ 계산 완료! 판매가 계산을 진행하세요.
+      </div>
+    `;
+  });
+
+  // 판매가 계산
+  document.getElementById('btn-calc-selling-price').addEventListener('click', () => {
+    if (!lastCalculation) {
+      alert('먼저 원가를 계산해주세요.');
+      return;
+    }
+    
+    const marginRate = parseFloat(document.getElementById('margin-rate').value) || 0;
+    const domesticShipping = parseFloat(document.getElementById('domestic-shipping').value) || 0;
+    const packagingCost = parseFloat(document.getElementById('packaging-cost').value) || 0;
+    const reserveCost = parseFloat(document.getElementById('reserve-cost').value) || 0;
+    
+    const costPerUnit = lastCalculation.costPerUnit;
+    
+    // 네이버 (수수료 5.85%)
+    const naverFeeRate = 5.85;
+    const naverBaseCost = costPerUnit + domesticShipping + packagingCost + reserveCost;
+    const naverMargin = naverBaseCost * (marginRate / 100);
+    const naverBeforeFee = naverBaseCost + naverMargin;
+    const naverFee = naverBeforeFee * (naverFeeRate / 100);
+    const naverSellingPrice = Math.ceil((naverBeforeFee + naverFee) / 100) * 100; // 100원 단위
+    const naverProfit = naverSellingPrice - naverFee - naverBaseCost;
+    
+    // 쿠팡 (수수료 15%)
+    const coupangFeeRate = 15;
+    const coupangBaseCost = costPerUnit + packagingCost + reserveCost; // 쿠팡은 배송비 무료
+    const coupangMargin = coupangBaseCost * (marginRate / 100);
+    const coupangBeforeFee = coupangBaseCost + coupangMargin;
+    const coupangFee = coupangBeforeFee * (coupangFeeRate / 100);
+    const coupangSellingPrice = Math.ceil((coupangBeforeFee + coupangFee) / 100) * 100;
+    const coupangProfit = coupangSellingPrice - coupangFee - coupangBaseCost;
+    
+    const resultBox = document.getElementById('selling-price-result');
+    resultBox.innerHTML = `
+      <div class="platform-box naver">
+        <div class="platform-title">🟢 네이버 스마트스토어</div>
+        <div class="platform-row">
+          <span>원가</span>
+          <span>₩${costPerUnit.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>플랫폼 수수료 (${naverFeeRate}%)</span>
+          <span>₩${naverFee.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>배송비</span>
+          <span>₩${domesticShipping.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>포장비</span>
+          <span>₩${packagingCost.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>예비비</span>
+          <span>₩${reserveCost.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>순이익 (마진 ${marginRate}%)</span>
+          <span>₩${naverProfit.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>권장 판매가</span>
+          <span>₩${naverSellingPrice.toLocaleString()}</span>
+        </div>
+      </div>
+      
+      <div class="platform-box coupang">
+        <div class="platform-title">🟠 쿠팡</div>
+        <div class="platform-row">
+          <span>원가</span>
+          <span>₩${costPerUnit.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>플랫폼 수수료 (${coupangFeeRate}%)</span>
+          <span>₩${coupangFee.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>배송비 (로켓배송)</span>
+          <span>₩0</span>
+        </div>
+        <div class="platform-row">
+          <span>포장비</span>
+          <span>₩${packagingCost.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>예비비</span>
+          <span>₩${reserveCost.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>순이익 (마진 ${marginRate}%)</span>
+          <span>₩${coupangProfit.toLocaleString()}</span>
+        </div>
+        <div class="platform-row">
+          <span>권장 판매가</span>
+          <span>₩${coupangSellingPrice.toLocaleString()}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  // 경쟁사 가격 비교
+  document.getElementById('btn-compare-price').addEventListener('click', () => {
+    if (!lastCalculation) {
+      alert('먼저 원가를 계산해주세요.');
+      return;
+    }
+    
+    const competitorPrice = parseFloat(document.getElementById('competitor-price').value) || 0;
+    
+    if (competitorPrice === 0) {
+      alert('경쟁사 최저가를 입력해주세요.');
+      return;
+    }
+    
+    const marginRate = parseFloat(document.getElementById('margin-rate').value) || 30;
+    const domesticShipping = parseFloat(document.getElementById('domestic-shipping').value) || 3000;
+    const packagingCost = parseFloat(document.getElementById('packaging-cost').value) || 800;
+    const reserveCost = parseFloat(document.getElementById('reserve-cost').value) || 500;
+    
+    const costPerUnit = lastCalculation.costPerUnit;
+    const naverFeeRate = 5.85;
+    const naverBaseCost = costPerUnit + domesticShipping + packagingCost + reserveCost;
+    const naverMargin = naverBaseCost * (marginRate / 100);
+    const naverBeforeFee = naverBaseCost + naverMargin;
+    const naverFee = naverBeforeFee * (naverFeeRate / 100);
+    const naverSellingPrice = Math.ceil((naverBeforeFee + naverFee) / 100) * 100;
+    
+    const difference = naverSellingPrice - competitorPrice;
+    const diffPercent = (difference / competitorPrice * 100).toFixed(1);
+    
+    const resultBox = document.getElementById('price-compare-result');
+    
+    let alertClass = 'alert-success';
+    let message = '✅ 경쟁력 있는 가격입니다!';
+    
+    if (difference > 0) {
+      alertClass = 'alert-warning';
+      message = `⚠️ 경쟁사보다 ₩${difference.toLocaleString()} (${diffPercent}%) 비쌉니다.`;
+    } else if (difference < 0) {
+      alertClass = 'alert-success';
+      message = `✅ 경쟁사보다 ₩${Math.abs(difference).toLocaleString()} (${Math.abs(diffPercent)}%) 저렴합니다!`;
+    } else {
+      alertClass = 'alert-info';
+      message = '💡 경쟁사와 동일한 가격입니다.';
+    }
+    
+    resultBox.innerHTML = `
+      <div class="alert ${alertClass}">
+        <strong>${message}</strong><br>
+        내 판매가: ₩${naverSellingPrice.toLocaleString()}<br>
+        경쟁사 최저가: ₩${competitorPrice.toLocaleString()}
+      </div>
+    `;
+  });
+
+  // 손익분기점 계산
+  document.getElementById('btn-break-even').addEventListener('click', () => {
+    if (!lastCalculation) {
+      alert('먼저 원가를 계산해주세요.');
+      return;
+    }
+    
+    const totalInvestment = parseFloat(document.getElementById('total-investment').value) || 0;
+    const targetProfit = parseFloat(document.getElementById('target-profit').value) || 0;
+    
+    if (totalInvestment === 0) {
+      alert('총 투자 비용을 입력해주세요.');
+      return;
+    }
+    
+    // 개당 순이익 계산 (네이버 기준)
+    const marginRate = parseFloat(document.getElementById('margin-rate').value) || 30;
+    const domesticShipping = parseFloat(document.getElementById('domestic-shipping').value) || 3000;
+    const packagingCost = parseFloat(document.getElementById('packaging-cost').value) || 800;
+    const reserveCost = parseFloat(document.getElementById('reserve-cost').value) || 500;
+    
+    const costPerUnit = lastCalculation.costPerUnit;
+    const naverFeeRate = 5.85;
+    const naverBaseCost = costPerUnit + domesticShipping + packagingCost + reserveCost;
+    const naverMargin = naverBaseCost * (marginRate / 100);
+    const naverBeforeFee = naverBaseCost + naverMargin;
+    const naverFee = naverBeforeFee * (naverFeeRate / 100);
+    const naverSellingPrice = Math.ceil((naverBeforeFee + naverFee) / 100) * 100;
+    const profitPerUnit = naverSellingPrice - naverFee - naverBaseCost;
+    
+    if (profitPerUnit <= 0) {
+      alert('개당 순이익이 0원 이하입니다. 마진율을 올려주세요.');
+      return;
+    }
+    
+    const breakEvenQty = Math.ceil(totalInvestment / profitPerUnit);
+    const targetQty = targetProfit > 0 ? Math.ceil((totalInvestment + targetProfit) / profitPerUnit) : 0;
+    
+    const resultBox = document.getElementById('break-even-result');
+    resultBox.innerHTML = `
+      <div class="alert alert-info">
+        <strong>💰 개당 순이익: ₩${profitPerUnit.toLocaleString()}</strong>
+      </div>
+      <div class="result-box">
+        <div class="result-row">
+          <span class="result-label">손익분기점</span>
+          <span class="result-value">${breakEvenQty.toLocaleString()}개 판매</span>
+        </div>
+        ${targetProfit > 0 ? `<div class="result-row">
+          <span class="result-label">목표 순이익 달성</span>
+          <span class="result-value">${targetQty.toLocaleString()}개 판매</span>
+        </div>` : ''}
+        <div class="result-row">
+          <span class="result-label">손익분기점 매출</span>
+          <span class="result-value">₩${(breakEvenQty * naverSellingPrice).toLocaleString()}</span>
+        </div>
+        ${targetProfit > 0 ? `<div class="result-row">
+          <span class="result-label">목표 달성 매출</span>
+          <span class="result-value">₩${(targetQty * naverSellingPrice).toLocaleString()}</span>
+        </div>` : ''}
+      </div>
+    `;
+  });
+
+  // 수량별 시뮬레이션
+  document.getElementById('btn-simulate').addEventListener('click', () => {
+    const qty1 = parseInt(document.getElementById('sim-qty-1').value) || 0;
+    const qty2 = parseInt(document.getElementById('sim-qty-2').value) || 0;
+    const qty3 = parseInt(document.getElementById('sim-qty-3').value) || 0;
+    
+    if (qty1 === 0 && qty2 === 0 && qty3 === 0) {
+      alert('시뮬레이션 수량을 입력해주세요.');
+      return;
+    }
+    
+    const price = parseFloat(document.getElementById('product-price').value) || 0;
+    const weight = parseFloat(document.getElementById('product-weight').value) || 0;
+    
+    if (price === 0 || weight === 0) {
+      alert('제품 가격과 무게를 먼저 입력해주세요.');
+      return;
+    }
+    
+    const quantities = [qty1, qty2, qty3].filter(q => q > 0);
+    let html = '<table class="shipping-table"><thead><tr><th>수량</th><th>개당 원가</th><th>총 원가</th></tr></thead><tbody>';
+    
+    quantities.forEach(qty => {
+      // 간단 계산
+      const productCost = price * qty * exchangeRate;
+      const shipping = calculateShipping(weight, qty);
+      const shippingCost = shipping.cost;
+      const cardFeeCost = productCost * 0.015;
+      const customsFeeCost = (productCost + shippingCost) * 0.08;
+      const vatFeeCost = (productCost + shippingCost + customsFeeCost) * 0.1;
+      const totalCost = productCost + cardFeeCost + shippingCost + customsFeeCost + vatFeeCost;
+      const costPerUnit = totalCost / qty;
+      
+      html += `
+        <tr>
+          <td>${qty.toLocaleString()}개</td>
+          <td>₩${costPerUnit.toLocaleString()}</td>
+          <td>₩${totalCost.toLocaleString()}</td>
+        </tr>
+      `;
+    });
+    
+    html += '</tbody></table>';
+    html += '<div class="alert alert-info" style="margin-top: 1rem;">💡 수량이 많을수록 개당 원가가 낮아집니다.</div>';
+    
+    document.getElementById('simulation-result').innerHTML = html;
+  });
+
+  // 제품 저장
+  document.getElementById('btn-save-product').addEventListener('click', () => {
+    const productName = document.getElementById('product-name').value;
+    const productDesc = document.getElementById('product-desc').value;
+    const hsCode = document.getElementById('hs-code').value;
+    const price = document.getElementById('product-price').value;
+    const weight = document.getElementById('product-weight').value;
+    const link = document.getElementById('product-link').value;
+    
+    if (!productName) {
+      alert('제품명을 입력해주세요.');
+      return;
+    }
+    
+    const saved = JSON.parse(localStorage.getItem('saved-products') || '[]');
+    saved.unshift({
+      name: productName,
+      desc: productDesc,
+      hsCode: hsCode,
+      price: price,
+      weight: weight,
+      link: link,
+      savedAt: new Date().toISOString()
+    });
+    
+    localStorage.setItem('saved-products', JSON.stringify(saved));
+    loadSavedProducts();
+    alert('제품이 저장되었습니다!');
+  });
+
+  // 저장된 제품 불러오기
+  function loadSavedProducts() {
+    const saved = JSON.parse(localStorage.getItem('saved-products') || '[]');
+    const listBox = document.getElementById('saved-products-list');
+    
+    if (saved.length === 0) {
+      listBox.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 1rem;">저장된 품목이 없습니다.</p>';
+      return;
+    }
+    
+    let html = '';
+    saved.forEach((item, idx) => {
+      html += `
+        <div class="saved-item" data-idx="${idx}">
+          <div class="saved-item-info">
+            <div class="saved-item-name">${item.name}</div>
+            <div class="saved-item-meta">HS: ${item.hsCode || '미입력'} | ¥${item.price} | ${item.weight}kg</div>
+          </div>
+          <div class="saved-item-actions">
+            <button class="small secondary" onclick="loadProduct(${idx})">불러오기</button>
+            <button class="small secondary" onclick="deleteProduct(${idx})">삭제</button>
+          </div>
+        </div>
+      `;
+    });
+    
+    listBox.innerHTML = html;
+  }
+
+  // 제품 불러오기
+  window.loadProduct = function(idx) {
+    const saved = JSON.parse(localStorage.getItem('saved-products') || '[]');
+    const item = saved[idx];
+    
+    document.getElementById('product-name').value = item.name;
+    document.getElementById('product-desc').value = item.desc;
+    document.getElementById('hs-code').value = item.hsCode;
+    document.getElementById('product-price').value = item.price;
+    document.getElementById('product-weight').value = item.weight;
+    document.getElementById('product-link').value = item.link || '';
+  };
+
+  // 제품 삭제
+  window.deleteProduct = function(idx) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    
+    const saved = JSON.parse(localStorage.getItem('saved-products') || '[]');
+    saved.splice(idx, 1);
+    localStorage.setItem('saved-products', JSON.stringify(saved));
+    loadSavedProducts();
+  };
+
+  // 구입 내역 저장
+  document.getElementById('btn-save-history').addEventListener('click', () => {
+    if (!lastCalculation) {
+      alert('먼저 원가를 계산해주세요.');
+      return;
+    }
+    
+    const productName = document.getElementById('product-name').value;
+    const qty = document.getElementById('product-qty').value;
+    const link = document.getElementById('product-link').value;
+    
+    const history = JSON.parse(localStorage.getItem('purchase-history') || '[]');
+    history.unshift({
+      productName: productName,
+      qty: qty,
+      link: link,
+      totalCost: lastCalculation.totalCost,
+      costPerUnit: lastCalculation.costPerUnit,
+      purchaseDate: new Date().toISOString(),
+      calculation: lastCalculation
+    });
+    
+    localStorage.setItem('purchase-history', JSON.stringify(history));
+    loadPurchaseHistory();
+    alert('구입 내역이 저장되었습니다!');
+  });
+
+  // 구입 내역 불러오기
+  function loadPurchaseHistory() {
+    const history = JSON.parse(localStorage.getItem('purchase-history') || '[]');
+    const historyBox = document.getElementById('purchase-history');
+    
+    if (history.length === 0) {
+      historyBox.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 1rem;">저장된 내역이 없습니다.</p>';
+      return;
+    }
+    
+    let html = '';
+    history.forEach((item, idx) => {
+      const date = new Date(item.purchaseDate).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      html += `
+        <div class="history-item">
+          <div class="history-header">
+            <div class="history-date">${date}</div>
+            <div class="history-actions">
+              <button class="small secondary" onclick="deleteHistory(${idx})">삭제</button>
+            </div>
+          </div>
+          <div class="history-detail">
+            <strong>${item.productName}</strong> × ${item.qty}개<br>
+            총 원가: ₩${item.totalCost.toLocaleString()}<br>
+            개당 원가: ₩${item.costPerUnit.toLocaleString()}
+            ${item.link ? `<br><a href="${item.link}" target="_blank" style="color: #3b82f6;">🔗 상품 링크</a>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    historyBox.innerHTML = html;
+  }
+
+  // 내역 삭제
+  window.deleteHistory = function(idx) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    
+    const history = JSON.parse(localStorage.getItem('purchase-history') || '[]');
+    history.splice(idx, 1);
+    localStorage.setItem('purchase-history', JSON.stringify(history));
+    loadPurchaseHistory();
+  };
+
+  // PDF 내보내기 (간단 구현)
+  document.getElementById('btn-export-pdf').addEventListener('click', () => {
+    alert('PDF 내보내기 기능은 추후 구현 예정입니다.\n현재는 브라우저 인쇄 기능(Ctrl+P)을 사용해주세요.');
+    window.print();
+  });
+
+  // 엑셀 내보내기
+  document.getElementById('btn-export-excel').addEventListener('click', () => {
+    const history = JSON.parse(localStorage.getItem('purchase-history') || '[]');
+    
+    if (history.length === 0) {
+      alert('내보낼 데이터가 없습니다.');
+      return;
+    }
+    
+    let csv = '주문일,제품명,수량,총원가,개당원가,링크\n';
+    history.forEach(item => {
+      const date = new Date(item.purchaseDate).toLocaleDateString('ko-KR');
+      csv += `${date},${item.productName},${item.qty},${item.totalCost},${item.costPerUnit},"${item.link || ''}"\n`;
+    });
+    
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `구입내역_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  });
+  </script>
+</body>
+</html>
