@@ -7,8 +7,7 @@ app = Flask(__name__)
 def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
-        raise RuntimeError("OPENAI_API_KEY가 비어 있습니다. Render 대시보드 > Environment에 추가하세요.")
-    print(f"🔑 OPENAI_API_KEY length={len(key)}, prefix={(key[:6] if len(key)>=6 else key)}")
+        raise RuntimeError("OPENAI_API_KEY가 비어 있습니다.")
     return OpenAI(api_key=key)
 
 client = get_client()
@@ -21,114 +20,209 @@ def home():
 def message():
     return render_template("message.html")
 
-# 헬스체크
 @app.route("/health")
 def health():
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    masked = f"{key[:3]}***{key[-3:]}" if len(key) >= 7 else "(none)"
-    return jsonify({
-        "ok": True,
-        "key_present": bool(key),
-        "key_len": len(key),
-        "key_masked": masked,
-    })
+    return jsonify({"ok": True})
 
-# 오전 메시지 생성
-@app.route("/api/message/morning", methods=["POST"])
-def api_morning_message():
-    data = request.json or {}
-    guide = data.get("guide", "")
-    bible_text = data.get("text", "")
-    ref = data.get("ref", "")
-    date = data.get("date", "")
-
-    print("[MORNING] payload =>", {
-        "len_guide": len(guide),
-        "len_text": len(bible_text),
-        "ref": ref,
-        "date": date,
-    })
-
+# ===== HTML에서 호출하는 통합 메시지 생성 API =====
+@app.route("/api/message/generate", methods=["POST"])
+def api_generate_message():
+    """오전/저녁 메시지 생성 (HTML에서 호출)"""
     try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+        
+        month = data.get("month", "")
+        day = data.get("day", "")
+        bible_ref = data.get("bible_ref", "")
+        bible_text = data.get("bible_text", "")
+        time_of_day = data.get("time_of_day", "morning")  # morning 또는 evening
+        guide = data.get("guide", "")
+        
+        print(f"[GENERATE] {time_of_day} - {bible_ref}")
+        
+        # 시스템 메시지
+        if time_of_day == "morning":
+            system_msg = "You help create morning devotional messages in Korean."
+            time_label = "오전"
+        else:
+            system_msg = "You help create evening devotional messages in Korean."
+            time_label = "저녁"
+        
+        # GPT 호출
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "You help create morning devotional messages in Korean."
+                    "content": system_msg
                 },
                 {
                     "role": "user",
-                    "content": f"[오전 지침]\n{guide}\n\n[날짜]\n{date}\n\n[본문]\n{ref}\n{bible_text}"
+                    "content": f"[{time_label} 지침]\n{guide}\n\n[날짜]\n{month}월 {day}일\n\n[본문]\n{bible_ref}\n\n{bible_text}\n\n위 내용을 바탕으로 {time_label} 묵상 메시지를 작성해주세요."
                 }
             ],
             temperature=0.7,
         )
-
-        result_text = (completion.choices[0].message.content or "").strip()
-        print("[MORNING] result length =>", len(result_text))
-
-        return jsonify({"ok": True, "result": result_text})
-
+        
+        result = completion.choices[0].message.content.strip()
+        return jsonify({"ok": True, "message": result})
+        
     except Exception as e:
-        err_text = str(e)
-        print("[MORNING][ERROR]", err_text)
-        return jsonify({"ok": False, "error": err_text}), 200
+        print(f"[GENERATE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
 
-# 저녁 메시지 생성
-@app.route("/api/message/evening", methods=["POST"])
-def api_evening_message():
-    data = request.json or {}
-    guide = data.get("guide", "")
-    bible_text = data.get("text", "")
-    ref = data.get("ref", "")
-    date = data.get("date", "")
 
-    print("[EVENING] payload =>", {
-        "len_guide": len(guide),
-        "len_text": len(bible_text),
-        "ref": ref,
-        "date": date,
-    })
-
+# ===== 이미지 프롬프트 생성 API (s 추가!) =====
+@app.route("/api/message/image-prompts", methods=["POST"])
+def api_image_prompts():
+    """이미지 프롬프트 생성 (HTML에서 호출)"""
     try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+        
+        message = data.get("message", "")
+        time_of_day = data.get("time_of_day", "morning")
+        guide = data.get("guide", "")
+        
+        print(f"[IMAGE_PROMPTS] {time_of_day}")
+        
+        # GPT 호출
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "You help create evening devotional messages in Korean."
+                    "content": "You create image and music generation prompts IN ENGLISH. Always respond in English."
                 },
                 {
                     "role": "user",
-                    "content": f"[저녁 지침]\n{guide}\n\n[날짜]\n{date}\n\n[본문]\n{ref}\n{bible_text}"
+                    "content": f"""[Guidelines]
+{guide}
+
+[Message]
+{message}
+
+Create 3 image prompts and 1 music prompt in English.
+
+Format EXACTLY like this:
+
+### Image Prompt 1
+[detailed English prompt]
+
+### Image Prompt 2
+[detailed English prompt]
+
+### Image Prompt 3
+[detailed English prompt]
+
+### Music Prompt
+[detailed English prompt]"""
                 }
             ],
             temperature=0.7,
         )
-
-        result_text = (completion.choices[0].message.content or "").strip()
-        print("[EVENING] result length =>", len(result_text))
-
-        return jsonify({"ok": True, "result": result_text})
-
+        
+        result = completion.choices[0].message.content.strip()
+        
+        # 결과를 파싱하여 각각 분리
+        lines = result.split('\n')
+        image1 = ""
+        image2 = ""
+        image3 = ""
+        music = ""
+        
+        current_section = None
+        current_content = []
+        
+        for line in lines:
+            line = line.strip()
+            if "### Image Prompt 1" in line or "Image Prompt 1" in line:
+                if current_section:
+                    content = '\n'.join(current_content).strip()
+                    if current_section == 1:
+                        image1 = content
+                    elif current_section == 2:
+                        image2 = content
+                    elif current_section == 3:
+                        image3 = content
+                    elif current_section == 4:
+                        music = content
+                current_section = 1
+                current_content = []
+            elif "### Image Prompt 2" in line or "Image Prompt 2" in line:
+                if current_section:
+                    content = '\n'.join(current_content).strip()
+                    if current_section == 1:
+                        image1 = content
+                current_section = 2
+                current_content = []
+            elif "### Image Prompt 3" in line or "Image Prompt 3" in line:
+                if current_section:
+                    content = '\n'.join(current_content).strip()
+                    if current_section == 1:
+                        image1 = content
+                    elif current_section == 2:
+                        image2 = content
+                current_section = 3
+                current_content = []
+            elif "### Music Prompt" in line or "Music Prompt" in line:
+                if current_section:
+                    content = '\n'.join(current_content).strip()
+                    if current_section == 1:
+                        image1 = content
+                    elif current_section == 2:
+                        image2 = content
+                    elif current_section == 3:
+                        image3 = content
+                current_section = 4
+                current_content = []
+            elif line and not line.startswith('#'):
+                current_content.append(line)
+        
+        # 마지막 섹션 처리
+        if current_section:
+            content = '\n'.join(current_content).strip()
+            if current_section == 1:
+                image1 = content
+            elif current_section == 2:
+                image2 = content
+            elif current_section == 3:
+                image3 = content
+            elif current_section == 4:
+                music = content
+        
+        return jsonify({
+            "ok": True,
+            "image1": image1,
+            "image2": image2,
+            "image3": image3,
+            "music": music
+        })
+        
     except Exception as e:
-        err_text = str(e)
-        print("[EVENING][ERROR]", err_text)
-        return jsonify({"ok": False, "error": err_text}), 200
+        print(f"[IMAGE_PROMPTS][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
 
-# 번역
+
+# ===== 번역 API =====
 @app.route("/api/message/translate", methods=["POST"])
 def api_translate():
-    data = request.json or {}
-    guide = data.get("guide", "")
-    text = data.get("text", "")
-    lang = data.get("lang", "en")  # en or ja
-
-    lang_name = "영어" if lang == "en" else "일본어"
-    print(f"[TRANSLATE] {lang_name} =>", {"len_text": len(text)})
-
+    """번역 (HTML에서 호출)"""
     try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+        
+        text = data.get("text", "")
+        target_lang = data.get("target_lang", "en")
+        guide = data.get("guide", "")
+        
+        lang_name = "영어" if target_lang == "en" else "일본어"
+        print(f"[TRANSLATE] to {lang_name}")
+        
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -138,80 +232,22 @@ def api_translate():
                 },
                 {
                     "role": "user",
-                    "content": f"[번역 지침]\n{guide}\n\n[번역할 텍스트]\n{text}\n\n위 텍스트를 {lang_name}로 번역해주세요."
+                    "content": f"[번역 지침]\n{guide}\n\n[텍스트]\n{text}\n\n위를 {lang_name}로 번역해주세요."
                 }
             ],
             temperature=0.3,
         )
-
-        result_text = (completion.choices[0].message.content or "").strip()
-        print(f"[TRANSLATE] {lang_name} result length =>", len(result_text))
-
-        return jsonify({"ok": True, "result": result_text})
-
+        
+        result = completion.choices[0].message.content.strip()
+        return jsonify({"ok": True, "translation": result})
+        
     except Exception as e:
-        err_text = str(e)
-        print("[TRANSLATE][ERROR]", err_text)
-        return jsonify({"ok": False, "error": err_text}), 200
+        print(f"[TRANSLATE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
 
-# 이미지 프롬프트 생성
-@app.route("/api/message/image-prompt", methods=["POST"])
-def api_image_prompt():
-    data = request.json or {}
-    guide = data.get("guide", "")
-    message = data.get("message", "")
-    time = data.get("time", "morning")
 
-    time_name = "오전" if time == "morning" else "저녁"
-    print(f"[IMAGE_PROMPT] {time_name} =>", {"len_message": len(message)})
-
-    try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You create image and music generation prompts IN ENGLISH based on devotional messages. Always respond in English."
-                },
-                {
-                    "role": "user",
-                    "content": f"""[Image Prompt Guidelines]
-{guide}
-
-[Message]
-{message}
-
-Create 3 separate image prompts and 1 music prompt based on the message above. 
-Format your response EXACTLY like this:
-
-### Image Prompt 1
-[detailed English prompt for first image]
-
-### Image Prompt 2
-[detailed English prompt for second image]
-
-### Image Prompt 3
-[detailed English prompt for third image]
-
-### Music Prompt
-[detailed English prompt for background music]
-
-IMPORTANT: Write ALL prompts in English only."""
-                }
-            ],
-            temperature=0.7,
-        )
-
-        result_text = (completion.choices[0].message.content or "").strip()
-        print(f"[IMAGE_PROMPT] {time_name} result length =>", len(result_text))
-
-        return jsonify({"ok": True, "result": result_text})
-
-    except Exception as e:
-        err_text = str(e)
-        print("[IMAGE_PROMPT][ERROR]", err_text)
-        return jsonify({"ok": False, "error": err_text}), 200
-
+# ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
-    import os
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5058)), debug=True)
+    port = int(os.environ.get("PORT", 5058))
+    # Render 배포용: host="0.0.0.0", debug=False
+    app.run(host="0.0.0.0", port=port, debug=False)
