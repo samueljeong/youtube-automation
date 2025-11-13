@@ -127,6 +127,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   
+<!-- Firebase SDK 추가 -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  
   <script>
   // ===== Firebase 초기화 =====
   const firebaseConfig = {
@@ -142,34 +146,35 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
   
-  // 고유 사용자 코드 (원하는 대로 변경 가능)
   const USER_CODE = 'samuel123';
   const PAGE_NAME = 'sermon';
 
-  // ===== 기존 변수들 =====
-  const categorySelect = document.getElementById("category-select");
-  const guideTypeButtons = document.querySelectorAll(".guide-type-btn");
+  // ===== 전역 변수 =====
+  const categorySelect = document.getElementById("sermon-category");
   const guideTextArea = document.getElementById("guide-text");
-  const statusMsg = document.getElementById("status-msg");
-
-  let currentGuideType = "analysis";
-
-  function getGuideKey(category, type) {
-    return `sermon-guide-${category}-${type}`;
-  }
-
-  function showStatus(msg) {
-    statusMsg.textContent = msg;
-    statusMsg.style.display = "block";
-  }
-
-  function hideStatus() {
-    statusMsg.style.display = "none";
-  }
-
-  // ===== Firebase 함수들 =====
+  const statusBar = document.getElementById("status-bar");
   
-  // Firebase에서 모든 지침 불러오기
+  let currentGuideType = "analysis"; // analysis 또는 prompt
+
+  // ===== 상태 표시 =====
+  function showStatus(msg) {
+    statusBar.textContent = msg;
+    statusBar.style.display = "block";
+  }
+  
+  function hideStatus() {
+    statusBar.style.display = "none";
+  }
+
+  // ===== 자동 높이 조절 =====
+  function autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // ===== Firebase 함수 =====
+  
   async function loadFromFirebase() {
     try {
       const snapshot = await db
@@ -198,7 +203,6 @@
     }
   }
 
-  // Firebase에 지침 저장
   async function saveToFirebase(key, value) {
     try {
       await db
@@ -217,37 +221,48 @@
     }
   }
 
-  // ===== 화면 업데이트 =====
+  // ===== 지침 관리 =====
   
+  function getGuideKey(category, type) {
+    return `sermon-guide-${category}-${type}`;
+  }
+
   function loadCurrentGuide() {
     const cat = categorySelect.value;
     const key = getGuideKey(cat, currentGuideType);
-    const stored = localStorage.getItem(key);
-    guideTextArea.value = stored || "";
+    const stored = localStorage.getItem(key) || "";
+    guideTextArea.value = stored;
+    autoResize(guideTextArea);
   }
 
+  // 카테고리 변경
   categorySelect.addEventListener("change", loadCurrentGuide);
 
-  guideTypeButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      guideTypeButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentGuideType = btn.dataset.type;
-      loadCurrentGuide();
-    });
+  // 지침 타입 탭 전환
+  document.getElementById("tab-guide-analysis").addEventListener("click", () => {
+    document.getElementById("tab-guide-analysis").classList.add("guide-tab-active");
+    document.getElementById("tab-guide-prompt").classList.remove("guide-tab-active");
+    currentGuideType = "analysis";
+    loadCurrentGuide();
   });
 
-  // ===== 지침 저장 버튼 =====
-  
+  document.getElementById("tab-guide-prompt").addEventListener("click", () => {
+    document.getElementById("tab-guide-prompt").classList.add("guide-tab-active");
+    document.getElementById("tab-guide-analysis").classList.remove("guide-tab-active");
+    currentGuideType = "prompt";
+    loadCurrentGuide();
+  });
+
+  // 지침 저장
   document.getElementById("save-guide").addEventListener("click", async () => {
     const cat = categorySelect.value;
     const key = getGuideKey(cat, currentGuideType);
     const value = guideTextArea.value;
 
-    // 1. localStorage 저장 (빠른 로컬 접근)
+    // localStorage 저장
     localStorage.setItem(key, value);
 
-    // 2. Firebase 저장 (클라우드 동기화)
+    // Firebase 저장
     showStatus("💾 저장 중...");
     const success = await saveToFirebase(key, value);
 
@@ -260,145 +275,240 @@
     setTimeout(hideStatus, 2000);
   });
 
-  // ===== 테스트 버튼 =====
+  // ===== 지침 영역 토글 =====
   
-  document.getElementById("test-guide").addEventListener("click", async () => {
-    const cat = categorySelect.value;
-    const key = getGuideKey(cat, currentGuideType);
-    const storedGuide = localStorage.getItem(key) || "";
+  let guidesVisible = true;
+  document.getElementById("toggle-guides").addEventListener("click", () => {
+    const guideBox = document.getElementById("guide-box");
+    const btn = document.getElementById("toggle-guides");
+    
+    guidesVisible = !guidesVisible;
+    
+    if (guidesVisible) {
+      guideBox.querySelector('.btn-row').style.display = 'flex';
+      guideTextArea.style.display = 'block';
+      btn.textContent = '닫기';
+    } else {
+      guideBox.querySelector('.btn-row').style.display = 'none';
+      guideTextArea.style.display = 'none';
+      btn.textContent = '열기';
+    }
+  });
 
-    if (!storedGuide.trim()) {
-      alert("먼저 지침을 작성하고 저장하세요.");
+  // ===== 복사 기능 =====
+  
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.copy;
+      const textarea = document.getElementById(targetId);
+      if (!textarea) return;
+      
+      textarea.select();
+      document.execCommand('copy');
+      
+      const originalText = btn.textContent;
+      btn.textContent = '✅ 복사됨!';
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 1500);
+    });
+  });
+
+  // ===== 본문 분석 =====
+  
+  document.getElementById("btn-analyze").addEventListener("click", async () => {
+    const date = document.getElementById("sermon-date").value;
+    const category = categorySelect.value;
+    const ref = document.getElementById("sermon-ref").value;
+    const text = document.getElementById("sermon-text").value;
+    const guideKey = getGuideKey(category, "analysis");
+    const guide = localStorage.getItem(guideKey) || "";
+
+    if (!ref || !text) {
+      alert("성경구절과 본문을 입력하세요.");
       return;
     }
 
-    const sampleText = "여호와는 나의 목자시니 내게 부족함이 없으리로다.";
-    showStatus("🤖 GPT에게 테스트 요청 중...");
+    showStatus("🤖 본문 분석 중...");
 
     try {
-      const response = await fetch("/api/sermon/test-guide", {
+      const response = await fetch("/api/sermon/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          category: cat,
-          guide_type: currentGuideType,
-          guide: storedGuide,
-          sample_text: sampleText,
-        }),
+          date: date,
+          category: category,
+          reference: ref,
+          text: text,
+          guide: guide
+        })
       });
 
       const data = await response.json();
 
       if (data.ok) {
-        alert(`✅ 테스트 성공!\n\n결과:\n${data.result}`);
-        hideStatus();
+        const analysisBox = document.getElementById("analysis-box");
+        analysisBox.value = data.analysis;
+        autoResize(analysisBox);
+        showStatus("✅ 본문 분석 완료!");
       } else {
-        alert(`❌ 오류 발생:\n${data.error}`);
-        hideStatus();
+        alert(`오류: ${data.error}`);
+        showStatus("❌ 분석 실패");
       }
     } catch (err) {
-      alert(`❌ 네트워크 오류:\n${err.message}`);
-      hideStatus();
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus("❌ 오류 발생");
+    } finally {
+      setTimeout(hideStatus, 2000);
     }
   });
 
-  // ===== 내보내기/가져오기 =====
+  // ===== 설교문 프롬프트 생성 =====
   
-  // 내보내기
-  document.getElementById("export-guides").addEventListener("click", () => {
-    const guides = {};
-    const categories = ["dawn", "wednesday", "friday", "youth"];
-    const types = ["analysis", "prompt"];
+  document.getElementById("btn-prompt").addEventListener("click", async () => {
+    const date = document.getElementById("sermon-date").value;
+    const category = categorySelect.value;
+    const ref = document.getElementById("sermon-ref").value;
+    const text = document.getElementById("sermon-text").value;
+    const analysis = document.getElementById("analysis-box").value;
+    const guideKey = getGuideKey(category, "prompt");
+    const guide = localStorage.getItem(guideKey) || "";
 
-    categories.forEach((cat) => {
-      types.forEach((type) => {
-        const key = getGuideKey(cat, type);
-        guides[key] = localStorage.getItem(key) || "";
+    if (!analysis) {
+      alert("먼저 본문 분석을 진행하세요.");
+      return;
+    }
+
+    showStatus("🤖 프롬프트 생성 중...");
+
+    try {
+      const response = await fetch("/api/sermon/prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: date,
+          category: category,
+          reference: ref,
+          text: text,
+          analysis: analysis,
+          guide: guide
+        })
       });
-    });
 
-    const blob = new Blob([JSON.stringify(guides, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "sermon-guides-backup.json";
-    a.click();
+      const data = await response.json();
 
-    alert("✅ 백업 파일 다운로드 완료!\n\n참고: Firebase에 자동 저장되므로 백업은 선택사항입니다.");
-  });
-
-  // 가져오기
-  document.getElementById("import-guides").addEventListener("click", () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json";
-
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-        try {
-          const guides = JSON.parse(evt.target.result);
-          
-          // localStorage에 저장
-          for (const [key, value] of Object.entries(guides)) {
-            localStorage.setItem(key, value);
-          }
-
-          // Firebase에도 업로드
-          showStatus("☁️ Firebase에 업로드 중...");
-          let uploadCount = 0;
-          for (const [key, value] of Object.entries(guides)) {
-            const success = await saveToFirebase(key, value);
-            if (success) uploadCount++;
-          }
-
-          alert(`✅ 가져오기 완료!\n\n로컬: ${Object.keys(guides).length}개\nFirebase: ${uploadCount}개`);
-          loadCurrentGuide();
-          hideStatus();
-        } catch (err) {
-          alert(`❌ JSON 파일 형식이 잘못되었습니다:\n${err.message}`);
-        }
-      };
-      reader.readAsText(file);
-    };
-
-    input.click();
-  });
-
-  // ===== Firebase 동기화 버튼 =====
-  
-  // "클라우드에서 불러오기" 버튼 추가
-  document.getElementById("sync-from-cloud")?.addEventListener("click", async () => {
-    if (!confirm("로컬 지침을 클라우드 지침으로 덮어씌우시겠습니까?")) return;
-    
-    showStatus("☁️ 클라우드에서 다운로드 중...");
-    const success = await loadFromFirebase();
-    
-    if (success) {
-      loadCurrentGuide();
-      showStatus("✅ 클라우드 지침으로 업데이트되었습니다!");
-    } else {
-      showStatus("⚠️ 클라우드에 저장된 지침이 없습니다.");
+      if (data.ok) {
+        const promptBox = document.getElementById("sermon-prompt-box");
+        promptBox.value = data.prompt;
+        autoResize(promptBox);
+        showStatus("✅ 프롬프트 생성 완료!");
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus("❌ 생성 실패");
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus("❌ 오류 발생");
+    } finally {
+      setTimeout(hideStatus, 2000);
     }
-    
-    setTimeout(hideStatus, 2000);
+  });
+
+  // ===== 저장 공간 관리 =====
+  
+  function loadSavedList() {
+    const savedList = document.getElementById("saved-list");
+    const saved = JSON.parse(localStorage.getItem("sermon-saved") || "[]");
+
+    if (saved.length === 0) {
+      savedList.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">저장된 자료가 없습니다.</p>';
+      return;
+    }
+
+    savedList.innerHTML = saved.map((item, idx) => `
+      <div class="storage-item">
+        <span style="font-size: .85rem;">${item.date || '날짜 없음'} - ${item.category || '카테고리 없음'}</span>
+        <div class="storage-actions">
+          <button onclick="loadSaved(${idx})">불러오기</button>
+          <button onclick="deleteSaved(${idx})">삭제</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById("btn-save").addEventListener("click", () => {
+    const date = document.getElementById("sermon-date").value;
+    const category = categorySelect.value;
+    const ref = document.getElementById("sermon-ref").value;
+    const text = document.getElementById("sermon-text").value;
+    const analysis = document.getElementById("analysis-box").value;
+    const prompt = document.getElementById("sermon-prompt-box").value;
+
+    const saved = JSON.parse(localStorage.getItem("sermon-saved") || "[]");
+    saved.push({
+      date: date,
+      category: category,
+      ref: ref,
+      text: text,
+      analysis: analysis,
+      prompt: prompt,
+      savedAt: new Date().toISOString()
+    });
+
+    localStorage.setItem("sermon-saved", JSON.stringify(saved));
+    loadSavedList();
+    alert("✅ 저장되었습니다!");
+  });
+
+  window.loadSaved = function(idx) {
+    const saved = JSON.parse(localStorage.getItem("sermon-saved") || "[]");
+    const item = saved[idx];
+
+    document.getElementById("sermon-date").value = item.date || "";
+    categorySelect.value = item.category || "dawn";
+    document.getElementById("sermon-ref").value = item.ref || "";
+    document.getElementById("sermon-text").value = item.text || "";
+    document.getElementById("analysis-box").value = item.analysis || "";
+    document.getElementById("sermon-prompt-box").value = item.prompt || "";
+
+    document.querySelectorAll('textarea').forEach(autoResize);
+  };
+
+  window.deleteSaved = function(idx) {
+    if (!confirm("삭제하시겠습니까?")) return;
+
+    const saved = JSON.parse(localStorage.getItem("sermon-saved") || "[]");
+    saved.splice(idx, 1);
+    localStorage.setItem("sermon-saved", JSON.stringify(saved));
+    loadSavedList();
+  };
+
+  // ===== textarea 자동 높이 =====
+  
+  document.querySelectorAll('textarea.autosize').forEach(textarea => {
+    textarea.addEventListener('input', () => autoResize(textarea));
   });
 
   // ===== 페이지 로드 시 초기화 =====
   
   document.addEventListener("DOMContentLoaded", async () => {
-    // Firebase에서 최신 지침 불러오기 시도
+    // 오늘 날짜 설정
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById("sermon-date").value = today;
+
+    // Firebase에서 지침 불러오기
     showStatus("☁️ 클라우드 동기화 중...");
     await loadFromFirebase();
     hideStatus();
-    
-    // 화면에 현재 지침 표시
+
+    // 현재 지침 표시
     loadCurrentGuide();
+
+    // 저장된 목록 불러오기
+    loadSavedList();
+
+    // 모든 textarea 높이 조절
+    document.querySelectorAll('textarea').forEach(autoResize);
   });
   </script>
 </body>
