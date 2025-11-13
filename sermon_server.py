@@ -74,40 +74,59 @@ def api_sermon_analyze():
 
 @app.route("/api/sermon/prompt", methods=["POST"])
 def api_sermon_prompt():
-    data = request.json or {}
-    guide = data.get("guide", "")
-    ref = data.get("reference", "")  # ← "reference"로 수정!
-    category = data.get("category", "")
-    bible_text = data.get("text", "")
-    analysis = data.get("analysis", "")
-
-    print(f"[PROMPT] ref={ref}, category={category}")
-
     try:
-        content = f"[지침]\n{guide}\n\n[카테고리]\n{category}\n\n[본문]\n{ref}"
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No JSON data received"}), 400
+        
+        guide = data.get("guide", "")
+        ref = data.get("reference", "")
+        category = data.get("category", "")
+        bible_text = data.get("text", "")
+        analysis = data.get("analysis", "")
+        promptType = data.get("promptType", "기본")
+
+        print(f"[PROMPT] ref={ref}, category={category}, promptType={promptType}")
+
+        if not ref:
+            return jsonify({"ok": False, "error": "성경 구절이 필요합니다."}), 400
+
+        # 프롬프트 구성 - 본문 분석을 적극 활용하도록 지시
+        content = f"[성경 구절]\n{ref}\n\n[카테고리]\n{category}\n\n[설교 유형]\n{promptType}"
+        
         if bible_text:
             content += f"\n\n[본문 내용]\n{bible_text}"
-        if analysis:
-            content += f"\n\n[본문 분석]\n{analysis}"
         
-        content += "\n\n위 정보를 이용해서 GPT에 붙여넣을 설교문 제작 프롬포트를 만들어줘."
+        if analysis:
+            content += f"\n\n[본문 분석 결과]\n{analysis}"
+            content += "\n\n⚠️ 위의 본문 분석 결과를 반드시 참고하여 설교문 제작 프롬프트를 작성하세요."
+        
+        if guide:
+            content = f"[사용자 지침]\n{guide}\n\n{content}"
+        
+        content += "\n\n위 모든 정보를 종합하여, GPT에게 직접 입력할 수 있는 완성된 설교문 제작 프롬프트를 작성해주세요."
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You create sermon-generation prompts."},
+                {
+                    "role": "system", 
+                    "content": "You are an expert at creating sermon writing prompts. You must incorporate the biblical analysis results into your prompt creation."
+                },
                 {"role": "user", "content": content}
             ],
             temperature=0.7,
         )
         
         result = completion.choices[0].message.content
+        print(f"[PROMPT] Success!")
         return jsonify({"ok": True, "result": result})
         
     except Exception as e:
-        print(f"[PROMPT][ERROR] {str(e)}")
-        return jsonify({"ok": False, "error": str(e)}), 200
-
+        err_text = str(e)
+        print(f"[PROMPT][ERROR] {err_text}")
+        return jsonify({"ok": False, "error": err_text}), 200
+    
 if __name__ == "__main__":
     import os
     app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5057)), debug=True)
