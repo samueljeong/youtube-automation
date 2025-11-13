@@ -91,27 +91,71 @@ def api_sermon_prompt():
         if not ref:
             return jsonify({"ok": False, "error": "성경 구절이 필요합니다."}), 400
 
-        # 프롬프트 구성 - 본문 분석을 적극 활용하도록 지시
-        content = f"[성경 구절]\n{ref}\n\n[카테고리]\n{category}\n\n[설교 유형]\n{promptType}"
-        
+        # 프롬프트 생성을 위한 메타-프롬프트 구성
+        content = f"""당신은 설교문 작성 프롬프트 전문가입니다.
+
+아래 정보를 바탕으로, **다른 GPT 모델(예: ChatGPT Plus, Claude)에게 직접 입력할 수 있는 완성된 설교문 작성 프롬프트**를 만들어주세요.
+
+---
+
+📌 **설교 정보**
+- 성경 구절: {ref}
+- 카테고리: {category}
+- 설교 유형: {promptType}
+"""
+
         if bible_text:
-            content += f"\n\n[본문 내용]\n{bible_text}"
+            content += f"\n- 본문 내용:\n{bible_text}\n"
         
         if analysis:
-            content += f"\n\n[본문 분석 결과]\n{analysis}"
-            content += "\n\n⚠️ 위의 본문 분석 결과를 반드시 참고하여 설교문 제작 프롬프트를 작성하세요."
+            content += f"""
+📊 **본문 분석 결과**
+{analysis}
+
+⚠️ **중요**: 위의 본문 분석 결과를 프롬프트에 반드시 포함시켜, GPT가 이 분석을 바탕으로 설교문을 작성하도록 해주세요.
+"""
         
         if guide:
-            content = f"[사용자 지침]\n{guide}\n\n{content}"
+            content += f"""
+📘 **설교 제작 매뉴얼 (필수 준수)**
+{guide}
+
+⚠️ **중요**: 위 매뉴얼의 모든 지침(대상, 시간, 포맷, 톤, 구조 등)을 프롬프트에 명확히 포함시켜주세요.
+"""
         
-        content += "\n\n위 모든 정보를 종합하여, GPT에게 직접 입력할 수 있는 완성된 설교문 제작 프롬프트를 작성해주세요."
+        content += """
+
+---
+
+✅ **출력 형식**
+
+아래와 같은 형식으로 **완성된 프롬프트**를 작성해주세요:
+```
+[GPT에게 입력할 프롬프트 시작]
+
+당신은 한국 교회의 설교문 작성 전문가입니다.
+
+[설교 정보와 매뉴얼을 통합하여 명확한 지시사항 작성]
+[본문 분석 결과를 포함]
+[기대하는 설교문의 구조와 톤 명시]
+[구체적인 작성 지침]
+
+[GPT에게 입력할 프롬프트 끝]
+```
+
+**주의사항**:
+1. 프롬프트는 복사-붙여넣기만 하면 바로 사용 가능해야 합니다
+2. 설교문을 직접 작성하지 말고, "설교문을 작성하라"는 지시문을 만드세요
+3. 매뉴얼의 모든 세부사항이 프롬프트에 포함되어야 합니다
+4. 본문 분석 내용을 프롬프트에 통합하세요
+"""
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system", 
-                    "content": "You are an expert at creating sermon writing prompts. You must incorporate the biblical analysis results into your prompt creation."
+                    "content": "You are an expert at creating sermon writing prompts for other AI models. You create clear, detailed prompts that other GPTs can use to write excellent sermons. You NEVER write the sermon itself - you only create the prompt."
                 },
                 {"role": "user", "content": content}
             ],
@@ -119,14 +163,14 @@ def api_sermon_prompt():
         )
         
         result = completion.choices[0].message.content
-        print(f"[PROMPT] Success!")
+        print(f"[PROMPT] Success! Created prompt for other GPT models")
         return jsonify({"ok": True, "result": result})
         
     except Exception as e:
         err_text = str(e)
         print(f"[PROMPT][ERROR] {err_text}")
         return jsonify({"ok": False, "error": err_text}), 200
-    
+        
 if __name__ == "__main__":
     import os
     app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 5057)), debug=True)
