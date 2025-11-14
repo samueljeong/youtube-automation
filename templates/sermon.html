@@ -5,93 +5,93 @@
   <title>설교 도움 페이지</title>
   <style>
     * { box-sizing: border-box; }
-    body { 
-      margin: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-      background: #f5f5f5; 
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f5;
     }
-    .page-wrap { 
-      display: flex; 
-      gap: 1rem; 
-      padding: 1rem; 
-      height: 100vh; 
+    .page-wrap {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      height: 100vh;
     }
-    .left-col { 
-      width: 360px; 
-      display: flex; 
-      flex-direction: column; 
-      gap: .75rem; 
-      overflow-y: auto; 
+    .left-col {
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+      overflow-y: auto;
     }
-    .right-col { 
-      flex: 1; 
-      display: flex; 
-      flex-direction: column; 
-      gap: .75rem; 
-      min-width: 0; 
-      overflow-y: auto; 
+    .right-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+      min-width: 0;
+      overflow-y: auto;
     }
-    .box { 
-      background: #fff; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      padding: .75rem; 
+    .box {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: .75rem;
     }
-    .label-row { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      gap: .5rem; 
-      margin-bottom: .35rem; 
+    .label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .35rem;
     }
     .label { font-weight: 600; }
-    input[type="text"], 
-    input[type="date"], 
-    select { 
-      width: 100%; 
-      padding: .35rem .5rem; 
+    input[type="text"],
+    input[type="date"],
+    select {
+      width: 100%;
+      padding: .35rem .5rem;
     }
-    textarea { 
-      width: 100%; 
-      min-height: 80px; 
-      resize: vertical; 
-      font-family: inherit; 
-      line-height: 1.4; 
+    textarea {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.4;
     }
-    .btn-row { 
-      display: flex; 
-      gap: .5rem; 
-      flex-wrap: wrap; 
+    .btn-row {
+      display: flex;
+      gap: .5rem;
+      flex-wrap: wrap;
     }
-    button { 
-      padding: .35rem .6rem; 
-      border: 1px solid #ccc; 
-      background: #f0f0f0; 
-      border-radius: 6px; 
-      cursor: pointer; 
+    button {
+      padding: .35rem .6rem;
+      border: 1px solid #ccc;
+      background: #f0f0f0;
+      border-radius: 6px;
+      cursor: pointer;
     }
     button:hover { background: #e0e0e0; }
-    button.primary { 
-      background: #4a90e2; 
-      color: white; 
-      border-color: #4a90e2; 
+    button.primary {
+      background: #4a90e2;
+      color: white;
+      border-color: #4a90e2;
     }
     button.primary:hover { background: #357abd; }
-    button.danger { 
-      background: #e74c3c; 
-      color: white; 
-      border-color: #e74c3c; 
+    button.danger {
+      background: #e74c3c;
+      color: white;
+      border-color: #e74c3c;
     }
-    button.step-btn { 
-      width: 100%; 
-      margin-bottom: .5rem; 
+    button.step-btn {
+      width: 100%;
+      margin-bottom: .5rem;
     }
-    
-    .style-item { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      padding: .4rem .6rem; 
+
+    .style-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .4rem .6rem;
       margin-bottom: .3rem;
       background: #f8f9fa;
       border-radius: 6px;
@@ -100,16 +100,16 @@
       border: 2px solid transparent;
     }
     .style-item:hover { background: #e9ecef; }
-    .style-item.active { 
-      background: #dfe6ff; 
-      border: 2px solid #4a90e2; 
+    .style-item.active {
+      background: #dfe6ff;
+      border: 2px solid #4a90e2;
     }
-    .style-desc { 
-      font-size: .75rem; 
-      color: #666; 
-      margin-top: .2rem; 
+    .style-desc {
+      font-size: .75rem;
+      color: #666;
+      margin-top: .2rem;
     }
-    
+
     .title-option-label {
       display: block;
       margin-bottom: .5rem;
@@ -126,31 +126,26 @@
       font-weight: 600;
       color: #4a90e2;
     }
-    
-    .toggle-header { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
+
+    .toggle-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .copy-btn { 
-      font-size: .7rem; 
-      padding: .2rem .5rem; 
-      background: #fff; 
+    .status-bar {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: .4rem .7rem;
+      font-size: .8rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+      display: none;
+      z-index: 1000;
     }
-    .status-bar { 
-      position: fixed; 
-      bottom: 10px; 
-      right: 10px; 
-      background: #fff; 
-      border: 1px solid #ddd; 
-      border-radius: 6px; 
-      padding: .4rem .7rem; 
-      font-size: .8rem; 
-      box-shadow: 0 2px 6px rgba(0,0,0,.08); 
-      display: none; 
-      z-index: 1000; 
-    }
-    
+
     .modal {
       display: none;
       position: fixed;
@@ -173,18 +168,18 @@
       max-height: 80vh;
       overflow-y: auto;
     }
-    .modal-title { 
-      font-size: 1.2rem; 
-      font-weight: 600; 
-      margin-bottom: 1rem; 
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
     }
-    .modal-buttons { 
-      display: flex; 
-      gap: .5rem; 
-      margin-top: 1rem; 
+    .modal-buttons {
+      display: flex;
+      gap: .5rem;
+      margin-top: 1rem;
     }
     .modal-buttons button { flex: 1; }
-    
+
     .storage-item {
       display: flex;
       justify-content: space-between;
@@ -194,8 +189,71 @@
       background: #f8f9fa;
       border-radius: 6px;
     }
-    
+
     textarea.autosize { overflow: hidden; }
+
+    /* GPT PRO 결과 박스 스타일 */
+    .gpt-pro-result-box {
+      background: linear-gradient(135deg, #ff6b9d 0%, #c06c84 100%);
+      border: none;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: .75rem;
+    }
+    .gpt-pro-result-box .label {
+      color: white;
+      font-size: 1.1rem;
+      margin-bottom: .5rem;
+    }
+    .gpt-pro-result-box textarea {
+      background: white;
+      border: none;
+      border-radius: 6px;
+      padding: .75rem;
+      min-height: 300px;
+    }
+
+    /* 버튼 컨테이너 */
+    .top-buttons-container {
+      display: flex;
+      gap: .75rem;
+    }
+    .top-buttons-container .box {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+    }
+    .copy-all-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .gpt-pro-box {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .top-buttons-container button {
+      background: white;
+      font-weight: 600;
+      padding: .6rem 1.2rem;
+      border: none;
+      font-size: .95rem;
+      width: 100%;
+    }
+    .copy-all-box button {
+      color: #667eea;
+    }
+    .gpt-pro-box button {
+      color: #f5576c;
+    }
+    .top-buttons-container .box-title {
+      color: white;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: .3rem;
+    }
+    .top-buttons-container .box-desc {
+      color: rgba(255,255,255,0.9);
+      font-size: .85rem;
+      margin-bottom: .75rem;
+    }
   </style>
 </head>
 <body>
@@ -229,9 +287,15 @@
         <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
       </div>
 
+      <!-- 제목 (선택사항) - 직접 입력 -->
+      <div class="box">
+        <label class="label">제목 (선택사항)</label>
+        <input type="text" id="manual-title" placeholder="직접 입력 또는 아래 제목 추천에서 선택">
+      </div>
+
       <!-- 제목 선택 영역 (제목 추천 후 표시) -->
       <div class="box" id="title-selection-box" style="display: none;">
-        <label class="label">✨ 제목 선택</label>
+        <label class="label">✨ 제목 추천 선택</label>
         <div id="title-options" style="margin-top: .5rem;"></div>
       </div>
 
@@ -266,14 +330,17 @@
 
     <!-- 오른쪽 -->
     <div class="right-col">
-      <!-- 전체 복사 버튼 -->
-      <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 1rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="color: white; font-weight: 600; font-size: 1.1rem; margin-bottom: .3rem;">📋 GPT-5.1로 보내기</div>
-            <div style="color: rgba(255,255,255,0.9); font-size: .85rem;">모든 초안 자료를 순서대로 복사합니다</div>
-          </div>
-          <button id="btn-copy-all" style="background: white; color: #667eea; font-weight: 600; padding: .6rem 1.2rem; border: none; font-size: .95rem;">전체 복사</button>
+      <!-- 전체 복사 + GPT PRO 버튼 -->
+      <div class="top-buttons-container">
+        <div class="box copy-all-box">
+          <div class="box-title">📋 GPT-5.1로 보내기</div>
+          <div class="box-desc">모든 초안 자료를 순서대로 복사합니다</div>
+          <button id="btn-copy-all">전체 복사</button>
+        </div>
+        <div class="box gpt-pro-box">
+          <div class="box-title">🚀 GPT PRO로 처리</div>
+          <div class="box-desc">초안을 완성된 설교문으로 변환합니다</div>
+          <button id="btn-gpt-pro">GPT PRO 실행</button>
         </div>
       </div>
 
@@ -326,6 +393,15 @@
 
       <!-- 동적 결과 박스들 -->
       <div id="result-boxes"></div>
+
+      <!-- GPT PRO 결과 박스 -->
+      <div id="gpt-pro-result-container" style="display: none;">
+        <div class="gpt-pro-result-box">
+          <div class="label">🎯 GPT PRO 완성본</div>
+          <textarea id="gpt-pro-result" class="autosize" readonly placeholder="GPT PRO 처리 결과가 여기에 표시됩니다."></textarea>
+          <button id="btn-copy-gpt-pro" style="margin-top: .5rem; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 완성본 복사</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -363,11 +439,11 @@
     <div class="modal-content">
       <div class="modal-title">설교 스타일 관리</div>
       <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">카테고리: <strong id="modal-styles-category"></strong></p>
-      
-      <input type="text" id="new-style-name" placeholder="스타일 이름 (예: 강해설교 v1)" style="margin-bottom: .3rem;">
+
+      <input type="text" id="new-style-name" placeholder="스타일 이름 (예: 새벽예배 - 강해설교)" style="margin-bottom: .3rem;">
       <input type="text" id="new-style-desc" placeholder="설명 (예: 본론 중심, 아이스브래이킹 제외)" style="margin-bottom: .5rem;">
       <button id="btn-add-style" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
-      
+
       <div id="styles-manage-list" style="max-height: 300px; overflow-y: auto;"></div>
       <div class="modal-buttons">
         <button id="btn-close-styles">닫기</button>
@@ -394,7 +470,7 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-  
+
   <script>
   // ===== Firebase 초기화 =====
   const firebaseConfig = {
@@ -409,7 +485,7 @@
 
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
-  
+
   const USER_CODE = 'samuel123';
   const PAGE_NAME = 'sermon';
   const GUIDE_PASSWORD = '5555';
@@ -417,7 +493,7 @@
 
   // ===== 전역 변수 =====
   let guideUnlocked = false;
-  let currentCategory = 'dawn';
+  let currentCategory = 'general';
   let currentStyleId = '';
   let currentGuideStep = '';
   let stepResults = {};
@@ -427,34 +503,27 @@
   // 기본 설정
   let config = {
     categories: [
-      {value: "dawn", label: "새벽설교"},
-      {value: "wednesday", label: "수요성경공부"},
-      {value: "friday", label: "금요기도회"},
-      {value: "youth", label: "청년부"}
+      {value: "general", label: "일반 설교"},
+      {value: "series", label: "시리즈 설교"}
     ],
     categorySettings: {
-      dawn: {
+      general: {
         masterGuide: "",
         styles: [
           {
-            id: "expository_v1",
-            name: "강해설교 v1",
+            id: "dawn_expository",
+            name: "새벽예배 - 강해설교",
             description: "본론 중심",
             steps: [
               {id: "title", name: "제목 추천", order: 1},
               {id: "analysis", name: "본문 분석", order: 2},
               {id: "outline", name: "개요 작성", order: 3}
             ]
-          }
-        ]
-      },
-      wednesday: {
-        masterGuide: "",
-        styles: [
+          },
           {
-            id: "series_v1",
-            name: "시리즈형",
-            description: "연속 강의",
+            id: "sunday_topical",
+            name: "주일예배 - 주제설교",
+            description: "주제 중심",
             steps: [
               {id: "title", name: "제목 추천", order: 1},
               {id: "analysis", name: "본문 분석", order: 2},
@@ -463,32 +532,17 @@
           }
         ]
       },
-      friday: {
+      series: {
         masterGuide: "",
         styles: [
           {
-            id: "prayer_v1",
-            name: "기도 중심",
-            description: "기도와 묵상",
+            id: "series_continuous",
+            name: "수요예배 - 연속강해",
+            description: "시리즈형 강해",
             steps: [
               {id: "title", name: "제목 추천", order: 1},
               {id: "analysis", name: "본문 분석", order: 2},
-              {id: "prayer", name: "기도 제목", order: 3}
-            ]
-          }
-        ]
-      },
-      youth: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "practical_v1",
-            name: "실천형",
-            description: "삶의 적용",
-            steps: [
-              {id: "title", name: "제목 추천", order: 1},
-              {id: "analysis", name: "본문 분석", order: 2},
-              {id: "application", name: "실천 과제", order: 3}
+              {id: "outline", name: "개요 작성", order: 3}
             ]
           }
         ]
@@ -517,13 +571,13 @@
       '기도': 'prayer',
       '개요': 'outline'
     };
-    
+
     for (const [key, value] of Object.entries(map)) {
       if (korean.includes(key)) {
         return value + '_' + Date.now().toString(36);
       }
     }
-    
+
     return 'step_' + Date.now().toString(36);
   }
 
@@ -535,7 +589,7 @@
       statusBar.style.display = 'block';
     }
   }
-  
+
   function hideStatus() {
     const statusBar = document.getElementById('status-bar');
     if (statusBar) {
@@ -553,12 +607,12 @@
   async function loadFromFirebase() {
     try {
       const snapshot = await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).get();
-      
+
       if (!snapshot.empty) {
         snapshot.forEach(doc => {
           localStorage.setItem(doc.id, doc.data().value);
         });
-        
+
         const configData = localStorage.getItem(CONFIG_KEY);
         if (configData) {
           config = JSON.parse(configData);
@@ -592,14 +646,25 @@
     await saveToFirebase(CONFIG_KEY, configStr);
   }
 
+  // ===== 제목 관리 함수 =====
+  function getSelectedTitle() {
+    // 수동 입력 제목이 있으면 우선
+    const manualTitle = document.getElementById('manual-title');
+    if (manualTitle && manualTitle.value.trim()) {
+      return manualTitle.value.trim();
+    }
+    // 그렇지 않으면 선택된 제목 반환
+    return selectedTitle;
+  }
+
   // ===== 제목 선택 관리 =====
   function displayTitleOptions(titles) {
     titleOptions = titles;
     const container = document.getElementById('title-options');
     const box = document.getElementById('title-selection-box');
-    
+
     if (!container || !box) return;
-    
+
     if (titles.length >= 3) {
       container.innerHTML = titles.slice(0, 3).map((title, idx) => `
         <label class="title-option-label">
@@ -607,10 +672,10 @@
           <span>${title}</span>
         </label>
       `).join('');
-      
+
       // 첫 번째 제목을 기본 선택
       selectedTitle = titles[0];
-      
+
       // 라디오 버튼 변경 이벤트
       container.querySelectorAll('input[type="radio"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -618,7 +683,7 @@
           console.log('선택된 제목:', selectedTitle);
         });
       });
-      
+
       box.style.display = 'block';
     }
   }
@@ -640,14 +705,14 @@
   async function saveMasterGuide() {
     const textarea = document.getElementById('master-guide-text');
     if (!textarea) return;
-    
+
     const value = textarea.value;
     const settings = config.categorySettings[currentCategory];
-    
+
     if (settings) {
       settings.masterGuide = value;
       await saveConfig();
-      
+
       showStatus('✅ 총괄 지침 저장 완료!');
       setTimeout(hideStatus, 2000);
     }
@@ -663,7 +728,7 @@
     toggleMasterGuideBtn.addEventListener('click', () => {
       const content = document.getElementById('master-guide-content');
       const btn = document.getElementById('toggle-master-guide');
-      
+
       if (content && btn) {
         if (content.style.display === 'none') {
           content.style.display = 'block';
@@ -690,7 +755,7 @@
       textarea.value = stored;
       autoResize(textarea);
     }
-    
+
     let info = `카테고리: ${getCategoryLabel(category)} | 단계: ${getStepName(stepId)}`;
     const infoEl = document.getElementById('current-guide-info');
     if (infoEl) {
@@ -701,21 +766,21 @@
   async function saveGuide() {
     const textarea = document.getElementById('guide-text');
     if (!textarea) return;
-    
+
     const key = getGuideKey(currentCategory, currentGuideStep);
     const value = textarea.value;
-    
+
     localStorage.setItem(key, value);
-    
+
     showStatus('💾 저장 중...');
     const success = await saveToFirebase(key, value);
-    
+
     if (success) {
       showStatus('✅ 지침 저장 완료!');
     } else {
       showStatus('⚠️ 로컬에만 저장됨');
     }
-    
+
     setTimeout(hideStatus, 2000);
   }
 
@@ -751,19 +816,20 @@
       const ref = document.getElementById('sermon-ref').value;
       const seriesName = document.getElementById('series-name').value;
       const style = getCurrentStyle();
-      
+      const finalTitle = getSelectedTitle();
+
       if (steps.length === 0) {
         alert('처리된 단계가 없습니다.');
         return;
       }
-      
+
       const completedSteps = steps.filter(step => stepResults[step.id]);
-      
+
       if (completedSteps.length === 0) {
         alert('완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
         return;
       }
-      
+
       let fullText = `====================================\n`;
       fullText += `📖 설교 초안 자료 (GPT-5.1 작성용)\n`;
       fullText += `====================================\n\n`;
@@ -775,35 +841,35 @@
       fullText += `- 카테고리: ${getCategoryLabel(currentCategory)}\n`;
       fullText += `- 스타일: ${style ? style.name : ''}\n`;
       fullText += `- 성경구절: ${ref}\n`;
-      if (selectedTitle) {
-        fullText += `- 선택된 제목: ${selectedTitle}\n`;
+      if (finalTitle) {
+        fullText += `- 설교 제목: ${finalTitle}\n`;
       }
       if (seriesName) {
         fullText += `- 시리즈명: ${seriesName}\n`;
       }
       fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
       fullText += `\n${'='.repeat(50)}\n\n`;
-      
+
       completedSteps.forEach((step, index) => {
         // 제목 추천 단계는 제외 (이미 선택된 제목이 위에 표시됨)
         if (step.name === '제목 추천') return;
-        
+
         fullText += `【 ${index}. ${step.name} 】\n\n`;
         fullText += stepResults[step.id];
         fullText += `\n\n${'='.repeat(50)}\n\n`;
       });
-      
+
       fullText += `\n📝 작성 지침:\n`;
       fullText += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n`;
- 
-      
+
+
       const tempTextarea = document.createElement('textarea');
       tempTextarea.value = fullText;
       tempTextarea.style.position = 'fixed';
       tempTextarea.style.opacity = '0';
       document.body.appendChild(tempTextarea);
       tempTextarea.select();
-      
+
       try {
         document.execCommand('copy');
         showStatus('✅ GPT-5.1에 붙여넣을 준비 완료!');
@@ -816,16 +882,101 @@
     });
   }
 
+  // ===== GPT PRO 처리 기능 =====
+  const btnGptPro = document.getElementById('btn-gpt-pro');
+  if (btnGptPro) {
+    btnGptPro.addEventListener('click', async () => {
+      const steps = getCurrentSteps();
+      const ref = document.getElementById('sermon-ref').value;
+      const finalTitle = getSelectedTitle();
+
+      if (!ref) {
+        alert('성경구절을 입력하세요.');
+        return;
+      }
+
+      const completedSteps = steps.filter(step => stepResults[step.id]);
+
+      if (completedSteps.length === 0) {
+        alert('처리된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
+        return;
+      }
+
+      // 초안 내용 구성
+      let draftContent = '';
+      completedSteps.forEach((step, index) => {
+        draftContent += `【 ${step.name} 】\n\n`;
+        draftContent += stepResults[step.id];
+        draftContent += `\n\n${'='.repeat(50)}\n\n`;
+      });
+
+      showStatus('🚀 GPT PRO 처리 중... (약 30초 소요)');
+
+      try {
+        const response = await fetch('/api/sermon/gpt-pro', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            reference: ref,
+            title: finalTitle,
+            draftContent: draftContent
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          const resultTextarea = document.getElementById('gpt-pro-result');
+          const resultContainer = document.getElementById('gpt-pro-result-container');
+
+          if (resultTextarea && resultContainer) {
+            resultTextarea.value = data.result;
+            autoResize(resultTextarea);
+            resultContainer.style.display = 'block';
+
+            // 결과 박스로 스크롤
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+
+          showStatus('✅ GPT PRO 완성!');
+        } else {
+          alert(`오류: ${data.error}`);
+          showStatus('❌ 실패');
+        }
+      } catch (err) {
+        alert(`네트워크 오류: ${err.message}`);
+        showStatus('❌ 오류');
+      } finally {
+        setTimeout(hideStatus, 3000);
+      }
+    });
+  }
+
+  // GPT PRO 결과 복사
+  const btnCopyGptPro = document.getElementById('btn-copy-gpt-pro');
+  if (btnCopyGptPro) {
+    btnCopyGptPro.addEventListener('click', () => {
+      const textarea = document.getElementById('gpt-pro-result');
+      if (textarea && textarea.value) {
+        textarea.select();
+        document.execCommand('copy');
+        const orig = btnCopyGptPro.textContent;
+        btnCopyGptPro.textContent = '✅ 복사됨!';
+        setTimeout(() => btnCopyGptPro.textContent = orig, 1500);
+      }
+    });
+  }
+
   // ===== 렌더링 함수 =====
   function renderCategories() {
     const select = document.getElementById('sermon-category');
     if (!select) return;
-    
+
     const current = select.value;
-    select.innerHTML = config.categories.map(c => 
+    select.innerHTML = config.categories.map(c =>
       `<option value="${c.value}">${c.label}</option>`
     ).join('');
-    
+
     if (current && config.categories.find(c => c.value === current)) {
       select.value = current;
     } else {
@@ -838,15 +989,15 @@
     const settings = config.categorySettings[currentCategory];
     const styles = (settings && settings.styles) ? settings.styles : [];
     const container = document.getElementById('styles-list');
-    
+
     if (!container) return;
-    
+
     if (styles.length === 0) {
       container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
       return;
     }
-    
-    container.innerHTML = styles.map(style => 
+
+    container.innerHTML = styles.map(style =>
       `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}">
         <div>
           <div style="font-weight: 600;">${style.name}</div>
@@ -854,7 +1005,7 @@
         </div>
       </div>`
     ).join('');
-    
+
     container.querySelectorAll('.style-item').forEach(item => {
       item.addEventListener('click', () => {
         currentStyleId = item.dataset.style;
@@ -863,13 +1014,15 @@
         selectedTitle = '';
         const titleBox = document.getElementById('title-selection-box');
         if (titleBox) titleBox.style.display = 'none';
+        const gptProContainer = document.getElementById('gpt-pro-result-container');
+        if (gptProContainer) gptProContainer.style.display = 'none';
         renderStyles();
         renderProcessingSteps();
         renderResultBoxes();
         renderGuideTabs();
       });
     });
-    
+
     if (!currentStyleId && styles.length > 0) {
       currentStyleId = styles[0].id;
       renderStyles();
@@ -879,18 +1032,18 @@
   function renderProcessingSteps() {
     const steps = getCurrentSteps();
     const container = document.getElementById('processing-steps');
-    
+
     if (!container) return;
-    
+
     if (steps.length === 0) {
       container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">단계를 추가하세요.</p>';
       return;
     }
-    
-    container.innerHTML = steps.map(step => 
+
+    container.innerHTML = steps.map(step =>
       `<button class="step-btn primary" data-step="${step.id}">${step.order}. ${step.name}</button>`
     ).join('');
-    
+
     container.querySelectorAll('.step-btn').forEach(btn => {
       btn.addEventListener('click', () => executeStep(btn.dataset.step));
     });
@@ -899,32 +1052,16 @@
   function renderResultBoxes() {
     const steps = getCurrentSteps();
     const container = document.getElementById('result-boxes');
-    
+
     if (!container) return;
-    
+
     container.innerHTML = steps.map(step => `
       <div class="box">
-        <div class="toggle-header">
-          <label class="label">${step.name}</label>
-          <button class="copy-btn" data-copy="result-${step.id}">📋 복사</button>
-        </div>
+        <label class="label">${step.name}</label>
         <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
       </div>
     `).join('');
-    
-    container.querySelectorAll('[data-copy]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const textarea = document.getElementById(btn.dataset.copy);
-        if (textarea && textarea.value) {
-          textarea.select();
-          document.execCommand('copy');
-          const orig = btn.textContent;
-          btn.textContent = '✅ 복사됨!';
-          setTimeout(() => btn.textContent = orig, 1500);
-        }
-      });
-    });
-    
+
     // 결과 복원 및 자동 높이
     steps.forEach(step => {
       if (stepResults[step.id]) {
@@ -935,7 +1072,7 @@
         }
       }
     });
-    
+
     // 입력 이벤트로 자동 높이 + 결과 저장
     container.querySelectorAll('textarea').forEach(textarea => {
       textarea.addEventListener('input', () => {
@@ -950,14 +1087,14 @@
   function renderGuideTabs() {
     const steps = getCurrentSteps();
     const container = document.getElementById('guide-tabs');
-    
+
     if (!container) return;
-    
-    container.innerHTML = steps.map(step => 
-      `<button class="${step.id === currentGuideStep ? 'primary' : ''}" 
+
+    container.innerHTML = steps.map(step =>
+      `<button class="${step.id === currentGuideStep ? 'primary' : ''}"
         data-step="${step.id}">${step.name}</button>`
     ).join('');
-    
+
     container.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
         currentGuideStep = btn.dataset.step;
@@ -978,11 +1115,11 @@
     const text = document.getElementById('sermon-text').value;
     const guideKey = getGuideKey(currentCategory, stepId);
     const guide = localStorage.getItem(guideKey) || '';
-    
+
     // 총괄 지침 가져오기
     const settings = config.categorySettings[currentCategory];
     const masterGuide = settings ? settings.masterGuide : '';
-    
+
     const steps = getCurrentSteps();
     const currentStepIndex = steps.findIndex(s => s.id === stepId);
     const previousResults = {};
@@ -995,9 +1132,9 @@
         };
       }
     }
-    
+
     showStatus(`🤖 ${getStepName(stepId)} 처리 중...`);
-    
+
     try {
       const response = await fetch('/api/sermon/process', {
         method: 'POST',
@@ -1007,16 +1144,16 @@
           stepId: stepId,
           stepName: getStepName(stepId),
           reference: ref,
-          title: selectedTitle, // 선택된 제목 전달
+          title: getSelectedTitle(), // 현재 제목 전달
           text: text,
           guide: guide,
           masterGuide: masterGuide,
           previousResults: previousResults
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (data.ok) {
         stepResults[stepId] = data.result;
         const textarea = document.getElementById(`result-${stepId}`);
@@ -1024,7 +1161,7 @@
           textarea.value = data.result;
           autoResize(textarea);
         }
-        
+
         // 제목 추천 단계인 경우 라디오 버튼 표시
         const stepName = getStepName(stepId);
         if (stepName.includes('제목')) {
@@ -1033,7 +1170,7 @@
             displayTitleOptions(lines.slice(0, 3));
           }
         }
-        
+
         showStatus('✅ 완료!');
       } else {
         alert(`오류: ${data.error}`);
@@ -1058,16 +1195,18 @@
       selectedTitle = '';
       const titleBox = document.getElementById('title-selection-box');
       if (titleBox) titleBox.style.display = 'none';
-      
+      const gptProContainer = document.getElementById('gpt-pro-result-container');
+      if (gptProContainer) gptProContainer.style.display = 'none';
+
       loadMasterGuide(currentCategory);
       renderStyles();
       renderProcessingSteps();
       renderResultBoxes();
       renderGuideTabs();
-      
+
       const seriesBox = document.getElementById('series-box');
       if (seriesBox) {
-        if (currentCategory === 'wednesday') {
+        if (currentCategory === 'series') {
           seriesBox.style.display = 'block';
         } else {
           seriesBox.style.display = 'none';
@@ -1082,9 +1221,9 @@
     toggleGuidesBtn.addEventListener('click', () => {
       const content = document.getElementById('guide-content');
       const btn = document.getElementById('toggle-guides');
-      
+
       if (!content || !btn) return;
-      
+
       if (content.style.display === 'none') {
         if (!guideUnlocked) {
           const modal = document.getElementById('modal-password');
@@ -1117,7 +1256,7 @@
         if (content) content.style.display = 'block';
         const btn = document.getElementById('toggle-guides');
         if (btn) btn.textContent = '닫기';
-        
+
         const steps = getCurrentSteps();
         if (steps.length > 0) {
           currentGuideStep = steps[0].id;
@@ -1188,27 +1327,27 @@
     btnAddCategory.addEventListener('click', async () => {
       const input = document.getElementById('new-cat-label');
       if (!input) return;
-      
+
       const label = input.value.trim();
-      
+
       if (!label) {
         alert('표시 이름을 입력하세요.');
         return;
       }
-      
+
       const value = koreanToId(label);
-      
+
       if (config.categories.find(c => c.value === value)) {
         alert('이미 존재하는 카테고리입니다.');
         return;
       }
-      
+
       config.categories.push({value, label});
       config.categorySettings[value] = {
         masterGuide: "",
         styles: []
       };
-      
+
       await saveConfig();
       renderCategories();
       const btn = document.getElementById('btn-manage-categories');
@@ -1236,11 +1375,11 @@
       if (categoryLabel) {
         categoryLabel.textContent = getCategoryLabel(currentCategory);
       }
-      
+
       const settings = config.categorySettings[currentCategory];
       const styles = (settings && settings.styles) ? settings.styles : [];
       const list = document.getElementById('styles-manage-list');
-      
+
       if (list) {
         list.innerHTML = styles.map((style, idx) => `
           <div class="storage-item">
@@ -1255,7 +1394,7 @@
           </div>
         `).join('');
       }
-      
+
       const modal = document.getElementById('modal-styles');
       if (modal) modal.classList.add('show');
     });
@@ -1274,31 +1413,31 @@
     btnAddStyle.addEventListener('click', async () => {
       const nameInput = document.getElementById('new-style-name');
       const descInput = document.getElementById('new-style-desc');
-      
+
       if (!nameInput) return;
-      
+
       const name = nameInput.value.trim();
       const desc = descInput ? descInput.value.trim() : '';
-      
+
       if (!name) {
         alert('스타일 이름을 입력하세요.');
         return;
       }
-      
+
       const id = koreanToId(name);
       const settings = config.categorySettings[currentCategory];
-      
+
       if (!settings.styles) {
         settings.styles = [];
       }
-      
+
       settings.styles.push({
         id: id,
         name: name,
         description: desc,
         steps: []
       });
-      
+
       await saveConfig();
       renderStyles();
       const btn = document.getElementById('btn-manage-styles');
@@ -1311,10 +1450,10 @@
   window.deleteStyle = async function(idx) {
     const settings = config.categorySettings[currentCategory];
     if (!settings || !settings.styles) return;
-    
+
     const style = settings.styles[idx];
     if (!confirm(`"${style.name}" 삭제?`)) return;
-    
+
     settings.styles.splice(idx, 1);
     if (currentStyleId === style.id) {
       currentStyleId = '';
@@ -1328,21 +1467,21 @@
   window.editStyleSteps = function(styleId) {
     const settings = config.categorySettings[currentCategory];
     if (!settings || !settings.styles) return;
-    
+
     const style = settings.styles.find(s => s.id === styleId);
     if (!style) return;
-    
+
     currentStyleId = styleId;
     const modal = document.getElementById('modal-styles');
     if (modal) modal.classList.remove('show');
-    
+
     const styleLabel = document.getElementById('modal-steps-style');
     if (styleLabel) styleLabel.textContent = style.name;
-    
+
     const list = document.getElementById('steps-list');
     if (list) {
       if (!style.steps) style.steps = [];
-      
+
       list.innerHTML = style.steps.map((step, idx) => `
         <div class="storage-item">
           <span>${step.order}. ${step.name}</span>
@@ -1354,7 +1493,7 @@
         </div>
       `).join('');
     }
-    
+
     const stepsModal = document.getElementById('modal-steps');
     if (stepsModal) stepsModal.classList.add('show');
   };
@@ -1372,28 +1511,28 @@
     btnAddStep.addEventListener('click', async () => {
       const input = document.getElementById('new-step-name');
       if (!input) return;
-      
+
       const name = input.value.trim();
-      
+
       if (!name) {
         alert('단계 이름을 입력하세요.');
         return;
       }
-      
+
       const style = getCurrentStyle();
       if (!style) return;
-      
+
       if (!style.steps) style.steps = [];
-      
+
       const id = koreanToId(name);
       const maxOrder = style.steps.length > 0 ? Math.max(...style.steps.map(s => s.order)) : 0;
-      
+
       style.steps.push({
         id: id,
         name: name,
         order: maxOrder + 1
       });
-      
+
       await saveConfig();
       renderProcessingSteps();
       renderResultBoxes();
@@ -1406,14 +1545,14 @@
   window.moveStep = async function(idx, direction) {
     const style = getCurrentStyle();
     if (!style || !style.steps) return;
-    
+
     const steps = style.steps;
     const targetIdx = idx + direction;
-    
+
     if (targetIdx < 0 || targetIdx >= steps.length) return;
-    
+
     [steps[idx].order, steps[targetIdx].order] = [steps[targetIdx].order, steps[idx].order];
-    
+
     await saveConfig();
     renderProcessingSteps();
     renderResultBoxes();
@@ -1423,9 +1562,9 @@
   window.deleteStep = async function(idx) {
     const style = getCurrentStyle();
     if (!style || !style.steps) return;
-    
+
     if (!confirm(`"${style.steps[idx].name}" 삭제?`)) return;
-    
+
     style.steps.splice(idx, 1);
     await saveConfig();
     renderProcessingSteps();
@@ -1440,7 +1579,7 @@
     btnSave.addEventListener('click', () => {
       const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
       const style = getCurrentStyle();
-      
+
       saved.push({
         date: document.getElementById('sermon-date').value,
         category: currentCategory,
@@ -1448,13 +1587,14 @@
         styleName: style ? style.name : '',
         seriesName: document.getElementById('series-name').value,
         ref: document.getElementById('sermon-ref').value,
+        manualTitle: document.getElementById('manual-title').value,
         selectedTitle: selectedTitle,
         text: document.getElementById('sermon-text').value,
         results: stepResults,
         titleOptions: titleOptions,
         savedAt: new Date().toISOString()
       });
-      
+
       localStorage.setItem('sermon-saved', JSON.stringify(saved));
       renderSavedList();
       alert('✅ 저장되었습니다!');
@@ -1464,20 +1604,20 @@
   function renderSavedList() {
     const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
     const list = document.getElementById('saved-list');
-    
+
     if (!list) return;
-    
+
     if (saved.length === 0) {
       list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">저장된 자료가 없습니다.</p>';
       return;
     }
-    
+
     list.innerHTML = saved.map((item, idx) => {
       const catLabel = getCategoryLabel(item.category);
-      const display = item.seriesName 
+      const display = item.seriesName
         ? `${item.date} - ${catLabel} - ${item.seriesName}`
         : `${item.date} - ${catLabel} - ${item.styleName}`;
-      
+
       return `
         <div class="storage-item">
           <span style="font-size: .85rem;">${display}</span>
@@ -1493,19 +1633,20 @@
   window.loadSaved = function(idx) {
     const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
     const item = saved[idx];
-    
+
     document.getElementById('sermon-date').value = item.date || '';
-    document.getElementById('sermon-category').value = item.category || 'dawn';
+    document.getElementById('sermon-category').value = item.category || 'general';
     document.getElementById('sermon-ref').value = item.ref || '';
     document.getElementById('sermon-text').value = item.text || '';
     document.getElementById('series-name').value = item.seriesName || '';
-    
-    currentCategory = item.category || 'dawn';
+    document.getElementById('manual-title').value = item.manualTitle || '';
+
+    currentCategory = item.category || 'general';
     currentStyleId = item.styleId || '';
     stepResults = item.results || {};
     titleOptions = item.titleOptions || [];
     selectedTitle = item.selectedTitle || '';
-    
+
     // 제목이 있으면 표시
     if (titleOptions.length >= 3) {
       displayTitleOptions(titleOptions);
@@ -1518,12 +1659,12 @@
         }
       }
     }
-    
+
     renderStyles();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    
+
     document.querySelectorAll('textarea').forEach(autoResize);
   };
 
@@ -1546,11 +1687,11 @@
     if (dateInput) {
       dateInput.value = new Date().toISOString().split('T')[0];
     }
-    
+
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
     hideStatus();
-    
+
     renderCategories();
     loadMasterGuide(currentCategory);
     renderStyles();
@@ -1558,7 +1699,7 @@
     renderResultBoxes();
     renderGuideTabs();
     renderSavedList();
-    
+
     document.querySelectorAll('textarea').forEach(autoResize);
   });
   </script>
