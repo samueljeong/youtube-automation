@@ -3,91 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <title>설교 도움 페이지</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <style>
     * { box-sizing: border-box; }
-    body { 
-      margin: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
-      background: #f5f5f5; 
-    }
-    .page-wrap { 
-      display: flex; 
-      gap: 1rem; 
-      padding: 1rem; 
-      height: 100vh; 
-    }
-    .left-col { 
-      width: 360px; 
-      display: flex; 
-      flex-direction: column; 
-      gap: .75rem; 
-      overflow-y: auto; 
-    }
-    .right-col { 
-      flex: 1; 
-      display: flex; 
-      flex-direction: column; 
-      gap: .75rem; 
-      min-width: 0; 
-      overflow-y: auto; 
-    }
-    .box { 
-      background: #fff; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      padding: .75rem; 
-    }
-    .label-row { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      gap: .5rem; 
-      margin-bottom: .35rem; 
-    }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f5f5; }
+    .page-wrap { display: flex; gap: 1rem; padding: 1rem; height: 100vh; }
+    .left-col { width: 360px; display: flex; flex-direction: column; gap: .75rem; overflow-y: auto; }
+    .right-col { flex: 1; display: flex; flex-direction: column; gap: .75rem; min-width: 0; overflow-y: auto; }
+    .box { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: .75rem; }
+    .label-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .35rem; }
     .label { font-weight: 600; }
-    input[type="text"], 
-    input[type="date"], 
-    select { 
-      width: 100%; 
-      padding: .35rem .5rem; 
-    }
-    textarea { 
-      width: 100%; 
-      min-height: 80px; 
-      resize: vertical; 
-      font-family: inherit; 
-      line-height: 1.4; 
-    }
-    .btn-row { 
-      display: flex; 
-      gap: .5rem; 
-      flex-wrap: wrap; 
-    }
-    button { 
-      padding: .35rem .6rem; 
-      border: 1px solid #ccc; 
-      background: #f0f0f0; 
-      border-radius: 6px; 
-      cursor: pointer; 
-    }
+    input[type="text"], input[type="date"], input[type="password"], select { width: 100%; padding: .35rem .5rem; }
+    textarea { width: 100%; min-height: 80px; resize: vertical; font-family: inherit; line-height: 1.4; }
+    .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+    button { padding: .35rem .6rem; border: 1px solid #ccc; background: #f0f0f0; border-radius: 6px; cursor: pointer; }
     button:hover { background: #e0e0e0; }
-    button.primary { 
-      background: #4a90e2; 
-      color: white; 
-      border-color: #4a90e2; 
-    }
+    button.primary { background: #4a90e2; color: white; border-color: #4a90e2; }
     button.primary:hover { background: #357abd; }
-    button.danger { 
-      background: #e74c3c; 
-      color: white; 
-      border-color: #e74c3c; 
-    }
-    button.step-btn { 
-      width: 100%; 
-      margin-bottom: .5rem; 
-    }
+    button.danger { background: #e74c3c; color: white; border-color: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    button.step-btn { width: 100%; margin-bottom: .5rem; position: relative; }
+    button.step-btn::before { content: attr(data-order) ". "; font-weight: 600; }
     
-    .style-item { 
+    .storage-item, .type-item, .step-item { 
       display: flex; 
       justify-content: space-between; 
       align-items: center; 
@@ -95,52 +33,25 @@
       margin-bottom: .3rem;
       background: #f8f9fa;
       border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-      border: 2px solid transparent;
     }
-    .style-item:hover { background: #e9ecef; }
-    .style-item.active { 
-      background: #dfe6ff; 
-      border: 2px solid #4a90e2; 
-    }
-    .style-desc { 
-      font-size: .75rem; 
-      color: #666; 
-      margin-top: .2rem; 
-    }
+    .type-item { cursor: pointer; transition: all 0.2s; }
+    .type-item:hover { background: #e9ecef; }
+    .type-item.active { background: #dfe6ff; border: 1px solid #4a90e2; }
+    .storage-item:last-child { border-bottom: none; }
+    .storage-actions button, .item-actions button { font-size: .7rem; padding: .25rem .45rem; }
     
-    .toggle-header { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-    }
-    .copy-btn { 
-      font-size: .7rem; 
-      padding: .2rem .5rem; 
-      background: #fff; 
-    }
-    .status-bar { 
-      position: fixed; 
-      bottom: 10px; 
-      right: 10px; 
-      background: #fff; 
-      border: 1px solid #ddd; 
-      border-radius: 6px; 
-      padding: .4rem .7rem; 
-      font-size: .8rem; 
-      box-shadow: 0 2px 6px rgba(0,0,0,.08); 
-      display: none; 
-      z-index: 1000; 
-    }
+    .toggle-header { display: flex; justify-content: space-between; align-items: center; }
+    .copy-btn { font-size: .7rem; padding: .2rem .5rem; background: #fff; }
+    .status-bar { position: fixed; bottom: 10px; right: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: .4rem .7rem; font-size: .8rem; box-shadow: 0 2px 6px rgba(0,0,0,.08); display: none; z-index: 1000; }
+    .guide-tab { padding: .35rem .7rem; margin-right: .3rem; margin-bottom: .3rem; display: inline-block; }
+    .guide-tab-active { background: #dfe6ff; border-color: #b5c6ff; }
+    textarea.autosize { overflow: hidden; }
     
     .modal {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       background: rgba(0,0,0,0.5);
       z-index: 2000;
       align-items: center;
@@ -151,34 +62,17 @@
       background: white;
       border-radius: 12px;
       padding: 1.5rem;
-      max-width: 600px;
+      max-width: 500px;
       width: 90%;
       max-height: 80vh;
       overflow-y: auto;
     }
-    .modal-title { 
-      font-size: 1.2rem; 
-      font-weight: 600; 
-      margin-bottom: 1rem; 
-    }
-    .modal-buttons { 
-      display: flex; 
-      gap: .5rem; 
-      margin-top: 1rem; 
-    }
+    .modal-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
+    .modal-buttons { display: flex; gap: .5rem; margin-top: 1rem; }
     .modal-buttons button { flex: 1; }
     
-    .storage-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: .4rem .6rem;
-      margin-bottom: .3rem;
-      background: #f8f9fa;
-      border-radius: 6px;
-    }
-    
-    textarea.autosize { overflow: hidden; }
+    .step-order-controls { display: flex; gap: .3rem; }
+    .step-order-controls button { padding: .2rem .4rem; font-size: .7rem; }
   </style>
 </head>
 <body>
@@ -187,14 +81,16 @@
     <div class="left-col">
       <!-- 날짜 -->
       <div class="box">
-        <label class="label" for="sermon-date">날짜</label>
-        <input type="date" id="sermon-date">
+        <div class="label-row">
+          <label class="label" for="sermon-date">날짜</label>
+          <input type="date" id="sermon-date" style="max-width: 160px;">
+        </div>
       </div>
 
       <!-- 카테고리 -->
       <div class="box">
         <div class="label-row">
-          <label class="label">설교 카테고리</label>
+          <label class="label" for="sermon-category">설교 카테고리</label>
           <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
         <select id="sermon-category"></select>
@@ -212,31 +108,28 @@
         <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
       </div>
 
-      <!-- 제목 (새로 추가) -->
-      <div class="box">
-        <label class="label">제목 (선택사항)</label>
-        <input type="text" id="sermon-title" placeholder="설교 제목을 입력하세요">
-      </div>
-
       <!-- 성경 본문 -->
       <div class="box">
         <label class="label">성경 본문 (선택사항)</label>
         <textarea id="sermon-text" class="autosize" placeholder="본문을 여기에 붙여넣으세요."></textarea>
       </div>
 
-      <!-- 설교 스타일 -->
-      <div class="box">
-        <div class="label-row">
-          <label class="label">설교 스타일</label>
-          <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
-        </div>
-        <div id="styles-list"></div>
-      </div>
-
       <!-- 처리 단계 -->
       <div class="box">
-        <label class="label">처리 단계</label>
+        <div class="label-row">
+          <label class="label">처리 단계</label>
+          <button id="btn-manage-steps" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
+        </div>
         <div id="processing-steps"></div>
+      </div>
+
+      <!-- 설교 유형 -->
+      <div class="box">
+        <div class="label-row">
+          <label class="label">설교 유형</label>
+          <button id="btn-manage-prompt-types" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
+        </div>
+        <div id="prompt-types-list"></div>
       </div>
 
       <!-- 저장 공간 -->
@@ -260,37 +153,6 @@
         </div>
       </div>
 
-      <!-- 총괄 지침 영역 -->
-      <div class="box" id="master-guide-box">
-        <div class="toggle-header">
-          <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
-          <button id="toggle-master-guide">열기</button>
-        </div>
-        <div id="master-guide-content" style="display: none;">
-          <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-            이 카테고리의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
-          </p>
-          <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
-
-새벽설교 운영 지침
-==================
-
-## 각 단계별 역할과 비중
-
-### 1. 본문 분석 (30%)
-- 역할: 성경 본문의 핵심 메시지 파악
-- 특징: 신학적 깊이보다는 실제적 이해
-
-### 2. 본론 작성 (50%)
-- 역할: 핵심 메시지 전달
-- 특징: 3가지 포인트로 간결하게
-
-### 3. 적용 (20%)
-- 역할: 오늘 하루 실천 과제 제시"></textarea>
-          <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
-        </div>
-      </div>
-
       <!-- 지침 영역 -->
       <div class="box" id="guide-box">
         <div class="toggle-header">
@@ -303,7 +165,7 @@
           </div>
           <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
           <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
-          <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+          <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="지침을 작성하세요."></textarea>
         </div>
       </div>
 
@@ -332,6 +194,7 @@
   <div id="modal-categories" class="modal">
     <div class="modal-content">
       <div class="modal-title">카테고리 관리</div>
+      <input type="text" id="new-cat-value" placeholder="영문 코드 (예: special)" style="margin-bottom: .3rem;">
       <input type="text" id="new-cat-label" placeholder="표시 이름 (예: 특별예배)" style="margin-bottom: .5rem;">
       <button id="btn-add-category" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
       <div id="categories-list" style="max-height: 300px; overflow-y: auto;"></div>
@@ -341,35 +204,31 @@
     </div>
   </div>
 
-  <!-- 스타일 관리 모달 -->
-  <div id="modal-styles" class="modal">
-    <div class="modal-content">
-      <div class="modal-title">설교 스타일 관리</div>
-      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">카테고리: <strong id="modal-styles-category"></strong></p>
-      
-      <input type="text" id="new-style-name" placeholder="스타일 이름 (예: 강해설교 v1)" style="margin-bottom: .3rem;">
-      <input type="text" id="new-style-desc" placeholder="설명 (예: 본론 중심, 아이스브래이킹 제외)" style="margin-bottom: .5rem;">
-      <button id="btn-add-style" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
-      
-      <div id="styles-manage-list" style="max-height: 300px; overflow-y: auto;"></div>
-      <div class="modal-buttons">
-        <button id="btn-close-styles">닫기</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 처리 단계 관리 모달 -->
   <div id="modal-steps" class="modal">
     <div class="modal-content">
       <div class="modal-title">처리 단계 관리</div>
-      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-        스타일: <strong id="modal-steps-style"></strong>
-      </p>
-      <input type="text" id="new-step-name" placeholder="단계 이름 (예: 본문 분석)" style="margin-bottom: .5rem;">
+      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">카테고리: <strong id="modal-steps-category"></strong></p>
+      <input type="text" id="new-step-id" placeholder="영문 ID (예: questions)" style="margin-bottom: .3rem;">
+      <input type="text" id="new-step-name" placeholder="표시 이름 (예: 질문 생성)" style="margin-bottom: .5rem;">
       <button id="btn-add-step" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
       <div id="steps-list" style="max-height: 300px; overflow-y: auto;"></div>
       <div class="modal-buttons">
         <button id="btn-close-steps">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설교 유형 관리 모달 -->
+  <div id="modal-prompt-types" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">설교 유형 관리</div>
+      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">카테고리: <strong id="modal-types-category"></strong></p>
+      <input type="text" id="new-prompt-type" placeholder="유형 이름 (예: 강해설교v2)" style="margin-bottom: .5rem;">
+      <button id="btn-add-prompt-type" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
+      <div id="prompt-types-manage-list" style="max-height: 300px; overflow-y: auto;"></div>
+      <div class="modal-buttons">
+        <button id="btn-close-prompt-types">닫기</button>
       </div>
     </div>
   </div>
@@ -401,9 +260,9 @@
   // ===== 전역 변수 =====
   let guideUnlocked = false;
   let currentCategory = 'dawn';
-  let currentStyleId = '';
+  let currentPromptType = '기본';
   let currentGuideStep = '';
-  let stepResults = {};
+  let stepResults = {}; // {stepId: result}
 
   // 기본 설정
   let config = {
@@ -415,108 +274,44 @@
     ],
     categorySettings: {
       dawn: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "expository_v1",
-            name: "강해설교 v1",
-            description: "본론 중심",
-            steps: [
-              {id: "analysis", name: "본문 분석", order: 1},
-              {id: "body", name: "본론 작성", order: 2}
-            ]
-          }
+        promptTypes: ["기본", "강해설교", "주제설교"],
+        steps: [
+          {id: "analysis", name: "본문 분석", order: 1},
+          {id: "prompt", name: "설교문 프롬프트", order: 2}
         ]
       },
       wednesday: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "series_v1",
-            name: "시리즈형",
-            description: "연속 강의",
-            steps: [
-              {id: "analysis", name: "본문 분석", order: 1},
-              {id: "body", name: "본론 작성", order: 2}
-            ]
-          }
+        promptTypes: ["시리즈형", "강해형"],
+        steps: [
+          {id: "analysis", name: "본문 분석", order: 1},
+          {id: "prompt", name: "설교문 프롬프트", order: 2}
         ]
       },
       friday: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "prayer_v1",
-            name: "기도 중심",
-            description: "기도와 묵상",
-            steps: [
-              {id: "analysis", name: "본문 분석", order: 1},
-              {id: "prayer", name: "기도 제목", order: 2}
-            ]
-          }
+        promptTypes: ["기본", "기도 중심"],
+        steps: [
+          {id: "analysis", name: "본문 분석", order: 1},
+          {id: "prompt", name: "설교문 프롬프트", order: 2}
         ]
       },
       youth: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "practical_v1",
-            name: "실천형",
-            description: "삶의 적용",
-            steps: [
-              {id: "analysis", name: "본문 분석", order: 1},
-              {id: "application", name: "실천 과제", order: 2}
-            ]
-          }
+        promptTypes: ["실천형", "토론형"],
+        steps: [
+          {id: "analysis", name: "본문 분석", order: 1},
+          {id: "prompt", name: "설교문 프롬프트", order: 2}
         ]
       }
     }
   };
 
-  // ===== 한글 → 영문 ID 자동 생성 =====
-  function koreanToId(korean) {
-    const map = {
-      '아이스브래이킹': 'icebreaking',
-      '서론': 'intro',
-      '본론': 'body',
-      '결론': 'conclusion',
-      '본문': 'analysis',
-      '분석': 'analysis',
-      '신학': 'theology',
-      '해석': 'interpretation',
-      '예화': 'illustration',
-      '적용': 'application',
-      '실천': 'practice',
-      '과제': 'task',
-      '질문': 'questions',
-      '토론': 'discussion',
-      '기도': 'prayer',
-      '개요': 'outline'
-    };
-    
-    for (const [key, value] of Object.entries(map)) {
-      if (korean.includes(key)) {
-        return value + '_' + Date.now().toString(36);
-      }
-    }
-    
-    return 'step_' + Date.now().toString(36);
-  }
-
   // ===== 유틸리티 =====
   function showStatus(msg) {
-    const statusBar = document.getElementById('status-bar');
-    if (statusBar) {
-      statusBar.textContent = msg;
-      statusBar.style.display = 'block';
-    }
+    document.getElementById('status-bar').textContent = msg;
+    document.getElementById('status-bar').style.display = 'block';
   }
   
   function hideStatus() {
-    const statusBar = document.getElementById('status-bar');
-    if (statusBar) {
-      statusBar.style.display = 'none';
-    }
+    document.getElementById('status-bar').style.display = 'none';
   }
 
   function autoResize(el) {
@@ -568,87 +363,31 @@
     await saveToFirebase(CONFIG_KEY, configStr);
   }
 
-  // ===== 총괄 지침 관리 =====
-  function loadMasterGuide(category) {
-    const settings = config.categorySettings[category];
-    const textarea = document.getElementById('master-guide-text');
-    if (textarea) {
-      if (settings && settings.masterGuide) {
-        textarea.value = settings.masterGuide;
-      } else {
-        textarea.value = '';
-      }
-      autoResize(textarea);
-    }
-  }
-
-  async function saveMasterGuide() {
-    const textarea = document.getElementById('master-guide-text');
-    if (!textarea) return;
-    
-    const value = textarea.value;
-    const settings = config.categorySettings[currentCategory];
-    
-    if (settings) {
-      settings.masterGuide = value;
-      await saveConfig();
-      
-      showStatus('✅ 총괄 지침 저장 완료!');
-      setTimeout(hideStatus, 2000);
-    }
-  }
-
-  const saveMasterGuideBtn = document.getElementById('save-master-guide');
-  if (saveMasterGuideBtn) {
-    saveMasterGuideBtn.addEventListener('click', saveMasterGuide);
-  }
-
-  const toggleMasterGuideBtn = document.getElementById('toggle-master-guide');
-  if (toggleMasterGuideBtn) {
-    toggleMasterGuideBtn.addEventListener('click', () => {
-      const content = document.getElementById('master-guide-content');
-      const btn = document.getElementById('toggle-master-guide');
-      
-      if (content && btn) {
-        if (content.style.display === 'none') {
-          content.style.display = 'block';
-          btn.textContent = '닫기';
-          loadMasterGuide(currentCategory);
-        } else {
-          content.style.display = 'none';
-          btn.textContent = '열기';
-        }
-      }
-    });
-  }
-
   // ===== 지침 관리 =====
-  function getGuideKey(category, stepId) {
+  function getGuideKey(category, stepId, promptType = null) {
+    if (stepId === 'prompt' && promptType) {
+      return `guide-${category}-${stepId}-${promptType}`;
+    }
     return `guide-${category}-${stepId}`;
   }
 
-  function loadGuide(category, stepId) {
-    const key = getGuideKey(category, stepId);
+  function loadGuide(category, stepId, promptType = null) {
+    const key = getGuideKey(category, stepId, promptType);
     const stored = localStorage.getItem(key) || '';
-    const textarea = document.getElementById('guide-text');
-    if (textarea) {
-      textarea.value = stored;
-      autoResize(textarea);
-    }
+    document.getElementById('guide-text').value = stored;
+    autoResize(document.getElementById('guide-text'));
     
-    let info = `카테고리: ${getCategoryLabel(category)} | 단계: ${getStepName(stepId)}`;
-    const infoEl = document.getElementById('current-guide-info');
-    if (infoEl) {
-      infoEl.textContent = info;
+    let info = `카테고리: ${getCategoryLabel(category)} | 단계: ${getStepName(category, stepId)}`;
+    if (stepId === 'prompt' && promptType) {
+      info += ` | 유형: ${promptType}`;
     }
+    document.getElementById('current-guide-info').textContent = info;
   }
 
   async function saveGuide() {
-    const textarea = document.getElementById('guide-text');
-    if (!textarea) return;
-    
-    const key = getGuideKey(currentCategory, currentGuideStep);
-    const value = textarea.value;
+    const key = getGuideKey(currentCategory, currentGuideStep, 
+      currentGuideStep === 'prompt' ? currentPromptType : null);
+    const value = document.getElementById('guide-text').value;
     
     localStorage.setItem(key, value);
     
@@ -670,92 +409,85 @@
     return cat ? cat.label : value;
   }
 
-  function getCurrentStyle() {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return null;
-    return settings.styles.find(s => s.id === currentStyleId);
-  }
-
-  function getCurrentSteps() {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return [];
-    return style.steps.sort((a, b) => a.order - b.order);
-  }
-
-  function getStepName(stepId) {
-    const steps = getCurrentSteps();
-    const step = steps.find(s => s.id === stepId);
+  function getStepName(category, stepId) {
+    const settings = config.categorySettings[category];
+    if (!settings) return stepId;
+    const step = settings.steps.find(s => s.id === stepId);
     return step ? step.name : stepId;
   }
 
-  // ===== 전체 복사 기능 =====
-  const btnCopyAll = document.getElementById('btn-copy-all');
-  if (btnCopyAll) {
-    btnCopyAll.addEventListener('click', () => {
-      const steps = getCurrentSteps();
-      const ref = document.getElementById('sermon-ref').value;
-      const title = document.getElementById('sermon-title').value;
-      const seriesName = document.getElementById('series-name').value;
-      const style = getCurrentStyle();
-      
-      if (steps.length === 0) {
-        alert('처리된 단계가 없습니다.');
-        return;
-      }
-      
-      const completedSteps = steps.filter(step => stepResults[step.id]);
-      
-      if (completedSteps.length === 0) {
-        alert('완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
-        return;
-      }
-      
-      let fullText = `====================================\n`;
-      fullText += `📖 설교 자료\n`;
-      fullText += `====================================\n\n`;
-      fullText += `📌 기본 정보\n`;
-      fullText += `- 카테고리: ${getCategoryLabel(currentCategory)}\n`;
-      fullText += `- 스타일: ${style ? style.name : ''}\n`;
-      fullText += `- 성경구절: ${ref}\n`;
-      if (title) {
-        fullText += `- 제목: ${title}\n`;
-      }
-      if (seriesName) {
-        fullText += `- 시리즈명: ${seriesName}\n`;
-      }
-      fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
-      fullText += `\n${'='.repeat(50)}\n\n`;
-      
-      completedSteps.forEach((step, index) => {
-        fullText += `【 ${index + 1}. ${step.name} 】\n\n`;
-        fullText += stepResults[step.id];
-        fullText += `\n\n${'='.repeat(50)}\n\n`;
-      });
-      
-      const tempTextarea = document.createElement('textarea');
-      tempTextarea.value = fullText;
-      tempTextarea.style.position = 'fixed';
-      tempTextarea.style.opacity = '0';
-      document.body.appendChild(tempTextarea);
-      tempTextarea.select();
-      
-      try {
-        document.execCommand('copy');
-        showStatus('✅ 전체 내용이 클립보드에 복사되었습니다!');
-        setTimeout(hideStatus, 2000);
-      } catch (err) {
-        alert('복사 실패: ' + err.message);
-      } finally {
-        document.body.removeChild(tempTextarea);
-      }
-    });
+  function getCurrentSteps() {
+    const settings = config.categorySettings[currentCategory];
+    return settings ? settings.steps.sort((a, b) => a.order - b.order) : [];
   }
+
+  function getCurrentPromptTypes() {
+    const settings = config.categorySettings[currentCategory];
+    return settings ? settings.promptTypes : ['기본'];
+  }
+
+  // ===== 전체 복사 기능 =====
+  document.getElementById('btn-copy-all').addEventListener('click', () => {
+    const steps = getCurrentSteps();
+    const ref = document.getElementById('sermon-ref').value;
+    const seriesName = document.getElementById('series-name').value;
+    
+    if (steps.length === 0) {
+      alert('처리된 단계가 없습니다.');
+      return;
+    }
+    
+    // 결과가 있는 단계만 필터링
+    const completedSteps = steps.filter(step => stepResults[step.id]);
+    
+    if (completedSteps.length === 0) {
+      alert('완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
+      return;
+    }
+    
+    // 전체 텍스트 구성
+    let fullText = `====================================\n`;
+    fullText += `📖 설교 자료\n`;
+    fullText += `====================================\n\n`;
+    fullText += `📌 기본 정보\n`;
+    fullText += `- 카테고리: ${getCategoryLabel(currentCategory)}\n`;
+    fullText += `- 설교 유형: ${currentPromptType}\n`;
+    fullText += `- 성경구절: ${ref}\n`;
+    if (seriesName) {
+      fullText += `- 시리즈명: ${seriesName}\n`;
+    }
+    fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
+    fullText += `\n${'='.repeat(50)}\n\n`;
+    
+    // 각 단계 결과 추가
+    completedSteps.forEach((step, index) => {
+      fullText += `【 ${index + 1}. ${step.name} 】\n\n`;
+      fullText += stepResults[step.id];
+      fullText += `\n\n${'='.repeat(50)}\n\n`;
+    });
+    
+    // 클립보드에 복사
+    const tempTextarea = document.createElement('textarea');
+    tempTextarea.value = fullText;
+    tempTextarea.style.position = 'fixed';
+    tempTextarea.style.opacity = '0';
+    document.body.appendChild(tempTextarea);
+    tempTextarea.select();
+    
+    try {
+      document.execCommand('copy');
+      showStatus('✅ 전체 내용이 클립보드에 복사되었습니다!');
+      setTimeout(hideStatus, 2000);
+    } catch (err) {
+      alert('복사 실패: ' + err.message);
+    } finally {
+      document.body.removeChild(tempTextarea);
+    }
+  });
 
   // ===== 렌더링 함수 =====
   function renderCategories() {
     const select = document.getElementById('sermon-category');
-    if (!select) return;
-    
     const current = select.value;
     select.innerHTML = config.categories.map(c => 
       `<option value="${c.value}">${c.label}</option>`
@@ -769,57 +501,12 @@
     currentCategory = select.value;
   }
 
-  function renderStyles() {
-    const settings = config.categorySettings[currentCategory];
-    const styles = (settings && settings.styles) ? settings.styles : [];
-    const container = document.getElementById('styles-list');
-    
-    if (!container) return;
-    
-    if (styles.length === 0) {
-      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
-      return;
-    }
-    
-    container.innerHTML = styles.map(style => 
-      `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}">
-        <div>
-          <div style="font-weight: 600;">${style.name}</div>
-          <div class="style-desc">${style.description || ''}</div>
-        </div>
-      </div>`
-    ).join('');
-    
-    container.querySelectorAll('.style-item').forEach(item => {
-      item.addEventListener('click', () => {
-        currentStyleId = item.dataset.style;
-        stepResults = {};
-        renderStyles();
-        renderProcessingSteps();
-        renderResultBoxes();
-        renderGuideTabs();
-      });
-    });
-    
-    if (!currentStyleId && styles.length > 0) {
-      currentStyleId = styles[0].id;
-      renderStyles();
-    }
-  }
-
   function renderProcessingSteps() {
     const steps = getCurrentSteps();
     const container = document.getElementById('processing-steps');
     
-    if (!container) return;
-    
-    if (steps.length === 0) {
-      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">단계를 추가하세요.</p>';
-      return;
-    }
-    
     container.innerHTML = steps.map(step => 
-      `<button class="step-btn primary" data-step="${step.id}">${step.order}. ${step.name}</button>`
+      `<button class="step-btn primary" data-step="${step.id}" data-order="${step.order}">${step.name}</button>`
     ).join('');
     
     container.querySelectorAll('.step-btn').forEach(btn => {
@@ -827,22 +514,42 @@
     });
   }
 
+  function renderPromptTypes() {
+    const types = getCurrentPromptTypes();
+    const container = document.getElementById('prompt-types-list');
+    
+    container.innerHTML = types.map(type => 
+      `<div class="type-item ${type === currentPromptType ? 'active' : ''}" data-type="${type}">
+        <span>${type}</span>
+      </div>`
+    ).join('');
+    
+    container.querySelectorAll('.type-item').forEach(item => {
+      item.addEventListener('click', () => {
+        currentPromptType = item.dataset.type;
+        renderPromptTypes();
+        if (currentGuideStep === 'prompt') {
+          loadGuide(currentCategory, 'prompt', currentPromptType);
+        }
+      });
+    });
+  }
+
   function renderResultBoxes() {
     const steps = getCurrentSteps();
     const container = document.getElementById('result-boxes');
     
-    if (!container) return;
-    
     container.innerHTML = steps.map(step => `
       <div class="box">
         <div class="toggle-header">
-          <label class="label">${step.name}</label>
+          <label class="label">${step.name}${step.id === 'prompt' ? ` (${currentPromptType})` : ''}</label>
           <button class="copy-btn" data-copy="result-${step.id}">📋 복사</button>
         </div>
-        <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
+        <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다." readonly></textarea>
       </div>
     `).join('');
     
+    // 복사 버튼
     container.querySelectorAll('[data-copy]').forEach(btn => {
       btn.addEventListener('click', () => {
         const textarea = document.getElementById(btn.dataset.copy);
@@ -856,7 +563,7 @@
       });
     });
     
-    // 결과 복원 및 자동 높이
+    // 기존 결과 복원
     steps.forEach(step => {
       if (stepResults[step.id]) {
         const textarea = document.getElementById(`result-${step.id}`);
@@ -866,34 +573,48 @@
         }
       }
     });
-    
-    // 입력 이벤트로 자동 높이 + 결과 저장
-    container.querySelectorAll('textarea').forEach(textarea => {
-      textarea.addEventListener('input', () => {
-        autoResize(textarea);
-        // 사용자가 편집한 내용을 stepResults에 저장
-        const stepId = textarea.id.replace('result-', '');
-        stepResults[stepId] = textarea.value;
-      });
-    });
   }
 
   function renderGuideTabs() {
     const steps = getCurrentSteps();
     const container = document.getElementById('guide-tabs');
     
-    if (!container) return;
+    const tabs = [];
+    steps.forEach(step => {
+      if (step.id === 'prompt') {
+        const types = getCurrentPromptTypes();
+        types.forEach(type => {
+          tabs.push({
+            id: `${step.id}-${type}`,
+            label: `${step.name} (${type})`,
+            stepId: step.id,
+            promptType: type
+          });
+        });
+      } else {
+        tabs.push({
+          id: step.id,
+          label: step.name,
+          stepId: step.id,
+          promptType: null
+        });
+      }
+    });
     
-    container.innerHTML = steps.map(step => 
-      `<button class="${step.id === currentGuideStep ? 'primary' : ''}" 
-        data-step="${step.id}">${step.name}</button>`
+    container.innerHTML = tabs.map(tab => 
+      `<button class="guide-tab ${tab.stepId === currentGuideStep && (tab.stepId !== 'prompt' || tab.promptType === currentPromptType) ? 'guide-tab-active' : ''}" 
+        data-step="${tab.stepId}" data-type="${tab.promptType || ''}">${tab.label}</button>`
     ).join('');
     
-    container.querySelectorAll('button').forEach(btn => {
+    container.querySelectorAll('.guide-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         currentGuideStep = btn.dataset.step;
+        if (btn.dataset.type) {
+          currentPromptType = btn.dataset.type;
+        }
         renderGuideTabs();
-        loadGuide(currentCategory, currentGuideStep);
+        loadGuide(currentCategory, currentGuideStep, 
+          currentGuideStep === 'prompt' ? currentPromptType : null);
       });
     });
   }
@@ -907,14 +628,11 @@
     }
 
     const text = document.getElementById('sermon-text').value;
-    const title = document.getElementById('sermon-title').value;
-    const guideKey = getGuideKey(currentCategory, stepId);
+    const guideKey = getGuideKey(currentCategory, stepId, 
+      stepId === 'prompt' ? currentPromptType : null);
     const guide = localStorage.getItem(guideKey) || '';
     
-    // 총괄 지침 가져오기
-    const settings = config.categorySettings[currentCategory];
-    const masterGuide = settings ? settings.masterGuide : '';
-    
+    // 이전 단계 결과들 수집
     const steps = getCurrentSteps();
     const currentStepIndex = steps.findIndex(s => s.id === stepId);
     const previousResults = {};
@@ -928,7 +646,7 @@
       }
     }
     
-    showStatus(`🤖 ${getStepName(stepId)} 처리 중...`);
+    showStatus(`🤖 ${getStepName(currentCategory, stepId)} 처리 중...`);
     
     try {
       const response = await fetch('/api/sermon/process', {
@@ -937,12 +655,10 @@
         body: JSON.stringify({
           category: currentCategory,
           stepId: stepId,
-          stepName: getStepName(stepId),
           reference: ref,
-          title: title,
           text: text,
           guide: guide,
-          masterGuide: masterGuide,
+          promptType: stepId === 'prompt' ? currentPromptType : null,
           previousResults: previousResults
         })
       });
@@ -970,170 +686,122 @@
   }
 
   // ===== 카테고리 변경 =====
-  const categorySelect = document.getElementById('sermon-category');
-  if (categorySelect) {
-    categorySelect.addEventListener('change', (e) => {
-      currentCategory = e.target.value;
-      currentStyleId = '';
-      stepResults = {};
-      
-      loadMasterGuide(currentCategory);
-      renderStyles();
-      renderProcessingSteps();
-      renderResultBoxes();
-      renderGuideTabs();
-      
-      const seriesBox = document.getElementById('series-box');
-      if (seriesBox) {
-        if (currentCategory === 'wednesday') {
-          seriesBox.style.display = 'block';
-        } else {
-          seriesBox.style.display = 'none';
-        }
-      }
-    });
-  }
+  document.getElementById('sermon-category').addEventListener('change', (e) => {
+    currentCategory = e.target.value;
+    currentPromptType = getCurrentPromptTypes()[0];
+    stepResults = {};
+    
+    renderProcessingSteps();
+    renderPromptTypes();
+    renderResultBoxes();
+    renderGuideTabs();
+    
+    if (currentCategory === 'wednesday') {
+      document.getElementById('series-box').style.display = 'block';
+    } else {
+      document.getElementById('series-box').style.display = 'none';
+    }
+  });
 
   // ===== 패스워드 =====
-  const toggleGuidesBtn = document.getElementById('toggle-guides');
-  if (toggleGuidesBtn) {
-    toggleGuidesBtn.addEventListener('click', () => {
-      const content = document.getElementById('guide-content');
-      const btn = document.getElementById('toggle-guides');
-      
-      if (!content || !btn) return;
-      
-      if (content.style.display === 'none') {
-        if (!guideUnlocked) {
-          const modal = document.getElementById('modal-password');
-          if (modal) modal.classList.add('show');
-          const input = document.getElementById('password-input');
-          if (input) {
-            input.value = '';
-            input.focus();
-          }
-        } else {
-          content.style.display = 'block';
-          btn.textContent = '닫기';
-        }
+  document.getElementById('toggle-guides').addEventListener('click', () => {
+    const content = document.getElementById('guide-content');
+    const btn = document.getElementById('toggle-guides');
+    
+    if (content.style.display === 'none') {
+      if (!guideUnlocked) {
+        document.getElementById('modal-password').classList.add('show');
+        document.getElementById('password-input').value = '';
+        document.getElementById('password-input').focus();
       } else {
-        content.style.display = 'none';
-        btn.textContent = '열기';
+        content.style.display = 'block';
+        btn.textContent = '닫기';
       }
-    });
-  }
+    } else {
+      content.style.display = 'none';
+      btn.textContent = '열기';
+    }
+  });
 
-  const btnSubmitPassword = document.getElementById('btn-submit-password');
-  if (btnSubmitPassword) {
-    btnSubmitPassword.addEventListener('click', () => {
-      const input = document.getElementById('password-input');
-      if (input && input.value === GUIDE_PASSWORD) {
-        guideUnlocked = true;
-        const modal = document.getElementById('modal-password');
-        if (modal) modal.classList.remove('show');
-        const content = document.getElementById('guide-content');
-        if (content) content.style.display = 'block';
-        const btn = document.getElementById('toggle-guides');
-        if (btn) btn.textContent = '닫기';
-        
-        const steps = getCurrentSteps();
-        if (steps.length > 0) {
-          currentGuideStep = steps[0].id;
-          renderGuideTabs();
-          loadGuide(currentCategory, currentGuideStep);
-        }
-      } else {
-        alert('❌ 패스워드가 틀렸습니다.');
-        if (input) input.value = '';
+  document.getElementById('btn-submit-password').addEventListener('click', () => {
+    if (document.getElementById('password-input').value === GUIDE_PASSWORD) {
+      guideUnlocked = true;
+      document.getElementById('modal-password').classList.remove('show');
+      document.getElementById('guide-content').style.display = 'block';
+      document.getElementById('toggle-guides').textContent = '닫기';
+      
+      // 첫 지침 탭 선택
+      const steps = getCurrentSteps();
+      if (steps.length > 0) {
+        currentGuideStep = steps[0].id;
+        renderGuideTabs();
+        loadGuide(currentCategory, currentGuideStep);
       }
-    });
-  }
+    } else {
+      alert('❌ 패스워드가 틀렸습니다.');
+      document.getElementById('password-input').value = '';
+    }
+  });
 
-  const btnCancelPassword = document.getElementById('btn-cancel-password');
-  if (btnCancelPassword) {
-    btnCancelPassword.addEventListener('click', () => {
-      const modal = document.getElementById('modal-password');
-      if (modal) modal.classList.remove('show');
-    });
-  }
+  document.getElementById('btn-cancel-password').addEventListener('click', () => {
+    document.getElementById('modal-password').classList.remove('show');
+  });
 
-  const passwordInput = document.getElementById('password-input');
-  if (passwordInput) {
-    passwordInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        const btn = document.getElementById('btn-submit-password');
-        if (btn) btn.click();
-      }
-    });
-  }
+  document.getElementById('password-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') document.getElementById('btn-submit-password').click();
+  });
 
-  const saveGuideBtn = document.getElementById('save-guide');
-  if (saveGuideBtn) {
-    saveGuideBtn.addEventListener('click', saveGuide);
-  }
+  // ===== 지침 저장 =====
+  document.getElementById('save-guide').addEventListener('click', saveGuide);
 
   // ===== 카테고리 관리 =====
-  const btnManageCategories = document.getElementById('btn-manage-categories');
-  if (btnManageCategories) {
-    btnManageCategories.addEventListener('click', () => {
-      const list = document.getElementById('categories-list');
-      if (list) {
-        list.innerHTML = config.categories.map((cat, idx) => `
-          <div class="storage-item">
-            <div>
-              <div style="font-weight: 600;">${cat.label}</div>
-              <div style="font-size: .75rem; color: #666;">${cat.value}</div>
-            </div>
-            ${config.categories.length > 1 ? `<button class="danger" onclick="deleteCategory(${idx})">삭제</button>` : ''}
-          </div>
-        `).join('');
-      }
-      const modal = document.getElementById('modal-categories');
-      if (modal) modal.classList.add('show');
-    });
-  }
+  document.getElementById('btn-manage-categories').addEventListener('click', () => {
+    const list = document.getElementById('categories-list');
+    list.innerHTML = config.categories.map((cat, idx) => `
+      <div class="storage-item">
+        <div>
+          <div style="font-weight: 600;">${cat.label}</div>
+          <div style="font-size: .75rem; color: #666;">${cat.value}</div>
+        </div>
+        ${config.categories.length > 1 ? `<button class="danger" onclick="deleteCategory(${idx})">삭제</button>` : ''}
+      </div>
+    `).join('');
+    document.getElementById('modal-categories').classList.add('show');
+  });
 
-  const btnCloseCategories = document.getElementById('btn-close-categories');
-  if (btnCloseCategories) {
-    btnCloseCategories.addEventListener('click', () => {
-      const modal = document.getElementById('modal-categories');
-      if (modal) modal.classList.remove('show');
-    });
-  }
+  document.getElementById('btn-close-categories').addEventListener('click', () => {
+    document.getElementById('modal-categories').classList.remove('show');
+  });
 
-  const btnAddCategory = document.getElementById('btn-add-category');
-  if (btnAddCategory) {
-    btnAddCategory.addEventListener('click', async () => {
-      const input = document.getElementById('new-cat-label');
-      if (!input) return;
-      
-      const label = input.value.trim();
-      
-      if (!label) {
-        alert('표시 이름을 입력하세요.');
-        return;
-      }
-      
-      const value = koreanToId(label);
-      
-      if (config.categories.find(c => c.value === value)) {
-        alert('이미 존재하는 카테고리입니다.');
-        return;
-      }
-      
-      config.categories.push({value, label});
-      config.categorySettings[value] = {
-        masterGuide: "",
-        styles: []
-      };
-      
-      await saveConfig();
-      renderCategories();
-      const btn = document.getElementById('btn-manage-categories');
-      if (btn) btn.click();
-      input.value = '';
-    });
-  }
+  document.getElementById('btn-add-category').addEventListener('click', async () => {
+    const value = document.getElementById('new-cat-value').value.trim();
+    const label = document.getElementById('new-cat-label').value.trim();
+    
+    if (!value || !label) {
+      alert('모두 입력하세요.');
+      return;
+    }
+    
+    if (config.categories.find(c => c.value === value)) {
+      alert('이미 존재하는 코드입니다.');
+      return;
+    }
+    
+    config.categories.push({value, label});
+    config.categorySettings[value] = {
+      promptTypes: ['기본'],
+      steps: [
+        {id: 'analysis', name: '본문 분석', order: 1},
+        {id: 'prompt', name: '설교문 프롬프트', order: 2}
+      ]
+    };
+    
+    await saveConfig();
+    renderCategories();
+    document.getElementById('btn-manage-categories').click();
+    document.getElementById('new-cat-value').value = '';
+    document.getElementById('new-cat-label').value = '';
+  });
 
   window.deleteCategory = async function(idx) {
     if (!confirm(`"${config.categories[idx].label}" 삭제?`)) return;
@@ -1142,190 +810,66 @@
     delete config.categorySettings[value];
     await saveConfig();
     renderCategories();
-    const btn = document.getElementById('btn-manage-categories');
-    if (btn) btn.click();
+    document.getElementById('btn-manage-categories').click();
   };
 
-  // ===== 스타일 관리 =====
-  const btnManageStyles = document.getElementById('btn-manage-styles');
-  if (btnManageStyles) {
-    btnManageStyles.addEventListener('click', () => {
-      const categoryLabel = document.getElementById('modal-styles-category');
-      if (categoryLabel) {
-        categoryLabel.textContent = getCategoryLabel(currentCategory);
-      }
-      
-      const settings = config.categorySettings[currentCategory];
-      const styles = (settings && settings.styles) ? settings.styles : [];
-      const list = document.getElementById('styles-manage-list');
-      
-      if (list) {
-        list.innerHTML = styles.map((style, idx) => `
-          <div class="storage-item">
-            <div>
-              <div style="font-weight: 600;">${style.name}</div>
-              <div style="font-size: .75rem; color: #666;">${style.description || ''}</div>
-            </div>
-            <div>
-              <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
-              <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
-            </div>
-          </div>
-        `).join('');
-      }
-      
-      const modal = document.getElementById('modal-styles');
-      if (modal) modal.classList.add('show');
-    });
-  }
-
-  const btnCloseStyles = document.getElementById('btn-close-styles');
-  if (btnCloseStyles) {
-    btnCloseStyles.addEventListener('click', () => {
-      const modal = document.getElementById('modal-styles');
-      if (modal) modal.classList.remove('show');
-    });
-  }
-
-  const btnAddStyle = document.getElementById('btn-add-style');
-  if (btnAddStyle) {
-    btnAddStyle.addEventListener('click', async () => {
-      const nameInput = document.getElementById('new-style-name');
-      const descInput = document.getElementById('new-style-desc');
-      
-      if (!nameInput) return;
-      
-      const name = nameInput.value.trim();
-      const desc = descInput ? descInput.value.trim() : '';
-      
-      if (!name) {
-        alert('스타일 이름을 입력하세요.');
-        return;
-      }
-      
-      const id = koreanToId(name);
-      const settings = config.categorySettings[currentCategory];
-      
-      if (!settings.styles) {
-        settings.styles = [];
-      }
-      
-      settings.styles.push({
-        id: id,
-        name: name,
-        description: desc,
-        steps: []
-      });
-      
-      await saveConfig();
-      renderStyles();
-      const btn = document.getElementById('btn-manage-styles');
-      if (btn) btn.click();
-      nameInput.value = '';
-      if (descInput) descInput.value = '';
-    });
-  }
-
-  window.deleteStyle = async function(idx) {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return;
-    
-    const style = settings.styles[idx];
-    if (!confirm(`"${style.name}" 삭제?`)) return;
-    
-    settings.styles.splice(idx, 1);
-    if (currentStyleId === style.id) {
-      currentStyleId = '';
-    }
-    await saveConfig();
-    renderStyles();
-    const btn = document.getElementById('btn-manage-styles');
-    if (btn) btn.click();
-  };
-
-  window.editStyleSteps = function(styleId) {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return;
-    
-    const style = settings.styles.find(s => s.id === styleId);
-    if (!style) return;
-    
-    currentStyleId = styleId;
-    const modal = document.getElementById('modal-styles');
-    if (modal) modal.classList.remove('show');
-    
-    const styleLabel = document.getElementById('modal-steps-style');
-    if (styleLabel) styleLabel.textContent = style.name;
-    
+  // ===== 처리 단계 관리 =====
+  document.getElementById('btn-manage-steps').addEventListener('click', () => {
+    document.getElementById('modal-steps-category').textContent = getCategoryLabel(currentCategory);
+    const steps = getCurrentSteps();
     const list = document.getElementById('steps-list');
-    if (list) {
-      if (!style.steps) style.steps = [];
-      
-      list.innerHTML = style.steps.map((step, idx) => `
-        <div class="storage-item">
-          <span>${step.order}. ${step.name}</span>
-          <div>
-            ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)" style="margin-right: .3rem;">↑</button>` : ''}
-            ${idx < style.steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
-            <button class="danger" onclick="deleteStep(${idx})">삭제</button>
-          </div>
+    
+    list.innerHTML = steps.map((step, idx) => `
+      <div class="step-item">
+        <span>${step.order}. ${step.name}</span>
+        <div class="step-order-controls">
+          ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)">↑</button>` : ''}
+          ${idx < steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)">↓</button>` : ''}
+          ${steps.length > 1 ? `<button class="danger" onclick="deleteStep(${idx})">삭제</button>` : ''}
         </div>
-      `).join('');
+      </div>
+    `).join('');
+    
+    document.getElementById('modal-steps').classList.add('show');
+  });
+
+  document.getElementById('btn-close-steps').addEventListener('click', () => {
+    document.getElementById('modal-steps').classList.remove('show');
+  });
+
+  document.getElementById('btn-add-step').addEventListener('click', async () => {
+    const id = document.getElementById('new-step-id').value.trim();
+    const name = document.getElementById('new-step-name').value.trim();
+    
+    if (!id || !name) {
+      alert('모두 입력하세요.');
+      return;
     }
     
-    const stepsModal = document.getElementById('modal-steps');
-    if (stepsModal) stepsModal.classList.add('show');
-  };
-
-  const btnCloseSteps = document.getElementById('btn-close-steps');
-  if (btnCloseSteps) {
-    btnCloseSteps.addEventListener('click', () => {
-      const modal = document.getElementById('modal-steps');
-      if (modal) modal.classList.remove('show');
+    const steps = getCurrentSteps();
+    if (steps.find(s => s.id === id)) {
+      alert('이미 존재하는 ID입니다.');
+      return;
+    }
+    
+    const maxOrder = Math.max(...steps.map(s => s.order), 0);
+    config.categorySettings[currentCategory].steps.push({
+      id: id,
+      name: name,
+      order: maxOrder + 1
     });
-  }
-
-  const btnAddStep = document.getElementById('btn-add-step');
-  if (btnAddStep) {
-    btnAddStep.addEventListener('click', async () => {
-      const input = document.getElementById('new-step-name');
-      if (!input) return;
-      
-      const name = input.value.trim();
-      
-      if (!name) {
-        alert('단계 이름을 입력하세요.');
-        return;
-      }
-      
-      const style = getCurrentStyle();
-      if (!style) return;
-      
-      if (!style.steps) style.steps = [];
-      
-      const id = koreanToId(name);
-      const maxOrder = style.steps.length > 0 ? Math.max(...style.steps.map(s => s.order)) : 0;
-      
-      style.steps.push({
-        id: id,
-        name: name,
-        order: maxOrder + 1
-      });
-      
-      await saveConfig();
-      renderProcessingSteps();
-      renderResultBoxes();
-      renderGuideTabs();
-      editStyleSteps(currentStyleId);
-      input.value = '';
-    });
-  }
+    
+    await saveConfig();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    document.getElementById('btn-manage-steps').click();
+    document.getElementById('new-step-id').value = '';
+    document.getElementById('new-step-name').value = '';
+  });
 
   window.moveStep = async function(idx, direction) {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return;
-    
-    const steps = style.steps;
+    const steps = getCurrentSteps();
     const targetIdx = idx + direction;
     
     if (targetIdx < 0 || targetIdx >= steps.length) return;
@@ -1335,54 +879,99 @@
     await saveConfig();
     renderProcessingSteps();
     renderResultBoxes();
-    editStyleSteps(currentStyleId);
+    document.getElementById('btn-manage-steps').click();
   };
 
   window.deleteStep = async function(idx) {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return;
+    const steps = getCurrentSteps();
+    if (!confirm(`"${steps[idx].name}" 삭제?`)) return;
     
-    if (!confirm(`"${style.steps[idx].name}" 삭제?`)) return;
-    
-    style.steps.splice(idx, 1);
+    config.categorySettings[currentCategory].steps.splice(idx, 1);
     await saveConfig();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    editStyleSteps(currentStyleId);
+    document.getElementById('btn-manage-steps').click();
+  };
+
+  // ===== 설교 유형 관리 =====
+  document.getElementById('btn-manage-prompt-types').addEventListener('click', () => {
+    document.getElementById('modal-types-category').textContent = getCategoryLabel(currentCategory);
+    const types = getCurrentPromptTypes();
+    const list = document.getElementById('prompt-types-manage-list');
+    
+    list.innerHTML = types.map((type, idx) => `
+      <div class="storage-item">
+        <span>${type}</span>
+        ${types.length > 1 ? `<button class="danger" onclick="deletePromptType(${idx})">삭제</button>` : ''}
+      </div>
+    `).join('');
+    
+    document.getElementById('modal-prompt-types').classList.add('show');
+  });
+
+  document.getElementById('btn-close-prompt-types').addEventListener('click', () => {
+    document.getElementById('modal-prompt-types').classList.remove('show');
+  });
+
+  document.getElementById('btn-add-prompt-type').addEventListener('click', async () => {
+    const name = document.getElementById('new-prompt-type').value.trim();
+    
+    if (!name) {
+      alert('유형 이름을 입력하세요.');
+      return;
+    }
+    
+    const types = getCurrentPromptTypes();
+    if (types.includes(name)) {
+      alert('이미 존재합니다.');
+      return;
+    }
+    
+    config.categorySettings[currentCategory].promptTypes.push(name);
+    await saveConfig();
+    renderPromptTypes();
+    renderGuideTabs();
+    document.getElementById('btn-manage-prompt-types').click();
+    document.getElementById('new-prompt-type').value = '';
+  });
+
+  window.deletePromptType = async function(idx) {
+    const types = getCurrentPromptTypes();
+    if (!confirm(`"${types[idx]}" 삭제?`)) return;
+    
+    config.categorySettings[currentCategory].promptTypes.splice(idx, 1);
+    if (currentPromptType === types[idx]) {
+      currentPromptType = getCurrentPromptTypes()[0];
+    }
+    await saveConfig();
+    renderPromptTypes();
+    renderGuideTabs();
+    document.getElementById('btn-manage-prompt-types').click();
   };
 
   // ===== 저장/불러오기 =====
-  const btnSave = document.getElementById('btn-save');
-  if (btnSave) {
-    btnSave.addEventListener('click', () => {
-      const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
-      const style = getCurrentStyle();
-      
-      saved.push({
-        date: document.getElementById('sermon-date').value,
-        category: currentCategory,
-        styleId: currentStyleId,
-        styleName: style ? style.name : '',
-        seriesName: document.getElementById('series-name').value,
-        ref: document.getElementById('sermon-ref').value,
-        title: document.getElementById('sermon-title').value,
-        text: document.getElementById('sermon-text').value,
-        results: stepResults,
-        savedAt: new Date().toISOString()
-      });
-      
-      localStorage.setItem('sermon-saved', JSON.stringify(saved));
-      renderSavedList();
-      alert('✅ 저장되었습니다!');
+  document.getElementById('btn-save').addEventListener('click', () => {
+    const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
+    saved.push({
+      date: document.getElementById('sermon-date').value,
+      category: currentCategory,
+      seriesName: document.getElementById('series-name').value,
+      ref: document.getElementById('sermon-ref').value,
+      text: document.getElementById('sermon-text').value,
+      promptType: currentPromptType,
+      results: stepResults,
+      savedAt: new Date().toISOString()
     });
-  }
+    
+    localStorage.setItem('sermon-saved', JSON.stringify(saved));
+    renderSavedList();
+    alert('✅ 저장되었습니다!');
+  });
 
   function renderSavedList() {
     const saved = JSON.parse(localStorage.getItem('sermon-saved') || '[]');
     const list = document.getElementById('saved-list');
-    
-    if (!list) return;
     
     if (saved.length === 0) {
       list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">저장된 자료가 없습니다.</p>';
@@ -1393,13 +982,13 @@
       const catLabel = getCategoryLabel(item.category);
       const display = item.seriesName 
         ? `${item.date} - ${catLabel} - ${item.seriesName}`
-        : `${item.date} - ${catLabel} - ${item.styleName}`;
+        : `${item.date} - ${catLabel}`;
       
       return `
         <div class="storage-item">
           <span style="font-size: .85rem;">${display}</span>
-          <div>
-            <button onclick="loadSaved(${idx})" style="margin-right: .3rem;">불러오기</button>
+          <div class="storage-actions">
+            <button onclick="loadSaved(${idx})">불러오기</button>
             <button onclick="deleteSaved(${idx})">삭제</button>
           </div>
         </div>
@@ -1414,16 +1003,15 @@
     document.getElementById('sermon-date').value = item.date || '';
     document.getElementById('sermon-category').value = item.category || 'dawn';
     document.getElementById('sermon-ref').value = item.ref || '';
-    document.getElementById('sermon-title').value = item.title || '';
     document.getElementById('sermon-text').value = item.text || '';
     document.getElementById('series-name').value = item.seriesName || '';
     
     currentCategory = item.category || 'dawn';
-    currentStyleId = item.styleId || '';
+    currentPromptType = item.promptType || '기본';
     stepResults = item.results || {};
     
-    renderStyles();
     renderProcessingSteps();
+    renderPromptTypes();
     renderResultBoxes();
     renderGuideTabs();
     
@@ -1445,19 +1033,15 @@
 
   // ===== 초기화 =====
   document.addEventListener('DOMContentLoaded', async () => {
-    const dateInput = document.getElementById('sermon-date');
-    if (dateInput) {
-      dateInput.value = new Date().toISOString().split('T')[0];
-    }
+    document.getElementById('sermon-date').value = new Date().toISOString().split('T')[0];
     
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
     hideStatus();
     
     renderCategories();
-    loadMasterGuide(currentCategory);
-    renderStyles();
     renderProcessingSteps();
+    renderPromptTypes();
     renderResultBoxes();
     renderGuideTabs();
     renderSavedList();
