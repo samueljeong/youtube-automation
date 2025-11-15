@@ -108,7 +108,7 @@ CRITICAL RULES:
 현재 단계: {step_name}
 
 CRITICAL RULES:
-1. 이 단계는 GPT-4o에서 최종 작성될 부분입니다
+1. 이 단계는 GPT-5.1에서 최종 작성될 부분입니다
 2. 당신은 자료와 포인트만 제공하세요:
    - 핵심 메시지 (한 문장)
    - 주요 포인트 (키워드 나열)
@@ -233,10 +233,10 @@ def api_process_step():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
-# ===== GPT PRO 처리 API (gpt-4o) =====
+# ===== GPT PRO 처리 API (gpt-5.1) =====
 @app.route("/api/sermon/gpt-pro", methods=["POST"])
 def api_gpt_pro():
-    """GPT-4o 완성본 작성"""
+    """GPT-5.1 완성본 작성"""
     try:
         data = request.get_json()
         if not data:
@@ -251,9 +251,9 @@ def api_gpt_pro():
 
         print(f"[GPT-PRO] 처리 시작")
 
-        # GPT-4o 시스템 프롬프트
+        # GPT-5.1 시스템 프롬프트
         system_content = (
-            "당신은 GPT-4o 기반의 한국어 설교 전문가입니다."
+            "당신은 GPT-5.1 기반의 한국어 설교 전문가입니다."
             " 청년부 예배를 섬기며, 하몽서클(Setup-Conflict-Turning Point-Realization-Call to Action) 흐름에 맞춰"
             " 깊이 있는 강연형 설교문을 작성해야 합니다."
             " 자료는 참고용으로만 활용하고 문장은 처음부터 새로 구성하며,"
@@ -296,27 +296,45 @@ def api_gpt_pro():
             "6. 마크다운, 불릿 기호 대신 순수 텍스트 단락과 번호를 사용하고, 중복되는 문장은 피하세요."
         )
 
-        # GPT-4o 호출 (최신 고성능 모델)
-        completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
+        # 최신 Responses API (gpt-5.1) 호출
+        completion = client.responses.create(
+            model="gpt-5.1",
+            input=[
                 {
                     "role": "system",
-                    "content": system_content
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": system_content
+                        }
+                    ]
                 },
                 {
                     "role": "user",
-                    "content": user_content
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": user_content
+                        }
+                    ]
                 }
             ],
             temperature=0.8,
-            max_tokens=8000  # 더 긴 설교문을 위해 토큰 증가
+            max_output_tokens=8000  # 더 긴 설교문을 위해 토큰 증가
         )
 
-        result = completion.choices[0].message.content.strip()
+        if getattr(completion, "output_text", None):
+            result = completion.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(completion, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result = "\n".join(text_chunks).strip()
 
         if not result:
-            raise RuntimeError("GPT-4o API로부터 결과를 받지 못했습니다.")
+            raise RuntimeError("GPT-5.1 API로부터 결과를 받지 못했습니다.")
 
         print(f"[GPT-PRO] 완료")
 
