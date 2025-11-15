@@ -13,6 +13,7 @@ from image_fetcher import ImageFetcher
 from shorts_maker import ShortsMaker
 from tts_generator import TTSGenerator
 from video_themes import VideoThemes
+from social_media_uploader import SocialMediaUploader
 from PIL import Image, ImageDraw
 import traceback
 from dotenv import load_dotenv
@@ -27,6 +28,19 @@ class DevotionalScheduler:
     def __init__(self):
         self.scheduler = BackgroundScheduler(timezone='Asia/Seoul')
         self.openai_client = self._get_openai_client()
+
+        # 소셜 미디어 업로더 초기화 (환경변수가 설정된 경우에만)
+        try:
+            self.social_media_uploader = SocialMediaUploader()
+            available_platforms = self.social_media_uploader.get_available_platforms()
+            if available_platforms:
+                print(f"[Scheduler] Social media uploader initialized: {available_platforms}")
+            else:
+                print("[Scheduler] Social media credentials not found - upload disabled")
+                self.social_media_uploader = None
+        except Exception as e:
+            print(f"[Scheduler] Social media uploader initialization failed: {e}")
+            self.social_media_uploader = None
 
     def _get_openai_client(self):
         """OpenAI 클라이언트 생성"""
@@ -115,13 +129,23 @@ class DevotionalScheduler:
             # 기본 메시지 반환
             return "오늘도 평안하고 감사한 하루 되세요."
 
-    def create_daily_video(self, time_of_day="morning", use_tts=True, use_theme=True):
-        """일일 묵상 비디오 생성 (TTS + 테마 지원)"""
+    def create_daily_video(self, time_of_day="morning", use_tts=True, use_theme=True, upload_to_social=False, platforms=None):
+        """
+        일일 묵상 비디오 생성 (TTS + 테마 + 소셜 미디어 업로드 지원)
+
+        Args:
+            time_of_day: 시간대 ("morning" 또는 "evening")
+            use_tts: TTS 사용 여부
+            use_theme: 테마 사용 여부
+            upload_to_social: 소셜 미디어 업로드 여부
+            platforms: 업로드할 플랫폼 리스트 (None = 모두)
+                      예: ["instagram", "tiktok"]
+        """
         try:
             print(f"\n{'='*60}")
             print(f"[Scheduler] Starting daily video creation - {time_of_day}")
             print(f"[Scheduler] Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"[Scheduler] TTS: {use_tts}, Theme: {use_theme}")
+            print(f"[Scheduler] TTS: {use_tts}, Theme: {use_theme}, Upload: {upload_to_social}")
             print(f"{'='*60}\n")
 
             # 타임스탬프
@@ -207,17 +231,57 @@ class DevotionalScheduler:
                 os.rename(video_path_temp, final_video_path)
                 result = final_video_path
 
-            # 7. 결과 로깅
-            print("[Step 7/7] Logging result...")
+            # 7. 소셜 미디어 업로드 (선택사항)
+            upload_results = {}
+            if upload_to_social and result and self.social_media_uploader:
+                print("[Step 7/8] Uploading to social media...")
+                try:
+                    # 업로드할 캡션 생성
+                    caption = message[:100]  # 첫 100자
+                    if len(message) > 100:
+                        caption += "..."
+
+                    # 소셜 미디어에 업로드
+                    upload_results = self.social_media_uploader.upload_to_all(
+                        result,
+                        caption=caption,
+                        platforms=platforms,
+                        headless=True  # 자동화 모드에서는 헤드리스
+                    )
+
+                    # 업로드 결과 출력
+                    print("\n" + "="*60)
+                    print("📤 소셜 미디어 업로드 결과:")
+                    for platform, success in upload_results.items():
+                        status = "✅ 성공" if success else "❌ 실패"
+                        print(f"  {platform}: {status}")
+                    print("="*60 + "\n")
+
+                except Exception as e:
+                    print(f"❌ Social media upload error: {e}")
+                    traceback.print_exc()
+            elif upload_to_social and not self.social_media_uploader:
+                print("[Step 7/8] Social media upload skipped (no credentials)")
+
+            # 8. 결과 로깅
+            print("[Step 8/8] Logging result...")
             if result:
                 file_size = os.path.getsize(result) / 1024  # KB
+
+                # 업로드 결과 포맷
+                upload_status = ""
+                if upload_results:
+                    upload_lines = [f"  {platform}: {'✅' if success else '❌'}"
+                                  for platform, success in upload_results.items()]
+                    upload_status = "\n업로드:\n" + "\n".join(upload_lines)
+
                 log_message = f"""
 {'='*60}
 ✅ 비디오 생성 성공!
 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 파일: {result}
 크기: {file_size:.1f} KB
-메시지: {message[:100]}...
+메시지: {message[:100]}...{upload_status}
 {'='*60}
 """
                 print(log_message)
@@ -246,17 +310,19 @@ class DevotionalScheduler:
 
             return None
 
-    def schedule_daily_tasks(self, morning_hour=9, evening_hour=20):
+    def schedule_daily_tasks(self, morning_hour=9, evening_hour=20, upload_to_social=False, platforms=None):
         """
         일일 작업 스케줄 설정
 
         Args:
             morning_hour: 오전 비디오 생성 시간 (기본: 9시)
             evening_hour: 저녁 비디오 생성 시간 (기본: 20시)
+            upload_to_social: 소셜 미디어 자동 업로드 여부
+            platforms: 업로드할 플랫폼 리스트 (None = 모두)
         """
         # 오전 묵상 비디오 생성 (매일 오전 9시)
         self.scheduler.add_job(
-            func=lambda: self.create_daily_video("morning"),
+            func=lambda: self.create_daily_video("morning", upload_to_social=upload_to_social, platforms=platforms),
             trigger=CronTrigger(hour=morning_hour, minute=0),
             id='morning_devotional',
             name='오전 묵상 비디오 생성',
@@ -265,16 +331,23 @@ class DevotionalScheduler:
 
         # 저녁 묵상 비디오 생성 (매일 저녁 8시)
         self.scheduler.add_job(
-            func=lambda: self.create_daily_video("evening"),
+            func=lambda: self.create_daily_video("evening", upload_to_social=upload_to_social, platforms=platforms),
             trigger=CronTrigger(hour=evening_hour, minute=0),
             id='evening_devotional',
             name='저녁 묵상 비디오 생성',
             replace_existing=True
         )
 
+        upload_info = ""
+        if upload_to_social:
+            if platforms:
+                upload_info = f"\n   - 자동 업로드: {', '.join(platforms)}"
+            else:
+                upload_info = "\n   - 자동 업로드: 모든 플랫폼"
+
         print(f"✅ 스케줄 설정 완료:")
         print(f"   - 오전 묵상: 매일 {morning_hour:02d}:00")
-        print(f"   - 저녁 묵상: 매일 {evening_hour:02d}:00")
+        print(f"   - 저녁 묵상: 매일 {evening_hour:02d}:00{upload_info}")
 
     def start(self):
         """스케줄러 시작"""
