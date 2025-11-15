@@ -353,18 +353,21 @@ def profile():
     return render_template('profile.html', user=user)
 
 @app.route('/')
+@login_required
 def index():
-    """Home page"""
+    """Home page - 비공개"""
     return render_template('index.html')
 
 @app.route('/bible')
+@login_required
 def bible():
-    """Bible page"""
+    """Bible page - 비공개"""
     return render_template('bible.html')
 
 @app.route('/message')
+@login_required
 def message():
-    """Message page"""
+    """Message page - 비공개"""
     return render_template('message.html')
 
 # ===== Sermon Routes =====
@@ -375,8 +378,9 @@ def sermon():
 
 # ===== Drama Routes =====
 @app.route('/drama')
+@login_required
 def drama():
-    """Drama page"""
+    """Drama page - 비공개"""
     return render_template('drama.html')
 
 @app.route('/health')
@@ -675,8 +679,9 @@ def api_gpt_pro():
 
 # ===== Drama API Routes =====
 @app.route('/api/drama/synopsis', methods=['POST'])
+@login_required
 def api_drama_synopsis():
-    """Generate drama synopsis"""
+    """Generate drama synopsis - 비공개"""
     try:
         if not openai_client:
             return jsonify({"ok": False, "error": "OpenAI API key not configured"}), 500
@@ -758,8 +763,9 @@ def api_drama_synopsis():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route('/api/drama/scenes', methods=['POST'])
+@login_required
 def api_drama_scenes():
-    """Generate scene structure"""
+    """Generate scene structure - 비공개"""
     try:
         if not openai_client:
             return jsonify({"ok": False, "error": "OpenAI API key not configured"}), 500
@@ -820,8 +826,9 @@ def api_drama_scenes():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route('/api/drama/script', methods=['POST'])
+@login_required
 def api_drama_script():
-    """Generate detailed drama script"""
+    """Generate detailed drama script - 비공개"""
     try:
         if not openai_client:
             return jsonify({"ok": False, "error": "OpenAI API key not configured"}), 500
