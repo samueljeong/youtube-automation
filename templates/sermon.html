@@ -253,9 +253,90 @@
       font-size: .85rem;
       margin-bottom: .75rem;
     }
+
+    /* Auth header */
+    .auth-header {
+      background: white;
+      border-bottom: 2px solid #e0e0e0;
+      padding: .75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .auth-header h1 {
+      font-size: 1.2rem;
+      margin: 0;
+      color: #333;
+    }
+    .auth-links {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+    }
+    .auth-links .user-info {
+      font-size: .9rem;
+      color: #555;
+      font-weight: 500;
+    }
+    .auth-links a {
+      padding: .4rem .8rem;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: .85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .auth-links .btn-login {
+      background: white;
+      color: #4a90e2;
+      border: 2px solid #4a90e2;
+    }
+    .auth-links .btn-login:hover {
+      background: #4a90e2;
+      color: white;
+    }
+    .auth-links .btn-signup {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+    }
+    .auth-links .btn-signup:hover {
+      opacity: 0.9;
+    }
+    .auth-links .btn-logout {
+      background: #e74c3c;
+      color: white;
+      border: none;
+    }
+    .auth-links .btn-logout:hover {
+      background: #c0392b;
+    }
+    .auth-links .btn-home {
+      background: #95a5a6;
+      color: white;
+      border: none;
+    }
+    .auth-links .btn-home:hover {
+      background: #7f8c8d;
+    }
   </style>
 </head>
 <body>
+  <!-- Auth Header -->
+  <div class="auth-header">
+    <h1>🙏 설교 도움 페이지</h1>
+    <div class="auth-links">
+      <a href="/" class="btn-home">홈</a>
+      {% if session.user_id %}
+        <span class="user-info">{{ session.user_name }}님</span>
+        <a href="/logout" class="btn-logout">로그아웃</a>
+      {% else %}
+        <a href="/login" class="btn-login">로그인</a>
+        <a href="/signup" class="btn-signup">회원가입</a>
+      {% endif %}
+    </div>
+  </div>
+
   <div class="page-wrap">
     <!-- 왼쪽 -->
     <div class="left-col">
