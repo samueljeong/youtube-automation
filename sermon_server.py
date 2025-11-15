@@ -304,7 +304,7 @@ def api_gpt_pro():
                     "role": "system",
                     "content": [
                         {
-                            "type": "text",
+                            "type": "input_text",
                             "text": system_content
                         }
                     ]
@@ -313,7 +313,7 @@ def api_gpt_pro():
                     "role": "user",
                     "content": [
                         {
-                            "type": "text",
+                            "type": "input_text",
                             "text": user_content
                         }
                     ]
