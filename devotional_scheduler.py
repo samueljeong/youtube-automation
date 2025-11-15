@@ -11,6 +11,8 @@ from apscheduler.triggers.cron import CronTrigger
 from openai import OpenAI
 from image_fetcher import ImageFetcher
 from shorts_maker import ShortsMaker
+from tts_generator import TTSGenerator
+from video_themes import VideoThemes
 from PIL import Image, ImageDraw
 import traceback
 from dotenv import load_dotenv
@@ -48,6 +50,16 @@ class DevotionalScheduler:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         base.save(output_path, quality=95)
         return output_path
+
+    def create_gradient_background_with_theme(self, width, height, theme_name, output_path):
+        """테마를 사용한 그라데이션 배경 생성"""
+        theme = VideoThemes.get_theme(theme_name)
+        return self.create_gradient_background(
+            width, height,
+            theme["color1"],
+            theme["color2"],
+            output_path
+        )
 
     def generate_devotional_message(self, time_of_day="morning"):
         """GPT로 묵상 메시지 생성"""
@@ -103,50 +115,100 @@ class DevotionalScheduler:
             # 기본 메시지 반환
             return "오늘도 평안하고 감사한 하루 되세요."
 
-    def create_daily_video(self, time_of_day="morning"):
-        """일일 묵상 비디오 생성"""
+    def create_daily_video(self, time_of_day="morning", use_tts=True, use_theme=True):
+        """일일 묵상 비디오 생성 (TTS + 테마 지원)"""
         try:
             print(f"\n{'='*60}")
             print(f"[Scheduler] Starting daily video creation - {time_of_day}")
             print(f"[Scheduler] Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"[Scheduler] TTS: {use_tts}, Theme: {use_theme}")
             print(f"{'='*60}\n")
 
             # 타임스탬프
             timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
             # 1. 묵상 메시지 생성
-            print("[Step 1/4] Generating devotional message...")
+            print("[Step 1/6] Generating devotional message...")
             message = self.generate_devotional_message(time_of_day)
 
-            # 2. 배경 이미지 생성
-            print("[Step 2/4] Creating background image...")
-            bg_path = f"output/images/bg_{timestamp}.jpg"
-
-            # 시간대별 배경 색상
-            if time_of_day == "morning":
-                color1, color2 = (50, 100, 150), (200, 150, 100)  # 파란색 → 오렌지
+            # 2. 테마 선택
+            print("[Step 2/6] Selecting theme...")
+            if use_theme:
+                theme_name = VideoThemes.get_random_theme(time_of_day)
+                print(f"   Selected theme: {theme_name}")
             else:
-                color1, color2 = (30, 30, 80), (100, 50, 100)  # 어두운 파란색 → 보라색
+                theme_name = "morning_blue" if time_of_day == "morning" else "evening_purple"
 
-            self.create_gradient_background(1080, 1920, color1, color2, bg_path)
+            # 3. 배경 이미지 생성
+            print("[Step 3/6] Creating background image with theme...")
+            bg_path = f"output/images/bg_{timestamp}.jpg"
+            self.create_gradient_background_with_theme(1080, 1920, theme_name, bg_path)
 
-            # 3. 비디오 생성
-            print("[Step 3/4] Creating devotional video...")
+            # 4. TTS 생성 (선택사항)
+            audio_path = None
+            if use_tts:
+                print("[Step 4/6] Generating TTS audio...")
+                tts_gen = TTSGenerator()
+                audio_path = f"output/audio/tts_{timestamp}.mp3"
+                os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+
+                audio_result = tts_gen.generate_tts(message, audio_path, use_openai=True)
+                if audio_result:
+                    print(f"   TTS created: {audio_path}")
+                else:
+                    print("   TTS failed, continuing without audio")
+                    audio_path = None
+            else:
+                print("[Step 4/6] Skipping TTS (disabled)")
+
+            # 5. 비디오 생성
+            print("[Step 5/6] Creating devotional video...")
             maker = ShortsMaker()
-            video_path = f"output/videos/devotional_{timestamp}.mp4"
+            video_path_temp = f"output/videos/devotional_{timestamp}_novideo.mp4"
 
             bible_ref = None  # 성경 구절은 선택사항
 
             result = maker.create_devotional_video(
                 bg_path,
                 message,
-                video_path,
+                video_path_temp,
                 bible_ref,
                 duration=10
             )
 
-            # 4. 결과 로깅
-            print("[Step 4/4] Logging result...")
+            if not result:
+                print("❌ Video creation failed")
+                return None
+
+            # 6. 오디오 추가 (TTS가 있으면)
+            print("[Step 6/6] Adding audio to video...")
+            if audio_path and os.path.exists(audio_path):
+                final_video_path = f"output/videos/devotional_{timestamp}.mp4"
+                result_with_audio = maker.add_audio_to_video(
+                    video_path_temp,
+                    audio_path,
+                    final_video_path
+                )
+
+                if result_with_audio:
+                    result = result_with_audio
+                    # 임시 파일 삭제
+                    if os.path.exists(video_path_temp):
+                        os.remove(video_path_temp)
+                else:
+                    print("   Audio addition failed, using video without audio")
+                    # 임시 파일을 최종 파일로 이름 변경
+                    final_video_path = f"output/videos/devotional_{timestamp}.mp4"
+                    os.rename(video_path_temp, final_video_path)
+                    result = final_video_path
+            else:
+                # 임시 파일을 최종 파일로 이름 변경
+                final_video_path = f"output/videos/devotional_{timestamp}.mp4"
+                os.rename(video_path_temp, final_video_path)
+                result = final_video_path
+
+            # 7. 결과 로깅
+            print("[Step 7/7] Logging result...")
             if result:
                 file_size = os.path.getsize(result) / 1024  # KB
                 log_message = f"""

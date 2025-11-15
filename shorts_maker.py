@@ -7,6 +7,7 @@ import os
 from typing import Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 import textwrap
+import subprocess
 
 
 class ShortsMaker:
@@ -317,6 +318,54 @@ class ShortsMaker:
             lines.append(current_line)
 
         return lines
+
+    def add_audio_to_video(self, video_path: str, audio_path: str, output_path: str) -> Optional[str]:
+        """
+        비디오에 오디오 추가 (ffmpeg 사용)
+
+        Args:
+            video_path: 비디오 파일 경로
+            audio_path: 오디오 파일 경로
+            output_path: 출력 파일 경로
+
+        Returns:
+            저장된 파일 경로 또는 None
+        """
+        try:
+            # ffmpeg 명령어
+            # 비디오 길이에 맞춰 오디오를 자르고, 페이드 아웃 적용
+            cmd = [
+                'ffmpeg',
+                '-y',  # 덮어쓰기
+                '-i', video_path,  # 비디오 입력
+                '-i', audio_path,  # 오디오 입력
+                '-c:v', 'copy',  # 비디오 코덱 복사 (재인코딩 안 함)
+                '-c:a', 'aac',  # 오디오 코덱
+                '-b:a', '128k',  # 오디오 비트레이트
+                '-shortest',  # 짧은 쪽에 맞춤
+                '-af', 'afade=t=out:st=9:d=1',  # 마지막 1초 페이드 아웃
+                output_path
+            ]
+
+            print(f"[ShortsMaker] Adding audio to video...")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+            if result.returncode == 0:
+                print(f"[ShortsMaker] Audio added successfully: {output_path}")
+                return output_path
+            else:
+                print(f"[ShortsMaker] ffmpeg error: {result.stderr}")
+                return None
+
+        except FileNotFoundError:
+            print("[ShortsMaker] ffmpeg not found. Audio not added.")
+            print("Install ffmpeg: apt-get install ffmpeg")
+            return None
+        except Exception as e:
+            print(f"[ShortsMaker] Error adding audio: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
 
 # 테스트용 코드
