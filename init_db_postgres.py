@@ -31,6 +31,52 @@ def init_postgres_database():
             )
         ''')
 
+        # Create videos table for sermon videos
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS videos (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                scripture_reference VARCHAR(200),
+                content TEXT,
+                video_path VARCHAR(500),
+                thumbnail_path VARCHAR(500),
+                duration INTEGER,
+                resolution VARCHAR(20) DEFAULT '1080x1920',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create video_uploads table for tracking platform uploads
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS video_uploads (
+                id SERIAL PRIMARY KEY,
+                video_id INTEGER REFERENCES videos(id),
+                platform VARCHAR(50) NOT NULL,
+                platform_video_id VARCHAR(500),
+                upload_status VARCHAR(50) DEFAULT 'pending',
+                upload_url TEXT,
+                uploaded_at TIMESTAMP,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create platform_credentials table for API keys
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS platform_credentials (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                platform VARCHAR(50) NOT NULL,
+                credentials JSONB NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, platform)
+            )
+        ''')
+
         conn.commit()
         cursor.close()
         conn.close()

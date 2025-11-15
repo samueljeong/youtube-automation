@@ -406,6 +406,28 @@
         <button id="btn-save" style="width: 100%; margin-bottom: .5rem;">현재 내용 저장</button>
         <div id="saved-list"></div>
       </div>
+
+      <!-- 비디오 생성 및 공유 -->
+      <div class="box">
+        <label class="label">🎬 비디오 생성 및 공유</label>
+        <button id="btn-create-video" style="width: 100%; margin-bottom: .5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">비디오 생성</button>
+        <div id="video-share-buttons" style="display: none; margin-top: .5rem;">
+          <div style="font-size: .85rem; margin-bottom: .5rem; color: #666;">생성된 비디오를 공유:</div>
+          <button id="btn-upload-youtube" class="platform-btn" style="width: 100%; margin-bottom: .3rem; background: #FF0000; color: white; border: none;">
+            📺 YouTube Shorts
+          </button>
+          <button id="btn-upload-instagram" class="platform-btn" style="width: 100%; margin-bottom: .3rem; background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%); color: white; border: none;">
+            📷 Instagram 릴스
+          </button>
+          <button id="btn-upload-tiktok" class="platform-btn" style="width: 100%; margin-bottom: .3rem; background: #000000; color: white; border: none;">
+            🎵 TikTok
+          </button>
+          <button id="btn-upload-all" class="platform-btn" style="width: 100%; margin-bottom: .3rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; font-weight: bold;">
+            🚀 모든 플랫폼에 업로드
+          </button>
+        </div>
+        <button id="btn-api-settings" style="width: 100%; margin-top: .5rem; background: #f0f0f0; color: #333; border: 1px solid #ccc; font-size: .85rem;">⚙️ API 키 설정</button>
+      </div>
     </div>
 
     <!-- 오른쪽 -->
@@ -556,6 +578,45 @@
       <div id="steps-list" style="max-height: 300px; overflow-y: auto;"></div>
       <div class="modal-buttons">
         <button id="btn-close-steps">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API 키 설정 모달 -->
+  <div id="modal-api-settings" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-title">⚙️ API 키 설정</div>
+      <p style="font-size: .85rem; color: #666; margin-bottom: 1rem;">
+        각 플랫폼의 API 키를 설정하여 자동 업로드 기능을 사용할 수 있습니다.
+      </p>
+
+      <!-- YouTube 설정 -->
+      <div class="api-platform-section" style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">
+        <div style="font-weight: bold; margin-bottom: .5rem; color: #FF0000;">📺 YouTube</div>
+        <input type="text" id="youtube-client-id" placeholder="Client ID" style="width: 100%; margin-bottom: .3rem;">
+        <input type="text" id="youtube-client-secret" placeholder="Client Secret" style="width: 100%; margin-bottom: .3rem;">
+        <input type="text" id="youtube-refresh-token" placeholder="Refresh Token" style="width: 100%; margin-bottom: .3rem;">
+        <button id="btn-save-youtube" class="primary" style="width: 100%; background: #FF0000; border: none;">저장</button>
+      </div>
+
+      <!-- Instagram 설정 -->
+      <div class="api-platform-section" style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">
+        <div style="font-weight: bold; margin-bottom: .5rem; color: #E1306C;">📷 Instagram</div>
+        <input type="text" id="instagram-access-token" placeholder="Access Token" style="width: 100%; margin-bottom: .3rem;">
+        <input type="text" id="instagram-account-id" placeholder="Instagram Account ID" style="width: 100%; margin-bottom: .3rem;">
+        <button id="btn-save-instagram" class="primary" style="width: 100%; background: #E1306C; border: none;">저장</button>
+      </div>
+
+      <!-- TikTok 설정 -->
+      <div class="api-platform-section" style="margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #ddd; border-radius: 8px;">
+        <div style="font-weight: bold; margin-bottom: .5rem; color: #000000;">🎵 TikTok</div>
+        <input type="text" id="tiktok-access-token" placeholder="Access Token" style="width: 100%; margin-bottom: .3rem;">
+        <input type="text" id="tiktok-open-id" placeholder="Open ID" style="width: 100%; margin-bottom: .3rem;">
+        <button id="btn-save-tiktok" class="primary" style="width: 100%; background: #000000; border: none; color: white;">저장</button>
+      </div>
+
+      <div class="modal-buttons">
+        <button id="btn-close-api-settings">닫기</button>
       </div>
     </div>
   </div>
@@ -2002,6 +2063,267 @@
   // ===== textarea 자동 높이 =====
   document.querySelectorAll('textarea.autosize').forEach(textarea => {
     textarea.addEventListener('input', () => autoResize(textarea));
+  });
+
+  // ===== 비디오 생성 및 공유 기능 =====
+  let currentVideoId = null;
+
+  // 비디오 생성 버튼 클릭
+  document.getElementById('btn-create-video').addEventListener('click', async function() {
+    const title = document.getElementById('sermon-title').value.trim();
+    const scriptureRef = document.getElementById('scripture-ref').value.trim();
+    const scriptureText = document.getElementById('scripture-text').value.trim();
+
+    if (!title || !scriptureRef || !scriptureText) {
+      alert('제목, 성경 구절, 본문을 모두 입력해주세요.');
+      return;
+    }
+
+    if (!confirm('비디오를 생성하시겠습니까? (약 15초 소요)')) return;
+
+    showStatus('🎬 비디오 생성 중...');
+    this.disabled = true;
+
+    try {
+      const response = await fetch('/api/video/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          title: title,
+          scripture_reference: scriptureRef,
+          content: scriptureText,
+          duration: 15
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        currentVideoId = data.video_id;
+        alert('✅ 비디오가 생성되었습니다!');
+        document.getElementById('video-share-buttons').style.display = 'block';
+        hideStatus();
+      } else {
+        throw new Error(data.error || '비디오 생성 실패');
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+      hideStatus();
+    } finally {
+      this.disabled = false;
+    }
+  });
+
+  // 플랫폼별 업로드 함수
+  async function uploadToPlatform(platform) {
+    if (!currentVideoId) {
+      alert('먼저 비디오를 생성해주세요.');
+      return;
+    }
+
+    if (!confirm(`${platform} 에 업로드하시겠습니까?`)) return;
+
+    showStatus(`📤 ${platform} 업로드 중...`);
+
+    try {
+      const response = await fetch('/api/video/upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          video_id: currentVideoId,
+          platforms: [platform]
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        const result = data.results.uploads[platform];
+        if (result.status === 'success') {
+          alert(`✅ ${platform} 업로드 성공!\n\nURL: ${result.url}`);
+        } else {
+          throw new Error(result.error || '업로드 실패');
+        }
+        hideStatus();
+      } else {
+        throw new Error(data.error || '업로드 실패');
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+      hideStatus();
+    }
+  }
+
+  // YouTube 업로드
+  document.getElementById('btn-upload-youtube').addEventListener('click', () => {
+    uploadToPlatform('youtube');
+  });
+
+  // Instagram 업로드
+  document.getElementById('btn-upload-instagram').addEventListener('click', () => {
+    uploadToPlatform('instagram');
+  });
+
+  // TikTok 업로드
+  document.getElementById('btn-upload-tiktok').addEventListener('click', () => {
+    uploadToPlatform('tiktok');
+  });
+
+  // 모든 플랫폼에 업로드
+  document.getElementById('btn-upload-all').addEventListener('click', async () => {
+    if (!currentVideoId) {
+      alert('먼저 비디오를 생성해주세요.');
+      return;
+    }
+
+    if (!confirm('모든 플랫폼에 업로드하시겠습니까?\n(YouTube, Instagram, TikTok)')) return;
+
+    showStatus('📤 모든 플랫폼에 업로드 중...');
+
+    try {
+      const response = await fetch('/api/video/upload', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          video_id: currentVideoId,
+          platforms: ['youtube', 'instagram', 'tiktok']
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        let message = '업로드 결과:\n\n';
+        for (const [platform, result] of Object.entries(data.results.uploads)) {
+          if (result.status === 'success') {
+            message += `✅ ${platform}: ${result.url}\n`;
+          } else {
+            message += `❌ ${platform}: ${result.error}\n`;
+          }
+        }
+        alert(message);
+        hideStatus();
+      } else {
+        throw new Error(data.error || '업로드 실패');
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+      hideStatus();
+    }
+  });
+
+  // API 설정 모달 열기
+  document.getElementById('btn-api-settings').addEventListener('click', () => {
+    document.getElementById('modal-api-settings').classList.add('show');
+  });
+
+  // API 설정 모달 닫기
+  document.getElementById('btn-close-api-settings').addEventListener('click', () => {
+    document.getElementById('modal-api-settings').classList.remove('show');
+  });
+
+  // YouTube API 키 저장
+  document.getElementById('btn-save-youtube').addEventListener('click', async () => {
+    const clientId = document.getElementById('youtube-client-id').value.trim();
+    const clientSecret = document.getElementById('youtube-client-secret').value.trim();
+    const refreshToken = document.getElementById('youtube-refresh-token').value.trim();
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      alert('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/credentials/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          platform: 'youtube',
+          credentials: {
+            client_id: clientId,
+            client_secret: clientSecret,
+            refresh_token: refreshToken
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        alert('✅ YouTube API 키가 저장되었습니다.');
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+    }
+  });
+
+  // Instagram API 키 저장
+  document.getElementById('btn-save-instagram').addEventListener('click', async () => {
+    const accessToken = document.getElementById('instagram-access-token').value.trim();
+    const accountId = document.getElementById('instagram-account-id').value.trim();
+
+    if (!accessToken || !accountId) {
+      alert('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/credentials/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          platform: 'instagram',
+          credentials: {
+            access_token: accessToken,
+            instagram_account_id: accountId
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        alert('✅ Instagram API 키가 저장되었습니다.');
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+    }
+  });
+
+  // TikTok API 키 저장
+  document.getElementById('btn-save-tiktok').addEventListener('click', async () => {
+    const accessToken = document.getElementById('tiktok-access-token').value.trim();
+    const openId = document.getElementById('tiktok-open-id').value.trim();
+
+    if (!accessToken || !openId) {
+      alert('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/credentials/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          platform: 'tiktok',
+          credentials: {
+            access_token: accessToken,
+            open_id: openId
+          }
+        })
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        alert('✅ TikTok API 키가 저장되었습니다.');
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error) {
+      alert('❌ 오류: ' + error.message);
+    }
   });
 
   // ===== 초기화 =====

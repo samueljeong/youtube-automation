@@ -1103,5 +1103,234 @@ def api_drama_script():
         print(f"[DRAMA-SCRIPT][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+
+# ===== Video Service API Routes =====
+from video_service import VideoService
+
+video_service = VideoService()
+
+@app.route('/api/video/create', methods=['POST'])
+def api_create_video():
+    """묵상메시지 비디오 생성"""
+    try:
+        data = request.json
+        title = data.get('title', '')
+        scripture_reference = data.get('scripture_reference', '')
+        content = data.get('content', '')
+        duration = data.get('duration', 15)
+
+        if not title or not scripture_reference or not content:
+            return jsonify({
+                'ok': False,
+                'error': '제목, 성경 구절, 내용은 필수입니다.'
+            }), 400
+
+        # 비디오 생성
+        video_path = video_service.generator.create_sermon_video(
+            title=title,
+            scripture_reference=scripture_reference,
+            content=content,
+            duration=duration
+        )
+
+        # 데이터베이스에 저장
+        user_id = session.get('user_id')
+        conn = get_db_connection()
+        cursor = conn.execute('''
+            INSERT INTO videos (user_id, title, description, scripture_reference, content, video_path, duration)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, title, content[:500], scripture_reference, content, video_path, duration))
+
+        video_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else cursor._cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'video_id': video_id,
+            'video_path': video_path,
+            'message': '비디오가 성공적으로 생성되었습니다.'
+        })
+
+    except Exception as e:
+        print(f"[VIDEO-CREATE][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/video/upload', methods=['POST'])
+def api_upload_video():
+    """비디오를 소셜 미디어 플랫폼에 업로드"""
+    try:
+        data = request.json
+        video_id = data.get('video_id')
+        platforms = data.get('platforms', [])  # ['youtube', 'instagram', 'tiktok']
+
+        if not video_id or not platforms:
+            return jsonify({
+                'ok': False,
+                'error': '비디오 ID와 플랫폼 정보가 필요합니다.'
+            }), 400
+
+        # 비디오 정보 조회
+        conn = get_db_connection()
+        video = conn.execute(
+            'SELECT * FROM videos WHERE id = ?',
+            (video_id,)
+        ).fetchone()
+
+        if not video:
+            conn.close()
+            return jsonify({'ok': False, 'error': '비디오를 찾을 수 없습니다.'}), 404
+
+        # 플랫폼 인증 정보 조회
+        user_id = session.get('user_id')
+        credentials_map = {}
+
+        for platform in platforms:
+            cred = conn.execute(
+                'SELECT credentials FROM platform_credentials WHERE user_id = ? AND platform = ? AND is_active = TRUE',
+                (user_id, platform)
+            ).fetchone()
+
+            if cred:
+                credentials_map[platform] = json.loads(cred['credentials'])
+            else:
+                return jsonify({
+                    'ok': False,
+                    'error': f'{platform} 인증 정보가 없습니다. 먼저 API 키를 설정해주세요.'
+                }), 400
+
+        # 업로드 수행
+        sermon_data = {
+            'title': video['title'],
+            'scripture_reference': video['scripture_reference'],
+            'content': video['content'],
+            'duration': video['duration']
+        }
+
+        results = video_service.create_and_upload(
+            sermon_data=sermon_data,
+            platforms=platforms,
+            credentials_map=credentials_map
+        )
+
+        # 업로드 이력 저장
+        for platform, result in results['uploads'].items():
+            conn.execute('''
+                INSERT INTO video_uploads
+                (video_id, platform, platform_video_id, upload_status, upload_url, uploaded_at, error_message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                video_id,
+                platform,
+                result.get('video_id') or result.get('media_id'),
+                result['status'],
+                result.get('url'),
+                'NOW()' if result['status'] == 'success' else None,
+                result.get('error')
+            ))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'results': results,
+            'message': '업로드가 완료되었습니다.'
+        })
+
+    except Exception as e:
+        print(f"[VIDEO-UPLOAD][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/credentials/save', methods=['POST'])
+def api_save_credentials():
+    """플랫폼 API 인증 정보 저장"""
+    try:
+        data = request.json
+        platform = data.get('platform')
+        credentials = data.get('credentials')
+
+        if not platform or not credentials:
+            return jsonify({
+                'ok': False,
+                'error': '플랫폼과 인증 정보가 필요합니다.'
+            }), 400
+
+        user_id = session.get('user_id')
+
+        # 기존 인증 정보 비활성화
+        conn = get_db_connection()
+        conn.execute(
+            'UPDATE platform_credentials SET is_active = FALSE WHERE user_id = ? AND platform = ?',
+            (user_id, platform)
+        )
+
+        # 새 인증 정보 저장
+        conn.execute('''
+            INSERT INTO platform_credentials (user_id, platform, credentials, is_active)
+            VALUES (?, ?, ?, TRUE)
+        ''', (user_id, platform, json.dumps(credentials)))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'message': f'{platform} 인증 정보가 저장되었습니다.'
+        })
+
+    except Exception as e:
+        print(f"[CREDENTIALS-SAVE][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/credentials/list', methods=['GET'])
+def api_list_credentials():
+    """사용자의 플랫폼 인증 정보 목록 조회"""
+    try:
+        user_id = session.get('user_id')
+
+        conn = get_db_connection()
+        credentials = conn.execute(
+            'SELECT platform, is_active, created_at FROM platform_credentials WHERE user_id = ?',
+            (user_id,)
+        ).fetchall()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'credentials': [dict(c) for c in credentials]
+        })
+
+    except Exception as e:
+        print(f"[CREDENTIALS-LIST][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/video/list', methods=['GET'])
+def api_list_videos():
+    """사용자의 비디오 목록 조회"""
+    try:
+        user_id = session.get('user_id')
+
+        conn = get_db_connection()
+        videos = conn.execute(
+            'SELECT * FROM videos WHERE user_id = ? ORDER BY created_at DESC',
+            (user_id,)
+        ).fetchall()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'videos': [dict(v) for v in videos]
+        })
+
+    except Exception as e:
+        print(f"[VIDEO-LIST][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True)
