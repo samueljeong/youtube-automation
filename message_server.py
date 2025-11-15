@@ -1,6 +1,8 @@
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from openai import OpenAI
+from datetime import datetime
+import traceback
 
 app = Flask(__name__)
 
@@ -244,6 +246,145 @@ def api_translate():
     except Exception as e:
         print(f"[TRANSLATE][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 비디오 생성 API =====
+@app.route("/api/message/create-video", methods=["POST"])
+def api_create_video():
+    """묵상 메시지 비디오 생성 (전체 워크플로우)"""
+    try:
+        from image_fetcher import ImageFetcher
+        from shorts_maker import ShortsMaker
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        message = data.get("message", "")
+        bible_ref = data.get("bible_ref", "")
+        duration = data.get("duration", 10)  # 기본 10초
+
+        if not message:
+            return jsonify({"ok": False, "error": "Message is required"}), 400
+
+        print(f"[CREATE_VIDEO] Starting video creation...")
+
+        # 타임스탬프로 고유 파일명 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 1. 이미지 다운로드
+        print("[CREATE_VIDEO] Step 1: Downloading image...")
+        fetcher = ImageFetcher()
+        image_path = f"output/images/devotional_{timestamp}.jpg"
+
+        result_image = fetcher.get_image_for_message(message, image_path)
+        if not result_image:
+            return jsonify({"ok": False, "error": "Failed to download image"}), 500
+
+        # 2. 비디오 생성
+        print("[CREATE_VIDEO] Step 2: Creating video...")
+        maker = ShortsMaker()
+        video_path = f"output/videos/devotional_{timestamp}.mp4"
+
+        result_video = maker.create_devotional_video(
+            result_image,
+            message,
+            video_path,
+            bible_ref,
+            duration
+        )
+
+        if not result_video:
+            return jsonify({"ok": False, "error": "Failed to create video"}), 500
+
+        print(f"[CREATE_VIDEO] Success! Video: {result_video}")
+
+        return jsonify({
+            "ok": True,
+            "video_path": result_video,
+            "image_path": result_image,
+            "message": "Video created successfully"
+        })
+
+    except Exception as e:
+        print(f"[CREATE_VIDEO][ERROR] {str(e)}")
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/message/download-video/<filename>", methods=["GET"])
+def api_download_video(filename):
+    """생성된 비디오 다운로드"""
+    try:
+        video_path = f"output/videos/{filename}"
+        if not os.path.exists(video_path):
+            return jsonify({"ok": False, "error": "File not found"}), 404
+
+        return send_file(
+            video_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='video/mp4'
+        )
+    except Exception as e:
+        print(f"[DOWNLOAD_VIDEO][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/message/create-image", methods=["POST"])
+def api_create_image():
+    """묵상 메시지 이미지 생성 (비디오 없이 이미지만)"""
+    try:
+        from image_fetcher import ImageFetcher
+        from shorts_maker import ShortsMaker
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        message = data.get("message", "")
+        bible_ref = data.get("bible_ref", "")
+
+        if not message:
+            return jsonify({"ok": False, "error": "Message is required"}), 400
+
+        print(f"[CREATE_IMAGE] Starting image creation...")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 1. 배경 이미지 다운로드
+        fetcher = ImageFetcher()
+        bg_image_path = f"output/images/bg_{timestamp}.jpg"
+        result_bg = fetcher.get_image_for_message(message, bg_image_path)
+
+        if not result_bg:
+            return jsonify({"ok": False, "error": "Failed to download background image"}), 500
+
+        # 2. 묵상 이미지 생성
+        maker = ShortsMaker()
+        final_image_path = f"output/images/devotional_{timestamp}.jpg"
+        result_image = maker.create_devotional_image(
+            result_bg,
+            message,
+            final_image_path,
+            bible_ref
+        )
+
+        if not result_image:
+            return jsonify({"ok": False, "error": "Failed to create image"}), 500
+
+        print(f"[CREATE_IMAGE] Success! Image: {result_image}")
+
+        return jsonify({
+            "ok": True,
+            "image_path": result_image,
+            "message": "Image created successfully"
+        })
+
+    except Exception as e:
+        print(f"[CREATE_IMAGE][ERROR] {str(e)}")
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ===== Render 배포를 위한 설정 =====

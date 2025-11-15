@@ -68,6 +68,9 @@ users.db
 # Backup files
 *.old
 
+# Generated videos and images
+output/
+
 # Flask stuff:
 instance/
 .webassets-cache
