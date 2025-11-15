@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>성경 드라마 자동 생성</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h1 {
+      font-size: 1.8rem;
+      color: #333;
+      font-weight: 700;
+    }
+
+    .header .user-info {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .header .btn {
+      padding: .5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s;
+    }
+
+    .header .btn-home {
+      background: #95a5a6;
+      color: white;
+    }
+
+    .header .btn-home:hover {
+      background: #7f8c8d;
+    }
+
+    .header .btn-logout {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .header .btn-logout:hover {
+      background: #c0392b;
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 1.5rem;
+    }
+
+    .input-panel, .result-panel {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .input-panel h2, .result-panel h2 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: #333;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: .5rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: .5rem;
+      color: #555;
+    }
+
+    .form-group input[type="text"],
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: .75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input[type="text"]:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group textarea {
+      min-height: 150px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .btn-generate {
+      width: 100%;
+      padding: 1rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    .btn-generate:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+    }
+
+    .btn-generate:active {
+      transform: translateY(0);
+    }
+
+    .btn-generate:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status-message {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      text-align: center;
+      display: none;
+    }
+
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status-message.loading {
+      background: #cce5ff;
+      color: #004085;
+      border: 1px solid #b8daff;
+    }
+
+    .result-section {
+      margin-bottom: 2rem;
+    }
+
+    .result-section h3 {
+      font-size: 1.1rem;
+      color: #667eea;
+      margin-bottom: .75rem;
+      font-weight: 700;
+    }
+
+    .result-content {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .result-actions {
+      margin-top: .75rem;
+      display: flex;
+      gap: .5rem;
+    }
+
+    .btn-copy {
+      padding: .5rem 1rem;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-copy:hover {
+      background: #5568d3;
+    }
+
+    .btn-download {
+      padding: .5rem 1rem;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-download:hover {
+      background: #218838;
+    }
+
+    .result-panel.empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      color: #999;
+      font-size: 1.1rem;
+    }
+
+    .loading-spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .drama-list {
+      margin-top: 2rem;
+    }
+
+    .drama-item {
+      background: #f8f9fa;
+      padding: 1rem;
+      margin-bottom: .75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+
+    .drama-item:hover {
+      background: #e9ecef;
+      border-color: #667eea;
+    }
+
+    .drama-item-title {
+      font-weight: 700;
+      color: #333;
+      margin-bottom: .25rem;
+    }
+
+    .drama-item-meta {
+      font-size: .85rem;
+      color: #777;
+    }
+
+    @media (max-width: 968px) {
+      .main-content {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>📖 성경 드라마 자동 생성</h1>
+      <div class="user-info">
+        <a href="/" class="btn btn-home">홈</a>
+        {% if session.user_id %}
+          <span style="color: #555; font-weight: 600;">{{ session.user_name }}님</span>
+          <a href="/logout" class="btn btn-logout">로그아웃</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Input Panel -->
+      <div class="input-panel">
+        <h2>🎬 드라마 생성하기</h2>
+
+        <div class="form-group">
+          <label for="scripture-reference">성경 구절 *</label>
+          <input type="text" id="scripture-reference" placeholder="예: 창세기 1:1-5" required>
+        </div>
+
+        <div class="form-group">
+          <label for="scripture-text">성경 본문 *</label>
+          <textarea id="scripture-text" placeholder="성경 본문을 입력하세요..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="drama-style">드라마 스타일</label>
+          <select id="drama-style">
+            <option value="dramatic">드라마틱 (감정 중심)</option>
+            <option value="narrative">내러티브 (서술 중심)</option>
+            <option value="educational">교육적 (메시지 중심)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="duration">영상 길이 (분)</label>
+          <input type="number" id="duration" value="20" min="5" max="60">
+        </div>
+
+        <button class="btn-generate" id="btn-generate">
+          🚀 드라마 생성하기
+        </button>
+
+        <div class="status-message" id="status-message"></div>
+
+        <!-- 생성된 드라마 목록 -->
+        <div class="drama-list">
+          <h3 style="margin-bottom: .75rem; color: #555;">📚 이전 생성 목록</h3>
+          <div id="drama-list-container"></div>
+        </div>
+      </div>
+
+      <!-- Result Panel -->
+      <div class="result-panel empty" id="result-panel">
+        <p>👈 성경 본문을 입력하고 '드라마 생성하기'를 클릭하세요</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 상태 관리
+    let currentDrama = null;
+
+    // DOM 요소
+    const btnGenerate = document.getElementById('btn-generate');
+    const statusMessage = document.getElementById('status-message');
+    const resultPanel = document.getElementById('result-panel');
+    const dramaListContainer = document.getElementById('drama-list-container');
+
+    // 상태 메시지 표시
+    function showStatus(message, type) {
+      statusMessage.textContent = message;
+      statusMessage.className = `status-message ${type}`;
+      statusMessage.style.display = 'block';
+    }
+
+    function hideStatus() {
+      statusMessage.style.display = 'none';
+    }
+
+    // 결과 패널 업데이트
+    function updateResultPanel(drama) {
+      resultPanel.className = 'result-panel';
+
+      let html = '<h2>✅ 생성 완료!</h2>';
+
+      // 본문 분석 결과
+      if (drama.analysis) {
+        html += `
+          <div class="result-section">
+            <h3>📊 본문 분석</h3>
+            <div class="result-content">
+              <strong>역사적 배경:</strong><br>${drama.analysis.historical_context || ''}
+
+              <br><br><strong>등장인물:</strong><br>
+              ${(drama.analysis.main_characters || []).map(c =>
+                `• ${c.name}: ${c.role} (${c.characteristics})`
+              ).join('<br>')}
+
+              <br><br><strong>주요 사건:</strong><br>
+              ${(drama.analysis.key_events || []).map(e => `• ${e}`).join('<br>')}
+
+              <br><br><strong>신학적 주제:</strong><br>
+              ${(drama.analysis.theological_themes || []).map(t => `• ${t}`).join('<br>')}
+            </div>
+          </div>
+        `;
+      }
+
+      // 시놉시스
+      if (drama.synopsis) {
+        html += `
+          <div class="result-section">
+            <h3>📝 시놉시스 (20분 드라마)</h3>
+            <div class="result-content">${drama.synopsis}</div>
+            <div class="result-actions">
+              <button class="btn-copy" onclick="copyToClipboard('${escapeHtml(drama.synopsis)}', '시놉시스')">📋 복사</button>
+            </div>
+          </div>
+        `;
+      }
+
+      // 장면 구성
+      if (drama.scenes) {
+        html += `
+          <div class="result-section">
+            <h3>🎬 장면 구성</h3>
+            <div class="result-content">${drama.scenes}</div>
+            <div class="result-actions">
+              <button class="btn-copy" onclick="copyToClipboard('${escapeHtml(drama.scenes)}', '장면 구성')">📋 복사</button>
+            </div>
+          </div>
+        `;
+      }
+
+      // 완전한 대본
+      if (drama.full_script) {
+        html += `
+          <div class="result-section">
+            <h3>🎭 완전한 대본 (20분 분량)</h3>
+            <div class="result-content">${drama.full_script}</div>
+            <div class="result-actions">
+              <button class="btn-copy" onclick="copyToClipboard('${escapeHtml(drama.full_script)}', '대본')">📋 복사</button>
+              <button class="btn-download" onclick="downloadScript()">💾 다운로드</button>
+            </div>
+          </div>
+        `;
+      }
+
+      resultPanel.innerHTML = html;
+    }
+
+    // 클립보드 복사
+    function copyToClipboard(text, label) {
+      const decodedText = decodeHtml(text);
+      const textarea = document.createElement('textarea');
+      textarea.value = decodedText;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      try {
+        document.execCommand('copy');
+        showStatus(`✅ ${label}이(가) 클립보드에 복사되었습니다!`, 'success');
+        setTimeout(hideStatus, 3000);
+      } catch (err) {
+        showStatus(`❌ 복사 실패: ${err.message}`, 'error');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+
+    // 대본 다운로드
+    function downloadScript() {
+      if (!currentDrama || !currentDrama.full_script) return;
+
+      const scriptureRef = document.getElementById('scripture-reference').value;
+      const filename = `${scriptureRef.replace(/\s+/g, '_')}_드라마_대본.txt`;
+
+      const content = `
+성경 드라마 대본
+================
+
+성경 구절: ${scriptureRef}
+생성일: ${new Date().toLocaleDateString('ko-KR')}
+
+==================================================
+
+${currentDrama.full_script}
+      `.trim();
+
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showStatus('✅ 대본이 다운로드되었습니다!', 'success');
+      setTimeout(hideStatus, 3000);
+    }
+
+    // HTML 이스케이프
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;')
+        .replace(/\n/g, '\\n');
+    }
+
+    // HTML 디코드
+    function decodeHtml(text) {
+      return text
+        .replace(/\\n/g, '\n')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+    }
+
+    // 드라마 생성
+    async function generateDrama() {
+      const scriptureReference = document.getElementById('scripture-reference').value.trim();
+      const scriptureText = document.getElementById('scripture-text').value.trim();
+      const dramaStyle = document.getElementById('drama-style').value;
+      const duration = parseInt(document.getElementById('duration').value);
+
+      if (!scriptureReference || !scriptureText) {
+        showStatus('❌ 성경 구절과 본문을 입력해주세요.', 'error');
+        return;
+      }
+
+      btnGenerate.disabled = true;
+      showStatus('🤖 성경 드라마 생성 중... (약 2-3분 소요)', 'loading');
+
+      // 로딩 표시
+      resultPanel.className = 'result-panel';
+      resultPanel.innerHTML = `
+        <div style="text-align: center;">
+          <div class="loading-spinner"></div>
+          <p style="color: #667eea; font-weight: 600; font-size: 1.1rem;">드라마 생성 중...</p>
+          <p style="color: #999; margin-top: .5rem;">1️⃣ 본문 분석 중...</p>
+          <p style="color: #999;">2️⃣ 시놉시스 작성 중...</p>
+          <p style="color: #999;">3️⃣ 장면 구성 중...</p>
+          <p style="color: #999;">4️⃣ 대본 작성 중...</p>
+        </div>
+      `;
+
+      try {
+        const response = await fetch('/api/bible-drama/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            scriptureReference,
+            scriptureText,
+            dramaStyle,
+            durationMinutes: duration
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          currentDrama = data;
+          updateResultPanel(data);
+          showStatus('✅ 드라마가 성공적으로 생성되었습니다!', 'success');
+          loadDramaList(); // 목록 새로고침
+        } else {
+          throw new Error(data.error || '드라마 생성에 실패했습니다.');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showStatus(`❌ 오류: ${error.message}`, 'error');
+        resultPanel.className = 'result-panel empty';
+        resultPanel.innerHTML = '<p style="color: #e74c3c;">드라마 생성에 실패했습니다. 다시 시도해주세요.</p>';
+      } finally {
+        btnGenerate.disabled = false;
+      }
+    }
+
+    // 드라마 목록 로드
+    async function loadDramaList() {
+      try {
+        const response = await fetch('/api/bible-drama/list');
+        const data = await response.json();
+
+        if (data.ok && data.dramas && data.dramas.length > 0) {
+          dramaListContainer.innerHTML = data.dramas.map(drama => `
+            <div class="drama-item" onclick="loadDrama(${drama.id})">
+              <div class="drama-item-title">${drama.scripture_reference}</div>
+              <div class="drama-item-meta">
+                ${drama.duration_minutes}분 | ${new Date(drama.created_at).toLocaleDateString('ko-KR')}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          dramaListContainer.innerHTML = '<p style="color: #999; text-align: center; padding: 1rem; font-size: .9rem;">아직 생성된 드라마가 없습니다.</p>';
+        }
+      } catch (error) {
+        console.error('Error loading drama list:', error);
+      }
+    }
+
+    // 특정 드라마 로드
+    async function loadDrama(dramaId) {
+      try {
+        const response = await fetch(`/api/bible-drama/${dramaId}`);
+        const data = await response.json();
+
+        if (data.ok && data.drama) {
+          const drama = data.drama;
+
+          // 입력 필드 채우기
+          document.getElementById('scripture-reference').value = drama.scripture_reference;
+          document.getElementById('scripture-text').value = drama.scripture_text;
+          document.getElementById('duration').value = drama.duration_minutes;
+
+          // 결과 표시
+          currentDrama = {
+            analysis: drama.characters ? JSON.parse(drama.characters) : null,
+            synopsis: drama.synopsis,
+            scenes: drama.scenes,
+            full_script: drama.full_script
+          };
+
+          updateResultPanel(currentDrama);
+          showStatus('✅ 드라마를 불러왔습니다.', 'success');
+          setTimeout(hideStatus, 2000);
+        }
+      } catch (error) {
+        console.error('Error loading drama:', error);
+        showStatus('❌ 드라마를 불러오는데 실패했습니다.', 'error');
+      }
+    }
+
+    // 이벤트 리스너
+    btnGenerate.addEventListener('click', generateDrama);
+
+    // 초기화
+    loadDramaList();
+  </script>
+</body>
+</html>
