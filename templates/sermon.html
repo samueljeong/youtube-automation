@@ -833,63 +833,96 @@
     return step ? step.name : stepId;
   }
 
+  // ===== GPT PRO 초안 구성 유틸 =====
+  function assembleGptProDraft() {
+    const steps = getCurrentSteps();
+    const ref = document.getElementById('sermon-ref').value.trim();
+    const seriesName = document.getElementById('series-name').value.trim();
+    const style = getCurrentStyle();
+    const finalTitle = getSelectedTitle();
+
+    if (!ref) {
+      return { error: '성경구절을 입력하세요.' };
+    }
+
+    if (steps.length === 0) {
+      return { error: '처리된 단계가 없습니다.' };
+    }
+
+    const completedSteps = steps.filter(step => stepResults[step.id]);
+
+    if (completedSteps.length === 0) {
+      return { error: '완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.' };
+    }
+
+    const categoryLabel = getCategoryLabel(currentCategory);
+    const styleName = style ? style.name : '';
+
+    let fullText = `====================================\n`;
+    fullText += `📖 설교 초안 자료 (GPT-5.1 작성용)\n`;
+    fullText += `====================================\n\n`;
+    fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
+    fullText += `GPT-5.1은 이 자료를 참고하되, 처음부터 새로 작성해주세요.\n`;
+    fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 설교문으로 재작성하세요.\n\n`;
+    fullText += `${'='.repeat(50)}\n\n`;
+    fullText += `📌 기본 정보\n`;
+    fullText += `- 카테고리: ${categoryLabel}\n`;
+    fullText += `- 스타일: ${styleName}\n`;
+    fullText += `- 성경구절: ${ref}\n`;
+    if (finalTitle) {
+      fullText += `- 설교 제목: ${finalTitle}\n`;
+    }
+    if (seriesName) {
+      fullText += `- 시리즈명: ${seriesName}\n`;
+    }
+    fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
+    fullText += `\n${'='.repeat(50)}\n\n`;
+
+    let hasContent = false;
+    let sectionIndex = 1;
+    completedSteps.forEach(step => {
+      if (step.name === '제목 추천') return;
+
+      hasContent = true;
+      fullText += `【 ${sectionIndex}. ${step.name} 】\n\n`;
+      fullText += stepResults[step.id];
+      fullText += `\n\n${'='.repeat(50)}\n\n`;
+      sectionIndex += 1;
+    });
+
+    if (!hasContent) {
+      return { error: '제목 추천 외의 완료된 단계가 없습니다. 다른 단계를 먼저 실행해주세요.' };
+    }
+
+    fullText += `\n📝 작성 지침:\n`;
+    fullText += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n`;
+
+    return {
+      error: null,
+      fullText,
+      draftContent: fullText,
+      meta: {
+        reference: ref,
+        seriesName,
+        styleName,
+        finalTitle,
+        categoryLabel
+      }
+    };
+  }
+
   // ===== 전체 복사 기능 =====
   const btnCopyAll = document.getElementById('btn-copy-all');
   if (btnCopyAll) {
     btnCopyAll.addEventListener('click', () => {
-      const steps = getCurrentSteps();
-      const ref = document.getElementById('sermon-ref').value;
-      const seriesName = document.getElementById('series-name').value;
-      const style = getCurrentStyle();
-      const finalTitle = getSelectedTitle();
-
-      if (steps.length === 0) {
-        alert('처리된 단계가 없습니다.');
+      const draft = assembleGptProDraft();
+      if (draft.error) {
+        alert(draft.error);
         return;
       }
-
-      const completedSteps = steps.filter(step => stepResults[step.id]);
-
-      if (completedSteps.length === 0) {
-        alert('완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
-        return;
-      }
-
-      let fullText = `====================================\n`;
-      fullText += `📖 설교 초안 자료 (GPT-5.1 작성용)\n`;
-      fullText += `====================================\n\n`;
-      fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
-      fullText += `GPT-5.1은 이 자료를 참고하되, 처음부터 새로 작성해주세요.\n`;
-      fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 설교문으로 재작성하세요.\n\n`;
-      fullText += `${'='.repeat(50)}\n\n`;
-      fullText += `📌 기본 정보\n`;
-      fullText += `- 카테고리: ${getCategoryLabel(currentCategory)}\n`;
-      fullText += `- 스타일: ${style ? style.name : ''}\n`;
-      fullText += `- 성경구절: ${ref}\n`;
-      if (finalTitle) {
-        fullText += `- 설교 제목: ${finalTitle}\n`;
-      }
-      if (seriesName) {
-        fullText += `- 시리즈명: ${seriesName}\n`;
-      }
-      fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
-      fullText += `\n${'='.repeat(50)}\n\n`;
-
-      completedSteps.forEach((step, index) => {
-        // 제목 추천 단계는 제외 (이미 선택된 제목이 위에 표시됨)
-        if (step.name === '제목 추천') return;
-
-        fullText += `【 ${index}. ${step.name} 】\n\n`;
-        fullText += stepResults[step.id];
-        fullText += `\n\n${'='.repeat(50)}\n\n`;
-      });
-
-      fullText += `\n📝 작성 지침:\n`;
-      fullText += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n`;
-
 
       const tempTextarea = document.createElement('textarea');
-      tempTextarea.value = fullText;
+      tempTextarea.value = draft.fullText;
       tempTextarea.style.position = 'fixed';
       tempTextarea.style.opacity = '0';
       document.body.appendChild(tempTextarea);
@@ -909,60 +942,15 @@
 
   // ===== GPT PRO 처리 기능 =====
   async function executeGptPro() {
-    const steps = getCurrentSteps();
-    const ref = document.getElementById('sermon-ref').value;
-    const seriesName = document.getElementById('series-name').value;
-    const style = getCurrentStyle();
-    const finalTitle = getSelectedTitle();
-
-    if (!ref) {
-      alert('성경구절을 입력하세요.');
-      return;
-    }
-
-    const completedSteps = steps.filter(step => stepResults[step.id]);
-
-    if (completedSteps.length === 0) {
-      alert('처리된 단계가 없습니다. 먼저 각 단계를 실행해주세요.');
+    const draft = assembleGptProDraft();
+    if (draft.error) {
+      alert(draft.error);
       return;
     }
 
     // ===== 1단계: 전체 복사 =====
-    let fullText = `====================================\n`;
-    fullText += `📖 설교 초안 자료 (GPT-5.1 작성용)\n`;
-    fullText += `====================================\n\n`;
-    fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
-    fullText += `GPT-5.1은 이 자료를 참고하되, 처음부터 새로 작성해주세요.\n`;
-    fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 설교문으로 재작성하세요.\n\n`;
-    fullText += `${'='.repeat(50)}\n\n`;
-    fullText += `📌 기본 정보\n`;
-    fullText += `- 카테고리: ${getCategoryLabel(currentCategory)}\n`;
-    fullText += `- 스타일: ${style ? style.name : ''}\n`;
-    fullText += `- 성경구절: ${ref}\n`;
-    if (finalTitle) {
-      fullText += `- 설교 제목: ${finalTitle}\n`;
-    }
-    if (seriesName) {
-      fullText += `- 시리즈명: ${seriesName}\n`;
-    }
-    fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
-    fullText += `\n${'='.repeat(50)}\n\n`;
-
-    completedSteps.forEach((step, index) => {
-      // 제목 추천 단계는 제외 (이미 선택된 제목이 위에 표시됨)
-      if (step.name === '제목 추천') return;
-
-      fullText += `【 ${index}. ${step.name} 】\n\n`;
-      fullText += stepResults[step.id];
-      fullText += `\n\n${'='.repeat(50)}\n\n`;
-    });
-
-    fullText += `\n📝 작성 지침:\n`;
-    fullText += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n`;
-
-    // 클립보드에 복사
     const tempTextarea = document.createElement('textarea');
-    tempTextarea.value = fullText;
+    tempTextarea.value = draft.fullText;
     tempTextarea.style.position = 'fixed';
     tempTextarea.style.opacity = '0';
     document.body.appendChild(tempTextarea);
@@ -978,14 +966,6 @@
     }
 
     // ===== 2단계: GPT-5.1로 설교문 작성 =====
-    // 초안 내용 구성
-    let draftContent = '';
-    completedSteps.forEach((step, index) => {
-      draftContent += `【 ${step.name} 】\n\n`;
-      draftContent += stepResults[step.id];
-      draftContent += `\n\n${'='.repeat(50)}\n\n`;
-    });
-
     showStatus('🚀 GPT PRO 처리 중... (약 30초 소요)');
 
     try {
@@ -993,9 +973,12 @@
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          reference: ref,
-          title: finalTitle,
-          draftContent: draftContent
+          reference: draft.meta.reference,
+          title: draft.meta.finalTitle,
+          seriesName: draft.meta.seriesName,
+          styleName: draft.meta.styleName,
+          category: draft.meta.categoryLabel,
+          draftContent: draft.draftContent
         })
       });
 
@@ -1425,21 +1408,33 @@
   }
 
   // ===== 카테고리 관리 =====
+  function renderCategoryManageList() {
+    const list = document.getElementById('categories-list');
+    if (!list) return;
+
+    if (config.categories.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">카테고리를 추가하세요.</p>';
+      return;
+    }
+
+    list.innerHTML = config.categories.map((cat, idx) => `
+      <div class="storage-item">
+        <div>
+          <div style="font-weight: 600;">${cat.label}</div>
+          <div style="font-size: .75rem; color: #666;">${cat.value}</div>
+        </div>
+        <div>
+          <button onclick="editCategory(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          ${config.categories.length > 1 ? `<button class="danger" onclick="deleteCategory(${idx})">삭제</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
   const btnManageCategories = document.getElementById('btn-manage-categories');
   if (btnManageCategories) {
     btnManageCategories.addEventListener('click', () => {
-      const list = document.getElementById('categories-list');
-      if (list) {
-        list.innerHTML = config.categories.map((cat, idx) => `
-          <div class="storage-item">
-            <div>
-              <div style="font-weight: 600;">${cat.label}</div>
-              <div style="font-size: .75rem; color: #666;">${cat.value}</div>
-            </div>
-            ${config.categories.length > 1 ? `<button class="danger" onclick="deleteCategory(${idx})">삭제</button>` : ''}
-          </div>
-        `).join('');
-      }
+      renderCategoryManageList();
       const modal = document.getElementById('modal-categories');
       if (modal) modal.classList.add('show');
     });
@@ -1481,11 +1476,36 @@
 
       await saveConfig();
       renderCategories();
-      const btn = document.getElementById('btn-manage-categories');
-      if (btn) btn.click();
+      renderCategoryManageList();
       input.value = '';
     });
   }
+
+  window.editCategory = async function(idx) {
+    const current = config.categories[idx];
+    if (!current) return;
+
+    const newLabel = prompt('새 카테고리 이름을 입력하세요.', current.label);
+    if (newLabel === null) return;
+
+    const trimmed = newLabel.trim();
+    if (!trimmed) {
+      alert('표시 이름을 입력하세요.');
+      return;
+    }
+
+    current.label = trimmed;
+    await saveConfig();
+    renderCategories();
+    renderCategoryManageList();
+    if (current.value === currentCategory) {
+      loadMasterGuide(currentCategory);
+      renderStyles();
+      renderProcessingSteps();
+      renderResultBoxes();
+      renderGuideTabs();
+    }
+  };
 
   window.deleteCategory = async function(idx) {
     if (!confirm(`"${config.categories[idx].label}" 삭제?`)) return;
@@ -1494,8 +1514,12 @@
     delete config.categorySettings[value];
     await saveConfig();
     renderCategories();
-    const btn = document.getElementById('btn-manage-categories');
-    if (btn) btn.click();
+    renderCategoryManageList();
+    loadMasterGuide(currentCategory);
+    renderStyles();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
   };
 
   // ===== 스타일 관리 =====
@@ -1507,28 +1531,37 @@
         categoryLabel.textContent = getCategoryLabel(currentCategory);
       }
 
-      const settings = config.categorySettings[currentCategory];
-      const styles = (settings && settings.styles) ? settings.styles : [];
-      const list = document.getElementById('styles-manage-list');
-
-      if (list) {
-        list.innerHTML = styles.map((style, idx) => `
-          <div class="storage-item">
-            <div>
-              <div style="font-weight: 600;">${style.name}</div>
-              <div style="font-size: .75rem; color: #666;">${style.description || ''}</div>
-            </div>
-            <div>
-              <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
-              <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
-            </div>
-          </div>
-        `).join('');
-      }
-
+      renderStylesManageList();
       const modal = document.getElementById('modal-styles');
       if (modal) modal.classList.add('show');
     });
+  }
+
+  function renderStylesManageList() {
+    const list = document.getElementById('styles-manage-list');
+    if (!list) return;
+
+    const settings = config.categorySettings[currentCategory];
+    const styles = (settings && settings.styles) ? settings.styles : [];
+
+    if (styles.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">스타일을 추가하세요.</p>';
+      return;
+    }
+
+    list.innerHTML = styles.map((style, idx) => `
+      <div class="storage-item">
+        <div>
+          <div style="font-weight: 600;">${style.name}</div>
+          <div style="font-size: .75rem; color: #666;">${style.description || ''}</div>
+        </div>
+        <div>
+          <button onclick="editStyle(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
+          <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
+        </div>
+      </div>
+    `).join('');
   }
 
   const btnCloseStyles = document.getElementById('btn-close-styles');
@@ -1571,12 +1604,41 @@
 
       await saveConfig();
       renderStyles();
-      const btn = document.getElementById('btn-manage-styles');
-      if (btn) btn.click();
+      renderStylesManageList();
       nameInput.value = '';
       if (descInput) descInput.value = '';
     });
   }
+
+  window.editStyle = async function(idx) {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return;
+
+    const style = settings.styles[idx];
+    if (!style) return;
+
+    const newName = prompt('새 스타일 이름을 입력하세요.', style.name);
+    if (newName === null) return;
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      alert('스타일 이름을 입력하세요.');
+      return;
+    }
+
+    const newDesc = prompt('스타일 설명을 입력하세요.', style.description || '');
+    if (newDesc === null) return;
+
+    style.name = trimmedName;
+    style.description = newDesc.trim();
+
+    await saveConfig();
+    renderStyles();
+    renderStylesManageList();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+  };
 
   window.deleteStyle = async function(idx) {
     const settings = config.categorySettings[currentCategory];
@@ -1591,8 +1653,10 @@
     }
     await saveConfig();
     renderStyles();
-    const btn = document.getElementById('btn-manage-styles');
-    if (btn) btn.click();
+    renderStylesManageList();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
   };
 
   window.editStyleSteps = function(styleId) {
@@ -1609,25 +1673,36 @@
     const styleLabel = document.getElementById('modal-steps-style');
     if (styleLabel) styleLabel.textContent = style.name;
 
-    const list = document.getElementById('steps-list');
-    if (list) {
-      if (!style.steps) style.steps = [];
-
-      list.innerHTML = style.steps.map((step, idx) => `
-        <div class="storage-item">
-          <span>${step.order}. ${step.name}</span>
-          <div>
-            ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)" style="margin-right: .3rem;">↑</button>` : ''}
-            ${idx < style.steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
-            <button class="danger" onclick="deleteStep(${idx})">삭제</button>
-          </div>
-        </div>
-      `).join('');
-    }
+    renderStepsManageList(style);
 
     const stepsModal = document.getElementById('modal-steps');
     if (stepsModal) stepsModal.classList.add('show');
   };
+
+  function renderStepsManageList(style) {
+    const list = document.getElementById('steps-list');
+    if (!list) return;
+
+    if (!style.steps) style.steps = [];
+    style.steps.sort((a, b) => a.order - b.order);
+
+    if (style.steps.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">단계를 추가하세요.</p>';
+      return;
+    }
+
+    list.innerHTML = style.steps.map((step, idx) => `
+      <div class="storage-item">
+        <span>${step.order}. ${step.name}</span>
+        <div>
+          ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)" style="margin-right: .3rem;">↑</button>` : ''}
+          ${idx < style.steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
+          <button onclick="renameStep(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          <button class="danger" onclick="deleteStep(${idx})">삭제</button>
+        </div>
+      </div>
+    `).join('');
+  }
 
   const btnCloseSteps = document.getElementById('btn-close-steps');
   if (btnCloseSteps) {
@@ -1668,7 +1743,10 @@
       renderProcessingSteps();
       renderResultBoxes();
       renderGuideTabs();
-      editStyleSteps(currentStyleId);
+      const updatedStyle = getCurrentStyle();
+      if (updatedStyle) {
+        renderStepsManageList(updatedStyle);
+      }
       input.value = '';
     });
   }
@@ -1687,7 +1765,11 @@
     await saveConfig();
     renderProcessingSteps();
     renderResultBoxes();
-    editStyleSteps(currentStyleId);
+    renderGuideTabs();
+    const updatedStyle = getCurrentStyle();
+    if (updatedStyle) {
+      renderStepsManageList(updatedStyle);
+    }
   };
 
   window.deleteStep = async function(idx) {
@@ -1701,7 +1783,31 @@
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    editStyleSteps(currentStyleId);
+    renderStepsManageList(style);
+  };
+
+  window.renameStep = async function(idx) {
+    const style = getCurrentStyle();
+    if (!style || !style.steps) return;
+
+    const step = style.steps[idx];
+    if (!step) return;
+
+    const newName = prompt('새 단계 이름을 입력하세요.', step.name);
+    if (newName === null) return;
+
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      alert('단계 이름을 입력하세요.');
+      return;
+    }
+
+    step.name = trimmed;
+    await saveConfig();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    renderStepsManageList(style);
   };
 
   // ===== 저장/불러오기 =====
