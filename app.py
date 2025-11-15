@@ -6,6 +6,7 @@ import re
 import json
 from functools import wraps
 from openai import OpenAI
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Secret key for session management
@@ -22,13 +23,56 @@ try:
 except RuntimeError:
     openai_client = None
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'users.db')
+# Database setup - support both PostgreSQL and SQLite
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None
 
-def get_db_connection():
-    """Create a database connection"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+if USE_POSTGRES:
+    # PostgreSQL 사용
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    # Render의 postgres:// URL을 postgresql://로 변경
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+    class PostgreSQLConnection:
+        """PostgreSQL connection wrapper to match SQLite interface"""
+        def __init__(self, conn):
+            self.conn = conn
+            self._cursor = None
+
+        def execute(self, query, params=()):
+            """Execute a query (converts ? to %s for PostgreSQL)"""
+            self._cursor = self.conn.cursor()
+            pg_query = query.replace('?', '%s')
+            self._cursor.execute(pg_query, params)
+            return self._cursor
+
+        def commit(self):
+            """Commit the transaction"""
+            self.conn.commit()
+
+        def close(self):
+            """Close the connection"""
+            if self._cursor:
+                self._cursor.close()
+            self.conn.close()
+
+    def get_db_connection():
+        """Create a PostgreSQL database connection"""
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return PostgreSQLConnection(conn)
+
+else:
+    # SQLite 사용 (로컬 개발용)
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'users.db')
+
+    def get_db_connection():
+        """Create a SQLite database connection"""
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def login_required(f):
     """Decorator to require login for certain routes"""
