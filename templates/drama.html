@@ -2,55 +2,26 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>드라마 스크립트 생성</title>
+  <title>드라마 스크립트 작성 도구</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-    }
-    .header {
-      background: white;
-      padding: 15px 30px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 24px;
-      color: #333;
-    }
-    .header a {
-      padding: 8px 16px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      text-decoration: none;
-      border-radius: 6px;
-      font-weight: 600;
-      transition: transform 0.2s;
-    }
-    .header a:hover {
-      transform: translateY(-2px);
+      background: #f5f5f5;
     }
     .page-wrap {
       display: flex;
       gap: 1rem;
       padding: 1rem;
-      max-width: 1600px;
-      margin: 0 auto;
+      height: 100vh;
     }
     .left-col {
-      width: 380px;
+      width: 360px;
       display: flex;
       flex-direction: column;
       gap: .75rem;
       overflow-y: auto;
-      max-height: calc(100vh - 120px);
     }
     .right-col {
       flex: 1;
@@ -59,541 +30,1837 @@
       gap: .75rem;
       min-width: 0;
       overflow-y: auto;
-      max-height: calc(100vh - 120px);
     }
     .box {
       background: #fff;
       border: 1px solid #ddd;
-      border-radius: 12px;
-      padding: 1rem;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
-    .box-title {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 1rem;
-      color: #333;
-      border-bottom: 2px solid #667eea;
-      padding-bottom: 0.5rem;
+      border-radius: 8px;
+      padding: .75rem;
     }
     .label-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: .5rem;
-      margin-bottom: .5rem;
+      margin-bottom: .35rem;
     }
-    .label {
-      font-weight: 600;
-      color: #555;
-      font-size: 14px;
-    }
+    .label { font-weight: 600; }
     input[type="text"],
-    input[type="number"],
+    input[type="date"],
     select {
       width: 100%;
-      padding: .5rem;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 14px;
-      margin-bottom: 0.75rem;
+      padding: .35rem .5rem;
     }
     textarea {
       width: 100%;
-      min-height: 100px;
+      min-height: 80px;
       resize: vertical;
       font-family: inherit;
-      line-height: 1.5;
-      padding: .5rem;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      font-size: 14px;
+      line-height: 1.4;
     }
     .btn-row {
       display: flex;
       gap: .5rem;
       flex-wrap: wrap;
-      margin-top: 0.5rem;
     }
     button {
-      padding: .5rem .8rem;
+      padding: .35rem .6rem;
       border: 1px solid #ccc;
       background: #f0f0f0;
       border-radius: 6px;
       cursor: pointer;
-      font-size: 14px;
+    }
+    button:hover { background: #e0e0e0; }
+    button.primary {
+      background: #4a90e2;
+      color: white;
+      border-color: #4a90e2;
+    }
+    button.primary:hover { background: #357abd; }
+    button.danger {
+      background: #e74c3c;
+      color: white;
+      border-color: #e74c3c;
+    }
+    button.step-btn {
+      width: 100%;
+      margin-bottom: .5rem;
+    }
+
+    .style-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .4rem .6rem;
+      margin-bottom: .3rem;
+      background: #f8f9fa;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    .style-item:hover { background: #e9ecef; }
+    .style-item.active {
+      background: #dfe6ff;
+      border: 2px solid #4a90e2;
+    }
+    .style-desc {
+      font-size: .75rem;
+      color: #666;
+      margin-top: .2rem;
+    }
+
+    .toggle-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-bar {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: .4rem .7rem;
+      font-size: .8rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+      display: none;
+      text-align: center;
+      margin: 0 auto;
+      max-width: 400px;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .modal-buttons {
+      display: flex;
+      gap: .5rem;
+      margin-top: 1rem;
+    }
+    .modal-buttons button { flex: 1; }
+
+    .storage-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .4rem .6rem;
+      margin-bottom: .3rem;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+
+    textarea.autosize { overflow: hidden; }
+
+    /* GPT PRO 결과 박스 스타일 */
+    .gpt-pro-result-box {
+      background: linear-gradient(135deg, #ff6b9d 0%, #c06c84 100%);
+      border: none;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: .75rem;
+    }
+    .gpt-pro-result-box .label {
+      color: white;
+      font-size: 1.1rem;
+      margin-bottom: .5rem;
+    }
+    .gpt-pro-result-box textarea {
+      background: white;
+      border: none;
+      border-radius: 6px;
+      padding: .75rem;
+      min-height: 300px;
+    }
+
+    /* 버튼 컨테이너 */
+    .top-buttons-container {
+      display: flex;
+      gap: .75rem;
+    }
+    .top-buttons-container .box {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+    }
+    .copy-all-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .gpt-pro-box {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    .top-buttons-container button {
+      background: white;
+      font-weight: 600;
+      padding: .6rem 1.2rem;
+      border: none;
+      font-size: .95rem;
+      width: 100%;
+    }
+    .copy-all-box button {
+      color: #667eea;
+    }
+    .gpt-pro-box button {
+      color: #f5576c;
+    }
+    .top-buttons-container .box-title {
+      color: white;
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: .3rem;
+    }
+    .top-buttons-container .box-desc {
+      color: rgba(255,255,255,0.9);
+      font-size: .85rem;
+      margin-bottom: .75rem;
+    }
+
+    /* Auth header */
+    .auth-header {
+      background: white;
+      border-bottom: 2px solid #e0e0e0;
+      padding: .75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .auth-header h1 {
+      font-size: 1.2rem;
+      margin: 0;
+      color: #333;
+    }
+    .auth-links {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+    }
+    .auth-links .user-info {
+      font-size: .9rem;
+      color: #555;
       font-weight: 500;
+    }
+    .auth-links a {
+      padding: .4rem .8rem;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: .85rem;
+      font-weight: 600;
       transition: all 0.2s;
     }
-    button:hover {
-      background: #e0e0e0;
-      transform: translateY(-1px);
+    .auth-links .btn-login {
+      background: white;
+      color: #4a90e2;
+      border: 2px solid #4a90e2;
     }
-    button.primary {
+    .auth-links .btn-login:hover {
+      background: #4a90e2;
+      color: white;
+    }
+    .auth-links .btn-signup {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       border: none;
-      font-weight: 600;
     }
-    button.primary:hover {
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    .auth-links .btn-signup:hover {
+      opacity: 0.9;
     }
-    button.secondary {
-      background: #4a90e2;
-      color: white;
-      border: none;
-    }
-    button.secondary:hover {
-      background: #357abd;
-    }
-    button.danger {
+    .auth-links .btn-logout {
       background: #e74c3c;
       color: white;
       border: none;
     }
-    button.danger:hover {
+    .auth-links .btn-logout:hover {
       background: #c0392b;
     }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    .auth-links .btn-home {
+      background: #95a5a6;
+      color: white;
+      border: none;
     }
-    .type-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
+    .auth-links .btn-home:hover {
+      background: #7f8c8d;
     }
-    .type-option {
-      padding: 0.75rem;
-      background: #f8f9fa;
-      border: 2px solid transparent;
-      border-radius: 8px;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s;
-      font-weight: 500;
-    }
-    .type-option:hover {
-      background: #e9ecef;
-    }
-    .type-option.active {
-      background: #dfe6ff;
-      border: 2px solid #667eea;
-      color: #667eea;
-      font-weight: 600;
-    }
-    .result-area {
-      background: #f8f9fa;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 1rem;
+
+    /* 벤치마킹 대본 박스 - 고정 높이 */
+    #benchmark-script {
+      height: 200px;
+      max-height: 200px;
       min-height: 200px;
-      white-space: pre-wrap;
-      line-height: 1.6;
-      font-size: 14px;
-      margin-top: 0.5rem;
-    }
-    .result-area.loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #666;
-    }
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .info-text {
-      font-size: 12px;
-      color: #666;
-      margin-top: 0.5rem;
-      font-style: italic;
-    }
-    .scene-list {
-      max-height: 400px;
-      overflow-y: auto;
-    }
-    .scene-item {
-      background: #f8f9fa;
-      padding: 0.75rem;
-      border-radius: 6px;
-      margin-bottom: 0.5rem;
-      border-left: 4px solid #667eea;
-    }
-    .scene-title {
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 0.25rem;
-    }
-    .scene-desc {
-      font-size: 13px;
-      color: #666;
-    }
-    .char-input-group {
-      margin-bottom: 0.5rem;
-    }
-    .char-item {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .char-item input {
-      margin-bottom: 0;
-    }
-    .char-item button {
-      padding: 0.5rem 0.75rem;
-      white-space: nowrap;
+      resize: none;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🎭 드라마 스크립트 생성</h1>
-    <a href="/">← 메인으로</a>
+  <!-- Auth Header -->
+  <div class="auth-header">
+    <h1>🎭 드라마 스크립트 작성 도구</h1>
+    <div class="auth-links">
+      <a href="/" class="btn-home">홈</a>
+      {% if session.user_id %}
+        <span class="user-info">{{ session.user_name }}님</span>
+        <a href="/logout" class="btn-logout">로그아웃</a>
+      {% else %}
+        <a href="/login" class="btn-login">로그인</a>
+        <a href="/signup" class="btn-signup">회원가입</a>
+      {% endif %}
+    </div>
   </div>
 
   <div class="page-wrap">
-    <!-- Left Column: Inputs -->
+    <!-- 왼쪽 -->
     <div class="left-col">
-      <!-- Drama Type Selection -->
+      <!-- 날짜 -->
       <div class="box">
-        <div class="box-title">드라마 유형</div>
-        <div class="type-grid">
-          <div class="type-option active" data-type="short">
-            📱 단막극<br><small>(5-10분)</small>
-          </div>
-          <div class="type-option" data-type="episode">
-            📺 에피소드<br><small>(20-30분)</small>
-          </div>
-          <div class="type-option" data-type="series">
-            🎬 연속극<br><small>(시리즈)</small>
-          </div>
-          <div class="type-option" data-type="musical">
-            🎵 뮤지컬<br><small>(음악극)</small>
-          </div>
+        <label class="label" for="drama-date">날짜</label>
+        <input type="date" id="drama-date">
+      </div>
+
+      <!-- 드라마 카테고리 -->
+      <div class="box">
+        <div class="label-row">
+          <label class="label">드라마 유형</label>
+          <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
+        <select id="drama-category"></select>
       </div>
 
-      <!-- Basic Settings -->
+      <!-- 벤치마킹 대본 (성경 본문 대신) -->
       <div class="box">
-        <div class="box-title">기본 설정</div>
-
-        <div class="label">제목</div>
-        <input type="text" id="dramaTitle" placeholder="드라마 제목을 입력하세요">
-
-        <div class="label">장르</div>
-        <select id="dramaGenre">
-          <option value="drama">드라마</option>
-          <option value="comedy">코미디</option>
-          <option value="romance">로맨스</option>
-          <option value="thriller">스릴러</option>
-          <option value="fantasy">판타지</option>
-          <option value="historical">사극</option>
-          <option value="family">가족</option>
-          <option value="youth">청춘</option>
-          <option value="crime">범죄</option>
-          <option value="melodrama">멜로</option>
-        </select>
-
-        <div class="label">러닝타임 (분)</div>
-        <input type="number" id="runningTime" value="10" min="5" max="120">
-
-        <div class="label">대상 연령</div>
-        <select id="targetAge">
-          <option value="all">전체 관람가</option>
-          <option value="12">12세 이상</option>
-          <option value="15">15세 이상</option>
-          <option value="19">19세 이상</option>
-        </select>
+        <label class="label">벤치마킹 대본 (참고용)</label>
+        <textarea id="benchmark-script" placeholder="참고할 대본이나 스크립트를 여기에 붙여넣으세요."></textarea>
       </div>
 
-      <!-- Characters -->
+      <!-- 드라마 스타일 (설교 스타일 대신) -->
       <div class="box">
-        <div class="box-title">등장인물</div>
-        <div id="characterList" class="char-input-group">
-          <div class="char-item">
-            <input type="text" placeholder="이름" class="char-name" value="주인공">
-            <input type="text" placeholder="역할/특징" class="char-desc" value="용감한 청년">
-            <button onclick="removeCharacter(this)" class="danger">삭제</button>
-          </div>
+        <div class="label-row">
+          <label class="label">드라마 스타일</label>
+          <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
-        <button onclick="addCharacter()" class="secondary" style="width: 100%;">+ 인물 추가</button>
+        <div id="styles-list"></div>
       </div>
 
-      <!-- Story Settings -->
+      <!-- 처리 단계 -->
       <div class="box">
-        <div class="box-title">스토리 설정</div>
-
-        <div class="label">주제/테마</div>
-        <textarea id="theme" placeholder="드라마의 주제나 전달하고자 하는 메시지를 입력하세요&#10;예: 가족의 소중함, 우정, 사랑과 희생 등">사랑과 용서</textarea>
-
-        <div class="label">배경/시대</div>
-        <input type="text" id="setting" placeholder="예: 현대 서울, 조선시대, 2050년 미래 등" value="현대 서울">
-
-        <div class="label">주요 갈등/사건</div>
-        <textarea id="conflict" placeholder="드라마의 중심 갈등이나 사건을 설명하세요">주인공이 오랜 친구의 배신을 알게 되면서 벌어지는 이야기</textarea>
+        <label class="label">처리 단계</label>
+        <div id="processing-steps"></div>
       </div>
 
-      <!-- Generate Button -->
+      <!-- 저장 공간 -->
       <div class="box">
-        <button id="generateBtn" class="primary" style="width: 100%; padding: 1rem; font-size: 16px;" onclick="generateDrama()">
-          ✨ 드라마 생성하기
-        </button>
+        <label class="label">저장된 드라마 자료</label>
+        <button id="btn-save" style="width: 100%; margin-bottom: .5rem;">현재 내용 저장</button>
+        <div id="saved-list"></div>
       </div>
     </div>
 
-    <!-- Right Column: Results -->
+    <!-- 오른쪽 -->
     <div class="right-col">
-      <!-- Synopsis -->
-      <div class="box">
-        <div class="box-title">시놉시스</div>
-        <div id="synopsisResult" class="result-area">생성 버튼을 눌러 드라마 시놉시스를 만들어보세요.</div>
-        <div class="btn-row">
-          <button onclick="copyToClipboard('synopsisResult')" class="secondary">📋 복사</button>
-          <button onclick="regenerateSynopsis()" class="secondary">🔄 재생성</button>
+      <!-- 전체 복사 + GPT PRO 버튼 -->
+      <div class="top-buttons-container">
+        <div class="box copy-all-box">
+          <div class="box-title">📋 GPT-5.1로 보내기</div>
+          <div class="box-desc">모든 초안 자료를 순서대로 복사합니다</div>
+          <button id="btn-copy-all">전체 복사</button>
+        </div>
+        <div class="box gpt-pro-box">
+          <div class="box-title">🚀 GPT 최신 버전 이용</div>
+          <div class="box-desc">초안을 완성된 드라마 스크립트로 변환합니다</div>
+          <button id="btn-gpt-pro">스크립트 작성</button>
         </div>
       </div>
 
-      <!-- Scene Structure -->
-      <div class="box">
-        <div class="box-title">장면 구성</div>
-        <div id="sceneResult" class="result-area">생성 버튼을 눌러 장면 구성을 확인하세요.</div>
-        <div class="btn-row">
-          <button onclick="copyToClipboard('sceneResult')" class="secondary">📋 복사</button>
-          <button onclick="generateDetailedScenes()" class="primary">📝 상세 스크립트 생성</button>
+      <!-- 상태 표시 -->
+      <div id="status-bar" class="status-bar">작업 중...</div>
+
+      <!-- 총괄 지침 영역 -->
+      <div class="box" id="master-guide-box">
+        <div class="toggle-header">
+          <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
+          <button id="toggle-master-guide">열기</button>
+        </div>
+        <div id="master-guide-content" style="display: none;">
+          <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+            이 드라마 유형의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
+          </p>
+          <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
+
+단막극 운영 지침
+==================
+
+## 각 단계별 역할과 비중
+
+### 1. 캐릭터 설정 (30%)
+- 역할: 주요 인물의 성격과 동기 정의
+- 특징: 간결하고 명확하게
+
+### 2. 스토리라인 구성 (50%)
+- 역할: 전체 줄거리 설계
+- 특징: 3막 구조로 간결하게
+
+### 3. 대사 작성 (20%)
+- 역할: 핵심 장면의 대사 작성"></textarea>
+          <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
         </div>
       </div>
 
-      <!-- Script -->
-      <div class="box">
-        <div class="box-title">대본 스크립트</div>
-        <div id="scriptResult" class="result-area">장면 구성 후 상세 스크립트를 생성할 수 있습니다.</div>
-        <div class="btn-row">
-          <button onclick="copyToClipboard('scriptResult')" class="secondary">📋 복사</button>
-          <button onclick="downloadScript()" class="secondary">💾 다운로드</button>
+      <!-- 지침 영역 -->
+      <div class="box" id="guide-box">
+        <div class="toggle-header">
+          <span class="label">지침 영역 🔒</span>
+          <button id="toggle-guides">열기</button>
+        </div>
+        <div id="guide-content" style="display: none;">
+          <div class="btn-row" style="margin-bottom: .5rem;">
+            <button id="save-guide" class="primary">지침 저장</button>
+          </div>
+          <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
+          <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
+          <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
         </div>
       </div>
 
-      <!-- Production Notes -->
-      <div class="box">
-        <div class="box-title">연출 노트</div>
-        <div id="notesResult" class="result-area">스크립트 생성 후 연출 노트를 확인할 수 있습니다.</div>
-        <div class="btn-row">
-          <button onclick="copyToClipboard('notesResult')" class="secondary">📋 복사</button>
+      <!-- 동적 결과 박스들 -->
+      <div id="result-boxes"></div>
+
+      <!-- GPT PRO 결과 박스 -->
+      <div id="gpt-pro-result-container" style="display: none;">
+        <div class="gpt-pro-result-box">
+          <div class="label">🎯 GPT PRO 완성본</div>
+          <textarea id="gpt-pro-result" class="autosize" readonly placeholder="GPT PRO 처리 결과가 여기에 표시됩니다."></textarea>
+          <button id="btn-copy-gpt-pro" style="margin-top: .5rem; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 완성본 복사</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    let currentType = 'short';
+  <!-- 패스워드 모달 -->
+  <div id="modal-password" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">🔒 지침 영역 잠금</div>
+      <p style="color: #666; font-size: .9rem; margin-bottom: 1rem;">지침 영역에 접근하려면 패스워드를 입력하세요.</p>
+      <input type="password" id="password-input" placeholder="패스워드 입력" style="margin-bottom: .5rem;">
+      <div class="modal-buttons">
+        <button id="btn-cancel-password">취소</button>
+        <button id="btn-submit-password" class="primary">확인</button>
+      </div>
+    </div>
+  </div>
 
-    // Type selection
-    document.querySelectorAll('.type-option').forEach(el => {
-      el.addEventListener('click', function() {
-        document.querySelectorAll('.type-option').forEach(e => e.classList.remove('active'));
-        this.classList.add('active');
-        currentType = this.dataset.type;
+  <!-- GPT PRO 패스워드 모달 -->
+  <div id="modal-gpt-pro-password" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">🔒 GPT PRO 실행 (테스트 중)</div>
+      <p style="color: #666; font-size: .9rem; margin-bottom: 1rem;">이 기능은 현재 테스트 중입니다. 패스워드를 입력하세요.</p>
+      <input type="password" id="gpt-pro-password-input" placeholder="패스워드 입력" style="margin-bottom: .5rem;">
+      <div class="modal-buttons">
+        <button id="btn-cancel-gpt-pro-password">취소</button>
+        <button id="btn-submit-gpt-pro-password" class="primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 카테고리 관리 모달 -->
+  <div id="modal-categories" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">드라마 유형 관리</div>
+      <input type="text" id="new-cat-label" placeholder="표시 이름 (예: 웹드라마)" style="margin-bottom: .5rem;">
+      <button id="btn-add-category" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
+      <div id="categories-list" style="max-height: 300px; overflow-y: auto;"></div>
+      <div class="modal-buttons">
+        <button id="btn-close-categories">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 스타일 관리 모달 -->
+  <div id="modal-styles" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">드라마 스타일 관리</div>
+      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">유형: <strong id="modal-styles-category"></strong></p>
+
+      <input type="text" id="new-style-name" placeholder="스타일 이름 (예: 로맨스 코미디)" style="margin-bottom: .3rem;">
+      <input type="text" id="new-style-desc" placeholder="설명 (예: 가벼운 톤, 유머 중심)" style="margin-bottom: .5rem;">
+      <button id="btn-add-style" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
+
+      <div id="styles-manage-list" style="max-height: 300px; overflow-y: auto;"></div>
+      <div class="modal-buttons">
+        <button id="btn-close-styles">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 처리 단계 관리 모달 -->
+  <div id="modal-steps" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">처리 단계 관리</div>
+      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+        스타일: <strong id="modal-steps-style"></strong>
+      </p>
+      <input type="text" id="new-step-name" placeholder="단계 이름 (예: 캐릭터 설정, 스토리라인, 대사 작성)" style="margin-bottom: .5rem;">
+      <button id="btn-add-step" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
+      <div id="steps-list" style="max-height: 300px; overflow-y: auto;"></div>
+      <div class="modal-buttons">
+        <button id="btn-close-steps">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <script>
+  // ===== Firebase 초기화 =====
+  const firebaseConfig = {
+    apiKey: "AIzaSyBacmJDk-PG5FaoqnXV8Rg3P__AKOS2vu4",
+    authDomain: "my-sermon-guides.firebaseapp.com",
+    projectId: "my-sermon-guides",
+    storageBucket: "my-sermon-guides.firebasestorage.app",
+    messagingSenderId: "539520456089",
+    appId: "1:539520456089:web:d6aceb7838baa89e70af08",
+    measurementId: "G-KWN8TH7Z26"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const USER_CODE = 'samuel123';
+  const PAGE_NAME = 'drama';
+  const GUIDE_PASSWORD = '5555';
+  const GPT_PRO_PASSWORD = '6039';
+  const CONFIG_KEY = '_drama-config';
+
+  // ===== 전역 변수 =====
+  let guideUnlocked = false;
+  let gptProUnlocked = false;
+  let currentCategory = 'short';
+  let currentStyleId = '';
+  let currentGuideStep = '';
+  let stepResults = {};
+
+  // 기본 설정
+  let config = {
+    categories: [
+      {value: "short", label: "단막극"},
+      {value: "episode", label: "에피소드"},
+      {value: "series", label: "시리즈"},
+      {value: "musical", label: "뮤지컬"}
+    ],
+    categorySettings: {
+      short: {
+        masterGuide: "",
+        styles: [
+          {
+            id: "short_romance",
+            name: "로맨스 단막극",
+            description: "감성적이고 따뜻한 톤",
+            steps: [
+              {id: "character", name: "캐릭터 설정", order: 1},
+              {id: "storyline", name: "스토리라인", order: 2},
+              {id: "dialogue", name: "대사 작성", order: 3}
+            ]
+          },
+          {
+            id: "short_comedy",
+            name: "코미디 단막극",
+            description: "유머와 웃음 중심",
+            steps: [
+              {id: "character", name: "캐릭터 설정", order: 1},
+              {id: "storyline", name: "스토리라인", order: 2},
+              {id: "dialogue", name: "대사 작성", order: 3}
+            ]
+          }
+        ]
+      },
+      episode: {
+        masterGuide: "",
+        styles: []
+      },
+      series: {
+        masterGuide: "",
+        styles: []
+      },
+      musical: {
+        masterGuide: "",
+        styles: []
+      }
+    }
+  };
+
+  // ===== 한글 → 영문 ID 자동 생성 =====
+  function koreanToId(korean) {
+    const map = {
+      '캐릭터': 'character',
+      '스토리': 'storyline',
+      '줄거리': 'plot',
+      '대사': 'dialogue',
+      '장면': 'scene',
+      '구성': 'structure',
+      '설정': 'setting',
+      '분석': 'analysis',
+      '개요': 'outline',
+      '노래': 'song',
+      '안무': 'choreography',
+      '연출': 'direction'
+    };
+
+    for (const [key, value] of Object.entries(map)) {
+      if (korean.includes(key)) {
+        return value + '_' + Date.now().toString(36);
+      }
+    }
+
+    return 'step_' + Date.now().toString(36);
+  }
+
+  // ===== 유틸리티 =====
+  function showStatus(msg) {
+    const statusBar = document.getElementById('status-bar');
+    if (statusBar) {
+      statusBar.textContent = msg;
+      statusBar.style.display = 'block';
+    }
+  }
+
+  function hideStatus() {
+    const statusBar = document.getElementById('status-bar');
+    if (statusBar) {
+      statusBar.style.display = 'none';
+    }
+  }
+
+  function autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // ===== Firebase 함수 =====
+  async function loadFromFirebase() {
+    try {
+      const snapshot = await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).get();
+
+      if (!snapshot.empty) {
+        snapshot.forEach(doc => {
+          localStorage.setItem(doc.id, doc.data().value);
+        });
+
+        const configData = localStorage.getItem(CONFIG_KEY);
+        if (configData) {
+          config = JSON.parse(configData);
+        }
+        console.log('✅ Firebase 동기화 완료');
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Firebase 로드 실패:', err);
+      return false;
+    }
+  }
+
+  async function saveToFirebase(key, value) {
+    try {
+      await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).doc(key).set({
+        value: value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      return true;
+    } catch (err) {
+      console.error('Firebase 저장 실패:', err);
+      return false;
+    }
+  }
+
+  async function saveConfig() {
+    const configStr = JSON.stringify(config);
+    localStorage.setItem(CONFIG_KEY, configStr);
+    await saveToFirebase(CONFIG_KEY, configStr);
+  }
+
+  // ===== 총괄 지침 관리 =====
+  function loadMasterGuide(category) {
+    const settings = config.categorySettings[category];
+    const textarea = document.getElementById('master-guide-text');
+    if (textarea) {
+      if (settings && settings.masterGuide) {
+        textarea.value = settings.masterGuide;
+      } else {
+        textarea.value = '';
+      }
+      autoResize(textarea);
+    }
+  }
+
+  async function saveMasterGuide() {
+    const textarea = document.getElementById('master-guide-text');
+    if (!textarea) return;
+
+    const value = textarea.value;
+    const settings = config.categorySettings[currentCategory];
+
+    if (settings) {
+      settings.masterGuide = value;
+      await saveConfig();
+
+      showStatus('✅ 총괄 지침 저장 완료!');
+      setTimeout(hideStatus, 2000);
+    }
+  }
+
+  const saveMasterGuideBtn = document.getElementById('save-master-guide');
+  if (saveMasterGuideBtn) {
+    saveMasterGuideBtn.addEventListener('click', saveMasterGuide);
+  }
+
+  const toggleMasterGuideBtn = document.getElementById('toggle-master-guide');
+  if (toggleMasterGuideBtn) {
+    toggleMasterGuideBtn.addEventListener('click', () => {
+      const content = document.getElementById('master-guide-content');
+      const btn = document.getElementById('toggle-master-guide');
+
+      if (content && btn) {
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          btn.textContent = '닫기';
+          loadMasterGuide(currentCategory);
+        } else {
+          content.style.display = 'none';
+          btn.textContent = '열기';
+        }
+      }
+    });
+  }
+
+  // ===== 지침 관리 =====
+  function getGuideKey(category, stepId) {
+    return `guide-${category}-${stepId}`;
+  }
+
+  function loadGuide(category, stepId) {
+    const key = getGuideKey(category, stepId);
+    const stored = localStorage.getItem(key) || '';
+    const textarea = document.getElementById('guide-text');
+    if (textarea) {
+      textarea.value = stored;
+      autoResize(textarea);
+    }
+
+    let info = `유형: ${getCategoryLabel(category)} | 단계: ${getStepName(stepId)}`;
+    const infoEl = document.getElementById('current-guide-info');
+    if (infoEl) {
+      infoEl.textContent = info;
+    }
+  }
+
+  async function saveGuide() {
+    const textarea = document.getElementById('guide-text');
+    if (!textarea) return;
+
+    const key = getGuideKey(currentCategory, currentGuideStep);
+    const value = textarea.value;
+
+    localStorage.setItem(key, value);
+
+    showStatus('💾 저장 중...');
+    const success = await saveToFirebase(key, value);
+
+    if (success) {
+      showStatus('✅ 지침 저장 완료!');
+    } else {
+      showStatus('⚠️ 로컬에만 저장됨');
+    }
+
+    setTimeout(hideStatus, 2000);
+  }
+
+  // ===== 헬퍼 함수 =====
+  function getCategoryLabel(value) {
+    const cat = config.categories.find(c => c.value === value);
+    return cat ? cat.label : value;
+  }
+
+  function getCurrentStyle() {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return null;
+    return settings.styles.find(s => s.id === currentStyleId);
+  }
+
+  function getCurrentSteps() {
+    const style = getCurrentStyle();
+    if (!style || !style.steps) return [];
+    return style.steps.sort((a, b) => a.order - b.order);
+  }
+
+  function getStepName(stepId) {
+    const steps = getCurrentSteps();
+    const step = steps.find(s => s.id === stepId);
+    return step ? step.name : stepId;
+  }
+
+  // ===== GPT PRO 초안 구성 유틸 =====
+  function assembleGptProDraft() {
+    const steps = getCurrentSteps();
+    const benchmarkScript = document.getElementById('benchmark-script').value.trim();
+    const style = getCurrentStyle();
+
+    if (steps.length === 0) {
+      return { error: '처리된 단계가 없습니다.' };
+    }
+
+    const completedSteps = steps.filter(step => stepResults[step.id]);
+
+    if (completedSteps.length === 0) {
+      return { error: '완성된 단계가 없습니다. 먼저 각 단계를 실행해주세요.' };
+    }
+
+    const categoryLabel = getCategoryLabel(currentCategory);
+    const styleName = style ? style.name : '';
+    const styleDescription = style ? style.description : '';
+
+    let fullText = `====================================\n`;
+    fullText += `🎭 드라마 스크립트 초안 자료 (GPT-5.1 작성용)\n`;
+    fullText += `====================================\n\n`;
+    fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
+    fullText += `GPT-5.1은 이 자료를 참고하되, 처음부터 새로 작성해주세요.\n`;
+    fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 드라마 스크립트로 재작성하세요.\n\n`;
+    fullText += `${'='.repeat(50)}\n\n`;
+    fullText += `📌 기본 정보\n`;
+    fullText += `- 드라마 유형: ${categoryLabel}\n`;
+    fullText += `- 스타일: ${styleName}\n`;
+    if (styleDescription) {
+      fullText += `- 스타일 설명: ${styleDescription}\n`;
+    }
+    if (benchmarkScript) {
+      fullText += `- 벤치마킹 대본: 첨부됨\n`;
+    }
+    fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
+    fullText += `\n${'='.repeat(50)}\n\n`;
+
+    if (benchmarkScript) {
+      fullText += `【 벤치마킹 대본 】\n\n`;
+      fullText += benchmarkScript;
+      fullText += `\n\n${'='.repeat(50)}\n\n`;
+    }
+
+    let sectionIndex = 1;
+    completedSteps.forEach(step => {
+      fullText += `【 ${sectionIndex}. ${step.name} 】\n\n`;
+      fullText += stepResults[step.id];
+      fullText += `\n\n${'='.repeat(50)}\n\n`;
+      sectionIndex += 1;
+    });
+
+    fullText += `\n📝 작성 지침:\n`;
+    fullText += `위의 초안 자료를 참고하여, 완성도 높은 드라마 스크립트를 처음부터 새로 작성해주세요.\n`;
+
+    return {
+      error: null,
+      fullText,
+      draftContent: fullText,
+      meta: {
+        benchmarkScript,
+        styleName,
+        styleDescription,
+        categoryLabel
+      }
+    };
+  }
+
+  // ===== 전체 복사 기능 =====
+  const btnCopyAll = document.getElementById('btn-copy-all');
+  if (btnCopyAll) {
+    btnCopyAll.addEventListener('click', () => {
+      const draft = assembleGptProDraft();
+      if (draft.error) {
+        alert(draft.error);
+        return;
+      }
+
+      const tempTextarea = document.createElement('textarea');
+      tempTextarea.value = draft.fullText;
+      tempTextarea.style.position = 'fixed';
+      tempTextarea.style.opacity = '0';
+      document.body.appendChild(tempTextarea);
+      tempTextarea.select();
+
+      try {
+        document.execCommand('copy');
+        showStatus('✅ GPT-5.1에 붙여넣을 준비 완료!');
+        setTimeout(hideStatus, 2000);
+      } catch (err) {
+        alert('복사 실패: ' + err.message);
+      } finally {
+        document.body.removeChild(tempTextarea);
+      }
+    });
+  }
+
+  // ===== GPT PRO 처리 기능 =====
+  async function executeGptPro() {
+    const draft = assembleGptProDraft();
+    if (draft.error) {
+      alert(draft.error);
+      return;
+    }
+
+    // ===== 1단계: 전체 복사 =====
+    const tempTextarea = document.createElement('textarea');
+    tempTextarea.value = draft.fullText;
+    tempTextarea.style.position = 'fixed';
+    tempTextarea.style.opacity = '0';
+    document.body.appendChild(tempTextarea);
+    tempTextarea.select();
+
+    try {
+      document.execCommand('copy');
+      showStatus('📋 전체 복사 완료! GPT PRO 처리 중...');
+    } catch (err) {
+      console.error('복사 실패:', err);
+    } finally {
+      document.body.removeChild(tempTextarea);
+    }
+
+    // ===== 2단계: GPT-5.1로 스크립트 작성 =====
+    showStatus('🚀 GPT PRO 처리 중... (약 30초 소요)');
+
+    try {
+      const response = await fetch('/api/sermon/gpt-pro', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          reference: `${draft.meta.categoryLabel} - ${draft.meta.styleName}`,
+          title: '',
+          seriesName: '',
+          styleName: draft.meta.styleName,
+          styleDescription: draft.meta.styleDescription,
+          category: draft.meta.categoryLabel,
+          draftContent: draft.draftContent
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        const resultTextarea = document.getElementById('gpt-pro-result');
+        const resultContainer = document.getElementById('gpt-pro-result-container');
+
+        if (resultTextarea && resultContainer) {
+          resultTextarea.value = data.result;
+          autoResize(resultTextarea);
+          resultContainer.style.display = 'block';
+
+          // 결과 박스로 스크롤
+          resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        showStatus('✅ 전체 복사 + GPT PRO 완성!');
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ 오류');
+    } finally {
+      setTimeout(hideStatus, 3000);
+    }
+  }
+
+  const btnGptPro = document.getElementById('btn-gpt-pro');
+  if (btnGptPro) {
+    btnGptPro.addEventListener('click', () => {
+      if (!gptProUnlocked) {
+        // 패스워드 모달 표시
+        const modal = document.getElementById('modal-gpt-pro-password');
+        if (modal) modal.classList.add('show');
+        const input = document.getElementById('gpt-pro-password-input');
+        if (input) {
+          input.value = '';
+          input.focus();
+        }
+      } else {
+        // 이미 잠금 해제된 경우 바로 실행
+        executeGptPro();
+      }
+    });
+  }
+
+  // GPT PRO 결과 복사
+  const btnCopyGptPro = document.getElementById('btn-copy-gpt-pro');
+  if (btnCopyGptPro) {
+    btnCopyGptPro.addEventListener('click', () => {
+      const textarea = document.getElementById('gpt-pro-result');
+      if (textarea && textarea.value) {
+        textarea.select();
+        document.execCommand('copy');
+        const orig = btnCopyGptPro.textContent;
+        btnCopyGptPro.textContent = '✅ 복사됨!';
+        setTimeout(() => btnCopyGptPro.textContent = orig, 1500);
+      }
+    });
+  }
+
+  // ===== 렌더링 함수 =====
+  function renderCategories() {
+    const select = document.getElementById('drama-category');
+    if (!select) return;
+
+    const current = select.value;
+    select.innerHTML = config.categories.map(c =>
+      `<option value="${c.value}">${c.label}</option>`
+    ).join('');
+
+    if (current && config.categories.find(c => c.value === current)) {
+      select.value = current;
+    } else {
+      select.value = config.categories[0].value;
+    }
+    currentCategory = select.value;
+  }
+
+  function renderStyles() {
+    const settings = config.categorySettings[currentCategory];
+    const styles = (settings && settings.styles) ? settings.styles : [];
+    const container = document.getElementById('styles-list');
+
+    if (!container) return;
+
+    if (styles.length === 0) {
+      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
+      return;
+    }
+
+    container.innerHTML = styles.map(style =>
+      `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}">
+        <div>
+          <div style="font-weight: 600;">${style.name}</div>
+          <div class="style-desc">${style.description || ''}</div>
+        </div>
+      </div>`
+    ).join('');
+
+    container.querySelectorAll('.style-item').forEach(item => {
+      item.addEventListener('click', () => {
+        currentStyleId = item.dataset.style;
+        stepResults = {};
+        const gptProContainer = document.getElementById('gpt-pro-result-container');
+        if (gptProContainer) gptProContainer.style.display = 'none';
+        renderStyles();
+        renderProcessingSteps();
+        renderResultBoxes();
+        renderGuideTabs();
       });
     });
 
-    // Character management
-    function addCharacter() {
-      const charList = document.getElementById('characterList');
-      const newChar = document.createElement('div');
-      newChar.className = 'char-item';
-      newChar.innerHTML = `
-        <input type="text" placeholder="이름" class="char-name">
-        <input type="text" placeholder="역할/특징" class="char-desc">
-        <button onclick="removeCharacter(this)" class="danger">삭제</button>
-      `;
-      charList.appendChild(newChar);
+    if (!currentStyleId && styles.length > 0) {
+      currentStyleId = styles[0].id;
+      renderStyles();
+    }
+  }
+
+  function renderProcessingSteps() {
+    const steps = getCurrentSteps();
+    const container = document.getElementById('processing-steps');
+
+    if (!container) return;
+
+    if (steps.length === 0) {
+      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">단계를 추가하세요.</p>';
+      return;
     }
 
-    function removeCharacter(btn) {
-      const charList = document.getElementById('characterList');
-      if (charList.children.length > 1) {
-        btn.parentElement.remove();
-      } else {
-        alert('최소 1명의 등장인물이 필요합니다.');
-      }
-    }
+    container.innerHTML = steps.map(step =>
+      `<button class="step-btn primary" data-step="${step.id}">${step.order}. ${step.name}</button>`
+    ).join('');
 
-    // Get characters
-    function getCharacters() {
-      const chars = [];
-      document.querySelectorAll('.char-item').forEach(item => {
-        const name = item.querySelector('.char-name').value.trim();
-        const desc = item.querySelector('.char-desc').value.trim();
-        if (name) {
-          chars.push({ name, description: desc });
+    container.querySelectorAll('.step-btn').forEach(btn => {
+      btn.addEventListener('click', () => executeStep(btn.dataset.step));
+    });
+  }
+
+  function renderResultBoxes() {
+    const steps = getCurrentSteps();
+    const container = document.getElementById('result-boxes');
+
+    if (!container) return;
+
+    container.innerHTML = steps.map(step => `
+      <div class="box">
+        <label class="label">${step.name}</label>
+        <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
+      </div>
+    `).join('');
+
+    // 결과 복원 및 자동 높이
+    steps.forEach(step => {
+      if (stepResults[step.id]) {
+        const textarea = document.getElementById(`result-${step.id}`);
+        if (textarea) {
+          textarea.value = stepResults[step.id];
+          autoResize(textarea);
         }
+      }
+    });
+
+    // 입력 이벤트로 자동 높이 + 결과 저장
+    container.querySelectorAll('textarea').forEach(textarea => {
+      textarea.addEventListener('input', () => {
+        autoResize(textarea);
+        // 사용자가 편집한 내용을 stepResults에 저장
+        const stepId = textarea.id.replace('result-', '');
+        stepResults[stepId] = textarea.value;
       });
-      return chars;
-    }
+    });
+  }
 
-    // Generate drama
-    async function generateDrama() {
-      const btn = document.getElementById('generateBtn');
-      btn.disabled = true;
-      btn.textContent = '생성 중...';
+  function renderGuideTabs() {
+    const steps = getCurrentSteps();
+    const container = document.getElementById('guide-tabs');
 
-      const data = {
-        type: currentType,
-        title: document.getElementById('dramaTitle').value.trim() || '무제',
-        genre: document.getElementById('dramaGenre').value,
-        runningTime: parseInt(document.getElementById('runningTime').value),
-        targetAge: document.getElementById('targetAge').value,
-        characters: getCharacters(),
-        theme: document.getElementById('theme').value.trim(),
-        setting: document.getElementById('setting').value.trim(),
-        conflict: document.getElementById('conflict').value.trim()
-      };
+    if (!container) return;
 
-      try {
-        // Show loading
-        showLoading('synopsisResult');
-        showLoading('sceneResult');
+    container.innerHTML = steps.map(step =>
+      `<button class="${step.id === currentGuideStep ? 'primary' : ''}"
+        data-step="${step.id}">${step.name}</button>`
+    ).join('');
 
-        // Generate synopsis
-        const synopsisRes = await fetch('/api/drama/synopsis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const synopsisData = await synopsisRes.json();
-        document.getElementById('synopsisResult').textContent = synopsisData.synopsis || '생성 실패';
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentGuideStep = btn.dataset.step;
+        renderGuideTabs();
+        loadGuide(currentCategory, currentGuideStep);
+      });
+    });
+  }
 
-        // Generate scene structure
-        const sceneRes = await fetch('/api/drama/scenes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...data, synopsis: synopsisData.synopsis })
-        });
-        const sceneData = await sceneRes.json();
-        document.getElementById('sceneResult').textContent = sceneData.scenes || '생성 실패';
+  // ===== 처리 단계 실행 =====
+  async function executeStep(stepId) {
+    const benchmarkScript = document.getElementById('benchmark-script').value;
+    const guideKey = getGuideKey(currentCategory, stepId);
+    const guide = localStorage.getItem(guideKey) || '';
 
-      } catch (error) {
-        console.error('Error:', error);
-        alert('드라마 생성 중 오류가 발생했습니다.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '✨ 드라마 생성하기';
+    // 총괄 지침 가져오기
+    const settings = config.categorySettings[currentCategory];
+    const masterGuide = settings ? settings.masterGuide : '';
+
+    const steps = getCurrentSteps();
+    const currentStepIndex = steps.findIndex(s => s.id === stepId);
+    const previousResults = {};
+    for (let i = 0; i < currentStepIndex; i++) {
+      const prevStep = steps[i];
+      if (stepResults[prevStep.id]) {
+        previousResults[prevStep.id] = {
+          name: prevStep.name,
+          result: stepResults[prevStep.id]
+        };
       }
     }
 
-    // Regenerate synopsis
-    async function regenerateSynopsis() {
-      const data = {
-        type: currentType,
-        title: document.getElementById('dramaTitle').value.trim() || '무제',
-        genre: document.getElementById('dramaGenre').value,
-        characters: getCharacters(),
-        theme: document.getElementById('theme').value.trim(),
-        setting: document.getElementById('setting').value.trim(),
-        conflict: document.getElementById('conflict').value.trim()
-      };
+    showStatus(`🤖 ${getStepName(stepId)} 처리 중...`);
 
-      showLoading('synopsisResult');
+    try {
+      const response = await fetch('/api/sermon/process', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          category: currentCategory,
+          stepId: stepId,
+          stepName: getStepName(stepId),
+          reference: `드라마 유형: ${getCategoryLabel(currentCategory)}`,
+          title: '',
+          text: benchmarkScript,
+          guide: guide,
+          masterGuide: masterGuide,
+          previousResults: previousResults
+        })
+      });
 
-      try {
-        const res = await fetch('/api/drama/synopsis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        document.getElementById('synopsisResult').textContent = result.synopsis || '생성 실패';
-      } catch (error) {
-        alert('시놉시스 재생성 중 오류가 발생했습니다.');
+      const data = await response.json();
+
+      if (data.ok) {
+        stepResults[stepId] = data.result;
+        const textarea = document.getElementById(`result-${stepId}`);
+        if (textarea) {
+          textarea.value = data.result;
+          autoResize(textarea);
+        }
+
+        showStatus('✅ 완료!');
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ 실패');
       }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ 오류');
+    } finally {
+      setTimeout(hideStatus, 2000);
+    }
+  }
+
+  // ===== 카테고리 변경 =====
+  const categorySelect = document.getElementById('drama-category');
+  if (categorySelect) {
+    categorySelect.addEventListener('change', (e) => {
+      currentCategory = e.target.value;
+      currentStyleId = '';
+      stepResults = {};
+      const gptProContainer = document.getElementById('gpt-pro-result-container');
+      if (gptProContainer) gptProContainer.style.display = 'none';
+
+      loadMasterGuide(currentCategory);
+      renderStyles();
+      renderProcessingSteps();
+      renderResultBoxes();
+      renderGuideTabs();
+    });
+  }
+
+  // ===== 패스워드 =====
+  const toggleGuidesBtn = document.getElementById('toggle-guides');
+  if (toggleGuidesBtn) {
+    toggleGuidesBtn.addEventListener('click', () => {
+      const content = document.getElementById('guide-content');
+      const btn = document.getElementById('toggle-guides');
+
+      if (!content || !btn) return;
+
+      if (content.style.display === 'none') {
+        if (!guideUnlocked) {
+          const modal = document.getElementById('modal-password');
+          if (modal) modal.classList.add('show');
+          const input = document.getElementById('password-input');
+          if (input) {
+            input.value = '';
+            input.focus();
+          }
+        } else {
+          content.style.display = 'block';
+          btn.textContent = '닫기';
+        }
+      } else {
+        content.style.display = 'none';
+        btn.textContent = '열기';
+      }
+    });
+  }
+
+  const btnSubmitPassword = document.getElementById('btn-submit-password');
+  if (btnSubmitPassword) {
+    btnSubmitPassword.addEventListener('click', () => {
+      const input = document.getElementById('password-input');
+      if (input && input.value === GUIDE_PASSWORD) {
+        guideUnlocked = true;
+        const modal = document.getElementById('modal-password');
+        if (modal) modal.classList.remove('show');
+        const content = document.getElementById('guide-content');
+        if (content) content.style.display = 'block';
+        const btn = document.getElementById('toggle-guides');
+        if (btn) btn.textContent = '닫기';
+
+        const steps = getCurrentSteps();
+        if (steps.length > 0) {
+          currentGuideStep = steps[0].id;
+          renderGuideTabs();
+          loadGuide(currentCategory, currentGuideStep);
+        }
+      } else {
+        alert('❌ 패스워드가 틀렸습니다.');
+        if (input) input.value = '';
+      }
+    });
+  }
+
+  const btnCancelPassword = document.getElementById('btn-cancel-password');
+  if (btnCancelPassword) {
+    btnCancelPassword.addEventListener('click', () => {
+      const modal = document.getElementById('modal-password');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
+  const passwordInput = document.getElementById('password-input');
+  if (passwordInput) {
+    passwordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const btn = document.getElementById('btn-submit-password');
+        if (btn) btn.click();
+      }
+    });
+  }
+
+  const saveGuideBtn = document.getElementById('save-guide');
+  if (saveGuideBtn) {
+    saveGuideBtn.addEventListener('click', saveGuide);
+  }
+
+  // ===== GPT PRO 패스워드 =====
+  const btnSubmitGptProPassword = document.getElementById('btn-submit-gpt-pro-password');
+  if (btnSubmitGptProPassword) {
+    btnSubmitGptProPassword.addEventListener('click', () => {
+      const input = document.getElementById('gpt-pro-password-input');
+      if (input && input.value === GPT_PRO_PASSWORD) {
+        gptProUnlocked = true;
+        const modal = document.getElementById('modal-gpt-pro-password');
+        if (modal) modal.classList.remove('show');
+
+        // 패스워드 확인 후 GPT PRO 실행
+        executeGptPro();
+      } else {
+        alert('❌ 패스워드가 틀렸습니다.');
+        if (input) input.value = '';
+      }
+    });
+  }
+
+  const btnCancelGptProPassword = document.getElementById('btn-cancel-gpt-pro-password');
+  if (btnCancelGptProPassword) {
+    btnCancelGptProPassword.addEventListener('click', () => {
+      const modal = document.getElementById('modal-gpt-pro-password');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
+  const gptProPasswordInput = document.getElementById('gpt-pro-password-input');
+  if (gptProPasswordInput) {
+    gptProPasswordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const btn = document.getElementById('btn-submit-gpt-pro-password');
+        if (btn) btn.click();
+      }
+    });
+  }
+
+  // ===== 카테고리 관리 =====
+  function renderCategoryManageList() {
+    const list = document.getElementById('categories-list');
+    if (!list) return;
+
+    if (config.categories.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">카테고리를 추가하세요.</p>';
+      return;
     }
 
-    // Generate detailed script
-    async function generateDetailedScenes() {
-      const synopsis = document.getElementById('synopsisResult').textContent;
-      const scenes = document.getElementById('sceneResult').textContent;
+    list.innerHTML = config.categories.map((cat, idx) => `
+      <div class="storage-item">
+        <div>
+          <div style="font-weight: 600;">${cat.label}</div>
+          <div style="font-size: .75rem; color: #666;">${cat.value}</div>
+        </div>
+        <div>
+          <button onclick="editCategory(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          ${config.categories.length > 1 ? `<button class="danger" onclick="deleteCategory(${idx})">삭제</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
 
-      if (!synopsis || synopsis === '생성 버튼을 눌러 드라마 시놉시스를 만들어보세요.') {
-        alert('먼저 드라마를 생성해주세요.');
+  const btnManageCategories = document.getElementById('btn-manage-categories');
+  if (btnManageCategories) {
+    btnManageCategories.addEventListener('click', () => {
+      renderCategoryManageList();
+      const modal = document.getElementById('modal-categories');
+      if (modal) modal.classList.add('show');
+    });
+  }
+
+  const btnCloseCategories = document.getElementById('btn-close-categories');
+  if (btnCloseCategories) {
+    btnCloseCategories.addEventListener('click', () => {
+      const modal = document.getElementById('modal-categories');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
+  const btnAddCategory = document.getElementById('btn-add-category');
+  if (btnAddCategory) {
+    btnAddCategory.addEventListener('click', async () => {
+      const input = document.getElementById('new-cat-label');
+      if (!input) return;
+
+      const label = input.value.trim();
+
+      if (!label) {
+        alert('표시 이름을 입력하세요.');
         return;
       }
 
-      showLoading('scriptResult');
-      showLoading('notesResult');
+      const value = koreanToId(label);
 
-      const data = {
-        type: currentType,
-        title: document.getElementById('dramaTitle').value.trim() || '무제',
-        genre: document.getElementById('dramaGenre').value,
-        characters: getCharacters(),
-        synopsis: synopsis,
-        scenes: scenes,
-        setting: document.getElementById('setting').value.trim()
+      if (config.categories.find(c => c.value === value)) {
+        alert('이미 존재하는 카테고리입니다.');
+        return;
+      }
+
+      config.categories.push({value, label});
+      config.categorySettings[value] = {
+        masterGuide: "",
+        styles: []
       };
 
-      try {
-        const res = await fetch('/api/drama/script', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
-        });
-        const result = await res.json();
-        document.getElementById('scriptResult').textContent = result.script || '생성 실패';
-        document.getElementById('notesResult').textContent = result.notes || '연출 노트가 생성되지 않았습니다.';
-      } catch (error) {
-        alert('스크립트 생성 중 오류가 발생했습니다.');
+      await saveConfig();
+      renderCategories();
+      renderCategoryManageList();
+      input.value = '';
+    });
+  }
+
+  window.editCategory = async function(idx) {
+    const current = config.categories[idx];
+    if (!current) return;
+
+    const newLabel = prompt('새 카테고리 이름을 입력하세요.', current.label);
+    if (newLabel === null) return;
+
+    const trimmed = newLabel.trim();
+    if (!trimmed) {
+      alert('표시 이름을 입력하세요.');
+      return;
+    }
+
+    current.label = trimmed;
+    await saveConfig();
+    renderCategories();
+    renderCategoryManageList();
+    if (current.value === currentCategory) {
+      loadMasterGuide(currentCategory);
+      renderStyles();
+      renderProcessingSteps();
+      renderResultBoxes();
+      renderGuideTabs();
+    }
+  };
+
+  window.deleteCategory = async function(idx) {
+    if (!confirm(`"${config.categories[idx].label}" 삭제?`)) return;
+    const value = config.categories[idx].value;
+    config.categories.splice(idx, 1);
+    delete config.categorySettings[value];
+    await saveConfig();
+    renderCategories();
+    renderCategoryManageList();
+    loadMasterGuide(currentCategory);
+    renderStyles();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+  };
+
+  // ===== 스타일 관리 =====
+  const btnManageStyles = document.getElementById('btn-manage-styles');
+  if (btnManageStyles) {
+    btnManageStyles.addEventListener('click', () => {
+      const categoryLabel = document.getElementById('modal-styles-category');
+      if (categoryLabel) {
+        categoryLabel.textContent = getCategoryLabel(currentCategory);
       }
+
+      renderStylesManageList();
+      const modal = document.getElementById('modal-styles');
+      if (modal) modal.classList.add('show');
+    });
+  }
+
+  function renderStylesManageList() {
+    const list = document.getElementById('styles-manage-list');
+    if (!list) return;
+
+    const settings = config.categorySettings[currentCategory];
+    const styles = (settings && settings.styles) ? settings.styles : [];
+
+    if (styles.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">스타일을 추가하세요.</p>';
+      return;
     }
 
-    // Show loading
-    function showLoading(elementId) {
-      const el = document.getElementById(elementId);
-      el.innerHTML = '<div class="spinner"></div><div style="text-align: center; color: #666;">생성 중...</div>';
-    }
+    list.innerHTML = styles.map((style, idx) => `
+      <div class="storage-item">
+        <div>
+          <div style="font-weight: 600;">${style.name}</div>
+          <div style="font-size: .75rem; color: #666;">${style.description || ''}</div>
+        </div>
+        <div>
+          <button onclick="editStyle(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
+          <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
+        </div>
+      </div>
+    `).join('');
+  }
 
-    // Copy to clipboard
-    async function copyToClipboard(elementId) {
-      const text = document.getElementById(elementId).textContent;
-      if (text.includes('생성 중') || text.includes('생성 버튼')) {
-        alert('복사할 내용이 없습니다.');
+  const btnCloseStyles = document.getElementById('btn-close-styles');
+  if (btnCloseStyles) {
+    btnCloseStyles.addEventListener('click', () => {
+      const modal = document.getElementById('modal-styles');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
+  const btnAddStyle = document.getElementById('btn-add-style');
+  if (btnAddStyle) {
+    btnAddStyle.addEventListener('click', async () => {
+      const nameInput = document.getElementById('new-style-name');
+      const descInput = document.getElementById('new-style-desc');
+
+      if (!nameInput) return;
+
+      const name = nameInput.value.trim();
+      const desc = descInput ? descInput.value.trim() : '';
+
+      if (!name) {
+        alert('스타일 이름을 입력하세요.');
         return;
       }
-      try {
-        await navigator.clipboard.writeText(text);
-        alert('클립보드에 복사되었습니다!');
-      } catch (err) {
-        alert('복사 실패: ' + err);
+
+      const id = koreanToId(name);
+      const settings = config.categorySettings[currentCategory];
+
+      if (!settings.styles) {
+        settings.styles = [];
       }
+
+      settings.styles.push({
+        id: id,
+        name: name,
+        description: desc,
+        steps: []
+      });
+
+      await saveConfig();
+      renderStyles();
+      renderStylesManageList();
+      nameInput.value = '';
+      if (descInput) descInput.value = '';
+    });
+  }
+
+  window.editStyle = async function(idx) {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return;
+
+    const style = settings.styles[idx];
+    if (!style) return;
+
+    const newName = prompt('새 스타일 이름을 입력하세요.', style.name);
+    if (newName === null) return;
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      alert('스타일 이름을 입력하세요.');
+      return;
     }
 
-    // Download script
-    function downloadScript() {
-      const script = document.getElementById('scriptResult').textContent;
-      if (script.includes('생성할 수 있습니다') || script.includes('생성 중')) {
-        alert('다운로드할 스크립트가 없습니다.');
+    const newDesc = prompt('스타일 설명을 입력하세요.', style.description || '');
+    if (newDesc === null) return;
+
+    style.name = trimmedName;
+    style.description = newDesc.trim();
+
+    await saveConfig();
+    renderStyles();
+    renderStylesManageList();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+  };
+
+  window.deleteStyle = async function(idx) {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return;
+
+    const style = settings.styles[idx];
+    if (!confirm(`"${style.name}" 삭제?`)) return;
+
+    settings.styles.splice(idx, 1);
+    if (currentStyleId === style.id) {
+      currentStyleId = '';
+    }
+    await saveConfig();
+    renderStyles();
+    renderStylesManageList();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+  };
+
+  window.editStyleSteps = function(styleId) {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return;
+
+    const style = settings.styles.find(s => s.id === styleId);
+    if (!style) return;
+
+    currentStyleId = styleId;
+    const modal = document.getElementById('modal-styles');
+    if (modal) modal.classList.remove('show');
+
+    const styleLabel = document.getElementById('modal-steps-style');
+    if (styleLabel) styleLabel.textContent = style.name;
+
+    renderStepsManageList(style);
+
+    const stepsModal = document.getElementById('modal-steps');
+    if (stepsModal) stepsModal.classList.add('show');
+  };
+
+  function renderStepsManageList(style) {
+    const list = document.getElementById('steps-list');
+    if (!list) return;
+
+    if (!style.steps) style.steps = [];
+    style.steps.sort((a, b) => a.order - b.order);
+
+    if (style.steps.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">단계를 추가하세요.</p>';
+      return;
+    }
+
+    list.innerHTML = style.steps.map((step, idx) => `
+      <div class="storage-item">
+        <span>${step.order}. ${step.name}</span>
+        <div>
+          ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)" style="margin-right: .3rem;">↑</button>` : ''}
+          ${idx < style.steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
+          <button onclick="renameStep(${idx})" style="margin-right: .3rem;">이름 수정</button>
+          <button class="danger" onclick="deleteStep(${idx})">삭제</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const btnCloseSteps = document.getElementById('btn-close-steps');
+  if (btnCloseSteps) {
+    btnCloseSteps.addEventListener('click', () => {
+      const modal = document.getElementById('modal-steps');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
+  const btnAddStep = document.getElementById('btn-add-step');
+  if (btnAddStep) {
+    btnAddStep.addEventListener('click', async () => {
+      const input = document.getElementById('new-step-name');
+      if (!input) return;
+
+      const name = input.value.trim();
+
+      if (!name) {
+        alert('단계 이름을 입력하세요.');
         return;
       }
 
-      const title = document.getElementById('dramaTitle').value.trim() || '드라마';
-      const blob = new Blob([script], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${title}_스크립트.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const style = getCurrentStyle();
+      if (!style) return;
+
+      if (!style.steps) style.steps = [];
+
+      const id = koreanToId(name);
+      const maxOrder = style.steps.length > 0 ? Math.max(...style.steps.map(s => s.order)) : 0;
+
+      style.steps.push({
+        id: id,
+        name: name,
+        order: maxOrder + 1
+      });
+
+      await saveConfig();
+      renderProcessingSteps();
+      renderResultBoxes();
+      renderGuideTabs();
+      const updatedStyle = getCurrentStyle();
+      if (updatedStyle) {
+        renderStepsManageList(updatedStyle);
+      }
+      input.value = '';
+    });
+  }
+
+  window.moveStep = async function(idx, direction) {
+    const style = getCurrentStyle();
+    if (!style || !style.steps) return;
+
+    const steps = style.steps;
+    const targetIdx = idx + direction;
+
+    if (targetIdx < 0 || targetIdx >= steps.length) return;
+
+    [steps[idx].order, steps[targetIdx].order] = [steps[targetIdx].order, steps[idx].order];
+
+    await saveConfig();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    const updatedStyle = getCurrentStyle();
+    if (updatedStyle) {
+      renderStepsManageList(updatedStyle);
     }
+  };
+
+  window.deleteStep = async function(idx) {
+    const style = getCurrentStyle();
+    if (!style || !style.steps) return;
+
+    if (!confirm(`"${style.steps[idx].name}" 삭제?`)) return;
+
+    style.steps.splice(idx, 1);
+    await saveConfig();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    renderStepsManageList(style);
+  };
+
+  window.renameStep = async function(idx) {
+    const style = getCurrentStyle();
+    if (!style || !style.steps) return;
+
+    const step = style.steps[idx];
+    if (!step) return;
+
+    const newName = prompt('새 단계 이름을 입력하세요.', step.name);
+    if (newName === null) return;
+
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      alert('단계 이름을 입력하세요.');
+      return;
+    }
+
+    step.name = trimmed;
+    await saveConfig();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    renderStepsManageList(style);
+  };
+
+  // ===== 저장/불러오기 =====
+  const btnSave = document.getElementById('btn-save');
+  if (btnSave) {
+    btnSave.addEventListener('click', () => {
+      const saved = JSON.parse(localStorage.getItem('drama-saved') || '[]');
+      const style = getCurrentStyle();
+
+      saved.push({
+        date: document.getElementById('drama-date').value,
+        category: currentCategory,
+        styleId: currentStyleId,
+        styleName: style ? style.name : '',
+        benchmarkScript: document.getElementById('benchmark-script').value,
+        results: stepResults,
+        savedAt: new Date().toISOString()
+      });
+
+      localStorage.setItem('drama-saved', JSON.stringify(saved));
+      renderSavedList();
+      alert('✅ 저장되었습니다!');
+    });
+  }
+
+  function renderSavedList() {
+    const saved = JSON.parse(localStorage.getItem('drama-saved') || '[]');
+    const list = document.getElementById('saved-list');
+
+    if (!list) return;
+
+    if (saved.length === 0) {
+      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">저장된 자료가 없습니다.</p>';
+      return;
+    }
+
+    list.innerHTML = saved.map((item, idx) => {
+      const catLabel = getCategoryLabel(item.category);
+      const display = `${item.date} - ${catLabel} - ${item.styleName}`;
+
+      return `
+        <div class="storage-item">
+          <span style="font-size: .85rem;">${display}</span>
+          <div>
+            <button onclick="loadSaved(${idx})" style="margin-right: .3rem;">불러오기</button>
+            <button onclick="deleteSaved(${idx})">삭제</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  window.loadSaved = function(idx) {
+    const saved = JSON.parse(localStorage.getItem('drama-saved') || '[]');
+    const item = saved[idx];
+
+    document.getElementById('drama-date').value = item.date || '';
+    document.getElementById('drama-category').value = item.category || 'short';
+    document.getElementById('benchmark-script').value = item.benchmarkScript || '';
+
+    currentCategory = item.category || 'short';
+    currentStyleId = item.styleId || '';
+    stepResults = item.results || {};
+
+    renderStyles();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+
+    document.querySelectorAll('textarea').forEach(autoResize);
+  };
+
+  window.deleteSaved = function(idx) {
+    if (!confirm('삭제하시겠습니까?')) return;
+    const saved = JSON.parse(localStorage.getItem('drama-saved') || '[]');
+    saved.splice(idx, 1);
+    localStorage.setItem('drama-saved', JSON.stringify(saved));
+    renderSavedList();
+  };
+
+  // ===== textarea 자동 높이 =====
+  document.querySelectorAll('textarea.autosize').forEach(textarea => {
+    textarea.addEventListener('input', () => autoResize(textarea));
+  });
+
+  // ===== 초기화 =====
+  document.addEventListener('DOMContentLoaded', async () => {
+    const dateInput = document.getElementById('drama-date');
+    if (dateInput) {
+      dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    showStatus('☁️ 클라우드 동기화 중...');
+    await loadFromFirebase();
+    hideStatus();
+
+    renderCategories();
+    loadMasterGuide(currentCategory);
+    renderStyles();
+    renderProcessingSteps();
+    renderResultBoxes();
+    renderGuideTabs();
+    renderSavedList();
+
+    document.querySelectorAll('textarea').forEach(autoResize);
+  });
   </script>
 </body>
 </html>
