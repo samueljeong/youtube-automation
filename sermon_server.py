@@ -336,9 +336,26 @@ def api_gpt_pro():
         if not result:
             raise RuntimeError("GPT-5.1 API로부터 결과를 받지 못했습니다.")
 
+        # 결과 앞에 본문과 제목 추가
+        final_result = ""
+
+        # 제목 추가 (있으면 사용, 없으면 참조구절로 자동 생성)
+        if title:
+            final_result += f"설교 제목: {title}\n"
+        else:
+            # 제목이 없으면 참조구절을 기반으로 간단한 제목 생성
+            final_result += f"설교 제목: {reference} 말씀 묵상\n"
+
+        # 본문 추가
+        if reference:
+            final_result += f"본문: {reference}\n"
+
+        final_result += "\n" + "="*50 + "\n\n"
+        final_result += result
+
         print(f"[GPT-PRO] 완료")
 
-        return jsonify({"ok": True, "result": result})
+        return jsonify({"ok": True, "result": final_result})
 
     except Exception as e:
         print(f"[GPT-PRO][ERROR] {str(e)}")
