@@ -158,6 +158,9 @@
       <div class="auth-links">
         {% if session.user_id %}
           <span class="user-info">{{ session.user_name }}님 환영합니다!</span>
+          {% if session.is_admin %}
+            <a href="/admin" class="btn-login">관리자 대시보드</a>
+          {% endif %}
           <a href="/logout" class="btn-logout">로그아웃</a>
         {% else %}
           <a href="/login" class="btn-login">로그인</a>
@@ -183,6 +186,9 @@
         <a href="/message">💬 메시지 페이지로 이동</a>
         <a href="/sermon">🙏 설교 도움 페이지로 이동</a>
         <a href="/drama">🎭 드라마 스크립트 페이지로 이동</a>
+        {% if session.is_admin %}
+          <a href="/admin" style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);">🛡️ 관리자 대시보드</a>
+        {% endif %}
       </div>
     </div>
   </div>

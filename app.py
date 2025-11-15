@@ -39,6 +39,25 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def admin_required(f):
+    """Decorator to require admin privileges"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+
+        # Check if user is admin
+        conn = get_db_connection()
+        user = conn.execute('SELECT is_admin FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        conn.close()
+
+        if not user or not user['is_admin']:
+            flash('관리자 권한이 필요합니다.', 'error')
+            return redirect(url_for('index'))
+
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ===== Sermon Helper Functions =====
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
@@ -296,6 +315,7 @@ def signup():
             session['user_id'] = user['id']
             session['user_email'] = user['email']
             session['user_name'] = user['name']
+            session['is_admin'] = user['is_admin']
 
             flash('회원가입이 완료되었습니다!', 'success')
             return redirect(url_for('index'))
@@ -327,6 +347,7 @@ def login():
             session['user_id'] = user['id']
             session['user_email'] = user['email']
             session['user_name'] = user['name']
+            session['is_admin'] = user['is_admin']
 
             flash(f'{user["name"]}님, 환영합니다!', 'success')
             return redirect(url_for('index'))
@@ -351,6 +372,57 @@ def profile():
     user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
     conn.close()
     return render_template('profile.html', user=user)
+
+# ===== Admin Routes =====
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    """Admin dashboard - 관리자 전용"""
+    conn = get_db_connection()
+    users = conn.execute('SELECT id, email, name, phone, birth_date, is_admin, created_at FROM users ORDER BY created_at DESC').fetchall()
+    conn.close()
+    return render_template('admin.html', users=users)
+
+@app.route('/admin/toggle-admin/<int:user_id>', methods=['POST'])
+@admin_required
+def toggle_admin(user_id):
+    """Toggle admin status for a user"""
+    # Prevent removing your own admin status
+    if user_id == session['user_id']:
+        flash('자신의 관리자 권한은 변경할 수 없습니다.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    user = conn.execute('SELECT is_admin FROM users WHERE id = ?', (user_id,)).fetchone()
+
+    if user:
+        new_status = 0 if user['is_admin'] else 1
+        conn.execute('UPDATE users SET is_admin = ? WHERE id = ?', (new_status, user_id))
+        conn.commit()
+        action = '부여' if new_status else '제거'
+        flash(f'관리자 권한이 {action}되었습니다.', 'success')
+    else:
+        flash('사용자를 찾을 수 없습니다.', 'error')
+
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete-user/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    """Delete a user (admin only)"""
+    # Prevent deleting yourself
+    if user_id == session['user_id']:
+        flash('자신의 계정은 삭제할 수 없습니다.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    flash('사용자가 삭제되었습니다.', 'success')
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/')
 @login_required
