@@ -133,9 +133,6 @@
       align-items: center;
     }
     .status-bar {
-      position: fixed;
-      bottom: 10px;
-      right: 10px;
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 6px;
@@ -143,7 +140,9 @@
       font-size: .8rem;
       box-shadow: 0 2px 6px rgba(0,0,0,.08);
       display: none;
-      z-index: 1000;
+      text-align: center;
+      margin: 0 auto;
+      max-width: 400px;
     }
 
     .modal {
@@ -338,11 +337,14 @@
           <button id="btn-copy-all">전체 복사</button>
         </div>
         <div class="box gpt-pro-box">
-          <div class="box-title">🚀 GPT PRO로 처리</div>
+          <div class="box-title">🚀 GPT 최신 버전 이용</div>
           <div class="box-desc">초안을 완성된 설교문으로 변환합니다</div>
-          <button id="btn-gpt-pro">GPT PRO 실행</button>
+          <button id="btn-gpt-pro">설교문 작성</button>
         </div>
       </div>
+
+      <!-- 상태 표시 -->
+      <div id="status-bar" class="status-bar">작업 중...</div>
 
       <!-- 총괄 지침 영역 -->
       <div class="box" id="master-guide-box">
@@ -404,9 +406,6 @@
       </div>
     </div>
   </div>
-
-  <!-- 상태 표시 -->
-  <div id="status-bar" class="status-bar">작업 중...</div>
 
   <!-- 패스워드 모달 -->
   <div id="modal-password" class="modal">
