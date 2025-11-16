@@ -584,20 +584,21 @@
   async function generateMessage(timeOfDay) {
     const month = document.getElementById('month').value;
     const day = document.getElementById('day').value;
+    const dayOfWeek = document.getElementById('day-of-week').textContent;
     const bibleRef = document.getElementById('bible-ref').value;
     const bibleText = document.getElementById('bible-text').value;
     const guideKey = getGuideKey(timeOfDay);
     const guide = localStorage.getItem(guideKey) || '';
-    
+
     if (!bibleRef || !bibleText) {
       alert('본문과 본문 내용을 입력하세요.');
       return;
     }
-    
+
     const statusIndicator = document.getElementById('status-indicator');
     statusIndicator.style.display = 'block';
     showStatus(`${timeOfDay === 'morning' ? '☀️ 오전' : '🌙 저녁'} 메시지 생성 중...`);
-    
+
     try {
       const response = await fetch('/api/message/generate', {
         method: 'POST',
@@ -605,6 +606,7 @@
         body: JSON.stringify({
           month: month,
           day: day,
+          day_of_week: dayOfWeek,
           bible_ref: bibleRef,
           bible_text: bibleText,
           time_of_day: timeOfDay,
@@ -613,13 +615,17 @@
       });
       
       const data = await response.json();
-      
+
       if (data.ok) {
         const outputId = `${timeOfDay}-message`;
         const textarea = document.getElementById(outputId);
         textarea.value = data.message;
         autoResize(textarea);
-        showStatus('✅ 메시지 생성 완료!');
+        showStatus('✅ 메시지 생성 완료! 이미지 프롬프트 생성 중...');
+
+        // 메시지 생성 완료 후 자동으로 이미지 프롬프트 생성
+        statusIndicator.style.display = 'none';
+        await generateImagePrompts(timeOfDay);
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 생성 실패');

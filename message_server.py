@@ -35,13 +35,14 @@ def api_generate_message():
         
         month = data.get("month", "")
         day = data.get("day", "")
+        day_of_week = data.get("day_of_week", "")
         bible_ref = data.get("bible_ref", "")
         bible_text = data.get("bible_text", "")
         time_of_day = data.get("time_of_day", "morning")  # morning 또는 evening
         guide = data.get("guide", "")
-        
+
         print(f"[GENERATE] {time_of_day} - {bible_ref}")
-        
+
         # 시스템 메시지
         if time_of_day == "morning":
             system_msg = "You help create morning devotional messages in Korean."
@@ -49,7 +50,12 @@ def api_generate_message():
         else:
             system_msg = "You help create evening devotional messages in Korean."
             time_label = "저녁"
-        
+
+        # 날짜 문자열 구성
+        date_str = f"{month}월 {day}일"
+        if day_of_week:
+            date_str += f" {day_of_week}요일"
+
         # GPT 호출
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -60,7 +66,7 @@ def api_generate_message():
                 },
                 {
                     "role": "user",
-                    "content": f"[{time_label} 지침]\n{guide}\n\n[날짜]\n{month}월 {day}일\n\n[본문]\n{bible_ref}\n\n{bible_text}\n\n위 내용을 바탕으로 {time_label} 묵상 메시지를 작성해주세요."
+                    "content": f"[{time_label} 지침]\n{guide}\n\n[날짜]\n{date_str}\n\n[본문]\n{bible_ref}\n\n{bible_text}\n\n위 내용을 바탕으로 {time_label} 묵상 메시지를 작성해주세요."
                 }
             ],
             temperature=0.7,
@@ -107,16 +113,20 @@ def api_image_prompts():
 
 Create 3 image prompts and 1 music prompt in English.
 
+IMPORTANT: The 3 image prompts MUST be in the SAME VISUAL STYLE (same art style, same color palette, same mood).
+They should look like they belong to the same series or collection.
+Only the subject or scene should vary slightly, but the overall style must be consistent.
+
 Format EXACTLY like this:
 
 ### Image Prompt 1
-[detailed English prompt]
+[detailed English prompt with consistent style]
 
 ### Image Prompt 2
-[detailed English prompt]
+[detailed English prompt with the SAME style as prompt 1]
 
 ### Image Prompt 3
-[detailed English prompt]
+[detailed English prompt with the SAME style as prompts 1 and 2]
 
 ### Music Prompt
 [detailed English prompt]"""
