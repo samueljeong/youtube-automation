@@ -114,7 +114,9 @@ CRITICAL RULES:
 출력 형식 예시:
 하나님의 약속을 믿는 믿음
 약속의 땅을 향한 여정
-아브라함의 신앙 결단"""
+아브라함의 신앙 결단
+
+⚠️ 중요: 사용자가 제공하는 세부 지침이 있다면 위 규칙보다 우선하여 반드시 따르세요."""
 
     # 본문 분석 / 연구 단계
     elif '분석' in step_name or '연구' in step_name or '배경' in step_name:
@@ -142,7 +144,9 @@ CRITICAL RULES:
   "summary": "본문 요약"
 }}
 
-JSON만 출력하고 추가 설명은 하지 마세요."""
+JSON만 출력하고 추가 설명은 하지 마세요.
+
+⚠️ 중요: 사용자가 제공하는 세부 지침이 있다면 위 규칙보다 우선하여 반드시 따르세요. 지침에서 요구하는 항목, 형식, 내용 깊이를 정확히 반영하세요."""
 
     # 개요 / 구조 단계
     elif '개요' in step_name or '구조' in step_name or 'outline' in step_lower:
@@ -175,7 +179,9 @@ CRITICAL RULES:
   "conclusion_direction": "결론 방향 키워드"
 }}
 
-JSON만 출력하고 추가 설명은 하지 마세요."""
+JSON만 출력하고 추가 설명은 하지 마세요.
+
+⚠️ 중요: 사용자가 제공하는 세부 지침이 있다면 위 규칙보다 우선하여 반드시 따르세요. 지침에서 요구하는 구조, 항목 수, 형식을 정확히 반영하세요."""
 
     # 설교문 작성이 의심되는 단계 (경고)
     elif any(word in step_name for word in ['서론', '본론', '결론', '적용', '설교문']):
@@ -200,7 +206,9 @@ CRITICAL RULES:
   "emphasis": ["강조할 내용 1", "강조할 내용 2"]
 }}
 
-JSON만 출력하고 추가 설명은 하지 마세요."""
+JSON만 출력하고 추가 설명은 하지 마세요.
+
+⚠️ 중요: 사용자가 제공하는 세부 지침이 있다면 위 규칙보다 우선하여 반드시 따르세요. 지침의 요구사항을 정확히 반영하세요."""
 
     # 기타 단계
     else:
@@ -221,7 +229,9 @@ CRITICAL RULES:
   "references": ["참고 사항"]
 }}
 
-JSON만 출력하고 추가 설명은 하지 마세요."""
+JSON만 출력하고 추가 설명은 하지 마세요.
+
+⚠️ 중요: 사용자가 제공하는 세부 지침이 있다면 위 규칙보다 우선하여 반드시 따르세요. 지침의 요구사항을 정확히 반영하세요."""
 
 @app.route("/")
 def home():
@@ -283,18 +293,27 @@ def api_process_step():
                 user_content += f"\n### {prev_data['name']}\n{prev_data['result']}\n"
             user_content += "\n"
         
-        # 현재 단계 지침 추가
-        if guide:
-            user_content += f"[{step_name} 단계 세부 지침]\n{guide}\n\n"
-        
         # 제목 추천 단계 특별 처리
         if '제목' in step_name:
+            if guide:
+                user_content += f"\n⚠️⚠️⚠️ 중요 지침 ⚠️⚠️⚠️\n"
+                user_content += f"아래 지침을 반드시 따라야 합니다:\n"
+                user_content += f"{guide}\n"
+                user_content += f"{'='*50}\n\n"
             user_content += f"위 성경 본문({reference})에 적합한 설교 제목을 정확히 3개만 제안해주세요.\n"
             user_content += "각 제목은 한 줄로, 번호나 기호 없이 작성하세요."
         else:
+            # 현재 단계 지침 강조
+            if guide:
+                user_content += f"\n⚠️⚠️⚠️ 중요 지침 ⚠️⚠️⚠️\n"
+                user_content += f"아래 지침을 기본 규칙보다 우선하여 반드시 따라야 합니다:\n"
+                user_content += f"{guide}\n"
+                user_content += f"{'='*50}\n\n"
+
             user_content += f"위 내용을 바탕으로 '{step_name}' 단계를 작성해주세요.\n"
-            user_content += "⚠️ 중요: 완성된 설교 문단이 아닌, 자료와 구조만 제공하세요."
-        
+            if not guide:
+                user_content += "⚠️ 중요: 완성된 설교 문단이 아닌, 자료와 구조만 제공하세요.\n"
+
         if title and '제목' not in step_name:
             user_content += f"\n제목 '{title}'을 고려하여 작성하세요."
         
