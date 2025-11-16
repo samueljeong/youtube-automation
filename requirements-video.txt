@@ -1,0 +1,9 @@
+# Optional video service dependencies
+# These require system dependencies (ffmpeg, etc.)
+# Install only if you need video generation features:
+# pip install -r requirements-video.txt
+
+moviepy==1.0.3
+google-auth==2.34.0
+google-auth-oauthlib==1.2.1
+google-api-python-client==2.149.0
