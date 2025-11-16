@@ -469,10 +469,9 @@ def delete_user(user_id):
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/')
-@login_required
 def index():
-    """Home page - 비공개"""
-    return render_template('index.html')
+    """Home page - Bible Drama로 리다이렉트"""
+    return redirect(url_for('bible_drama'))
 
 @app.route('/bible')
 @login_required
@@ -1106,14 +1105,12 @@ def api_drama_script():
 
 # ===== Bible Drama API Routes =====
 @app.route('/bible-drama')
-@login_required
 def bible_drama():
     """Bible Drama page - 성경 드라마 자동 생성"""
     return render_template('bible_drama.html')
 
 
 @app.route('/api/bible-drama/generate', methods=['POST'])
-@login_required
 def api_bible_drama_generate():
     """성경 본문 기반 20분 드라마 자동 생성"""
     try:
@@ -1298,7 +1295,7 @@ def api_bible_drama_generate():
             raise RuntimeError("GPT-4o API로부터 대본을 받지 못했습니다.")
 
         # 데이터베이스에 저장
-        user_id = session.get('user_id')
+        user_id = None  # 로그인 없이 사용 가능
         conn = get_db_connection()
 
         try:
@@ -1344,16 +1341,12 @@ def api_bible_drama_generate():
 
 
 @app.route('/api/bible-drama/list', methods=['GET'])
-@login_required
 def api_bible_drama_list():
-    """사용자의 성경 드라마 목록 조회"""
+    """성경 드라마 목록 조회"""
     try:
-        user_id = session.get('user_id')
-
         conn = get_db_connection()
         dramas = conn.execute(
-            'SELECT id, scripture_reference, drama_title, duration_minutes, created_at FROM bible_dramas WHERE user_id = ? ORDER BY created_at DESC',
-            (user_id,)
+            'SELECT id, scripture_reference, drama_title, duration_minutes, created_at FROM bible_dramas ORDER BY created_at DESC'
         ).fetchall()
         conn.close()
 
@@ -1368,16 +1361,13 @@ def api_bible_drama_list():
 
 
 @app.route('/api/bible-drama/<int:drama_id>', methods=['GET'])
-@login_required
 def api_bible_drama_get(drama_id):
     """특정 성경 드라마 조회"""
     try:
-        user_id = session.get('user_id')
-
         conn = get_db_connection()
         drama = conn.execute(
-            'SELECT * FROM bible_dramas WHERE id = ? AND user_id = ?',
-            (drama_id, user_id)
+            'SELECT * FROM bible_dramas WHERE id = ?',
+            (drama_id,)
         ).fetchone()
         conn.close()
 

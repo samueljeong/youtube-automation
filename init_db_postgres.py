@@ -81,7 +81,7 @@ def init_postgres_database():
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS bible_dramas (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER REFERENCES users(id),
+                user_id INTEGER NULL,
                 scripture_reference VARCHAR(200) NOT NULL,
                 scripture_text TEXT NOT NULL,
                 drama_title VARCHAR(500),
