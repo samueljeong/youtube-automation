@@ -1332,5 +1332,153 @@ def api_list_videos():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+# ===== Bible Drama Routes =====
+@app.route('/bible-drama')
+@login_required
+def bible_drama():
+    """Bible Drama Generation Page"""
+    return render_template('bible_drama.html')
+
+
+@app.route('/api/bible-drama/generate', methods=['POST'])
+@login_required
+def api_bible_drama_generate():
+    """Generate Bible drama script"""
+    try:
+        if not openai_client:
+            return jsonify({"ok": False, "error": "OpenAI API key not configured"}), 500
+
+        data = request.get_json()
+        scripture_reference = data.get("scriptureReference", "")
+        scripture_text = data.get("scriptureText", "")
+
+        if not scripture_reference or not scripture_text:
+            return jsonify({"ok": False, "error": "성경 구절과 본문을 입력해주세요"}), 400
+
+        print(f"[BIBLE-DRAMA] 생성 시작 - {scripture_reference}")
+
+        # Step 1: Generate synopsis using GPT-4o-mini
+        synopsis_prompt = f"""다음 성경 본문을 바탕으로 20분 분량의 드라마 시놉시스를 작성해주세요.
+
+성경 구절: {scripture_reference}
+성경 본문:
+{scripture_text}
+
+성경의 사실을 정확히 따르되, 드라마틱한 요소를 강화하세요. 20분 분량에 맞게 3막 구조로 구성하세요."""
+
+        synopsis_completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 성경 드라마 전문 작가입니다."},
+                {"role": "user", "content": synopsis_prompt}
+            ],
+            temperature=0.8,
+        )
+
+        synopsis = synopsis_completion.choices[0].message.content.strip()
+
+        # Step 2: Generate full script using GPT-4o-mini
+        script_prompt = f"""다음 시놉시스를 바탕으로 20분 분량의 완전한 드라마 대본을 작성해주세요.
+
+성경 구절: {scripture_reference}
+시놉시스:
+{synopsis}
+
+실제 촬영 가능한 수준의 구체적인 대본을 작성하세요. 각 장면마다 장면 번호, 시간/장소, 지문, 대사를 포함하세요."""
+
+        script_completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 성경 드라마 전문 대본 작가입니다."},
+                {"role": "user", "content": script_prompt}
+            ],
+            temperature=0.8,
+            max_tokens=8000
+        )
+
+        full_script = script_completion.choices[0].message.content.strip()
+
+        # Save to database
+        user_id = session.get('user_id')
+        conn = get_db_connection()
+
+        try:
+            cursor = conn.execute('''
+                INSERT INTO bible_dramas
+                (user_id, scripture_reference, scripture_text, synopsis, full_script)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, scripture_reference, scripture_text, synopsis, full_script))
+
+            drama_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else cursor._cursor.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+        print(f"[BIBLE-DRAMA] 생성 완료 - ID: {drama_id}")
+
+        return jsonify({
+            "ok": True,
+            "drama_id": drama_id,
+            "synopsis": synopsis,
+            "full_script": full_script,
+            "message": "성경 드라마가 성공적으로 생성되었습니다!"
+        })
+
+    except Exception as e:
+        print(f"[BIBLE-DRAMA][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/bible-drama/list', methods=['GET'])
+@login_required
+def api_bible_drama_list():
+    """Get user's bible dramas"""
+    try:
+        user_id = session.get('user_id')
+        conn = get_db_connection()
+        dramas = conn.execute(
+            'SELECT id, scripture_reference, created_at FROM bible_dramas WHERE user_id = ? ORDER BY created_at DESC',
+            (user_id,)
+        ).fetchall()
+        conn.close()
+
+        return jsonify({
+            'ok': True,
+            'dramas': [dict(d) for d in dramas]
+        })
+
+    except Exception as e:
+        print(f"[BIBLE-DRAMA-LIST][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/bible-drama/<int:drama_id>', methods=['GET'])
+@login_required
+def api_bible_drama_get(drama_id):
+    """Get specific bible drama"""
+    try:
+        user_id = session.get('user_id')
+        conn = get_db_connection()
+        drama = conn.execute(
+            'SELECT * FROM bible_dramas WHERE id = ? AND user_id = ?',
+            (drama_id, user_id)
+        ).fetchone()
+        conn.close()
+
+        if not drama:
+            return jsonify({'ok': False, 'error': '드라마를 찾을 수 없습니다.'}), 404
+
+        return jsonify({
+            'ok': True,
+            'drama': dict(drama)
+        })
+
+    except Exception as e:
+        print(f"[BIBLE-DRAMA-GET][ERROR] {str(e)}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(debug=True)

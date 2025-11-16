@@ -77,6 +77,24 @@ def init_postgres_database():
             )
         ''')
 
+        # Create bible_dramas table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bible_dramas (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                scripture_reference VARCHAR(200) NOT NULL,
+                scripture_text TEXT NOT NULL,
+                synopsis TEXT,
+                full_script TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_bible_dramas_user_id
+            ON bible_dramas(user_id)
+        ''')
+
         conn.commit()
         cursor.close()
         conn.close()

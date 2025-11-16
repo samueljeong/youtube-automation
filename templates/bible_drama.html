@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>성경 드라마 생성</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: .5rem;
+      color: #555;
+    }
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: .75rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+    button {
+      padding: 1rem 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      display: none;
+    }
+    .result h3 {
+      margin-bottom: .75rem;
+      color: #667eea;
+    }
+    .result pre {
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .nav {
+      margin-bottom: 1rem;
+    }
+    .nav a {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav">
+      <a href="/">← 홈으로</a>
+    </div>
+
+    <h1>📖 성경 드라마 자동 생성</h1>
+
+    <div class="form-group">
+      <label for="scripture-reference">성경 구절 *</label>
+      <input type="text" id="scripture-reference" placeholder="예: 창세기 1:1-5" required>
+    </div>
+
+    <div class="form-group">
+      <label for="scripture-text">성경 본문 *</label>
+      <textarea id="scripture-text" placeholder="성경 본문을 입력하세요..." required></textarea>
+    </div>
+
+    <button id="btn-generate">🚀 드라마 생성하기</button>
+
+    <div class="result" id="result">
+      <h3>📝 시놉시스</h3>
+      <pre id="synopsis"></pre>
+
+      <h3 style="margin-top: 1.5rem;">🎭 완전한 대본</h3>
+      <pre id="script"></pre>
+    </div>
+  </div>
+
+  <script>
+    const btnGenerate = document.getElementById('btn-generate');
+    const resultDiv = document.getElementById('result');
+
+    btnGenerate.addEventListener('click', async () => {
+      const reference = document.getElementById('scripture-reference').value.trim();
+      const text = document.getElementById('scripture-text').value.trim();
+
+      if (!reference || !text) {
+        alert('성경 구절과 본문을 입력해주세요.');
+        return;
+      }
+
+      btnGenerate.disabled = true;
+      btnGenerate.textContent = '⏳ 생성 중... (약 30초 소요)';
+
+      try {
+        const response = await fetch('/api/bible-drama/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scriptureReference: reference,
+            scriptureText: text
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          document.getElementById('synopsis').textContent = data.synopsis;
+          document.getElementById('script').textContent = data.full_script;
+          resultDiv.style.display = 'block';
+        } else {
+          alert('오류: ' + data.error);
+        }
+      } catch (error) {
+        alert('네트워크 오류: ' + error.message);
+      } finally {
+        btnGenerate.disabled = false;
+        btnGenerate.textContent = '🚀 드라마 생성하기';
+      }
+    });
+  </script>
+</body>
+</html>
