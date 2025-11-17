@@ -1,4 +1,5 @@
 import os
+import requests
 from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 
@@ -11,6 +12,9 @@ def get_client():
     return OpenAI(api_key=key)
 
 client = get_client()
+
+# Unsplash API 설정 (무료)
+UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")  # 환경변수에서 가져오기
 
 @app.route("/")
 def home():
@@ -214,6 +218,79 @@ Format EXACTLY like this:
         
     except Exception as e:
         print(f"[IMAGE_PROMPTS][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 무료 이미지 검색 API (Unsplash) =====
+@app.route("/api/message/generate-images", methods=["POST"])
+def api_generate_images():
+    """Unsplash에서 무료 이미지 검색 (HTML에서 호출)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        image_prompts = data.get("image_prompts", [])
+
+        if not image_prompts or len(image_prompts) != 3:
+            return jsonify({"ok": False, "error": "3개의 이미지 프롬프트가 필요합니다"}), 400
+
+        print(f"[GENERATE_IMAGES] Searching {len(image_prompts)} images from Unsplash")
+
+        image_urls = []
+
+        # Unsplash API 키가 없으면 Lorem Picsum 사용
+        use_unsplash = bool(UNSPLASH_ACCESS_KEY)
+
+        for i, prompt in enumerate(image_prompts):
+            print(f"[GENERATE_IMAGES] Image {i+1}: {prompt[:50]}...")
+
+            if use_unsplash:
+                # Unsplash API로 검색
+                # 프롬프트에서 키워드 추출 (간단히 처음 3단어)
+                keywords = ' '.join(prompt.split()[:5])
+
+                try:
+                    response = requests.get(
+                        "https://api.unsplash.com/photos/random",
+                        params={
+                            "query": keywords,
+                            "orientation": "landscape",
+                            "count": 1
+                        },
+                        headers={
+                            "Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"
+                        },
+                        timeout=10
+                    )
+
+                    if response.status_code == 200:
+                        result = response.json()
+                        if isinstance(result, list) and len(result) > 0:
+                            image_url = result[0]["urls"]["regular"]
+                        else:
+                            image_url = result["urls"]["regular"]
+                    else:
+                        # 실패시 Lorem Picsum 사용
+                        image_url = f"https://picsum.photos/1024/768?random={i+1}"
+
+                except Exception as e:
+                    print(f"[GENERATE_IMAGES] Unsplash error: {e}")
+                    image_url = f"https://picsum.photos/1024/768?random={i+1}"
+            else:
+                # Unsplash 키가 없으면 Lorem Picsum 사용
+                image_url = f"https://picsum.photos/1024/768?random={i+1}"
+
+            image_urls.append(image_url)
+            print(f"[GENERATE_IMAGES] Image {i+1} URL: {image_url[:50]}...")
+
+        return jsonify({
+            "ok": True,
+            "images": image_urls
+        })
+
+    except Exception as e:
+        print(f"[GENERATE_IMAGES][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 

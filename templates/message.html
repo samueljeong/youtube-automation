@@ -331,6 +331,11 @@
       </div>
       <textarea id="morning-music" class="autosize" style="min-height: 60px;" placeholder="Music prompt" readonly></textarea>
     </div>
+
+    <!-- 실제 이미지 표시 영역 -->
+    <div id="morning-images-display" style="display: none; margin-top: 1.5rem;">
+      <div style="font-size: .9rem; color: #94a3b8; margin-bottom: .75rem; font-weight: 600;">📸 생성된 이미지</div>
+    </div>
   </div>
 
   <div class="box">
@@ -366,6 +371,11 @@
         <button class="copy-btn" data-copy="evening-music">📋 복사</button>
       </div>
       <textarea id="evening-music" class="autosize" style="min-height: 60px;" placeholder="Music prompt" readonly></textarea>
+    </div>
+
+    <!-- 실제 이미지 표시 영역 -->
+    <div id="evening-images-display" style="display: none; margin-top: 1.5rem;">
+      <div style="font-size: .9rem; color: #94a3b8; margin-bottom: .75rem; font-weight: 600;">📸 생성된 이미지</div>
     </div>
   </div>
 </div>
@@ -685,13 +695,16 @@
         document.getElementById(`${timeOfDay}-img-2`).value = data.image2;
         document.getElementById(`${timeOfDay}-img-3`).value = data.image3;
         document.getElementById(`${timeOfDay}-music`).value = data.music;
-        
+
         [1, 2, 3].forEach(i => {
           autoResize(document.getElementById(`${timeOfDay}-img-${i}`));
         });
         autoResize(document.getElementById(`${timeOfDay}-music`));
-        
-        showStatus('✅ 이미지 프롬프트 생성 완료!');
+
+        showStatus('✅ 이미지 프롬프트 생성 완료! 실제 이미지 가져오는 중...');
+
+        // 실제 이미지 생성 (무료 이미지 검색)
+        await fetchActualImages(timeOfDay, [data.image1, data.image2, data.image3]);
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 생성 실패');
@@ -703,6 +716,63 @@
       statusIndicator.style.display = 'none';
       setTimeout(hideStatus, 2000);
     }
+  }
+
+  // ===== 실제 이미지 가져오기 =====
+  async function fetchActualImages(timeOfDay, imagePrompts) {
+    try {
+      showStatus('🖼️ 무료 이미지 검색 중...');
+
+      const response = await fetch('/api/message/generate-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_prompts: imagePrompts
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 이미지를 화면에 표시
+        displayImages(timeOfDay, data.images);
+        showStatus('✅ 이미지 가져오기 완료!');
+      } else {
+        console.error('이미지 가져오기 실패:', data.error);
+        showStatus('⚠️ 이미지 가져오기 실패');
+      }
+    } catch (err) {
+      console.error('이미지 가져오기 오류:', err);
+      showStatus('⚠️ 이미지 가져오기 오류');
+    } finally {
+      setTimeout(hideStatus, 2000);
+    }
+  }
+
+  // ===== 이미지 화면에 표시 =====
+  function displayImages(timeOfDay, imageUrls) {
+    const container = document.getElementById(`${timeOfDay}-images-display`);
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    imageUrls.forEach((url, index) => {
+      const imgContainer = document.createElement('div');
+      imgContainer.style.marginBottom = '1rem';
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = `Image ${index + 1}`;
+      img.style.width = '100%';
+      img.style.borderRadius = '8px';
+      img.style.cursor = 'pointer';
+      img.onclick = () => window.open(url, '_blank');
+
+      imgContainer.appendChild(img);
+      container.appendChild(imgContainer);
+    });
+
+    container.style.display = 'block';
   }
 
   document.getElementById('btn-morning-img').addEventListener('click', () => generateImagePrompts('morning'));
