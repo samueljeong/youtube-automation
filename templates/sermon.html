@@ -917,19 +917,24 @@
   function loadGuide(category, stepId) {
     const key = getGuideKey(category, stepId);
     const legacyKey = `guide-${category}-${stepId}`;
+    const migrationKey = `guide-migrated-${category}`;
     let stored = localStorage.getItem(key);
 
     if (!stored) {
       const legacyValue = localStorage.getItem(legacyKey);
-      const settings = config.categorySettings[category];
-      const styles = settings && settings.styles ? settings.styles : [];
+      const migrationTarget = localStorage.getItem(migrationKey);
 
-      // 다수의 스타일이 있는 경우, 구버전 데이터가 다른 스타일로 잘못 복제되지 않도록 무시
-      if (legacyValue && styles.length <= 1) {
+      if (legacyValue && (!migrationTarget || migrationTarget === currentStyleId)) {
         stored = legacyValue;
         // 스타일 단위로 키를 분리하면서 기존 데이터를 현재 스타일로 승격
         localStorage.setItem(key, stored);
         saveToFirebase(key, stored);
+
+        if (!migrationTarget) {
+          const targetStyle = currentStyleId || 'default';
+          localStorage.setItem(migrationKey, targetStyle);
+          saveToFirebase(migrationKey, targetStyle);
+        }
       }
     }
 
