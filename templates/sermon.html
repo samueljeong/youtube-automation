@@ -909,13 +909,31 @@
   }
 
   // ===== 지침 관리 =====
-  function getGuideKey(category, stepId) {
-    return `guide-${category}-${stepId}`;
+  function getGuideKey(category, stepId, styleId = currentStyleId) {
+    const stylePart = styleId || 'default';
+    return `guide-${category}-${stylePart}-${stepId}`;
   }
 
   function loadGuide(category, stepId) {
     const key = getGuideKey(category, stepId);
-    const stored = localStorage.getItem(key) || '';
+    const legacyKey = `guide-${category}-${stepId}`;
+    let stored = localStorage.getItem(key);
+
+    if (!stored) {
+      const legacyValue = localStorage.getItem(legacyKey);
+      const settings = config.categorySettings[category];
+      const styles = settings && settings.styles ? settings.styles : [];
+
+      // 다수의 스타일이 있는 경우, 구버전 데이터가 다른 스타일로 잘못 복제되지 않도록 무시
+      if (legacyValue && styles.length <= 1) {
+        stored = legacyValue;
+        // 스타일 단위로 키를 분리하면서 기존 데이터를 현재 스타일로 승격
+        localStorage.setItem(key, stored);
+        saveToFirebase(key, stored);
+      }
+    }
+
+    stored = stored || '';
     const textarea = document.getElementById('guide-text');
     if (textarea) {
       textarea.value = stored;
@@ -1313,6 +1331,10 @@
     const container = document.getElementById('guide-tabs');
 
     if (!container) return;
+
+    if (!steps.find(step => step.id === currentGuideStep)) {
+      currentGuideStep = steps.length > 0 ? steps[0].id : '';
+    }
 
     container.innerHTML = steps.map(step =>
       `<button class="${step.id === currentGuideStep ? 'primary' : ''}"
