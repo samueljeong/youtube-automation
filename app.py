@@ -184,9 +184,8 @@ def remove_markdown(text):
 
 def get_system_prompt_for_step(step_name):
     """
-    단계별로 최적화된 system prompt 반환
-    mini는 개요와 자료만 생성, 설교문 작성 금지
-    JSON 형식으로 응답
+    단계별 기본 system prompt 반환
+    사용자의 guide를 최우선으로 따르도록 설계
     """
     step_lower = step_name.lower()
 
@@ -205,112 +204,18 @@ CRITICAL RULES:
 약속의 땅을 향한 여정
 아브라함의 신앙 결단"""
 
-    # 본문 분석 / 연구 단계
-    elif '분석' in step_name or '연구' in step_name or '배경' in step_name:
-        return f"""당신은 gpt-4o-mini로서 설교 '초안 자료'만 준비하는 역할입니다.
-
-현재 단계: {step_name}
-
-CRITICAL RULES:
-1. 객관적인 성경 연구 자료만 제공하세요
-2. 반드시 JSON 형식으로 응답하세요
-3. 설교문 형식으로 작성하지 마세요
-4. 감동적인 표현이나 적용 내용 금지
-5. 순수한 연구 자료만 제공
-
-응답은 반드시 다음 JSON 형식을 따르세요:
-{{
-  "background": "시대적/지리적/문화적 배경",
-  "context_before": "본문 이전 맥락",
-  "context_after": "본문 이후 맥락",
-  "characters": "등장인물과 역할",
-  "key_words": "핵심 단어 분석",
-  "structure": "본문 구조 분석",
-  "cross_references": "관련 성경구절",
-  "theological_themes": "신학적 주제",
-  "summary": "본문 요약"
-}}
-
-JSON만 출력하고 추가 설명은 하지 마세요."""
-
-    # 개요 / 구조 단계
-    elif '개요' in step_name or '구조' in step_name or 'outline' in step_lower:
-        return f"""당신은 gpt-4o-mini로서 설교 '개요'만 작성하는 역할입니다.
-
-현재 단계: {step_name}
-
-CRITICAL RULES:
-1. 설교의 뼈대만 제시하세요
-2. 반드시 JSON 형식으로 응답하세요
-3. 문단 형태의 설교문은 절대 작성하지 마세요
-4. 구조와 주제 문장만 제시하세요
-
-응답은 반드시 다음 JSON 형식을 따르세요:
-{{
-  "big_idea": "한 문장으로 핵심 메시지",
-  "intro_points": ["서론 포인트 1", "서론 포인트 2"],
-  "point1": {{
-    "title": "1대지 주제 문장",
-    "sub_points": ["소대지 1", "소대지 2"]
-  }},
-  "point2": {{
-    "title": "2대지 주제 문장",
-    "sub_points": ["소대지 1", "소대지 2"]
-  }},
-  "point3": {{
-    "title": "3대지 주제 문장",
-    "sub_points": ["소대지 1", "소대지 2"]
-  }},
-  "conclusion_direction": "결론 방향 키워드"
-}}
-
-JSON만 출력하고 추가 설명은 하지 마세요."""
-
-    # 설교문 작성이 의심되는 단계 (경고)
-    elif any(word in step_name for word in ['서론', '본론', '결론', '적용', '설교문']):
-        return f"""당신은 gpt-4o-mini로서 설교 '자료'만 준비하는 역할입니다.
-
-⚠️ 중요: 완성된 설교 문단은 작성하지 마세요!
-
-현재 단계: {step_name}
-
-CRITICAL RULES:
-1. 이 단계는 GPT-5.1에서 최종 작성될 부분입니다
-2. 당신은 자료와 포인트만 제공하세요
-3. 반드시 JSON 형식으로 응답하세요
-4. 자연스러운 설교 문장 작성 금지
-5. 감동적인 표현 금지
-
-응답은 반드시 다음 JSON 형식을 따르세요:
-{{
-  "core_message": "핵심 메시지 (한 문장)",
-  "key_points": ["포인트 1", "포인트 2", "포인트 3"],
-  "scripture_references": ["구절 1", "구절 2"],
-  "emphasis": ["강조할 내용 1", "강조할 내용 2"]
-}}
-
-JSON만 출력하고 추가 설명은 하지 마세요."""
-
-    # 기타 단계
+    # 모든 다른 단계 - 기본 역할만 명시
     else:
         return f"""당신은 gpt-4o-mini로서 설교 '초안 자료'만 준비하는 역할입니다.
 
 현재 단계: {step_name}
 
-CRITICAL RULES:
-1. 자료와 정보만 제공하세요
-2. 완성된 설교문은 작성하지 마세요
-3. 반드시 JSON 형식으로 응답하세요
-4. 객관적 내용만 제시하세요
+기본 역할:
+- 완성된 설교 문단이 아닌, 자료와 구조만 제공
+- 사용자가 제공하는 세부 지침을 최우선으로 따름
+- 지침이 없는 경우에만 일반적인 설교 자료 형식 사용
 
-응답은 반드시 다음 JSON 형식을 따르세요:
-{{
-  "content": "자료 내용",
-  "points": ["포인트 1", "포인트 2"],
-  "references": ["참고 사항"]
-}}
-
-JSON만 출력하고 추가 설명은 하지 마세요."""
+⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
 
 def get_drama_system_prompt_for_step(step_name):
     """
@@ -726,6 +631,15 @@ def api_process_step():
             system_content += f"【 현재 단계 역할 】\n{step_name}\n\n"
             system_content += "위 총괄 지침을 참고하여, 현재 단계의 역할과 비중에 맞게 '자료만' 작성하세요."
 
+        # ★ 중요: 단계별 세부 지침을 시스템 프롬프트에 포함 (최우선 지침)
+        if guide:
+            system_content += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            system_content += f"【 최우선 지침: {step_name} 단계 세부 지침 】\n"
+            system_content += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            system_content += guide
+            system_content += f"\n\n위 지침을 절대적으로 우선하여 따라야 합니다."
+            system_content += f"\n이 지침이 기본 역할과 충돌하면, 이 지침을 따르세요."
+
         # 사용자 메시지 구성
         user_content = f"[성경구절]\n{reference}\n\n"
 
@@ -744,22 +658,18 @@ def api_process_step():
                 user_content += f"\n### {prev_data['name']}\n{prev_data['result']}\n"
             user_content += "\n"
 
-        # 현재 단계 지침 추가
-        if guide:
-            user_content += f"[{step_name} 단계 세부 지침]\n{guide}\n\n"
-
         # 제목 추천 단계 특별 처리
         if '제목' in step_name:
             user_content += f"위 성경 본문({reference})에 적합한 설교 제목을 정확히 3개만 제안해주세요.\n"
             user_content += "각 제목은 한 줄로, 번호나 기호 없이 작성하세요."
         else:
             user_content += f"위 내용을 바탕으로 '{step_name}' 단계를 작성해주세요.\n"
-            user_content += "⚠️ 중요: 완성된 설교 문단이 아닌, 자료와 구조만 제공하세요."
 
         if title and '제목' not in step_name:
             user_content += f"\n제목 '{title}'을 고려하여 작성하세요."
 
         # GPT 호출 (gpt-4o-mini)
+        # JSON 형식 강제하지 않음 - guide에 따라 자유롭게 출력
         completion = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -773,7 +683,6 @@ def api_process_step():
                 }
             ],
             temperature=0.7,
-            response_format={"type": "json_object"} if '제목' not in step_name else None,
         )
 
         result = completion.choices[0].message.content.strip()
@@ -783,7 +692,7 @@ def api_process_step():
             result = remove_markdown(result)
             return jsonify({"ok": True, "result": result})
 
-        # JSON 파싱 시도
+        # JSON 파싱 시도 (선택적)
         try:
             # JSON 코드 블록 제거 (```json ... ``` 형태)
             cleaned_result = result
@@ -803,15 +712,15 @@ def api_process_step():
             # JSON을 보기 좋은 텍스트로 변환
             formatted_result = format_json_result(json_data)
 
-            print(f"[PROCESS][SUCCESS] JSON 파싱 성공")
+            print(f"[PROCESS][SUCCESS] JSON 형식으로 응답받아 포맷팅 완료")
             return jsonify({"ok": True, "result": formatted_result})
 
         except json.JSONDecodeError as je:
-            # JSON 파싱 실패 시 원본 텍스트를 마크다운 제거하여 반환
-            print(f"[PROCESS][WARNING] JSON 파싱 실패: {str(je)}")
-            print(f"[PROCESS][WARNING] 원본 결과: {result[:200]}...")
+            # JSON 파싱 실패 시 원본 텍스트를 반환 (정상 처리)
+            # guide에서 텍스트 형식을 요구했을 수 있으므로 오류가 아님
+            print(f"[PROCESS][INFO] 텍스트 형식으로 응답받음 (JSON 아님)")
             result = remove_markdown(result)
-            return jsonify({"ok": True, "result": result, "warning": "JSON 형식이 아닌 결과가 반환되었습니다."})
+            return jsonify({"ok": True, "result": result})
 
     except Exception as e:
         print(f"[PROCESS][ERROR] {str(e)}")
