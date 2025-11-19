@@ -18,7 +18,7 @@
       height: 100vh;
     }
     .left-col {
-      width: 360px;
+      width: 280px;
       display: flex;
       flex-direction: column;
       gap: .75rem;
@@ -38,8 +38,8 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      gap: .75rem;
-      padding-bottom: .75rem;
+      gap: .5rem;
+      padding-bottom: .5rem;
       border-bottom: 2px solid #e0e0e0;
       background: #f5f5f5;
     }
@@ -58,7 +58,7 @@
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 8px;
-      padding: .75rem;
+      padding: .6rem;
     }
     .label-row {
       display: flex;
@@ -108,6 +108,8 @@
     button.step-btn {
       width: 100%;
       margin-bottom: .5rem;
+      text-align: left;
+      padding-left: .8rem;
     }
 
     .style-item {
@@ -242,7 +244,7 @@
     }
     .top-buttons-container .box {
       flex: 1;
-      padding: 1rem;
+      padding: .7rem;
       border: none;
     }
     .copy-all-box {
@@ -268,13 +270,13 @@
     .top-buttons-container .box-title {
       color: white;
       font-weight: 600;
-      font-size: 1.1rem;
-      margin-bottom: .3rem;
+      font-size: .95rem;
+      margin-bottom: .25rem;
     }
     .top-buttons-container .box-desc {
       color: rgba(255,255,255,0.9);
-      font-size: .85rem;
-      margin-bottom: .75rem;
+      font-size: .8rem;
+      margin-bottom: .5rem;
     }
 
     /* Auth header */
@@ -350,6 +352,13 @@
     }
     .guide-row-container .box {
       flex: 1;
+    }
+
+    /* 지침 영역 스크롤 */
+    #master-guide-content,
+    #guide-content {
+      max-height: 300px;
+      overflow-y: auto;
     }
 
     /* 처리 단계 + Q&A 50:50 분할 */
@@ -460,12 +469,14 @@
       .left-col {
         width: 100%;
         overflow-y: visible;
+        order: 2; /* 모바일에서 Top 영역 다음에 위치 */
       }
 
       .right-col {
         width: 100%;
         overflow: visible;
         height: auto;
+        order: 1; /* 모바일에서 먼저 위치 */
       }
 
       /* 모바일에서는 Top 영역도 스크롤 가능하게 */
@@ -888,6 +899,43 @@
       <div class="modal-buttons">
         <button id="btn-cancel-password">취소</button>
         <button id="btn-submit-password" class="primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사용 가이드 모달 -->
+  <div id="modal-guide" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-title">📖 사용 가이드</div>
+      <div style="color: #555; font-size: .9rem; line-height: 1.6; margin-bottom: 1rem;">
+        <h3 style="margin-top: 0; font-size: 1rem; color: #333;">환영합니다! 이 페이지의 사용 방법을 안내해 드립니다.</h3>
+
+        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
+          <strong>1️⃣ 카테고리 선택</strong><br>
+          왼쪽 영역에서 카테고리를 선택하고 날짜와 본문 정보를 입력하세요.
+        </div>
+
+        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
+          <strong>2️⃣ 처리 단계 설정</strong><br>
+          "처리 단계 관리" 버튼을 클릭하여 단계를 추가하고, 각 단계별 지침을 작성하세요.
+        </div>
+
+        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
+          <strong>3️⃣ 처리 실행</strong><br>
+          처리 단계 버튼을 순서대로 클릭하면 AI가 각 단계를 수행합니다.
+        </div>
+
+        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
+          <strong>4️⃣ 결과 확인</strong><br>
+          처리 결과는 오른쪽 Content 영역에 표시됩니다. Q&A 기능으로 추가 질문도 가능합니다.
+        </div>
+
+        <div style="background: #fff4cc; padding: .75rem; border-radius: 6px; border: 1px solid #ffe08a;">
+          <strong>💡 팁:</strong> 상단의 보라색/분홍색 버튼으로 전체 내용을 복사하거나 GPT PRO로 설교문을 작성할 수 있습니다.
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button id="btn-close-guide" class="primary" style="flex: 1;">시작하기</button>
       </div>
     </div>
   </div>
@@ -2158,6 +2206,15 @@
     });
   }
 
+  // 사용 가이드 모달 닫기
+  const btnCloseGuide = document.getElementById('btn-close-guide');
+  if (btnCloseGuide) {
+    btnCloseGuide.addEventListener('click', () => {
+      const modal = document.getElementById('modal-guide');
+      if (modal) modal.classList.remove('show');
+    });
+  }
+
   const passwordInput = document.getElementById('password-input');
   if (passwordInput) {
     passwordInput.addEventListener('keypress', (e) => {
@@ -2951,6 +3008,16 @@
     renderResultBoxes();
     renderGuideTabs();
     renderSavedList();
+
+    // 첫 방문자 가이드 표시
+    const hasVisited = localStorage.getItem('sermon-guide-shown');
+    if (!hasVisited) {
+      const modal = document.getElementById('modal-guide');
+      if (modal) {
+        modal.classList.add('show');
+        localStorage.setItem('sermon-guide-shown', 'true');
+      }
+    }
 
     // 실시간 동기화 시작
     console.log('🔄 실시간 동기화 활성화');
