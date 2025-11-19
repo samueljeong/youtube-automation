@@ -532,6 +532,15 @@
       <!-- 상태 표시 -->
       <div id="status-bar" class="status-bar">작업 중...</div>
 
+      <!-- 백업/복원 버튼 -->
+      <div class="box" style="padding: .5rem;">
+        <div class="btn-row" style="gap: .5rem;">
+          <button id="btn-export-backup" style="flex: 1; font-size: .85rem;">💾 백업 다운로드</button>
+          <button id="btn-import-backup" style="flex: 1; font-size: .85rem;">📥 백업 복원</button>
+        </div>
+        <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+      </div>
+
       <!-- 지침 영역 (50:50 분할) -->
       <div class="guide-row-container">
         <!-- 총괄 지침 영역 -->
@@ -851,7 +860,7 @@
     el.style.height = el.scrollHeight + 'px';
   }
 
-  // ===== Firebase 함수 =====
+  // ===== Firebase 함수 (재시도 로직 포함) =====
   async function loadFromFirebase() {
     try {
       const snapshot = await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).get();
@@ -875,7 +884,10 @@
     }
   }
 
-  async function saveToFirebase(key, value) {
+  async function saveToFirebase(key, value, retries = 0) {
+    const MAX_RETRIES = 4;
+    const RETRY_DELAYS = [2000, 4000, 8000, 16000]; // exponential backoff
+
     try {
       await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).doc(key).set({
         value: value,
@@ -883,7 +895,19 @@
       });
       return true;
     } catch (err) {
-      console.error('Firebase 저장 실패:', err);
+      console.error(`Firebase 저장 실패 (시도 ${retries + 1}/${MAX_RETRIES + 1}):`, err);
+
+      // 네트워크 오류인 경우에만 재시도
+      const isNetworkError = err.code === 'unavailable' || err.code === 'deadline-exceeded' ||
+                             err.message.includes('network') || err.message.includes('offline');
+
+      if (isNetworkError && retries < MAX_RETRIES) {
+        const delay = RETRY_DELAYS[retries];
+        console.log(`${delay}ms 후 재시도...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return saveToFirebase(key, value, retries + 1);
+      }
+
       return false;
     }
   }
@@ -891,7 +915,270 @@
   async function saveConfig() {
     const configStr = JSON.stringify(config);
     localStorage.setItem(CONFIG_KEY, configStr);
-    await saveToFirebase(CONFIG_KEY, configStr);
+    const success = await saveToFirebase(CONFIG_KEY, configStr);
+    if (!success) {
+      console.warn('⚠️ Firebase 저장 실패 - 로컬에만 저장됨');
+    }
+  }
+
+  // ===== 자동 저장 함수 =====
+  let autoSaveTimeout = null;
+  const AUTO_SAVE_KEY = '_sermon-autosave';
+
+  async function autoSaveStepResults() {
+    // debounce: 마지막 변경 후 2초 뒤에 저장
+    if (autoSaveTimeout) {
+      clearTimeout(autoSaveTimeout);
+    }
+
+    autoSaveTimeout = setTimeout(async () => {
+      const autoSaveData = {
+        category: currentCategory,
+        styleId: currentStyleId,
+        stepResults: stepResults,
+        titleOptions: titleOptions,
+        selectedTitle: selectedTitle,
+        timestamp: new Date().toISOString()
+      };
+
+      const autoSaveStr = JSON.stringify(autoSaveData);
+      localStorage.setItem(AUTO_SAVE_KEY, autoSaveStr);
+
+      const success = await saveToFirebase(AUTO_SAVE_KEY, autoSaveStr);
+      if (success) {
+        console.log('💾 자동 저장 완료');
+      } else {
+        console.warn('⚠️ 자동 저장 실패 - 로컬에만 저장됨');
+      }
+    }, 2000);
+  }
+
+  function loadAutoSave() {
+    try {
+      const autoSaveStr = localStorage.getItem(AUTO_SAVE_KEY);
+      if (!autoSaveStr) return false;
+
+      const autoSaveData = JSON.parse(autoSaveStr);
+
+      // 자동 저장된 데이터가 현재 카테고리/스타일과 일치하는지 확인
+      if (autoSaveData.category === currentCategory && autoSaveData.styleId === currentStyleId) {
+        stepResults = autoSaveData.stepResults || {};
+        titleOptions = autoSaveData.titleOptions || [];
+        selectedTitle = autoSaveData.selectedTitle || '';
+
+        console.log('✅ 자동 저장된 데이터 복원 완료');
+        return true;
+      }
+
+      return false;
+    } catch (err) {
+      console.error('자동 저장 데이터 로드 실패:', err);
+      return false;
+    }
+  }
+
+  // ===== 실시간 동기화 =====
+  let realtimeListeners = [];
+  let isUpdatingFromRemote = false;
+
+  function setupRealtimeSync() {
+    // 기존 리스너 정리
+    realtimeListeners.forEach(unsubscribe => unsubscribe());
+    realtimeListeners = [];
+
+    // CONFIG_KEY 실시간 동기화
+    const configListener = db.collection('users').doc(USER_CODE).collection(PAGE_NAME).doc(CONFIG_KEY)
+      .onSnapshot((doc) => {
+        if (doc.exists && !isUpdatingFromRemote) {
+          const remoteData = doc.data();
+          const localTimestamp = localStorage.getItem(`${CONFIG_KEY}_timestamp`) || '0';
+          const remoteTimestamp = remoteData.updatedAt?.toMillis().toString() || '0';
+
+          // 원격 데이터가 로컬보다 최신인 경우에만 업데이트
+          if (remoteTimestamp > localTimestamp) {
+            isUpdatingFromRemote = true;
+            localStorage.setItem(CONFIG_KEY, remoteData.value);
+            localStorage.setItem(`${CONFIG_KEY}_timestamp`, remoteTimestamp);
+            config = JSON.parse(remoteData.value);
+
+            console.log('🔄 설정 동기화: 다른 기기에서 업데이트됨');
+
+            // UI 업데이트
+            renderCategories();
+            renderStyles();
+            renderProcessingSteps();
+            renderResultBoxes();
+            renderGuideTabs();
+
+            setTimeout(() => {
+              isUpdatingFromRemote = false;
+            }, 1000);
+          }
+        }
+      }, (error) => {
+        console.error('실시간 동기화 오류 (CONFIG):', error);
+      });
+
+    realtimeListeners.push(configListener);
+
+    // AUTO_SAVE_KEY 실시간 동기화
+    const autoSaveListener = db.collection('users').doc(USER_CODE).collection(PAGE_NAME).doc(AUTO_SAVE_KEY)
+      .onSnapshot((doc) => {
+        if (doc.exists && !isUpdatingFromRemote) {
+          const remoteData = doc.data();
+          const localTimestamp = localStorage.getItem(`${AUTO_SAVE_KEY}_timestamp`) || '0';
+          const remoteTimestamp = remoteData.updatedAt?.toMillis().toString() || '0';
+
+          // 원격 데이터가 로컬보다 최신인 경우에만 업데이트
+          if (remoteTimestamp > localTimestamp) {
+            isUpdatingFromRemote = true;
+            localStorage.setItem(AUTO_SAVE_KEY, remoteData.value);
+            localStorage.setItem(`${AUTO_SAVE_KEY}_timestamp`, remoteTimestamp);
+
+            const autoSaveData = JSON.parse(remoteData.value);
+
+            // 현재 카테고리/스타일과 일치하는 경우에만 적용
+            if (autoSaveData.category === currentCategory && autoSaveData.styleId === currentStyleId) {
+              stepResults = autoSaveData.stepResults || {};
+              titleOptions = autoSaveData.titleOptions || [];
+              selectedTitle = autoSaveData.selectedTitle || '';
+
+              console.log('🔄 작업 내용 동기화: 다른 기기에서 업데이트됨');
+              renderResultBoxes();
+            }
+
+            setTimeout(() => {
+              isUpdatingFromRemote = false;
+            }, 1000);
+          }
+        }
+      }, (error) => {
+        console.error('실시간 동기화 오류 (AUTOSAVE):', error);
+      });
+
+    realtimeListeners.push(autoSaveListener);
+  }
+
+  // ===== 백업 및 복원 =====
+  function exportBackup() {
+    try {
+      const backupData = {
+        version: '1.0',
+        exportDate: new Date().toISOString(),
+        config: config,
+        guides: {},
+        savedSermons: JSON.parse(localStorage.getItem('sermon-saved') || '[]')
+      };
+
+      // 모든 지침 데이터 백업
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('guide-')) {
+          backupData.guides[key] = localStorage.getItem(key);
+        }
+      }
+
+      const dataStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sermon-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showStatus('✅ 백업 다운로드 완료!');
+      setTimeout(hideStatus, 2000);
+    } catch (err) {
+      console.error('백업 실패:', err);
+      alert('백업 생성 실패: ' + err.message);
+    }
+  }
+
+  async function importBackup(file) {
+    try {
+      const reader = new FileReader();
+
+      reader.onload = async (e) => {
+        try {
+          const backupData = JSON.parse(e.target.result);
+
+          if (!backupData.version || !backupData.config) {
+            throw new Error('유효하지 않은 백업 파일입니다.');
+          }
+
+          const confirmed = confirm(
+            `백업 복원 시 현재 모든 설정이 덮어쓰여집니다.\n\n` +
+            `백업 날짜: ${new Date(backupData.exportDate).toLocaleString('ko-KR')}\n\n` +
+            `계속하시겠습니까?`
+          );
+
+          if (!confirmed) return;
+
+          showStatus('♻️ 백업 복원 중...');
+
+          // Config 복원
+          config = backupData.config;
+          await saveConfig();
+
+          // 지침 복원
+          if (backupData.guides) {
+            for (const [key, value] of Object.entries(backupData.guides)) {
+              localStorage.setItem(key, value);
+              await saveToFirebase(key, value);
+            }
+          }
+
+          // 저장된 설교 복원
+          if (backupData.savedSermons) {
+            localStorage.setItem('sermon-saved', JSON.stringify(backupData.savedSermons));
+          }
+
+          showStatus('✅ 백업 복원 완료!');
+
+          // UI 새로고침
+          setTimeout(() => {
+            location.reload();
+          }, 1500);
+
+        } catch (err) {
+          console.error('백업 복원 실패:', err);
+          alert('백업 복원 실패: ' + err.message);
+          hideStatus();
+        }
+      };
+
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('파일 읽기 실패:', err);
+      alert('파일 읽기 실패: ' + err.message);
+    }
+  }
+
+  // 백업 이벤트 리스너
+  const btnExportBackup = document.getElementById('btn-export-backup');
+  if (btnExportBackup) {
+    btnExportBackup.addEventListener('click', exportBackup);
+  }
+
+  const btnImportBackup = document.getElementById('btn-import-backup');
+  const backupFileInput = document.getElementById('backup-file-input');
+
+  if (btnImportBackup && backupFileInput) {
+    btnImportBackup.addEventListener('click', () => {
+      backupFileInput.click();
+    });
+
+    backupFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        importBackup(file);
+      }
+      // 같은 파일을 다시 선택할 수 있도록 초기화
+      e.target.value = '';
+    });
   }
 
   // ===== 제목 관리 함수 =====
@@ -1409,6 +1696,8 @@
         // 사용자가 편집한 내용을 stepResults에 저장
         const stepId = textarea.id.replace('result-', '');
         stepResults[stepId] = textarea.value;
+        // 자동 저장
+        autoSaveStepResults();
       });
     });
   }
@@ -1503,6 +1792,9 @@
             displayTitleOptions(lines.slice(0, 3));
           }
         }
+
+        // 자동 저장
+        autoSaveStepResults();
 
         showStatus('✅ 완료!');
       } else {
@@ -2397,9 +2689,17 @@
     loadMasterGuide(currentCategory);
     renderStyles();
     renderProcessingSteps();
+
+    // 자동 저장 데이터 복원
+    loadAutoSave();
+
     renderResultBoxes();
     renderGuideTabs();
     renderSavedList();
+
+    // 실시간 동기화 시작
+    console.log('🔄 실시간 동기화 활성화');
+    setupRealtimeSync();
 
     // Q&A 초기화
     renderQAHistory();
