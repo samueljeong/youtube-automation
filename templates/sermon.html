@@ -2044,10 +2044,11 @@
       });
     });
 
-    if (!currentStyleId && styles.length > 0) {
-      currentStyleId = styles[0].id;
-      renderStyles();
-    }
+    // 새로고침 시 자동 선택 비활성화 - 사용자가 명시적으로 선택하도록 함
+    // if (!currentStyleId && styles.length > 0) {
+    //   currentStyleId = styles[0].id;
+    //   renderStyles();
+    // }
   }
 
   function renderProcessingSteps() {
