@@ -3136,6 +3136,12 @@
     titleOptions = [];
     selectedTitle = '';
 
+    // 새로고침 시 AUTO_SAVE_KEY 데이터 삭제 및 타임스탬프를 미래 값으로 설정 (실시간 동기화 방지)
+    localStorage.removeItem(AUTO_SAVE_KEY);
+    // 타임스탬프를 현재 + 1년으로 설정하여 실시간 동기화가 복원하지 않도록 함
+    const futureTimestamp = (Date.now() + 365 * 24 * 60 * 60 * 1000).toString();
+    localStorage.setItem(`${AUTO_SAVE_KEY}_timestamp`, futureTimestamp);
+
     // 새로고침 시 Q&A 히스토리 초기화
     sessionStorage.removeItem(QA_STORAGE_KEY);
 
