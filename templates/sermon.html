@@ -3128,8 +3128,26 @@
     renderStyles();
     renderProcessingSteps();
 
-    // 자동 저장 데이터 복원
-    loadAutoSave();
+    // 자동 저장 데이터 복원 - 새로고침 시 초기화하기 위해 제거
+    // loadAutoSave();
+
+    // 새로고침 시 stepResults 초기화
+    stepResults = {};
+    titleOptions = [];
+    selectedTitle = '';
+
+    // 새로고침 시 Q&A 히스토리 초기화
+    sessionStorage.removeItem(QA_STORAGE_KEY);
+
+    // 새로고침 시 GPT PRO 결과 초기화
+    const gptProContainer = document.getElementById('gpt-pro-result-container');
+    if (gptProContainer) gptProContainer.style.display = 'none';
+    const gptProResult = document.getElementById('gpt-pro-result');
+    if (gptProResult) gptProResult.value = '';
+
+    // 제목 선택 박스 숨기기
+    const titleBox = document.getElementById('title-selection-box');
+    if (titleBox) titleBox.style.display = 'none';
 
     renderResultBoxes();
     renderGuideTabs();
