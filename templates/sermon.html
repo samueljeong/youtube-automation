@@ -158,16 +158,26 @@
       align-items: center;
     }
     .status-bar {
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-      padding: .4rem .7rem;
-      font-size: .8rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,.08);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
       display: none;
       text-align: center;
-      margin: 0 auto;
-      max-width: 400px;
+      z-index: 3000;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
     }
 
     .modal {
@@ -183,6 +193,30 @@
       justify-content: center;
     }
     .modal.show { display: flex; }
+
+    /* 가이드 모달 - 오른쪽 하단에 배치, 뒤 클릭 가능 */
+    #modal-guide {
+      background: transparent;
+      pointer-events: none;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 1.5rem;
+    }
+    #modal-guide .modal-content {
+      pointer-events: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
     .modal-content {
       background: white;
       border-radius: 12px;
@@ -622,8 +656,9 @@
 
       /* 상태바 */
       .status-bar {
-        font-size: .75rem;
-        padding: .35rem .5rem;
+        font-size: .9rem;
+        padding: .8rem 1.5rem;
+        max-width: 80%;
       }
 
       /* 라벨 */
@@ -707,7 +742,7 @@
       <!-- 카테고리 -->
       <div class="box">
         <div class="label-row">
-          <label class="label">설교 카테고리</label>
+          <label class="label">카테고리</label>
           <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
         <select id="sermon-category"></select>
@@ -905,36 +940,67 @@
 
   <!-- 사용 가이드 모달 -->
   <div id="modal-guide" class="modal">
-    <div class="modal-content" style="max-width: 700px;">
-      <div class="modal-title">📖 사용 가이드</div>
-      <div style="color: #555; font-size: .9rem; line-height: 1.6; margin-bottom: 1rem;">
-        <h3 style="margin-top: 0; font-size: 1rem; color: #333;">환영합니다! 이 페이지의 사용 방법을 안내해 드립니다.</h3>
+    <div class="modal-content" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="modal-title" style="margin: 0;">📖 사용 가이드</div>
+        <button id="btn-close-guide-x" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+      </div>
 
-        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
-          <strong>1️⃣ 카테고리 선택</strong><br>
-          왼쪽 영역에서 카테고리를 선택하고 날짜와 본문 정보를 입력하세요.
+      <div style="color: #555; font-size: .85rem; line-height: 1.5;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; text-align: center;">
+          <strong style="font-size: 1.05rem;">🎉 BIBLE LAB에 오신 것을 환영합니다!</strong><br>
+          <span style="font-size: .8rem; opacity: 0.9;">현재 테스트 진행 중입니다</span>
         </div>
 
-        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
-          <strong>2️⃣ 처리 단계 설정</strong><br>
-          "처리 단계 관리" 버튼을 클릭하여 단계를 추가하고, 각 단계별 지침을 작성하세요.
+        <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
+          <strong style="color: #667eea;">1. 카테고리 선택</strong><br>
+          <span style="font-size: .8rem;">원하는 기능 선택 후 성경구절 입력 (예: 창1:1-10 또는 창세기 1장 1~10절)</span>
         </div>
 
-        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
-          <strong>3️⃣ 처리 실행</strong><br>
-          처리 단계 버튼을 순서대로 클릭하면 AI가 각 단계를 수행합니다.
+        <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
+          <strong style="color: #667eea;">2. 제목 및 성경구절</strong><br>
+          <span style="font-size: .8rem;">선택사항이므로 꼭 기입하지 않아도 됩니다</span>
         </div>
 
-        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
-          <strong>4️⃣ 결과 확인</strong><br>
-          처리 결과는 오른쪽 Content 영역에 표시됩니다. Q&A 기능으로 추가 질문도 가능합니다.
+        <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
+          <strong style="color: #667eea;">3. 설교스타일 선택</strong><br>
+          <span style="font-size: .8rem;">스타일을 선택하면 처리단계가 나타납니다</span>
         </div>
 
-        <div style="background: #fff4cc; padding: .75rem; border-radius: 6px; border: 1px solid #ffe08a;">
-          <strong>💡 팁:</strong> 상단의 보라색/분홍색 버튼으로 전체 내용을 복사하거나 GPT PRO로 설교문을 작성할 수 있습니다.
+        <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
+          <strong style="color: #667eea;">4. 처리 실행</strong><br>
+          <span style="font-size: .8rem;">각 단계를 클릭하면 AI가 수행합니다 (5-10초 소요)</span>
+        </div>
+
+        <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
+          <strong style="color: #667eea;">5. 결과 확인</strong><br>
+          <span style="font-size: .8rem;">전체 복사 또는 홈페이지에서 완성형 설교문 출력 가능</span>
+        </div>
+
+        <div style="background: #fff9e6; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #ffc107;">
+          <strong style="color: #f57c00;">📋 보라색 버튼</strong><br>
+          <span style="font-size: .8rem;">개인 GPT 유료버전에 붙여넣기하여 설교문 작성</span>
+        </div>
+
+        <div style="background: #ffe6f0; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #f5576c;">
+          <strong style="color: #c2185b;">🚀 분홍색 버튼</strong><br>
+          <span style="font-size: .8rem;">페이지 내에서 완성형 설교문 출력 (유료 기능 준비 중)</span>
+        </div>
+
+        <div style="background: #e8f5e9; padding: .65rem; border-radius: 6px; border-left: 3px solid #4caf50;">
+          <strong style="color: #2e7d32;">💡 TIP</strong><br>
+          <span style="font-size: .8rem;">Q&A를 통해 더 자세한 질문을 하실 수 있습니다</span>
         </div>
       </div>
-      <div class="modal-buttons">
+
+      <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+        <label style="display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .85rem;">
+          <input type="checkbox" id="dont-show-week" style="width: 16px; height: 16px; cursor: pointer;">
+          <span>일주일간 보지 않기</span>
+        </label>
+      </div>
+
+      <div class="modal-buttons" style="margin-top: 1rem;">
         <button id="btn-close-guide" class="primary" style="flex: 1;">시작하기</button>
       </div>
     </div>
@@ -2207,12 +2273,30 @@
   }
 
   // 사용 가이드 모달 닫기
+  function closeGuideModal() {
+    const modal = document.getElementById('modal-guide');
+    const dontShowCheckbox = document.getElementById('dont-show-week');
+
+    if (dontShowCheckbox && dontShowCheckbox.checked) {
+      // 일주일(7일) 후까지 숨기기
+      const hideUntil = Date.now() + (7 * 24 * 60 * 60 * 1000);
+      localStorage.setItem('sermon-guide-hide-until', hideUntil.toString());
+    } else {
+      // 다음 방문시에는 표시
+      localStorage.removeItem('sermon-guide-hide-until');
+    }
+
+    if (modal) modal.classList.remove('show');
+  }
+
   const btnCloseGuide = document.getElementById('btn-close-guide');
   if (btnCloseGuide) {
-    btnCloseGuide.addEventListener('click', () => {
-      const modal = document.getElementById('modal-guide');
-      if (modal) modal.classList.remove('show');
-    });
+    btnCloseGuide.addEventListener('click', closeGuideModal);
+  }
+
+  const btnCloseGuideX = document.getElementById('btn-close-guide-x');
+  if (btnCloseGuideX) {
+    btnCloseGuideX.addEventListener('click', closeGuideModal);
   }
 
   const passwordInput = document.getElementById('password-input');
@@ -3010,12 +3094,12 @@
     renderSavedList();
 
     // 첫 방문자 가이드 표시
-    const hasVisited = localStorage.getItem('sermon-guide-shown');
-    if (!hasVisited) {
+    const guideHideUntil = localStorage.getItem('sermon-guide-hide-until');
+    const now = Date.now();
+    if (!guideHideUntil || now > parseInt(guideHideUntil)) {
       const modal = document.getElementById('modal-guide');
       if (modal) {
         modal.classList.add('show');
-        localStorage.setItem('sermon-guide-shown', 'true');
       }
     }
 
