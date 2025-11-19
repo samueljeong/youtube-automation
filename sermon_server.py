@@ -405,26 +405,12 @@ def api_gpt_pro():
         if not result:
             raise RuntimeError("GPT-5.1 API로부터 결과를 받지 못했습니다.")
 
-        # 결과 앞에 본문과 제목 추가 (제목이 있을 때만)
-        final_result = ""
-
-        # 제목 추가 (사용자가 선택한 제목이 있을 때만)
-        if title and title.strip():
-            final_result += f"설교 제목: {title}\n"
-
-        # 본문 추가
-        if reference:
-            final_result += f"본문: {reference}\n"
-
-        # 제목이나 본문이 있으면 구분선 추가
-        if title or reference:
-            final_result += "\n" + "="*50 + "\n\n"
-
-        final_result += result
+        # 마크다운 제거
+        result = remove_markdown(result)
 
         print(f"[GPT-PRO] 완료")
 
-        return jsonify({"ok": True, "result": final_result})
+        return jsonify({"ok": True, "result": result})
 
     except Exception as e:
         print(f"[GPT-PRO][ERROR] {str(e)}")
