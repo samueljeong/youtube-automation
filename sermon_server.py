@@ -291,6 +291,7 @@ def api_gpt_pro():
             " 자료는 참고용으로만 활용하고 문장은 처음부터 새로 구성하며,"
             " 묵직하고 명료한 어조로 신학적 통찰과 실제적 적용을 균형 있게 제시하세요."
             " 마크다운 기호 대신 순수 텍스트만 사용합니다."
+            "\n\n⚠️ 중요: 설교 제목과 본문 성경구절은 다시 출력하지 마세요. 바로 설교 내용(서론, 본론, 결론)부터 시작하세요."
         )
 
         # 사용자 메시지 구성
@@ -405,20 +406,19 @@ def api_gpt_pro():
         if not result:
             raise RuntimeError("GPT-5.1 API로부터 결과를 받지 못했습니다.")
 
-        # 결과 앞에 본문과 제목 추가 (제목이 있을 때만)
+        # 마크다운 제거
+        result = remove_markdown(result)
+
+        # 결과 앞에 제목과 본문 추가 (구분선 없이)
         final_result = ""
 
         # 제목 추가 (사용자가 선택한 제목이 있을 때만)
         if title and title.strip():
-            final_result += f"설교 제목: {title}\n"
+            final_result += f"설교 제목: {title}\n\n"
 
-        # 본문 추가
+        # 본문 추가 (전체 형태로)
         if reference:
-            final_result += f"본문: {reference}\n"
-
-        # 제목이나 본문이 있으면 구분선 추가
-        if title or reference:
-            final_result += "\n" + "="*50 + "\n\n"
+            final_result += f"본문: {reference}\n\n"
 
         final_result += result
 
