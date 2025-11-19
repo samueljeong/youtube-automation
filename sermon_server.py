@@ -455,6 +455,85 @@ def api_gpt_pro():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+@app.route("/api/sermon/qa", methods=["POST"])
+def api_sermon_qa():
+    """설교 준비 Q&A - 처리 단계 결과와 본문을 기반으로 질문에 답변"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        question = data.get("question", "")
+        reference = data.get("reference", "")
+        step_results = data.get("stepResults", {})
+
+        if not question:
+            return jsonify({"ok": False, "error": "질문이 비어있습니다"}), 400
+
+        print(f"[Q&A] 질문: {question}")
+
+        # 시스템 메시지: Q&A 역할 정의
+        system_content = """당신은 설교 준비를 돕는 성경 연구 도우미입니다.
+
+당신의 역할:
+- 사용자가 현재 준비 중인 성경 본문과 관련된 질문에 답변합니다
+- 제공된 처리 단계 결과(배경 지식, 본문 분석, 개요 등)를 참고하여 답변합니다
+- 질문이 모호한 경우, 현재 맥락(성경 본문, 처리 단계)을 기준으로 이해하고 답변합니다
+- 간단하고 명확하게 답변하되, 필요시 성경적 배경이나 신학적 설명을 추가합니다
+
+답변 원칙:
+- 친절하고 이해하기 쉬운 톤으로 작성
+- 불확실한 경우 "정확하지 않을 수 있습니다"라고 명시
+- 필요시 관련 성경 구절이나 역사적 배경 언급"""
+
+        # 사용자 메시지: 컨텍스트 + 질문
+        user_content = ""
+
+        # 성경 본문 정보
+        if reference:
+            user_content += f"【 현재 준비 중인 성경 본문 】\n{reference}\n\n"
+
+        # 처리 단계 결과들
+        if step_results:
+            user_content += "【 처리 단계 결과 】\n"
+            for step_id, step_data in step_results.items():
+                step_name = step_data.get("name", "")
+                step_result = step_data.get("result", "")
+                if step_result:
+                    user_content += f"\n### {step_name}\n{step_result}\n"
+            user_content += "\n"
+
+        # 사용자 질문
+        user_content += f"【 사용자 질문 】\n{question}\n\n"
+        user_content += "위 맥락을 참고하여 질문에 답변해주세요."
+
+        # GPT 호출 (gpt-4o-mini)
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_content
+                },
+                {
+                    "role": "user",
+                    "content": user_content
+                }
+            ],
+            temperature=0.7
+        )
+
+        answer = completion.choices[0].message.content
+
+        print(f"[Q&A] 답변 완료")
+
+        return jsonify({"ok": True, "answer": answer})
+
+    except Exception as e:
+        print(f"[Q&A][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5058))

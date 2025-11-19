@@ -319,6 +319,109 @@
     .auth-links .btn-home:hover {
       background: #7f8c8d;
     }
+
+    /* 지침 영역 50:50 분할 */
+    .guide-row-container {
+      display: flex;
+      gap: .75rem;
+    }
+    .guide-row-container .box {
+      flex: 1;
+    }
+
+    /* 처리 단계 + Q&A 50:50 분할 */
+    .processing-qa-container {
+      display: flex;
+      gap: .75rem;
+      flex: 1;
+      min-height: 0;
+    }
+    .processing-steps-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+      overflow-y: auto;
+    }
+    .qa-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+      overflow-y: auto;
+    }
+
+    /* Q&A 인터페이스 스타일 */
+    .qa-interface {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: .75rem;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .qa-prompt {
+      font-size: .9rem;
+      color: #666;
+      margin-bottom: .75rem;
+      padding: .5rem;
+      background: #f8f9fa;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .qa-history {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: .75rem;
+      padding: .5rem;
+      background: #fafafa;
+      border-radius: 6px;
+      min-height: 200px;
+    }
+    .qa-message {
+      margin-bottom: .75rem;
+      padding: .5rem;
+      border-radius: 6px;
+    }
+    .qa-message.user {
+      background: #e3f2fd;
+      margin-left: 2rem;
+    }
+    .qa-message.assistant {
+      background: #f1f8e9;
+      margin-right: 2rem;
+    }
+    .qa-message-label {
+      font-size: .75rem;
+      font-weight: 600;
+      margin-bottom: .25rem;
+      color: #555;
+    }
+    .qa-message-content {
+      font-size: .85rem;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .qa-input-area {
+      display: flex;
+      gap: .5rem;
+    }
+    .qa-input-area textarea {
+      flex: 1;
+      min-height: 60px;
+      resize: vertical;
+    }
+    .qa-input-area button {
+      align-self: flex-end;
+      height: fit-content;
+    }
+    .qa-empty-state {
+      text-align: center;
+      color: #999;
+      font-size: .85rem;
+      padding: 2rem;
+    }
   </style>
 </head>
 <body>
@@ -428,17 +531,19 @@
       <!-- 상태 표시 -->
       <div id="status-bar" class="status-bar">작업 중...</div>
 
-      <!-- 총괄 지침 영역 -->
-      <div class="box" id="master-guide-box">
-        <div class="toggle-header">
-          <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
-          <button id="toggle-master-guide">열기</button>
-        </div>
-        <div id="master-guide-content" style="display: none;">
-          <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-            이 카테고리의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
-          </p>
-          <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
+      <!-- 지침 영역 (50:50 분할) -->
+      <div class="guide-row-container">
+        <!-- 총괄 지침 영역 -->
+        <div class="box" id="master-guide-box">
+          <div class="toggle-header">
+            <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
+            <button id="toggle-master-guide">열기</button>
+          </div>
+          <div id="master-guide-content" style="display: none;">
+            <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+              이 카테고리의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
+            </p>
+            <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
 
 새벽설교 운영 지침
 ==================
@@ -455,28 +560,48 @@
 
 ### 3. 적용 자료 (20%)
 - 역할: 오늘 하루 실천 과제 제시"></textarea>
-          <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
-        </div>
-      </div>
-
-      <!-- 지침 영역 -->
-      <div class="box" id="guide-box">
-        <div class="toggle-header">
-          <span class="label">지침 영역 🔒</span>
-          <button id="toggle-guides">열기</button>
-        </div>
-        <div id="guide-content" style="display: none;">
-          <div class="btn-row" style="margin-bottom: .5rem;">
-            <button id="save-guide" class="primary">지침 저장</button>
+            <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
           </div>
-          <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
-          <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
-          <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+        </div>
+
+        <!-- 지침 영역 -->
+        <div class="box" id="guide-box">
+          <div class="toggle-header">
+            <span class="label">지침 영역 🔒</span>
+            <button id="toggle-guides">열기</button>
+          </div>
+          <div id="guide-content" style="display: none;">
+            <div class="btn-row" style="margin-bottom: .5rem;">
+              <button id="save-guide" class="primary">지침 저장</button>
+            </div>
+            <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
+            <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
+            <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+          </div>
         </div>
       </div>
 
-      <!-- 동적 결과 박스들 -->
-      <div id="result-boxes"></div>
+      <!-- 처리 단계 + Q&A 영역 (50:50 분할) -->
+      <div class="processing-qa-container">
+        <!-- 왼쪽: 처리 단계 결과 -->
+        <div class="processing-steps-panel">
+          <div id="result-boxes"></div>
+        </div>
+
+        <!-- 오른쪽: Q&A 인터페이스 -->
+        <div class="qa-panel">
+          <div class="qa-interface">
+            <div class="qa-prompt">검색된 결과에 대해 간단한 질문을 해주세요.</div>
+            <div class="qa-history" id="qa-history">
+              <div class="qa-empty-state">아직 질문이 없습니다.<br>처리 단계 결과나 본문에 대해 궁금한 점을 물어보세요.</div>
+            </div>
+            <div class="qa-input-area">
+              <textarea id="qa-input" placeholder="질문을 입력하세요 (예: 이게 언제 이야기야?)"></textarea>
+              <button id="btn-send-qa" class="primary">전송</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- GPT PRO 결과 박스 -->
       <div id="gpt-pro-result-container" style="display: none;">
@@ -2032,6 +2157,137 @@
     textarea.addEventListener('input', () => autoResize(textarea));
   });
 
+  // ===== Q&A 기능 =====
+  const QA_STORAGE_KEY = 'sermon-qa-history';
+
+  function loadQAHistory() {
+    try {
+      const history = sessionStorage.getItem(QA_STORAGE_KEY);
+      return history ? JSON.parse(history) : [];
+    } catch (e) {
+      console.error('Q&A 히스토리 로드 실패:', e);
+      return [];
+    }
+  }
+
+  function saveQAHistory(history) {
+    try {
+      sessionStorage.setItem(QA_STORAGE_KEY, JSON.stringify(history));
+    } catch (e) {
+      console.error('Q&A 히스토리 저장 실패:', e);
+    }
+  }
+
+  function renderQAHistory() {
+    const qaHistory = document.getElementById('qa-history');
+    if (!qaHistory) return;
+
+    const history = loadQAHistory();
+
+    if (history.length === 0) {
+      qaHistory.innerHTML = '<div class="qa-empty-state">아직 질문이 없습니다.<br>처리 단계 결과나 본문에 대해 궁금한 점을 물어보세요.</div>';
+      return;
+    }
+
+    qaHistory.innerHTML = history.map(item => {
+      const userMsg = `
+        <div class="qa-message user">
+          <div class="qa-message-label">질문</div>
+          <div class="qa-message-content">${escapeHtml(item.question)}</div>
+        </div>
+      `;
+      const assistantMsg = `
+        <div class="qa-message assistant">
+          <div class="qa-message-label">답변</div>
+          <div class="qa-message-content">${escapeHtml(item.answer)}</div>
+        </div>
+      `;
+      return userMsg + assistantMsg;
+    }).join('');
+
+    // 스크롤을 맨 아래로
+    qaHistory.scrollTop = qaHistory.scrollHeight;
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  async function sendQAQuestion() {
+    const input = document.getElementById('qa-input');
+    const question = input.value.trim();
+
+    if (!question) {
+      alert('질문을 입력해주세요.');
+      return;
+    }
+
+    const reference = document.getElementById('sermon-ref').value.trim();
+
+    // 현재 처리 단계 결과들 수집
+    const contextStepResults = {};
+    for (const [stepId, stepData] of Object.entries(stepResults)) {
+      if (stepData && stepData.result) {
+        contextStepResults[stepId] = {
+          name: stepData.name || stepId,
+          result: stepData.result
+        };
+      }
+    }
+
+    // UI 업데이트: 질문 추가
+    const history = loadQAHistory();
+    history.push({
+      question: question,
+      answer: '답변을 생성 중입니다...'
+    });
+    saveQAHistory(history);
+    renderQAHistory();
+
+    // 입력창 비우기
+    input.value = '';
+
+    try {
+      showStatus('🤔 답변 생성 중...');
+
+      const response = await fetch('/api/sermon/qa', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          question: question,
+          reference: reference,
+          stepResults: contextStepResults
+        })
+      });
+
+      const result = await response.json();
+      hideStatus();
+
+      if (result.ok) {
+        // 마지막 항목의 답변 업데이트
+        history[history.length - 1].answer = result.answer;
+        saveQAHistory(history);
+        renderQAHistory();
+      } else {
+        alert('답변 생성 실패: ' + (result.error || '알 수 없는 오류'));
+        // 실패한 항목 제거
+        history.pop();
+        saveQAHistory(history);
+        renderQAHistory();
+      }
+    } catch (err) {
+      hideStatus();
+      console.error('Q&A 요청 실패:', err);
+      alert('답변 생성 중 오류가 발생했습니다.');
+      // 실패한 항목 제거
+      history.pop();
+      saveQAHistory(history);
+      renderQAHistory();
+    }
+  }
+
   // ===== 초기화 =====
   document.addEventListener('DOMContentLoaded', async () => {
     const dateInput = document.getElementById('sermon-date');
@@ -2050,6 +2306,26 @@
     renderResultBoxes();
     renderGuideTabs();
     renderSavedList();
+
+    // Q&A 초기화
+    renderQAHistory();
+
+    // Q&A 이벤트 리스너
+    const btnSendQA = document.getElementById('btn-send-qa');
+    if (btnSendQA) {
+      btnSendQA.addEventListener('click', sendQAQuestion);
+    }
+
+    const qaInput = document.getElementById('qa-input');
+    if (qaInput) {
+      // Enter 키로 전송 (Shift+Enter는 줄바꿈)
+      qaInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendQAQuestion();
+        }
+      });
+    }
 
     document.querySelectorAll('textarea').forEach(autoResize);
   });
