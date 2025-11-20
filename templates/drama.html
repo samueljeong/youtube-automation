@@ -87,11 +87,11 @@
     }
     button:hover { background: #e0e0e0; }
     button.primary {
-      background: #4a90e2;
+      background: #e74c3c;
       color: white;
-      border-color: #4a90e2;
+      border-color: #e74c3c;
     }
-    button.primary:hover { background: #357abd; }
+    button.primary:hover { background: #c0392b; }
     button.danger {
       background: #e74c3c;
       color: white;
@@ -116,8 +116,8 @@
     }
     .style-item:hover { background: #e9ecef; }
     .style-item.active {
-      background: #dfe6ff;
-      border: 2px solid #4a90e2;
+      background: #ffe6e6;
+      border: 2px solid #e74c3c;
     }
     .style-desc {
       font-size: .75rem;
@@ -221,10 +221,10 @@
       border: none;
     }
     .copy-all-box {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
     }
     .gpt-pro-box {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      background: linear-gradient(135deg, #ff6b9d 0%, #e74c3c 100%);
     }
     .top-buttons-container button {
       background: white;
@@ -235,10 +235,10 @@
       width: 100%;
     }
     .copy-all-box button {
-      color: #667eea;
+      color: #e74c3c;
     }
     .gpt-pro-box button {
-      color: #f5576c;
+      color: #e74c3c;
     }
     .top-buttons-container .box-title {
       color: white;
@@ -286,15 +286,15 @@
     }
     .auth-links .btn-login {
       background: white;
-      color: #4a90e2;
-      border: 2px solid #4a90e2;
+      color: #e74c3c;
+      border: 2px solid #e74c3c;
     }
     .auth-links .btn-login:hover {
-      background: #4a90e2;
+      background: #e74c3c;
       color: white;
     }
     .auth-links .btn-signup {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
       color: white;
       border: none;
     }
@@ -325,9 +325,91 @@
       min-height: 200px;
       resize: none;
     }
+
+    /* 중앙 로딩 인디케이터 */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-overlay.show {
+      display: flex;
+    }
+    .loading-content {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #e74c3c;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .loading-text {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.5rem;
+    }
+    .loading-subtext {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    /* Step1/Step2 박스 스타일 */
+    .workflow-box.step1 {
+      border: 2px solid #e74c3c;
+      background: #fff5f5;
+    }
+    .workflow-box.step2 {
+      border: 2px solid #9b59b6;
+      background: #f8f5ff;
+    }
+    .step-badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+    .step-badge.step1 {
+      background: #e74c3c;
+      color: white;
+    }
+    .step-badge.step2 {
+      background: #9b59b6;
+      color: white;
+    }
   </style>
 </head>
 <body>
+  <!-- 중앙 로딩 인디케이터 -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">AI 작업 중</div>
+      <div class="loading-subtext">잠시만 기다려주세요...</div>
+    </div>
+  </div>
+
   <!-- Auth Header -->
   <div class="auth-header">
     <h1>🎭 드라마 스크립트 작성 도구</h1>
@@ -386,7 +468,7 @@
             </p>
           </div>
         </div>
-        <button id="btn-view-accumulated-guide" style="width: 100%; margin-top: .5rem; background: white; color: #667eea; font-weight: 600; font-size: .8rem; padding: .4rem; border-radius: 6px; border: none; cursor: pointer;">📚 축적된 작성 가이드 보기</button>
+        <button id="btn-view-accumulated-guide" style="width: 100%; margin-top: .5rem; background: white; color: #e74c3c; font-weight: 600; font-size: .8rem; padding: .4rem; border-radius: 6px; border: none; cursor: pointer;">📚 축적된 작성 가이드 보기</button>
       </div>
 
       <!-- 저장 공간 -->
@@ -401,8 +483,9 @@
     <div class="content-area">
       <!-- 워크플로우 박스 추가 버튼 -->
       <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-add-workflow-box" class="primary" style="flex: 1; padding: .5rem; font-size: .9rem;">➕ 작업 박스 추가</button>
-        <button id="btn-copy-all-results" style="flex: 1; padding: .5rem; font-size: .9rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">📋 전체 결과 복사</button>
+        <button id="btn-add-step1-box" style="flex: 1; padding: .5rem; font-size: .9rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step1 박스 추가</button>
+        <button id="btn-add-step2-box" style="flex: 1; padding: .5rem; font-size: .9rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step2 박스 추가</button>
+        <button id="btn-copy-all-results" style="flex: 1; padding: .5rem; font-size: .9rem; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; border: none; border-radius: 6px; cursor: pointer;">📋 전체 결과 복사</button>
       </div>
 
       <!-- 상태 표시 -->
@@ -612,6 +695,26 @@
     const statusBar = document.getElementById('status-bar');
     if (statusBar) {
       statusBar.style.display = 'none';
+    }
+  }
+
+  // 로딩 오버레이 표시
+  function showLoadingOverlay(text = 'AI 작업 중', subtext = '잠시만 기다려주세요...') {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      const textEl = overlay.querySelector('.loading-text');
+      const subtextEl = overlay.querySelector('.loading-subtext');
+      if (textEl) textEl.textContent = text;
+      if (subtextEl) subtextEl.textContent = subtext;
+      overlay.classList.add('show');
+    }
+  }
+
+  // 로딩 오버레이 숨김
+  function hideLoadingOverlay() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.remove('show');
     }
   }
 
@@ -1630,7 +1733,9 @@
         return;
       }
 
-      analysisResult.innerHTML = '<p style="color: #4a90e2; text-align: center;">🔄 분석 중...</p>';
+      // 로딩 오버레이 표시
+      showLoadingOverlay('벤치마크 대본 분석 중', 'AI가 대본을 분석하고 있습니다...');
+      analysisResult.innerHTML = '<p style="color: #e74c3c; text-align: center;">🔄 분석 중...</p>';
 
       try {
         const response = await fetch('/api/drama/analyze-benchmark', {
@@ -1649,7 +1754,7 @@
         if (data.ok) {
           analysisResult.innerHTML = `
             <div style="margin-bottom: .75rem;">
-              <strong style="color: #4a90e2;">✅ 분석 완료 및 저장됨</strong>
+              <strong style="color: #e74c3c;">✅ 분석 완료 및 저장됨</strong>
             </div>
             <div style="white-space: pre-wrap; line-height: 1.8;">${data.analysis}</div>
           `;
@@ -1658,6 +1763,8 @@
         }
       } catch (err) {
         analysisResult.innerHTML = `<p style="color: #e74c3c;">❌ 네트워크 오류: ${err.message}</p>`;
+      } finally {
+        hideLoadingOverlay();
       }
     });
   }
@@ -1711,11 +1818,13 @@
   // ===== 워크플로우 박스 시스템 =====
 
   // 워크플로우 박스 추가
-  function addWorkflowBox() {
+  function addWorkflowBox(stepType = 'step1') {
+    const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
     const box = {
       id: `box_${nextBoxId}`,
       boxNumber: nextBoxId,
-      name: `작업 ${nextBoxId}`,
+      stepType: stepType,
+      name: `${stepLabel} 작업 ${nextBoxId}`,
       inputs: {
         benchmarkScript: false,
         aiAnalysis: false
@@ -1759,11 +1868,18 @@
       return;
     }
 
-    container.innerHTML = workflowBoxes.map(box => `
-      <div class="box" style="margin-bottom: .75rem; border: 2px solid #4a90e2;">
+    container.innerHTML = workflowBoxes.map(box => {
+      const stepType = box.stepType || 'step1';  // 기본값 step1
+      const stepBadgeClass = stepType === 'step1' ? 'step1' : 'step2';
+      const stepBadgeColor = stepType === 'step1' ? '#e74c3c' : '#9b59b6';
+      const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
+
+      return `
+      <div class="box workflow-box ${stepType}" style="margin-bottom: .75rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div style="display: flex; align-items: center; gap: .5rem;">
-            <span style="background: #4a90e2; color: white; padding: .3rem .6rem; border-radius: 4px; font-weight: 600;">[${box.boxNumber}]</span>
+            <span style="background: ${stepBadgeColor}; color: white; padding: .3rem .6rem; border-radius: 4px; font-weight: 600;">[${box.boxNumber}]</span>
+            <span class="step-badge ${stepBadgeClass}">${stepLabel}</span>
             <input type="text" value="${box.name}" onchange="updateBoxName('${box.id}', this.value)" style="font-weight: 600; font-size: 1rem; border: 1px solid #ddd; padding: .3rem .5rem; border-radius: 4px;">
           </div>
           <button onclick="deleteWorkflowBox('${box.id}')" class="danger" style="padding: .3rem .6rem; font-size: .85rem;">🗑️ 삭제</button>
@@ -1800,13 +1916,14 @@
         <button onclick="executeWorkflowBox('${box.id}')" class="primary" style="width: 100%; padding: .6rem; margin-bottom: .75rem; font-size: .9rem;">▶️ 실행</button>
 
         <!-- 결과 표시 -->
-        <div style="background: #f0f8ff; padding: .75rem; border-radius: 6px;">
-          <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: #4a90e2;">📊 결과</div>
+        <div style="background: ${stepType === 'step1' ? '#ffe6e6' : '#f3e5f5'}; padding: .75rem; border-radius: 6px;">
+          <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: ${stepBadgeColor};">📊 결과</div>
           <textarea id="result-${box.id}" readonly style="width: 100%; min-height: 150px; font-size: .85rem; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; background: white;" placeholder="실행 결과가 여기에 표시됩니다...">${box.result}</textarea>
           <button onclick="copyBoxResult('${box.id}')" style="width: 100%; padding: .4rem; margin-top: .5rem; font-size: .85rem;">📋 결과 복사</button>
         </div>
       </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   // 박스 이름 업데이트
@@ -1842,7 +1959,8 @@
     const box = workflowBoxes.find(b => b.id === boxId);
     if (!box) return;
 
-    showStatus(`🤖 [${box.boxNumber}. ${box.name}] 실행 중...`);
+    // 로딩 오버레이 표시
+    showLoadingOverlay(`[${box.boxNumber}] ${box.name} 처리 중`, 'AI가 작업을 수행하고 있습니다...');
 
     // 입력 데이터 수집
     let inputData = {};
@@ -1887,15 +2005,14 @@
         document.getElementById(`result-${box.id}`).value = data.result;
         saveWorkflowBoxes();
         showStatus('✅ 완료!');
+        setTimeout(hideStatus, 2000);
       } else {
         alert(`오류: ${data.error}`);
-        showStatus('❌ 실패');
       }
     } catch (err) {
       alert(`네트워크 오류: ${err.message}`);
-      showStatus('❌ 오류');
     } finally {
-      setTimeout(hideStatus, 2000);
+      hideLoadingOverlay();
     }
   };
 
@@ -1932,9 +2049,14 @@
   }
 
   // 워크플로우 박스 추가 버튼
-  const btnAddWorkflowBox = document.getElementById('btn-add-workflow-box');
-  if (btnAddWorkflowBox) {
-    btnAddWorkflowBox.addEventListener('click', addWorkflowBox);
+  const btnAddStep1Box = document.getElementById('btn-add-step1-box');
+  const btnAddStep2Box = document.getElementById('btn-add-step2-box');
+
+  if (btnAddStep1Box) {
+    btnAddStep1Box.addEventListener('click', () => addWorkflowBox('step1'));
+  }
+  if (btnAddStep2Box) {
+    btnAddStep2Box.addEventListener('click', () => addWorkflowBox('step2'));
   }
 
   // 전체 결과 복사 버튼
@@ -1976,7 +2098,10 @@
 
   async function loadAccumulatedGuide() {
     const resultDiv = document.getElementById('accumulated-guide-result');
-    resultDiv.innerHTML = '<p style="color: #4a90e2; text-align: center;">🔄 불러오는 중...</p>';
+
+    // 로딩 오버레이 표시
+    showLoadingOverlay('축적된 가이드 생성 중', 'AI가 가이드를 준비하고 있습니다...');
+    resultDiv.innerHTML = '<p style="color: #e74c3c; text-align: center;">🔄 불러오는 중...</p>';
 
     try {
       const response = await fetch('/api/drama/get-accumulated-guide', {
@@ -1998,6 +2123,8 @@
       }
     } catch (err) {
       resultDiv.innerHTML = `<p style="color: #e74c3c;">❌ 네트워크 오류: ${err.message}</p>`;
+    } finally {
+      hideLoadingOverlay();
     }
   }
 
