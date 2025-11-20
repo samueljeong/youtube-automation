@@ -17,11 +17,12 @@
       height: 100vh;
     }
     .left-col {
-      width: 360px;
+      width: 240px;
       display: flex;
       flex-direction: column;
-      gap: .75rem;
+      gap: .5rem;
       overflow-y: auto;
+      font-size: .85rem;
     }
     .right-col {
       flex: 1;
@@ -48,9 +49,14 @@
     }
     .box {
       background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
+      border: none;
+      border-radius: 12px;
       padding: .75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06);
+      transition: box-shadow 0.2s ease;
+    }
+    .box:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,.1);
     }
     .label-row {
       display: flex;
@@ -80,22 +86,32 @@
     }
     button {
       padding: .35rem .6rem;
-      border: 1px solid #ccc;
-      background: #f0f0f0;
-      border-radius: 6px;
+      border: none;
+      background: #f8f9fa;
+      border-radius: 8px;
       cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,.05);
     }
-    button:hover { background: #e0e0e0; }
+    button:hover {
+      background: #e9ecef;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,.1);
+    }
     button.primary {
-      background: #e74c3c;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      border-color: #e74c3c;
     }
-    button.primary:hover { background: #c0392b; }
+    button.primary:hover {
+      background: linear-gradient(135deg, #5568d3 0%, #663a91 100%);
+    }
     button.danger {
       background: #e74c3c;
       color: white;
-      border-color: #e74c3c;
+    }
+    button.danger:hover {
+      background: #c0392b;
     }
     button.step-btn {
       width: 100%;
@@ -116,8 +132,8 @@
     }
     .style-item:hover { background: #e9ecef; }
     .style-item.active {
-      background: #ffe6e6;
-      border: 2px solid #e74c3c;
+      background: #f0e6ff;
+      border: 2px solid #667eea;
     }
     .style-desc {
       font-size: .75rem;
@@ -480,8 +496,8 @@
             <input type="text" id="benchmark-view-count" placeholder="조회수 (예: 12만)" style="flex: 1; font-size: .75rem; padding: .3rem;">
           </div>
           <label style="display: flex; align-items: center; gap: .3rem; margin-bottom: .5rem; cursor: pointer;">
-            <input type="checkbox" id="check-duplicates" checked style="cursor: pointer;">
-            <span style="font-size: .75rem; color: #666;">중복 검사 활성화</span>
+            <input type="checkbox" id="check-duplicates" style="cursor: pointer;">
+            <span style="font-size: .75rem; color: #666;">중복 자료</span>
           </label>
           <button id="btn-analyze-benchmark" class="primary" style="width: 100%; font-size: .8rem; padding: .4rem;">분석 및 저장</button>
         </div>
@@ -507,21 +523,21 @@
     <div class="content-area">
       <!-- 워크플로우 박스 추가 버튼 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-add-step1-box" style="padding: .5rem; font-size: .9rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step1 박스 추가</button>
-        <button id="btn-add-step2-box" style="padding: .5rem; font-size: .9rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step2 박스 추가</button>
+        <button id="btn-add-step1-box" style="padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.3); transition: all 0.2s ease;">➕ Step1 박스 추가</button>
+        <button id="btn-add-step2-box" style="padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.3); transition: all 0.2s ease;">➕ Step2 박스 추가</button>
       </div>
 
       <!-- 작업 제어 버튼 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-auto-execute" style="padding: .5rem; font-size: .85rem; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 순차 실행</button>
-        <button id="btn-copy-step1-results" style="padding: .5rem; font-size: .85rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer;">📋 Step1 복사</button>
-        <button id="btn-copy-step2-results" style="padding: .5rem; font-size: .85rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer;">📋 Step2 복사</button>
+        <button id="btn-auto-execute" style="padding: .55rem; font-size: .85rem; background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(52,152,219,.3); transition: all 0.2s ease;">⚡ 순차 실행</button>
+        <button id="btn-copy-step1-results" style="padding: .55rem; font-size: .85rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.25); transition: all 0.2s ease;">📋 Step1 복사</button>
+        <button id="btn-copy-step2-results" style="padding: .55rem; font-size: .85rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.25); transition: all 0.2s ease;">📋 Step2 복사</button>
       </div>
 
       <!-- Step 접기/펼치기 버튼 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-toggle-step1" style="padding: .4rem; font-size: .8rem; background: #fff; color: #e74c3c; border: 2px solid #e74c3c; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 Step1 접기/펼치기</button>
-        <button id="btn-toggle-step2" style="padding: .4rem; font-size: .8rem; background: #fff; color: #9b59b6; border: 2px solid #9b59b6; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 Step2 접기/펼치기</button>
+        <button id="btn-toggle-step1" style="padding: .5rem; font-size: .8rem; background: #fff; color: #ff6b6b; border: 2px solid #ff6b6b; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s ease;">🔽 Step1 접기/펼치기</button>
+        <button id="btn-toggle-step2" style="padding: .5rem; font-size: .8rem; background: #fff; color: #4ecdc4; border: 2px solid #4ecdc4; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s ease;">🔽 Step2 접기/펼치기</button>
       </div>
 
       <!-- 상태 표시 -->
@@ -681,6 +697,8 @@
   // 워크플로우 박스 시스템
   let workflowBoxes = [];
   let nextBoxId = 1;
+  let nextStep1BoxNum = 1;
+  let nextStep2BoxNum = 1;
 
   // 기본 설정
   let config = {
@@ -1827,9 +1845,9 @@
         return hash.toString(36);
       };
 
-      // 중복 검사 체크박스 상태 확인
-      const checkDuplicates = document.getElementById('check-duplicates')?.checked || false;
-      const scriptHash = checkDuplicates ? generateSimpleHash(benchmarkScript) : '';
+      // 중복 자료 체크박스 상태 확인 (체크 시 분석만 수행, 저장 안 함)
+      const isDuplicateData = document.getElementById('check-duplicates')?.checked || false;
+      const scriptHash = isDuplicateData ? '' : generateSimpleHash(benchmarkScript);
 
       // 로딩 오버레이 표시
       showLoadingOverlay('벤치마크 대본 분석 중', 'AI가 대본을 분석하고 있습니다...');
@@ -1923,11 +1941,14 @@
   // 워크플로우 박스 추가
   function addWorkflowBox(stepType = 'step1') {
     const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
+    const stepNumber = stepType === 'step1' ? nextStep1BoxNum : nextStep2BoxNum;
+
     const box = {
       id: `box_${nextBoxId}`,
       boxNumber: nextBoxId,
+      stepNumber: stepNumber,
       stepType: stepType,
-      name: `${stepLabel} 작업 ${nextBoxId}`,
+      name: `${stepLabel} 작업 ${stepNumber}`,
       inputs: {
         benchmarkScript: false,
         aiAnalysis: false
@@ -1938,6 +1959,12 @@
 
     workflowBoxes.push(box);
     nextBoxId++;
+
+    if (stepType === 'step1') {
+      nextStep1BoxNum++;
+    } else {
+      nextStep2BoxNum++;
+    }
 
     renderWorkflowBoxes();
     saveWorkflowBoxes();
@@ -1950,10 +1977,23 @@
       if (confirm(`"${workflowBoxes[index].name}" 박스를 삭제하시겠습니까?`)) {
         workflowBoxes.splice(index, 1);
 
-        // 박스 번호 재정렬
-        workflowBoxes.forEach((box, idx) => {
-          box.boxNumber = idx + 1;
+        // Step별 박스 번호 재정렬
+        const step1Boxes = workflowBoxes.filter(b => b.stepType === 'step1');
+        const step2Boxes = workflowBoxes.filter(b => b.stepType === 'step2');
+
+        step1Boxes.forEach((box, idx) => {
+          box.stepNumber = idx + 1;
+          box.name = `Step1 작업 ${idx + 1}`;
         });
+
+        step2Boxes.forEach((box, idx) => {
+          box.stepNumber = idx + 1;
+          box.name = `Step2 작업 ${idx + 1}`;
+        });
+
+        // 다음 번호 업데이트
+        nextStep1BoxNum = step1Boxes.length + 1;
+        nextStep2BoxNum = step2Boxes.length + 1;
 
         renderWorkflowBoxes();
         saveWorkflowBoxes();
@@ -1974,35 +2014,36 @@
     container.innerHTML = workflowBoxes.map(box => {
       const stepType = box.stepType || 'step1';  // 기본값 step1
       const stepBadgeClass = stepType === 'step1' ? 'step1' : 'step2';
-      const stepBadgeColor = stepType === 'step1' ? '#e74c3c' : '#9b59b6';
+      const stepBadgeColor = stepType === 'step1' ? '#ff6b6b' : '#4ecdc4';
+      const stepBadgeGradient = stepType === 'step1' ? 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)' : 'linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%)';
+      const stepBgColor = stepType === 'step1' ? '#fff5f5' : '#f0fdfc';
       const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
 
       return `
-      <div class="box workflow-box ${stepType}" id="workflow-box-${box.id}" style="margin-bottom: .75rem;">
+      <div class="box workflow-box ${stepType}" id="workflow-box-${box.id}" style="margin-bottom: .75rem; border-left: 4px solid ${stepBadgeColor};">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div style="display: flex; align-items: center; gap: .5rem;">
-            <span style="background: ${stepBadgeColor}; color: white; padding: .3rem .6rem; border-radius: 4px; font-weight: 600;">[${box.boxNumber}]</span>
-            <span class="step-badge ${stepBadgeClass}">${stepLabel}</span>
-            <input type="text" value="${box.name}" onchange="updateBoxName('${box.id}', this.value)" style="font-weight: 600; font-size: 1rem; border: 1px solid #ddd; padding: .3rem .5rem; border-radius: 4px;">
+            <span style="background: ${stepBadgeGradient}; color: white; padding: .4rem .7rem; border-radius: 8px; font-weight: 600; font-size: .85rem; box-shadow: 0 2px 6px rgba(0,0,0,.15);">${stepLabel} ${box.stepNumber || box.boxNumber}</span>
+            <input type="text" value="${box.name}" onchange="updateBoxName('${box.id}', this.value)" style="font-weight: 600; font-size: .95rem; border: none; padding: .3rem .5rem; border-radius: 6px; background: #f8f9fa; flex: 1;">
           </div>
-          <button onclick="deleteWorkflowBox('${box.id}')" class="danger" style="padding: .3rem .6rem; font-size: .85rem;">🗑️ 삭제</button>
+          <button onclick="deleteWorkflowBox('${box.id}')" class="danger" style="padding: .4rem .7rem; font-size: .85rem; border-radius: 8px;">🗑️ 삭제</button>
         </div>
 
         <div class="box-content">
         <!-- 입력 소스 선택 -->
-        <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
-          <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: #666;">📥 입력 소스 선택</div>
+        <div style="background: ${stepBgColor}; padding: .75rem; border-radius: 10px; margin-bottom: .75rem; border: 1px solid ${stepBadgeColor}20;">
+          <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: #555;">📥 입력 소스 선택</div>
           <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .5rem;">
-            <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer;">
+            <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer; padding: .3rem; border-radius: 6px; transition: background 0.2s;">
               <input type="checkbox" ${box.inputs.benchmarkScript ? 'checked' : ''} onchange="updateBoxInput('${box.id}', 'benchmarkScript', this.checked)">
               <span style="font-size: .85rem;">벤치마킹 대본</span>
             </label>
-            <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer;">
+            <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer; padding: .3rem; border-radius: 6px; transition: background 0.2s;">
               <input type="checkbox" ${box.inputs.aiAnalysis ? 'checked' : ''} onchange="updateBoxInput('${box.id}', 'aiAnalysis', this.checked)">
               <span style="font-size: .85rem;">AI 분석 자료</span>
             </label>
             ${workflowBoxes.filter(b => b.boxNumber < box.boxNumber).map(otherBox => `
-              <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer;">
+              <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer; padding: .3rem; border-radius: 6px; transition: background 0.2s;">
                 <input type="checkbox" ${box.inputs[`box_${otherBox.boxNumber}`] ? 'checked' : ''} onchange="updateBoxInput('${box.id}', 'box_${otherBox.boxNumber}', this.checked)">
                 <span style="font-size: .85rem;">[${otherBox.boxNumber}] ${otherBox.name}</span>
               </label>
@@ -2011,13 +2052,13 @@
         </div>
 
         <!-- 실행 버튼 -->
-        <button onclick="executeWorkflowBox('${box.id}')" class="primary" style="width: 100%; padding: .6rem; margin-bottom: .75rem; font-size: .9rem;">▶️ 실행</button>
+        <button onclick="executeWorkflowBox('${box.id}')" style="width: 100%; padding: .7rem; margin-bottom: .75rem; font-size: .9rem; background: ${stepBadgeGradient}; color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px ${stepBadgeColor}40; transition: all 0.2s ease;">▶️ 실행</button>
 
         <!-- 결과 표시 -->
-        <div style="background: ${stepType === 'step1' ? '#ffe6e6' : '#f3e5f5'}; padding: .75rem; border-radius: 6px;">
+        <div style="background: ${stepBgColor}; padding: .75rem; border-radius: 10px; border: 1px solid ${stepBadgeColor}30;">
           <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: ${stepBadgeColor};">📊 결과</div>
-          <textarea id="result-${box.id}" readonly style="width: 100%; min-height: 150px; font-size: .85rem; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; background: white;" placeholder="실행 결과가 여기에 표시됩니다...">${box.result}</textarea>
-          <button onclick="copyBoxResult('${box.id}')" style="width: 100%; padding: .4rem; margin-top: .5rem; font-size: .85rem;">📋 결과 복사</button>
+          <textarea id="result-${box.id}" readonly style="width: 100%; min-height: 150px; font-size: .85rem; padding: .6rem; border: none; border-radius: 8px; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,.05);" placeholder="실행 결과가 여기에 표시됩니다...">${box.result}</textarea>
+          <button onclick="copyBoxResult('${box.id}')" style="width: 100%; padding: .5rem; margin-top: .5rem; font-size: .85rem; background: white; border: 2px solid ${stepBadgeColor}; color: ${stepBadgeColor}; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">📋 결과 복사</button>
         </div>
         </div>
       </div>
@@ -2173,20 +2214,32 @@
   async function saveWorkflowBoxes() {
     localStorage.setItem('drama-workflow-boxes', JSON.stringify(workflowBoxes));
     localStorage.setItem('drama-next-box-id', nextBoxId.toString());
+    localStorage.setItem('drama-next-step1-num', nextStep1BoxNum.toString());
+    localStorage.setItem('drama-next-step2-num', nextStep2BoxNum.toString());
     await saveToFirebase('_drama-workflow-boxes', JSON.stringify(workflowBoxes));
     await saveToFirebase('_drama-next-box-id', nextBoxId.toString());
+    await saveToFirebase('_drama-next-step1-num', nextStep1BoxNum.toString());
+    await saveToFirebase('_drama-next-step2-num', nextStep2BoxNum.toString());
   }
 
   // 워크플로우 박스 불러오기
   function loadWorkflowBoxes() {
     const saved = localStorage.getItem('drama-workflow-boxes');
     const savedNextId = localStorage.getItem('drama-next-box-id');
+    const savedStep1Num = localStorage.getItem('drama-next-step1-num');
+    const savedStep2Num = localStorage.getItem('drama-next-step2-num');
 
     if (saved) {
       workflowBoxes = JSON.parse(saved);
     }
     if (savedNextId) {
       nextBoxId = parseInt(savedNextId);
+    }
+    if (savedStep1Num) {
+      nextStep1BoxNum = parseInt(savedStep1Num);
+    }
+    if (savedStep2Num) {
+      nextStep2BoxNum = parseInt(savedStep2Num);
     }
   }
 
