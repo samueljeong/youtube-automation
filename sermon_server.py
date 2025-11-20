@@ -282,6 +282,7 @@ def api_gpt_pro():
         category = data.get("category", "")
         draft_content = data.get("draftContent", "")
         style_description = data.get("styleDescription", "")
+        completed_step_names = data.get("completedStepNames", [])
 
         print(f"[GPT-PRO] 처리 시작 - 스타일: {style_name}")
 
@@ -369,16 +370,23 @@ def api_gpt_pro():
                 "5. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
             )
         else:
-            # 기본 설교 스타일
+            # 기본 설교 스타일 - 처리 단계 구조 따르기
+            user_content += "1. 제공된 설교 스타일에 맞춰 설교문을 작성하세요.\n"
+
+            # 완료된 처리 단계 정보 활용
+            if completed_step_names and len(completed_step_names) > 0:
+                steps_list = "', '".join(completed_step_names)
+                user_content += (
+                    f"2. 위 초안 자료는 '{steps_list}' 단계로 구성되어 있습니다.\n"
+                    "   이 단계들의 분석 내용과 구조를 반영하여 설교문을 전개하세요.\n"
+                )
+            else:
+                user_content += "2. 초안 자료의 분석 내용과 구조를 반영하여 설교문을 전개하세요.\n"
+
             user_content += (
-                "1. 제공된 설교 스타일에 맞춰 설교문을 작성하세요.\n"
-                "2. 서론, 본론, 결론 구조를 명확히 하세요:\n"
-                "   - 서론: 넘버링 없이 '서론'이라고만\n"
-                "   - 본론: 주요 포인트가 있으면 '1.', '2.', '3.' 형식으로 넘버링\n"
-                "   - 결론: 넘버링 없이 '결론'이라고만\n"
-                "3. 본론에서 핵심 메시지를 전개하고, 관련 성경구절을 인용하세요.\n"
+                "3. 핵심 메시지를 전개하고, 관련 성경구절을 적절히 인용하세요.\n"
                 "4. 역사적 배경, 신학적 통찰, 실제 적용을 균형 있게 제시하세요.\n"
-                "5. 결론에서는 실천 사항과 기도 제목을 제시하세요.\n"
+                "5. 결론 부분에서는 실천 사항과 기도 제목을 제시하세요.\n"
                 "6. 가독성을 위해 각 섹션 사이에 빈 줄을 넣으세요.\n"
                 "7. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
             )
