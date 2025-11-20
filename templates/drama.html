@@ -17,11 +17,12 @@
       height: 100vh;
     }
     .left-col {
-      width: 360px;
+      flex: 1;
       display: flex;
       flex-direction: column;
       gap: .75rem;
       overflow-y: auto;
+      min-width: 0;
     }
     .right-col {
       flex: 1;
@@ -337,10 +338,10 @@
         <input type="date" id="drama-date">
       </div>
 
-      <!-- 드라마 카테고리 -->
+      <!-- 영상 시간 -->
       <div class="box">
         <div class="label-row">
-          <label class="label">드라마 유형</label>
+          <label class="label">영상 시간</label>
           <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
         <select id="drama-category"></select>
@@ -352,18 +353,18 @@
         <textarea id="benchmark-script" placeholder="참고할 대본이나 스크립트를 여기에 붙여넣으세요."></textarea>
       </div>
 
-      <!-- 드라마 스타일 (설교 스타일 대신) -->
+      <!-- 주인공 -->
       <div class="box">
-        <div class="label-row">
-          <label class="label">드라마 스타일</label>
-          <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
-        </div>
-        <div id="styles-list"></div>
+        <label class="label" for="main-character">주인공</label>
+        <input type="text" id="main-character" placeholder="주인공 이름이나 특징을 입력하세요 (예: 20대 여성 변호사)">
       </div>
 
       <!-- 처리 단계 -->
       <div class="box">
-        <label class="label">처리 단계</label>
+        <div class="label-row">
+          <label class="label">처리 단계</label>
+          <button id="btn-manage-steps" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
+        </div>
         <div id="processing-steps"></div>
       </div>
 
@@ -402,24 +403,27 @@
         </div>
         <div id="master-guide-content" style="display: none;">
           <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-            이 드라마 유형의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
+            이 영상 시간의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
           </p>
           <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
 
-단막극 운영 지침
+10분 드라마 운영 지침
 ==================
 
 ## 각 단계별 역할과 비중
 
-### 1. 캐릭터 설정 (30%)
+### 1. 캐릭터 설정 (25%)
 - 역할: 주요 인물의 성격과 동기 정의
 - 특징: 간결하고 명확하게
 
-### 2. 스토리라인 구성 (50%)
+### 2. 스토리라인 구성 (35%)
 - 역할: 전체 줄거리 설계
-- 특징: 3막 구조로 간결하게
+- 특징: 짧은 시간 내 완결성 있는 구조
 
-### 3. 대사 작성 (20%)
+### 3. 장면 구성 (20%)
+- 역할: 주요 장면의 흐름 설계
+
+### 4. 대사 작성 (20%)
 - 역할: 핵심 장면의 대사 작성"></textarea>
           <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
         </div>
@@ -481,32 +485,15 @@
     </div>
   </div>
 
-  <!-- 카테고리 관리 모달 -->
+  <!-- 영상 시간 관리 모달 -->
   <div id="modal-categories" class="modal">
     <div class="modal-content">
-      <div class="modal-title">드라마 유형 관리</div>
-      <input type="text" id="new-cat-label" placeholder="표시 이름 (예: 웹드라마)" style="margin-bottom: .5rem;">
+      <div class="modal-title">영상 시간 관리</div>
+      <input type="text" id="new-cat-label" placeholder="표시 이름 (예: 90분, 120분)" style="margin-bottom: .5rem;">
       <button id="btn-add-category" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
       <div id="categories-list" style="max-height: 300px; overflow-y: auto;"></div>
       <div class="modal-buttons">
         <button id="btn-close-categories">닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 스타일 관리 모달 -->
-  <div id="modal-styles" class="modal">
-    <div class="modal-content">
-      <div class="modal-title">드라마 스타일 관리</div>
-      <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">유형: <strong id="modal-styles-category"></strong></p>
-
-      <input type="text" id="new-style-name" placeholder="스타일 이름 (예: 로맨스 코미디)" style="margin-bottom: .3rem;">
-      <input type="text" id="new-style-desc" placeholder="설명 (예: 가벼운 톤, 유머 중심)" style="margin-bottom: .5rem;">
-      <button id="btn-add-style" class="primary" style="width: 100%; margin-bottom: 1rem;">추가</button>
-
-      <div id="styles-manage-list" style="max-height: 300px; overflow-y: auto;"></div>
-      <div class="modal-buttons">
-        <button id="btn-close-styles">닫기</button>
       </div>
     </div>
   </div>
@@ -555,56 +542,37 @@
   // ===== 전역 변수 =====
   let guideUnlocked = false;
   let gptProUnlocked = false;
-  let currentCategory = 'short';
-  let currentStyleId = '';
+  let currentCategory = '10min';
   let currentGuideStep = '';
   let stepResults = {};
 
   // 기본 설정
   let config = {
     categories: [
-      {value: "short", label: "단막극"},
-      {value: "episode", label: "에피소드"},
-      {value: "series", label: "시리즈"},
-      {value: "musical", label: "뮤지컬"}
+      {value: "10min", label: "10분"},
+      {value: "20min", label: "20분"},
+      {value: "30min", label: "30분"},
+      {value: "60min", label: "60분"}
+    ],
+    // 통합된 처리 단계 (모든 시간대에 동일)
+    unifiedSteps: [
+      {id: "character", name: "캐릭터 설정", order: 1},
+      {id: "storyline", name: "스토리라인", order: 2},
+      {id: "scene", name: "장면 구성", order: 3},
+      {id: "dialogue", name: "대사 작성", order: 4}
     ],
     categorySettings: {
-      short: {
-        masterGuide: "",
-        styles: [
-          {
-            id: "short_romance",
-            name: "로맨스 단막극",
-            description: "감성적이고 따뜻한 톤",
-            steps: [
-              {id: "character", name: "캐릭터 설정", order: 1},
-              {id: "storyline", name: "스토리라인", order: 2},
-              {id: "dialogue", name: "대사 작성", order: 3}
-            ]
-          },
-          {
-            id: "short_comedy",
-            name: "코미디 단막극",
-            description: "유머와 웃음 중심",
-            steps: [
-              {id: "character", name: "캐릭터 설정", order: 1},
-              {id: "storyline", name: "스토리라인", order: 2},
-              {id: "dialogue", name: "대사 작성", order: 3}
-            ]
-          }
-        ]
+      "10min": {
+        masterGuide: ""
       },
-      episode: {
-        masterGuide: "",
-        styles: []
+      "20min": {
+        masterGuide: ""
       },
-      series: {
-        masterGuide: "",
-        styles: []
+      "30min": {
+        masterGuide: ""
       },
-      musical: {
-        masterGuide: "",
-        styles: []
+      "60min": {
+        masterGuide: ""
       }
     }
   };
@@ -802,16 +770,9 @@
     return cat ? cat.label : value;
   }
 
-  function getCurrentStyle() {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return null;
-    return settings.styles.find(s => s.id === currentStyleId);
-  }
-
   function getCurrentSteps() {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return [];
-    return style.steps.sort((a, b) => a.order - b.order);
+    if (!config.unifiedSteps) return [];
+    return config.unifiedSteps.sort((a, b) => a.order - b.order);
   }
 
   function getStepName(stepId) {
@@ -824,7 +785,7 @@
   function assembleGptProDraft() {
     const steps = getCurrentSteps();
     const benchmarkScript = document.getElementById('benchmark-script').value.trim();
-    const style = getCurrentStyle();
+    const mainCharacter = document.getElementById('main-character').value.trim();
 
     if (steps.length === 0) {
       return { error: '처리된 단계가 없습니다.' };
@@ -837,8 +798,6 @@
     }
 
     const categoryLabel = getCategoryLabel(currentCategory);
-    const styleName = style ? style.name : '';
-    const styleDescription = style ? style.description : '';
 
     let fullText = `====================================\n`;
     fullText += `🎭 드라마 스크립트 초안 자료 (GPT-5.1 작성용)\n`;
@@ -848,10 +807,9 @@
     fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 드라마 스크립트로 재작성하세요.\n\n`;
     fullText += `${'='.repeat(50)}\n\n`;
     fullText += `📌 기본 정보\n`;
-    fullText += `- 드라마 유형: ${categoryLabel}\n`;
-    fullText += `- 스타일: ${styleName}\n`;
-    if (styleDescription) {
-      fullText += `- 스타일 설명: ${styleDescription}\n`;
+    fullText += `- 영상 시간: ${categoryLabel}\n`;
+    if (mainCharacter) {
+      fullText += `- 주인공: ${mainCharacter}\n`;
     }
     if (benchmarkScript) {
       fullText += `- 벤치마킹 대본: 첨부됨\n`;
@@ -882,8 +840,7 @@
       draftContent: fullText,
       meta: {
         benchmarkScript,
-        styleName,
-        styleDescription,
+        mainCharacter,
         categoryLabel
       }
     };
@@ -951,8 +908,7 @@
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          styleName: draft.meta.styleName,
-          styleDescription: draft.meta.styleDescription,
+          mainCharacter: draft.meta.mainCharacter,
           category: draft.meta.categoryLabel,
           draftContent: draft.draftContent
         })
@@ -1038,45 +994,7 @@
     currentCategory = select.value;
   }
 
-  function renderStyles() {
-    const settings = config.categorySettings[currentCategory];
-    const styles = (settings && settings.styles) ? settings.styles : [];
-    const container = document.getElementById('styles-list');
-
-    if (!container) return;
-
-    if (styles.length === 0) {
-      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
-      return;
-    }
-
-    container.innerHTML = styles.map(style =>
-      `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}">
-        <div>
-          <div style="font-weight: 600;">${style.name}</div>
-          <div class="style-desc">${style.description || ''}</div>
-        </div>
-      </div>`
-    ).join('');
-
-    container.querySelectorAll('.style-item').forEach(item => {
-      item.addEventListener('click', () => {
-        currentStyleId = item.dataset.style;
-        stepResults = {};
-        const gptProContainer = document.getElementById('gpt-pro-result-container');
-        if (gptProContainer) gptProContainer.style.display = 'none';
-        renderStyles();
-        renderProcessingSteps();
-        renderResultBoxes();
-        renderGuideTabs();
-      });
-    });
-
-    if (!currentStyleId && styles.length > 0) {
-      currentStyleId = styles[0].id;
-      renderStyles();
-    }
-  }
+  // Styles are no longer used - main character is a text input field
 
   function renderProcessingSteps() {
     const steps = getCurrentSteps();
@@ -1221,13 +1139,11 @@
   if (categorySelect) {
     categorySelect.addEventListener('change', (e) => {
       currentCategory = e.target.value;
-      currentStyleId = '';
       stepResults = {};
       const gptProContainer = document.getElementById('gpt-pro-result-container');
       if (gptProContainer) gptProContainer.style.display = 'none';
 
       loadMasterGuide(currentCategory);
-      renderStyles();
       renderProcessingSteps();
       renderResultBoxes();
       renderGuideTabs();
@@ -1427,7 +1343,7 @@
     const current = config.categories[idx];
     if (!current) return;
 
-    const newLabel = prompt('새 카테고리 이름을 입력하세요.', current.label);
+    const newLabel = prompt('새 영상 시간 이름을 입력하세요.', current.label);
     if (newLabel === null) return;
 
     const trimmed = newLabel.trim();
@@ -1442,7 +1358,6 @@
     renderCategoryManageList();
     if (current.value === currentCategory) {
       loadMasterGuide(currentCategory);
-      renderStyles();
       renderProcessingSteps();
       renderResultBoxes();
       renderGuideTabs();
@@ -1458,187 +1373,45 @@
     renderCategories();
     renderCategoryManageList();
     loadMasterGuide(currentCategory);
-    renderStyles();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
   };
 
-  // ===== 스타일 관리 =====
-  const btnManageStyles = document.getElementById('btn-manage-styles');
-  if (btnManageStyles) {
-    btnManageStyles.addEventListener('click', () => {
-      const categoryLabel = document.getElementById('modal-styles-category');
-      if (categoryLabel) {
-        categoryLabel.textContent = getCategoryLabel(currentCategory);
-      }
+  // ===== 처리 단계 관리 버튼 =====
+  const btnManageSteps = document.getElementById('btn-manage-steps');
+  if (btnManageSteps) {
+    btnManageSteps.addEventListener('click', () => {
+      const styleLabel = document.getElementById('modal-steps-style');
+      if (styleLabel) styleLabel.textContent = '통합 처리 단계';
 
-      renderStylesManageList();
-      const modal = document.getElementById('modal-styles');
-      if (modal) modal.classList.add('show');
+      renderStepsManageList();
+
+      const stepsModal = document.getElementById('modal-steps');
+      if (stepsModal) stepsModal.classList.add('show');
     });
   }
 
-  function renderStylesManageList() {
-    const list = document.getElementById('styles-manage-list');
-    if (!list) return;
+  // Style management removed - using main character text input instead
 
-    const settings = config.categorySettings[currentCategory];
-    const styles = (settings && settings.styles) ? settings.styles : [];
-
-    if (styles.length === 0) {
-      list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">스타일을 추가하세요.</p>';
-      return;
-    }
-
-    list.innerHTML = styles.map((style, idx) => `
-      <div class="storage-item">
-        <div>
-          <div style="font-weight: 600;">${style.name}</div>
-          <div style="font-size: .75rem; color: #666;">${style.description || ''}</div>
-        </div>
-        <div>
-          <button onclick="editStyle(${idx})" style="margin-right: .3rem;">이름 수정</button>
-          <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
-          <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  const btnCloseStyles = document.getElementById('btn-close-styles');
-  if (btnCloseStyles) {
-    btnCloseStyles.addEventListener('click', () => {
-      const modal = document.getElementById('modal-styles');
-      if (modal) modal.classList.remove('show');
-    });
-  }
-
-  const btnAddStyle = document.getElementById('btn-add-style');
-  if (btnAddStyle) {
-    btnAddStyle.addEventListener('click', async () => {
-      const nameInput = document.getElementById('new-style-name');
-      const descInput = document.getElementById('new-style-desc');
-
-      if (!nameInput) return;
-
-      const name = nameInput.value.trim();
-      const desc = descInput ? descInput.value.trim() : '';
-
-      if (!name) {
-        alert('스타일 이름을 입력하세요.');
-        return;
-      }
-
-      const id = koreanToId(name);
-      const settings = config.categorySettings[currentCategory];
-
-      if (!settings.styles) {
-        settings.styles = [];
-      }
-
-      settings.styles.push({
-        id: id,
-        name: name,
-        description: desc,
-        steps: []
-      });
-
-      await saveConfig();
-      renderStyles();
-      renderStylesManageList();
-      nameInput.value = '';
-      if (descInput) descInput.value = '';
-    });
-  }
-
-  window.editStyle = async function(idx) {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return;
-
-    const style = settings.styles[idx];
-    if (!style) return;
-
-    const newName = prompt('새 스타일 이름을 입력하세요.', style.name);
-    if (newName === null) return;
-
-    const trimmedName = newName.trim();
-    if (!trimmedName) {
-      alert('스타일 이름을 입력하세요.');
-      return;
-    }
-
-    const newDesc = prompt('스타일 설명을 입력하세요.', style.description || '');
-    if (newDesc === null) return;
-
-    style.name = trimmedName;
-    style.description = newDesc.trim();
-
-    await saveConfig();
-    renderStyles();
-    renderStylesManageList();
-    renderProcessingSteps();
-    renderResultBoxes();
-    renderGuideTabs();
-  };
-
-  window.deleteStyle = async function(idx) {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return;
-
-    const style = settings.styles[idx];
-    if (!confirm(`"${style.name}" 삭제?`)) return;
-
-    settings.styles.splice(idx, 1);
-    if (currentStyleId === style.id) {
-      currentStyleId = '';
-    }
-    await saveConfig();
-    renderStyles();
-    renderStylesManageList();
-    renderProcessingSteps();
-    renderResultBoxes();
-    renderGuideTabs();
-  };
-
-  window.editStyleSteps = function(styleId) {
-    const settings = config.categorySettings[currentCategory];
-    if (!settings || !settings.styles) return;
-
-    const style = settings.styles.find(s => s.id === styleId);
-    if (!style) return;
-
-    currentStyleId = styleId;
-    const modal = document.getElementById('modal-styles');
-    if (modal) modal.classList.remove('show');
-
-    const styleLabel = document.getElementById('modal-steps-style');
-    if (styleLabel) styleLabel.textContent = style.name;
-
-    renderStepsManageList(style);
-
-    const stepsModal = document.getElementById('modal-steps');
-    if (stepsModal) stepsModal.classList.add('show');
-  };
-
-  function renderStepsManageList(style) {
+  function renderStepsManageList() {
     const list = document.getElementById('steps-list');
     if (!list) return;
 
-    if (!style.steps) style.steps = [];
-    style.steps.sort((a, b) => a.order - b.order);
+    if (!config.unifiedSteps) config.unifiedSteps = [];
+    config.unifiedSteps.sort((a, b) => a.order - b.order);
 
-    if (style.steps.length === 0) {
+    if (config.unifiedSteps.length === 0) {
       list.innerHTML = '<p style="color: #999; font-size: .8rem; text-align: center; padding: .5rem;">단계를 추가하세요.</p>';
       return;
     }
 
-    list.innerHTML = style.steps.map((step, idx) => `
+    list.innerHTML = config.unifiedSteps.map((step, idx) => `
       <div class="storage-item">
         <span>${step.order}. ${step.name}</span>
         <div>
           ${idx > 0 ? `<button onclick="moveStep(${idx}, -1)" style="margin-right: .3rem;">↑</button>` : ''}
-          ${idx < style.steps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
+          ${idx < config.unifiedSteps.length - 1 ? `<button onclick="moveStep(${idx}, 1)" style="margin-right: .3rem;">↓</button>` : ''}
           <button onclick="renameStep(${idx})" style="margin-right: .3rem;">이름 수정</button>
           <button class="danger" onclick="deleteStep(${idx})">삭제</button>
         </div>
@@ -1667,15 +1440,12 @@
         return;
       }
 
-      const style = getCurrentStyle();
-      if (!style) return;
-
-      if (!style.steps) style.steps = [];
+      if (!config.unifiedSteps) config.unifiedSteps = [];
 
       const id = koreanToId(name);
-      const maxOrder = style.steps.length > 0 ? Math.max(...style.steps.map(s => s.order)) : 0;
+      const maxOrder = config.unifiedSteps.length > 0 ? Math.max(...config.unifiedSteps.map(s => s.order)) : 0;
 
-      style.steps.push({
+      config.unifiedSteps.push({
         id: id,
         name: name,
         order: maxOrder + 1
@@ -1685,19 +1455,15 @@
       renderProcessingSteps();
       renderResultBoxes();
       renderGuideTabs();
-      const updatedStyle = getCurrentStyle();
-      if (updatedStyle) {
-        renderStepsManageList(updatedStyle);
-      }
+      renderStepsManageList();
       input.value = '';
     });
   }
 
   window.moveStep = async function(idx, direction) {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return;
+    if (!config.unifiedSteps) return;
 
-    const steps = style.steps;
+    const steps = config.unifiedSteps;
     const targetIdx = idx + direction;
 
     if (targetIdx < 0 || targetIdx >= steps.length) return;
@@ -1708,31 +1474,26 @@
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    const updatedStyle = getCurrentStyle();
-    if (updatedStyle) {
-      renderStepsManageList(updatedStyle);
-    }
+    renderStepsManageList();
   };
 
   window.deleteStep = async function(idx) {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return;
+    if (!config.unifiedSteps) return;
 
-    if (!confirm(`"${style.steps[idx].name}" 삭제?`)) return;
+    if (!confirm(`"${config.unifiedSteps[idx].name}" 삭제?`)) return;
 
-    style.steps.splice(idx, 1);
+    config.unifiedSteps.splice(idx, 1);
     await saveConfig();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    renderStepsManageList(style);
+    renderStepsManageList();
   };
 
   window.renameStep = async function(idx) {
-    const style = getCurrentStyle();
-    if (!style || !style.steps) return;
+    if (!config.unifiedSteps) return;
 
-    const step = style.steps[idx];
+    const step = config.unifiedSteps[idx];
     if (!step) return;
 
     const newName = prompt('새 단계 이름을 입력하세요.', step.name);
@@ -1749,7 +1510,7 @@
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
-    renderStepsManageList(style);
+    renderStepsManageList();
   };
 
   // ===== 저장/불러오기 =====
@@ -1757,13 +1518,12 @@
   if (btnSave) {
     btnSave.addEventListener('click', () => {
       const saved = JSON.parse(localStorage.getItem('drama-saved') || '[]');
-      const style = getCurrentStyle();
+      const mainCharacter = document.getElementById('main-character').value.trim();
 
       saved.push({
         date: document.getElementById('drama-date').value,
         category: currentCategory,
-        styleId: currentStyleId,
-        styleName: style ? style.name : '',
+        mainCharacter: mainCharacter,
         benchmarkScript: document.getElementById('benchmark-script').value,
         results: stepResults,
         savedAt: new Date().toISOString()
@@ -1788,7 +1548,8 @@
 
     list.innerHTML = saved.map((item, idx) => {
       const catLabel = getCategoryLabel(item.category);
-      const display = `${item.date} - ${catLabel} - ${item.styleName}`;
+      const mainChar = item.mainCharacter || '주인공 미지정';
+      const display = `${item.date} - ${catLabel} - ${mainChar}`;
 
       return `
         <div class="storage-item">
@@ -1807,14 +1568,13 @@
     const item = saved[idx];
 
     document.getElementById('drama-date').value = item.date || '';
-    document.getElementById('drama-category').value = item.category || 'short';
+    document.getElementById('drama-category').value = item.category || '10min';
     document.getElementById('benchmark-script').value = item.benchmarkScript || '';
+    document.getElementById('main-character').value = item.mainCharacter || '';
 
-    currentCategory = item.category || 'short';
-    currentStyleId = item.styleId || '';
+    currentCategory = item.category || '10min';
     stepResults = item.results || {};
 
-    renderStyles();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
@@ -1848,7 +1608,6 @@
 
     renderCategories();
     loadMasterGuide(currentCategory);
-    renderStyles();
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
