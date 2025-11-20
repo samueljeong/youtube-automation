@@ -17,6 +17,20 @@
       height: 100vh;
     }
     .left-col {
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+      overflow-y: auto;
+    }
+    .right-col {
+      flex: 1;
+      display: flex;
+      gap: 1rem;
+      min-width: 0;
+      overflow-y: hidden;
+    }
+    .content-area {
       flex: 1;
       display: flex;
       flex-direction: column;
@@ -24,13 +38,13 @@
       overflow-y: auto;
       min-width: 0;
     }
-    .right-col {
+    .analysis-area {
       flex: 1;
       display: flex;
       flex-direction: column;
       gap: .75rem;
-      min-width: 0;
       overflow-y: auto;
+      min-width: 0;
     }
     .box {
       background: #fff;
@@ -378,34 +392,36 @@
 
     <!-- 오른쪽 -->
     <div class="right-col">
-      <!-- 전체 복사 + GPT PRO 버튼 -->
-      <div class="top-buttons-container">
-        <div class="box copy-all-box">
-          <div class="box-title">📋 GPT-5.1로 보내기</div>
-          <div class="box-desc">모든 초안 자료를 순서대로 복사합니다</div>
-          <button id="btn-copy-all">전체 복사</button>
+      <!-- 컨텐츠 영역 -->
+      <div class="content-area">
+        <!-- 전체 복사 + GPT PRO 버튼 -->
+        <div class="top-buttons-container">
+          <div class="box copy-all-box">
+            <div class="box-title">📋 GPT-5.1로 보내기</div>
+            <div class="box-desc">모든 초안 자료를 순서대로 복사합니다</div>
+            <button id="btn-copy-all">전체 복사</button>
+          </div>
+          <div class="box gpt-pro-box">
+            <div class="box-title">🚀 GPT 최신 버전 이용</div>
+            <div class="box-desc">초안을 완성된 드라마 스크립트로 변환합니다</div>
+            <button id="btn-gpt-pro">스크립트 작성</button>
+          </div>
         </div>
-        <div class="box gpt-pro-box">
-          <div class="box-title">🚀 GPT 최신 버전 이용</div>
-          <div class="box-desc">초안을 완성된 드라마 스크립트로 변환합니다</div>
-          <button id="btn-gpt-pro">스크립트 작성</button>
-        </div>
-      </div>
 
-      <!-- 상태 표시 -->
-      <div id="status-bar" class="status-bar">작업 중...</div>
+        <!-- 상태 표시 -->
+        <div id="status-bar" class="status-bar">작업 중...</div>
 
-      <!-- 총괄 지침 영역 -->
-      <div class="box" id="master-guide-box">
-        <div class="toggle-header">
-          <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
-          <button id="toggle-master-guide">열기</button>
-        </div>
-        <div id="master-guide-content" style="display: none;">
-          <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-            이 영상 시간의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
-          </p>
-          <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
+        <!-- 총괄 지침 영역 -->
+        <div class="box" id="master-guide-box">
+          <div class="toggle-header">
+            <span class="label">📚 총괄 지침 (카테고리 운영 방침)</span>
+            <button id="toggle-master-guide">열기</button>
+          </div>
+          <div id="master-guide-content" style="display: none;">
+            <p style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+              이 영상 시간의 전체적인 운영 방침과 각 처리 단계의 역할/비중을 정의합니다.
+            </p>
+            <textarea id="master-guide-text" class="autosize" style="min-height: 150px;" placeholder="예시:
 
 10분 드라마 운영 지침
 ==================
@@ -425,35 +441,78 @@
 
 ### 4. 대사 작성 (20%)
 - 역할: 핵심 장면의 대사 작성"></textarea>
-          <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
-        </div>
-      </div>
-
-      <!-- 지침 영역 -->
-      <div class="box" id="guide-box">
-        <div class="toggle-header">
-          <span class="label">지침 영역 🔒</span>
-          <button id="toggle-guides">열기</button>
-        </div>
-        <div id="guide-content" style="display: none;">
-          <div class="btn-row" style="margin-bottom: .5rem;">
-            <button id="save-guide" class="primary">지침 저장</button>
+            <button id="save-master-guide" class="primary" style="width: 100%; margin-top: .5rem;">💾 총괄 지침 저장</button>
           </div>
-          <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
-          <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
-          <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+        </div>
+
+        <!-- 지침 영역 -->
+        <div class="box" id="guide-box">
+          <div class="toggle-header">
+            <span class="label">지침 영역 🔒</span>
+            <button id="toggle-guides">열기</button>
+          </div>
+          <div id="guide-content" style="display: none;">
+            <div class="btn-row" style="margin-bottom: .5rem;">
+              <button id="save-guide" class="primary">지침 저장</button>
+            </div>
+            <div id="guide-tabs" class="btn-row" style="margin-bottom: .5rem;"></div>
+            <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
+            <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+          </div>
+        </div>
+
+        <!-- 동적 결과 박스들 -->
+        <div id="result-boxes"></div>
+
+        <!-- GPT PRO 결과 박스 -->
+        <div id="gpt-pro-result-container" style="display: none;">
+          <div class="gpt-pro-result-box">
+            <div class="label">🎯 GPT PRO 완성본</div>
+            <textarea id="gpt-pro-result" class="autosize" readonly placeholder="GPT PRO 처리 결과가 여기에 표시됩니다."></textarea>
+            <button id="btn-copy-gpt-pro" style="margin-top: .5rem; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 완성본 복사</button>
+          </div>
         </div>
       </div>
 
-      <!-- 동적 결과 박스들 -->
-      <div id="result-boxes"></div>
+      <!-- 분석 영역 -->
+      <div class="analysis-area">
+        <!-- 벤치마킹 분석 박스 -->
+        <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 1rem;">
+          <div style="color: white; font-weight: 600; font-size: 1.1rem; margin-bottom: .75rem;">📊 AI 대본 분석 & 제안</div>
+          <div style="background: white; border-radius: 6px; padding: .75rem; margin-bottom: .75rem;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+              벤치마킹 대본을 분석하여 패턴을 학습하고, 개선 제안을 제공합니다.
+            </div>
+            <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
+              <input type="text" id="benchmark-upload-date" placeholder="업로드 날짜 (예: 2024-01-15)" style="flex: 1;">
+              <input type="text" id="benchmark-view-count" placeholder="조회수 (만 단위, 예: 12만)" style="flex: 1;">
+            </div>
+            <button id="btn-analyze-benchmark" class="primary" style="width: 100%;">벤치마킹 대본 분석 및 저장</button>
+          </div>
+          <div style="background: white; border-radius: 6px; padding: .75rem; max-height: calc(100vh - 400px); overflow-y: auto;">
+            <div id="analysis-result" style="font-size: .9rem; color: #333; line-height: 1.6;">
+              <p style="color: #999; text-align: center; padding: 2rem;">
+                벤치마킹 대본을 입력하고 분석 버튼을 눌러주세요.
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <!-- GPT PRO 결과 박스 -->
-      <div id="gpt-pro-result-container" style="display: none;">
-        <div class="gpt-pro-result-box">
-          <div class="label">🎯 GPT PRO 완성본</div>
-          <textarea id="gpt-pro-result" class="autosize" readonly placeholder="GPT PRO 처리 결과가 여기에 표시됩니다."></textarea>
-          <button id="btn-copy-gpt-pro" style="margin-top: .5rem; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 완성본 복사</button>
+        <!-- 축적된 데이터 기반 제안 박스 -->
+        <div class="box">
+          <div class="toggle-header">
+            <span class="label">💡 데이터 기반 개선 제안</span>
+            <button id="toggle-suggestions">열기</button>
+          </div>
+          <div id="suggestions-content" style="display: none;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: .75rem;">
+              축적된 대본 데이터를 분석하여 현재 작업에 도움이 되는 제안을 제공합니다.
+            </div>
+            <button id="btn-get-suggestions" class="primary" style="width: 100%; margin-bottom: .75rem;">현재 대본 개선 제안 받기</button>
+            <div id="suggestions-result" style="background: #f8f9fa; border-radius: 6px; padding: .75rem; min-height: 100px; max-height: 400px; overflow-y: auto;">
+              <p style="color: #999; text-align: center;">제안을 받으려면 버튼을 클릭하세요.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1074,6 +1133,7 @@
   // ===== 처리 단계 실행 =====
   async function executeStep(stepId) {
     const benchmarkScript = document.getElementById('benchmark-script').value;
+    const mainCharacter = document.getElementById('main-character').value;
     const guideKey = getGuideKey(currentCategory, stepId);
     const guide = localStorage.getItem(guideKey) || '';
 
@@ -1105,6 +1165,7 @@
           stepId: stepId,
           stepName: getStepName(stepId),
           text: benchmarkScript,
+          mainCharacter: mainCharacter,
           guide: guide,
           masterGuide: masterGuide,
           previousResults: previousResults
@@ -1594,6 +1655,114 @@
   document.querySelectorAll('textarea.autosize').forEach(textarea => {
     textarea.addEventListener('input', () => autoResize(textarea));
   });
+
+  // ===== 분석 영역 토글 =====
+  const toggleSuggestionsBtn = document.getElementById('toggle-suggestions');
+  if (toggleSuggestionsBtn) {
+    toggleSuggestionsBtn.addEventListener('click', () => {
+      const content = document.getElementById('suggestions-content');
+      const btn = document.getElementById('toggle-suggestions');
+      if (content && btn) {
+        if (content.style.display === 'none') {
+          content.style.display = 'block';
+          btn.textContent = '닫기';
+        } else {
+          content.style.display = 'none';
+          btn.textContent = '열기';
+        }
+      }
+    });
+  }
+
+  // ===== 벤치마킹 분석 기능 =====
+  const btnAnalyzeBenchmark = document.getElementById('btn-analyze-benchmark');
+  if (btnAnalyzeBenchmark) {
+    btnAnalyzeBenchmark.addEventListener('click', async () => {
+      const benchmarkScript = document.getElementById('benchmark-script').value.trim();
+      const uploadDate = document.getElementById('benchmark-upload-date').value.trim();
+      const viewCount = document.getElementById('benchmark-view-count').value.trim();
+      const analysisResult = document.getElementById('analysis-result');
+
+      if (!benchmarkScript) {
+        alert('벤치마킹 대본을 먼저 입력해주세요.');
+        return;
+      }
+
+      if (!uploadDate || !viewCount) {
+        alert('업로드 날짜와 조회수를 입력해주세요.');
+        return;
+      }
+
+      analysisResult.innerHTML = '<p style="color: #4a90e2; text-align: center;">🔄 분석 중...</p>';
+
+      try {
+        const response = await fetch('/api/drama/analyze-benchmark', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            benchmarkScript: benchmarkScript,
+            uploadDate: uploadDate,
+            viewCount: viewCount,
+            category: currentCategory
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          analysisResult.innerHTML = `
+            <div style="margin-bottom: .75rem;">
+              <strong style="color: #4a90e2;">✅ 분석 완료 및 저장됨</strong>
+            </div>
+            <div style="white-space: pre-wrap; line-height: 1.8;">${data.analysis}</div>
+          `;
+        } else {
+          analysisResult.innerHTML = `<p style="color: #e74c3c;">❌ 오류: ${data.error}</p>`;
+        }
+      } catch (err) {
+        analysisResult.innerHTML = `<p style="color: #e74c3c;">❌ 네트워크 오류: ${err.message}</p>`;
+      }
+    });
+  }
+
+  // ===== 개선 제안 받기 =====
+  const btnGetSuggestions = document.getElementById('btn-get-suggestions');
+  if (btnGetSuggestions) {
+    btnGetSuggestions.addEventListener('click', async () => {
+      const suggestionsResult = document.getElementById('suggestions-result');
+      const currentDraft = assembleGptProDraft();
+
+      if (currentDraft.error) {
+        alert(currentDraft.error);
+        return;
+      }
+
+      suggestionsResult.innerHTML = '<p style="color: #4a90e2; text-align: center;">🔄 제안 생성 중...</p>';
+
+      try {
+        const response = await fetch('/api/drama/get-suggestions', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            currentDraft: currentDraft.draftContent,
+            category: currentCategory
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          suggestionsResult.innerHTML = `
+            <div style="white-space: pre-wrap; line-height: 1.8;">${data.suggestions}</div>
+          `;
+        } else {
+          suggestionsResult.innerHTML = `<p style="color: #e74c3c;">❌ 오류: ${data.error}</p>`;
+        }
+      } catch (err) {
+        suggestionsResult.innerHTML = `<p style="color: #e74c3c;">❌ 네트워크 오류: ${err.message}</p>`;
+      }
+    });
+  }
 
   // ===== 초기화 =====
   document.addEventListener('DOMContentLoaded', async () => {

@@ -196,6 +196,7 @@ def api_process_step():
         step_id = data.get("stepId", "")
         step_name = data.get("stepName", "")
         benchmark_script = data.get("text", "")  # 벤치마킹 대본
+        main_character = data.get("mainCharacter", "")  # 주인공 정보
         guide = data.get("guide", "")
         master_guide = data.get("masterGuide", "")
         previous_results = data.get("previousResults", {})
@@ -221,7 +222,10 @@ def api_process_step():
             system_content += f"\n이 지침이 기본 역할과 충돌하면, 이 지침을 따르세요."
 
         # 사용자 메시지 구성
-        user_content = f"[드라마 유형]\n{category}\n\n"
+        user_content = f"[영상 시간]\n{category}\n\n"
+
+        if main_character:
+            user_content += f"[주인공/대상]\n{main_character}\n\n"
 
         if benchmark_script:
             user_content += f"[벤치마킹 대본 (참고용)]\n{benchmark_script}\n\n"
@@ -413,6 +417,154 @@ def api_gpt_pro():
 
     except Exception as e:
         print(f"[DRAMA-GPT-PRO][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 벤치마킹 대본 분석 API =====
+@app.route("/api/drama/analyze-benchmark", methods=["POST"])
+def api_analyze_benchmark():
+    """벤치마킹 대본 분석 및 저장"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        benchmark_script = data.get("benchmarkScript", "")
+        upload_date = data.get("uploadDate", "")
+        view_count = data.get("viewCount", "")
+        category = data.get("category", "")
+
+        if not benchmark_script:
+            return jsonify({"ok": False, "error": "벤치마킹 대본이 없습니다."}), 400
+
+        print(f"[DRAMA-ANALYZE] 벤치마킹 대본 분석 시작 - {view_count} 조회수")
+
+        # GPT로 대본 분석
+        system_content = """당신은 드라마 대본 분석 전문가입니다.
+
+제공된 벤치마킹 대본을 분석하여 다음 요소들을 추출하고 정리하세요:
+
+1. **스토리 구조 패턴**
+   - 도입, 전개, 위기, 절정, 결말의 구성 방식
+   - 각 파트의 비중과 전환 타이밍
+
+2. **캐릭터 구성 요소**
+   - 주인공의 성격과 동기
+   - 갈등의 원천과 해결 방식
+
+3. **대사 스타일**
+   - 톤과 분위기
+   - 핵심 메시지 전달 방식
+
+4. **시청자 반응 요소**
+   - 공감을 유도하는 요소
+   - 감정적 몰입 포인트
+
+5. **성공 요인 분석**
+   - 조회수 관점에서 본 강점
+   - 차별화 포인트
+
+분석 결과는 구조화되고 명확하게 작성하세요."""
+
+        user_content = f"""[벤치마킹 대본 정보]
+- 업로드 날짜: {upload_date}
+- 조회수: {view_count}
+- 영상 시간: {category}
+
+[대본 내용]
+{benchmark_script}
+
+위 대본을 분석하여 핵심 패턴과 성공 요인을 추출해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+        )
+
+        analysis = completion.choices[0].message.content.strip()
+
+        # TODO: 향후 Firebase나 DB에 저장하여 축적
+        # 현재는 분석 결과만 반환
+
+        print(f"[DRAMA-ANALYZE] 분석 완료")
+
+        return jsonify({"ok": True, "analysis": analysis})
+
+    except Exception as e:
+        print(f"[DRAMA-ANALYZE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 개선 제안 API =====
+@app.route("/api/drama/get-suggestions", methods=["POST"])
+def api_get_suggestions():
+    """현재 대본에 대한 개선 제안"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        current_draft = data.get("currentDraft", "")
+        category = data.get("category", "")
+
+        if not current_draft:
+            return jsonify({"ok": False, "error": "현재 작업 중인 대본이 없습니다."}), 400
+
+        print(f"[DRAMA-SUGGEST] 개선 제안 생성 시작")
+
+        # GPT로 개선 제안 생성
+        system_content = """당신은 드라마 대본 컨설턴트입니다.
+
+제공된 초안 대본을 분석하고, 다음 관점에서 구체적인 개선 제안을 제공하세요:
+
+1. **스토리 흐름 개선**
+   - 더 강력한 도입부 만들기
+   - 긴장감을 높이는 방법
+   - 결말의 임팩트 강화
+
+2. **캐릭터 깊이 추가**
+   - 주인공의 동기 명확화
+   - 감정선 강화 방법
+
+3. **시청자 몰입 요소**
+   - 공감 포인트 강화
+   - 예상을 뛰어넘는 전개
+
+4. **대사와 연출**
+   - 핵심 메시지 전달력 향상
+   - 감정적 호소력 강화
+
+각 제안은 구체적이고 실행 가능해야 합니다."""
+
+        user_content = f"""[영상 시간]
+{category}
+
+[현재 작업 중인 초안]
+{current_draft}
+
+위 초안을 분석하고, 시청자 반응을 극대화할 수 있는 구체적인 개선 제안을 해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+        )
+
+        suggestions = completion.choices[0].message.content.strip()
+
+        print(f"[DRAMA-SUGGEST] 제안 생성 완료")
+
+        return jsonify({"ok": True, "suggestions": suggestions})
+
+    except Exception as e:
+        print(f"[DRAMA-SUGGEST][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
