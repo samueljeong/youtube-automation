@@ -398,6 +398,14 @@
       background: #9b59b6;
       color: white;
     }
+
+    /* Step 접기/펼치기 */
+    .workflow-box.collapsed .box-content {
+      display: none;
+    }
+    .workflow-box.collapsed {
+      opacity: 0.6;
+    }
   </style>
 </head>
 <body>
@@ -482,10 +490,22 @@
     <!-- 가운데 - 워크플로우 영역 -->
     <div class="content-area">
       <!-- 워크플로우 박스 추가 버튼 -->
-      <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-add-step1-box" style="flex: 1; padding: .5rem; font-size: .9rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step1 박스 추가</button>
-        <button id="btn-add-step2-box" style="flex: 1; padding: .5rem; font-size: .9rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step2 박스 추가</button>
-        <button id="btn-copy-all-results" style="flex: 1; padding: .5rem; font-size: .9rem; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; border: none; border-radius: 6px; cursor: pointer;">📋 전체 결과 복사</button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
+        <button id="btn-add-step1-box" style="padding: .5rem; font-size: .9rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step1 박스 추가</button>
+        <button id="btn-add-step2-box" style="padding: .5rem; font-size: .9rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Step2 박스 추가</button>
+      </div>
+
+      <!-- 작업 제어 버튼 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
+        <button id="btn-auto-execute" style="padding: .5rem; font-size: .85rem; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 순차 실행</button>
+        <button id="btn-copy-step1-results" style="padding: .5rem; font-size: .85rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer;">📋 Step1 복사</button>
+        <button id="btn-copy-step2-results" style="padding: .5rem; font-size: .85rem; background: #9b59b6; color: white; border: none; border-radius: 6px; cursor: pointer;">📋 Step2 복사</button>
+      </div>
+
+      <!-- Step 접기/펼치기 버튼 -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
+        <button id="btn-toggle-step1" style="padding: .4rem; font-size: .8rem; background: #fff; color: #e74c3c; border: 2px solid #e74c3c; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 Step1 접기/펼치기</button>
+        <button id="btn-toggle-step2" style="padding: .4rem; font-size: .8rem; background: #fff; color: #9b59b6; border: 2px solid #9b59b6; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 Step2 접기/펼치기</button>
       </div>
 
       <!-- 상태 표시 -->
@@ -495,8 +515,26 @@
       <div id="workflow-boxes-container"></div>
     </div>
 
-    <!-- 오른쪽 - 축적된 가이드 조회 영역 -->
+    <!-- 오른쪽 - 가이드 및 지침 관리 영역 -->
     <div class="analysis-area">
+      <!-- 작업 지침 관리 박스 -->
+      <div class="box" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border: none; padding: 1rem; margin-bottom: .75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
+          <div style="color: white; font-weight: 600; font-size: 1.1rem;">📝 작업 지침 관리</div>
+          <button id="btn-toggle-guide-panel" style="padding: .3rem .6rem; background: white; color: #e74c3c; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem;">열기</button>
+        </div>
+        <div id="guide-panel-content" style="display: none;">
+          <div style="background: white; border-radius: 6px; padding: .75rem; margin-bottom: .5rem;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+              모든 작업 박스의 지침을 한 곳에서 관리합니다. 지침은 박스 실행 시 AI에게 전달됩니다.
+            </div>
+          </div>
+          <div id="guide-management-container" style="background: white; border-radius: 6px; padding: .75rem; max-height: 400px; overflow-y: auto;">
+            <p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 축적된 가이드 조회 박스 -->
       <div class="box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; padding: 1rem;">
         <div style="color: white; font-weight: 600; font-size: 1.1rem; margin-bottom: .75rem;">📚 축적된 작성 가이드</div>
@@ -1875,7 +1913,7 @@
       const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
 
       return `
-      <div class="box workflow-box ${stepType}" style="margin-bottom: .75rem;">
+      <div class="box workflow-box ${stepType}" id="workflow-box-${box.id}" style="margin-bottom: .75rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div style="display: flex; align-items: center; gap: .5rem;">
             <span style="background: ${stepBadgeColor}; color: white; padding: .3rem .6rem; border-radius: 4px; font-weight: 600;">[${box.boxNumber}]</span>
@@ -1885,6 +1923,7 @@
           <button onclick="deleteWorkflowBox('${box.id}')" class="danger" style="padding: .3rem .6rem; font-size: .85rem;">🗑️ 삭제</button>
         </div>
 
+        <div class="box-content">
         <!-- 입력 소스 선택 -->
         <div style="background: #f8f9fa; padding: .75rem; border-radius: 6px; margin-bottom: .75rem;">
           <div style="font-size: .85rem; font-weight: 600; margin-bottom: .5rem; color: #666;">📥 입력 소스 선택</div>
@@ -1906,12 +1945,6 @@
           </div>
         </div>
 
-        <!-- 지침 입력 -->
-        <div style="margin-bottom: .75rem;">
-          <label style="display: block; font-size: .85rem; font-weight: 600; margin-bottom: .3rem; color: #666;">📝 작업 지침</label>
-          <textarea id="guide-${box.id}" onchange="updateBoxGuide('${box.id}', this.value)" style="width: 100%; min-height: 80px; font-size: .85rem; padding: .5rem; border-radius: 4px;" placeholder="이 작업의 구체적인 지침을 입력하세요...">${box.guide}</textarea>
-        </div>
-
         <!-- 실행 버튼 -->
         <button onclick="executeWorkflowBox('${box.id}')" class="primary" style="width: 100%; padding: .6rem; margin-bottom: .75rem; font-size: .9rem;">▶️ 실행</button>
 
@@ -1921,7 +1954,43 @@
           <textarea id="result-${box.id}" readonly style="width: 100%; min-height: 150px; font-size: .85rem; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; background: white;" placeholder="실행 결과가 여기에 표시됩니다...">${box.result}</textarea>
           <button onclick="copyBoxResult('${box.id}')" style="width: 100%; padding: .4rem; margin-top: .5rem; font-size: .85rem;">📋 결과 복사</button>
         </div>
+        </div>
       </div>
+      `;
+    }).join('');
+
+    // 지침 관리 패널도 업데이트
+    renderGuideManagement();
+  }
+
+  // 지침 관리 패널 렌더링
+  function renderGuideManagement() {
+    const container = document.getElementById('guide-management-container');
+    if (!container) return;
+
+    if (workflowBoxes.length === 0) {
+      container.innerHTML = '<p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>';
+      return;
+    }
+
+    container.innerHTML = workflowBoxes.map(box => {
+      const stepType = box.stepType || 'step1';
+      const stepBadgeColor = stepType === 'step1' ? '#e74c3c' : '#9b59b6';
+      const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
+
+      return `
+        <div style="border: 2px solid ${stepBadgeColor}; border-radius: 6px; padding: .75rem; margin-bottom: .75rem; background: ${stepType === 'step1' ? '#fff5f5' : '#f8f5ff'};">
+          <div style="display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem;">
+            <span style="background: ${stepBadgeColor}; color: white; padding: .2rem .5rem; border-radius: 4px; font-weight: 600; font-size: .8rem;">[${box.boxNumber}]</span>
+            <span style="background: ${stepBadgeColor}; color: white; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600;">${stepLabel}</span>
+            <span style="font-weight: 600; font-size: .9rem; color: #333;">${box.name}</span>
+          </div>
+          <textarea
+            id="guide-panel-${box.id}"
+            onchange="updateBoxGuide('${box.id}', this.value)"
+            style="width: 100%; min-height: 100px; font-size: .85rem; padding: .5rem; border: 1px solid #ddd; border-radius: 4px; font-family: inherit;"
+            placeholder="이 작업의 구체적인 지침을 입력하세요...">${box.guide || ''}</textarea>
+        </div>
       `;
     }).join('');
   }
@@ -1951,6 +2020,11 @@
     if (box) {
       box.guide = guide;
       await saveWorkflowBoxes();
+      // 다른 텍스트영역도 동기화 (패널과 박스 양쪽)
+      const panelTextarea = document.getElementById(`guide-panel-${boxId}`);
+      if (panelTextarea && panelTextarea.value !== guide) {
+        panelTextarea.value = guide;
+      }
     }
   };
 
@@ -2059,12 +2133,14 @@
     btnAddStep2Box.addEventListener('click', () => addWorkflowBox('step2'));
   }
 
-  // 전체 결과 복사 버튼
-  const btnCopyAllResults = document.getElementById('btn-copy-all-results');
-  if (btnCopyAllResults) {
-    btnCopyAllResults.addEventListener('click', () => {
+  // Step1 결과 복사 버튼
+  const btnCopyStep1Results = document.getElementById('btn-copy-step1-results');
+  if (btnCopyStep1Results) {
+    btnCopyStep1Results.addEventListener('click', () => {
+      const step1Boxes = workflowBoxes.filter(box => (box.stepType || 'step1') === 'step1');
       let allResults = '';
-      workflowBoxes.forEach(box => {
+
+      step1Boxes.forEach(box => {
         if (box.result) {
           allResults += `\n\n${'='.repeat(50)}\n`;
           allResults += `[${box.boxNumber}] ${box.name}\n`;
@@ -2074,12 +2150,12 @@
       });
 
       if (!allResults) {
-        alert('복사할 결과가 없습니다.');
+        alert('복사할 Step1 결과가 없습니다.');
         return;
       }
 
       const textarea = document.createElement('textarea');
-      textarea.value = allResults;
+      textarea.value = allResults.trim();
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
       document.body.appendChild(textarea);
@@ -2087,8 +2163,188 @@
       document.execCommand('copy');
       document.body.removeChild(textarea);
 
-      showStatus('✅ 전체 결과 복사 완료!');
+      showStatus('✅ Step1 결과 복사 완료!');
       setTimeout(hideStatus, 2000);
+    });
+  }
+
+  // Step2 결과 복사 버튼 (안내 문구 포함)
+  const btnCopyStep2Results = document.getElementById('btn-copy-step2-results');
+  if (btnCopyStep2Results) {
+    btnCopyStep2Results.addEventListener('click', () => {
+      const step2Boxes = workflowBoxes.filter(box => box.stepType === 'step2');
+      let allResults = '';
+
+      // 안내 문구 추가
+      allResults += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+      allResults += '                  드라마 대본 작성 자료\n';
+      allResults += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      allResults += '아래는 새로운 드라마 대본을 작성하기 위해 준비된 기획 자료입니다.\n';
+      allResults += '각 단계별로 정리된 내용을 참고하여, 완성도 높은 드라마 대본을 작성해주세요.\n\n';
+      allResults += '이 자료는 캐릭터 설정, 스토리 구조, 장면 구성 등 드라마 제작에 필요한\n';
+      allResults += '핵심 요소들을 포함하고 있습니다. 각 섹션의 내용을 토대로 자연스럽고\n';
+      allResults += '생동감 있는 대본으로 발전시켜 주시기 바랍니다.\n\n';
+
+      step2Boxes.forEach(box => {
+        if (box.result) {
+          allResults += `\n\n${'='.repeat(50)}\n`;
+          allResults += `[${box.boxNumber}] ${box.name}\n`;
+          allResults += `${'='.repeat(50)}\n\n`;
+          allResults += box.result;
+        }
+      });
+
+      if (!step2Boxes.some(box => box.result)) {
+        alert('복사할 Step2 결과가 없습니다.');
+        return;
+      }
+
+      const textarea = document.createElement('textarea');
+      textarea.value = allResults.trim();
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      showStatus('✅ Step2 결과 (안내문구 포함) 복사 완료!');
+      setTimeout(hideStatus, 2000);
+    });
+  }
+
+  // 순차 실행 버튼
+  const btnAutoExecute = document.getElementById('btn-auto-execute');
+  if (btnAutoExecute) {
+    btnAutoExecute.addEventListener('click', async () => {
+      if (workflowBoxes.length === 0) {
+        alert('실행할 워크플로우 박스가 없습니다.');
+        return;
+      }
+
+      if (!confirm(`${workflowBoxes.length}개의 박스를 순서대로 실행하시겠습니까?\n\n실행 시간이 오래 걸릴 수 있습니다.`)) {
+        return;
+      }
+
+      showLoadingOverlay('순차 실행 중', `전체 ${workflowBoxes.length}개 박스 실행 중...`);
+
+      for (let i = 0; i < workflowBoxes.length; i++) {
+        const box = workflowBoxes[i];
+
+        // 로딩 메시지 업데이트
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+          const subtextEl = overlay.querySelector('.loading-subtext');
+          if (subtextEl) {
+            subtextEl.textContent = `[${i + 1}/${workflowBoxes.length}] ${box.name} 실행 중...`;
+          }
+        }
+
+        // 박스 실행 (executeWorkflowBox 함수 내용을 직접 실행)
+        await executeWorkflowBoxDirect(box);
+
+        // 잠시 대기 (API 부하 방지)
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      hideLoadingOverlay();
+      showStatus('✅ 전체 순차 실행 완료!');
+      setTimeout(hideStatus, 2000);
+      renderWorkflowBoxes();
+    });
+  }
+
+  // 순차 실행용 직접 실행 함수
+  async function executeWorkflowBoxDirect(box) {
+    // 입력 데이터 수집
+    let inputData = {};
+
+    if (box.inputs.benchmarkScript) {
+      inputData.benchmarkScript = document.getElementById('benchmark-script').value;
+    }
+
+    if (box.inputs.aiAnalysis) {
+      inputData.aiAnalysis = document.getElementById('analysis-result').innerText;
+    }
+
+    // 다른 박스의 결과 수집
+    for (const [key, value] of Object.entries(box.inputs)) {
+      if (key.startsWith('box_') && value) {
+        const boxNumber = parseInt(key.replace('box_', ''));
+        const sourceBox = workflowBoxes.find(b => b.boxNumber === boxNumber);
+        if (sourceBox && sourceBox.result) {
+          inputData[`box${boxNumber}Result`] = sourceBox.result;
+        }
+      }
+    }
+
+    try {
+      const response = await fetch('/api/drama/workflow-execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          boxId: box.id,
+          boxName: box.name,
+          boxNumber: box.boxNumber,
+          guide: box.guide,
+          inputs: inputData,
+          category: currentCategory
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        box.result = data.result;
+        const resultEl = document.getElementById(`result-${box.id}`);
+        if (resultEl) {
+          resultEl.value = data.result;
+        }
+        await saveWorkflowBoxes();
+      } else {
+        console.error(`Box ${box.boxNumber} failed:`, data.error);
+      }
+    } catch (err) {
+      console.error(`Box ${box.boxNumber} error:`, err.message);
+    }
+  }
+
+  // Step 접기/펼치기 버튼
+  const btnToggleStep1 = document.getElementById('btn-toggle-step1');
+  const btnToggleStep2 = document.getElementById('btn-toggle-step2');
+
+  if (btnToggleStep1) {
+    btnToggleStep1.addEventListener('click', () => {
+      const step1Boxes = document.querySelectorAll('.workflow-box.step1');
+      step1Boxes.forEach(box => {
+        box.classList.toggle('collapsed');
+      });
+    });
+  }
+
+  if (btnToggleStep2) {
+    btnToggleStep2.addEventListener('click', () => {
+      const step2Boxes = document.querySelectorAll('.workflow-box.step2');
+      step2Boxes.forEach(box => {
+        box.classList.toggle('collapsed');
+      });
+    });
+  }
+
+  // 지침 관리 패널 토글 버튼
+  const btnToggleGuidePanel = document.getElementById('btn-toggle-guide-panel');
+  const guidePanelContent = document.getElementById('guide-panel-content');
+
+  if (btnToggleGuidePanel && guidePanelContent) {
+    btnToggleGuidePanel.addEventListener('click', () => {
+      if (guidePanelContent.style.display === 'none') {
+        guidePanelContent.style.display = 'block';
+        btnToggleGuidePanel.textContent = '닫기';
+        renderGuideManagement(); // 열 때 최신 상태로 렌더링
+      } else {
+        guidePanelContent.style.display = 'none';
+        btnToggleGuidePanel.textContent = '열기';
+      }
     });
   }
 
