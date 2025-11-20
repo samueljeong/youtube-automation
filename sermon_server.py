@@ -383,6 +383,9 @@ def api_gpt_pro():
                 "7. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
             )
 
+        # 공통 지침 추가
+        user_content += "\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 16000 토큰)."
+
         # 최신 Responses API (gpt-5.1) 호출
         completion = client.responses.create(
             model="gpt-5.1",
