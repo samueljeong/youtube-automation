@@ -533,12 +533,15 @@
       <div class="box" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border: none; padding: 1rem; margin-bottom: .75rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div style="color: white; font-weight: 600; font-size: 1.1rem;">📝 작업 지침 관리</div>
-          <button id="btn-toggle-guide-panel" style="padding: .3rem .6rem; background: white; color: #e74c3c; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem;">열기</button>
+          <div style="display: flex; gap: .5rem;">
+            <button id="btn-save-guides" style="padding: .3rem .8rem; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem; display: none;">💾 저장</button>
+            <button id="btn-toggle-guide-panel" style="padding: .3rem .6rem; background: white; color: #e74c3c; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem;">열기</button>
+          </div>
         </div>
         <div id="guide-panel-content" style="display: none;">
           <div style="background: white; border-radius: 6px; padding: .75rem; margin-bottom: .5rem;">
             <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-              모든 작업 박스의 지침을 한 곳에서 관리합니다. 지침은 박스 실행 시 AI에게 전달됩니다.
+              모든 작업 박스의 지침을 한 곳에서 관리합니다. 지침 수정 후 <strong>💾 저장</strong> 버튼을 눌러주세요.
             </div>
           </div>
           <div id="guide-management-container" style="background: white; border-radius: 6px; padding: .75rem; max-height: 400px; overflow-y: auto;">
@@ -2070,12 +2073,11 @@
     }
   };
 
-  // 지침 업데이트
-  window.updateBoxGuide = async function(boxId, guide) {
+  // 지침 업데이트 (onChange는 메모리에만 저장, 실제 저장은 저장 버튼 클릭 시)
+  window.updateBoxGuide = function(boxId, guide) {
     const box = workflowBoxes.find(b => b.id === boxId);
     if (box) {
       box.guide = guide;
-      await saveWorkflowBoxes();
       // 다른 텍스트영역도 동기화 (패널과 박스 양쪽)
       const panelTextarea = document.getElementById(`guide-panel-${boxId}`);
       if (panelTextarea && panelTextarea.value !== guide) {
@@ -2397,6 +2399,7 @@
 
   // 지침 관리 패널 토글 버튼
   const btnToggleGuidePanel = document.getElementById('btn-toggle-guide-panel');
+  const btnSaveGuides = document.getElementById('btn-save-guides');
   const guidePanelContent = document.getElementById('guide-panel-content');
 
   if (btnToggleGuidePanel && guidePanelContent) {
@@ -2404,11 +2407,34 @@
       if (guidePanelContent.style.display === 'none') {
         guidePanelContent.style.display = 'block';
         btnToggleGuidePanel.textContent = '닫기';
+        if (btnSaveGuides) btnSaveGuides.style.display = 'block'; // 저장 버튼 표시
         renderGuideManagement(); // 열 때 최신 상태로 렌더링
       } else {
         guidePanelContent.style.display = 'none';
         btnToggleGuidePanel.textContent = '열기';
+        if (btnSaveGuides) btnSaveGuides.style.display = 'none'; // 저장 버튼 숨김
       }
+    });
+  }
+
+  // 지침 저장 버튼
+  if (btnSaveGuides) {
+    btnSaveGuides.addEventListener('click', async () => {
+      showStatus('💾 지침 저장 중...');
+
+      // 모든 텍스트영역의 값을 workflowBoxes에 동기화
+      workflowBoxes.forEach(box => {
+        const textarea = document.getElementById(`guide-panel-${box.id}`);
+        if (textarea) {
+          box.guide = textarea.value;
+        }
+      });
+
+      // Firebase와 localStorage에 저장
+      await saveWorkflowBoxes();
+
+      showStatus('✅ 지침 저장 완료!');
+      setTimeout(hideStatus, 2000);
     });
   }
 
@@ -2464,6 +2490,11 @@
 
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
+
+    // ⭐ 워크플로우 박스 불러오기 및 렌더링
+    loadWorkflowBoxes();
+    renderWorkflowBoxes();
+
     hideStatus();
 
     renderCategories();
