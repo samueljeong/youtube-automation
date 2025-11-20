@@ -320,9 +320,9 @@
 
     /* 벤치마킹 대본 박스 - 고정 높이 */
     #benchmark-script {
-      height: 200px;
-      max-height: 200px;
-      min-height: 200px;
+      height: 80px;
+      max-height: 80px;
+      min-height: 80px;
       resize: none;
     }
 
@@ -450,10 +450,22 @@
         </div>
       </div>
 
-      <!-- 벤치마킹 대본 (절반 크기, 스크롤) -->
+      <!-- 주인공 선택 -->
+      <div class="box" style="padding: .5rem .75rem;">
+        <label class="label" style="font-size: .8rem; margin-bottom: .3rem; display: block;">주인공 (선택사항)</label>
+        <div style="display: flex; gap: .4rem; align-items: center;">
+          <input type="text" id="main-character" placeholder="예: 30대 남성 목사, 청년 대학생 등" style="flex: 1; font-size: .85rem; padding: .3rem .4rem;">
+          <button id="btn-random-character" style="padding: .3rem .6rem; font-size: .75rem; background: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">🎲 랜덤</button>
+        </div>
+        <div style="font-size: .7rem; color: #666; margin-top: .3rem;">
+          비워두면 AI가 자동으로 적절한 주인공을 설정합니다.
+        </div>
+      </div>
+
+      <!-- 벤치마킹 대본 (축소) -->
       <div class="box">
         <label class="label" style="font-size: .9rem;">벤치마킹 대본</label>
-        <textarea id="benchmark-script" placeholder="참고할 대본이나 스크립트를 여기에 붙여넣으세요." style="height: 120px; resize: none; font-size: .85rem;"></textarea>
+        <textarea id="benchmark-script" placeholder="참고할 대본이나 스크립트를 여기에 붙여넣으세요." style="height: 80px; resize: none; font-size: .85rem;"></textarea>
       </div>
 
       <!-- AI 대본 분석 & 제안 -->
@@ -1752,6 +1764,32 @@
     });
   }
 
+  // ===== 랜덤 주인공 생성 =====
+  const btnRandomCharacter = document.getElementById('btn-random-character');
+  if (btnRandomCharacter) {
+    btnRandomCharacter.addEventListener('click', () => {
+      const characters = [
+        '30대 남성 목사',
+        '20대 여성 대학생',
+        '40대 남성 사업가',
+        '50대 여성 주부',
+        '청년 전도사',
+        '중년 남성 교사',
+        '20대 남성 청년',
+        '30대 여성 직장인',
+        '고등학생 남자',
+        '고등학생 여자',
+        '60대 노부부',
+        '젊은 부부',
+        '이혼한 중년 여성',
+        '홀어머니와 아들',
+        '아버지와 딸'
+      ];
+      const random = characters[Math.floor(Math.random() * characters.length)];
+      document.getElementById('main-character').value = random;
+    });
+  }
+
   // ===== 벤치마킹 분석 기능 =====
   const btnAnalyzeBenchmark = document.getElementById('btn-analyze-benchmark');
   if (btnAnalyzeBenchmark) {
@@ -1771,6 +1809,19 @@
         return;
       }
 
+      // 간단한 해시 생성 함수 (중복 체크용)
+      const generateSimpleHash = (text) => {
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) {
+          const char = text.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        return hash.toString(36);
+      };
+
+      const scriptHash = generateSimpleHash(benchmarkScript);
+
       // 로딩 오버레이 표시
       showLoadingOverlay('벤치마크 대본 분석 중', 'AI가 대본을 분석하고 있습니다...');
       analysisResult.innerHTML = '<p style="color: #e74c3c; text-align: center;">🔄 분석 중...</p>';
@@ -1783,16 +1834,21 @@
             benchmarkScript: benchmarkScript,
             uploadDate: uploadDate,
             viewCount: viewCount,
-            category: currentCategory
+            category: currentCategory,
+            scriptHash: scriptHash
           })
         });
 
         const data = await response.json();
 
         if (data.ok) {
+          const statusMessage = data.isDuplicate
+            ? '<strong style="color: #f39c12;">⚠️ 중복 대본 - 분석만 수행됨 (저장 안 됨)</strong>'
+            : '<strong style="color: #e74c3c;">✅ 분석 완료 및 DB 저장됨</strong>';
+
           analysisResult.innerHTML = `
             <div style="margin-bottom: .75rem;">
-              <strong style="color: #e74c3c;">✅ 분석 완료 및 저장됨</strong>
+              ${statusMessage}
             </div>
             <div style="white-space: pre-wrap; line-height: 1.8;">${data.analysis}</div>
           `;
@@ -2058,6 +2114,9 @@
       }
     }
 
+    // 주인공 정보 수집
+    const mainCharacter = document.getElementById('main-character')?.value.trim() || '';
+
     try {
       const response = await fetch('/api/drama/workflow-execute', {
         method: 'POST',
@@ -2068,7 +2127,8 @@
           boxNumber: box.boxNumber,
           guide: box.guide,
           inputs: inputData,
-          category: currentCategory
+          category: currentCategory,
+          mainCharacter: mainCharacter
         })
       });
 
@@ -2278,6 +2338,9 @@
       }
     }
 
+    // 주인공 정보 수집
+    const mainCharacter = document.getElementById('main-character')?.value.trim() || '';
+
     try {
       const response = await fetch('/api/drama/workflow-execute', {
         method: 'POST',
@@ -2288,7 +2351,8 @@
           boxNumber: box.boxNumber,
           guide: box.guide,
           inputs: inputData,
-          category: currentCategory
+          category: currentCategory,
+          mainCharacter: mainCharacter
         })
       });
 

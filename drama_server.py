@@ -433,11 +433,24 @@ def api_analyze_benchmark():
         upload_date = data.get("uploadDate", "")
         view_count = data.get("viewCount", "")
         category = data.get("category", "")
+        script_hash = data.get("scriptHash", "")
 
         if not benchmark_script:
             return jsonify({"ok": False, "error": "벤치마킹 대본이 없습니다."}), 400
 
-        print(f"[DRAMA-ANALYZE] 벤치마킹 대본 분석 시작 - {view_count} 조회수")
+        # 중복 체크 (간단한 파일 기반 저장소)
+        import os
+        hash_file = "benchmark_hashes.txt"
+        is_duplicate = False
+
+        if script_hash and os.path.exists(hash_file):
+            with open(hash_file, 'r') as f:
+                existing_hashes = f.read().splitlines()
+                if script_hash in existing_hashes:
+                    is_duplicate = True
+                    print(f"[DRAMA-ANALYZE] 중복 대본 감지 (해시: {script_hash}) - 분석만 수행")
+
+        print(f"[DRAMA-ANALYZE] 벤치마킹 대본 분석 시작 - {view_count} 조회수 - 중복: {is_duplicate}")
 
         # GPT로 대본 분석
         system_content = """당신은 드라마 대본 분석 전문가입니다.
@@ -487,12 +500,20 @@ def api_analyze_benchmark():
 
         analysis = completion.choices[0].message.content.strip()
 
-        # TODO: 향후 Firebase나 DB에 저장하여 축적
-        # 현재는 분석 결과만 반환
+        # 중복이 아닌 경우에만 해시 저장 (DB 저장 대신 파일에 저장)
+        if not is_duplicate and script_hash:
+            try:
+                with open(hash_file, 'a') as f:
+                    f.write(script_hash + '\n')
+                print(f"[DRAMA-ANALYZE] 새 대본 해시 저장 (해시: {script_hash})")
+            except Exception as e:
+                print(f"[DRAMA-ANALYZE] 해시 저장 실패: {str(e)}")
 
-        print(f"[DRAMA-ANALYZE] 분석 완료")
+        # TODO: 향후 Firebase나 DB에 분석 결과 저장
 
-        return jsonify({"ok": True, "analysis": analysis})
+        print(f"[DRAMA-ANALYZE] 분석 완료 - 저장 여부: {not is_duplicate}")
+
+        return jsonify({"ok": True, "analysis": analysis, "isDuplicate": is_duplicate})
 
     except Exception as e:
         print(f"[DRAMA-ANALYZE][ERROR] {str(e)}")
@@ -583,6 +604,7 @@ def api_workflow_execute():
         guide = data.get("guide", "")
         inputs = data.get("inputs", {})  # dict with selected input sources
         category = data.get("category", "")
+        main_character = data.get("mainCharacter", "")
 
         print(f"[DRAMA-WORKFLOW] Box [{box_number}] {box_name} 실행 시작")
 
@@ -616,6 +638,11 @@ def api_workflow_execute():
 
 현재 작업: [{box_number}] {box_name}
 영상 시간: {category}"""
+
+        # 주인공 정보 추가
+        if main_character:
+            system_content += f"\n주인공 설정: {main_character}"
+            system_content += "\n\n⚠️ 중요: 위에 지정된 주인공을 반드시 사용하여 대본을 구성하세요."
 
         # 작업 지침 추가
         if guide:
