@@ -407,7 +407,7 @@ def api_gpt_pro():
                 }
             ],
             temperature=0.8,
-            max_output_tokens=8000  # 더 긴 설교문을 위해 토큰 증가
+            max_output_tokens=16000  # 더 긴 설교문을 위해 토큰 증가
         )
 
         if getattr(completion, "output_text", None):
