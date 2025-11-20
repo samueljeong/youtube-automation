@@ -23,6 +23,9 @@
       flex-direction: column;
       gap: .75rem;
       overflow-y: auto;
+      background: linear-gradient(135deg, #fafbfc 0%, #f3f4f6 100%);
+      padding: .75rem;
+      border-radius: 12px;
     }
     .right-col {
       flex: 1;
@@ -68,6 +71,16 @@
       margin-bottom: .35rem;
     }
     .label { font-weight: 600; }
+    .label-hint {
+      font-size: .7rem;
+      font-weight: 400;
+      color: #0066cc;
+      background: #e6f2ff;
+      padding: .15rem .4rem;
+      border-radius: 9999px;
+      margin-left: .35rem;
+      white-space: nowrap;
+    }
     input[type="text"],
     input[type="date"],
     select {
@@ -130,9 +143,12 @@
       border: 2px solid #4a90e2;
     }
     .style-desc {
-      font-size: .75rem;
-      color: #666;
-      margin-top: .2rem;
+      font-size: .65rem;
+      color: #999;
+      margin-top: .15rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .title-option-label {
@@ -519,6 +535,8 @@
         width: 100%;
         overflow-y: visible;
         order: 2; /* 모바일에서 Top 다음에 위치 */
+        background: none;
+        padding: 0;
       }
 
       .content-section {
@@ -758,13 +776,13 @@
 
       <!-- 성경구절 -->
       <div class="box">
-        <label class="label">성경구절 (필수입력)</label>
+        <label class="label">성경구절<span class="label-hint">필수</span></label>
         <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
       </div>
 
       <!-- 제목 (선택사항) - 직접 입력 -->
       <div class="box">
-        <label class="label">제목 (선택사항)</label>
+        <label class="label">제목<span class="label-hint">선택</span></label>
         <input type="text" id="manual-title" placeholder="직접 입력 또는 아래 제목 추천에서 선택">
       </div>
 
@@ -776,14 +794,14 @@
 
       <!-- 성경 본문 -->
       <div class="box">
-        <label class="label">성경 본문 (선택사항)</label>
+        <label class="label">성경 본문<span class="label-hint">선택</span></label>
         <textarea id="sermon-text" class="autosize" placeholder="본문을 여기에 붙여넣으세요."></textarea>
       </div>
 
       <!-- 설교 스타일 -->
       <div class="box">
         <div class="label-row">
-          <label class="label">설교 스타일 (원하는 스타일을 클릭하세요)</label>
+          <label class="label">설교 스타일<span class="label-hint">클릭하여 선택</span></label>
           <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
         <div id="styles-list"></div>
@@ -791,7 +809,7 @@
 
       <!-- 처리 단계 -->
       <div class="box">
-        <label class="label">처리 단계 (클릭 후 잠시 기다려 주세요)</label>
+        <label class="label">처리 단계<span class="label-hint">클릭 후 대기</span></label>
         <div id="processing-steps"></div>
       </div>
 
