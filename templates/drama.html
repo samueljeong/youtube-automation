@@ -2347,12 +2347,11 @@
     if (savedStep2Num) {
       nextStep2BoxNum = parseInt(savedStep2Num);
     }
-    if (savedStep1Collapsed) {
-      step1Collapsed = savedStep1Collapsed === 'true';
-    }
-    if (savedStep2Collapsed) {
-      step2Collapsed = savedStep2Collapsed === 'true';
-    }
+    // Reset collapsed state to false to ensure boxes are visible
+    step1Collapsed = false;
+    step2Collapsed = false;
+    localStorage.removeItem('_drama-step1-collapsed');
+    localStorage.removeItem('_drama-step2-collapsed');
   }
 
   // 워크플로우 박스 추가 버튼
@@ -2586,28 +2585,6 @@
     } catch (err) {
       console.error(`Box ${box.boxNumber} error:`, err.message);
     }
-  }
-
-  // Step 접기/펼치기 버튼
-  const btnToggleStep1 = document.getElementById('btn-toggle-step1');
-  const btnToggleStep2 = document.getElementById('btn-toggle-step2');
-
-  if (btnToggleStep1) {
-    btnToggleStep1.addEventListener('click', () => {
-      const step1Boxes = document.querySelectorAll('.workflow-box.step1');
-      step1Boxes.forEach(box => {
-        box.classList.toggle('collapsed');
-      });
-    });
-  }
-
-  if (btnToggleStep2) {
-    btnToggleStep2.addEventListener('click', () => {
-      const step2Boxes = document.querySelectorAll('.workflow-box.step2');
-      step2Boxes.forEach(box => {
-        box.classList.toggle('collapsed');
-      });
-    });
   }
 
   // 지침 관리 패널 토글 버튼
