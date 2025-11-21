@@ -87,6 +87,46 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_created_at
             ON sermon_benchmark_analyses(created_at DESC)
         ''')
+
+        # step1_analyses 테이블 생성
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS step1_analyses (
+                id SERIAL PRIMARY KEY,
+                reference VARCHAR(200) NOT NULL,
+                sermon_text TEXT,
+                analysis_text TEXT NOT NULL,
+                analysis_hash VARCHAR(100) UNIQUE,
+                category VARCHAR(100),
+                style_name VARCHAR(100),
+                step_name VARCHAR(100),
+                quality_score INTEGER,
+                theological_depth_score INTEGER,
+                practical_application_score INTEGER,
+                ai_model VARCHAR(50) DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_reference
+            ON step1_analyses(reference)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_category
+            ON step1_analyses(category)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_quality
+            ON step1_analyses(quality_score DESC)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_created_at
+            ON step1_analyses(created_at DESC)
+        ''')
     else:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
@@ -123,6 +163,46 @@ def init_db():
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_created_at
             ON sermon_benchmark_analyses(created_at DESC)
+        ''')
+
+        # step1_analyses 테이블 생성
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS step1_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reference TEXT NOT NULL,
+                sermon_text TEXT,
+                analysis_text TEXT NOT NULL,
+                analysis_hash TEXT UNIQUE,
+                category TEXT,
+                style_name TEXT,
+                step_name TEXT,
+                quality_score INTEGER,
+                theological_depth_score INTEGER,
+                practical_application_score INTEGER,
+                ai_model TEXT DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_reference
+            ON step1_analyses(reference)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_category
+            ON step1_analyses(category)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_quality
+            ON step1_analyses(quality_score DESC)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_step1_created_at
+            ON step1_analyses(created_at DESC)
         ''')
 
     conn.commit()
@@ -399,6 +479,21 @@ def api_process_step():
             formatted_result = format_json_result(json_data)
 
             print(f"[PROCESS][SUCCESS] JSON 형식으로 응답받아 포맷팅 완료")
+
+            # Step1인 경우 백그라운드로 DB 저장
+            if step_type == "step1" or step_id == "step1":
+                try:
+                    import threading
+                    save_thread = threading.Thread(
+                        target=save_step1_analysis,
+                        args=(reference, text, formatted_result, category, data.get("styleName", ""), step_id)
+                    )
+                    save_thread.daemon = True
+                    save_thread.start()
+                    print(f"[PROCESS] Step1 분석 저장 백그라운드 시작")
+                except Exception as e:
+                    print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
+
             return jsonify({"ok": True, "result": formatted_result})
 
         except json.JSONDecodeError as je:
@@ -406,6 +501,21 @@ def api_process_step():
             # guide에서 텍스트 형식을 요구했을 수 있으므로 오류가 아님
             print(f"[PROCESS][INFO] 텍스트 형식으로 응답받음 (JSON 아님)")
             result = remove_markdown(result)
+
+            # Step1인 경우 백그라운드로 DB 저장
+            if step_type == "step1" or step_id == "step1":
+                try:
+                    import threading
+                    save_thread = threading.Thread(
+                        target=save_step1_analysis,
+                        args=(reference, text, result, category, data.get("styleName", ""), step_id)
+                    )
+                    save_thread.daemon = True
+                    save_thread.start()
+                    print(f"[PROCESS] Step1 분석 저장 백그라운드 시작")
+                except Exception as e:
+                    print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
+
             return jsonify({"ok": True, "result": result})
         
     except Exception as e:
@@ -901,6 +1011,137 @@ def analyze_sermon_for_benchmark(sermon_text, reference="", sermon_title="", cat
     except Exception as e:
         print(f"[SERMON-BENCHMARK][ERROR] {str(e)}")
         return {"ok": False, "message": f"분석 실패: {str(e)}"}
+
+
+# ===== Step1 분석 자동 저장 함수 =====
+def save_step1_analysis(reference, sermon_text, analysis_text, category="", style_name="", step_name="step1"):
+    """
+    Step1 본문 분석 결과를 자동으로 DB에 저장
+
+    Args:
+        reference: 성경 본문 구절
+        sermon_text: 성경 본문 텍스트
+        analysis_text: 분석 결과 텍스트
+        category: 카테고리
+        style_name: 설교 스타일
+        step_name: 단계 이름 (기본값: step1)
+
+    Returns:
+        dict: {"ok": True/False, "message": "..."}
+    """
+    try:
+        # 분석 해시 생성 (중복 체크용 - reference + analysis_text 조합)
+        hash_content = f"{reference}|{analysis_text}"
+        analysis_hash = hashlib.md5(hash_content.encode('utf-8')).hexdigest()
+
+        # DB 기반 중복 체크
+        is_duplicate = False
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            if USE_POSTGRES:
+                cursor.execute("SELECT id FROM step1_analyses WHERE analysis_hash = %s", (analysis_hash,))
+            else:
+                cursor.execute("SELECT id FROM step1_analyses WHERE analysis_hash = ?", (analysis_hash,))
+            existing = cursor.fetchone()
+            conn.close()
+
+            if existing:
+                is_duplicate = True
+                print(f"[STEP1-SAVE] 중복 분석 감지 (해시: {analysis_hash[:8]}...) - 저장 건너뜀")
+                return {"ok": True, "message": "중복 분석 - 저장 건너뜀", "isDuplicate": True}
+        except Exception as e:
+            print(f"[STEP1-SAVE] 중복 체크 실패: {str(e)}")
+
+        print(f"[STEP1-SAVE] Step1 분석 저장 시작 - 본문: {reference[:30]}...")
+
+        # GPT-5로 분석 품질 평가
+        evaluation_system = """당신은 성경 본문 분석 평가 전문가입니다.
+
+제공된 성경 본문 분석을 평가하여 다음 3가지 점수를 10점 만점으로 매기세요:
+
+1. **전체 품질 (quality_score)**: 분석의 전반적인 완성도와 유용성
+2. **신학적 깊이 (theological_depth_score)**: 신학적 통찰과 해석의 깊이
+3. **실천 적용성 (practical_application_score)**: 실제 설교에 적용 가능한 정도
+
+각 점수는 1-10 사이의 정수로 제시하세요.
+JSON 형식으로 응답하세요: {"quality": 8, "theological_depth": 9, "practical_application": 7}"""
+
+        evaluation_user = f"""[성경 구절]
+{reference}
+
+[분석 내용]
+{analysis_text[:2000]}
+
+위 분석의 품질을 평가해주세요."""
+
+        try:
+            eval_completion = client.chat.completions.create(
+                model="gpt-4o-mini",  # 빠른 평가를 위해 mini 사용
+                messages=[
+                    {"role": "system", "content": evaluation_system},
+                    {"role": "user", "content": evaluation_user}
+                ],
+                temperature=0.3
+            )
+
+            eval_result = eval_completion.choices[0].message.content.strip()
+            # JSON 파싱
+            import json
+            # ```json 태그 제거
+            if '```json' in eval_result:
+                eval_result = eval_result.split('```json')[1].split('```')[0].strip()
+            elif '```' in eval_result:
+                eval_result = eval_result.split('```')[1].split('```')[0].strip()
+
+            scores = json.loads(eval_result)
+            quality_score = scores.get("quality", 5)
+            theological_depth_score = scores.get("theological_depth", 5)
+            practical_application_score = scores.get("practical_application", 5)
+
+            print(f"[STEP1-SAVE] 평가 완료 - 품질:{quality_score}, 신학:{theological_depth_score}, 적용:{practical_application_score}")
+        except Exception as e:
+            print(f"[STEP1-SAVE] 품질 평가 실패 (기본값 사용): {str(e)}")
+            quality_score = 5
+            theological_depth_score = 5
+            practical_application_score = 5
+
+        # DB에 저장
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 토큰 수는 대략적으로 계산 (영어는 4자당 1토큰, 한글은 2자당 1토큰 정도)
+            estimated_tokens = len(analysis_text) // 3
+
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO step1_analyses
+                    (reference, sermon_text, analysis_text, analysis_hash, category, style_name, step_name,
+                     quality_score, theological_depth_score, practical_application_score, ai_model, analysis_tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (reference, sermon_text, analysis_text, analysis_hash, category, style_name, step_name,
+                      quality_score, theological_depth_score, practical_application_score, 'gpt-5', estimated_tokens))
+            else:
+                cursor.execute('''
+                    INSERT INTO step1_analyses
+                    (reference, sermon_text, analysis_text, analysis_hash, category, style_name, step_name,
+                     quality_score, theological_depth_score, practical_application_score, ai_model, analysis_tokens)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (reference, sermon_text, analysis_text, analysis_hash, category, style_name, step_name,
+                      quality_score, theological_depth_score, practical_application_score, 'gpt-5', estimated_tokens))
+
+            conn.commit()
+            conn.close()
+            print(f"[STEP1-SAVE] DB 저장 완료 (해시: {analysis_hash[:8]}...)")
+        except Exception as e:
+            print(f"[STEP1-SAVE] DB 저장 실패: {str(e)}")
+
+        return {"ok": True, "message": "Step1 분석 저장 완료", "isDuplicate": False}
+
+    except Exception as e:
+        print(f"[STEP1-SAVE][ERROR] {str(e)}")
+        return {"ok": False, "message": f"저장 실패: {str(e)}"}
 
 
 # ===== Render 배포를 위한 설정 =====
