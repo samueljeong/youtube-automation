@@ -2030,13 +2030,13 @@
           <div style="display: flex; align-items: center; gap: .4rem; flex: 1;">
             <span style="cursor: grab; font-size: 1rem; color: #999; user-select: none;">⋮⋮</span>
             <span style="background: ${stepBadgeGradient}; color: white; padding: .25rem .5rem; border-radius: 6px; font-weight: 600; font-size: .75rem; box-shadow: 0 2px 4px rgba(0,0,0,.1);">${stepLabel} ${box.stepNumber || box.boxNumber}</span>
-            <input type="text" value="${box.name}" onchange="updateBoxName('${box.id}', this.value)" style="font-weight: 600; font-size: .85rem; border: none; padding: .2rem .4rem; border-radius: 4px; background: #f8f9fa; flex: 1;" onclick="event.stopPropagation()">
+            <input type="text" value="${box.name}" onchange="updateBoxName('${box.id}', this.value)" style="font-weight: 600; font-size: .85rem; border: none; padding: .2rem .4rem; border-radius: 4px; background: #f8f9fa; flex: 1;" onclick="(function(e){e.stopPropagation();})(event)">
           </div>
           <div style="display: flex; gap: .3rem; align-items: center;">
-            <button onclick="executeWorkflowBox('${box.id}'); event.stopPropagation();" style="padding: .25rem .5rem; font-size: .75rem; background: ${stepBadgeGradient}; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">▶️</button>
-            <button onclick="copyBoxResult('${box.id}'); event.stopPropagation();" style="padding: .25rem .5rem; font-size: .75rem; background: white; border: 2px solid ${stepBadgeColor}; color: ${stepBadgeColor}; border-radius: 6px; cursor: pointer; font-weight: 600;">📋</button>
-            ${index > 0 ? `<button onclick="moveBoxUp(${index}); event.stopPropagation();" style="padding: .25rem .4rem; font-size: .75rem; border-radius: 4px; background: #f8f9fa; border: none; cursor: pointer;">▲</button>` : ''}
-            ${index < workflowBoxes.length - 1 ? `<button onclick="moveBoxDown(${index}); event.stopPropagation();" style="padding: .25rem .4rem; font-size: .75rem; border-radius: 4px; background: #f8f9fa; border: none; cursor: pointer;">▼</button>` : ''}
+            <button onclick="(function(e){executeWorkflowBox('${box.id}'); e.stopPropagation();})(event)" style="padding: .25rem .5rem; font-size: .75rem; background: ${stepBadgeGradient}; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">▶️</button>
+            <button onclick="(function(e){copyBoxResult('${box.id}'); e.stopPropagation();})(event)" style="padding: .25rem .5rem; font-size: .75rem; background: white; border: 2px solid ${stepBadgeColor}; color: ${stepBadgeColor}; border-radius: 6px; cursor: pointer; font-weight: 600;">📋</button>
+            ${index > 0 ? `<button onclick="(function(e){moveBoxUp(${index}); e.stopPropagation();})(event)" style="padding: .25rem .4rem; font-size: .75rem; border-radius: 4px; background: #f8f9fa; border: none; cursor: pointer;">▲</button>` : ''}
+            ${index < workflowBoxes.length - 1 ? `<button onclick="(function(e){moveBoxDown(${index}); e.stopPropagation();})(event)" style="padding: .25rem .4rem; font-size: .75rem; border-radius: 4px; background: #f8f9fa; border: none; cursor: pointer;">▼</button>` : ''}
             <button onclick="deleteWorkflowBox('${box.id}')" class="danger" style="padding: .25rem .5rem; font-size: .75rem; border-radius: 6px;">🗑️</button>
           </div>
         </div>
