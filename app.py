@@ -7,6 +7,7 @@ import json
 from functools import wraps
 from openai import OpenAI
 from urllib.parse import urlparse
+import anthropic
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Secret key for session management
@@ -22,6 +23,18 @@ try:
     openai_client = get_openai_client()
 except RuntimeError:
     openai_client = None
+
+# Anthropic (Claude) client setup
+def get_anthropic_client():
+    key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY가 비어 있습니다.")
+    return anthropic.Anthropic(api_key=key)
+
+try:
+    anthropic_client = get_anthropic_client()
+except RuntimeError:
+    anthropic_client = None
 
 # Database setup - support both PostgreSQL and SQLite
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -1116,6 +1129,174 @@ def api_drama_gpt_pro():
 
     except Exception as e:
         print(f"[DRAMA-GPT-PRO][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+@app.route('/api/drama/claude-step3', methods=['POST'])
+def api_drama_claude_step3():
+    """Step3: Claude Sonnet 3.5 드라마 대본 완성"""
+    try:
+        if not anthropic_client:
+            return jsonify({"ok": False, "error": "Anthropic API key not configured"}), 500
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        category = data.get("category", "")
+        style_name = data.get("styleName", "")
+        style_description = data.get("styleDescription", "")
+        draft_content = data.get("draftContent", "")
+        main_character = data.get("mainCharacter", {})
+        benchmark_script = data.get("benchmarkScript", "")
+        ai_analysis = data.get("aiAnalysis", "")
+
+        print(f"[DRAMA-CLAUDE-STEP3] 처리 시작 - 스타일: {style_name}")
+
+        # Claude Step3 시스템 프롬프트 (드라마 대본 완성 전용)
+        system_content = """당신은 Claude Sonnet 3.5 기반의 전문 드라마 대본 작가입니다.
+
+【 핵심 역할 】
+- Step1, Step2에서 생성된 자료와 분석을 바탕으로 최종 대본을 완성합니다.
+- 자료는 참고용으로만 활용하고, 대본은 처음부터 새로 구성합니다.
+- 자연스럽고 생동감 있는 대사와 지문으로 실제 촬영 가능한 완성도 높은 대본을 작성합니다.
+
+【 대본 작성 원칙 】
+1. 장면 구성: 장면 번호, 장소, 시간을 명확히 표시
+2. 지문: 인물의 행동, 표정, 분위기를 구체적으로 묘사
+3. 대사: "인물명: 대사" 형식으로 작성, 필요시 (감정/상황) 추가
+4. 흐름: 각 장면의 목적과 전개가 명확하도록 구성
+5. 캐릭터: 성격과 동기가 대사와 행동에 자연스럽게 드러나도록
+6. 형식: 마크다운 기호(#, *, -, **) 사용 금지, 순수 텍스트만
+
+【 대본 형식 예시 】
+S#1. 카페 내부 / 낮
+
+(세련된 인테리어의 카페. 창가 자리에 민수가 앉아 커피를 마시며 창밖을 바라보고 있다.)
+
+민수: (혼잣말) 오늘은 꼭 말해야 해...
+
+(문이 열리며 지현이 들어온다. 민수를 발견하고 환하게 미소 짓는다.)
+
+지현: 오빠, 오래 기다렸어?
+민수: (자리에서 일어나며) 아니, 방금 왔어.
+
+---
+
+위와 같은 형식으로 완성도 높은 대본을 작성하세요."""
+
+        # 사용자 메시지 구성
+        user_content = ""
+
+        # 메타 정보 추가
+        meta_lines = []
+        if category:
+            meta_lines.append(f"- 드라마 유형/영상 시간: {category}")
+        if style_name:
+            meta_lines.append(f"- 드라마 스타일: {style_name}")
+        if style_description:
+            meta_lines.append(f"- 스타일 설명: {style_description}")
+
+        # 주인공 정보 추가
+        if main_character:
+            char_info = []
+            if main_character.get("name"):
+                char_info.append(f"이름: {main_character['name']}")
+            if main_character.get("age"):
+                char_info.append(f"나이: {main_character['age']}")
+            if main_character.get("personality"):
+                char_info.append(f"성격: {main_character['personality']}")
+            if char_info:
+                meta_lines.append(f"- 주인공: {', '.join(char_info)}")
+
+        if meta_lines:
+            user_content += "【 기본 정보 】\n"
+            user_content += "\n".join(meta_lines)
+            user_content += "\n\n"
+
+        # 벤치마킹 대본 (있다면)
+        if benchmark_script:
+            user_content += "【 벤치마킹 대본 (참고용) 】\n"
+            user_content += benchmark_script[:3000] + ("..." if len(benchmark_script) > 3000 else "")
+            user_content += "\n\n"
+
+        # AI 분석 결과 (있다면)
+        if ai_analysis:
+            user_content += "【 AI 분석 결과 】\n"
+            user_content += ai_analysis[:2000] + ("..." if len(ai_analysis) > 2000 else "")
+            user_content += "\n\n"
+
+        # Step1, Step2 결과 (드라마 초안 자료)
+        if draft_content:
+            user_content += "【 Step1/Step2 작업 결과 (참고 자료) 】\n"
+            user_content += draft_content
+            user_content += "\n\n"
+
+        # 대본 작성 요청
+        user_content += """【 요청 사항 】
+위 자료를 참고하여 실제 촬영이 가능한 완성된 드라마 대본을 작성해주세요.
+
+작성 시 주의사항:
+1. 자료는 참고만 하고, 대본은 처음부터 새로 구성하세요.
+2. 자연스럽고 현실적인 대화를 작성하세요.
+3. 각 장면의 목적과 전개가 명확하도록 구성하세요.
+4. 캐릭터의 성격과 동기가 대사와 행동에 잘 드러나도록 하세요.
+5. 전체적인 흐름과 템포를 고려하여 작성하세요.
+6. 마크다운 기호(#, *, -, **) 대신 순수 텍스트로 작성하세요.
+7. 중복되는 문장이나 설명은 피하세요."""
+
+        # Claude API 호출
+        message = anthropic_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=8000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": user_content
+                }
+            ],
+            system=system_content,
+            temperature=0.8
+        )
+
+        # 응답 추출
+        result = ""
+        for block in message.content:
+            if block.type == "text":
+                result += block.text
+
+        result = result.strip()
+
+        if not result:
+            raise RuntimeError("Claude API로부터 결과를 받지 못했습니다.")
+
+        # 결과 앞에 기본 정보 추가
+        final_result = ""
+
+        if style_name:
+            final_result += f"드라마 스타일: {style_name}\n"
+
+        if category:
+            final_result += f"드라마 유형: {category}\n"
+
+        if style_name or category:
+            final_result += "\n" + "="*50 + "\n\n"
+
+        final_result += result
+
+        print(f"[DRAMA-CLAUDE-STEP3] 완료 - 토큰: {message.usage.input_tokens} / {message.usage.output_tokens}")
+
+        return jsonify({
+            "ok": True,
+            "result": final_result,
+            "usage": {
+                "input_tokens": message.usage.input_tokens,
+                "output_tokens": message.usage.output_tokens
+            }
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-CLAUDE-STEP3][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
