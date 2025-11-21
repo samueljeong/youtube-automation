@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import sqlite3
 from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 
@@ -13,6 +14,102 @@ def get_client():
     return OpenAI(api_key=key)
 
 client = get_client()
+
+# Database setup
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None
+
+if USE_POSTGRES:
+    # PostgreSQL 사용
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    # Render의 postgres:// URL을 postgresql://로 변경
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+    def get_db_connection():
+        """Create a PostgreSQL database connection"""
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+else:
+    # SQLite 사용 (로컬 개발용)
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'drama_data.db')
+
+    def get_db_connection():
+        """Create a SQLite database connection"""
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+# DB 초기화
+def init_db():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS benchmark_analyses (
+                id SERIAL PRIMARY KEY,
+                script_text TEXT NOT NULL,
+                script_hash VARCHAR(100) UNIQUE,
+                upload_date VARCHAR(50),
+                view_count INTEGER,
+                category VARCHAR(100),
+                analysis_result TEXT NOT NULL,
+                story_structure TEXT,
+                character_elements TEXT,
+                dialogue_style TEXT,
+                success_factors TEXT,
+                ai_model VARCHAR(50) DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_benchmark_view_count
+            ON benchmark_analyses(view_count DESC)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_benchmark_created_at
+            ON benchmark_analyses(created_at DESC)
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS benchmark_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                script_text TEXT NOT NULL,
+                script_hash TEXT UNIQUE,
+                upload_date TEXT,
+                view_count INTEGER,
+                category TEXT,
+                analysis_result TEXT NOT NULL,
+                story_structure TEXT,
+                character_elements TEXT,
+                dialogue_style TEXT,
+                success_factors TEXT,
+                ai_model TEXT DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_benchmark_view_count
+            ON benchmark_analyses(view_count DESC)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_benchmark_created_at
+            ON benchmark_analyses(created_at DESC)
+        ''')
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    print("[DRAMA-DB] Database initialized")
+
+# 앱 시작 시 DB 초기화
+init_db()
 
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
@@ -438,17 +535,21 @@ def api_analyze_benchmark():
         if not benchmark_script:
             return jsonify({"ok": False, "error": "벤치마킹 대본이 없습니다."}), 400
 
-        # 중복 체크 (간단한 파일 기반 저장소)
-        import os
-        hash_file = "benchmark_hashes.txt"
+        # DB 기반 중복 체크
         is_duplicate = False
+        if script_hash:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            if USE_POSTGRES:
+                cursor.execute("SELECT id FROM benchmark_analyses WHERE script_hash = %s", (script_hash,))
+            else:
+                cursor.execute("SELECT id FROM benchmark_analyses WHERE script_hash = ?", (script_hash,))
+            existing = cursor.fetchone()
+            conn.close()
 
-        if script_hash and os.path.exists(hash_file):
-            with open(hash_file, 'r') as f:
-                existing_hashes = f.read().splitlines()
-                if script_hash in existing_hashes:
-                    is_duplicate = True
-                    print(f"[DRAMA-ANALYZE] 중복 대본 감지 (해시: {script_hash}) - 분석만 수행")
+            if existing:
+                is_duplicate = True
+                print(f"[DRAMA-ANALYZE] 중복 대본 감지 (해시: {script_hash}) - 분석만 수행")
 
         print(f"[DRAMA-ANALYZE] 벤치마킹 대본 분석 시작 - {view_count} 조회수 - 중복: {is_duplicate}")
 
@@ -490,7 +591,7 @@ def api_analyze_benchmark():
 위 대본을 분석하여 핵심 패턴과 성공 요인을 추출해주세요."""
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -499,19 +600,74 @@ def api_analyze_benchmark():
         )
 
         analysis = completion.choices[0].message.content.strip()
+        total_tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
 
-        # 중복이 아닌 경우에만 해시 저장 (DB 저장 대신 파일에 저장)
+        # 분석 결과를 섹션별로 파싱 (간단한 구조화)
+        story_structure = ""
+        character_elements = ""
+        dialogue_style = ""
+        success_factors = ""
+
+        # 섹션별 추출 (간단한 패턴 매칭)
+        sections = analysis.split('\n\n')
+        for section in sections:
+            if '스토리 구조' in section or '구조 패턴' in section:
+                story_structure = section
+            elif '캐릭터' in section:
+                character_elements = section
+            elif '대사' in section:
+                dialogue_style = section
+            elif '성공 요인' in section:
+                success_factors = section
+
+        # 중복이 아닌 경우에만 DB에 저장
         if not is_duplicate and script_hash:
             try:
-                with open(hash_file, 'a') as f:
-                    f.write(script_hash + '\n')
-                print(f"[DRAMA-ANALYZE] 새 대본 해시 저장 (해시: {script_hash})")
+                conn = get_db_connection()
+                cursor = conn.cursor()
+
+                # 조회수를 숫자로 변환 (예: "12만" -> 120000)
+                view_count_num = 0
+                if view_count:
+                    view_count_str = view_count.replace(',', '').strip()
+                    if '만' in view_count_str:
+                        view_count_num = int(float(view_count_str.replace('만', '')) * 10000)
+                    elif '천' in view_count_str:
+                        view_count_num = int(float(view_count_str.replace('천', '')) * 1000)
+                    else:
+                        try:
+                            view_count_num = int(view_count_str)
+                        except:
+                            view_count_num = 0
+
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO benchmark_analyses
+                        (script_text, script_hash, upload_date, view_count, category,
+                         analysis_result, story_structure, character_elements,
+                         dialogue_style, success_factors, ai_model, analysis_tokens)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (benchmark_script, script_hash, upload_date, view_count_num, category,
+                          analysis, story_structure, character_elements,
+                          dialogue_style, success_factors, 'gpt-5', total_tokens))
+                else:
+                    cursor.execute('''
+                        INSERT INTO benchmark_analyses
+                        (script_text, script_hash, upload_date, view_count, category,
+                         analysis_result, story_structure, character_elements,
+                         dialogue_style, success_factors, ai_model, analysis_tokens)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (benchmark_script, script_hash, upload_date, view_count_num, category,
+                          analysis, story_structure, character_elements,
+                          dialogue_style, success_factors, 'gpt-5', total_tokens))
+
+                conn.commit()
+                conn.close()
+                print(f"[DRAMA-ANALYZE] DB 저장 완료 (해시: {script_hash}, 토큰: {total_tokens})")
             except Exception as e:
-                print(f"[DRAMA-ANALYZE] 해시 저장 실패: {str(e)}")
+                print(f"[DRAMA-ANALYZE] DB 저장 실패: {str(e)}")
 
-        # TODO: 향후 Firebase나 DB에 분석 결과 저장
-
-        print(f"[DRAMA-ANALYZE] 분석 완료 - 저장 여부: {not is_duplicate}")
+        print(f"[DRAMA-ANALYZE] 분석 완료 - 저장 여부: {not is_duplicate}, 모델: gpt-5")
 
         return jsonify({"ok": True, "analysis": analysis, "isDuplicate": is_duplicate})
 
@@ -570,7 +726,7 @@ def api_get_suggestions():
 위 초안을 분석하고, 시청자 반응을 극대화할 수 있는 구체적인 개선 제안을 해주세요."""
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -580,7 +736,7 @@ def api_get_suggestions():
 
         suggestions = completion.choices[0].message.content.strip()
 
-        print(f"[DRAMA-SUGGEST] 제안 생성 완료")
+        print(f"[DRAMA-SUGGEST] 제안 생성 완료 (모델: gpt-5)")
 
         return jsonify({"ok": True, "suggestions": suggestions})
 
@@ -744,7 +900,7 @@ def api_get_accumulated_guide():
             user_content += f"\n\n특히 '{category}' 길이의 드라마에 적합한 가이드를 포함해주세요."
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -754,7 +910,7 @@ def api_get_accumulated_guide():
 
         guide = completion.choices[0].message.content.strip()
 
-        print(f"[DRAMA-GUIDE] 가이드 생성 완료")
+        print(f"[DRAMA-GUIDE] 가이드 생성 완료 (모델: gpt-5)")
 
         return jsonify({"ok": True, "guide": guide})
 
