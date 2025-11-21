@@ -389,7 +389,7 @@
       color: #666;
     }
 
-    /* Step1/Step2 박스 스타일 */
+    /* Step1/Step2/Step3 박스 스타일 */
     .workflow-box.step1 {
       border: 2px solid #e74c3c;
       background: #fff5f5;
@@ -397,6 +397,10 @@
     .workflow-box.step2 {
       border: 2px solid #9b59b6;
       background: #f8f5ff;
+    }
+    .workflow-box.step3 {
+      border: 2px solid #f39c12;
+      background: #fffbf0;
     }
     .step-badge {
       display: inline-block;
@@ -413,6 +417,30 @@
     .step-badge.step2 {
       background: #9b59b6;
       color: white;
+    }
+    .step-badge.step3 {
+      background: #f39c12;
+      color: white;
+    }
+    /* Step3 결과 박스 스타일 */
+    .step3-result-box {
+      background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+      border: none;
+      padding: 1rem;
+      border-radius: 12px;
+      margin-top: .75rem;
+    }
+    .step3-result-box .label {
+      color: white;
+      font-size: 1.1rem;
+      margin-bottom: .5rem;
+    }
+    .step3-result-box textarea {
+      background: white;
+      border: none;
+      border-radius: 6px;
+      padding: .75rem;
+      min-height: 300px;
     }
 
     /* Step 접기/펼치기 */
@@ -524,6 +552,16 @@
         <button id="btn-add-step2-box" style="padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.3); transition: all 0.2s ease;">➕ Step2 박스 추가</button>
       </div>
 
+      <!-- Step3 (Claude) 대본 완성 버튼 -->
+      <div style="margin-bottom: .75rem;">
+        <button id="btn-execute-step3" style="width: 100%; padding: .8rem; font-size: 1rem; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 16px rgba(243,156,18,.4); transition: all 0.2s ease;">
+          🎬 Step3: Claude 대본 완성
+        </button>
+        <div style="font-size: .75rem; color: #666; margin-top: .3rem; text-align: center;">
+          Claude Sonnet 3.5를 사용하여 Step1/Step2 결과를 바탕으로 완성된 대본을 생성합니다.
+        </div>
+      </div>
+
       <!-- 순차 실행 버튼 -->
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
         <button id="btn-auto-execute-step1" style="padding: .55rem; font-size: .8rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.3); transition: all 0.2s ease;">⚡ Step1 순차실행</button>
@@ -548,6 +586,21 @@
 
       <!-- 워크플로우 박스들이 동적으로 추가되는 영역 -->
       <div id="workflow-boxes-container"></div>
+
+      <!-- Step3 결과 박스 -->
+      <div id="step3-result-container" class="step3-result-box" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+          <div class="label">🎬 Step3: Claude 대본 완성 결과</div>
+          <div style="display: flex; gap: .5rem;">
+            <button id="btn-copy-step3-result" style="padding: .4rem .8rem; background: white; color: #f39c12; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📋 복사</button>
+            <button id="btn-clear-step3-result" style="padding: .4rem .8rem; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">🗑️ 지우기</button>
+          </div>
+        </div>
+        <div id="step3-token-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-bottom: .5rem; display: none;">
+          토큰 사용량: <span id="step3-input-tokens">0</span> (입력) / <span id="step3-output-tokens">0</span> (출력)
+        </div>
+        <textarea id="step3-result" readonly style="width: 100%; font-size: .9rem; line-height: 1.6; resize: vertical;" placeholder="Step3 결과가 여기에 표시됩니다..."></textarea>
+      </div>
     </div>
 
     <!-- 오른쪽 - 가이드 및 지침 관리 영역 -->
@@ -1151,6 +1204,134 @@
         const orig = btnCopyGptPro.textContent;
         btnCopyGptPro.textContent = '✅ 복사됨!';
         setTimeout(() => btnCopyGptPro.textContent = orig, 1500);
+      }
+    });
+  }
+
+  // ===== Step3 (Claude) 대본 완성 기능 =====
+  async function executeStep3() {
+    // Step2 결과만 수집 (Step2에서 새로운 대본 제작한 결과)
+    let draftContent = '';
+    let hasResults = false;
+
+    workflowBoxes.forEach(box => {
+      // Step2 박스만 수집
+      if (box.stepType === 'step2' && box.result) {
+        hasResults = true;
+        draftContent += `\n\n${'='.repeat(50)}\n`;
+        draftContent += `[Step2] ${box.name}\n`;
+        draftContent += `${'='.repeat(50)}\n\n`;
+        draftContent += box.result;
+      }
+    });
+
+    if (!hasResults) {
+      alert('Step2 결과가 없습니다. 먼저 Step2 박스를 실행해주세요.');
+      return;
+    }
+
+    // 기본 정보 수집
+    const categorySelect = document.getElementById('drama-category');
+    const categoryLabel = categorySelect ? categorySelect.options[categorySelect.selectedIndex].text : '';
+    const mainCharacterInput = document.getElementById('main-character');
+    const mainCharacter = mainCharacterInput ? mainCharacterInput.value : '';
+    const benchmarkScript = document.getElementById('benchmark-script')?.value || '';
+    const analysisResult = document.getElementById('analysis-result')?.textContent || '';
+
+    // 로딩 표시
+    showLoadingOverlay('Claude 대본 완성 중', 'Claude Sonnet 3.5가 대본을 작성하고 있습니다...');
+    showStatus('🎬 Step3: Claude 대본 완성 중... (약 30-60초 소요)');
+
+    try {
+      const response = await fetch('/api/drama/claude-step3', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          category: categoryLabel,
+          draftContent: draftContent,
+          mainCharacter: { name: mainCharacter },
+          benchmarkScript: benchmarkScript,
+          aiAnalysis: analysisResult
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        const resultTextarea = document.getElementById('step3-result');
+        const resultContainer = document.getElementById('step3-result-container');
+        const tokenInfo = document.getElementById('step3-token-info');
+
+        if (resultTextarea && resultContainer) {
+          resultTextarea.value = data.result;
+          autoResize(resultTextarea);
+          resultContainer.style.display = 'block';
+
+          // 토큰 정보 표시
+          if (data.usage && tokenInfo) {
+            document.getElementById('step3-input-tokens').textContent = data.usage.input_tokens?.toLocaleString() || '0';
+            document.getElementById('step3-output-tokens').textContent = data.usage.output_tokens?.toLocaleString() || '0';
+            tokenInfo.style.display = 'block';
+          }
+
+          // 결과 박스로 스크롤
+          resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        showStatus('✅ Step3: Claude 대본 완성!');
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ Step3 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ Step3 오류');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+    }
+  }
+
+  // Step3 실행 버튼 이벤트
+  const btnExecuteStep3 = document.getElementById('btn-execute-step3');
+  if (btnExecuteStep3) {
+    btnExecuteStep3.addEventListener('click', executeStep3);
+  }
+
+  // Step3 결과 복사 버튼 이벤트
+  const btnCopyStep3Result = document.getElementById('btn-copy-step3-result');
+  if (btnCopyStep3Result) {
+    btnCopyStep3Result.addEventListener('click', () => {
+      const textarea = document.getElementById('step3-result');
+      if (textarea && textarea.value) {
+        textarea.select();
+        document.execCommand('copy');
+        const orig = btnCopyStep3Result.textContent;
+        btnCopyStep3Result.textContent = '✅ 복사됨!';
+        setTimeout(() => btnCopyStep3Result.textContent = orig, 1500);
+        showStatus('✅ Step3 결과 복사 완료!');
+        setTimeout(hideStatus, 2000);
+      } else {
+        alert('복사할 결과가 없습니다.');
+      }
+    });
+  }
+
+  // Step3 결과 지우기 버튼 이벤트
+  const btnClearStep3Result = document.getElementById('btn-clear-step3-result');
+  if (btnClearStep3Result) {
+    btnClearStep3Result.addEventListener('click', () => {
+      if (confirm('Step3 결과를 지우시겠습니까?')) {
+        const resultTextarea = document.getElementById('step3-result');
+        const resultContainer = document.getElementById('step3-result-container');
+        const tokenInfo = document.getElementById('step3-token-info');
+
+        if (resultTextarea) resultTextarea.value = '';
+        if (resultContainer) resultContainer.style.display = 'none';
+        if (tokenInfo) tokenInfo.style.display = 'none';
+
+        showStatus('🗑️ Step3 결과가 지워졌습니다.');
+        setTimeout(hideStatus, 2000);
       }
     });
   }
