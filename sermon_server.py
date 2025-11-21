@@ -163,13 +163,17 @@ def api_process_step():
         master_guide = data.get("masterGuide", "")
         previous_results = data.get("previousResults", {})
 
-        # stepType 기반 모델 선택
-        if step_type == "step1":
-            model_name = "gpt-5"
-            use_temperature = False
-        else:  # step2
-            model_name = "gpt-4o-mini"
-            use_temperature = True
+        # 프론트엔드에서 전달받은 모델 사용 (없으면 기본값)
+        model_name = data.get("model")
+        if not model_name:
+            # 기본값: stepType 기반 모델 선택
+            if step_type == "step1":
+                model_name = "gpt-5"
+            else:  # step2
+                model_name = "gpt-4o-mini"
+
+        # temperature 설정 (gpt-4o-mini만 사용)
+        use_temperature = (model_name == "gpt-4o-mini")
 
         print(f"[PROCESS] {category} - {step_name} (Step: {step_type}, 모델: {model_name})")
 
@@ -296,7 +300,7 @@ def api_process_step():
 # ===== GPT PRO 처리 API (gpt-5.1) =====
 @app.route("/api/sermon/gpt-pro", methods=["POST"])
 def api_gpt_pro():
-    """GPT-5.1 완성본 작성"""
+    """GPT PRO 완성본 작성"""
     try:
         data = request.get_json()
         if not data:
@@ -311,7 +315,10 @@ def api_gpt_pro():
         style_description = data.get("styleDescription", "")
         completed_step_names = data.get("completedStepNames", [])
 
-        print(f"[GPT-PRO] 처리 시작 - 스타일: {style_name}")
+        # 프론트엔드에서 전달받은 모델 사용 (없으면 기본값 gpt-5.1)
+        gpt_pro_model = data.get("model", "gpt-5.1")
+
+        print(f"[GPT-PRO] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}")
 
         # 제목 생성 여부 확인
         has_title = bool(title and title.strip())
@@ -421,45 +428,65 @@ def api_gpt_pro():
         # 공통 지침 추가
         user_content += "\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 16000 토큰)."
 
-        # 최신 Responses API (gpt-5.1) 호출
-        completion = client.responses.create(
-            model="gpt-5.1",
-            input=[
-                {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": system_content
-                        }
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": user_content
-                        }
-                    ]
-                }
-            ],
-            temperature=0.8,
-            max_output_tokens=16000  # 더 긴 설교문을 위해 토큰 증가
-        )
+        # 모델에 따라 적절한 API 호출
+        if gpt_pro_model == "gpt-5.1":
+            # Responses API (gpt-5.1 전용)
+            completion = client.responses.create(
+                model=gpt_pro_model,
+                input=[
+                    {
+                        "role": "system",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": system_content
+                            }
+                        ]
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": user_content
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.8,
+                max_output_tokens=16000
+            )
 
-        if getattr(completion, "output_text", None):
-            result = completion.output_text.strip()
+            if getattr(completion, "output_text", None):
+                result = completion.output_text.strip()
+            else:
+                text_chunks = []
+                for item in getattr(completion, "output", []) or []:
+                    for content in getattr(item, "content", []) or []:
+                        if getattr(content, "type", "") == "text":
+                            text_chunks.append(getattr(content, "text", ""))
+                result = "\n".join(text_chunks).strip()
         else:
-            text_chunks = []
-            for item in getattr(completion, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text_chunks.append(getattr(content, "text", ""))
-            result = "\n".join(text_chunks).strip()
+            # Chat Completions API (gpt-5, gpt-4o 등)
+            completion = client.chat.completions.create(
+                model=gpt_pro_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_content
+                    },
+                    {
+                        "role": "user",
+                        "content": user_content
+                    }
+                ],
+                temperature=0.8,
+                max_tokens=16000
+            )
+            result = completion.choices[0].message.content.strip()
 
         if not result:
-            raise RuntimeError("GPT-5.1 API로부터 결과를 받지 못했습니다.")
+            raise RuntimeError(f"{gpt_pro_model} API로부터 결과를 받지 못했습니다.")
 
         # 마크다운 제거
         result = remove_markdown(result)

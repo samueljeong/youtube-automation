@@ -890,6 +890,40 @@
             <div id="current-guide-info" style="font-size: .85rem; color: #666; margin-bottom: .5rem;"></div>
             <textarea id="guide-text" class="autosize" style="min-height: 90px;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
 
+            <!-- 모델 설정 -->
+            <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+              <div style="font-size: .85rem; color: #666; margin-bottom: .5rem; font-weight: 600;">⚙️ AI 모델 설정</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .5rem;">
+                <div>
+                  <label style="font-size: .8rem; color: #666; display: block; margin-bottom: .25rem;">Step1 모델</label>
+                  <select id="model-step1" style="width: 100%; padding: .35rem .5rem; font-size: .85rem;">
+                    <option value="gpt-5">GPT-5 (기본)</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o-mini</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="font-size: .8rem; color: #666; display: block; margin-bottom: .25rem;">Step2 모델</label>
+                  <select id="model-step2" style="width: 100%; padding: .35rem .5rem; font-size: .85rem;">
+                    <option value="gpt-4o-mini">GPT-4o-mini (기본)</option>
+                    <option value="gpt-5">GPT-5</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style="font-size: .8rem; color: #666; display: block; margin-bottom: .25rem;">설교문 작성 모델</label>
+                <select id="model-gpt-pro" style="width: 100%; padding: .35rem .5rem; font-size: .85rem;">
+                  <option value="gpt-5.1">GPT-5.1 (기본)</option>
+                  <option value="gpt-5">GPT-5</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                </select>
+              </div>
+              <div style="font-size: .75rem; color: #999; margin-top: .5rem;">
+                💡 토큰 절약이 필요하면 하위 모델을 선택하세요. 설정은 이 카테고리에만 적용됩니다.
+              </div>
+            </div>
+
             <!-- 백업/복원 버튼 -->
             <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
               <div style="font-size: .85rem; color: #666; margin-bottom: .5rem; font-weight: 600;">💾 데이터 백업</div>
@@ -1271,6 +1305,43 @@
       statusBar.textContent = msg;
       statusBar.style.display = 'block';
     }
+  }
+
+  // ===== 모델 설정 관리 =====
+  function getModelSettings(category) {
+    const settings = config.categorySettings[category];
+    if (!settings.modelSettings) {
+      settings.modelSettings = {
+        step1: 'gpt-5',
+        step2: 'gpt-4o-mini',
+        gptPro: 'gpt-5.1'
+      };
+    }
+    return settings.modelSettings;
+  }
+
+  function loadModelSettings() {
+    const modelSettings = getModelSettings(currentCategory);
+    const step1Select = document.getElementById('model-step1');
+    const step2Select = document.getElementById('model-step2');
+    const gptProSelect = document.getElementById('model-gpt-pro');
+
+    if (step1Select) step1Select.value = modelSettings.step1;
+    if (step2Select) step2Select.value = modelSettings.step2;
+    if (gptProSelect) gptProSelect.value = modelSettings.gptPro;
+  }
+
+  async function saveModelSettings() {
+    const step1Select = document.getElementById('model-step1');
+    const step2Select = document.getElementById('model-step2');
+    const gptProSelect = document.getElementById('model-gpt-pro');
+
+    const modelSettings = getModelSettings(currentCategory);
+    modelSettings.step1 = step1Select ? step1Select.value : 'gpt-5';
+    modelSettings.step2 = step2Select ? step2Select.value : 'gpt-4o-mini';
+    modelSettings.gptPro = gptProSelect ? gptProSelect.value : 'gpt-5.1';
+
+    await saveConfig();
   }
 
   function hideStatus() {
@@ -1936,14 +2007,18 @@
       document.body.removeChild(tempTextarea);
     }
 
-    // ===== 2단계: GPT-5.1로 설교문 작성 =====
-    showStatus('🚀 GPT PRO 처리 중... (약 30초 소요)');
+    // ===== 2단계: GPT PRO로 설교문 작성 =====
+    const modelSettings = getModelSettings(currentCategory);
+    const gptProModel = modelSettings.gptPro;
+
+    showStatus(`🚀 GPT PRO (${gptProModel}) 처리 중... (약 30초 소요)`);
 
     try {
       const response = await fetch('/api/sermon/gpt-pro', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
+          model: gptProModel, // 선택된 모델 전달
           reference: draft.meta.reference,
           title: draft.meta.finalTitle,
           seriesName: draft.meta.seriesName,
@@ -2188,6 +2263,10 @@
     const currentStep = steps[currentStepIndex];
     const stepType = currentStep ? (currentStep.stepType || 'step1') : 'step1';
 
+    // 선택된 모델 가져오기
+    const modelSettings = getModelSettings(currentCategory);
+    const selectedModel = stepType === 'step1' ? modelSettings.step1 : modelSettings.step2;
+
     const previousResults = {};
     for (let i = 0; i < currentStepIndex; i++) {
       const prevStep = steps[i];
@@ -2210,6 +2289,7 @@
           stepId: stepId,
           stepName: getStepName(stepId),
           stepType: stepType,
+          model: selectedModel, // 선택된 모델 전달
           reference: ref,
           title: getSelectedTitle(), // 현재 제목 전달
           text: text,
@@ -2269,6 +2349,7 @@
       if (gptProContainer) gptProContainer.style.display = 'none';
 
       loadMasterGuide(currentCategory);
+      loadModelSettings(); // 모델 설정 로드
       renderStyles();
       renderProcessingSteps();
       renderResultBoxes();
@@ -3210,8 +3291,36 @@
 
     renderCategories();
     loadMasterGuide(currentCategory);
+    loadModelSettings(); // 모델 설정 로드
     renderStyles();
     renderProcessingSteps();
+
+    // 모델 선택 이벤트 리스너
+    const step1Select = document.getElementById('model-step1');
+    const step2Select = document.getElementById('model-step2');
+    const gptProSelect = document.getElementById('model-gpt-pro');
+
+    if (step1Select) {
+      step1Select.addEventListener('change', async () => {
+        await saveModelSettings();
+        showStatus('✅ 모델 설정 저장됨');
+        setTimeout(hideStatus, 1500);
+      });
+    }
+    if (step2Select) {
+      step2Select.addEventListener('change', async () => {
+        await saveModelSettings();
+        showStatus('✅ 모델 설정 저장됨');
+        setTimeout(hideStatus, 1500);
+      });
+    }
+    if (gptProSelect) {
+      gptProSelect.addEventListener('change', async () => {
+        await saveModelSettings();
+        showStatus('✅ 모델 설정 저장됨');
+        setTimeout(hideStatus, 1500);
+      });
+    }
 
     // 자동 저장 데이터 복원 - 새로고침 시 초기화하기 위해 제거
     // loadAutoSave();
