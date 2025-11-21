@@ -10,7 +10,8 @@ def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
         raise RuntimeError("OPENAI_API_KEY가 비어 있습니다.")
-    return OpenAI(api_key=key)
+    # GPT-5 긴 처리 시간을 위한 타임아웃 설정 (10분)
+    return OpenAI(api_key=key, timeout=600.0)
 
 client = get_client()
 
@@ -102,13 +103,14 @@ def get_system_prompt_for_step(step_name):
 
     # 제목 추천 단계
     if '제목' in step_name:
-        return """당신은 gpt-4o-mini로서 설교 '제목 후보'만 제안하는 역할입니다.
+        return """당신은 설교 '제목 후보'만 제안하는 역할입니다.
 
 CRITICAL RULES:
-1. 정확히 3개의 제목만 제시하세요
-2. 각 제목은 한 줄로 작성하세요
-3. 번호, 기호, 마크다운 사용 금지
-4. 제목만 작성하고 설명 추가 금지
+1. 반드시 한국어로만 응답하세요
+2. 정확히 3개의 제목만 제시하세요
+3. 각 제목은 한 줄로 작성하세요
+4. 번호, 기호, 마크다운 사용 금지
+5. 제목만 작성하고 설명 추가 금지
 
 출력 형식 예시:
 하나님의 약속을 믿는 믿음
@@ -117,11 +119,12 @@ CRITICAL RULES:
 
     # 모든 다른 단계 - 기본 역할만 명시
     else:
-        return f"""당신은 gpt-4o-mini로서 설교 '초안 자료'만 준비하는 역할입니다.
+        return f"""당신은 설교 '초안 자료'만 준비하는 역할입니다.
 
 현재 단계: {step_name}
 
 기본 역할:
+- 반드시 한국어로만 응답하세요
 - 완성된 설교 문단이 아닌, 자료와 구조만 제공
 - 사용자가 제공하는 세부 지침을 최우선으로 따름
 - 지침이 없는 경우에만 일반적인 설교 자료 형식 사용
