@@ -848,9 +848,13 @@ def api_workflow_execute():
         inputs = data.get("inputs", {})  # dict with selected input sources
         category = data.get("category", "")
         main_character = data.get("mainCharacter", "")
+        selected_model = data.get("model", "")  # 프론트엔드에서 선택한 모델
 
-        # Step 타입에 따른 모델 선택
-        if step_type == "step1":
+        # Step 타입에 따른 모델 선택 (프론트엔드에서 선택한 모델 우선)
+        if selected_model:
+            model_name = selected_model
+            use_temperature = True  # 사용자가 모델을 선택한 경우 temperature 사용
+        elif step_type == "step1":
             model_name = "gpt-5"
             use_temperature = False
         else:  # step2

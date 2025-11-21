@@ -1150,8 +1150,10 @@ def api_drama_claude_step3():
         main_character = data.get("mainCharacter", {})
         benchmark_script = data.get("benchmarkScript", "")
         ai_analysis = data.get("aiAnalysis", "")
+        step3_guide = data.get("step3Guide", "")
+        selected_model = data.get("model", "claude-sonnet-4-20250514")
 
-        print(f"[DRAMA-CLAUDE-STEP3] 처리 시작 - 스타일: {style_name}")
+        print(f"[DRAMA-CLAUDE-STEP3] 처리 시작 - 카테고리: {category}, 모델: {selected_model}")
 
         # Claude Step3 시스템 프롬프트 (드라마 대본 완성 전용)
         system_content = """당신은 Claude Sonnet 3.5 기반의 전문 드라마 대본 작가입니다.
@@ -1226,11 +1228,17 @@ S#1. 카페 내부 / 낮
             user_content += ai_analysis[:2000] + ("..." if len(ai_analysis) > 2000 else "")
             user_content += "\n\n"
 
-        # Step1, Step2 결과 (드라마 초안 자료)
+        # Step2 결과 (드라마 초안 자료)
         if draft_content:
-            user_content += "【 Step1/Step2 작업 결과 (참고 자료) 】\n"
+            user_content += "【 Step2 작업 결과 (참고 자료) 】\n"
             user_content += draft_content
             user_content += "\n\n"
+
+        # Step3 사용자 지침 (있다면)
+        if step3_guide:
+            user_content += "【 ⭐ 작성 지침 (최우선 적용) 】\n"
+            user_content += step3_guide
+            user_content += "\n\n위 지침을 반드시 우선적으로 따라 대본을 작성해주세요.\n\n"
 
         # 대본 작성 요청
         user_content += """【 요청 사항 】
@@ -1245,9 +1253,9 @@ S#1. 카페 내부 / 낮
 6. 마크다운 기호(#, *, -, **) 대신 순수 텍스트로 작성하세요.
 7. 중복되는 문장이나 설명은 피하세요."""
 
-        # Claude API 호출
+        # Claude API 호출 (선택된 모델 사용)
         message = anthropic_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=selected_model,
             max_tokens=8000,
             messages=[
                 {
