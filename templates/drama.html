@@ -605,24 +605,13 @@
 
     <!-- 오른쪽 - 가이드 및 지침 관리 영역 -->
     <div class="analysis-area">
-      <!-- 작업 지침 관리 박스 -->
+      <!-- 작업 지침 관리 버튼 -->
       <div class="box" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border: none; padding: 1rem; margin-bottom: .75rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
-          <div style="color: white; font-weight: 600; font-size: 1.1rem;">📝 작업 지침 관리</div>
-          <div style="display: flex; gap: .5rem;">
-            <button id="btn-save-guides" style="padding: .3rem .8rem; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem; display: none;">💾 저장</button>
-            <button id="btn-toggle-guide-panel" style="padding: .3rem .6rem; background: white; color: #e74c3c; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: .85rem;">열기</button>
-          </div>
-        </div>
-        <div id="guide-panel-content" style="display: none;">
-          <div style="background: white; border-radius: 6px; padding: .75rem; margin-bottom: .5rem;">
-            <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-              모든 작업 박스의 지침을 한 곳에서 관리합니다. 지침 수정 후 <strong>💾 저장</strong> 버튼을 눌러주세요.
-            </div>
-          </div>
-          <div id="guide-management-container" style="background: white; border-radius: 6px; padding: .75rem; max-height: 400px; overflow-y: auto;">
-            <p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>
-          </div>
+        <button id="btn-open-guide-modal" style="width: 100%; padding: .8rem; background: white; color: #e74c3c; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,.1);">
+          📝 작업 지침 관리 열기
+        </button>
+        <div style="color: rgba(255,255,255,0.9); font-size: .8rem; margin-top: .5rem; text-align: center;">
+          Step1, Step2, Step3 지침을 새 창에서 관리합니다
         </div>
       </div>
 
@@ -685,6 +674,25 @@
       <div class="modal-buttons">
         <button id="btn-cancel-gpt-pro-password">취소</button>
         <button id="btn-submit-gpt-pro-password" class="primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 작업 지침 관리 모달 -->
+  <div id="modal-guide-management" class="modal">
+    <div class="modal-content" style="max-width: 800px; width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="modal-title" style="margin: 0;">📝 작업 지침 관리</div>
+        <div style="display: flex; gap: .5rem;">
+          <button id="btn-modal-save-guides" style="padding: .4rem 1rem; background: #27ae60; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .9rem;">💾 저장</button>
+          <button id="btn-close-guide-modal" style="padding: .4rem 1rem; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .9rem;">닫기</button>
+        </div>
+      </div>
+      <div style="font-size: .85rem; color: #666; margin-bottom: 1rem; padding: .75rem; background: #f8f9fa; border-radius: 6px;">
+        모든 작업 박스와 Step3의 지침을 한 곳에서 관리합니다. 수정 후 <strong>💾 저장</strong> 버튼을 눌러주세요.
+      </div>
+      <div id="modal-guide-container" style="flex: 1; overflow-y: auto; padding-right: .5rem;">
+        <p style="color: #999; text-align: center; padding: 2rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>
       </div>
     </div>
   </div>
@@ -1251,7 +1259,8 @@
           draftContent: draftContent,
           mainCharacter: { name: mainCharacter },
           benchmarkScript: benchmarkScript,
-          aiAnalysis: analysisResult
+          aiAnalysis: analysisResult,
+          step3Guide: step3Guide  // Step3 지침 전달
         })
       });
 
@@ -2261,36 +2270,77 @@
     setupDragAndDrop();
   }
 
-  // 지침 관리 패널 렌더링
+  // Step3 지침 저장용 변수
+  let step3Guide = localStorage.getItem('_drama-step3-guide') || '';
+
+  // 지침 관리 모달 렌더링 (Step1, Step2, Step3 모두 포함)
   function renderGuideManagement() {
-    const container = document.getElementById('guide-management-container');
+    const container = document.getElementById('modal-guide-container');
     if (!container) return;
 
-    if (workflowBoxes.length === 0) {
-      container.innerHTML = '<p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>';
-      return;
+    let html = '';
+
+    // Step1 박스들
+    const step1Boxes = workflowBoxes.filter(b => (b.stepType || 'step1') === 'step1');
+    if (step1Boxes.length > 0) {
+      html += `<div style="margin-bottom: 1.5rem;">
+        <div style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📋 Step1 지침 (벤치마킹 분석)</div>
+        <div style="background: #fff5f5; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #ff6b6b; border-top: none;">`;
+
+      step1Boxes.forEach(box => {
+        html += `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-weight: 600; font-size: .9rem; color: #333; margin-bottom: .4rem;">${box.stepNumber || box.boxNumber}. ${box.name}</div>
+            <textarea
+              id="modal-guide-${box.id}"
+              onchange="updateBoxGuide('${box.id}', this.value)"
+              style="width: 100%; min-height: 80px; font-size: .85rem; padding: .6rem; border: 1px solid #ffcdd2; border-radius: 6px; font-family: inherit; resize: vertical;"
+              placeholder="이 작업의 구체적인 지침을 입력하세요...">${box.guide || ''}</textarea>
+          </div>`;
+      });
+      html += `</div></div>`;
     }
 
-    container.innerHTML = workflowBoxes.map(box => {
-      const stepType = box.stepType || 'step1';
-      const stepBadgeColor = stepType === 'step1' ? '#ff6b6b' : '#4ecdc4';
-      const stepBadgeGradient = stepType === 'step1' ? 'linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%)' : 'linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%)';
-      const stepLabel = stepType === 'step1' ? 'Step1' : 'Step2';
+    // Step2 박스들
+    const step2Boxes = workflowBoxes.filter(b => b.stepType === 'step2');
+    if (step2Boxes.length > 0) {
+      html += `<div style="margin-bottom: 1.5rem;">
+        <div style="background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📋 Step2 지침 (새 대본 제작)</div>
+        <div style="background: #f0fdfc; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #4ecdc4; border-top: none;">`;
 
-      return `
-        <div style="border: 2px solid ${stepBadgeColor}; border-radius: 10px; padding: .75rem; margin-bottom: .75rem; background: ${stepType === 'step1' ? '#fff5f5' : '#f0fdfc'};">
-          <div style="display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem;">
-            <span style="background: ${stepBadgeGradient}; color: white; padding: .3rem .6rem; border-radius: 6px; font-weight: 600; font-size: .8rem; box-shadow: 0 2px 4px rgba(0,0,0,.1);">${stepLabel} ${box.stepNumber || box.boxNumber}</span>
-            <span style="font-weight: 600; font-size: .9rem; color: #333;">${box.name}</span>
-          </div>
-          <textarea
-            id="guide-panel-${box.id}"
-            onchange="updateBoxGuide('${box.id}', this.value)"
-            style="width: 100%; min-height: 100px; font-size: .85rem; padding: .6rem; border: none; border-radius: 8px; font-family: inherit; background: white; box-shadow: inset 0 2px 4px rgba(0,0,0,.05);"
-            placeholder="이 작업의 구체적인 지침을 입력하세요...">${box.guide || ''}</textarea>
+      step2Boxes.forEach(box => {
+        html += `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-weight: 600; font-size: .9rem; color: #333; margin-bottom: .4rem;">${box.stepNumber || box.boxNumber}. ${box.name}</div>
+            <textarea
+              id="modal-guide-${box.id}"
+              onchange="updateBoxGuide('${box.id}', this.value)"
+              style="width: 100%; min-height: 80px; font-size: .85rem; padding: .6rem; border: 1px solid #b2dfdb; border-radius: 6px; font-family: inherit; resize: vertical;"
+              placeholder="이 작업의 구체적인 지침을 입력하세요...">${box.guide || ''}</textarea>
+          </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    // Step3 지침 (Claude 대본 완성)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🎬 Step3 지침 (Claude 대본 완성)</div>
+      <div style="background: #fffbf0; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #f39c12; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          Claude Sonnet 3.5가 최종 대본을 작성할 때 참고할 지침입니다.
         </div>
-      `;
-    }).join('');
+        <textarea
+          id="modal-guide-step3"
+          style="width: 100%; min-height: 120px; font-size: .85rem; padding: .6rem; border: 1px solid #ffe0b2; border-radius: 6px; font-family: inherit; resize: vertical;"
+          placeholder="예: 대사는 자연스럽게, 장면 전환은 부드럽게, 감정선을 강조해서 작성해주세요...">${step3Guide}</textarea>
+      </div>
+    </div>`;
+
+    if (workflowBoxes.length === 0) {
+      html = `<p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 Step1/Step2 지침이 표시됩니다.</p>` + html;
+    }
+
+    container.innerHTML = html;
   }
 
   // 박스 이름 업데이트
@@ -2770,38 +2820,55 @@
     }
   }
 
-  // 지침 관리 패널 토글 버튼
-  const btnToggleGuidePanel = document.getElementById('btn-toggle-guide-panel');
-  const btnSaveGuides = document.getElementById('btn-save-guides');
-  const guidePanelContent = document.getElementById('guide-panel-content');
+  // 지침 관리 모달 열기
+  const btnOpenGuideModal = document.getElementById('btn-open-guide-modal');
+  const modalGuideManagement = document.getElementById('modal-guide-management');
+  const btnCloseGuideModal = document.getElementById('btn-close-guide-modal');
+  const btnModalSaveGuides = document.getElementById('btn-modal-save-guides');
 
-  if (btnToggleGuidePanel && guidePanelContent) {
-    btnToggleGuidePanel.addEventListener('click', () => {
-      if (guidePanelContent.style.display === 'none') {
-        guidePanelContent.style.display = 'block';
-        btnToggleGuidePanel.textContent = '닫기';
-        if (btnSaveGuides) btnSaveGuides.style.display = 'block'; // 저장 버튼 표시
-        renderGuideManagement(); // 열 때 최신 상태로 렌더링
-      } else {
-        guidePanelContent.style.display = 'none';
-        btnToggleGuidePanel.textContent = '열기';
-        if (btnSaveGuides) btnSaveGuides.style.display = 'none'; // 저장 버튼 숨김
+  if (btnOpenGuideModal && modalGuideManagement) {
+    btnOpenGuideModal.addEventListener('click', () => {
+      renderGuideManagement(); // 열 때 최신 상태로 렌더링
+      modalGuideManagement.classList.add('show');
+    });
+  }
+
+  // 지침 관리 모달 닫기
+  if (btnCloseGuideModal && modalGuideManagement) {
+    btnCloseGuideModal.addEventListener('click', () => {
+      modalGuideManagement.classList.remove('show');
+    });
+  }
+
+  // 모달 배경 클릭 시 닫기
+  if (modalGuideManagement) {
+    modalGuideManagement.addEventListener('click', (e) => {
+      if (e.target === modalGuideManagement) {
+        modalGuideManagement.classList.remove('show');
       }
     });
   }
 
-  // 지침 저장 버튼
-  if (btnSaveGuides) {
-    btnSaveGuides.addEventListener('click', async () => {
+  // 지침 저장 버튼 (모달)
+  if (btnModalSaveGuides) {
+    btnModalSaveGuides.addEventListener('click', async () => {
       showStatus('💾 지침 저장 중...');
 
       // 모든 텍스트영역의 값을 workflowBoxes에 동기화
       workflowBoxes.forEach(box => {
-        const textarea = document.getElementById(`guide-panel-${box.id}`);
+        const textarea = document.getElementById(`modal-guide-${box.id}`);
         if (textarea) {
           box.guide = textarea.value;
         }
       });
+
+      // Step3 지침 저장
+      const step3Textarea = document.getElementById('modal-guide-step3');
+      if (step3Textarea) {
+        step3Guide = step3Textarea.value;
+        localStorage.setItem('_drama-step3-guide', step3Guide);
+        await saveToFirebase('_drama-step3-guide', step3Guide);
+      }
 
       // Firebase와 localStorage에 저장
       await saveWorkflowBoxes();
@@ -2863,6 +2930,9 @@
 
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
+
+    // ⭐ Step3 지침 불러오기 (Firebase 동기화 후)
+    step3Guide = localStorage.getItem('_drama-step3-guide') || '';
 
     // ⭐ 워크플로우 박스 불러오기 및 렌더링
     loadWorkflowBoxes();
