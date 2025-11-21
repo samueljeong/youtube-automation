@@ -2736,6 +2736,7 @@
         <div>
           <button onclick="editStyle(${idx})" style="margin-right: .3rem;">이름 수정</button>
           <button onclick="editStyleSteps('${style.id}')" style="margin-right: .3rem;">단계 편집</button>
+          <button onclick="duplicateStyle(${idx})" style="margin-right: .3rem; background: #4CAF50; color: white;">복제</button>
           <button class="danger" onclick="deleteStyle(${idx})">삭제</button>
         </div>
       </div>
@@ -2825,6 +2826,18 @@
     const style = settings.styles[idx];
     if (!confirm(`"${style.name}" 삭제?`)) return;
 
+    // 스타일 삭제 시 관련 지침도 모두 삭제
+    if (style.steps && style.steps.length > 0) {
+      style.steps.forEach(step => {
+        const guideKey = getGuideKey(currentCategory, step.id, style.id);
+        localStorage.removeItem(guideKey);
+        // Firebase에서도 삭제
+        db.collection('users').doc(USER_CODE).collection(PAGE_NAME).doc(guideKey).delete().catch(err => {
+          console.warn('Firebase 지침 삭제 실패:', err);
+        });
+      });
+    }
+
     settings.styles.splice(idx, 1);
     if (currentStyleId === style.id) {
       currentStyleId = '';
@@ -2835,6 +2848,65 @@
     renderProcessingSteps();
     renderResultBoxes();
     renderGuideTabs();
+  };
+
+  window.duplicateStyle = async function(idx) {
+    const settings = config.categorySettings[currentCategory];
+    if (!settings || !settings.styles) return;
+
+    const originalStyle = settings.styles[idx];
+    if (!originalStyle) return;
+
+    // 복제할 스타일 이름 입력받기
+    const newName = prompt('복제된 스타일의 이름을 입력하세요.', `${originalStyle.name} (사본)`);
+    if (newName === null) return;
+
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
+      alert('스타일 이름을 입력하세요.');
+      return;
+    }
+
+    // 새로운 고유 ID 생성
+    const newId = koreanToId(trimmedName);
+
+    // 스타일 복제 (단계들도 함께 복제)
+    const duplicatedStyle = {
+      id: newId,
+      name: trimmedName,
+      description: originalStyle.description || '',
+      steps: originalStyle.steps ? JSON.parse(JSON.stringify(originalStyle.steps)) : []
+    };
+
+    // 스타일 추가
+    settings.styles.push(duplicatedStyle);
+
+    // 지침 복사 (각 단계별로)
+    if (originalStyle.steps && originalStyle.steps.length > 0) {
+      for (const step of originalStyle.steps) {
+        const originalGuideKey = getGuideKey(currentCategory, step.id, originalStyle.id);
+        const newGuideKey = getGuideKey(currentCategory, step.id, newId);
+
+        // localStorage에서 지침 복사
+        const guideContent = localStorage.getItem(originalGuideKey);
+        if (guideContent) {
+          localStorage.setItem(newGuideKey, guideContent);
+
+          // Firebase에도 저장
+          await saveToFirebase(newGuideKey, guideContent);
+        }
+      }
+    }
+
+    // 설정 저장
+    await saveConfig();
+
+    // UI 업데이트
+    renderStyles();
+    renderStylesManageList();
+
+    showStatus(`✅ "${trimmedName}" 스타일이 복제되었습니다.`);
+    setTimeout(hideStatus, 2000);
   };
 
   window.editStyleSteps = function(styleId) {
