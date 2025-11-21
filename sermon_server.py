@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import sqlite3
+import hashlib
 from flask import Flask, render_template, request, jsonify
 from openai import OpenAI
 
@@ -14,6 +16,120 @@ def get_client():
     return OpenAI(api_key=key, timeout=600.0)
 
 client = get_client()
+
+# Database setup
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None
+
+if USE_POSTGRES:
+    # PostgreSQL 사용
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+    # Render의 postgres:// URL을 postgresql://로 변경
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+    def get_db_connection():
+        """Create a PostgreSQL database connection"""
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        return conn
+else:
+    # SQLite 사용 (로컬 개발용)
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'sermon_data.db')
+
+    def get_db_connection():
+        """Create a SQLite database connection"""
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+# DB 초기화
+def init_db():
+    """Initialize database tables"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
+                id SERIAL PRIMARY KEY,
+                sermon_text TEXT NOT NULL,
+                sermon_hash VARCHAR(100) UNIQUE,
+                reference VARCHAR(200),
+                sermon_title TEXT,
+                category VARCHAR(100),
+                style_name VARCHAR(100),
+                analysis_result TEXT NOT NULL,
+                sermon_structure TEXT,
+                theological_depth TEXT,
+                application_elements TEXT,
+                illustration_style TEXT,
+                language_style TEXT,
+                success_factors TEXT,
+                ai_model VARCHAR(50) DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_category
+            ON sermon_benchmark_analyses(category)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_style
+            ON sermon_benchmark_analyses(style_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_created_at
+            ON sermon_benchmark_analyses(created_at DESC)
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sermon_text TEXT NOT NULL,
+                sermon_hash TEXT UNIQUE,
+                reference TEXT,
+                sermon_title TEXT,
+                category TEXT,
+                style_name TEXT,
+                analysis_result TEXT NOT NULL,
+                sermon_structure TEXT,
+                theological_depth TEXT,
+                application_elements TEXT,
+                illustration_style TEXT,
+                language_style TEXT,
+                success_factors TEXT,
+                ai_model TEXT DEFAULT 'gpt-5',
+                analysis_tokens INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_category
+            ON sermon_benchmark_analyses(category)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_style
+            ON sermon_benchmark_analyses(style_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_benchmark_created_at
+            ON sermon_benchmark_analyses(created_at DESC)
+        ''')
+
+    conn.commit()
+    conn.close()
+
+# 앱 시작 시 DB 초기화
+init_db()
 
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
@@ -513,6 +629,30 @@ def api_gpt_pro():
 
         print(f"[GPT-PRO] 완료")
 
+        # 설교문 자동 분석 및 DB 저장 (백그라운드 처리 - 실패해도 사용자에게 영향 없음)
+        try:
+            # 제목 추출 (GPT가 생성한 경우)
+            extracted_title = title if has_title else ""
+            if not has_title and "설교 제목:" in final_result:
+                # GPT가 생성한 제목 추출
+                lines = final_result.split('\n')
+                for line in lines:
+                    if line.startswith("설교 제목:"):
+                        extracted_title = line.replace("설교 제목:", "").strip()
+                        break
+
+            # 비동기적으로 분석 수행 (실패해도 무시)
+            import threading
+            analysis_thread = threading.Thread(
+                target=analyze_sermon_for_benchmark,
+                args=(final_result, reference, extracted_title, category, style_name)
+            )
+            analysis_thread.daemon = True  # 메인 프로세스 종료 시 함께 종료
+            analysis_thread.start()
+            print(f"[GPT-PRO] 벤치마크 분석 백그라운드 시작")
+        except Exception as e:
+            print(f"[GPT-PRO] 벤치마크 분석 시작 실패 (무시): {str(e)}")
+
         return jsonify({"ok": True, "result": final_result})
 
     except Exception as e:
@@ -597,6 +737,170 @@ def api_sermon_qa():
     except Exception as e:
         print(f"[Q&A][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 설교문 벤치마크 분석 함수 =====
+def analyze_sermon_for_benchmark(sermon_text, reference="", sermon_title="", category="", style_name=""):
+    """
+    생성된 설교문을 자동으로 분석하여 DB에 저장
+
+    Args:
+        sermon_text: 생성된 설교문 텍스트
+        reference: 본문 성경구절
+        sermon_title: 설교 제목
+        category: 카테고리 (설교 유형)
+        style_name: 설교 스타일
+
+    Returns:
+        dict: {"ok": True/False, "message": "..."}
+    """
+    try:
+        # 설교문 해시 생성 (중복 체크용)
+        sermon_hash = hashlib.md5(sermon_text.encode('utf-8')).hexdigest()
+
+        # DB 기반 중복 체크
+        is_duplicate = False
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            if USE_POSTGRES:
+                cursor.execute("SELECT id FROM sermon_benchmark_analyses WHERE sermon_hash = %s", (sermon_hash,))
+            else:
+                cursor.execute("SELECT id FROM sermon_benchmark_analyses WHERE sermon_hash = ?", (sermon_hash,))
+            existing = cursor.fetchone()
+            conn.close()
+
+            if existing:
+                is_duplicate = True
+                print(f"[SERMON-BENCHMARK] 중복 설교문 감지 (해시: {sermon_hash[:8]}...) - 분석 건너뜀")
+                return {"ok": True, "message": "중복 설교문 - 분석 건너뜀", "isDuplicate": True}
+        except Exception as e:
+            print(f"[SERMON-BENCHMARK] 중복 체크 실패: {str(e)}")
+
+        print(f"[SERMON-BENCHMARK] 설교문 분석 시작 - 스타일: {style_name}, 카테고리: {category}")
+
+        # GPT로 설교문 분석
+        system_content = """당신은 설교문 분석 전문가입니다.
+
+제공된 설교문을 분석하여 다음 요소들을 추출하고 정리하세요:
+
+1. **설교 구조 분석**
+   - 서론, 본론, 결론의 구성 방식
+   - 각 파트의 비중과 전환 흐름
+   - 대지 구조 (있는 경우)
+
+2. **신학적 깊이**
+   - 성경 해석의 정확성과 깊이
+   - 신학적 통찰의 수준
+   - 복음 중심성
+
+3. **적용 요소**
+   - 실천 가능한 적용의 구체성
+   - 청중 맥락에 대한 이해
+   - 실생활 연결성
+
+4. **예화 및 스토리텔링**
+   - 예화 사용 방식과 효과
+   - 스토리텔링 기법
+   - 감정적 공감 유도 방법
+
+5. **언어 스타일**
+   - 문체와 어조
+   - 문장 구조와 리듬
+   - 명확성과 설득력
+
+6. **성공 요인 분석**
+   - 전반적인 설교의 강점
+   - 청중 몰입 요소
+   - 차별화 포인트
+
+분석 결과는 구조화되고 명확하게 작성하세요."""
+
+        user_content = f"""[설교문 정보]
+- 본문 성경구절: {reference}
+- 설교 제목: {sermon_title}
+- 카테고리: {category}
+- 스타일: {style_name}
+
+[설교문 내용]
+{sermon_text}
+
+위 설교문을 분석하여 핵심 패턴과 성공 요인을 추출해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-5",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ]
+        )
+
+        analysis = completion.choices[0].message.content.strip()
+        total_tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+
+        # 분석 결과를 섹션별로 파싱
+        sermon_structure = ""
+        theological_depth = ""
+        application_elements = ""
+        illustration_style = ""
+        language_style = ""
+        success_factors = ""
+
+        # 섹션별 추출 (간단한 패턴 매칭)
+        sections = analysis.split('\n\n')
+        for section in sections:
+            if '설교 구조' in section or '구조 분석' in section:
+                sermon_structure = section
+            elif '신학적 깊이' in section or '신학' in section:
+                theological_depth = section
+            elif '적용' in section:
+                application_elements = section
+            elif '예화' in section or '스토리텔링' in section:
+                illustration_style = section
+            elif '언어' in section or '스타일' in section:
+                language_style = section
+            elif '성공 요인' in section:
+                success_factors = section
+
+        # DB에 저장
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO sermon_benchmark_analyses
+                    (sermon_text, sermon_hash, reference, sermon_title, category, style_name,
+                     analysis_result, sermon_structure, theological_depth, application_elements,
+                     illustration_style, language_style, success_factors, ai_model, analysis_tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (sermon_text, sermon_hash, reference, sermon_title, category, style_name,
+                      analysis, sermon_structure, theological_depth, application_elements,
+                      illustration_style, language_style, success_factors, 'gpt-5', total_tokens))
+            else:
+                cursor.execute('''
+                    INSERT INTO sermon_benchmark_analyses
+                    (sermon_text, sermon_hash, reference, sermon_title, category, style_name,
+                     analysis_result, sermon_structure, theological_depth, application_elements,
+                     illustration_style, language_style, success_factors, ai_model, analysis_tokens)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (sermon_text, sermon_hash, reference, sermon_title, category, style_name,
+                      analysis, sermon_structure, theological_depth, application_elements,
+                      illustration_style, language_style, success_factors, 'gpt-5', total_tokens))
+
+            conn.commit()
+            conn.close()
+            print(f"[SERMON-BENCHMARK] DB 저장 완료 (해시: {sermon_hash[:8]}..., 토큰: {total_tokens})")
+        except Exception as e:
+            print(f"[SERMON-BENCHMARK] DB 저장 실패: {str(e)}")
+
+        print(f"[SERMON-BENCHMARK] 분석 완료 - 모델: gpt-5")
+
+        return {"ok": True, "message": "분석 완료 및 DB 저장됨", "isDuplicate": False}
+
+    except Exception as e:
+        print(f"[SERMON-BENCHMARK][ERROR] {str(e)}")
+        return {"ok": False, "message": f"분석 실패: {str(e)}"}
 
 
 # ===== Render 배포를 위한 설정 =====
