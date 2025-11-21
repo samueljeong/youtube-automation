@@ -111,6 +111,94 @@ def init_db():
 # 앱 시작 시 DB 초기화
 init_db()
 
+# ===== DB 가이드 조회 함수 =====
+def get_relevant_guide_from_db(box_name, category="", limit=5):
+    """
+    Step 박스 이름에 따라 DB에서 관련 가이드를 가져옴
+
+    Args:
+        box_name: Step 박스 이름 (예: "캐릭터 설정", "스토리 구성")
+        category: 영상 시간/카테고리 (선택적)
+        limit: 가져올 분석 결과 개수
+
+    Returns:
+        str: 관련 가이드 텍스트
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Step 타입에 따른 필드 매핑
+        field_mapping = {
+            '캐릭터': 'character_elements',
+            '인물': 'character_elements',
+            '스토리': 'story_structure',
+            '줄거리': 'story_structure',
+            '구성': 'story_structure',
+            '대사': 'dialogue_style',
+            '분석': 'analysis_result',
+            '성공': 'success_factors'
+        }
+
+        # box_name에서 해당하는 필드 찾기
+        target_field = 'analysis_result'  # 기본값
+        for keyword, field in field_mapping.items():
+            if keyword in box_name:
+                target_field = field
+                break
+
+        # 고조회수 대본들의 분석 결과 조회
+        if USE_POSTGRES:
+            query = f"""
+                SELECT {target_field}, view_count, upload_date
+                FROM benchmark_analyses
+                WHERE {target_field} IS NOT NULL AND {target_field} != ''
+                ORDER BY view_count DESC
+                LIMIT %s
+            """
+            cursor.execute(query, (limit,))
+        else:
+            query = f"""
+                SELECT {target_field}, view_count, upload_date
+                FROM benchmark_analyses
+                WHERE {target_field} IS NOT NULL AND {target_field} != ''
+                ORDER BY view_count DESC
+                LIMIT ?
+            """
+            cursor.execute(query, (limit,))
+
+        results = cursor.fetchall()
+        conn.close()
+
+        if not results:
+            print(f"[DRAMA-DB-GUIDE] DB에 축적된 데이터 없음 (필드: {target_field})")
+            return None
+
+        # 결과를 가이드 형식으로 포맷팅
+        guide_parts = [f"【 축적된 성공 사례 분석 - {box_name} 】\n"]
+        guide_parts.append(f"고조회수 대본 {len(results)}개의 분석 결과를 바탕으로 한 가이드:\n")
+
+        for idx, row in enumerate(results, 1):
+            if USE_POSTGRES:
+                content = row[target_field]
+                view_count = row['view_count']
+            else:
+                content = row[0]
+                view_count = row[1]
+
+            if content:
+                view_str = f"{view_count:,}회" if view_count else "정보없음"
+                guide_parts.append(f"\n━━━ 사례 {idx} (조회수: {view_str}) ━━━")
+                guide_parts.append(content.strip())
+
+        guide_text = "\n".join(guide_parts)
+        print(f"[DRAMA-DB-GUIDE] {len(results)}개 사례 가져옴 (필드: {target_field})")
+        return guide_text
+
+    except Exception as e:
+        print(f"[DRAMA-DB-GUIDE][ERROR] {str(e)}")
+        return None
+
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
     result = []
@@ -773,6 +861,11 @@ def api_workflow_execute():
         if inputs.get("aiAnalysis"):
             input_content_parts.append(f"[AI 대본 분석 자료]\n{inputs['aiAnalysis']}")
 
+        # DB에서 관련 가이드 가져오기 (자동 추가)
+        db_guide = get_relevant_guide_from_db(box_name, category, limit=3)
+        if db_guide:
+            input_content_parts.append(f"[축적된 성공 사례 가이드]\n{db_guide}")
+
         # 이전 박스 결과들이 선택된 경우
         for key, value in inputs.items():
             if key.startswith("box") and key.endswith("Result"):
@@ -851,8 +944,71 @@ def api_get_accumulated_guide():
 
         print(f"[DRAMA-GUIDE] 축적된 가이드 조회 시작")
 
-        # TODO: 향후 Firebase/DB에서 축적된 분석 데이터를 조회
-        # 현재는 GPT로 일반적인 가이드 생성
+        # DB에서 축적된 데이터 확인
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            if USE_POSTGRES:
+                cursor.execute("SELECT COUNT(*) as cnt FROM benchmark_analyses")
+                count_result = cursor.fetchone()
+                db_count = count_result['cnt'] if count_result else 0
+            else:
+                cursor.execute("SELECT COUNT(*) FROM benchmark_analyses")
+                db_count = cursor.fetchone()[0]
+            conn.close()
+
+            if db_count > 0:
+                # DB에 데이터가 있으면 실제 분석 결과 기반 가이드 생성
+                print(f"[DRAMA-GUIDE] DB에 {db_count}개 분석 데이터 발견 - 실제 데이터 기반 가이드 생성")
+
+                # 각 카테고리별 TOP 분석 결과 가져오기
+                guide_parts = ["【 축적된 대본 분석 기반 작성 가이드 】\n"]
+                guide_parts.append(f"총 {db_count}개의 대본 분석 결과를 바탕으로 작성되었습니다.\n\n")
+
+                # 1. 스토리 구조 가이드
+                story_guide = get_relevant_guide_from_db("스토리 구성", category, limit=3)
+                if story_guide:
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    guide_parts.append("📖 스토리 구조 성공 사례")
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+                    guide_parts.append(story_guide)
+                    guide_parts.append("\n")
+
+                # 2. 캐릭터 설계 가이드
+                character_guide = get_relevant_guide_from_db("캐릭터 설정", category, limit=3)
+                if character_guide:
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    guide_parts.append("👥 캐릭터 설계 성공 사례")
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+                    guide_parts.append(character_guide)
+                    guide_parts.append("\n")
+
+                # 3. 대사 작성 가이드
+                dialogue_guide = get_relevant_guide_from_db("대사 작성", category, limit=3)
+                if dialogue_guide:
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    guide_parts.append("💬 대사 작성 성공 사례")
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+                    guide_parts.append(dialogue_guide)
+                    guide_parts.append("\n")
+
+                # 4. 성공 요인 종합
+                success_guide = get_relevant_guide_from_db("성공 요인", category, limit=5)
+                if success_guide:
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                    guide_parts.append("🏆 고조회수 대본의 성공 요인")
+                    guide_parts.append("━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+                    guide_parts.append(success_guide)
+
+                guide = "\n".join(guide_parts)
+                print(f"[DRAMA-GUIDE] DB 기반 가이드 생성 완료")
+                return jsonify({"ok": True, "guide": guide, "source": "database"})
+
+        except Exception as db_err:
+            print(f"[DRAMA-GUIDE] DB 조회 실패, GPT 가이드로 폴백: {str(db_err)}")
+
+        # DB에 데이터가 없거나 오류 시 GPT로 일반 가이드 생성
+        print(f"[DRAMA-GUIDE] DB 데이터 없음 - GPT 일반 가이드 생성")
 
         system_content = """당신은 드라마 대본 작성 전문가입니다.
 
@@ -907,9 +1063,9 @@ def api_get_accumulated_guide():
 
         guide = completion.choices[0].message.content.strip()
 
-        print(f"[DRAMA-GUIDE] 가이드 생성 완료 (모델: gpt-5)")
+        print(f"[DRAMA-GUIDE] GPT 일반 가이드 생성 완료 (모델: gpt-5)")
 
-        return jsonify({"ok": True, "guide": guide})
+        return jsonify({"ok": True, "guide": guide, "source": "gpt"})
 
     except Exception as e:
         print(f"[DRAMA-GUIDE][ERROR] {str(e)}")
