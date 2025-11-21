@@ -2212,10 +2212,10 @@
 
   // 워크플로우 박스 저장
   async function saveWorkflowBoxes() {
-    localStorage.setItem('drama-workflow-boxes', JSON.stringify(workflowBoxes));
-    localStorage.setItem('drama-next-box-id', nextBoxId.toString());
-    localStorage.setItem('drama-next-step1-num', nextStep1BoxNum.toString());
-    localStorage.setItem('drama-next-step2-num', nextStep2BoxNum.toString());
+    localStorage.setItem('_drama-workflow-boxes', JSON.stringify(workflowBoxes));
+    localStorage.setItem('_drama-next-box-id', nextBoxId.toString());
+    localStorage.setItem('_drama-next-step1-num', nextStep1BoxNum.toString());
+    localStorage.setItem('_drama-next-step2-num', nextStep2BoxNum.toString());
     await saveToFirebase('_drama-workflow-boxes', JSON.stringify(workflowBoxes));
     await saveToFirebase('_drama-next-box-id', nextBoxId.toString());
     await saveToFirebase('_drama-next-step1-num', nextStep1BoxNum.toString());
@@ -2224,10 +2224,10 @@
 
   // 워크플로우 박스 불러오기
   function loadWorkflowBoxes() {
-    const saved = localStorage.getItem('drama-workflow-boxes');
-    const savedNextId = localStorage.getItem('drama-next-box-id');
-    const savedStep1Num = localStorage.getItem('drama-next-step1-num');
-    const savedStep2Num = localStorage.getItem('drama-next-step2-num');
+    const saved = localStorage.getItem('_drama-workflow-boxes');
+    const savedNextId = localStorage.getItem('_drama-next-box-id');
+    const savedStep1Num = localStorage.getItem('_drama-next-step1-num');
+    const savedStep2Num = localStorage.getItem('_drama-next-step2-num');
 
     if (saved) {
       workflowBoxes = JSON.parse(saved);
