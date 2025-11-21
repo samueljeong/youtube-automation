@@ -1287,6 +1287,31 @@
   }
 
   // ===== Firebase 함수 (재시도 로직 포함) =====
+  // 설정 마이그레이션: 기존 단계에 stepType 추가
+  function migrateConfigStepTypes() {
+    let needsSave = false;
+
+    if (config && config.categorySettings) {
+      for (const categoryKey in config.categorySettings) {
+        const settings = config.categorySettings[categoryKey];
+        if (settings && settings.styles) {
+          for (const style of settings.styles) {
+            if (style.steps) {
+              for (const step of style.steps) {
+                if (!step.stepType) {
+                  step.stepType = 'step1'; // 기본값: step1
+                  needsSave = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return needsSave;
+  }
+
   async function loadFromFirebase() {
     try {
       const snapshot = await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).get();
@@ -1299,6 +1324,14 @@
         const configData = localStorage.getItem(CONFIG_KEY);
         if (configData) {
           config = JSON.parse(configData);
+
+          // 마이그레이션 실행
+          const migrated = migrateConfigStepTypes();
+          if (migrated) {
+            console.log('🔄 기존 단계에 stepType 추가 중...');
+            await saveConfig();
+            console.log('✅ 마이그레이션 완료');
+          }
         }
         console.log('✅ Firebase 동기화 완료');
         return true;
@@ -1426,6 +1459,13 @@
             localStorage.setItem(CONFIG_KEY, remoteData.value);
             localStorage.setItem(`${CONFIG_KEY}_timestamp`, remoteTimestamp);
             config = JSON.parse(remoteData.value);
+
+            // 마이그레이션 실행 (동기화된 데이터에도 적용)
+            const migrated = migrateConfigStepTypes();
+            if (migrated) {
+              console.log('🔄 동기화된 단계에 stepType 추가');
+              saveConfig(); // async이지만 await하지 않음 (백그라운드 저장)
+            }
 
             console.log('🔄 설정 동기화: 다른 기기에서 업데이트됨');
 
@@ -3207,6 +3247,13 @@
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
     hideStatus();
+
+    // Firebase에 없고 로컬에만 있는 경우를 위한 마이그레이션
+    const migrated = migrateConfigStepTypes();
+    if (migrated) {
+      console.log('🔄 로컬 설정에 stepType 추가');
+      await saveConfig();
+    }
 
     renderCategories();
     loadMasterGuide(currentCategory);
