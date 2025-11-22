@@ -1506,14 +1506,14 @@
     'gpt-5.1': { input: 7.50, output: 30.00 }
   };
 
-  // 비용 계산 함수 (원화)
+  // 비용 계산 함수 (원화, 소수점 1자리)
   function calculateCost(modelId, inputTokens, outputTokens) {
     const pricing = modelPricing[modelId];
     if (!pricing) return null;
     const inputCost = (inputTokens / 1000000) * pricing.input;
     const outputCost = (outputTokens / 1000000) * pricing.output;
     const totalUSD = inputCost + outputCost;
-    const totalKRW = Math.round(totalUSD * 1400); // 원화 환산
+    const totalKRW = (totalUSD * 1400).toFixed(1); // 원화 환산, 소수점 1자리
     return {
       inputCost: inputCost.toFixed(6),
       outputCost: outputCost.toFixed(6),
@@ -2312,7 +2312,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
             const cost = calculateCost(gptProModel, data.usage.input_tokens || 0, data.usage.output_tokens || 0);
             const usageSpan = document.getElementById('usage-step3');
             if (usageSpan) {
-              usageSpan.textContent = `in(${(data.usage.input_tokens || 0).toLocaleString()}), out(${(data.usage.output_tokens || 0).toLocaleString()}), ₩${cost ? cost.totalCostKRW : 0}`;
+              usageSpan.textContent = `in(${(data.usage.input_tokens || 0).toLocaleString()}), out(${(data.usage.output_tokens || 0).toLocaleString()}), ${cost ? cost.totalCostKRW : '0.0'}`;
             }
           }
 
@@ -2503,7 +2503,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       const usage = stepUsage[step.id];
       const usageHtml = usage ? `
         <span id="usage-${step.id}" style="font-size: .75rem; color: #888;">
-          in(${usage.inputTokens?.toLocaleString() || 0}), out(${usage.outputTokens?.toLocaleString() || 0}), ₩${usage.costKRW || 0}
+          in(${usage.inputTokens?.toLocaleString() || 0}), out(${usage.outputTokens?.toLocaleString() || 0}), ${usage.costKRW || '0.0'}
         </span>
       ` : `<span id="usage-${step.id}" style="font-size: .75rem; color: #888;"></span>`;
 
@@ -2676,7 +2676,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
           // 사용량 표시 업데이트
           const usageSpan = document.getElementById(`usage-${stepId}`);
           if (usageSpan) {
-            usageSpan.textContent = `in(${(data.usage.input_tokens || 0).toLocaleString()}), out(${(data.usage.output_tokens || 0).toLocaleString()}), ₩${cost ? cost.totalCostKRW : 0}`;
+            usageSpan.textContent = `in(${(data.usage.input_tokens || 0).toLocaleString()}), out(${(data.usage.output_tokens || 0).toLocaleString()}), ${cost ? cost.totalCostKRW : '0.0'}`;
           }
         }
 
