@@ -32,6 +32,11 @@ client = get_client()
 DATABASE_URL = os.getenv('DATABASE_URL')
 USE_POSTGRES = DATABASE_URL is not None
 
+# 모듈 로드 시점에 데이터베이스 상태 로그 출력 (gunicorn 환경에서도 동작)
+print("=" * 50)
+print("[SERMON-DB] Database Configuration")
+print("=" * 50)
+
 if USE_POSTGRES:
     # PostgreSQL 사용
     import psycopg2
@@ -41,6 +46,11 @@ if USE_POSTGRES:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
+    print("[SERMON-DB] ✅ PostgreSQL 사용 중")
+    # URL에서 비밀번호를 숨기고 출력
+    safe_url = DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else DATABASE_URL[:50]
+    print(f"[SERMON-DB]    Host: {safe_url}")
+
     def get_db_connection():
         """Create a PostgreSQL database connection"""
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
@@ -49,11 +59,18 @@ else:
     # SQLite 사용 (로컬 개발용)
     DB_PATH = os.path.join(os.path.dirname(__file__), 'sermon_data.db')
 
+    print("[SERMON-DB] ⚠️  SQLite 사용 중 (로컬 개발 모드)")
+    print(f"[SERMON-DB]    DB 파일: {DB_PATH}")
+    print("[SERMON-DB]    경고: Render에서는 서버 재시작 시 데이터가 초기화됩니다!")
+    print("[SERMON-DB]    → DATABASE_URL 환경변수를 설정해주세요.")
+
     def get_db_connection():
         """Create a SQLite database connection"""
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         return conn
+
+print("=" * 50)
 
 # DB 초기화
 def init_db():
@@ -817,6 +834,39 @@ def auth_status():
             }
         })
     return jsonify({"ok": True, "loggedIn": False})
+
+
+@app.route('/api/db-status')
+def db_status():
+    """데이터베이스 연결 상태 확인 (디버깅용)"""
+    db_type = "PostgreSQL" if USE_POSTGRES else "SQLite"
+    status = {
+        "ok": True,
+        "database_type": db_type,
+        "use_postgres": USE_POSTGRES,
+        "warning": None
+    }
+
+    if not USE_POSTGRES:
+        status["warning"] = "SQLite 사용 중! Render에서는 서버 재시작 시 데이터가 초기화됩니다. DATABASE_URL 환경변수를 설정해주세요."
+        status["db_path"] = DB_PATH
+    else:
+        # PostgreSQL 연결 테스트
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM sermon_users")
+            result = cursor.fetchone()
+            user_count = result['count'] if isinstance(result, dict) else result[0]
+            status["user_count"] = user_count
+            status["connection_test"] = "success"
+            conn.close()
+        except Exception as e:
+            status["connection_test"] = "failed"
+            status["error"] = str(e)
+            status["ok"] = False
+
+    return jsonify(status)
 
 
 # ===== 크레딧 관리 API =====
@@ -2212,5 +2262,21 @@ def api_sermon_chat():
 
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
+    # 데이터베이스 연결 상태 로그 출력
+    print("=" * 50)
+    print("🚀 Sermon Server Starting...")
+    print("=" * 50)
+
+    if USE_POSTGRES:
+        print("✅ PostgreSQL 사용 중")
+        print(f"   DATABASE_URL 설정됨: {DATABASE_URL[:30]}..." if DATABASE_URL else "")
+    else:
+        print("⚠️  SQLite 사용 중 (로컬 개발 모드)")
+        print(f"   DB 파일: {DB_PATH}")
+        print("   경고: Render에서는 서버 재시작 시 데이터가 초기화됩니다!")
+        print("   → DATABASE_URL 환경변수를 설정해주세요.")
+
+    print("=" * 50)
+
     port = int(os.environ.get("PORT", 5058))
     app.run(host="0.0.0.0", port=port, debug=False)
