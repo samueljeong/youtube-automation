@@ -586,7 +586,7 @@
           </div>
         </div>
         <div id="step3-token-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-bottom: .5rem; display: none;">
-          토큰 사용량: <span id="step3-input-tokens">0</span> (입력) / <span id="step3-output-tokens">0</span> (출력)
+          📥 <span id="step3-input-tokens">0</span> (입력) / 📤 <span id="step3-output-tokens">0</span> (출력) | 💰 <span id="step3-cost">₩0</span>
         </div>
         <textarea id="step3-result" readonly style="width: 100%; font-size: .9rem; line-height: 1.6; resize: vertical;" placeholder="Step3 결과가 여기에 표시됩니다..."></textarea>
       </div>
@@ -1266,10 +1266,13 @@
           autoResize(resultTextarea);
           resultContainer.style.display = 'block';
 
-          // 토큰 정보 표시
+          // 토큰 정보 및 비용 표시
           if (data.usage && tokenInfo) {
             document.getElementById('step3-input-tokens').textContent = data.usage.input_tokens?.toLocaleString() || '0';
             document.getElementById('step3-output-tokens').textContent = data.usage.output_tokens?.toLocaleString() || '0';
+            // 비용 계산
+            const cost = calculateCost(aiModelSettings.step3, data.usage.input_tokens || 0, data.usage.output_tokens || 0);
+            document.getElementById('step3-cost').textContent = cost ? '₩' + cost.totalCostKRW : '-';
             tokenInfo.style.display = 'block';
           }
 
@@ -2245,7 +2248,19 @@
 
         <!-- 결과 표시 -->
         <div style="background: ${stepBgColor}; padding: .5rem; border-radius: 8px; border: 1px solid ${stepBadgeColor}30;">
-          <div style="font-size: .75rem; font-weight: 600; margin-bottom: .3rem; color: ${stepBadgeColor};">📊 결과</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem;">
+            <div style="font-size: .75rem; font-weight: 600; color: ${stepBadgeColor};">📊 결과</div>
+            <div id="token-info-${box.id}" style="font-size: .65rem; color: #888; display: ${box.usage ? 'flex' : 'none'}; gap: .5rem; align-items: center;">
+              ${box.usage ? `
+                <span>📥 ${box.usage.input_tokens?.toLocaleString() || 0}</span>
+                <span>📤 ${box.usage.output_tokens?.toLocaleString() || 0}</span>
+                <span style="color: ${stepBadgeColor}; font-weight: 600;">💰 ${(() => {
+                  const cost = calculateCost(box.usage.model, box.usage.input_tokens || 0, box.usage.output_tokens || 0);
+                  return cost ? '₩' + cost.totalCostKRW : '-';
+                })()}</span>
+              ` : ''}
+            </div>
+          </div>
           <textarea id="result-${box.id}" readonly style="width: 100%; min-height: 80px; font-size: .75rem; padding: .4rem; border: none; border-radius: 6px; background: white; box-shadow: inset 0 1px 3px rgba(0,0,0,.05); resize: vertical;" placeholder="실행 결과가 여기에 표시됩니다...">${box.result}</textarea>
         </div>
         </div>
@@ -2268,24 +2283,50 @@
     step1: 'gpt-4o-mini',
     step2: 'gpt-4o-mini',
     step3: 'anthropic/claude-3.5-sonnet',
-    benchmarkAnalysis: 'gpt-4o-mini',
-    gptPro: 'gpt-5.1'
+    benchmarkAnalysis: 'gpt-4o-mini'
   };
 
-  // 사용 가능한 모델 목록 (OpenRouter 형식)
+  // 모델별 가격 정보 (1M 토큰당 USD) - 기준: gpt-4o (평균)
+  const modelPricing = {
+    // OpenAI 모델 (기준: gpt-4o = 0%)
+    'gpt-4o-mini': { input: 0.15, output: 0.60, diff: -94 },      // 매우 저렴
+    'gpt-4o': { input: 2.50, output: 10.00, diff: 0 },            // 기준 (평균)
+    'gpt-4.5-preview': { input: 75.00, output: 150.00, diff: +2900 }, // 프리미엄
+    // OpenRouter 모델 (기준: claude-3.5-sonnet = 0%)
+    'anthropic/claude-3.5-sonnet': { input: 3.00, output: 15.00, diff: 0 },    // 기준
+    'anthropic/claude-3.5-sonnet:beta': { input: 3.00, output: 15.00, diff: 0 },
+    'anthropic/claude-3-haiku': { input: 0.25, output: 1.25, diff: -92 },      // 저렴
+    'google/gemini-pro-1.5': { input: 1.25, output: 5.00, diff: -58 },         // 중저가
+    'meta-llama/llama-3.1-70b-instruct': { input: 0.52, output: 0.75, diff: -83 } // 저렴
+  };
+
+  // 비용 계산 함수
+  function calculateCost(modelId, inputTokens, outputTokens) {
+    const pricing = modelPricing[modelId];
+    if (!pricing) return null;
+    const inputCost = (inputTokens / 1000000) * pricing.input;
+    const outputCost = (outputTokens / 1000000) * pricing.output;
+    return {
+      inputCost: inputCost.toFixed(6),
+      outputCost: outputCost.toFixed(6),
+      totalCost: (inputCost + outputCost).toFixed(6),
+      totalCostKRW: ((inputCost + outputCost) * 1400).toFixed(2) // 원화 환산 (대략)
+    };
+  }
+
+  // 사용 가능한 모델 목록 (OpenRouter 형식) - 가격 차이 % 포함
   const availableModels = {
     openai: [
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini (빠름, 저렴)' },
-      { id: 'gpt-4o', name: 'GPT-4o (균형)' },
-      { id: 'gpt-5', name: 'GPT-5 (고품질)' },
-      { id: 'gpt-5.1', name: 'GPT-5.1 (최신)' }
+      { id: 'gpt-4o-mini', name: 'GPT-4o Mini (-94% 저렴)' },
+      { id: 'gpt-4o', name: 'GPT-4o (기준, 평균)' },
+      { id: 'gpt-4.5-preview', name: 'GPT-4.5 Preview (+2900% 프리미엄)' }
     ],
     openrouter: [
-      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (추천)' },
-      { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet Beta' },
-      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (빠름, 저렴)' },
-      { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5' },
-      { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B' }
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (기준)' },
+      { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet Beta (기준)' },
+      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (-92% 저렴)' },
+      { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5 (-58%)' },
+      { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B (-83% 저렴)' }
     ]
   };
 
@@ -2305,9 +2346,17 @@
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
 
+          <!-- 벤치마킹 분석 모델 (첫 번째) -->
+          <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <label style="font-weight: 600; font-size: .85rem; color: #667eea; display: block; margin-bottom: .4rem;">📊 벤치마킹 분석</label>
+            <select id="model-benchmark" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
+              ${availableModels.openai.map(m => `<option value="${m.id}" ${aiModelSettings.benchmarkAnalysis === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+            </select>
+          </div>
+
           <!-- Step1 모델 -->
           <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
-            <label style="font-weight: 600; font-size: .85rem; color: #ff6b6b; display: block; margin-bottom: .4rem;">Step1 (벤치마킹 분석)</label>
+            <label style="font-weight: 600; font-size: .85rem; color: #ff6b6b; display: block; margin-bottom: .4rem;">Step1 (벤치마킹 대본 분석)</label>
             <select id="model-step1" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
               ${availableModels.openai.map(m => `<option value="${m.id}" ${aiModelSettings.step1 === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
@@ -2323,25 +2372,9 @@
 
           <!-- Step3 모델 (OpenRouter) -->
           <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
-            <label style="font-weight: 600; font-size: .85rem; color: #f39c12; display: block; margin-bottom: .4rem;">Step3 (OpenRouter 대본 완성)</label>
+            <label style="font-weight: 600; font-size: .85rem; color: #f39c12; display: block; margin-bottom: .4rem;">Step3 (OpenRouter 최종 대본)</label>
             <select id="model-step3" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
               ${availableModels.openrouter.map(m => `<option value="${m.id}" ${aiModelSettings.step3 === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <!-- 벤치마킹 분석 모델 -->
-          <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
-            <label style="font-weight: 600; font-size: .85rem; color: #667eea; display: block; margin-bottom: .4rem;">벤치마킹 분석</label>
-            <select id="model-benchmark" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
-              ${availableModels.openai.map(m => `<option value="${m.id}" ${aiModelSettings.benchmarkAnalysis === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
-            </select>
-          </div>
-
-          <!-- GPT PRO 모델 -->
-          <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
-            <label style="font-weight: 600; font-size: .85rem; color: #e74c3c; display: block; margin-bottom: .4rem;">GPT PRO (최종 대본)</label>
-            <select id="model-gptpro" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
-              ${availableModels.openai.map(m => `<option value="${m.id}" ${aiModelSettings.gptPro === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
 
@@ -2502,7 +2535,21 @@
 
       if (data.ok) {
         box.result = data.result;
+        box.usage = data.usage;  // 토큰 사용량 저장
         document.getElementById(`result-${box.id}`).value = data.result;
+
+        // 토큰 정보 업데이트
+        const tokenInfoDiv = document.getElementById(`token-info-${box.id}`);
+        if (tokenInfoDiv && data.usage) {
+          const cost = calculateCost(data.usage.model, data.usage.input_tokens || 0, data.usage.output_tokens || 0);
+          tokenInfoDiv.innerHTML = `
+            <span>📥 ${(data.usage.input_tokens || 0).toLocaleString()}</span>
+            <span>📤 ${(data.usage.output_tokens || 0).toLocaleString()}</span>
+            <span style="color: inherit; font-weight: 600;">💰 ${cost ? '₩' + cost.totalCostKRW : '-'}</span>
+          `;
+          tokenInfoDiv.style.display = 'flex';
+        }
+
         saveWorkflowBoxes();
         showStatus('✅ 완료!');
         setTimeout(hideStatus, 2000);
@@ -2953,9 +3000,8 @@
       aiModelSettings = {
         step1: document.getElementById('model-step1')?.value || 'gpt-4o-mini',
         step2: document.getElementById('model-step2')?.value || 'gpt-4o-mini',
-        step3: document.getElementById('model-step3')?.value || 'claude-sonnet-4-20250514',
-        benchmarkAnalysis: document.getElementById('model-benchmark')?.value || 'gpt-4o-mini',
-        gptPro: document.getElementById('model-gptpro')?.value || 'gpt-5.1'
+        step3: document.getElementById('model-step3')?.value || 'anthropic/claude-3.5-sonnet',
+        benchmarkAnalysis: document.getElementById('model-benchmark')?.value || 'gpt-4o-mini'
       };
       localStorage.setItem('_drama-ai-models', JSON.stringify(aiModelSettings));
       await saveToFirebase('_drama-ai-models', JSON.stringify(aiModelSettings));

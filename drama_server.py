@@ -947,9 +947,21 @@ def api_workflow_execute():
         # 마크다운 제거
         result = remove_markdown(result)
 
-        print(f"[DRAMA-WORKFLOW] Box [{box_number}] {box_name} 실행 완료 (모델: {model_name})")
+        # 토큰 사용량 추출
+        input_tokens = completion.usage.prompt_tokens if hasattr(completion, 'usage') and completion.usage else 0
+        output_tokens = completion.usage.completion_tokens if hasattr(completion, 'usage') and completion.usage else 0
 
-        return jsonify({"ok": True, "result": result})
+        print(f"[DRAMA-WORKFLOW] Box [{box_number}] {box_name} 실행 완료 (모델: {model_name}, 토큰: {input_tokens}/{output_tokens})")
+
+        return jsonify({
+            "ok": True,
+            "result": result,
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "model": model_name
+            }
+        })
 
     except Exception as e:
         print(f"[DRAMA-WORKFLOW][ERROR] {str(e)}")
