@@ -1211,6 +1211,13 @@
     let draftContent = '';
     let hasResults = false;
 
+    // 디버그: workflowBoxes 상태 확인
+    console.log('[Step3 Debug] workflowBoxes 전체:', workflowBoxes);
+    console.log('[Step3 Debug] Step2 박스 목록:', workflowBoxes.filter(b => b.stepType === 'step2'));
+    workflowBoxes.forEach(box => {
+      console.log(`[Step3 Debug] Box ${box.id}: stepType=${box.stepType}, hasResult=${!!box.result}, resultLength=${box.result?.length || 0}`);
+    });
+
     workflowBoxes.forEach(box => {
       // Step2 박스만 수집
       if (box.stepType === 'step2' && box.result) {
@@ -1221,6 +1228,10 @@
         draftContent += box.result;
       }
     });
+
+    console.log('[Step3 Debug] hasResults:', hasResults);
+    console.log('[Step3 Debug] draftContent length:', draftContent.length);
+    console.log('[Step3 Debug] draftContent preview:', draftContent.substring(0, 500));
 
     if (!hasResults) {
       alert('Step2 결과가 없습니다. 먼저 Step2 박스를 실행해주세요.');

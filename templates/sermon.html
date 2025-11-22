@@ -1175,6 +1175,45 @@
           </div>
         </div>
 
+        <!-- Step3 사용 코드 관리 -->
+        <div style="margin-bottom: 1.5rem;">
+          <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🔑 Step3 사용 코드 관리</div>
+          <div style="background: #fffbf0; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #f39c12; border-top: none;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: 1rem;">
+              테스터에게 배포할 1회용 코드를 생성하고 관리합니다. 코드당 사용 횟수를 지정할 수 있습니다.
+            </div>
+            <!-- 새 코드 생성 -->
+            <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #ffe0b2; margin-bottom: 1rem;">
+              <div style="font-weight: 600; font-size: .9rem; color: #e67e22; margin-bottom: .5rem;">새 코드 생성</div>
+              <div style="display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="new-code-name" placeholder="코드명 (비우면 자동생성)" style="flex: 1; min-width: 150px; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
+                <div style="display: flex; align-items: center; gap: .3rem;">
+                  <label style="font-size: .85rem; color: #666;">횟수:</label>
+                  <input type="number" id="new-code-limit" value="3" min="1" max="100" style="width: 60px; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem; text-align: center;">
+                </div>
+                <button id="btn-create-code" style="padding: .4rem .8rem; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 600;">생성</button>
+              </div>
+            </div>
+            <!-- 코드 목록 -->
+            <div style="font-weight: 600; font-size: .9rem; color: #e67e22; margin-bottom: .5rem;">코드 목록</div>
+            <div id="code-list-container" style="max-height: 200px; overflow-y: auto; background: white; border-radius: 8px; border: 1px solid #ffe0b2;">
+              <table style="width: 100%; border-collapse: collapse; font-size: .85rem;">
+                <thead>
+                  <tr style="background: #fff8e1; position: sticky; top: 0;">
+                    <th style="padding: .5rem; text-align: left; border-bottom: 1px solid #ffe0b2;">코드</th>
+                    <th style="padding: .5rem; text-align: center; border-bottom: 1px solid #ffe0b2;">남은횟수</th>
+                    <th style="padding: .5rem; text-align: center; border-bottom: 1px solid #ffe0b2;">상태</th>
+                    <th style="padding: .5rem; text-align: center; border-bottom: 1px solid #ffe0b2;">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="code-list-body">
+                  <tr><td colspan="4" style="padding: 1rem; text-align: center; color: #999;">로딩 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <!-- 백업/복원 버튼 -->
         <div style="margin-bottom: 1rem;">
           <div style="background: #f8f9fa; padding: .75rem 1rem; border-radius: 8px; border: 1px solid #e0e0e0;">
@@ -2249,6 +2288,16 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (draft.error) {
       alert(draft.error);
       return;
+    }
+
+    // ===== 코드 검증 (코드가 존재하는 경우에만) =====
+    const hasAnyCodes = Object.keys(step3Codes).length > 0;
+    if (hasAnyCodes) {
+      const codeResult = await showCodeInputPopup();
+      if (codeResult.cancelled) {
+        return; // 취소됨
+      }
+      showStatus(`✅ 코드 확인됨! (남은 횟수: ${codeResult.remaining})`);
     }
 
     // ===== 1단계: 전체 복사 =====
@@ -3731,6 +3780,231 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     }
   }
 
+  // ===== Step3 사용 코드 관리 시스템 =====
+  const CODES_KEY = '_sermon-step3-codes';
+  let step3Codes = {}; // { 코드명: { limit: 총횟수, remaining: 남은횟수, createdAt: 생성일 } }
+
+  // 코드 목록 로드
+  async function loadStep3Codes() {
+    const saved = localStorage.getItem(CODES_KEY);
+    if (saved) {
+      try {
+        step3Codes = JSON.parse(saved);
+      } catch (e) {
+        step3Codes = {};
+      }
+    }
+    renderCodeList();
+  }
+
+  // 코드 목록 저장
+  async function saveStep3Codes() {
+    localStorage.setItem(CODES_KEY, JSON.stringify(step3Codes));
+    await saveToFirebase(CODES_KEY, JSON.stringify(step3Codes));
+  }
+
+  // 랜덤 코드 생성
+  function generateRandomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 혼동 가능한 문자 제외 (0,O,1,I)
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  }
+
+  // 새 코드 생성
+  async function createNewCode() {
+    const nameInput = document.getElementById('new-code-name');
+    const limitInput = document.getElementById('new-code-limit');
+
+    let codeName = nameInput.value.trim().toUpperCase();
+    const limit = parseInt(limitInput.value) || 3;
+
+    // 코드명이 비어있으면 자동 생성
+    if (!codeName) {
+      do {
+        codeName = generateRandomCode();
+      } while (step3Codes[codeName]); // 중복 방지
+    }
+
+    // 이미 존재하는 코드 체크
+    if (step3Codes[codeName]) {
+      alert(`'${codeName}' 코드가 이미 존재합니다.`);
+      return;
+    }
+
+    // 코드 추가
+    step3Codes[codeName] = {
+      limit: limit,
+      remaining: limit,
+      createdAt: new Date().toISOString()
+    };
+
+    await saveStep3Codes();
+    renderCodeList();
+
+    // 입력 필드 초기화
+    nameInput.value = '';
+    limitInput.value = '3';
+
+    showStatus(`✅ 코드 '${codeName}' 생성 완료!`);
+    setTimeout(hideStatus, 2000);
+  }
+
+  // 코드 삭제
+  async function deleteCode(codeName) {
+    if (!confirm(`'${codeName}' 코드를 삭제하시겠습니까?`)) return;
+
+    delete step3Codes[codeName];
+    await saveStep3Codes();
+    renderCodeList();
+
+    showStatus(`🗑️ 코드 '${codeName}' 삭제됨`);
+    setTimeout(hideStatus, 2000);
+  }
+
+  // 코드 목록 렌더링
+  function renderCodeList() {
+    const tbody = document.getElementById('code-list-body');
+    if (!tbody) return;
+
+    const codeNames = Object.keys(step3Codes);
+
+    if (codeNames.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="padding: 1rem; text-align: center; color: #999;">생성된 코드가 없습니다.</td></tr>';
+      return;
+    }
+
+    // 생성일 기준 정렬 (최신순)
+    codeNames.sort((a, b) => {
+      const dateA = new Date(step3Codes[a].createdAt || 0);
+      const dateB = new Date(step3Codes[b].createdAt || 0);
+      return dateB - dateA;
+    });
+
+    tbody.innerHTML = codeNames.map(code => {
+      const info = step3Codes[code];
+      const isExhausted = info.remaining <= 0;
+      const statusText = isExhausted ? '소진' : '활성';
+      const statusColor = isExhausted ? '#e74c3c' : '#27ae60';
+      const statusBg = isExhausted ? '#fde8e8' : '#e8f8e8';
+
+      return `
+        <tr style="border-bottom: 1px solid #f0f0f0;">
+          <td style="padding: .5rem; font-family: monospace; font-weight: 600;">${code}</td>
+          <td style="padding: .5rem; text-align: center;">${info.remaining}/${info.limit}</td>
+          <td style="padding: .5rem; text-align: center;">
+            <span style="background: ${statusBg}; color: ${statusColor}; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600;">${statusText}</span>
+          </td>
+          <td style="padding: .5rem; text-align: center;">
+            <button onclick="deleteCode('${code}')" style="padding: .2rem .5rem; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .75rem;">삭제</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // 코드 유효성 검사 및 사용
+  async function validateAndUseCode(inputCode) {
+    const code = inputCode.trim().toUpperCase();
+
+    if (!code) {
+      return { valid: false, message: '코드를 입력해주세요.' };
+    }
+
+    if (!step3Codes[code]) {
+      return { valid: false, message: '존재하지 않는 코드입니다.' };
+    }
+
+    if (step3Codes[code].remaining <= 0) {
+      return { valid: false, message: '사용 횟수가 모두 소진된 코드입니다.' };
+    }
+
+    // 코드 사용 (횟수 차감)
+    step3Codes[code].remaining--;
+    await saveStep3Codes();
+    renderCodeList();
+
+    return { valid: true, remaining: step3Codes[code].remaining };
+  }
+
+  // 코드 입력 팝업 표시
+  function showCodeInputPopup() {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 10000;';
+
+      const popup = document.createElement('div');
+      popup.style.cssText = 'background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 350px; width: 90%;';
+      popup.innerHTML = `
+        <div style="font-size: 1.1rem; font-weight: 700; color: #f5576c; margin-bottom: 1rem; text-align: center;">🔑 Step3 사용 코드 입력</div>
+        <div style="font-size: .85rem; color: #666; margin-bottom: 1rem; text-align: center;">
+          Step3 실행을 위해 발급받은 코드를 입력해주세요.
+        </div>
+        <input type="text" id="step3-code-input" placeholder="코드 입력 (예: ABC123)" style="width: 100%; padding: .75rem; font-size: 1rem; border: 2px solid #ddd; border-radius: 8px; text-align: center; text-transform: uppercase; font-family: monospace; font-weight: 600; margin-bottom: 1rem; box-sizing: border-box;">
+        <div id="code-error-msg" style="color: #e74c3c; font-size: .85rem; text-align: center; margin-bottom: 1rem; display: none;"></div>
+        <div style="display: flex; gap: .5rem;">
+          <button id="btn-code-cancel" style="flex: 1; padding: .6rem; background: #e0e0e0; color: #666; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">취소</button>
+          <button id="btn-code-confirm" style="flex: 1; padding: .6rem; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">확인</button>
+        </div>
+      `;
+
+      overlay.appendChild(popup);
+      document.body.appendChild(overlay);
+
+      const input = popup.querySelector('#step3-code-input');
+      const errorMsg = popup.querySelector('#code-error-msg');
+      const cancelBtn = popup.querySelector('#btn-code-cancel');
+      const confirmBtn = popup.querySelector('#btn-code-confirm');
+
+      input.focus();
+
+      const cleanup = () => {
+        document.body.removeChild(overlay);
+      };
+
+      cancelBtn.addEventListener('click', () => {
+        cleanup();
+        resolve({ cancelled: true });
+      });
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          cleanup();
+          resolve({ cancelled: true });
+        }
+      });
+
+      const handleConfirm = async () => {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '확인 중...';
+
+        const result = await validateAndUseCode(input.value);
+
+        if (result.valid) {
+          cleanup();
+          resolve({ cancelled: false, ...result });
+        } else {
+          errorMsg.textContent = result.message;
+          errorMsg.style.display = 'block';
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '확인';
+          input.focus();
+          input.select();
+        }
+      };
+
+      confirmBtn.addEventListener('click', handleConfirm);
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleConfirm();
+      });
+    });
+  }
+
+  // 전역 함수로 등록 (onclick에서 사용)
+  window.deleteCode = deleteCode;
+
   // ===== 초기화 =====
   document.addEventListener('DOMContentLoaded', async () => {
     const dateInput = document.getElementById('sermon-date');
@@ -3745,6 +4019,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     renderCategories();
     loadMasterGuide(currentCategory);
     loadModelSettings(); // 모델 설정 로드
+    loadStep3Codes(); // Step3 코드 목록 로드
+
+    // 코드 생성 버튼 이벤트 리스너
+    const btnCreateCode = document.getElementById('btn-create-code');
+    if (btnCreateCode) {
+      btnCreateCode.addEventListener('click', createNewCode);
+    }
     renderStyles();
     renderProcessingSteps();
 
