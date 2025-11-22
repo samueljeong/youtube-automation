@@ -1088,10 +1088,13 @@
 
   <!-- 관리자 공간 모달 -->
   <div id="modal-admin-panel" class="modal">
-    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+    <div class="modal-content" style="max-width: 900px; min-height: 80vh; max-height: 95vh; overflow-y: auto;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <div class="modal-title" style="margin: 0;">🔒 관리자 공간</div>
-        <button id="btn-close-admin-panel" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+        <div style="display: flex; gap: .5rem; align-items: center;">
+          <button id="btn-sermon-chatbot" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: .5rem 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: .85rem;">🤖 AI 도우미</button>
+          <button id="btn-close-admin-panel" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+        </div>
       </div>
 
       <div id="guide-content">
@@ -1335,6 +1338,38 @@
       <div class="modal-buttons">
         <button id="btn-cancel-manage-password">취소</button>
         <button id="btn-submit-manage-password" class="primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI 챗봇 팝업 모달 -->
+  <div id="modal-sermon-chatbot" class="modal">
+    <div class="modal-content" style="max-width: 600px; height: 70vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="modal-title" style="margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🤖 AI 도우미</div>
+        <button id="btn-close-sermon-chatbot" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+      </div>
+      <div style="font-size: .85rem; color: #666; margin-bottom: 1rem; padding: .75rem; background: #f8f9fa; border-radius: 8px;">
+        설교문 작성 과정에서 궁금한 점을 질문해보세요.<br>
+        <span style="color: #667eea;">Step3 오류, API 문제, 설교 내용 개선</span> 등 무엇이든 도와드립니다!
+      </div>
+      <!-- 채팅 메시지 영역 -->
+      <div id="sermon-chat-messages" style="flex: 1; background: #f0f0f0; border-radius: 8px; padding: .75rem; overflow-y: auto; margin-bottom: .75rem;">
+        <div class="chat-welcome" style="text-align: center; color: #999; padding: 2rem; font-size: .85rem;">
+          <div style="font-size: 2.5rem; margin-bottom: .5rem;">💬</div>
+          <p>어떤 도움이 필요하신가요?</p>
+          <div style="margin-top: 1rem; font-size: .75rem; color: #bbb; line-height: 1.6;">
+            예시 질문:<br>
+            "Step3에서 오류가 났는데 왜 그런거야?"<br>
+            "지금 작성된 설교 내용을 요약해줘"<br>
+            "크레딧이 부족하다고 나오는데 어떻게 해?"
+          </div>
+        </div>
+      </div>
+      <!-- 입력 영역 -->
+      <div style="display: flex; gap: .5rem;">
+        <input type="text" id="sermon-chat-input" placeholder="질문을 입력하세요..." style="flex: 1; padding: .6rem .8rem; border-radius: 8px; border: 1px solid #ddd; font-size: .9rem;">
+        <button id="btn-sermon-chat-send" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: .6rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: .9rem;">전송</button>
       </div>
     </div>
   </div>
@@ -2496,16 +2531,22 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       } else {
         // 크레딧 부족 에러 처리
         if (data.needCredits) {
-          alert('Step3 사용 크레딧이 소진되었습니다.\n관리자에게 크레딧 충전을 요청하세요.');
+          const errorMsg = 'Step3 사용 크레딧이 소진되었습니다. 관리자에게 크레딧 충전을 요청하세요.';
+          alert(errorMsg);
           showStatus('⚠️ 크레딧 부족');
+          window.setLastSermonError && window.setLastSermonError(errorMsg);
         } else {
+          const errorMsg = `Step3 오류: ${data.error}`;
           alert(`오류: ${data.error}`);
           showStatus('❌ 실패');
+          window.setLastSermonError && window.setLastSermonError(errorMsg);
         }
       }
     } catch (err) {
+      const errorMsg = `Step3 네트워크 오류: ${err.message}`;
       alert(`네트워크 오류: ${err.message}`);
       showStatus('❌ 오류');
+      window.setLastSermonError && window.setLastSermonError(errorMsg);
     } finally {
       hideGptLoading(); // 로딩 오버레이 숨김
       setTimeout(hideStatus, 3000);
@@ -4170,6 +4211,128 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
 
   // 전역 함수로 등록 (onclick에서 사용)
   window.deleteCode = deleteCode;
+
+  // ===== AI 챗봇 기능 =====
+  let lastSermonError = ''; // 마지막 오류 저장
+
+  const sermonChatModal = document.getElementById('modal-sermon-chatbot');
+  const sermonChatMessages = document.getElementById('sermon-chat-messages');
+  const sermonChatInput = document.getElementById('sermon-chat-input');
+  const sermonChatSendBtn = document.getElementById('btn-sermon-chat-send');
+  const btnSermonChatbot = document.getElementById('btn-sermon-chatbot');
+  const btnCloseSermonChatbot = document.getElementById('btn-close-sermon-chatbot');
+
+  // 챗봇 모달 열기/닫기
+  if (btnSermonChatbot) {
+    btnSermonChatbot.addEventListener('click', () => {
+      sermonChatModal.classList.add('show');
+    });
+  }
+  if (btnCloseSermonChatbot) {
+    btnCloseSermonChatbot.addEventListener('click', () => {
+      sermonChatModal.classList.remove('show');
+    });
+  }
+
+  function addSermonChatMessage(type, content) {
+    // 환영 메시지 제거
+    const welcome = sermonChatMessages.querySelector('.chat-welcome');
+    if (welcome) welcome.remove();
+
+    const msgDiv = document.createElement('div');
+    msgDiv.style.cssText = `
+      margin-bottom: .75rem; padding: .6rem .8rem; border-radius: 8px;
+      ${type === 'user'
+        ? 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-left: 20%; text-align: right;'
+        : 'background: white; color: #333; margin-right: 20%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'}
+    `;
+    msgDiv.innerHTML = `<div style="font-size: .85rem; line-height: 1.5; white-space: pre-wrap;">${content}</div>`;
+    sermonChatMessages.appendChild(msgDiv);
+    sermonChatMessages.scrollTop = sermonChatMessages.scrollHeight;
+  }
+
+  function collectSermonContext() {
+    const context = {};
+
+    // Step1 결과
+    const step1Result = document.getElementById('step1-result')?.value;
+    if (step1Result) context.step1Result = step1Result;
+
+    // Step2 결과
+    const step2Result = document.getElementById('step2-result')?.value;
+    if (step2Result) context.step2Result = step2Result;
+
+    // Step3 결과
+    const step3Result = document.getElementById('step3-result')?.value;
+    if (step3Result) context.step3Result = step3Result;
+
+    // 성경 본문
+    const bibleVerse = document.getElementById('bible-verse')?.value;
+    if (bibleVerse) context.bibleVerse = bibleVerse;
+
+    // 설교 스타일
+    const styleSelect = document.getElementById('style-select');
+    if (styleSelect) context.sermonStyle = styleSelect.options[styleSelect.selectedIndex]?.text;
+
+    // 마지막 오류
+    if (lastSermonError) context.lastError = lastSermonError;
+
+    return context;
+  }
+
+  async function sendSermonChatMessage() {
+    const question = sermonChatInput.value.trim();
+    if (!question) return;
+
+    // 사용자 메시지 추가
+    addSermonChatMessage('user', question);
+    sermonChatInput.value = '';
+
+    // 로딩 표시
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'sermon-chat-loading';
+    loadingDiv.style.cssText = 'margin-bottom: .75rem; padding: .6rem .8rem; background: white; border-radius: 8px; margin-right: 20%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
+    loadingDiv.innerHTML = '<div style="font-size: .85rem; color: #999;">🤔 생각 중...</div>';
+    sermonChatMessages.appendChild(loadingDiv);
+    sermonChatMessages.scrollTop = sermonChatMessages.scrollHeight;
+
+    try {
+      const response = await fetch('/api/sermon/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          question: question,
+          context: collectSermonContext()
+        })
+      });
+
+      const data = await response.json();
+      loadingDiv.remove();
+
+      if (data.ok) {
+        addSermonChatMessage('ai', data.answer);
+      } else {
+        addSermonChatMessage('ai', '❌ 오류: ' + data.error);
+      }
+    } catch (err) {
+      loadingDiv.remove();
+      addSermonChatMessage('ai', '❌ 네트워크 오류: ' + err.message);
+    }
+  }
+
+  if (sermonChatSendBtn) {
+    sermonChatSendBtn.addEventListener('click', sendSermonChatMessage);
+  }
+  if (sermonChatInput) {
+    sermonChatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendSermonChatMessage();
+    });
+  }
+
+  // 오류 저장 함수 (다른 곳에서 호출)
+  window.setLastSermonError = function(error) {
+    lastSermonError = error;
+  };
 
   // ===== 초기화 =====
   document.addEventListener('DOMContentLoaded', async () => {

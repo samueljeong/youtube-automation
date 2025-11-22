@@ -1753,6 +1753,106 @@ JSON 형식으로 응답하세요: {"quality": 8, "theological_depth": 9, "pract
         return {"ok": False, "message": f"저장 실패: {str(e)}"}
 
 
+# ===== AI 챗봇 API =====
+@app.route('/api/sermon/chat', methods=['POST'])
+def api_sermon_chat():
+    """설교 페이지 AI 챗봇 - 현재 작업 상황 및 오류에 대해 질문/답변"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        question = data.get("question", "")
+        context = data.get("context", {})  # 현재 작업 상태
+
+        if not question:
+            return jsonify({"ok": False, "error": "질문을 입력해주세요."}), 400
+
+        print(f"[SERMON-CHAT] 질문: {question[:100]}...")
+
+        # 컨텍스트 구성
+        context_text = ""
+
+        # 현재 스텝 결과들
+        if context.get("step1Result"):
+            context_text += f"【Step1 결과 (본문 연구)】\n{context.get('step1Result', '')[:2000]}\n\n"
+
+        if context.get("step2Result"):
+            context_text += f"【Step2 결과 (설교 구조)】\n{context.get('step2Result', '')[:2000]}\n\n"
+
+        if context.get("step3Result"):
+            context_text += f"【Step3 결과 (설교문)】\n{context.get('step3Result', '')[:3000]}\n\n"
+
+        # 입력 데이터
+        if context.get("bibleVerse"):
+            context_text += f"【성경 본문】\n{context.get('bibleVerse', '')}\n\n"
+
+        if context.get("sermonStyle"):
+            context_text += f"【설교 스타일】\n{context.get('sermonStyle', '')}\n\n"
+
+        # 오류 정보
+        if context.get("lastError"):
+            context_text += f"【최근 오류】\n{context.get('lastError', '')}\n\n"
+
+        # API 응답 정보
+        if context.get("apiResponse"):
+            context_text += f"【API 응답 정보】\n{context.get('apiResponse', '')}\n\n"
+
+        # 시스템 프롬프트
+        system_prompt = """당신은 설교문 작성 도구의 AI 어시스턴트입니다.
+사용자가 설교문 작성 과정에서 겪는 문제나 질문에 답변합니다.
+
+역할:
+1. 현재 설교문 작성 상황 분석 및 설명
+2. Step1(본문 연구), Step2(설교 구조), Step3(설교문 작성) 단계별 도움
+3. 오류 발생 시 원인 분석 및 해결 방법 안내
+4. API 오류, 크레딧 문제, 네트워크 오류 등 기술적 문제 해결 도움
+5. 설교 내용에 대한 피드백 및 개선 제안
+
+일반적인 오류 유형:
+- Step3 크레딧 부족: 관리자에게 크레딧 충전 요청 필요
+- API 타임아웃: 입력 내용이 너무 길거나 서버 부하
+- 네트워크 오류: 인터넷 연결 확인 필요
+- 모델 오류: 다른 AI 모델로 시도 권장
+
+답변 시 유의사항:
+- 기술적 문제는 구체적인 해결 방법을 안내하세요
+- 설교 내용 관련 질문은 신학적으로 적절한 답변을 제공하세요
+- 한국어로 친절하고 이해하기 쉽게 답변하세요"""
+
+        # 사용자 메시지 구성
+        user_content = ""
+        if context_text:
+            user_content += f"{context_text}\n"
+        user_content += f"【질문】\n{question}"
+
+        # GPT 호출 (gpt-4o-mini 사용)
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        answer = completion.choices[0].message.content.strip()
+
+        # 토큰 사용량
+        usage = {
+            "input_tokens": completion.usage.prompt_tokens,
+            "output_tokens": completion.usage.completion_tokens
+        }
+
+        print(f"[SERMON-CHAT][SUCCESS] 답변 생성 완료")
+        return jsonify({"ok": True, "answer": answer, "usage": usage})
+
+    except Exception as e:
+        print(f"[SERMON-CHAT][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5058))
