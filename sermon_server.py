@@ -556,6 +556,8 @@ def api_gpt_pro():
         max_tokens = data.get("maxTokens", 16000)
         # 사용자 지정 시스템 프롬프트
         custom_system_prompt = data.get("customSystemPrompt", "")
+        # 사용자 지정 요청 사항 프롬프트
+        custom_request_prompt = data.get("customRequestPrompt", "")
 
         print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
 
@@ -609,63 +611,20 @@ def api_gpt_pro():
         user_content += "\n\n[설교 초안 자료]\n"
         user_content += draft_content
 
-        # 설교 스타일별 요청 사항 결정
-        user_content += "\n\n【요청 사항】\n"
-
-        # 하몽서클 관련 스타일인지 확인
-        is_harmonic_circle = any(keyword in style_name.lower() for keyword in ['하몽', 'harmonic'])
-
-        # 3대지 관련 스타일인지 확인
-        is_three_point = any(keyword in style_name.lower() for keyword in ['3대지', '주제', 'topical', '강해'])
-
-        if is_harmonic_circle:
-            # 하몽서클 스타일
-            user_content += (
-                "1. 하몽서클 5단계(Setup, Conflict, Turning Point, Realization, Call to Action)를 차례대로 구분해 주세요.\n"
-                "   - 각 단계 제목은 영어-한국어 병기 형태로 표기합니다 (예: Setup — 서론).\n"
-                "2. 각 단계마다 관련 배경 설명과 함께 적용을 제공하고, 반드시 보충 성경구절 2개를 인용구 형태로 제시하세요.\n"
-                "3. 역사적 배경, 스토리텔링, 오늘의 적용을 골고루 담아 묵직하고 명확한 메시지를 만드세요.\n"
-                "4. 결단(Call to Action) 단계에서는 이번 주 실천과 공동체 기도제목을 명확히 정리하세요.\n"
-                "5. 마지막에 짧은 마무리 기도문과 축복 선언을 덧붙이세요.\n"
-                "6. 가독성을 위해 각 단계 사이에 빈 줄을 넣으세요.\n"
-                "7. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
-            )
-        elif is_three_point:
-            # 3대지 설교 스타일
-            user_content += (
-                "1. 3대지 구조로 설교문을 작성하세요:\n"
-                "   - 서론: 본문 배경과 주요 메시지 소개 (넘버링 없이 '서론'이라고만)\n"
-                "   - 본론: 1대지, 2대지, 3대지 (각 대지는 '1.', '2.', '3.' 형식으로 넘버링)\n"
-                "   - 결론: 실천과 적용 (넘버링 없이 '결론'이라고만)\n"
-                "2. 각 대지 형식:\n"
-                "   - 대지 제목: '1. 하나님의 말씀을 다시 붙들라' 형식으로 작성\n"
-                "   - 소대지 2개를 포함하여 주제를 전개\n"
-                "   - 관련 성경구절 2개를 인용구 형태로 제시\n"
-                "   - 역사적 배경과 오늘의 적용을 연결\n"
-                "3. 결론에서는 이번 주 실천 사항과 기도 제목을 제시하세요.\n"
-                "4. 가독성을 위해 각 섹션(서론, 대지, 결론) 사이에 빈 줄을 넣으세요.\n"
-                "5. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
-            )
+        # 사용자 지정 요청 사항이 있으면 사용, 없으면 기본 요청 사항 사용
+        if custom_request_prompt and custom_request_prompt.strip():
+            user_content += f"\n\n【요청 사항】\n{custom_request_prompt.strip()}"
         else:
-            # 기본 설교 스타일 - 처리 단계 구조 따르기
-            user_content += "1. 제공된 설교 스타일에 맞춰 설교문을 작성하세요.\n"
-
-            # 완료된 처리 단계 정보 활용
-            if completed_step_names and len(completed_step_names) > 0:
-                steps_list = "', '".join(completed_step_names)
-                user_content += (
-                    f"2. 위 초안 자료는 '{steps_list}' 단계로 구성되어 있습니다.\n"
-                    "   이 단계들의 분석 내용과 구조를 반영하여 설교문을 전개하세요.\n"
-                )
-            else:
-                user_content += "2. 초안 자료의 분석 내용과 구조를 반영하여 설교문을 전개하세요.\n"
-
+            # 기본 요청 사항 (하드코딩 - 사용자가 요청 사항을 설정하지 않은 경우)
+            user_content += "\n\n【요청 사항】\n"
             user_content += (
-                "3. 핵심 메시지를 전개하고, 관련 성경구절을 적절히 인용하세요.\n"
-                "4. 역사적 배경, 신학적 통찰, 실제 적용을 균형 있게 제시하세요.\n"
-                "5. 결론 부분에서는 실천 사항과 기도 제목을 제시하세요.\n"
-                "6. 가독성을 위해 각 섹션 사이에 빈 줄을 넣으세요.\n"
-                "7. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하고, 중복되는 문장은 피하세요."
+                "1. Step2의 설교 구조(서론, 본론, 결론)를 반드시 따라 작성하세요.\n"
+                "2. Step2의 대지(포인트) 구성을 유지하고 각 섹션의 핵심 메시지를 확장하세요.\n"
+                "3. 역사적 배경, 신학적 통찰, 실제 적용을 균형 있게 제시하세요.\n"
+                "4. 관련 성경구절을 적절히 인용하세요.\n"
+                "5. 가독성을 위해 각 섹션 사이에 빈 줄을 넣으세요.\n"
+                "6. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하세요.\n"
+                "7. 충분히 길고 상세하며 풍성한 내용으로 작성해주세요."
             )
 
         # 공통 지침 추가
