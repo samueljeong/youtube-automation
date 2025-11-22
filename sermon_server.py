@@ -722,8 +722,26 @@ def api_gpt_pro():
                 }
         else:
             # Chat Completions API (gpt-5, gpt-4o 등)
-            # gpt-5는 max_completion_tokens 사용, gpt-4o는 max_tokens 사용
-            if gpt_pro_model.startswith("gpt-5"):
+            # gpt-5는 max_completion_tokens 사용, temperature 미지원
+            # gpt-4o는 max_tokens 사용
+            if gpt_pro_model == "gpt-5":
+                # gpt-5는 temperature 지원 안함 (기본값 1만 허용)
+                completion = client.chat.completions.create(
+                    model=gpt_pro_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_content
+                        },
+                        {
+                            "role": "user",
+                            "content": user_content
+                        }
+                    ],
+                    max_completion_tokens=max_tokens
+                )
+            elif gpt_pro_model.startswith("gpt-5"):
+                # 다른 gpt-5.x 모델 (5.1 제외, 위에서 처리)
                 completion = client.chat.completions.create(
                     model=gpt_pro_model,
                     messages=[
