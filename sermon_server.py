@@ -3,10 +3,16 @@ import re
 import json
 import sqlite3
 import hashlib
-from flask import Flask, render_template, request, jsonify
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
 from openai import OpenAI
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))
+
+# 기본 관리자 이메일 설정
+DEFAULT_ADMIN_EMAIL = 'zkvp17@naver.com'
 
 def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -51,6 +57,28 @@ def init_db():
     cursor = conn.cursor()
 
     if USE_POSTGRES:
+        # Users 테이블 생성 (Sermon 전용)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                phone VARCHAR(20),
+                birth_date VARCHAR(20),
+                is_admin INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                subscription_status VARCHAR(50) DEFAULT 'free',
+                subscription_expires_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_users_email
+            ON sermon_users(email)
+        ''')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
                 id SERIAL PRIMARY KEY,
@@ -128,6 +156,28 @@ def init_db():
             ON step1_analyses(created_at DESC)
         ''')
     else:
+        # SQLite: Users 테이블 생성 (Sermon 전용)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                name TEXT NOT NULL,
+                phone TEXT,
+                birth_date TEXT,
+                is_admin INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                subscription_status TEXT DEFAULT 'free',
+                subscription_expires_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sermon_users_email
+            ON sermon_users(email)
+        ''')
+
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -210,6 +260,271 @@ def init_db():
 
 # 앱 시작 시 DB 초기화
 init_db()
+
+
+# ===== 인증 관련 함수 및 데코레이터 =====
+def login_required(f):
+    """로그인 필수 데코레이터"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    """관리자 권한 필수 데코레이터"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+
+        # 관리자 권한 확인
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('SELECT is_admin FROM sermon_users WHERE id = %s', (session['user_id'],))
+        else:
+            cursor.execute('SELECT is_admin FROM sermon_users WHERE id = ?', (session['user_id'],))
+        user = cursor.fetchone()
+        conn.close()
+
+        if not user or not user['is_admin']:
+            flash('관리자 권한이 필요합니다.', 'error')
+            return redirect(url_for('home'))
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def api_login_required(f):
+    """API용 로그인 필수 데코레이터 (JSON 응답)"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({"ok": False, "error": "로그인이 필요합니다.", "redirect": "/login"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ===== 인증 라우트 =====
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """회원가입"""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        phone = request.form.get('phone')
+        birth_date = request.form.get('birth_date')
+
+        # 유효성 검사
+        if not email or not password or not name:
+            flash('이메일, 비밀번호, 이름은 필수 항목입니다.', 'error')
+            return render_template('sermon_signup.html')
+
+        if len(password) < 6:
+            flash('비밀번호는 최소 6자 이상이어야 합니다.', 'error')
+            return render_template('sermon_signup.html')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 이메일 중복 확인
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM sermon_users WHERE email = %s', (email,))
+        else:
+            cursor.execute('SELECT * FROM sermon_users WHERE email = ?', (email,))
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            flash('이미 존재하는 이메일입니다.', 'error')
+            conn.close()
+            return render_template('sermon_signup.html')
+
+        # 비밀번호 해시 및 사용자 생성
+        password_hash = generate_password_hash(password)
+
+        # 기본 관리자 이메일인 경우 자동으로 관리자 권한 부여
+        is_admin = 1 if email == DEFAULT_ADMIN_EMAIL else 0
+
+        try:
+            if USE_POSTGRES:
+                cursor.execute(
+                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin) VALUES (%s, %s, %s, %s, %s, %s)',
+                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin)
+                )
+                conn.commit()
+                cursor.execute('SELECT * FROM sermon_users WHERE email = %s', (email,))
+            else:
+                cursor.execute(
+                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin) VALUES (?, ?, ?, ?, ?, ?)',
+                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin)
+                )
+                conn.commit()
+                cursor.execute('SELECT * FROM sermon_users WHERE email = ?', (email,))
+
+            user = cursor.fetchone()
+            conn.close()
+
+            # 자동 로그인
+            session['user_id'] = user['id']
+            session['user_email'] = user['email']
+            session['user_name'] = user['name']
+            session['is_admin'] = user['is_admin']
+
+            flash('회원가입이 완료되었습니다!', 'success')
+            return redirect(url_for('home'))
+
+        except Exception as e:
+            conn.close()
+            flash(f'회원가입 중 오류가 발생했습니다: {str(e)}', 'error')
+            return render_template('sermon_signup.html')
+
+    return render_template('sermon_signup.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """로그인"""
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        if not email or not password:
+            flash('이메일과 비밀번호를 입력해주세요.', 'error')
+            return render_template('sermon_login.html')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM sermon_users WHERE email = %s', (email,))
+        else:
+            cursor.execute('SELECT * FROM sermon_users WHERE email = ?', (email,))
+
+        user = cursor.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user['password_hash'], password):
+            # 로그인 성공
+            session['user_id'] = user['id']
+            session['user_email'] = user['email']
+            session['user_name'] = user['name']
+            session['is_admin'] = user['is_admin']
+
+            flash(f'{user["name"]}님, 환영합니다!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('이메일 또는 비밀번호가 올바르지 않습니다.', 'error')
+            return render_template('sermon_login.html')
+
+    return render_template('sermon_login.html')
+
+
+@app.route('/logout')
+def logout():
+    """로그아웃"""
+    session.clear()
+    flash('로그아웃되었습니다.', 'success')
+    return redirect(url_for('login'))
+
+
+# ===== 관리자 라우트 =====
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    """관리자 대시보드"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+    else:
+        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+
+    users = cursor.fetchall()
+    conn.close()
+    return render_template('sermon_admin.html', users=users)
+
+
+@app.route('/admin/toggle-admin/<int:user_id>', methods=['POST'])
+@admin_required
+def toggle_admin(user_id):
+    """관리자 권한 토글"""
+    if user_id == session['user_id']:
+        flash('자신의 관리자 권한은 변경할 수 없습니다.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('SELECT is_admin FROM sermon_users WHERE id = %s', (user_id,))
+        user = cursor.fetchone()
+        if user:
+            new_status = 0 if user['is_admin'] else 1
+            cursor.execute('UPDATE sermon_users SET is_admin = %s WHERE id = %s', (new_status, user_id))
+            conn.commit()
+            action = '부여' if new_status else '제거'
+            flash(f'관리자 권한이 {action}되었습니다.', 'success')
+    else:
+        cursor.execute('SELECT is_admin FROM sermon_users WHERE id = ?', (user_id,))
+        user = cursor.fetchone()
+        if user:
+            new_status = 0 if user['is_admin'] else 1
+            cursor.execute('UPDATE sermon_users SET is_admin = ? WHERE id = ?', (new_status, user_id))
+            conn.commit()
+            action = '부여' if new_status else '제거'
+            flash(f'관리자 권한이 {action}되었습니다.', 'success')
+
+    if not user:
+        flash('사용자를 찾을 수 없습니다.', 'error')
+
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/delete-user/<int:user_id>', methods=['POST'])
+@admin_required
+def delete_user(user_id):
+    """사용자 삭제"""
+    if user_id == session['user_id']:
+        flash('자신의 계정은 삭제할 수 없습니다.', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('DELETE FROM sermon_users WHERE id = %s', (user_id,))
+    else:
+        cursor.execute('DELETE FROM sermon_users WHERE id = ?', (user_id,))
+
+    conn.commit()
+    conn.close()
+
+    flash('사용자가 삭제되었습니다.', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/api/auth/status')
+def auth_status():
+    """현재 로그인 상태 반환 (프론트엔드용)"""
+    if 'user_id' in session:
+        return jsonify({
+            "ok": True,
+            "loggedIn": True,
+            "user": {
+                "id": session['user_id'],
+                "email": session['user_email'],
+                "name": session['user_name'],
+                "isAdmin": session.get('is_admin', 0)
+            }
+        })
+    return jsonify({"ok": True, "loggedIn": False})
+
 
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
@@ -328,12 +643,14 @@ CRITICAL RULES:
 ⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
 
 @app.route("/")
+@login_required
 def home():
-    return render_template("sermon.html")
+    return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
 
 @app.route("/sermon")
+@login_required
 def sermon():
-    return render_template("sermon.html")
+    return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
 
 @app.route("/health")
 def health():
@@ -341,6 +658,7 @@ def health():
 
 # ===== 처리 단계 실행 API (gpt-4o-mini) =====
 @app.route("/api/sermon/process", methods=["POST"])
+@api_login_required
 def api_process_step():
     """단일 처리 단계 실행 (gpt-4o-mini 사용)"""
     try:
@@ -534,6 +852,7 @@ def api_process_step():
 
 # ===== GPT PRO (Step3) 처리 API =====
 @app.route("/api/sermon/gpt-pro", methods=["POST"])
+@api_login_required
 def api_gpt_pro():
     """GPT PRO 완성본 작성"""
     try:
@@ -766,6 +1085,7 @@ def api_gpt_pro():
 
 
 @app.route("/api/sermon/qa", methods=["POST"])
+@api_login_required
 def api_sermon_qa():
     """설교 준비 Q&A - 처리 단계 결과와 본문을 기반으로 질문에 답변"""
     try:
