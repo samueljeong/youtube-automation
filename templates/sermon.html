@@ -2376,7 +2376,10 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   const btnGptPro = document.getElementById('btn-gpt-pro');
   if (btnGptPro) {
     btnGptPro.addEventListener('click', async () => {
+      console.log('[Step3 Click] step3Codes:', step3Codes);
+      console.log('[Step3 Click] 코드 개수:', Object.keys(step3Codes).length);
       const hasAnyCodes = Object.keys(step3Codes).length > 0;
+      console.log('[Step3 Click] hasAnyCodes:', hasAnyCodes);
 
       if (hasAnyCodes) {
         // 코드가 존재하면 코드 입력 팝업 표시
@@ -3787,12 +3790,18 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   // 코드 목록 로드
   async function loadStep3Codes() {
     const saved = localStorage.getItem(CODES_KEY);
+    console.log('[Step3Codes] localStorage 데이터:', saved);
     if (saved) {
       try {
         step3Codes = JSON.parse(saved);
+        console.log('[Step3Codes] 로드된 코드:', step3Codes);
+        console.log('[Step3Codes] 코드 개수:', Object.keys(step3Codes).length);
       } catch (e) {
+        console.error('[Step3Codes] 파싱 오류:', e);
         step3Codes = {};
       }
+    } else {
+      console.log('[Step3Codes] 저장된 코드 없음');
     }
     renderCodeList();
   }
