@@ -552,6 +552,13 @@ def drama():
     """Drama page - 비공개"""
     return render_template('drama.html')
 
+# ===== Inventory Routes =====
+@app.route('/inventory')
+@login_required
+def inventory():
+    """Inventory management page - 재고 관리"""
+    return render_template('inventory.html')
+
 @app.route('/health')
 def health():
     """Health check endpoint"""

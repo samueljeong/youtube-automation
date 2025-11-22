@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>상품 재고 관리</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+    .header-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    .exchange-rate-display {
+      background: rgba(255,255,255,0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    .container {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .filter-group select,
+    .filter-group input {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: white;
+    }
+
+    button {
+      padding: .6rem 1rem;
+      border: none;
+      background: #3b82f6;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      font-weight: 600;
+      font-size: .9rem;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+    button.success { background: #10b981; }
+    button.success:hover { background: #059669; }
+    button.secondary { background: #64748b; }
+    button.secondary:hover { background: #475569; }
+    button.danger { background: #ef4444; }
+    button.danger:hover { background: #dc2626; }
+    button.small {
+      padding: .35rem .6rem;
+      font-size: .8rem;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid #e2e8f0;
+      flex: 1;
+      min-width: 150px;
+    }
+    .stat-label {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .stat-value.highlight { color: #3b82f6; }
+    .stat-value.success { color: #10b981; }
+    .stat-value.warning { color: #f59e0b; }
+
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      border: 1px solid #e2e8f0;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+      position: sticky;
+      top: 0;
+    }
+
+    tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .product-image {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      cursor: pointer;
+    }
+    .product-image:hover {
+      transform: scale(1.1);
+    }
+    .no-image {
+      width: 50px;
+      height: 50px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      font-size: 0.75rem;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-ordering { background: #fef3c7; color: #92400e; }
+    .status-shipping { background: #dbeafe; color: #1e40af; }
+    .status-instock { background: #d1fae5; color: #065f46; }
+    .status-outofstock { background: #fee2e2; color: #991b1b; }
+
+    .profit-positive { color: #10b981; font-weight: 600; }
+    .profit-negative { color: #ef4444; font-weight: 600; }
+
+    .action-buttons {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    /* 모달 */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 700px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #64748b;
+      padding: 0;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-row.full {
+      grid-template-columns: 1fr;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    .form-group label {
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: #334155;
+      font-size: 0.9rem;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 0.6rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: #f8fafc;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: white;
+    }
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    .form-group .hint {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.25rem;
+    }
+    .form-group .calculated {
+      background: #f0f9ff;
+      border-color: #3b82f6;
+      font-weight: 600;
+      color: #1e40af;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* 이미지 미리보기 모달 */
+    .image-preview-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.9);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+    }
+    .image-preview-modal.active {
+      display: flex;
+    }
+    .image-preview-modal img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 8px;
+    }
+    .image-preview-modal .close-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      font-size: 2rem;
+      color: white;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #94a3b8;
+    }
+    .empty-state h3 {
+      margin-bottom: 0.5rem;
+      color: #64748b;
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+      }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      .top-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📦 상품 재고 관리</h1>
+    <div class="header-actions">
+      <div class="exchange-rate-display" id="exchangeRateDisplay">
+        1 CNY = 로딩중...
+      </div>
+      <a href="/" style="color: white; text-decoration: none; font-weight: 600;">🏠 홈</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 통계 카드 -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">전체 상품</div>
+        <div class="stat-value" id="statTotal">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">재고 있음</div>
+        <div class="stat-value success" id="statInStock">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">품절</div>
+        <div class="stat-value warning" id="statOutOfStock">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">총 재고 가치</div>
+        <div class="stat-value highlight" id="statTotalValue">₩0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">예상 총 마진</div>
+        <div class="stat-value success" id="statTotalMargin">₩0</div>
+      </div>
+    </div>
+
+    <!-- 상단 액션 바 -->
+    <div class="top-bar">
+      <div class="filter-group">
+        <select id="filterCategory">
+          <option value="">전체 카테고리</option>
+        </select>
+        <select id="filterStatus">
+          <option value="">전체 상태</option>
+          <option value="ordering">주문중</option>
+          <option value="shipping">배송중</option>
+          <option value="instock">재고있음</option>
+          <option value="outofstock">품절</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="🔍 상품명 검색...">
+      </div>
+      <div class="filter-group">
+        <button class="success" onclick="openAddModal()">+ 상품 추가</button>
+        <button class="secondary" onclick="exportToCSV()">📥 CSV 내보내기</button>
+        <button class="secondary" onclick="importFromCSV()">📤 CSV 가져오기</button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" onchange="handleCSVImport(event)">
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>카테고리</th>
+            <th>이미지</th>
+            <th>상품명</th>
+            <th>가격(CNY)</th>
+            <th>원화</th>
+            <th>HS코드</th>
+            <th>재고</th>
+            <th>배송비</th>
+            <th>관세</th>
+            <th>총 원가</th>
+            <th>판매가</th>
+            <th>마진</th>
+            <th>구매처</th>
+            <th>구매일</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTableBody">
+          <!-- 데이터가 여기에 렌더링됨 -->
+        </tbody>
+      </table>
+      <div class="empty-state" id="emptyState" style="display: none;">
+        <h3>등록된 상품이 없습니다</h3>
+        <p>상품 추가 버튼을 눌러 첫 상품을 등록하세요.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 상품 추가/수정 모달 -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">상품 추가</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+
+      <form id="productForm">
+        <input type="hidden" id="productId">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>카테고리 *</label>
+            <input type="text" id="formCategory" list="categoryList" required placeholder="예: 전자제품, 의류, 생활용품">
+            <datalist id="categoryList"></datalist>
+          </div>
+          <div class="form-group">
+            <label>상품명 *</label>
+            <input type="text" id="formName" required placeholder="상품명 입력">
+          </div>
+        </div>
+
+        <div class="form-row full">
+          <div class="form-group">
+            <label>이미지 URL</label>
+            <input type="text" id="formImageUrl" placeholder="이미지 주소를 붙여넣기 하세요">
+            <div class="hint">상품 이미지 주소를 복사해서 붙여넣으세요</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>가격 (CNY/위안) *</label>
+            <input type="number" id="formPriceCNY" step="0.01" required placeholder="0.00" oninput="calculateFields()">
+          </div>
+          <div class="form-group">
+            <label>원화 환전 금액</label>
+            <input type="text" id="formPriceKRW" class="calculated" readonly>
+            <div class="hint">자동 계산됨</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>HS코드</label>
+            <input type="text" id="formHsCode" placeholder="0000.00.0000">
+          </div>
+          <div class="form-group">
+            <label>재고 수량 *</label>
+            <input type="number" id="formStock" required placeholder="0" oninput="calculateFields()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>배송비 (원)</label>
+            <input type="number" id="formShippingCost" placeholder="0" oninput="calculateFields()">
+          </div>
+          <div class="form-group">
+            <label>관세 (원)</label>
+            <input type="number" id="formCustomsDuty" placeholder="0" oninput="calculateFields()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>총 원가 (개당)</label>
+            <input type="text" id="formTotalCost" class="calculated" readonly>
+            <div class="hint">원화 + 배송비/수량 + 관세/수량</div>
+          </div>
+          <div class="form-group">
+            <label>판매가격 (원) *</label>
+            <input type="number" id="formSellingPrice" required placeholder="0" oninput="calculateFields()">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>마진 (개당)</label>
+            <input type="text" id="formMargin" class="calculated" readonly>
+          </div>
+          <div class="form-group">
+            <label>마진율</label>
+            <input type="text" id="formMarginRate" class="calculated" readonly>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>구매처/공급업체</label>
+            <input type="text" id="formSupplier" placeholder="예: 타오바오, 1688, 알리바바">
+          </div>
+          <div class="form-group">
+            <label>구매일자</label>
+            <input type="date" id="formPurchaseDate">
+          </div>
+        </div>
+
+        <div class="form-row full">
+          <div class="form-group">
+            <label>구매 링크</label>
+            <input type="text" id="formPurchaseLink" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>상태 *</label>
+            <select id="formStatus" required>
+              <option value="ordering">주문중</option>
+              <option value="shipping">배송중</option>
+              <option value="instock">재고있음</option>
+              <option value="outofstock">품절</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row full">
+          <div class="form-group">
+            <label>메모/비고</label>
+            <textarea id="formMemo" placeholder="추가 메모 사항"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="secondary" onclick="closeModal()">취소</button>
+          <button type="submit" class="success">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 이미지 미리보기 모달 -->
+  <div class="image-preview-modal" id="imagePreviewModal" onclick="closeImagePreview()">
+    <button class="close-btn">&times;</button>
+    <img id="previewImage" src="" alt="상품 이미지">
+  </div>
+
+  <script>
+  // 전역 변수
+  let inventory = [];
+  let exchangeRate = 185; // 기본 환율 (1 CNY = 185 KRW)
+  let editingId = null;
+
+  // 초기화
+  document.addEventListener('DOMContentLoaded', () => {
+    loadExchangeRate();
+    loadInventory();
+    setupEventListeners();
+  });
+
+  // 환율 불러오기
+  function loadExchangeRate() {
+    fetch('/api/trade/exchange-rate')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          exchangeRate = data.rate;
+        }
+        document.getElementById('exchangeRateDisplay').textContent =
+          `1 CNY = ${exchangeRate.toFixed(2)} KRW`;
+      })
+      .catch(err => {
+        console.error('환율 로드 실패:', err);
+        document.getElementById('exchangeRateDisplay').textContent =
+          `1 CNY = ${exchangeRate.toFixed(2)} KRW (기본값)`;
+      });
+  }
+
+  // 로컬스토리지에서 재고 불러오기
+  function loadInventory() {
+    const saved = localStorage.getItem('inventory');
+    if (saved) {
+      inventory = JSON.parse(saved);
+    }
+    renderTable();
+    updateStats();
+    updateCategoryFilter();
+  }
+
+  // 로컬스토리지에 재고 저장
+  function saveInventory() {
+    localStorage.setItem('inventory', JSON.stringify(inventory));
+  }
+
+  // 이벤트 리스너 설정
+  function setupEventListeners() {
+    document.getElementById('productForm').addEventListener('submit', handleSubmit);
+    document.getElementById('filterCategory').addEventListener('change', renderTable);
+    document.getElementById('filterStatus').addEventListener('change', renderTable);
+    document.getElementById('searchInput').addEventListener('input', renderTable);
+  }
+
+  // 테이블 렌더링
+  function renderTable() {
+    const tbody = document.getElementById('inventoryTableBody');
+    const emptyState = document.getElementById('emptyState');
+
+    // 필터 적용
+    let filtered = [...inventory];
+
+    const categoryFilter = document.getElementById('filterCategory').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+    const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+
+    if (categoryFilter) {
+      filtered = filtered.filter(item => item.category === categoryFilter);
+    }
+    if (statusFilter) {
+      filtered = filtered.filter(item => item.status === statusFilter);
+    }
+    if (searchQuery) {
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchQuery) ||
+        item.category.toLowerCase().includes(searchQuery)
+      );
+    }
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '';
+      emptyState.style.display = 'block';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+
+    tbody.innerHTML = filtered.map((item, index) => {
+      const margin = item.sellingPrice - item.totalCost;
+      const marginRate = item.totalCost > 0 ? ((margin / item.totalCost) * 100).toFixed(1) : 0;
+      const marginClass = margin >= 0 ? 'profit-positive' : 'profit-negative';
+
+      return `
+        <tr>
+          <td>${item.id}</td>
+          <td>${item.category}</td>
+          <td>
+            ${item.imageUrl
+              ? `<img src="${item.imageUrl}" class="product-image" onclick="showImagePreview('${item.imageUrl}')" onerror="this.outerHTML='<div class=\\'no-image\\'>없음</div>'">`
+              : '<div class="no-image">없음</div>'
+            }
+          </td>
+          <td><strong>${item.name}</strong></td>
+          <td>¥${item.priceCNY.toLocaleString()}</td>
+          <td>₩${item.priceKRW.toLocaleString()}</td>
+          <td>${item.hsCode || '-'}</td>
+          <td>${item.stock.toLocaleString()}</td>
+          <td>₩${(item.shippingCost || 0).toLocaleString()}</td>
+          <td>₩${(item.customsDuty || 0).toLocaleString()}</td>
+          <td>₩${item.totalCost.toLocaleString()}</td>
+          <td>₩${item.sellingPrice.toLocaleString()}</td>
+          <td class="${marginClass}">₩${margin.toLocaleString()} (${marginRate}%)</td>
+          <td>${item.supplier || '-'}</td>
+          <td>${item.purchaseDate || '-'}</td>
+          <td><span class="status-badge status-${item.status}">${getStatusText(item.status)}</span></td>
+          <td>
+            <div class="action-buttons">
+              <button class="small" onclick="editProduct(${item.id})">수정</button>
+              <button class="small danger" onclick="deleteProduct(${item.id})">삭제</button>
+              ${item.purchaseLink ? `<button class="small secondary" onclick="window.open('${item.purchaseLink}', '_blank')">링크</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // 상태 텍스트 반환
+  function getStatusText(status) {
+    const statusMap = {
+      'ordering': '주문중',
+      'shipping': '배송중',
+      'instock': '재고있음',
+      'outofstock': '품절'
+    };
+    return statusMap[status] || status;
+  }
+
+  // 통계 업데이트
+  function updateStats() {
+    document.getElementById('statTotal').textContent = inventory.length;
+    document.getElementById('statInStock').textContent =
+      inventory.filter(item => item.status === 'instock').length;
+    document.getElementById('statOutOfStock').textContent =
+      inventory.filter(item => item.status === 'outofstock').length;
+
+    // 총 재고 가치 (원가 × 수량)
+    const totalValue = inventory.reduce((sum, item) => {
+      return sum + (item.totalCost * item.stock);
+    }, 0);
+    document.getElementById('statTotalValue').textContent = `₩${totalValue.toLocaleString()}`;
+
+    // 예상 총 마진
+    const totalMargin = inventory.reduce((sum, item) => {
+      const margin = (item.sellingPrice - item.totalCost) * item.stock;
+      return sum + margin;
+    }, 0);
+    document.getElementById('statTotalMargin').textContent = `₩${totalMargin.toLocaleString()}`;
+  }
+
+  // 카테고리 필터 업데이트
+  function updateCategoryFilter() {
+    const categories = [...new Set(inventory.map(item => item.category))];
+    const select = document.getElementById('filterCategory');
+    const datalist = document.getElementById('categoryList');
+
+    // 필터 셀렉트 업데이트
+    select.innerHTML = '<option value="">전체 카테고리</option>';
+    categories.forEach(cat => {
+      select.innerHTML += `<option value="${cat}">${cat}</option>`;
+    });
+
+    // datalist 업데이트
+    datalist.innerHTML = categories.map(cat => `<option value="${cat}">`).join('');
+  }
+
+  // 모달 열기 (추가)
+  function openAddModal() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = '상품 추가';
+    document.getElementById('productForm').reset();
+    document.getElementById('productId').value = '';
+    document.getElementById('formPriceKRW').value = '';
+    document.getElementById('formTotalCost').value = '';
+    document.getElementById('formMargin').value = '';
+    document.getElementById('formMarginRate').value = '';
+    document.getElementById('formPurchaseDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('productModal').classList.add('active');
+  }
+
+  // 모달 닫기
+  function closeModal() {
+    document.getElementById('productModal').classList.remove('active');
+    editingId = null;
+  }
+
+  // 상품 수정
+  function editProduct(id) {
+    const item = inventory.find(p => p.id === id);
+    if (!item) return;
+
+    editingId = id;
+    document.getElementById('modalTitle').textContent = '상품 수정';
+    document.getElementById('productId').value = id;
+    document.getElementById('formCategory').value = item.category;
+    document.getElementById('formName').value = item.name;
+    document.getElementById('formImageUrl').value = item.imageUrl || '';
+    document.getElementById('formPriceCNY').value = item.priceCNY;
+    document.getElementById('formHsCode').value = item.hsCode || '';
+    document.getElementById('formStock').value = item.stock;
+    document.getElementById('formShippingCost').value = item.shippingCost || 0;
+    document.getElementById('formCustomsDuty').value = item.customsDuty || 0;
+    document.getElementById('formSellingPrice').value = item.sellingPrice;
+    document.getElementById('formSupplier').value = item.supplier || '';
+    document.getElementById('formPurchaseDate').value = item.purchaseDate || '';
+    document.getElementById('formPurchaseLink').value = item.purchaseLink || '';
+    document.getElementById('formStatus').value = item.status;
+    document.getElementById('formMemo').value = item.memo || '';
+
+    calculateFields();
+    document.getElementById('productModal').classList.add('active');
+  }
+
+  // 필드 자동 계산
+  function calculateFields() {
+    const priceCNY = parseFloat(document.getElementById('formPriceCNY').value) || 0;
+    const stock = parseInt(document.getElementById('formStock').value) || 1;
+    const shippingCost = parseFloat(document.getElementById('formShippingCost').value) || 0;
+    const customsDuty = parseFloat(document.getElementById('formCustomsDuty').value) || 0;
+    const sellingPrice = parseFloat(document.getElementById('formSellingPrice').value) || 0;
+
+    // 원화 환전
+    const priceKRW = Math.round(priceCNY * exchangeRate);
+    document.getElementById('formPriceKRW').value = `₩${priceKRW.toLocaleString()}`;
+
+    // 총 원가 (개당)
+    const totalCost = priceKRW + Math.round(shippingCost / stock) + Math.round(customsDuty / stock);
+    document.getElementById('formTotalCost').value = `₩${totalCost.toLocaleString()}`;
+
+    // 마진
+    const margin = sellingPrice - totalCost;
+    const marginRate = totalCost > 0 ? ((margin / totalCost) * 100).toFixed(1) : 0;
+
+    document.getElementById('formMargin').value = `₩${margin.toLocaleString()}`;
+    document.getElementById('formMarginRate').value = `${marginRate}%`;
+  }
+
+  // 폼 제출 처리
+  function handleSubmit(e) {
+    e.preventDefault();
+
+    const priceCNY = parseFloat(document.getElementById('formPriceCNY').value);
+    const stock = parseInt(document.getElementById('formStock').value);
+    const shippingCost = parseFloat(document.getElementById('formShippingCost').value) || 0;
+    const customsDuty = parseFloat(document.getElementById('formCustomsDuty').value) || 0;
+    const sellingPrice = parseFloat(document.getElementById('formSellingPrice').value);
+
+    const priceKRW = Math.round(priceCNY * exchangeRate);
+    const totalCost = priceKRW + Math.round(shippingCost / stock) + Math.round(customsDuty / stock);
+
+    const productData = {
+      category: document.getElementById('formCategory').value.trim(),
+      name: document.getElementById('formName').value.trim(),
+      imageUrl: document.getElementById('formImageUrl').value.trim(),
+      priceCNY: priceCNY,
+      priceKRW: priceKRW,
+      hsCode: document.getElementById('formHsCode').value.trim(),
+      stock: stock,
+      shippingCost: shippingCost,
+      customsDuty: customsDuty,
+      totalCost: totalCost,
+      sellingPrice: sellingPrice,
+      supplier: document.getElementById('formSupplier').value.trim(),
+      purchaseDate: document.getElementById('formPurchaseDate').value,
+      purchaseLink: document.getElementById('formPurchaseLink').value.trim(),
+      status: document.getElementById('formStatus').value,
+      memo: document.getElementById('formMemo').value.trim()
+    };
+
+    if (editingId) {
+      // 수정
+      const index = inventory.findIndex(p => p.id === editingId);
+      if (index !== -1) {
+        inventory[index] = { ...inventory[index], ...productData };
+      }
+    } else {
+      // 추가
+      const newId = inventory.length > 0 ? Math.max(...inventory.map(p => p.id)) + 1 : 1;
+      inventory.push({ id: newId, ...productData, createdAt: new Date().toISOString() });
+    }
+
+    saveInventory();
+    renderTable();
+    updateStats();
+    updateCategoryFilter();
+    closeModal();
+  }
+
+  // 상품 삭제
+  function deleteProduct(id) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+
+    inventory = inventory.filter(p => p.id !== id);
+    saveInventory();
+    renderTable();
+    updateStats();
+    updateCategoryFilter();
+  }
+
+  // 이미지 미리보기
+  function showImagePreview(url) {
+    document.getElementById('previewImage').src = url;
+    document.getElementById('imagePreviewModal').classList.add('active');
+  }
+
+  function closeImagePreview() {
+    document.getElementById('imagePreviewModal').classList.remove('active');
+  }
+
+  // CSV 내보내기
+  function exportToCSV() {
+    if (inventory.length === 0) {
+      alert('내보낼 데이터가 없습니다.');
+      return;
+    }
+
+    const headers = ['번호', '카테고리', '상품명', '이미지URL', '가격(CNY)', '원화', 'HS코드',
+                     '재고', '배송비', '관세', '총원가', '판매가', '구매처', '구매일', '구매링크', '상태', '메모'];
+
+    const rows = inventory.map(item => [
+      item.id,
+      item.category,
+      item.name,
+      item.imageUrl || '',
+      item.priceCNY,
+      item.priceKRW,
+      item.hsCode || '',
+      item.stock,
+      item.shippingCost || 0,
+      item.customsDuty || 0,
+      item.totalCost,
+      item.sellingPrice,
+      item.supplier || '',
+      item.purchaseDate || '',
+      item.purchaseLink || '',
+      getStatusText(item.status),
+      item.memo || ''
+    ]);
+
+    let csv = '\ufeff' + headers.join(',') + '\n';
+    rows.forEach(row => {
+      csv += row.map(cell => {
+        const str = String(cell).replace(/"/g, '""');
+        return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str}"` : str;
+      }).join(',') + '\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `재고관리_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  }
+
+  // CSV 가져오기
+  function importFromCSV() {
+    document.getElementById('csvFileInput').click();
+  }
+
+  function handleCSVImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        alert('유효한 데이터가 없습니다.');
+        return;
+      }
+
+      // 헤더 건너뛰기
+      const dataLines = lines.slice(1);
+      let imported = 0;
+
+      dataLines.forEach(line => {
+        const cols = parseCSVLine(line);
+        if (cols.length >= 12) {
+          const newId = inventory.length > 0 ? Math.max(...inventory.map(p => p.id)) + 1 : 1;
+
+          const priceCNY = parseFloat(cols[4]) || 0;
+          const priceKRW = Math.round(priceCNY * exchangeRate);
+          const stock = parseInt(cols[7]) || 1;
+          const shippingCost = parseFloat(cols[8]) || 0;
+          const customsDuty = parseFloat(cols[9]) || 0;
+          const totalCost = priceKRW + Math.round(shippingCost / stock) + Math.round(customsDuty / stock);
+
+          inventory.push({
+            id: newId,
+            category: cols[1] || '미분류',
+            name: cols[2] || '상품명 없음',
+            imageUrl: cols[3] || '',
+            priceCNY: priceCNY,
+            priceKRW: priceKRW,
+            hsCode: cols[6] || '',
+            stock: stock,
+            shippingCost: shippingCost,
+            customsDuty: customsDuty,
+            totalCost: totalCost,
+            sellingPrice: parseFloat(cols[11]) || 0,
+            supplier: cols[12] || '',
+            purchaseDate: cols[13] || '',
+            purchaseLink: cols[14] || '',
+            status: getStatusValue(cols[15]) || 'instock',
+            memo: cols[16] || '',
+            createdAt: new Date().toISOString()
+          });
+          imported++;
+        }
+      });
+
+      if (imported > 0) {
+        saveInventory();
+        renderTable();
+        updateStats();
+        updateCategoryFilter();
+        alert(`${imported}개 상품을 가져왔습니다.`);
+      } else {
+        alert('가져올 수 있는 데이터가 없습니다.');
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    event.target.value = '';
+  }
+
+  // CSV 라인 파싱
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  // 상태값 변환
+  function getStatusValue(text) {
+    const statusMap = {
+      '주문중': 'ordering',
+      '배송중': 'shipping',
+      '재고있음': 'instock',
+      '품절': 'outofstock'
+    };
+    return statusMap[text] || 'instock';
+  }
+
+  // ESC 키로 모달 닫기
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+      closeImagePreview();
+    }
+  });
+  </script>
+</body>
+</html>
