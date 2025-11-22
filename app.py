@@ -27,20 +27,17 @@ except RuntimeError:
 def get_openrouter_client():
     key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not key:
-        raise RuntimeError("OPENROUTER_API_KEY가 비어 있습니다.")
-    return OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=key,
-        default_headers={
-            "HTTP-Referer": "https://my-page-v2.onrender.com",
-            "X-Title": "Drama Script Generator"
-        }
-    )
+        return None  # 키가 없으면 None 반환 (에러 대신)
+    try:
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=key
+        )
+    except Exception as e:
+        print(f"[OPENROUTER] 클라이언트 초기화 실패: {e}")
+        return None
 
-try:
-    openrouter_client = get_openrouter_client()
-except RuntimeError:
-    openrouter_client = None
+openrouter_client = get_openrouter_client()
 
 # Database setup - support both PostgreSQL and SQLite
 DATABASE_URL = os.getenv('DATABASE_URL')
