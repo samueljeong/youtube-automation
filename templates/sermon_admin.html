@@ -301,6 +301,26 @@
                 gap: 15px;
             }
         }
+
+        .period-btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .period-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .period-btn.active {
+            background: #1a237e;
+            color: white;
+            border-color: #1a237e;
+        }
     </style>
 </head>
 <body>
@@ -338,6 +358,59 @@
             <div class="stat-card">
                 <h3>일반 회원</h3>
                 <div class="value">{{ users|rejectattr('is_admin')|list|length }}</div>
+            </div>
+        </div>
+
+        <!-- 사용량 통계 섹션 -->
+        <h2 class="section-title">API 사용량 통계</h2>
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center; flex-wrap: wrap;">
+                <span style="font-weight: 600; color: #666;">기간:</span>
+                <button class="period-btn active" data-days="1">1일</button>
+                <button class="period-btn" data-days="7">7일</button>
+                <button class="period-btn" data-days="30">30일</button>
+                <div id="total-cost" style="margin-left: auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px 16px; border-radius: 8px; font-weight: 600;">
+                    예상 비용: $0.00
+                </div>
+            </div>
+
+            <div class="stats-grid" style="margin-bottom: 20px;">
+                <div class="stat-card">
+                    <h3>총 API 호출</h3>
+                    <div class="value" id="stat-calls">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>총 토큰 사용</h3>
+                    <div class="value" id="stat-tokens">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>예상 비용 (USD)</h3>
+                    <div class="value" id="stat-cost">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <h3>예상 비용 (KRW)</h3>
+                    <div class="value" id="stat-cost-krw">₩0</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+                <!-- 모델별 사용량 그래프 -->
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">모델별 사용량</h3>
+                    <canvas id="modelChart" height="200"></canvas>
+                </div>
+
+                <!-- 스타일별 사용량 그래프 -->
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">스타일별 사용량</h3>
+                    <canvas id="styleChart" height="200"></canvas>
+                </div>
+
+                <!-- 일별 사용량 그래프 -->
+                <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); grid-column: 1 / -1;">
+                    <h3 style="margin-bottom: 15px; color: #333; font-size: 16px;">일별 사용량 추이</h3>
+                    <canvas id="dailyChart" height="100"></canvas>
+                </div>
             </div>
         </div>
 
@@ -406,5 +479,186 @@
             </table>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const USD_TO_KRW = 1350; // 환율
+        let modelChart, styleChart, dailyChart;
+
+        // 그래프 색상
+        const COLORS = [
+            '#667eea', '#764ba2', '#f093fb', '#f5576c',
+            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+            '#fa709a', '#fee140', '#a8edea', '#fed6e3'
+        ];
+
+        // 기간 버튼 이벤트
+        document.querySelectorAll('.period-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                loadUsageStats(parseInt(btn.dataset.days));
+            });
+        });
+
+        // 사용량 통계 로드
+        async function loadUsageStats(days = 1) {
+            try {
+                const res = await fetch(`/api/admin/usage-stats?days=${days}`);
+                const data = await res.json();
+
+                if (data.ok) {
+                    updateStats(data);
+                    updateModelChart(data.modelStats);
+                    updateStyleChart(data.styleStats);
+                    updateDailyChart(data.dailyStats);
+                }
+            } catch (err) {
+                console.error('사용량 통계 로드 실패:', err);
+            }
+        }
+
+        // 통계 카드 업데이트
+        function updateStats(data) {
+            const totals = data.totals || {};
+            const totalCalls = totals.total_calls || 0;
+            const totalTokens = totals.total_tokens || 0;
+            const totalCostUsd = totals.total_cost || 0;
+            const totalCostKrw = totalCostUsd * USD_TO_KRW;
+
+            document.getElementById('stat-calls').textContent = totalCalls.toLocaleString();
+            document.getElementById('stat-tokens').textContent = totalTokens.toLocaleString();
+            document.getElementById('stat-cost').textContent = `$${totalCostUsd.toFixed(4)}`;
+            document.getElementById('stat-cost-krw').textContent = `₩${Math.round(totalCostKrw).toLocaleString()}`;
+            document.getElementById('total-cost').textContent = `예상 비용: $${totalCostUsd.toFixed(2)} (₩${Math.round(totalCostKrw).toLocaleString()})`;
+        }
+
+        // 모델별 차트 업데이트
+        function updateModelChart(modelStats) {
+            const labels = modelStats.map(m => m.model_name);
+            const data = modelStats.map(m => m.total_tokens || 0);
+            const costs = modelStats.map(m => m.total_cost || 0);
+
+            if (modelChart) modelChart.destroy();
+
+            modelChart = new Chart(document.getElementById('modelChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: COLORS.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const idx = ctx.dataIndex;
+                                    const tokens = data[idx].toLocaleString();
+                                    const cost = costs[idx].toFixed(4);
+                                    return `${ctx.label}: ${tokens} tokens ($${cost})`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 스타일별 차트 업데이트
+        function updateStyleChart(styleStats) {
+            const labels = styleStats.map(s => s.style_name || '미지정');
+            const data = styleStats.map(s => s.count || 0);
+
+            if (styleChart) styleChart.destroy();
+
+            styleChart = new Chart(document.getElementById('styleChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '사용 횟수',
+                        data: data,
+                        backgroundColor: COLORS.slice(0, labels.length),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // 일별 차트 업데이트
+        function updateDailyChart(dailyStats) {
+            const labels = dailyStats.map(d => d.date);
+            const tokens = dailyStats.map(d => d.total_tokens || 0);
+            const costs = dailyStats.map(d => (d.total_cost || 0) * USD_TO_KRW);
+
+            if (dailyChart) dailyChart.destroy();
+
+            dailyChart = new Chart(document.getElementById('dailyChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '토큰 사용량',
+                            data: tokens,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '비용 (KRW)',
+                            data: costs,
+                            borderColor: '#f5576c',
+                            backgroundColor: 'rgba(245, 87, 108, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: '토큰' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'KRW' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 페이지 로드 시 통계 로드
+        loadUsageStats(1);
+    </script>
 </body>
 </html>

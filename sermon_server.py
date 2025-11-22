@@ -185,6 +185,38 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_step1_created_at
             ON step1_analyses(created_at DESC)
         ''')
+
+        # API 사용량 로그 테이블 생성
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_usage_logs (
+                id SERIAL PRIMARY KEY,
+                step_name VARCHAR(50) NOT NULL,
+                model_name VARCHAR(50) NOT NULL,
+                style_name VARCHAR(100),
+                category VARCHAR(100),
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                estimated_cost_usd DECIMAL(10, 6) DEFAULT 0,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_step_name
+            ON api_usage_logs(step_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_model_name
+            ON api_usage_logs(model_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_created_at
+            ON api_usage_logs(created_at DESC)
+        ''')
     else:
         # SQLite: Users 테이블 생성 (Sermon 전용)
         cursor.execute('''
@@ -303,6 +335,38 @@ def init_db():
             ON step1_analyses(created_at DESC)
         ''')
 
+        # API 사용량 로그 테이블 생성 (SQLite)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS api_usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                step_name TEXT NOT NULL,
+                model_name TEXT NOT NULL,
+                style_name TEXT,
+                category TEXT,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                estimated_cost_usd REAL DEFAULT 0,
+                user_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_step_name
+            ON api_usage_logs(step_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_model_name
+            ON api_usage_logs(model_name)
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_usage_created_at
+            ON api_usage_logs(created_at DESC)
+        ''')
+
     conn.commit()
     conn.close()
 
@@ -348,6 +412,49 @@ def set_setting(key, value, description=None):
         return True
     except Exception as e:
         print(f"[SETTING] 저장 실패: {e}")
+        return False
+
+
+# ===== API 사용량 기록 함수 =====
+MODEL_PRICING = {
+    # 모델별 가격 (USD per 1M tokens) - input/output
+    'gpt-4o': {'input': 2.5, 'output': 10.0},
+    'gpt-4o-mini': {'input': 0.15, 'output': 0.6},
+    'gpt-5': {'input': 5.0, 'output': 20.0},
+    'gpt-5.1': {'input': 7.5, 'output': 30.0},
+}
+
+def calculate_cost(model_name, input_tokens, output_tokens):
+    """모델과 토큰 수로 비용 계산 (USD)"""
+    pricing = MODEL_PRICING.get(model_name, MODEL_PRICING['gpt-4o'])
+    input_cost = (input_tokens / 1_000_000) * pricing['input']
+    output_cost = (output_tokens / 1_000_000) * pricing['output']
+    return input_cost + output_cost
+
+def log_api_usage(step_name, model_name, input_tokens=0, output_tokens=0, style_name=None, category=None, user_id=None):
+    """API 사용량을 DB에 기록"""
+    try:
+        total_tokens = input_tokens + output_tokens
+        estimated_cost = calculate_cost(model_name, input_tokens, output_tokens)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO api_usage_logs (step_name, model_name, style_name, category, input_tokens, output_tokens, total_tokens, estimated_cost_usd, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (step_name, model_name, style_name, category, input_tokens, output_tokens, total_tokens, estimated_cost, user_id))
+        else:
+            cursor.execute('''
+                INSERT INTO api_usage_logs (step_name, model_name, style_name, category, input_tokens, output_tokens, total_tokens, estimated_cost_usd, user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (step_name, model_name, style_name, category, input_tokens, output_tokens, total_tokens, estimated_cost, user_id))
+        conn.commit()
+        conn.close()
+        print(f"[USAGE-LOG] {step_name} - {model_name}: {total_tokens} tokens, ${estimated_cost:.6f}")
+        return True
+    except Exception as e:
+        print(f"[USAGE-LOG] 기록 실패: {e}")
         return False
 
 
@@ -867,6 +974,143 @@ def admin_benchmark_data():
         return f"데이터 조회 오류: {str(e)}", 500
 
 
+@app.route('/api/admin/usage-stats')
+@admin_required
+def api_usage_stats():
+    """관리자: 사용량 통계 API"""
+    days = int(request.args.get('days', 7))  # 1, 7, 30
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 날짜 필터 (PostgreSQL과 SQLite 차이)
+        if USE_POSTGRES:
+            date_filter = f"created_at >= NOW() - INTERVAL '{days} days'"
+
+            # 모델별 사용량
+            cursor.execute(f"""
+                SELECT model_name,
+                       COUNT(*) as count,
+                       SUM(input_tokens) as total_input,
+                       SUM(output_tokens) as total_output,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+                GROUP BY model_name
+                ORDER BY total_tokens DESC
+            """)
+            model_stats = cursor.fetchall()
+
+            # 스타일별 사용량
+            cursor.execute(f"""
+                SELECT style_name,
+                       COUNT(*) as count,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter} AND style_name IS NOT NULL AND style_name != ''
+                GROUP BY style_name
+                ORDER BY count DESC
+            """)
+            style_stats = cursor.fetchall()
+
+            # 일별 사용량 (최근 N일)
+            cursor.execute(f"""
+                SELECT DATE(created_at) as date,
+                       COUNT(*) as count,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+                GROUP BY DATE(created_at)
+                ORDER BY date ASC
+            """)
+            daily_stats = cursor.fetchall()
+
+            # 전체 합계
+            cursor.execute(f"""
+                SELECT COUNT(*) as total_calls,
+                       SUM(input_tokens) as total_input,
+                       SUM(output_tokens) as total_output,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+            """)
+            totals = cursor.fetchone()
+
+        else:
+            # SQLite
+            date_filter = f"created_at >= datetime('now', '-{days} days')"
+
+            cursor.execute(f"""
+                SELECT model_name,
+                       COUNT(*) as count,
+                       SUM(input_tokens) as total_input,
+                       SUM(output_tokens) as total_output,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+                GROUP BY model_name
+                ORDER BY total_tokens DESC
+            """)
+            model_stats = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT style_name,
+                       COUNT(*) as count,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter} AND style_name IS NOT NULL AND style_name != ''
+                GROUP BY style_name
+                ORDER BY count DESC
+            """)
+            style_stats = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT DATE(created_at) as date,
+                       COUNT(*) as count,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+                GROUP BY DATE(created_at)
+                ORDER BY date ASC
+            """)
+            daily_stats = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT COUNT(*) as total_calls,
+                       SUM(input_tokens) as total_input,
+                       SUM(output_tokens) as total_output,
+                       SUM(total_tokens) as total_tokens,
+                       SUM(estimated_cost_usd) as total_cost
+                FROM api_usage_logs
+                WHERE {date_filter}
+            """)
+            totals = cursor.fetchone()
+
+        conn.close()
+
+        # 결과 포맷팅
+        return jsonify({
+            "ok": True,
+            "days": days,
+            "modelStats": [dict(row) for row in model_stats],
+            "styleStats": [dict(row) for row in style_stats],
+            "dailyStats": [dict(row) for row in daily_stats],
+            "totals": dict(totals) if totals else {}
+        })
+
+    except Exception as e:
+        print(f"[USAGE-STATS] 오류: {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 def format_json_result(json_data, indent=0):
     """JSON 데이터를 보기 좋은 텍스트 형식으로 변환 (재귀적 처리)"""
     result = []
@@ -1126,6 +1370,15 @@ def api_process_step():
                 "output_tokens": completion.usage.completion_tokens,
                 "total_tokens": completion.usage.total_tokens
             }
+            # 사용량 기록
+            log_api_usage(
+                step_name=step_id or step_type or 'step',
+                model_name=model_name,
+                input_tokens=usage_data['input_tokens'],
+                output_tokens=usage_data['output_tokens'],
+                style_name=data.get('styleName'),
+                category=category
+            )
 
         # 제목 추천 단계는 JSON 파싱하지 않고 그대로 반환
         if '제목' in step_name:
@@ -1394,6 +1647,17 @@ def api_gpt_pro():
 
         if not result:
             raise RuntimeError(f"{gpt_pro_model} API로부터 결과를 받지 못했습니다.")
+
+        # 사용량 기록
+        if usage_data:
+            log_api_usage(
+                step_name='step3',
+                model_name=gpt_pro_model,
+                input_tokens=usage_data.get('input_tokens', 0),
+                output_tokens=usage_data.get('output_tokens', 0),
+                style_name=style_name,
+                category=category
+            )
 
         # 마크다운 제거
         result = remove_markdown(result)
