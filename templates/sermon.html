@@ -2324,6 +2324,36 @@
     });
   }
 
+  // Step2 결과를 서론까지만 표시하는 함수
+  function truncateToIntro(text) {
+    if (!text) return '';
+
+    // 서론 이후의 패턴들 (본론, 1대지, 대지1, 첫 번째, Conflict 등)
+    const cutoffPatterns = [
+      /\n\s*(본론|1대지|대지\s*1|첫\s*번째|First|Conflict|본문\s*1|I\.|1\.|하나\.|첫째)/i,
+      /\n\s*[-=]{3,}/,  // 구분선
+    ];
+
+    let cutIndex = text.length;
+
+    for (const pattern of cutoffPatterns) {
+      const match = text.match(pattern);
+      if (match && match.index < cutIndex) {
+        cutIndex = match.index;
+      }
+    }
+
+    // 서론 부분만 추출
+    let intro = text.substring(0, cutIndex).trim();
+
+    // 최소 100자 이상은 보여주기
+    if (intro.length < 100 && text.length > 100) {
+      intro = text.substring(0, 300).trim();
+    }
+
+    return intro;
+  }
+
   function renderResultBoxes() {
     const steps = getCurrentSteps();
     const container = document.getElementById('result-boxes');
@@ -2336,23 +2366,44 @@
       updateNotice.style.display = steps.length === 0 ? 'block' : 'none';
     }
 
-    container.innerHTML = steps.map(step => `
-      <div class="box ${step.id === 'step2' ? 'step2-box' : ''}">
-        <label class="label">${step.name}</label>
-        <div class="${step.id === 'step2' ? 'step2-content-wrapper' : ''}">
-          <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
-          ${step.id === 'step2' ? '<div class="step2-gradient-overlay"></div>' : ''}
-        </div>
-      </div>
-    `).join('');
+    container.innerHTML = steps.map(step => {
+      if (step.id === 'step2') {
+        // Step2는 서론까지만 표시 + 더보기 표시
+        return `
+          <div class="box step2-box">
+            <label class="label">${step.name}</label>
+            <div class="step2-content-wrapper">
+              <textarea id="result-${step.id}" class="autosize" style="min-height: 100px; max-height: 150px;" readonly placeholder="${step.name} 결과가 표시됩니다."></textarea>
+              <div class="step2-gradient-overlay"></div>
+            </div>
+            <div style="text-align: center; color: #999; font-size: .85rem; padding: .5rem; border-top: 1px dashed #ddd; margin-top: .3rem;">
+              -<br>-<br>-<br>
+              <span style="font-size: .75rem;">이하 내용 생략</span>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="box">
+            <label class="label">${step.name}</label>
+            <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
+          </div>
+        `;
+      }
+    }).join('');
 
     // 결과 복원 및 자동 높이
     steps.forEach(step => {
       if (stepResults[step.id]) {
         const textarea = document.getElementById(`result-${step.id}`);
         if (textarea) {
-          textarea.value = stepResults[step.id];
-          autoResize(textarea);
+          // Step2는 서론까지만 표시
+          if (step.id === 'step2') {
+            textarea.value = truncateToIntro(stepResults[step.id]);
+          } else {
+            textarea.value = stepResults[step.id];
+            autoResize(textarea);
+          }
         }
       }
     });
@@ -2455,11 +2506,16 @@
       const data = await response.json();
 
       if (data.ok) {
-        stepResults[stepId] = data.result;
+        stepResults[stepId] = data.result;  // 전체 결과는 저장
         const textarea = document.getElementById(`result-${stepId}`);
         if (textarea) {
-          textarea.value = data.result;
-          autoResize(textarea);
+          // Step2는 서론까지만 표시
+          if (stepId === 'step2') {
+            textarea.value = truncateToIntro(data.result);
+          } else {
+            textarea.value = data.result;
+            autoResize(textarea);
+          }
         }
 
         // 제목 추천 단계인 경우 라디오 버튼 표시
