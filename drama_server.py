@@ -1355,6 +1355,95 @@ S#1. 카페 내부 / 낮
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== AI 챗봇 API =====
+@app.route('/api/drama/chat', methods=['POST'])
+def api_drama_chat():
+    """드라마 페이지 AI 챗봇 - 현재 작업 상황에 대해 질문/답변"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        question = data.get("question", "")
+        context = data.get("context", {})  # 현재 작업 상태
+
+        if not question:
+            return jsonify({"ok": False, "error": "질문을 입력해주세요."}), 400
+
+        print(f"[DRAMA-CHAT] 질문: {question[:100]}...")
+
+        # 컨텍스트 구성
+        context_text = ""
+
+        # 워크플로우 박스 결과들
+        if context.get("workflowResults"):
+            context_text += "【현재 작업 상태】\n"
+            for box in context.get("workflowResults", []):
+                if box.get("result"):
+                    context_text += f"\n## {box.get('name', '작업 박스')}\n{box.get('result', '')[:2000]}\n"
+
+        # Step3 결과
+        if context.get("step3Result"):
+            context_text += f"\n【Step3 최종 결과】\n{context.get('step3Result', '')[:3000]}\n"
+
+        # 벤치마크 스크립트
+        if context.get("benchmarkScript"):
+            context_text += f"\n【벤치마크 대본 (참고용)】\n{context.get('benchmarkScript', '')[:1500]}\n"
+
+        # 오류 정보
+        if context.get("lastError"):
+            context_text += f"\n【최근 오류】\n{context.get('lastError', '')}\n"
+
+        # 시스템 프롬프트
+        system_prompt = """당신은 드라마 대본 작성을 돕는 AI 어시스턴트입니다.
+사용자가 현재 작업 중인 드라마 대본에 대해 질문하면, 주어진 컨텍스트를 바탕으로 도움이 되는 답변을 제공합니다.
+
+역할:
+1. 현재 작업 상황 분석 및 설명
+2. 개선 제안 및 아이디어 제공
+3. 오류나 문제점 해결 도움
+4. 스토리, 캐릭터, 대사 등에 대한 피드백
+5. 다음 단계 진행 가이드
+
+답변 시 유의사항:
+- 간결하고 실용적인 답변을 제공하세요
+- 구체적인 예시나 제안을 포함하세요
+- 한국어로 친절하게 답변하세요
+- 현재 작업 상태를 고려하여 맥락에 맞는 답변을 하세요"""
+
+        # 사용자 메시지 구성
+        user_content = ""
+        if context_text:
+            user_content += f"{context_text}\n\n"
+        user_content += f"【질문】\n{question}"
+
+        # GPT 호출 (gpt-4o-mini 사용)
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        answer = completion.choices[0].message.content.strip()
+
+        # 토큰 사용량
+        usage = {
+            "input_tokens": completion.usage.prompt_tokens,
+            "output_tokens": completion.usage.completion_tokens
+        }
+
+        print(f"[DRAMA-CHAT][SUCCESS] 답변 생성 완료")
+        return jsonify({"ok": True, "answer": answer, "usage": usage})
+
+    except Exception as e:
+        print(f"[DRAMA-CHAT][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))
