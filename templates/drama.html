@@ -32,7 +32,7 @@
       overflow-y: hidden;
     }
     .content-area {
-      flex: 1;
+      flex: 7;
       display: flex;
       flex-direction: column;
       gap: .75rem;
@@ -40,7 +40,7 @@
       min-width: 0;
     }
     .analysis-area {
-      flex: 1;
+      flex: 3;
       display: flex;
       flex-direction: column;
       gap: .75rem;
@@ -546,39 +546,28 @@
 
     <!-- 가운데 - 워크플로우 영역 -->
     <div class="content-area">
-      <!-- 워크플로우 박스 추가 버튼 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-add-step1-box" style="padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.3); transition: all 0.2s ease;">➕ Step1 박스 추가</button>
-        <button id="btn-add-step2-box" style="padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.3); transition: all 0.2s ease;">➕ Step2 박스 추가</button>
+      <!-- Step1 컨트롤 (한 줄) -->
+      <div style="display: flex; gap: .3rem; margin-bottom: .5rem; align-items: center;">
+        <button id="btn-add-step1-box" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ 박스추가</button>
+        <button id="btn-auto-execute-step1" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 순차실행</button>
+        <button id="btn-copy-step1-results" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📋 복사</button>
+        <button id="btn-toggle-step1" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: #fff; color: #ff6b6b; border: 2px solid #ff6b6b; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 접기/펼치기</button>
+        <span style="font-size: .7rem; color: #ff6b6b; font-weight: 700; min-width: 40px;">Step1</span>
       </div>
 
-      <!-- Step3 (Claude) 대본 완성 버튼 -->
-      <div style="margin-bottom: .75rem;">
-        <button id="btn-execute-step3" style="width: 100%; padding: .8rem; font-size: 1rem; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 16px rgba(243,156,18,.4); transition: all 0.2s ease;">
-          🎬 Step3: Claude 대본 완성
-        </button>
-        <div style="font-size: .75rem; color: #666; margin-top: .3rem; text-align: center;">
-          Claude Sonnet 3.5를 사용하여 Step1/Step2 결과를 바탕으로 완성된 대본을 생성합니다.
-        </div>
+      <!-- Step2 컨트롤 (한 줄) -->
+      <div style="display: flex; gap: .3rem; margin-bottom: .5rem; align-items: center;">
+        <button id="btn-add-step2-box" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ 박스추가</button>
+        <button id="btn-auto-execute-step2" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 순차실행</button>
+        <button id="btn-copy-step2-results" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📋 복사</button>
+        <button id="btn-toggle-step2" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: #fff; color: #4ecdc4; border: 2px solid #4ecdc4; border-radius: 6px; cursor: pointer; font-weight: 600;">🔽 접기/펼치기</button>
+        <span style="font-size: .7rem; color: #4ecdc4; font-weight: 700; min-width: 40px;">Step2</span>
       </div>
 
-      <!-- 순차 실행 버튼 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-auto-execute-step1" style="padding: .55rem; font-size: .8rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.3); transition: all 0.2s ease;">⚡ Step1 순차실행</button>
-        <button id="btn-auto-execute-step2" style="padding: .55rem; font-size: .8rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.3); transition: all 0.2s ease;">⚡ Step2 순차실행</button>
-        <button id="btn-auto-execute-all" style="padding: .55rem; font-size: .8rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(102,126,234,.3); transition: all 0.2s ease;">⚡ 전체 순차실행</button>
-      </div>
-
-      <!-- 복사 버튼 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-copy-step1-results" style="padding: .55rem; font-size: .85rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(255,107,107,.25); transition: all 0.2s ease;">📋 Step1 복사</button>
-        <button id="btn-copy-step2-results" style="padding: .55rem; font-size: .85rem; background: linear-gradient(135deg, #4ecdc4 0%, #44a3c2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(78,205,196,.25); transition: all 0.2s ease;">📋 Step2 복사</button>
-      </div>
-
-      <!-- Step 접기/펼치기 버튼 -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem;">
-        <button id="btn-toggle-step1" style="padding: .5rem; font-size: .8rem; background: #fff; color: #ff6b6b; border: 2px solid #ff6b6b; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s ease;">🔽 Step1 접기/펼치기</button>
-        <button id="btn-toggle-step2" style="padding: .5rem; font-size: .8rem; background: #fff; color: #4ecdc4; border: 2px solid #4ecdc4; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s ease;">🔽 Step2 접기/펼치기</button>
+      <!-- 전체 순차실행 + Step3 -->
+      <div style="display: flex; gap: .3rem; margin-bottom: .75rem; align-items: center;">
+        <button id="btn-auto-execute-all" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 전체 순차실행</button>
+        <button id="btn-execute-step3" style="flex: 2; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">🎬 Step3: OpenRouter 대본완성</button>
       </div>
 
       <!-- 상태 표시 -->
@@ -590,7 +579,7 @@
       <!-- Step3 결과 박스 -->
       <div id="step3-result-container" class="step3-result-box" style="display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
-          <div class="label">🎬 Step3: Claude 대본 완성 결과</div>
+          <div class="label">🎬 Step3: OpenRouter 대본 완성 결과</div>
           <div style="display: flex; gap: .5rem;">
             <button id="btn-copy-step3-result" style="padding: .4rem .8rem; background: white; color: #f39c12; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📋 복사</button>
             <button id="btn-clear-step3-result" style="padding: .4rem .8rem; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">🗑️ 지우기</button>
@@ -1216,7 +1205,7 @@
     });
   }
 
-  // ===== Step3 (Claude) 대본 완성 기능 =====
+  // ===== Step3 (OpenRouter) 대본 완성 기능 =====
   async function executeStep3() {
     // Step2 결과만 수집 (Step2에서 새로운 대본 제작한 결과)
     let draftContent = '';
@@ -1247,8 +1236,8 @@
     const analysisResult = document.getElementById('analysis-result')?.textContent || '';
 
     // 로딩 표시
-    showLoadingOverlay('Claude 대본 완성 중', 'Claude Sonnet 3.5가 대본을 작성하고 있습니다...');
-    showStatus('🎬 Step3: Claude 대본 완성 중... (약 30-60초 소요)');
+    showLoadingOverlay('OpenRouter 대본 완성 중', 'AI가 대본을 작성하고 있습니다...');
+    showStatus('🎬 Step3: OpenRouter 대본 완성 중... (약 30-60초 소요)');
 
     try {
       const response = await fetch('/api/drama/claude-step3', {
@@ -1288,7 +1277,7 @@
           resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        showStatus('✅ Step3: Claude 대본 완성!');
+        showStatus('✅ Step3: OpenRouter 대본 완성!');
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ Step3 실패');
@@ -2278,12 +2267,12 @@
   let aiModelSettings = JSON.parse(localStorage.getItem('_drama-ai-models') || 'null') || {
     step1: 'gpt-4o-mini',
     step2: 'gpt-4o-mini',
-    step3: 'claude-sonnet-4-20250514',
+    step3: 'anthropic/claude-3.5-sonnet',
     benchmarkAnalysis: 'gpt-4o-mini',
     gptPro: 'gpt-5.1'
   };
 
-  // 사용 가능한 모델 목록
+  // 사용 가능한 모델 목록 (OpenRouter 형식)
   const availableModels = {
     openai: [
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini (빠름, 저렴)' },
@@ -2291,10 +2280,12 @@
       { id: 'gpt-5', name: 'GPT-5 (고품질)' },
       { id: 'gpt-5.1', name: 'GPT-5.1 (최신)' }
     ],
-    anthropic: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4 (최신)' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku (빠름)' }
+    openrouter: [
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet (추천)' },
+      { id: 'anthropic/claude-3.5-sonnet:beta', name: 'Claude 3.5 Sonnet Beta' },
+      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku (빠름, 저렴)' },
+      { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5' },
+      { id: 'meta-llama/llama-3.1-70b-instruct', name: 'Llama 3.1 70B' }
     ]
   };
 
@@ -2330,11 +2321,11 @@
             </select>
           </div>
 
-          <!-- Step3 모델 (Claude) -->
+          <!-- Step3 모델 (OpenRouter) -->
           <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
-            <label style="font-weight: 600; font-size: .85rem; color: #f39c12; display: block; margin-bottom: .4rem;">Step3 (Claude 대본 완성)</label>
+            <label style="font-weight: 600; font-size: .85rem; color: #f39c12; display: block; margin-bottom: .4rem;">Step3 (OpenRouter 대본 완성)</label>
             <select id="model-step3" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
-              ${availableModels.anthropic.map(m => `<option value="${m.id}" ${aiModelSettings.step3 === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
+              ${availableModels.openrouter.map(m => `<option value="${m.id}" ${aiModelSettings.step3 === m.id ? 'selected' : ''}>${m.name}</option>`).join('')}
             </select>
           </div>
 
@@ -2400,12 +2391,12 @@
       html += `</div></div>`;
     }
 
-    // Step3 지침 (Claude 대본 완성)
+    // Step3 지침 (OpenRouter 대본 완성)
     html += `<div style="margin-bottom: 1rem;">
-      <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🎬 Step3 지침 (Claude 대본 완성)</div>
+      <div style="background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🎬 Step3 지침 (OpenRouter 대본 완성)</div>
       <div style="background: #fffbf0; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #f39c12; border-top: none;">
         <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
-          Claude Sonnet 3.5가 최종 대본을 작성할 때 참고할 지침입니다.
+          OpenRouter AI가 최종 대본을 작성할 때 참고할 지침입니다.
         </div>
         <textarea
           id="modal-guide-step3"
