@@ -1239,6 +1239,12 @@
     const step3GuideTextarea = document.getElementById('modal-guide-step3');
     const currentStep3Guide = step3GuideTextarea ? step3GuideTextarea.value : step3Guide;
 
+    // 디버그: step3Guide 값 확인
+    console.log('[Step3 Debug] textarea exists:', !!step3GuideTextarea);
+    console.log('[Step3 Debug] textarea value:', step3GuideTextarea?.value);
+    console.log('[Step3 Debug] global step3Guide:', step3Guide);
+    console.log('[Step3 Debug] currentStep3Guide to send:', currentStep3Guide);
+
     // 로딩 표시
     showLoadingOverlay('OpenRouter 대본 완성 중', 'AI가 대본을 작성하고 있습니다...');
     showStatus('🎬 Step3: OpenRouter 대본 완성 중... (약 30-60초 소요)');

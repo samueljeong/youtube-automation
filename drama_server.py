@@ -1160,6 +1160,7 @@ def api_drama_claude_step3():
         selected_model = data.get("model", "anthropic/claude-3.5-sonnet")
 
         print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 카테고리: {category}, 모델: {selected_model}")
+        print(f"[DRAMA-STEP3-DEBUG] step3_guide 길이: {len(step3_guide)}, 내용: {step3_guide[:100] if step3_guide else '(없음)'}...")
 
         # Claude Step3 시스템 프롬프트 (드라마 대본 완성 전용)
         system_content = """당신은 Claude Sonnet 기반의 전문 드라마 대본 작가입니다.
