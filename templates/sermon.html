@@ -1162,15 +1162,31 @@
 
         <!-- Step3 지침 수정 -->
         <div style="margin-bottom: 1.5rem;">
-          <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📝 Step3 지침 (설교문 작성)</div>
+          <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📝 Step3 시스템 지침</div>
           <div style="background: #fff5f8; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #f5576c; border-top: none;">
             <div style="font-size: .85rem; color: #666; margin-bottom: .75rem;">
-              설교문 작성 시 AI에게 전달되는 시스템 지침입니다. 직접 수정하여 원하는 스타일로 설교문을 생성할 수 있습니다.
+              설교문 작성 시 AI에게 전달되는 시스템 지침입니다. AI의 역할과 기본 성격을 정의합니다.
             </div>
             <textarea id="step3-system-prompt" style="width: 100%; min-height: 200px; padding: .75rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; line-height: 1.5; resize: vertical;" placeholder="Step3 시스템 지침..."></textarea>
             <div class="btn-row" style="margin-top: .75rem; gap: .5rem;">
-              <button id="btn-save-step3-prompt" class="primary" style="flex: 1;">Step3 지침 저장</button>
+              <button id="btn-save-step3-prompt" class="primary" style="flex: 1;">시스템 지침 저장</button>
               <button id="btn-reset-step3-prompt" style="flex: 1;">기본값 복원</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step3 요청 사항 -->
+        <div style="margin-bottom: 1.5rem;">
+          <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📋 Step3 요청 사항</div>
+          <div style="background: #f0fff4; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #38ef7d; border-top: none;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: .75rem;">
+              설교문 작성 시 구체적인 요청 사항입니다. 설교 구조, 포함할 내용, 형식 등을 지정합니다.<br>
+              <span style="color: #e74c3c; font-weight: 600;">※ 스타일별로 다른 요청 사항이 필요하면 스타일명(하몽, 3대지 등)을 조건문처럼 작성하세요.</span>
+            </div>
+            <textarea id="step3-request-prompt" style="width: 100%; min-height: 250px; padding: .75rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; line-height: 1.5; resize: vertical;" placeholder="Step3 요청 사항..."></textarea>
+            <div class="btn-row" style="margin-top: .75rem; gap: .5rem;">
+              <button id="btn-save-step3-request" class="primary" style="flex: 1;">요청 사항 저장</button>
+              <button id="btn-reset-step3-request" style="flex: 1;">기본값 복원</button>
             </div>
           </div>
         </div>
@@ -1578,14 +1594,25 @@
   const DEFAULT_STEP3_PROMPT = `당신은 한국어 설교 전문가입니다.
 자료는 참고용으로만 활용하고 문장은 처음부터 새로 구성하며,
 묵직하고 명료한 어조로 신학적 통찰과 실제적 적용을 균형 있게 제시하세요.
-마크다운 기호 대신 순수 텍스트만 사용합니다.
+마크다운 기호 대신 순수 텍스트만 사용합니다.`;
 
-Step2의 설교 구조를 반드시 따라 작성하세요:
-- Step2에서 제시한 서론, 본론, 결론 구조를 그대로 사용
-- Step2의 대지(포인트) 구성을 유지
-- 각 섹션의 핵심 메시지를 확장하여 풍성하게 작성
+  const DEFAULT_STEP3_REQUEST = `【공통 요청 사항】
+1. Step2의 설교 구조(서론, 본론, 결론)를 반드시 따라 작성하세요.
+2. Step2의 대지(포인트) 구성을 유지하고 각 섹션의 핵심 메시지를 확장하세요.
+3. 역사적 배경, 신학적 통찰, 실제 적용을 균형 있게 제시하세요.
+4. 관련 성경구절을 적절히 인용하세요.
+5. 가독성을 위해 각 섹션 사이에 빈 줄을 넣으세요.
+6. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하세요.
+7. 충분히 길고 상세하며 풍성한 내용으로 작성해주세요.
 
-⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요.`;
+【서론 작성 시】
+- Step2에서 아이스브레이킹이 있다면 반드시 서론 도입부에 포함하세요.
+- 청중의 관심을 끌 수 있는 도입으로 시작하세요.
+
+【결론 작성 시】
+- 실천 사항은 간결하게 1-2개만 제시하세요.
+- 기도제목도 간결하게 1-2개만 제시하세요.
+- 마무리 기도문은 짧게 작성하세요.`;
 
   // ===== 모델 설정 관리 =====
   function getModelSettings(category) {
@@ -1596,7 +1623,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         step2: 'gpt-4o',
         gptPro: 'gpt-5',
         step3MaxTokens: 16000,
-        step3Prompt: DEFAULT_STEP3_PROMPT
+        step3Prompt: DEFAULT_STEP3_PROMPT,
+        step3Request: DEFAULT_STEP3_REQUEST
       };
     }
     // 기존 설정에 새 필드가 없으면 추가
@@ -1605,6 +1633,9 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     }
     if (!settings.modelSettings.step3Prompt) {
       settings.modelSettings.step3Prompt = DEFAULT_STEP3_PROMPT;
+    }
+    if (!settings.modelSettings.step3Request) {
+      settings.modelSettings.step3Request = DEFAULT_STEP3_REQUEST;
     }
     return settings.modelSettings;
   }
@@ -1616,12 +1647,14 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const gptProSelect = document.getElementById('model-gpt-pro');
     const step3MaxTokensInput = document.getElementById('step3-max-tokens');
     const step3PromptTextarea = document.getElementById('step3-system-prompt');
+    const step3RequestTextarea = document.getElementById('step3-request-prompt');
 
     if (step1Select) step1Select.value = modelSettings.step1;
     if (step2Select) step2Select.value = modelSettings.step2;
     if (gptProSelect) gptProSelect.value = modelSettings.gptPro;
     if (step3MaxTokensInput) step3MaxTokensInput.value = modelSettings.step3MaxTokens;
     if (step3PromptTextarea) step3PromptTextarea.value = modelSettings.step3Prompt;
+    if (step3RequestTextarea) step3RequestTextarea.value = modelSettings.step3Request;
   }
 
   async function saveModelSettings() {
@@ -1654,6 +1687,24 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const step3PromptTextarea = document.getElementById('step3-system-prompt');
     if (step3PromptTextarea) {
       step3PromptTextarea.value = DEFAULT_STEP3_PROMPT;
+    }
+  }
+
+  async function saveStep3Request() {
+    const step3RequestTextarea = document.getElementById('step3-request-prompt');
+    if (!step3RequestTextarea) return;
+
+    const modelSettings = getModelSettings(currentCategory);
+    modelSettings.step3Request = step3RequestTextarea.value;
+    await saveConfig();
+    showStatus('✅ Step3 요청 사항 저장됨');
+    setTimeout(hideStatus, 2000);
+  }
+
+  function resetStep3Request() {
+    const step3RequestTextarea = document.getElementById('step3-request-prompt');
+    if (step3RequestTextarea) {
+      step3RequestTextarea.value = DEFAULT_STEP3_REQUEST;
     }
   }
 
@@ -2417,6 +2468,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     console.log(`[Step3] 스타일별 토큰 설정 - styleId: ${currentStyleId}, styleToken: ${styleToken}, 사용토큰: ${step3MaxTokens}`);
 
     const step3Prompt = modelSettings.step3Prompt || DEFAULT_STEP3_PROMPT;
+    const step3Request = modelSettings.step3Request || DEFAULT_STEP3_REQUEST;
 
     showGptLoading(); // 로딩 오버레이 표시
     const tokenInfo = styleToken ? `스타일 토큰: ${step3MaxTokens}` : `기본 토큰: ${step3MaxTokens}`;
@@ -2429,7 +2481,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         body: JSON.stringify({
           model: gptProModel, // 선택된 모델 전달
           maxTokens: step3MaxTokens, // 최대 토큰량
-          customSystemPrompt: step3Prompt, // 사용자 정의 지침
+          customSystemPrompt: step3Prompt, // 사용자 정의 시스템 지침
+          customRequestPrompt: step3Request, // 사용자 정의 요청 사항
           reference: draft.meta.reference,
           title: draft.meta.finalTitle,
           seriesName: draft.meta.seriesName,
@@ -4195,6 +4248,21 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (btnResetStep3Prompt) {
       btnResetStep3Prompt.addEventListener('click', () => {
         resetStep3Prompt();
+        showStatus('✅ 기본값 복원됨 (저장하려면 저장 버튼 클릭)');
+        setTimeout(hideStatus, 2000);
+      });
+    }
+
+    // Step3 요청 사항 버튼 이벤트 리스너
+    const btnSaveStep3Request = document.getElementById('btn-save-step3-request');
+    if (btnSaveStep3Request) {
+      btnSaveStep3Request.addEventListener('click', saveStep3Request);
+    }
+
+    const btnResetStep3Request = document.getElementById('btn-reset-step3-request');
+    if (btnResetStep3Request) {
+      btnResetStep3Request.addEventListener('click', () => {
+        resetStep3Request();
         showStatus('✅ 기본값 복원됨 (저장하려면 저장 버튼 클릭)');
         setTimeout(hideStatus, 2000);
       });
