@@ -1347,7 +1347,14 @@
     <div class="modal-content" style="max-width: 600px; height: 70vh; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <div class="modal-title" style="margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🤖 AI 도우미</div>
-        <button id="btn-close-sermon-chatbot" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+        <div style="display: flex; gap: .5rem; align-items: center;">
+          <select id="sermon-chat-model" style="padding: .4rem .6rem; border-radius: 6px; border: 1px solid #ddd; font-size: .8rem; cursor: pointer;">
+            <option value="gpt-4o-mini">GPT-4o Mini (빠름)</option>
+            <option value="gpt-4o">GPT-4o (균형)</option>
+            <option value="gpt-5">GPT-5 (강력)</option>
+          </select>
+          <button id="btn-close-sermon-chatbot" style="background: transparent; border: none; font-size: 1.5rem; cursor: pointer; padding: 0; color: #999;">&times;</button>
+        </div>
       </div>
       <div style="font-size: .85rem; color: #666; margin-bottom: 1rem; padding: .75rem; background: #f8f9fa; border-radius: 8px;">
         설교문 작성 과정에서 궁금한 점을 질문해보세요.<br>
@@ -2494,7 +2501,26 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         })
       });
 
-      const data = await response.json();
+      // 응답 상태 확인
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = `Step3 서버 오류 (${response.status}): ${errorText.substring(0, 200)}`;
+        console.error('[Step3]', errorMsg);
+        window.setLastSermonError && window.setLastSermonError(errorMsg);
+        throw new Error(`서버 응답 오류 (${response.status})`);
+      }
+
+      // JSON 파싱 시도
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        const errorMsg = `Step3 응답 파싱 오류: 서버가 잘못된 응답을 반환했습니다. (${responseText.substring(0, 100)}...)`;
+        console.error('[Step3]', errorMsg);
+        window.setLastSermonError && window.setLastSermonError(errorMsg);
+        throw new Error('서버 응답이 올바른 JSON 형식이 아닙니다. 잠시 후 다시 시도해주세요.');
+      }
 
       if (data.ok) {
         const resultTextarea = document.getElementById('gpt-pro-result');
@@ -4288,11 +4314,15 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     addSermonChatMessage('user', question);
     sermonChatInput.value = '';
 
+    // 선택된 모델 가져오기
+    const modelSelect = document.getElementById('sermon-chat-model');
+    const selectedModel = modelSelect ? modelSelect.value : 'gpt-4o-mini';
+
     // 로딩 표시
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'sermon-chat-loading';
     loadingDiv.style.cssText = 'margin-bottom: .75rem; padding: .6rem .8rem; background: white; border-radius: 8px; margin-right: 20%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);';
-    loadingDiv.innerHTML = '<div style="font-size: .85rem; color: #999;">🤔 생각 중...</div>';
+    loadingDiv.innerHTML = `<div style="font-size: .85rem; color: #999;">🤔 ${selectedModel}로 생각 중...</div>`;
     sermonChatMessages.appendChild(loadingDiv);
     sermonChatMessages.scrollTop = sermonChatMessages.scrollHeight;
 
@@ -4302,7 +4332,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           question: question,
-          context: collectSermonContext()
+          context: collectSermonContext(),
+          model: selectedModel
         })
       });
 

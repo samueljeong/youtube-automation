@@ -614,7 +614,14 @@
 
       <!-- AI 챗봇 박스 -->
       <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 1rem; flex: 1; display: flex; flex-direction: column;">
-        <div style="color: white; font-weight: 600; font-size: 1.1rem; margin-bottom: .75rem;">🤖 AI 도우미</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+          <div style="color: white; font-weight: 600; font-size: 1.1rem;">🤖 AI 도우미</div>
+          <select id="drama-chat-model" style="padding: .3rem .5rem; border-radius: 6px; border: none; font-size: .75rem; background: rgba(255,255,255,0.9); color: #333; cursor: pointer;">
+            <option value="gpt-4o-mini">GPT-4o Mini (빠름)</option>
+            <option value="gpt-4o">GPT-4o (균형)</option>
+            <option value="gpt-5">GPT-5 (강력)</option>
+          </select>
+        </div>
         <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .75rem;">
           현재 작업에 대해 질문하세요. AI가 분석하고 답변해드립니다.
         </div>
@@ -3182,11 +3189,15 @@
     addChatMessage('user', question);
     chatInput.value = '';
 
+    // 선택된 모델 가져오기
+    const modelSelect = document.getElementById('drama-chat-model');
+    const selectedModel = modelSelect ? modelSelect.value : 'gpt-4o-mini';
+
     // 로딩 표시
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'chat-loading';
     loadingDiv.style.cssText = 'margin-bottom: .75rem; padding: .6rem .8rem; background: #f0f0f0; border-radius: 8px; margin-right: 20%;';
-    loadingDiv.innerHTML = '<div style="font-size: .85rem; color: #999;">🤔 생각 중...</div>';
+    loadingDiv.innerHTML = `<div style="font-size: .85rem; color: #999;">🤔 ${selectedModel}로 생각 중...</div>`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -3196,7 +3207,8 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           question: question,
-          context: collectDramaContext()
+          context: collectDramaContext(),
+          model: selectedModel
         })
       });
 

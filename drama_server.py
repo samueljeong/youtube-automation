@@ -1366,11 +1366,17 @@ def api_drama_chat():
 
         question = data.get("question", "")
         context = data.get("context", {})  # 현재 작업 상태
+        selected_model = data.get("model", "gpt-4o-mini")  # 선택된 모델
+
+        # 허용된 모델 목록
+        allowed_models = ["gpt-4o-mini", "gpt-4o", "gpt-5"]
+        if selected_model not in allowed_models:
+            selected_model = "gpt-4o-mini"
 
         if not question:
             return jsonify({"ok": False, "error": "질문을 입력해주세요."}), 400
 
-        print(f"[DRAMA-CHAT] 질문: {question[:100]}...")
+        print(f"[DRAMA-CHAT] 모델: {selected_model}, 질문: {question[:100]}...")
 
         # 컨텍스트 구성
         context_text = ""
@@ -1417,15 +1423,15 @@ def api_drama_chat():
             user_content += f"{context_text}\n\n"
         user_content += f"【질문】\n{question}"
 
-        # GPT 호출 (gpt-4o-mini 사용)
+        # GPT 호출 (선택된 모델 사용)
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=selected_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
             temperature=0.7,
-            max_tokens=2000
+            max_tokens=4000 if selected_model in ["gpt-4o", "gpt-5"] else 2000
         )
 
         answer = completion.choices[0].message.content.strip()
@@ -1433,10 +1439,11 @@ def api_drama_chat():
         # 토큰 사용량
         usage = {
             "input_tokens": completion.usage.prompt_tokens,
-            "output_tokens": completion.usage.completion_tokens
+            "output_tokens": completion.usage.completion_tokens,
+            "model": selected_model
         }
 
-        print(f"[DRAMA-CHAT][SUCCESS] 답변 생성 완료")
+        print(f"[DRAMA-CHAT][SUCCESS] {selected_model}로 답변 생성 완료")
         return jsonify({"ok": True, "answer": answer, "usage": usage})
 
     except Exception as e:
