@@ -2494,7 +2494,26 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         })
       });
 
-      const data = await response.json();
+      // 응답 상태 확인
+      if (!response.ok) {
+        const errorText = await response.text();
+        const errorMsg = `Step3 서버 오류 (${response.status}): ${errorText.substring(0, 200)}`;
+        console.error('[Step3]', errorMsg);
+        window.setLastSermonError && window.setLastSermonError(errorMsg);
+        throw new Error(`서버 응답 오류 (${response.status})`);
+      }
+
+      // JSON 파싱 시도
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        const errorMsg = `Step3 응답 파싱 오류: 서버가 잘못된 응답을 반환했습니다. (${responseText.substring(0, 100)}...)`;
+        console.error('[Step3]', errorMsg);
+        window.setLastSermonError && window.setLastSermonError(errorMsg);
+        throw new Error('서버 응답이 올바른 JSON 형식이 아닙니다. 잠시 후 다시 시도해주세요.');
+      }
 
       if (data.ok) {
         const resultTextarea = document.getElementById('gpt-pro-result');
