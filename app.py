@@ -1125,16 +1125,30 @@ def api_drama_gpt_pro():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+@app.route('/api/drama/step3-test', methods=['GET'])
+def api_drama_step3_test():
+    """Step3 테스트 엔드포인트"""
+    return jsonify({
+        "ok": True,
+        "openrouter_configured": openrouter_client is not None,
+        "message": "Step3 endpoint is reachable"
+    })
+
+
 @app.route('/api/drama/claude-step3', methods=['POST'])
 def api_drama_claude_step3():
     """Step3: OpenRouter를 통한 드라마 대본 완성"""
     try:
+        print("[DRAMA-STEP3] 요청 받음")
+
         if not openrouter_client:
+            print("[DRAMA-STEP3] OpenRouter 클라이언트 없음")
             return jsonify({"ok": False, "error": "OpenRouter API key not configured. Render 환경변수에 OPENROUTER_API_KEY를 설정해주세요."}), 200
 
         data = request.get_json()
         if not data:
-            return jsonify({"ok": False, "error": "No data received"}), 400
+            print("[DRAMA-STEP3] 데이터 없음")
+            return jsonify({"ok": False, "error": "No data received"}), 200
 
         category = data.get("category", "")
         style_name = data.get("styleName", "")
