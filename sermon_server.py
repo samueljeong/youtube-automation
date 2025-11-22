@@ -453,10 +453,19 @@ def api_process_step():
 
         result = completion.choices[0].message.content.strip()
 
+        # 토큰 사용량 추출
+        usage_data = None
+        if hasattr(completion, 'usage') and completion.usage:
+            usage_data = {
+                "input_tokens": completion.usage.prompt_tokens,
+                "output_tokens": completion.usage.completion_tokens,
+                "total_tokens": completion.usage.total_tokens
+            }
+
         # 제목 추천 단계는 JSON 파싱하지 않고 그대로 반환
         if '제목' in step_name:
             result = remove_markdown(result)
-            return jsonify({"ok": True, "result": result})
+            return jsonify({"ok": True, "result": result, "usage": usage_data})
 
         # JSON 파싱 시도 (선택적)
         try:
@@ -494,7 +503,7 @@ def api_process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": formatted_result})
+            return jsonify({"ok": True, "result": formatted_result, "usage": usage_data})
 
         except json.JSONDecodeError as je:
             # JSON 파싱 실패 시 원본 텍스트를 반환 (정상 처리)
@@ -516,14 +525,14 @@ def api_process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": result})
-        
+            return jsonify({"ok": True, "result": result, "usage": usage_data})
+
     except Exception as e:
         print(f"[PROCESS][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
-# ===== GPT PRO 처리 API (gpt-5.1) =====
+# ===== GPT PRO (Step3) 처리 API =====
 @app.route("/api/sermon/gpt-pro", methods=["POST"])
 def api_gpt_pro():
     """GPT PRO 완성본 작성"""
@@ -541,21 +550,29 @@ def api_gpt_pro():
         style_description = data.get("styleDescription", "")
         completed_step_names = data.get("completedStepNames", [])
 
-        # 프론트엔드에서 전달받은 모델 사용 (없으면 기본값 gpt-5.1)
-        gpt_pro_model = data.get("model", "gpt-5.1")
+        # 프론트엔드에서 전달받은 모델 사용 (없으면 기본값 gpt-5)
+        gpt_pro_model = data.get("model", "gpt-5")
+        # 사용자 지정 최대 토큰량 (없으면 기본값 16000)
+        max_tokens = data.get("maxTokens", 16000)
+        # 사용자 지정 시스템 프롬프트
+        custom_system_prompt = data.get("customSystemPrompt", "")
 
-        print(f"[GPT-PRO] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}")
+        print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
 
         # 제목 생성 여부 확인
         has_title = bool(title and title.strip())
 
-        # GPT-5.1 시스템 프롬프트 (스타일 동적 적용)
-        system_content = (
-            "당신은 GPT-5.1 기반의 한국어 설교 전문가입니다."
-            " 자료는 참고용으로만 활용하고 문장은 처음부터 새로 구성하며,"
-            " 묵직하고 명료한 어조로 신학적 통찰과 실제적 적용을 균형 있게 제시하세요."
-            " 마크다운 기호 대신 순수 텍스트만 사용합니다."
-        )
+        # 시스템 프롬프트 결정 (사용자 지정이 있으면 사용)
+        if custom_system_prompt and custom_system_prompt.strip():
+            system_content = custom_system_prompt.strip()
+        else:
+            # 기본 시스템 프롬프트
+            system_content = (
+                "당신은 한국어 설교 전문가입니다."
+                " 자료는 참고용으로만 활용하고 문장은 처음부터 새로 구성하며,"
+                " 묵직하고 명료한 어조로 신학적 통찰과 실제적 적용을 균형 있게 제시하세요."
+                " 마크다운 기호 대신 순수 텍스트만 사용합니다."
+            )
 
         # 제목이 없으면 GPT가 생성하도록 지시
         if not has_title:
@@ -652,7 +669,10 @@ def api_gpt_pro():
             )
 
         # 공통 지침 추가
-        user_content += "\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 16000 토큰)."
+        user_content += f"\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 {max_tokens} 토큰)."
+
+        # 토큰 사용량 저장용 변수
+        usage_data = None
 
         # 모델에 따라 적절한 API 호출
         if gpt_pro_model == "gpt-5.1":
@@ -680,7 +700,7 @@ def api_gpt_pro():
                     }
                 ],
                 temperature=0.8,
-                max_output_tokens=16000
+                max_output_tokens=max_tokens
             )
 
             if getattr(completion, "output_text", None):
@@ -692,6 +712,14 @@ def api_gpt_pro():
                         if getattr(content, "type", "") == "text":
                             text_chunks.append(getattr(content, "text", ""))
                 result = "\n".join(text_chunks).strip()
+
+            # Responses API 토큰 사용량 추출
+            if hasattr(completion, 'usage') and completion.usage:
+                usage_data = {
+                    "input_tokens": getattr(completion.usage, 'input_tokens', 0),
+                    "output_tokens": getattr(completion.usage, 'output_tokens', 0),
+                    "total_tokens": getattr(completion.usage, 'total_tokens', 0)
+                }
         else:
             # Chat Completions API (gpt-5, gpt-4o 등)
             completion = client.chat.completions.create(
@@ -707,9 +735,17 @@ def api_gpt_pro():
                     }
                 ],
                 temperature=0.8,
-                max_tokens=16000
+                max_tokens=max_tokens
             )
             result = completion.choices[0].message.content.strip()
+
+            # Chat Completions API 토큰 사용량 추출
+            if hasattr(completion, 'usage') and completion.usage:
+                usage_data = {
+                    "input_tokens": completion.usage.prompt_tokens,
+                    "output_tokens": completion.usage.completion_tokens,
+                    "total_tokens": completion.usage.total_tokens
+                }
 
         if not result:
             raise RuntimeError(f"{gpt_pro_model} API로부터 결과를 받지 못했습니다.")
@@ -763,10 +799,11 @@ def api_gpt_pro():
         except Exception as e:
             print(f"[GPT-PRO] 벤치마크 분석 시작 실패 (무시): {str(e)}")
 
-        return jsonify({"ok": True, "result": final_result})
+        print(f"[GPT-PRO/Step3] 완료 - 토큰: {usage_data}")
+        return jsonify({"ok": True, "result": final_result, "usage": usage_data})
 
     except Exception as e:
-        print(f"[GPT-PRO][ERROR] {str(e)}")
+        print(f"[GPT-PRO/Step3][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
