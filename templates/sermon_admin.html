@@ -478,6 +478,129 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- ===== 설교 도구 설정 섹션 ===== -->
+        <h2 class="section-title" style="margin-top: 40px;">설교 도구 설정</h2>
+
+        <!-- AI 모델 설정 -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 15px; font-size: 16px;">🤖 AI 모델 설정</h3>
+            <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                각 단계에서 사용할 AI 모델을 선택하세요. 비용 차이는 기준 모델 대비 %입니다.
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <!-- Step1 모델 -->
+                <div style="background: #fff5f5; padding: 12px; border-radius: 8px; border: 2px solid #ff6b6b;">
+                    <label style="font-weight: 600; font-size: 13px; color: #ff6b6b; display: block; margin-bottom: 8px;">Step1 (본문 연구)</label>
+                    <select id="model-step1" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                        <option value="gpt-4o">GPT-4o (기준)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (-94% 저렴)</option>
+                        <option value="gpt-5">GPT-5 (+100%)</option>
+                        <option value="gpt-5.1">GPT-5.1 (+200%)</option>
+                    </select>
+                </div>
+                <!-- Step2 모델 -->
+                <div style="background: #f0fffc; padding: 12px; border-radius: 8px; border: 2px solid #4ecdc4;">
+                    <label style="font-weight: 600; font-size: 13px; color: #4ecdc4; display: block; margin-bottom: 8px;">Step2 (설교 구조)</label>
+                    <select id="model-step2" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                        <option value="gpt-4o">GPT-4o (기준)</option>
+                        <option value="gpt-4o-mini">GPT-4o Mini (-94% 저렴)</option>
+                        <option value="gpt-5">GPT-5 (+100%)</option>
+                        <option value="gpt-5.1">GPT-5.1 (+200%)</option>
+                    </select>
+                </div>
+                <!-- Step3 모델 -->
+                <div style="background: #fff5f8; padding: 12px; border-radius: 8px; border: 2px solid #f5576c;">
+                    <label style="font-weight: 600; font-size: 13px; color: #f5576c; display: block; margin-bottom: 8px;">Step3 (설교문 작성)</label>
+                    <select id="model-gpt-pro" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                        <option value="gpt-5">GPT-5 (기준)</option>
+                        <option value="gpt-4o">GPT-4o (-50% 저렴)</option>
+                        <option value="gpt-5.1">GPT-5.1 (+50%)</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Step3 토큰량 설정 -->
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                <label style="font-weight: 600; font-size: 13px; color: #f5576c; display: block; margin-bottom: 8px;">Step3 기본 토큰량</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="step3-max-tokens" value="16000" min="1000" max="32000" step="1000" style="width: 120px; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                    <span style="font-size: 12px; color: #666;">토큰 (기본: 16000, 최대: 32000)</span>
+                </div>
+            </div>
+            <button id="btn-save-model-settings" class="btn btn-credit" style="padding: 10px 20px;">모델 설정 저장</button>
+        </div>
+
+        <!-- Step3 지침 -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3 style="color: #f5576c; margin-bottom: 15px; font-size: 16px;">📝 Step3 지침</h3>
+            <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                설교문 작성 시 AI에게 전달되는 지침입니다. AI의 역할, 설교 구조, 포함할 내용, 형식 등을 지정합니다.
+            </div>
+            <textarea id="step3-prompt" style="width: 100%; min-height: 250px; padding: 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; line-height: 1.5; resize: vertical;" placeholder="Step3 지침..."></textarea>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button id="btn-save-step3-prompt" class="btn btn-credit" style="padding: 10px 20px;">지침 저장</button>
+                <button id="btn-reset-step3-prompt" class="btn" style="padding: 10px 20px; background: #6c757d; color: white;">기본값 복원</button>
+            </div>
+        </div>
+
+        <!-- 처리 단계 지침 -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3 style="color: #667eea; margin-bottom: 15px; font-size: 16px;">📋 처리 단계 지침</h3>
+            <div id="guide-tabs" style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;"></div>
+            <div id="current-guide-info" style="font-size: 13px; color: #666; margin-bottom: 10px;"></div>
+            <textarea id="guide-text" style="width: 100%; min-height: 150px; padding: 12px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; line-height: 1.5; resize: vertical;" placeholder="이 처리 단계의 구체적인 지침을 작성하세요."></textarea>
+            <button id="save-guide" class="btn btn-credit" style="padding: 10px 20px; margin-top: 10px;">지침 저장</button>
+        </div>
+
+        <!-- Step3 사용 코드 관리 -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3 style="color: #e67e22; margin-bottom: 15px; font-size: 16px;">🔑 Step3 사용 코드 관리</h3>
+            <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                테스터에게 배포할 1회용 코드를 생성하고 관리합니다. 코드당 사용 횟수를 지정할 수 있습니다.
+            </div>
+            <!-- 새 코드 생성 -->
+            <div style="background: #fffbf0; padding: 15px; border-radius: 8px; border: 1px solid #ffe0b2; margin-bottom: 15px;">
+                <div style="font-weight: 600; font-size: 14px; color: #e67e22; margin-bottom: 10px;">새 코드 생성</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="text" id="new-code-name" placeholder="코드명 (비우면 자동생성)" style="flex: 1; min-width: 150px; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <label style="font-size: 13px; color: #666;">횟수:</label>
+                        <input type="number" id="new-code-limit" value="3" min="1" max="100" style="width: 60px; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; text-align: center;">
+                    </div>
+                    <button id="btn-create-code" style="padding: 8px 16px; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">생성</button>
+                </div>
+            </div>
+            <!-- 코드 목록 -->
+            <div style="font-weight: 600; font-size: 14px; color: #e67e22; margin-bottom: 10px;">코드 목록</div>
+            <div id="code-list-container" style="max-height: 250px; overflow-y: auto; background: #fffbf0; border-radius: 8px; border: 1px solid #ffe0b2;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead>
+                        <tr style="background: #fff8e1; position: sticky; top: 0;">
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ffe0b2;">코드</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #ffe0b2;">남은횟수</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #ffe0b2;">상태</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #ffe0b2;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="code-list-body">
+                        <tr><td colspan="4" style="padding: 20px; text-align: center; color: #999;">로딩 중...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 데이터 백업/복원 -->
+        <div style="background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;">
+            <h3 style="color: #6c757d; margin-bottom: 15px; font-size: 16px;">💾 데이터 백업/복원</h3>
+            <div style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                정기적으로 백업 파일을 다운로드하여 안전한 곳에 보관하세요.
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="btn-export-backup" class="btn" style="padding: 10px 20px; background: #28a745; color: white;">백업 다운로드</button>
+                <button id="btn-import-backup" class="btn" style="padding: 10px 20px; background: #17a2b8; color: white;">백업 복원</button>
+            </div>
+            <input type="file" id="backup-file-input" accept=".json" style="display: none;">
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -659,6 +782,358 @@
 
         // 페이지 로드 시 통계 로드
         loadUsageStats(1);
+
+        // ===== 설교 도구 설정 관련 기능 =====
+
+        // localStorage 키
+        const CODES_KEY = '_sermon-step3-codes';
+        const STEP3_PROMPT_KEY = '_sermon-step3-prompt';
+        const GUIDES_KEY = '_sermon-guides';
+        const MODEL_SETTINGS_KEY = '_sermon-model-settings';
+
+        let step3Codes = {};
+        let guides = {};
+        let currentGuideIndex = 0;
+
+        // 기본 Step3 프롬프트
+        const DEFAULT_STEP3_PROMPT = `당신은 한국 개신교 목사를 위한 전문 설교문 작성 도우미입니다.
+
+제공된 성경 본문 분석과 설교 구조를 바탕으로 완성된 설교문을 작성해주세요.
+
+설교문 작성 지침:
+1. 서론에서 청중의 관심을 끄는 도입부 작성
+2. 본론에서 핵심 메시지를 명확하게 전달
+3. 각 포인트마다 실생활 적용 예시 포함
+4. 결론에서 도전과 결단을 촉구
+5. 자연스러운 한국어 표현 사용
+6. 적절한 비유와 예화 활용`;
+
+        // 처리 단계 목록 (sermon.html과 동일)
+        const PROCESSING_STEPS = [
+            { id: 'step1', name: 'Step1. 본문연구', color: '#ff6b6b' },
+            { id: 'step2', name: 'Step2. 설교구조', color: '#4ecdc4' }
+        ];
+
+        // ===== 코드 관리 =====
+        function loadStep3Codes() {
+            const saved = localStorage.getItem(CODES_KEY);
+            if (saved) {
+                try {
+                    step3Codes = JSON.parse(saved);
+                } catch (e) {
+                    step3Codes = {};
+                }
+            }
+            renderCodeList();
+        }
+
+        function saveStep3Codes() {
+            localStorage.setItem(CODES_KEY, JSON.stringify(step3Codes));
+        }
+
+        function generateRandomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        function createNewCode() {
+            const nameInput = document.getElementById('new-code-name');
+            const limitInput = document.getElementById('new-code-limit');
+
+            let codeName = nameInput.value.trim().toUpperCase();
+            const limit = parseInt(limitInput.value) || 3;
+
+            if (!codeName) {
+                do {
+                    codeName = generateRandomCode();
+                } while (step3Codes[codeName]);
+            }
+
+            if (step3Codes[codeName]) {
+                alert(`'${codeName}' 코드가 이미 존재합니다.`);
+                return;
+            }
+
+            step3Codes[codeName] = {
+                limit: limit,
+                remaining: limit,
+                createdAt: new Date().toISOString()
+            };
+
+            saveStep3Codes();
+            renderCodeList();
+
+            nameInput.value = '';
+            limitInput.value = '3';
+
+            alert(`코드 '${codeName}' 생성 완료!`);
+        }
+
+        function deleteCode(codeName) {
+            if (!confirm(`'${codeName}' 코드를 삭제하시겠습니까?`)) return;
+
+            delete step3Codes[codeName];
+            saveStep3Codes();
+            renderCodeList();
+        }
+
+        function renderCodeList() {
+            const tbody = document.getElementById('code-list-body');
+            if (!tbody) return;
+
+            const codeNames = Object.keys(step3Codes);
+
+            if (codeNames.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: #999;">생성된 코드가 없습니다.</td></tr>';
+                return;
+            }
+
+            codeNames.sort((a, b) => {
+                const dateA = new Date(step3Codes[a].createdAt || 0);
+                const dateB = new Date(step3Codes[b].createdAt || 0);
+                return dateB - dateA;
+            });
+
+            tbody.innerHTML = codeNames.map(code => {
+                const info = step3Codes[code];
+                const isExhausted = info.remaining <= 0;
+                const statusText = isExhausted ? '소진' : '활성';
+                const statusColor = isExhausted ? '#e74c3c' : '#27ae60';
+                const statusBg = isExhausted ? '#fde8e8' : '#e8f8e8';
+
+                return `
+                    <tr style="border-bottom: 1px solid #f0f0f0;">
+                        <td style="padding: 10px; font-family: monospace; font-weight: 600;">${code}</td>
+                        <td style="padding: 10px; text-align: center;">${info.remaining}/${info.limit}</td>
+                        <td style="padding: 10px; text-align: center;">
+                            <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${statusText}</span>
+                        </td>
+                        <td style="padding: 10px; text-align: center;">
+                            <button onclick="deleteCode('${code}')" style="padding: 4px 8px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">삭제</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ===== 모델 설정 =====
+        function loadModelSettings() {
+            const saved = localStorage.getItem(MODEL_SETTINGS_KEY);
+            if (saved) {
+                try {
+                    const settings = JSON.parse(saved);
+                    if (settings.step1) document.getElementById('model-step1').value = settings.step1;
+                    if (settings.step2) document.getElementById('model-step2').value = settings.step2;
+                    if (settings.gptPro) document.getElementById('model-gpt-pro').value = settings.gptPro;
+                    if (settings.step3MaxTokens) document.getElementById('step3-max-tokens').value = settings.step3MaxTokens;
+                } catch (e) {
+                    console.error('모델 설정 로드 오류:', e);
+                }
+            }
+        }
+
+        function saveModelSettings() {
+            const settings = {
+                step1: document.getElementById('model-step1').value,
+                step2: document.getElementById('model-step2').value,
+                gptPro: document.getElementById('model-gpt-pro').value,
+                step3MaxTokens: document.getElementById('step3-max-tokens').value
+            };
+            localStorage.setItem(MODEL_SETTINGS_KEY, JSON.stringify(settings));
+            alert('모델 설정이 저장되었습니다.');
+        }
+
+        // ===== Step3 지침 =====
+        function loadStep3Prompt() {
+            const saved = localStorage.getItem(STEP3_PROMPT_KEY);
+            const textarea = document.getElementById('step3-prompt');
+            if (textarea) {
+                textarea.value = saved || DEFAULT_STEP3_PROMPT;
+            }
+        }
+
+        function saveStep3Prompt() {
+            const textarea = document.getElementById('step3-prompt');
+            if (textarea) {
+                localStorage.setItem(STEP3_PROMPT_KEY, textarea.value);
+                alert('Step3 지침이 저장되었습니다.');
+            }
+        }
+
+        function resetStep3Prompt() {
+            if (confirm('기본값으로 복원하시겠습니까?')) {
+                const textarea = document.getElementById('step3-prompt');
+                if (textarea) {
+                    textarea.value = DEFAULT_STEP3_PROMPT;
+                    localStorage.setItem(STEP3_PROMPT_KEY, DEFAULT_STEP3_PROMPT);
+                    alert('기본값으로 복원되었습니다.');
+                }
+            }
+        }
+
+        // ===== 처리 단계 지침 =====
+        function loadGuides() {
+            const saved = localStorage.getItem(GUIDES_KEY);
+            if (saved) {
+                try {
+                    guides = JSON.parse(saved);
+                } catch (e) {
+                    guides = {};
+                }
+            }
+            renderGuideTabs();
+        }
+
+        function renderGuideTabs() {
+            const container = document.getElementById('guide-tabs');
+            if (!container) return;
+
+            container.innerHTML = PROCESSING_STEPS.map((step, idx) => `
+                <button class="btn ${idx === currentGuideIndex ? 'btn-credit' : ''}"
+                        style="padding: 8px 16px; font-size: 13px; ${idx === currentGuideIndex ? '' : 'background: #e0e0e0; color: #666;'}"
+                        onclick="selectGuideTab(${idx})">
+                    ${step.name}
+                </button>
+            `).join('');
+
+            updateGuideText();
+        }
+
+        function selectGuideTab(idx) {
+            currentGuideIndex = idx;
+            renderGuideTabs();
+        }
+
+        function updateGuideText() {
+            const step = PROCESSING_STEPS[currentGuideIndex];
+            const infoEl = document.getElementById('current-guide-info');
+            const textEl = document.getElementById('guide-text');
+
+            if (infoEl) {
+                infoEl.innerHTML = `<strong style="color: ${step.color};">${step.name}</strong> 지침 편집 중`;
+            }
+            if (textEl) {
+                textEl.value = guides[step.id] || '';
+            }
+        }
+
+        function saveGuide() {
+            const step = PROCESSING_STEPS[currentGuideIndex];
+            const textEl = document.getElementById('guide-text');
+            if (textEl) {
+                guides[step.id] = textEl.value;
+                localStorage.setItem(GUIDES_KEY, JSON.stringify(guides));
+                alert(`${step.name} 지침이 저장되었습니다.`);
+            }
+        }
+
+        // ===== 백업/복원 =====
+        function exportBackup() {
+            const backup = {
+                version: '1.0',
+                exportedAt: new Date().toISOString(),
+                data: {
+                    codes: step3Codes,
+                    step3Prompt: localStorage.getItem(STEP3_PROMPT_KEY),
+                    guides: guides,
+                    modelSettings: localStorage.getItem(MODEL_SETTINGS_KEY)
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sermon-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importBackup() {
+            document.getElementById('backup-file-input').click();
+        }
+
+        function handleBackupFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const backup = JSON.parse(e.target.result);
+                    if (backup.data) {
+                        if (backup.data.codes) {
+                            step3Codes = backup.data.codes;
+                            saveStep3Codes();
+                        }
+                        if (backup.data.step3Prompt) {
+                            localStorage.setItem(STEP3_PROMPT_KEY, backup.data.step3Prompt);
+                        }
+                        if (backup.data.guides) {
+                            guides = backup.data.guides;
+                            localStorage.setItem(GUIDES_KEY, JSON.stringify(guides));
+                        }
+                        if (backup.data.modelSettings) {
+                            localStorage.setItem(MODEL_SETTINGS_KEY, backup.data.modelSettings);
+                        }
+
+                        // UI 갱신
+                        loadStep3Codes();
+                        loadStep3Prompt();
+                        loadGuides();
+                        loadModelSettings();
+
+                        alert('백업이 복원되었습니다.');
+                    }
+                } catch (err) {
+                    alert('백업 파일을 읽을 수 없습니다.');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // 전역 함수 등록
+        window.deleteCode = deleteCode;
+        window.selectGuideTab = selectGuideTab;
+
+        // ===== 이벤트 리스너 =====
+        document.addEventListener('DOMContentLoaded', () => {
+            // 코드 관리
+            loadStep3Codes();
+            const btnCreateCode = document.getElementById('btn-create-code');
+            if (btnCreateCode) btnCreateCode.addEventListener('click', createNewCode);
+
+            // 모델 설정
+            loadModelSettings();
+            const btnSaveModel = document.getElementById('btn-save-model-settings');
+            if (btnSaveModel) btnSaveModel.addEventListener('click', saveModelSettings);
+
+            // Step3 지침
+            loadStep3Prompt();
+            const btnSaveStep3 = document.getElementById('btn-save-step3-prompt');
+            if (btnSaveStep3) btnSaveStep3.addEventListener('click', saveStep3Prompt);
+            const btnResetStep3 = document.getElementById('btn-reset-step3-prompt');
+            if (btnResetStep3) btnResetStep3.addEventListener('click', resetStep3Prompt);
+
+            // 처리 단계 지침
+            loadGuides();
+            const btnSaveGuide = document.getElementById('save-guide');
+            if (btnSaveGuide) btnSaveGuide.addEventListener('click', saveGuide);
+
+            // 백업/복원
+            const btnExport = document.getElementById('btn-export-backup');
+            if (btnExport) btnExport.addEventListener('click', exportBackup);
+            const btnImport = document.getElementById('btn-import-backup');
+            if (btnImport) btnImport.addEventListener('click', importBackup);
+            const backupInput = document.getElementById('backup-file-input');
+            if (backupInput) backupInput.addEventListener('change', handleBackupFile);
+        });
     </script>
 </body>
 </html>
