@@ -30,7 +30,11 @@ def get_openrouter_client():
         raise RuntimeError("OPENROUTER_API_KEY가 비어 있습니다.")
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key=key
+        api_key=key,
+        default_headers={
+            "HTTP-Referer": "https://my-page-v2.onrender.com",
+            "X-Title": "Drama Script Generator"
+        }
     )
 
 try:
@@ -1259,11 +1263,7 @@ S#1. 카페 내부 / 낮
                     "content": user_content
                 }
             ],
-            temperature=0.8,
-            extra_headers={
-                "HTTP-Referer": "https://my-page-v2.onrender.com",
-                "X-Title": "Drama Script Generator"
-            }
+            temperature=0.8
         )
 
         # 응답 추출
