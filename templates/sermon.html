@@ -2290,16 +2290,6 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       return;
     }
 
-    // ===== 코드 검증 (코드가 존재하는 경우에만) =====
-    const hasAnyCodes = Object.keys(step3Codes).length > 0;
-    if (hasAnyCodes) {
-      const codeResult = await showCodeInputPopup();
-      if (codeResult.cancelled) {
-        return; // 취소됨
-      }
-      showStatus(`✅ 코드 확인됨! (남은 횟수: ${codeResult.remaining})`);
-    }
-
     // ===== 1단계: 전체 복사 =====
     const tempTextarea = document.createElement('textarea');
     tempTextarea.value = draft.fullText;
@@ -2385,9 +2375,19 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
 
   const btnGptPro = document.getElementById('btn-gpt-pro');
   if (btnGptPro) {
-    btnGptPro.addEventListener('click', () => {
-      if (!gptProUnlocked) {
-        // 패스워드 모달 표시
+    btnGptPro.addEventListener('click', async () => {
+      const hasAnyCodes = Object.keys(step3Codes).length > 0;
+
+      if (hasAnyCodes) {
+        // 코드가 존재하면 코드 입력 팝업 표시
+        const codeResult = await showCodeInputPopup();
+        if (codeResult.cancelled) {
+          return; // 취소됨
+        }
+        showStatus(`✅ 코드 확인됨! (남은 횟수: ${codeResult.remaining})`);
+        executeGptPro();
+      } else if (!gptProUnlocked) {
+        // 코드가 없고 잠금 상태면 패스워드 모달 표시
         const modal = document.getElementById('modal-gpt-pro-password');
         if (modal) modal.classList.add('show');
         const input = document.getElementById('gpt-pro-password-input');
