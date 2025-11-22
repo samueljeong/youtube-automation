@@ -68,6 +68,7 @@ def init_db():
                 birth_date VARCHAR(20),
                 is_admin INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1,
+                step3_credits INTEGER DEFAULT 3,
                 subscription_status VARCHAR(50) DEFAULT 'free',
                 subscription_expires_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -78,6 +79,30 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_sermon_users_email
             ON sermon_users(email)
         ''')
+
+        # 전역 설정 테이블
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_settings (
+                id SERIAL PRIMARY KEY,
+                setting_key VARCHAR(100) UNIQUE NOT NULL,
+                setting_value VARCHAR(255) NOT NULL,
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 기본 설정값 삽입 (존재하지 않을 때만)
+        cursor.execute('''
+            INSERT INTO sermon_settings (setting_key, setting_value, description)
+            VALUES ('default_step3_credits', '3', '신규 회원 기본 Step3 크레딧')
+            ON CONFLICT (setting_key) DO NOTHING
+        ''')
+
+        # 기존 사용자에게 step3_credits 컬럼 추가 (이미 있으면 무시)
+        try:
+            cursor.execute('ALTER TABLE sermon_users ADD COLUMN step3_credits INTEGER DEFAULT 3')
+        except:
+            pass  # 컬럼이 이미 존재하면 무시
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
@@ -167,10 +192,28 @@ def init_db():
                 birth_date TEXT,
                 is_admin INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1,
+                step3_credits INTEGER DEFAULT 3,
                 subscription_status TEXT DEFAULT 'free',
                 subscription_expires_at TIMESTAMP,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        ''')
+
+        # 전역 설정 테이블
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sermon_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                setting_key TEXT UNIQUE NOT NULL,
+                setting_value TEXT NOT NULL,
+                description TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 기본 설정값 삽입
+        cursor.execute('''
+            INSERT OR IGNORE INTO sermon_settings (setting_key, setting_value, description)
+            VALUES ('default_step3_credits', '3', '신규 회원 기본 Step3 크레딧')
         ''')
 
         cursor.execute('''
@@ -262,6 +305,116 @@ def init_db():
 init_db()
 
 
+# ===== 설정 관련 헬퍼 함수 =====
+def get_setting(key, default=None):
+    """설정값 가져오기"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('SELECT setting_value FROM sermon_settings WHERE setting_key = %s', (key,))
+        else:
+            cursor.execute('SELECT setting_value FROM sermon_settings WHERE setting_key = ?', (key,))
+        result = cursor.fetchone()
+        conn.close()
+        return result['setting_value'] if result else default
+    except:
+        return default
+
+
+def set_setting(key, value, description=None):
+    """설정값 저장하기"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO sermon_settings (setting_key, setting_value, description, updated_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (setting_key) DO UPDATE SET setting_value = %s, updated_at = CURRENT_TIMESTAMP
+            ''', (key, value, description, value))
+        else:
+            cursor.execute('''
+                INSERT OR REPLACE INTO sermon_settings (setting_key, setting_value, description, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (key, value, description))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[SETTING] 저장 실패: {e}")
+        return False
+
+
+def get_user_credits(user_id):
+    """사용자 크레딧 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('SELECT step3_credits FROM sermon_users WHERE id = %s', (user_id,))
+        else:
+            cursor.execute('SELECT step3_credits FROM sermon_users WHERE id = ?', (user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        return result['step3_credits'] if result else 0
+    except:
+        return 0
+
+
+def use_credit(user_id):
+    """크레딧 1회 차감 (성공 시 True, 실패 시 False)"""
+    try:
+        credits = get_user_credits(user_id)
+        if credits <= 0:
+            return False
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('UPDATE sermon_users SET step3_credits = step3_credits - 1 WHERE id = %s AND step3_credits > 0', (user_id,))
+        else:
+            cursor.execute('UPDATE sermon_users SET step3_credits = step3_credits - 1 WHERE id = ? AND step3_credits > 0', (user_id,))
+        conn.commit()
+        affected = cursor.rowcount
+        conn.close()
+        return affected > 0
+    except:
+        return False
+
+
+def add_credits(user_id, amount):
+    """크레딧 추가"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('UPDATE sermon_users SET step3_credits = step3_credits + %s WHERE id = %s', (amount, user_id))
+        else:
+            cursor.execute('UPDATE sermon_users SET step3_credits = step3_credits + ? WHERE id = ?', (amount, user_id))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+
+def set_credits(user_id, amount):
+    """크레딧 설정 (직접 지정)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('UPDATE sermon_users SET step3_credits = %s WHERE id = %s', (amount, user_id))
+        else:
+            cursor.execute('UPDATE sermon_users SET step3_credits = ? WHERE id = ?', (amount, user_id))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+
 # ===== 인증 관련 함수 및 데코레이터 =====
 def login_required(f):
     """로그인 필수 데코레이터"""
@@ -349,18 +502,21 @@ def signup():
         # 기본 관리자 이메일인 경우 자동으로 관리자 권한 부여
         is_admin = 1 if email == DEFAULT_ADMIN_EMAIL else 0
 
+        # 기본 크레딧 설정에서 가져오기
+        default_credits = int(get_setting('default_step3_credits', '3'))
+
         try:
             if USE_POSTGRES:
                 cursor.execute(
-                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin) VALUES (%s, %s, %s, %s, %s, %s)',
-                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin)
+                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin, step3_credits) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin, default_credits)
                 )
                 conn.commit()
                 cursor.execute('SELECT * FROM sermon_users WHERE email = %s', (email,))
             else:
                 cursor.execute(
-                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin) VALUES (?, ?, ?, ?, ?, ?)',
-                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin)
+                    'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin, step3_credits) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin, default_credits)
                 )
                 conn.commit()
                 cursor.execute('SELECT * FROM sermon_users WHERE email = ?', (email,))
@@ -440,9 +596,9 @@ def admin_dashboard():
     cursor = conn.cursor()
 
     if USE_POSTGRES:
-        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
     else:
-        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
 
     users = cursor.fetchall()
     conn.close()
@@ -513,6 +669,8 @@ def delete_user(user_id):
 def auth_status():
     """현재 로그인 상태 반환 (프론트엔드용)"""
     if 'user_id' in session:
+        credits = get_user_credits(session['user_id'])
+        is_admin = session.get('is_admin', 0)
         return jsonify({
             "ok": True,
             "loggedIn": True,
@@ -520,10 +678,72 @@ def auth_status():
                 "id": session['user_id'],
                 "email": session['user_email'],
                 "name": session['user_name'],
-                "isAdmin": session.get('is_admin', 0)
+                "isAdmin": is_admin,
+                "credits": credits if not is_admin else -1  # -1은 무제한
             }
         })
     return jsonify({"ok": True, "loggedIn": False})
+
+
+# ===== 크레딧 관리 API =====
+@app.route('/api/credits')
+@api_login_required
+def get_my_credits():
+    """내 크레딧 조회"""
+    user_id = session.get('user_id')
+    is_admin = session.get('is_admin', 0)
+    credits = get_user_credits(user_id)
+    return jsonify({
+        "ok": True,
+        "credits": credits if not is_admin else -1,
+        "unlimited": bool(is_admin)
+    })
+
+
+@app.route('/admin/set-credits/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_set_credits(user_id):
+    """관리자: 사용자 크레딧 설정"""
+    try:
+        amount = int(request.form.get('credits', 0))
+        if amount < 0:
+            amount = 0
+        set_credits(user_id, amount)
+        flash(f'크레딧이 {amount}으로 설정되었습니다.', 'success')
+    except ValueError:
+        flash('올바른 숫자를 입력해주세요.', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/add-credits/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_add_credits(user_id):
+    """관리자: 사용자 크레딧 추가"""
+    try:
+        amount = int(request.form.get('credits', 0))
+        if amount > 0:
+            add_credits(user_id, amount)
+            flash(f'{amount} 크레딧이 추가되었습니다.', 'success')
+        else:
+            flash('양수를 입력해주세요.', 'error')
+    except ValueError:
+        flash('올바른 숫자를 입력해주세요.', 'error')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
+@admin_required
+def admin_settings():
+    """관리자: 전역 설정 관리"""
+    if request.method == 'POST':
+        default_credits = request.form.get('default_step3_credits', '3')
+        set_setting('default_step3_credits', default_credits, '신규 회원 기본 Step3 크레딧')
+        flash('설정이 저장되었습니다.', 'success')
+        return redirect(url_for('admin_settings'))
+
+    # 현재 설정값 가져오기
+    default_credits = get_setting('default_step3_credits', '3')
+    return render_template('sermon_settings.html', default_credits=default_credits)
 
 
 def format_json_result(json_data, indent=0):
@@ -856,6 +1076,20 @@ def api_process_step():
 def api_gpt_pro():
     """GPT PRO 완성본 작성"""
     try:
+        # 크레딧 확인
+        user_id = session.get('user_id')
+        current_credits = get_user_credits(user_id)
+
+        # 관리자는 무제한
+        is_admin = session.get('is_admin', 0)
+        if not is_admin and current_credits <= 0:
+            return jsonify({
+                "ok": False,
+                "error": "Step3 사용 크레딧이 부족합니다. 관리자에게 문의하세요.",
+                "credits": 0,
+                "needCredits": True
+            }), 200
+
         data = request.get_json()
         if not data:
             return jsonify({"ok": False, "error": "No data received"}), 400
@@ -1076,8 +1310,20 @@ def api_gpt_pro():
         except Exception as e:
             print(f"[GPT-PRO] 벤치마크 분석 시작 실패 (무시): {str(e)}")
 
+        # 크레딧 차감 (관리자 제외)
+        remaining_credits = current_credits
+        if not is_admin:
+            use_credit(user_id)
+            remaining_credits = get_user_credits(user_id)
+            print(f"[GPT-PRO/Step3] 크레딧 차감 - 사용자: {user_id}, 남은 크레딧: {remaining_credits}")
+
         print(f"[GPT-PRO/Step3] 완료 - 토큰: {usage_data}")
-        return jsonify({"ok": True, "result": final_result, "usage": usage_data})
+        return jsonify({
+            "ok": True,
+            "result": final_result,
+            "usage": usage_data,
+            "credits": remaining_credits if not is_admin else -1  # -1은 무제한 표시
+        })
 
     except Exception as e:
         print(f"[GPT-PRO/Step3][ERROR] {str(e)}")

@@ -49,14 +49,14 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 30px auto;
             padding: 0 20px;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -93,17 +93,20 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-x: auto;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            min-width: 900px;
         }
 
         th, td {
-            padding: 15px;
+            padding: 12px 10px;
             text-align: left;
             border-bottom: 1px solid #eee;
+            font-size: 13px;
         }
 
         th {
@@ -120,7 +123,7 @@
             display: inline-block;
             padding: 4px 10px;
             border-radius: 20px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
         }
 
@@ -134,32 +137,32 @@
             color: #666;
         }
 
-        .badge-active {
+        .badge-credits {
             background: #4caf50;
             color: white;
+            font-size: 14px;
+            padding: 5px 12px;
         }
 
-        .badge-inactive {
+        .badge-no-credits {
             background: #f44336;
             color: white;
+            font-size: 14px;
+            padding: 5px 12px;
         }
 
-        .badge-free {
-            background: #9e9e9e;
+        .badge-unlimited {
+            background: #9c27b0;
             color: white;
-        }
-
-        .badge-premium {
-            background: #ffc107;
-            color: #333;
+            font-size: 11px;
         }
 
         .btn {
-            padding: 6px 12px;
+            padding: 5px 10px;
             border: none;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             transition: transform 0.2s;
         }
 
@@ -179,6 +182,11 @@
 
         .btn-delete {
             background: #f44336;
+            color: white;
+        }
+
+        .btn-credit {
+            background: #4caf50;
             color: white;
         }
 
@@ -207,18 +215,90 @@
 
         .actions-cell {
             display: flex;
-            gap: 8px;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .credit-input {
+            width: 50px;
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .credit-form {
+            display: flex;
+            gap: 3px;
+            align-items: center;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #1a237e;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .modal-buttons .btn-cancel {
+            background: #e0e0e0;
+        }
+
+        .modal-buttons .btn-confirm {
+            background: #1a237e;
+            color: white;
         }
 
         @media (max-width: 768px) {
             .header {
                 flex-direction: column;
                 gap: 15px;
-            }
-
-            table {
-                display: block;
-                overflow-x: auto;
             }
         }
     </style>
@@ -227,6 +307,7 @@
     <div class="header">
         <h1>관리자 대시보드</h1>
         <div class="header-actions">
+            <a href="/admin/settings">설정</a>
             <a href="/">설교 도구</a>
             <a href="/logout">로그아웃</a>
         </div>
@@ -266,9 +347,8 @@
                         <th>ID</th>
                         <th>이메일</th>
                         <th>이름</th>
-                        <th>전화번호</th>
                         <th>권한</th>
-                        <th>구독</th>
+                        <th>Step3 크레딧</th>
                         <th>가입일</th>
                         <th>관리</th>
                     </tr>
@@ -279,7 +359,6 @@
                         <td>{{ user['id'] }}</td>
                         <td>{{ user['email'] }}</td>
                         <td>{{ user['name'] }}</td>
-                        <td>{{ user['phone'] or '-' }}</td>
                         <td>
                             {% if user['is_admin'] %}
                                 <span class="badge badge-admin">관리자</span>
@@ -288,19 +367,31 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if user['subscription_status'] == 'premium' %}
-                                <span class="badge badge-premium">프리미엄</span>
+                            {% if user['is_admin'] %}
+                                <span class="badge badge-unlimited">무제한</span>
+                            {% elif user['step3_credits'] > 0 %}
+                                <span class="badge badge-credits">{{ user['step3_credits'] }}회</span>
                             {% else %}
-                                <span class="badge badge-free">무료</span>
+                                <span class="badge badge-no-credits">0회</span>
                             {% endif %}
                         </td>
                         <td>{{ user['created_at'][:10] if user['created_at'] else '-' }}</td>
                         <td class="actions-cell">
+                            {% if not user['is_admin'] %}
+                            <form method="POST" action="/admin/set-credits/{{ user['id'] }}" class="credit-form">
+                                <input type="number" name="credits" class="credit-input" value="{{ user['step3_credits'] or 0 }}" min="0">
+                                <button type="submit" class="btn btn-credit">설정</button>
+                            </form>
+                            <form method="POST" action="/admin/add-credits/{{ user['id'] }}" class="credit-form">
+                                <input type="number" name="credits" class="credit-input" value="5" min="1">
+                                <button type="submit" class="btn btn-credit">추가</button>
+                            </form>
+                            {% endif %}
                             <form method="POST" action="/admin/toggle-admin/{{ user['id'] }}" style="display:inline;">
                                 {% if user['is_admin'] %}
-                                    <button type="submit" class="btn btn-remove-admin" onclick="return confirm('관리자 권한을 제거하시겠습니까?')">권한 제거</button>
+                                    <button type="submit" class="btn btn-remove-admin" onclick="return confirm('관리자 권한을 제거하시겠습니까?')">권한제거</button>
                                 {% else %}
-                                    <button type="submit" class="btn btn-admin" onclick="return confirm('관리자 권한을 부여하시겠습니까?')">관리자 부여</button>
+                                    <button type="submit" class="btn btn-admin" onclick="return confirm('관리자 권한을 부여하시겠습니까?')">관리자</button>
                                 {% endif %}
                             </form>
                             <form method="POST" action="/admin/delete-user/{{ user['id'] }}" style="display:inline;">
