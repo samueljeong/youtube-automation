@@ -1138,10 +1138,23 @@
             </div>
             <!-- Step3 토큰량 설정 -->
             <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: .5rem;">
-              <label style="font-weight: 600; font-size: .85rem; color: #f5576c; display: block; margin-bottom: .4rem;">Step3 최대 토큰량</label>
+              <label style="font-weight: 600; font-size: .85rem; color: #f5576c; display: block; margin-bottom: .4rem;">Step3 기본 토큰량</label>
               <div style="display: flex; gap: .5rem; align-items: center;">
                 <input type="number" id="step3-max-tokens" value="16000" min="1000" max="32000" step="1000" style="width: 120px; padding: .4rem; border-radius: 4px; border: 1px solid #ddd; font-size: .85rem;">
                 <span style="font-size: .8rem; color: #666;">토큰 (기본: 16000, 최대: 32000)</span>
+              </div>
+            </div>
+            <!-- 스타일별 토큰 설정 (접기/펼치기) -->
+            <div style="background: white; padding: .75rem; border-radius: 8px; border: 1px solid #e0e0e0;">
+              <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleStyleTokens()">
+                <label style="font-weight: 600; font-size: .85rem; color: #f5576c;">📊 스타일별 토큰 설정</label>
+                <span id="style-tokens-toggle" style="font-size: .8rem; color: #999;">▼ 펼치기</span>
+              </div>
+              <div id="style-tokens-container" style="display: none; margin-top: .75rem; max-height: 300px; overflow-y: auto;">
+                <div style="font-size: .75rem; color: #888; margin-bottom: .5rem;">각 설교 스타일별로 Step3 토큰량을 개별 설정할 수 있습니다. 비워두면 기본값 사용.</div>
+                <div id="style-tokens-list">
+                  <!-- 동적으로 생성됨 -->
+                </div>
               </div>
             </div>
           </div>
@@ -1642,6 +1655,92 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (step3PromptTextarea) {
       step3PromptTextarea.value = DEFAULT_STEP3_PROMPT;
     }
+  }
+
+  // ===== 스타일별 토큰 설정 =====
+  let styleTokensExpanded = false;
+
+  function toggleStyleTokens() {
+    styleTokensExpanded = !styleTokensExpanded;
+    const container = document.getElementById('style-tokens-container');
+    const toggle = document.getElementById('style-tokens-toggle');
+    if (container) {
+      container.style.display = styleTokensExpanded ? 'block' : 'none';
+    }
+    if (toggle) {
+      toggle.textContent = styleTokensExpanded ? '▲ 접기' : '▼ 펼치기';
+    }
+    if (styleTokensExpanded) {
+      renderStyleTokensList();
+    }
+  }
+
+  function renderStyleTokensList() {
+    const container = document.getElementById('style-tokens-list');
+    if (!container) return;
+
+    const catSettings = config.categorySettings[currentCategory];
+    if (!catSettings || !catSettings.styles || catSettings.styles.length === 0) {
+      container.innerHTML = '<div style="color: #999; font-size: .8rem; padding: .5rem;">설교 스타일이 없습니다. 먼저 스타일을 추가해주세요.</div>';
+      return;
+    }
+
+    // styleTokens 초기화 (없으면)
+    if (!catSettings.styleTokens) {
+      catSettings.styleTokens = {};
+    }
+
+    const html = catSettings.styles.map((style, idx) => {
+      const tokenValue = catSettings.styleTokens[style.id] || '';
+      return `
+        <div style="display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid #f0f0f0;">
+          <span style="flex: 1; font-size: .85rem; color: #333;">${style.name}</span>
+          <input type="number"
+            id="style-token-${style.id}"
+            value="${tokenValue}"
+            placeholder="기본값"
+            min="1000" max="32000" step="1000"
+            onchange="saveStyleToken('${style.id}', this.value)"
+            style="width: 80px; padding: .3rem; border-radius: 4px; border: 1px solid #ddd; font-size: .8rem; text-align: center;">
+          <span style="font-size: .7rem; color: #999; width: 30px;">토큰</span>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = html;
+  }
+
+  async function saveStyleToken(styleId, value) {
+    const catSettings = config.categorySettings[currentCategory];
+    if (!catSettings) return;
+
+    if (!catSettings.styleTokens) {
+      catSettings.styleTokens = {};
+    }
+
+    if (value && parseInt(value) > 0) {
+      catSettings.styleTokens[styleId] = parseInt(value);
+    } else {
+      delete catSettings.styleTokens[styleId]; // 비워두면 삭제 (기본값 사용)
+    }
+
+    await saveConfig();
+    showStatus('✅ 스타일 토큰 저장됨');
+    setTimeout(hideStatus, 1500);
+  }
+
+  // 스타일 추가/삭제/이름변경 시 토큰 목록 동기화
+  function syncStyleTokens() {
+    const catSettings = config.categorySettings[currentCategory];
+    if (!catSettings || !catSettings.styles || !catSettings.styleTokens) return;
+
+    // 존재하지 않는 스타일의 토큰 설정 제거
+    const styleIds = catSettings.styles.map(s => s.id);
+    Object.keys(catSettings.styleTokens).forEach(tokenStyleId => {
+      if (!styleIds.includes(tokenStyleId)) {
+        delete catSettings.styleTokens[tokenStyleId];
+      }
+    });
   }
 
   function hideStatus() {
@@ -2310,11 +2409,18 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     // ===== 2단계: GPT PRO (Step3)로 설교문 작성 =====
     const modelSettings = getModelSettings(currentCategory);
     const gptProModel = modelSettings.gptPro;
-    const step3MaxTokens = modelSettings.step3MaxTokens || 16000;
+
+    // 스타일별 토큰 설정 확인 (없으면 기본 토큰 사용)
+    const catSettings = config.categorySettings[currentCategory];
+    const styleToken = catSettings?.styleTokens?.[currentStyleId];
+    const step3MaxTokens = styleToken || modelSettings.step3MaxTokens || 16000;
+    console.log(`[Step3] 스타일별 토큰 설정 - styleId: ${currentStyleId}, styleToken: ${styleToken}, 사용토큰: ${step3MaxTokens}`);
+
     const step3Prompt = modelSettings.step3Prompt || DEFAULT_STEP3_PROMPT;
 
     showGptLoading(); // 로딩 오버레이 표시
-    showStatus(`🚀 Step3 (${gptProModel}) 처리 중... (약 30초 소요)`);
+    const tokenInfo = styleToken ? `스타일 토큰: ${step3MaxTokens}` : `기본 토큰: ${step3MaxTokens}`;
+    showStatus(`🚀 Step3 (${gptProModel}, ${tokenInfo}) 처리 중... (약 30초 소요)`);
 
     try {
       const response = await fetch('/api/sermon/gpt-pro', {
@@ -3271,6 +3377,10 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (currentStyleId === style.id) {
       currentStyleId = '';
     }
+
+    // 스타일 토큰 설정에서도 삭제된 스타일 정리
+    syncStyleTokens();
+
     await saveConfig();
     renderStyles();
     renderStylesManageList();
