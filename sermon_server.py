@@ -120,12 +120,21 @@ def init_db():
             ON CONFLICT (setting_key) DO NOTHING
         ''')
 
+        # 여기서 먼저 커밋 (테이블 생성 확정)
+        conn.commit()
+
         # 기존 사용자에게 step3_credits 컬럼 추가 (이미 있으면 무시)
-        try:
-            cursor.execute('ALTER TABLE sermon_users ADD COLUMN step3_credits INTEGER DEFAULT 3')
-            conn.commit()  # 성공 시 커밋
-        except Exception:
-            conn.rollback()  # 실패 시 롤백 (PostgreSQL 필수)
+        # 컬럼 존재 여부 먼저 확인
+        cursor.execute('''
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'sermon_users' AND column_name = 'step3_credits'
+        ''')
+        if not cursor.fetchone():
+            try:
+                cursor.execute('ALTER TABLE sermon_users ADD COLUMN step3_credits INTEGER DEFAULT 3')
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS sermon_benchmark_analyses (
