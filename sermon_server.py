@@ -753,17 +753,29 @@ def logout():
 @admin_required
 def admin_dashboard():
     """관리자 대시보드"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
 
-    if USE_POSTGRES:
-        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
-    else:
-        cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+        if USE_POSTGRES:
+            cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
+        else:
+            cursor.execute('SELECT id, email, name, phone, birth_date, is_admin, is_active, step3_credits, subscription_status, created_at FROM sermon_users ORDER BY created_at DESC')
 
-    users = cursor.fetchall()
-    conn.close()
-    return render_template('sermon_admin.html', users=users)
+        users = cursor.fetchall()
+        conn.close()
+
+        # PostgreSQL RealDictCursor는 이미 dict를 반환하지만, 확인을 위해 로그
+        print(f"[ADMIN] users count: {len(users)}")
+        if users:
+            print(f"[ADMIN] first user type: {type(users[0])}")
+
+        return render_template('sermon_admin.html', users=users)
+    except Exception as e:
+        import traceback
+        print(f"[ADMIN ERROR] {str(e)}")
+        print(traceback.format_exc())
+        return f"Admin Error: {str(e)}", 500
 
 
 @app.route('/admin/toggle-admin/<int:user_id>', methods=['POST'])
