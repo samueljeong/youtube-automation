@@ -1235,6 +1235,10 @@
     const benchmarkScript = document.getElementById('benchmark-script')?.value || '';
     const analysisResult = document.getElementById('analysis-result')?.textContent || '';
 
+    // ⭐ 모달 textarea에서 최신 step3Guide 값을 가져옴 (저장 안해도 반영되도록)
+    const step3GuideTextarea = document.getElementById('modal-guide-step3');
+    const currentStep3Guide = step3GuideTextarea ? step3GuideTextarea.value : step3Guide;
+
     // 로딩 표시
     showLoadingOverlay('OpenRouter 대본 완성 중', 'AI가 대본을 작성하고 있습니다...');
     showStatus('🎬 Step3: OpenRouter 대본 완성 중... (약 30-60초 소요)');
@@ -1249,7 +1253,7 @@
           mainCharacter: { name: mainCharacter },
           benchmarkScript: benchmarkScript,
           aiAnalysis: analysisResult,
-          step3Guide: step3Guide,
+          step3Guide: currentStep3Guide,  // ⭐ 최신 값 사용
           model: aiModelSettings.step3  // 선택된 모델 전달
         })
       });
@@ -1265,6 +1269,11 @@
           resultTextarea.value = data.result;
           autoResize(resultTextarea);
           resultContainer.style.display = 'block';
+
+          // ⭐ Step3 결과 저장 (페이지 새로고침 후에도 유지)
+          step3Result = data.result;
+          localStorage.setItem('_drama-step3-result', step3Result);
+          saveToFirebase('_drama-step3-result', step3Result);
 
           // 토큰 정보 및 비용 표시
           if (data.usage && tokenInfo) {
@@ -1331,6 +1340,11 @@
         if (resultTextarea) resultTextarea.value = '';
         if (resultContainer) resultContainer.style.display = 'none';
         if (tokenInfo) tokenInfo.style.display = 'none';
+
+        // ⭐ 저장된 Step3 결과도 삭제
+        step3Result = '';
+        localStorage.removeItem('_drama-step3-result');
+        saveToFirebase('_drama-step3-result', '');
 
         showStatus('🗑️ Step3 결과가 지워졌습니다.');
         setTimeout(hideStatus, 2000);
@@ -2278,6 +2292,9 @@
   // Step3 지침 저장용 변수
   let step3Guide = localStorage.getItem('_drama-step3-guide') || '';
 
+  // Step3 결과 저장용 변수
+  let step3Result = localStorage.getItem('_drama-step3-result') || '';
+
   // AI 모델 설정 (기본값)
   let aiModelSettings = JSON.parse(localStorage.getItem('_drama-ai-models') || 'null') || {
     step1: 'gpt-4o-mini',
@@ -3076,6 +3093,19 @@
 
     // ⭐ Step3 지침 불러오기 (Firebase 동기화 후)
     step3Guide = localStorage.getItem('_drama-step3-guide') || '';
+
+    // ⭐ Step3 결과 불러오기 (Firebase 동기화 후)
+    step3Result = localStorage.getItem('_drama-step3-result') || '';
+    if (step3Result) {
+      const resultTextarea = document.getElementById('step3-result');
+      const resultContainer = document.getElementById('step3-result-container');
+      if (resultTextarea && resultContainer) {
+        resultTextarea.value = step3Result;
+        resultContainer.style.display = 'block';
+        // 잠시 후 autoResize 호출 (DOM 렌더링 후)
+        setTimeout(() => autoResize(resultTextarea), 100);
+      }
+    }
 
     // ⭐ AI 모델 설정 불러오기
     const savedModels = localStorage.getItem('_drama-ai-models');

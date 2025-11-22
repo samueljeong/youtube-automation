@@ -722,21 +722,39 @@ def api_gpt_pro():
                 }
         else:
             # Chat Completions API (gpt-5, gpt-4o 등)
-            completion = client.chat.completions.create(
-                model=gpt_pro_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_content
-                    },
-                    {
-                        "role": "user",
-                        "content": user_content
-                    }
-                ],
-                temperature=0.8,
-                max_tokens=max_tokens
-            )
+            # gpt-5는 max_completion_tokens 사용, gpt-4o는 max_tokens 사용
+            if gpt_pro_model.startswith("gpt-5"):
+                completion = client.chat.completions.create(
+                    model=gpt_pro_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_content
+                        },
+                        {
+                            "role": "user",
+                            "content": user_content
+                        }
+                    ],
+                    temperature=0.8,
+                    max_completion_tokens=max_tokens
+                )
+            else:
+                completion = client.chat.completions.create(
+                    model=gpt_pro_model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_content
+                        },
+                        {
+                            "role": "user",
+                            "content": user_content
+                        }
+                    ],
+                    temperature=0.8,
+                    max_tokens=max_tokens
+                )
             result = completion.choices[0].message.content.strip()
 
             # Chat Completions API 토큰 사용량 추출
