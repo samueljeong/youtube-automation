@@ -472,13 +472,19 @@ def signup():
         phone = request.form.get('phone')
         birth_date = request.form.get('birth_date')
 
-        # 유효성 검사
-        if not email or not password or not name:
-            flash('이메일, 비밀번호, 이름은 필수 항목입니다.', 'error')
+        # 유효성 검사 - 이름과 전화번호 필수
+        if not email or not password or not name or not phone:
+            flash('이메일, 비밀번호, 실명, 전화번호는 필수 항목입니다.', 'error')
             return render_template('sermon_signup.html')
 
         if len(password) < 6:
             flash('비밀번호는 최소 6자 이상이어야 합니다.', 'error')
+            return render_template('sermon_signup.html')
+
+        # 전화번호 형식 정규화 (숫자만 추출)
+        phone_normalized = ''.join(filter(str.isdigit, phone))
+        if len(phone_normalized) < 10:
+            flash('올바른 전화번호를 입력해주세요.', 'error')
             return render_template('sermon_signup.html')
 
         conn = get_db_connection()
@@ -496,6 +502,18 @@ def signup():
             conn.close()
             return render_template('sermon_signup.html')
 
+        # 실명+전화번호 중복 확인 (같은 명의로 중복 가입 방지)
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM sermon_users WHERE name = %s AND phone = %s', (name, phone_normalized))
+        else:
+            cursor.execute('SELECT * FROM sermon_users WHERE name = ? AND phone = ?', (name, phone_normalized))
+        duplicate_identity = cursor.fetchone()
+
+        if duplicate_identity:
+            flash('이미 같은 이름과 전화번호로 가입된 계정이 있습니다.', 'error')
+            conn.close()
+            return render_template('sermon_signup.html')
+
         # 비밀번호 해시 및 사용자 생성
         password_hash = generate_password_hash(password)
 
@@ -509,14 +527,14 @@ def signup():
             if USE_POSTGRES:
                 cursor.execute(
                     'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin, step3_credits) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin, default_credits)
+                    (email, password_hash, name, phone_normalized, birth_date if birth_date else None, is_admin, default_credits)
                 )
                 conn.commit()
                 cursor.execute('SELECT * FROM sermon_users WHERE email = %s', (email,))
             else:
                 cursor.execute(
                     'INSERT INTO sermon_users (email, password_hash, name, phone, birth_date, is_admin, step3_credits) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    (email, password_hash, name, phone if phone else None, birth_date if birth_date else None, is_admin, default_credits)
+                    (email, password_hash, name, phone_normalized, birth_date if birth_date else None, is_admin, default_credits)
                 )
                 conn.commit()
                 cursor.execute('SELECT * FROM sermon_users WHERE email = ?', (email,))

@@ -2483,10 +2483,25 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
           resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        showStatus('✅ 전체 복사 + Step3 완성!');
+        // 남은 크레딧 표시
+        let creditMsg = '';
+        if (data.credits !== undefined) {
+          if (data.credits === -1) {
+            creditMsg = ' (무제한)';
+          } else {
+            creditMsg = ` (남은 크레딧: ${data.credits}회)`;
+          }
+        }
+        showStatus(`✅ 전체 복사 + Step3 완성!${creditMsg}`);
       } else {
-        alert(`오류: ${data.error}`);
-        showStatus('❌ 실패');
+        // 크레딧 부족 에러 처리
+        if (data.needCredits) {
+          alert('Step3 사용 크레딧이 소진되었습니다.\n관리자에게 크레딧 충전을 요청하세요.');
+          showStatus('⚠️ 크레딧 부족');
+        } else {
+          alert(`오류: ${data.error}`);
+          showStatus('❌ 실패');
+        }
       }
     } catch (err) {
       alert(`네트워크 오류: ${err.message}`);
@@ -2500,31 +2515,45 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   const btnGptPro = document.getElementById('btn-gpt-pro');
   if (btnGptPro) {
     btnGptPro.addEventListener('click', async () => {
-      console.log('[Step3 Click] step3Codes:', step3Codes);
-      console.log('[Step3 Click] 코드 개수:', Object.keys(step3Codes).length);
-      const hasAnyCodes = Object.keys(step3Codes).length > 0;
-      console.log('[Step3 Click] hasAnyCodes:', hasAnyCodes);
+      try {
+        // 먼저 서버에서 크레딧 확인
+        const creditRes = await fetch('/api/credits');
+        const creditData = await creditRes.json();
 
-      if (hasAnyCodes) {
-        // 코드가 존재하면 코드 입력 팝업 표시
-        const codeResult = await showCodeInputPopup();
-        if (codeResult.cancelled) {
-          return; // 취소됨
+        console.log('[Step3 Click] 크레딧 확인:', creditData);
+
+        if (creditData.ok) {
+          const credits = creditData.credits;
+          const unlimited = creditData.unlimited;
+
+          if (unlimited || credits > 0) {
+            // 크레딧이 있거나 무제한이면 바로 실행
+            console.log('[Step3 Click] 크레딧 있음, 실행');
+            executeGptPro();
+          } else {
+            // 크레딧이 없으면 코드 입력 팝업 표시
+            console.log('[Step3 Click] 크레딧 소진, 코드 입력 필요');
+            const hasAnyCodes = Object.keys(step3Codes).length > 0;
+
+            if (hasAnyCodes) {
+              const codeResult = await showCodeInputPopup();
+              if (codeResult.cancelled) {
+                return;
+              }
+              showStatus(`✅ 코드 확인됨! (남은 횟수: ${codeResult.remaining})`);
+              executeGptPro();
+            } else {
+              // 코드도 없으면 안내 메시지
+              showStatus('⚠️ Step3 사용 크레딧이 부족합니다. 관리자에게 문의하세요.');
+              alert('Step3 사용 크레딧이 소진되었습니다.\n\n관리자에게 크레딧 충전을 요청하거나,\n발급받은 코드가 있다면 관리자에게 코드 등록을 요청하세요.');
+            }
+          }
+        } else {
+          showStatus('❌ 크레딧 확인 실패');
         }
-        showStatus(`✅ 코드 확인됨! (남은 횟수: ${codeResult.remaining})`);
-        executeGptPro();
-      } else if (!gptProUnlocked) {
-        // 코드가 없고 잠금 상태면 패스워드 모달 표시
-        const modal = document.getElementById('modal-gpt-pro-password');
-        if (modal) modal.classList.add('show');
-        const input = document.getElementById('gpt-pro-password-input');
-        if (input) {
-          input.value = '';
-          input.focus();
-        }
-      } else {
-        // 이미 잠금 해제된 경우 바로 실행
-        executeGptPro();
+      } catch (err) {
+        console.error('[Step3 Click] 오류:', err);
+        showStatus('❌ 오류가 발생했습니다');
       }
     });
   }
