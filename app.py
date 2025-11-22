@@ -7,7 +7,6 @@ import json
 from functools import wraps
 from openai import OpenAI
 from urllib.parse import urlparse
-import anthropic
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # Secret key for session management
@@ -24,17 +23,20 @@ try:
 except RuntimeError:
     openai_client = None
 
-# Anthropic (Claude) client setup
-def get_anthropic_client():
-    key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+# OpenRouter client setup (OpenAI 호환 API)
+def get_openrouter_client():
+    key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if not key:
-        raise RuntimeError("ANTHROPIC_API_KEY가 비어 있습니다.")
-    return anthropic.Anthropic(api_key=key)
+        raise RuntimeError("OPENROUTER_API_KEY가 비어 있습니다.")
+    return OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=key
+    )
 
 try:
-    anthropic_client = get_anthropic_client()
+    openrouter_client = get_openrouter_client()
 except RuntimeError:
-    anthropic_client = None
+    openrouter_client = None
 
 # Database setup - support both PostgreSQL and SQLite
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -1134,10 +1136,10 @@ def api_drama_gpt_pro():
 
 @app.route('/api/drama/claude-step3', methods=['POST'])
 def api_drama_claude_step3():
-    """Step3: Claude Sonnet 3.5 드라마 대본 완성"""
+    """Step3: OpenRouter를 통한 드라마 대본 완성"""
     try:
-        if not anthropic_client:
-            return jsonify({"ok": False, "error": "Anthropic API key not configured"}), 500
+        if not openrouter_client:
+            return jsonify({"ok": False, "error": "OpenRouter API key not configured. Render 환경변수에 OPENROUTER_API_KEY를 설정해주세요."}), 500
 
         data = request.get_json()
         if not data:
@@ -1151,9 +1153,9 @@ def api_drama_claude_step3():
         benchmark_script = data.get("benchmarkScript", "")
         ai_analysis = data.get("aiAnalysis", "")
         step3_guide = data.get("step3Guide", "")
-        selected_model = data.get("model", "claude-sonnet-4-20250514")
+        selected_model = data.get("model", "anthropic/claude-3.5-sonnet")
 
-        print(f"[DRAMA-CLAUDE-STEP3] 처리 시작 - 카테고리: {category}, 모델: {selected_model}")
+        print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 카테고리: {category}, 모델: {selected_model}")
 
         # Claude Step3 시스템 프롬프트 (드라마 대본 완성 전용)
         system_content = """당신은 Claude Sonnet 3.5 기반의 전문 드라마 대본 작가입니다.
@@ -1253,30 +1255,33 @@ S#1. 카페 내부 / 낮
 6. 마크다운 기호(#, *, -, **) 대신 순수 텍스트로 작성하세요.
 7. 중복되는 문장이나 설명은 피하세요."""
 
-        # Claude API 호출 (선택된 모델 사용)
-        message = anthropic_client.messages.create(
+        # OpenRouter API 호출 (OpenAI 호환)
+        response = openrouter_client.chat.completions.create(
             model=selected_model,
             max_tokens=8000,
             messages=[
+                {
+                    "role": "system",
+                    "content": system_content
+                },
                 {
                     "role": "user",
                     "content": user_content
                 }
             ],
-            system=system_content,
-            temperature=0.8
+            temperature=0.8,
+            extra_headers={
+                "HTTP-Referer": "https://my-page-v2.onrender.com",
+                "X-Title": "Drama Script Generator"
+            }
         )
 
         # 응답 추출
-        result = ""
-        for block in message.content:
-            if block.type == "text":
-                result += block.text
-
+        result = response.choices[0].message.content if response.choices else ""
         result = result.strip()
 
         if not result:
-            raise RuntimeError("Claude API로부터 결과를 받지 못했습니다.")
+            raise RuntimeError("OpenRouter API로부터 결과를 받지 못했습니다.")
 
         # 결과 앞에 기본 정보 추가
         final_result = ""
@@ -1292,19 +1297,23 @@ S#1. 카페 내부 / 낮
 
         final_result += result
 
-        print(f"[DRAMA-CLAUDE-STEP3] 완료 - 토큰: {message.usage.input_tokens} / {message.usage.output_tokens}")
+        # 토큰 사용량 추출
+        input_tokens = response.usage.prompt_tokens if response.usage else 0
+        output_tokens = response.usage.completion_tokens if response.usage else 0
+
+        print(f"[DRAMA-STEP3-OPENROUTER] 완료 - 토큰: {input_tokens} / {output_tokens}")
 
         return jsonify({
             "ok": True,
             "result": final_result,
             "usage": {
-                "input_tokens": message.usage.input_tokens,
-                "output_tokens": message.usage.output_tokens
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens
             }
         })
 
     except Exception as e:
-        print(f"[DRAMA-CLAUDE-STEP3][ERROR] {str(e)}")
+        print(f"[DRAMA-STEP3-OPENROUTER][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
