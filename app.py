@@ -1129,7 +1129,7 @@ def api_drama_claude_step3():
     """Step3: OpenRouter를 통한 드라마 대본 완성"""
     try:
         if not openrouter_client:
-            return jsonify({"ok": False, "error": "OpenRouter API key not configured. Render 환경변수에 OPENROUTER_API_KEY를 설정해주세요."}), 500
+            return jsonify({"ok": False, "error": "OpenRouter API key not configured. Render 환경변수에 OPENROUTER_API_KEY를 설정해주세요."}), 200
 
         data = request.get_json()
         if not data:
