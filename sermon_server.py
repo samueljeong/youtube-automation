@@ -14,6 +14,11 @@ app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))
 # 기본 관리자 이메일 설정
 DEFAULT_ADMIN_EMAIL = 'zkvp17@naver.com'
 
+# ===== 인증 시스템 활성화/비활성화 =====
+# False로 설정하면 로그인 없이 서비스 이용 가능 (체험 기간용)
+# True로 설정하면 회원가입/로그인 필수 (유료화 시)
+AUTH_ENABLED = False
+
 def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
@@ -417,9 +422,11 @@ def set_credits(user_id, amount):
 
 # ===== 인증 관련 함수 및 데코레이터 =====
 def login_required(f):
-    """로그인 필수 데코레이터"""
+    """로그인 필수 데코레이터 (AUTH_ENABLED가 False면 통과)"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
         if 'user_id' not in session:
             return redirect(url_for('login'))
         return f(*args, **kwargs)
@@ -452,9 +459,11 @@ def admin_required(f):
 
 
 def api_login_required(f):
-    """API용 로그인 필수 데코레이터 (JSON 응답)"""
+    """API용 로그인 필수 데코레이터 (AUTH_ENABLED가 False면 통과)"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
         if 'user_id' not in session:
             return jsonify({"ok": False, "error": "로그인이 필요합니다.", "redirect": "/login"}), 401
         return f(*args, **kwargs)
@@ -708,6 +717,14 @@ def auth_status():
 @api_login_required
 def get_my_credits():
     """내 크레딧 조회"""
+    # 인증이 비활성화된 경우 무제한으로 표시
+    if not AUTH_ENABLED:
+        return jsonify({
+            "ok": True,
+            "credits": -1,
+            "unlimited": True
+        })
+
     user_id = session.get('user_id')
     is_admin = session.get('is_admin', 0)
     credits = get_user_credits(user_id)
@@ -883,12 +900,18 @@ CRITICAL RULES:
 @app.route("/")
 @login_required
 def home():
-    return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
+    if AUTH_ENABLED:
+        return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
+    else:
+        return render_template("sermon.html", user_name="체험 사용자", is_admin=0)
 
 @app.route("/sermon")
 @login_required
 def sermon():
-    return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
+    if AUTH_ENABLED:
+        return render_template("sermon.html", user_name=session.get('user_name'), is_admin=session.get('is_admin'))
+    else:
+        return render_template("sermon.html", user_name="체험 사용자", is_admin=0)
 
 @app.route("/health")
 def health():
@@ -1094,19 +1117,26 @@ def api_process_step():
 def api_gpt_pro():
     """GPT PRO 완성본 작성"""
     try:
-        # 크레딧 확인
-        user_id = session.get('user_id')
-        current_credits = get_user_credits(user_id)
+        # 인증이 비활성화된 경우 크레딧 체크 건너뛰기
+        if AUTH_ENABLED:
+            # 크레딧 확인
+            user_id = session.get('user_id')
+            current_credits = get_user_credits(user_id)
 
-        # 관리자는 무제한
-        is_admin = session.get('is_admin', 0)
-        if not is_admin and current_credits <= 0:
-            return jsonify({
-                "ok": False,
-                "error": "Step3 사용 크레딧이 부족합니다. 관리자에게 문의하세요.",
-                "credits": 0,
-                "needCredits": True
-            }), 200
+            # 관리자는 무제한
+            is_admin = session.get('is_admin', 0)
+            if not is_admin and current_credits <= 0:
+                return jsonify({
+                    "ok": False,
+                    "error": "Step3 사용 크레딧이 부족합니다. 관리자에게 문의하세요.",
+                    "credits": 0,
+                    "needCredits": True
+                }), 200
+        else:
+            # 체험 모드: 크레딧 무제한
+            user_id = None
+            current_credits = -1
+            is_admin = 0
 
         data = request.get_json()
         if not data:
@@ -1328,9 +1358,9 @@ def api_gpt_pro():
         except Exception as e:
             print(f"[GPT-PRO] 벤치마크 분석 시작 실패 (무시): {str(e)}")
 
-        # 크레딧 차감 (관리자 제외)
+        # 크레딧 차감 (관리자 제외, 인증 활성화 시에만)
         remaining_credits = current_credits
-        if not is_admin:
+        if AUTH_ENABLED and not is_admin and user_id:
             use_credit(user_id)
             remaining_credits = get_user_credits(user_id)
             print(f"[GPT-PRO/Step3] 크레딧 차감 - 사용자: {user_id}, 남은 크레딧: {remaining_credits}")
