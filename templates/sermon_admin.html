@@ -785,15 +785,15 @@
 
         // ===== 설교 도구 설정 관련 기능 =====
 
-        // localStorage 키
+        // localStorage 키 (sermon.html과 동일하게 사용)
+        const CONFIG_KEY = '_sermon-config';
         const CODES_KEY = '_sermon-step3-codes';
-        const STEP3_PROMPT_KEY = '_sermon-step3-prompt';
-        const GUIDES_KEY = '_sermon-guides';
-        const MODEL_SETTINGS_KEY = '_sermon-model-settings';
 
+        let config = null;
         let step3Codes = {};
-        let guides = {};
-        let currentGuideIndex = 0;
+        let currentCategory = 'general';
+        let currentGuideStyleId = '';
+        let currentGuideStepId = '';
 
         // 기본 Step3 프롬프트
         const DEFAULT_STEP3_PROMPT = `당신은 한국 개신교 목사를 위한 전문 설교문 작성 도우미입니다.
@@ -808,11 +808,50 @@
 5. 자연스러운 한국어 표현 사용
 6. 적절한 비유와 예화 활용`;
 
-        // 처리 단계 목록 (sermon.html과 동일)
-        const PROCESSING_STEPS = [
-            { id: 'step1', name: 'Step1. 본문연구', color: '#ff6b6b' },
-            { id: 'step2', name: 'Step2. 설교구조', color: '#4ecdc4' }
-        ];
+        // ===== Config 로드/저장 =====
+        function loadConfig() {
+            const saved = localStorage.getItem(CONFIG_KEY);
+            if (saved) {
+                try {
+                    config = JSON.parse(saved);
+                    console.log('[Admin] Config loaded:', config);
+                } catch (e) {
+                    console.error('[Admin] Config parse error:', e);
+                    config = null;
+                }
+            }
+            return config;
+        }
+
+        function saveConfig() {
+            if (config) {
+                localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+                console.log('[Admin] Config saved');
+            }
+        }
+
+        function getModelSettings() {
+            if (!config || !config.categorySettings || !config.categorySettings[currentCategory]) {
+                return {
+                    step1: 'gpt-4o',
+                    step2: 'gpt-4o',
+                    gptPro: 'gpt-5',
+                    step3MaxTokens: 16000,
+                    step3Prompt: DEFAULT_STEP3_PROMPT
+                };
+            }
+            const settings = config.categorySettings[currentCategory];
+            if (!settings.modelSettings) {
+                settings.modelSettings = {
+                    step1: 'gpt-4o',
+                    step2: 'gpt-4o',
+                    gptPro: 'gpt-5',
+                    step3MaxTokens: 16000,
+                    step3Prompt: DEFAULT_STEP3_PROMPT
+                };
+            }
+            return settings.modelSettings;
+        }
 
         // ===== 코드 관리 =====
         function loadStep3Codes() {
@@ -921,45 +960,52 @@
         }
 
         // ===== 모델 설정 =====
-        function loadModelSettings() {
-            const saved = localStorage.getItem(MODEL_SETTINGS_KEY);
-            if (saved) {
-                try {
-                    const settings = JSON.parse(saved);
-                    if (settings.step1) document.getElementById('model-step1').value = settings.step1;
-                    if (settings.step2) document.getElementById('model-step2').value = settings.step2;
-                    if (settings.gptPro) document.getElementById('model-gpt-pro').value = settings.gptPro;
-                    if (settings.step3MaxTokens) document.getElementById('step3-max-tokens').value = settings.step3MaxTokens;
-                } catch (e) {
-                    console.error('모델 설정 로드 오류:', e);
-                }
-            }
+        function loadModelSettingsUI() {
+            const modelSettings = getModelSettings();
+            const step1Select = document.getElementById('model-step1');
+            const step2Select = document.getElementById('model-step2');
+            const gptProSelect = document.getElementById('model-gpt-pro');
+            const step3MaxTokensInput = document.getElementById('step3-max-tokens');
+
+            if (step1Select) step1Select.value = modelSettings.step1 || 'gpt-4o';
+            if (step2Select) step2Select.value = modelSettings.step2 || 'gpt-4o';
+            if (gptProSelect) gptProSelect.value = modelSettings.gptPro || 'gpt-5';
+            if (step3MaxTokensInput) step3MaxTokensInput.value = modelSettings.step3MaxTokens || 16000;
         }
 
-        function saveModelSettings() {
-            const settings = {
-                step1: document.getElementById('model-step1').value,
-                step2: document.getElementById('model-step2').value,
-                gptPro: document.getElementById('model-gpt-pro').value,
-                step3MaxTokens: document.getElementById('step3-max-tokens').value
-            };
-            localStorage.setItem(MODEL_SETTINGS_KEY, JSON.stringify(settings));
+        function saveModelSettingsUI() {
+            if (!config) {
+                alert('설정을 먼저 로드해주세요. 페이지를 새로고침해보세요.');
+                return;
+            }
+            const modelSettings = getModelSettings();
+            modelSettings.step1 = document.getElementById('model-step1').value;
+            modelSettings.step2 = document.getElementById('model-step2').value;
+            modelSettings.gptPro = document.getElementById('model-gpt-pro').value;
+            modelSettings.step3MaxTokens = parseInt(document.getElementById('step3-max-tokens').value) || 16000;
+            saveConfig();
             alert('모델 설정이 저장되었습니다.');
         }
 
         // ===== Step3 지침 =====
         function loadStep3Prompt() {
-            const saved = localStorage.getItem(STEP3_PROMPT_KEY);
+            const modelSettings = getModelSettings();
             const textarea = document.getElementById('step3-prompt');
             if (textarea) {
-                textarea.value = saved || DEFAULT_STEP3_PROMPT;
+                textarea.value = modelSettings.step3Prompt || DEFAULT_STEP3_PROMPT;
             }
         }
 
         function saveStep3Prompt() {
+            if (!config) {
+                alert('설정을 먼저 로드해주세요. 페이지를 새로고침해보세요.');
+                return;
+            }
             const textarea = document.getElementById('step3-prompt');
             if (textarea) {
-                localStorage.setItem(STEP3_PROMPT_KEY, textarea.value);
+                const modelSettings = getModelSettings();
+                modelSettings.step3Prompt = textarea.value;
+                saveConfig();
                 alert('Step3 지침이 저장되었습니다.');
             }
         }
@@ -969,78 +1015,138 @@
                 const textarea = document.getElementById('step3-prompt');
                 if (textarea) {
                     textarea.value = DEFAULT_STEP3_PROMPT;
-                    localStorage.setItem(STEP3_PROMPT_KEY, DEFAULT_STEP3_PROMPT);
+                    if (config) {
+                        const modelSettings = getModelSettings();
+                        modelSettings.step3Prompt = DEFAULT_STEP3_PROMPT;
+                        saveConfig();
+                    }
                     alert('기본값으로 복원되었습니다.');
                 }
             }
         }
 
         // ===== 처리 단계 지침 =====
-        function loadGuides() {
-            const saved = localStorage.getItem(GUIDES_KEY);
-            if (saved) {
-                try {
-                    guides = JSON.parse(saved);
-                } catch (e) {
-                    guides = {};
+        function getStylesAndSteps() {
+            const result = [];
+            if (!config || !config.categorySettings) return result;
+
+            const catSettings = config.categorySettings[currentCategory];
+            if (!catSettings || !catSettings.styles) return result;
+
+            catSettings.styles.forEach(style => {
+                if (style.steps) {
+                    style.steps.forEach(step => {
+                        result.push({
+                            styleId: style.id,
+                            styleName: style.name,
+                            stepId: step.id,
+                            stepName: step.name,
+                            guideKey: `guide-${currentCategory}-${style.id}-${step.id}`
+                        });
+                    });
                 }
-            }
-            renderGuideTabs();
+            });
+            return result;
         }
 
         function renderGuideTabs() {
             const container = document.getElementById('guide-tabs');
             if (!container) return;
 
-            container.innerHTML = PROCESSING_STEPS.map((step, idx) => `
-                <button class="btn ${idx === currentGuideIndex ? 'btn-credit' : ''}"
-                        style="padding: 8px 16px; font-size: 13px; ${idx === currentGuideIndex ? '' : 'background: #e0e0e0; color: #666;'}"
-                        onclick="selectGuideTab(${idx})">
-                    ${step.name}
-                </button>
-            `).join('');
+            const items = getStylesAndSteps();
+            if (items.length === 0) {
+                container.innerHTML = '<span style="color: #999; font-size: 13px;">설정된 스타일/단계가 없습니다.</span>';
+                return;
+            }
 
+            // 첫 번째 항목 선택
+            if (!currentGuideStyleId && items.length > 0) {
+                currentGuideStyleId = items[0].styleId;
+                currentGuideStepId = items[0].stepId;
+            }
+
+            // 스타일별 그룹화
+            const styleGroups = {};
+            items.forEach(item => {
+                if (!styleGroups[item.styleId]) {
+                    styleGroups[item.styleId] = { name: item.styleName, steps: [] };
+                }
+                styleGroups[item.styleId].steps.push(item);
+            });
+
+            let html = '';
+            Object.entries(styleGroups).forEach(([styleId, group]) => {
+                html += `<div style="margin-bottom: 8px;"><strong style="font-size: 12px; color: #667eea;">${group.name}</strong><br>`;
+                group.steps.forEach(item => {
+                    const isActive = item.styleId === currentGuideStyleId && item.stepId === currentGuideStepId;
+                    html += `<button class="btn ${isActive ? 'btn-credit' : ''}"
+                        style="padding: 4px 8px; font-size: 11px; margin: 2px; ${isActive ? '' : 'background: #e0e0e0; color: #666;'}"
+                        onclick="selectGuideItem('${item.styleId}', '${item.stepId}')">${item.stepName}</button>`;
+                });
+                html += '</div>';
+            });
+            container.innerHTML = html;
             updateGuideText();
         }
 
-        function selectGuideTab(idx) {
-            currentGuideIndex = idx;
+        function selectGuideItem(styleId, stepId) {
+            currentGuideStyleId = styleId;
+            currentGuideStepId = stepId;
             renderGuideTabs();
         }
 
         function updateGuideText() {
-            const step = PROCESSING_STEPS[currentGuideIndex];
             const infoEl = document.getElementById('current-guide-info');
             const textEl = document.getElementById('guide-text');
 
+            if (!currentGuideStyleId || !currentGuideStepId) {
+                if (infoEl) infoEl.innerHTML = '';
+                if (textEl) textEl.value = '';
+                return;
+            }
+
+            const guideKey = `guide-${currentCategory}-${currentGuideStyleId}-${currentGuideStepId}`;
+            const guideContent = localStorage.getItem(guideKey) || '';
+
             if (infoEl) {
-                infoEl.innerHTML = `<strong style="color: ${step.color};">${step.name}</strong> 지침 편집 중`;
+                infoEl.innerHTML = `<strong style="color: #667eea;">${currentGuideStyleId} / ${currentGuideStepId}</strong> 지침 편집 중`;
             }
             if (textEl) {
-                textEl.value = guides[step.id] || '';
+                textEl.value = guideContent;
             }
         }
 
         function saveGuide() {
-            const step = PROCESSING_STEPS[currentGuideIndex];
+            if (!currentGuideStyleId || !currentGuideStepId) {
+                alert('저장할 지침을 선택해주세요.');
+                return;
+            }
             const textEl = document.getElementById('guide-text');
             if (textEl) {
-                guides[step.id] = textEl.value;
-                localStorage.setItem(GUIDES_KEY, JSON.stringify(guides));
-                alert(`${step.name} 지침이 저장되었습니다.`);
+                const guideKey = `guide-${currentCategory}-${currentGuideStyleId}-${currentGuideStepId}`;
+                localStorage.setItem(guideKey, textEl.value);
+                alert('지침이 저장되었습니다.');
             }
         }
 
         // ===== 백업/복원 =====
         function exportBackup() {
+            // 모든 guide- 키 수집
+            const guideData = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('guide-')) {
+                    guideData[key] = localStorage.getItem(key);
+                }
+            }
+
             const backup = {
-                version: '1.0',
+                version: '2.0',
                 exportedAt: new Date().toISOString(),
                 data: {
+                    config: localStorage.getItem(CONFIG_KEY),
                     codes: step3Codes,
-                    step3Prompt: localStorage.getItem(STEP3_PROMPT_KEY),
-                    guides: guides,
-                    modelSettings: localStorage.getItem(MODEL_SETTINGS_KEY)
+                    guides: guideData
                 }
             };
 
@@ -1070,22 +1176,21 @@
                             step3Codes = backup.data.codes;
                             saveStep3Codes();
                         }
-                        if (backup.data.step3Prompt) {
-                            localStorage.setItem(STEP3_PROMPT_KEY, backup.data.step3Prompt);
+                        if (backup.data.config) {
+                            localStorage.setItem(CONFIG_KEY, backup.data.config);
+                            loadConfig();
                         }
                         if (backup.data.guides) {
-                            guides = backup.data.guides;
-                            localStorage.setItem(GUIDES_KEY, JSON.stringify(guides));
-                        }
-                        if (backup.data.modelSettings) {
-                            localStorage.setItem(MODEL_SETTINGS_KEY, backup.data.modelSettings);
+                            Object.entries(backup.data.guides).forEach(([key, value]) => {
+                                localStorage.setItem(key, value);
+                            });
                         }
 
                         // UI 갱신
                         loadStep3Codes();
+                        loadModelSettingsUI();
                         loadStep3Prompt();
-                        loadGuides();
-                        loadModelSettings();
+                        renderGuideTabs();
 
                         alert('백업이 복원되었습니다.');
                     }
@@ -1100,19 +1205,22 @@
 
         // 전역 함수 등록
         window.deleteCode = deleteCode;
-        window.selectGuideTab = selectGuideTab;
+        window.selectGuideItem = selectGuideItem;
 
         // ===== 이벤트 리스너 =====
         document.addEventListener('DOMContentLoaded', () => {
+            // Config 로드 (가장 먼저)
+            loadConfig();
+
             // 코드 관리
             loadStep3Codes();
             const btnCreateCode = document.getElementById('btn-create-code');
             if (btnCreateCode) btnCreateCode.addEventListener('click', createNewCode);
 
             // 모델 설정
-            loadModelSettings();
+            loadModelSettingsUI();
             const btnSaveModel = document.getElementById('btn-save-model-settings');
-            if (btnSaveModel) btnSaveModel.addEventListener('click', saveModelSettings);
+            if (btnSaveModel) btnSaveModel.addEventListener('click', saveModelSettingsUI);
 
             // Step3 지침
             loadStep3Prompt();
@@ -1122,7 +1230,7 @@
             if (btnResetStep3) btnResetStep3.addEventListener('click', resetStep3Prompt);
 
             // 처리 단계 지침
-            loadGuides();
+            renderGuideTabs();
             const btnSaveGuide = document.getElementById('save-guide');
             if (btnSaveGuide) btnSaveGuide.addEventListener('click', saveGuide);
 
