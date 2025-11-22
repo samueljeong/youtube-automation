@@ -675,104 +675,75 @@ def api_gpt_pro():
         usage_data = None
 
         # 모델에 따라 적절한 API 호출
-        if gpt_pro_model == "gpt-5.1":
-            # Responses API (gpt-5.1 전용)
-            completion = client.responses.create(
+        # gpt-5 계열은 max_completion_tokens 사용, temperature 미지원
+        # gpt-4o 계열은 max_tokens 사용, temperature 지원
+        if gpt_pro_model in ["gpt-5", "gpt-5.1"]:
+            # gpt-5, gpt-5.1은 temperature 지원 안함 (기본값 1만 허용)
+            completion = client.chat.completions.create(
                 model=gpt_pro_model,
-                input=[
+                messages=[
                     {
                         "role": "system",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": system_content
-                            }
-                        ]
+                        "content": system_content
                     },
                     {
                         "role": "user",
-                        "content": [
-                            {
-                                "type": "input_text",
-                                "text": user_content
-                            }
-                        ]
+                        "content": user_content
+                    }
+                ],
+                max_completion_tokens=max_tokens
+            )
+            result = completion.choices[0].message.content.strip()
+
+            # Chat Completions API 토큰 사용량 추출
+            if hasattr(completion, 'usage') and completion.usage:
+                usage_data = {
+                    "input_tokens": getattr(completion.usage, 'prompt_tokens', 0),
+                    "output_tokens": getattr(completion.usage, 'completion_tokens', 0),
+                    "total_tokens": getattr(completion.usage, 'total_tokens', 0)
+                }
+        elif gpt_pro_model.startswith("gpt-5"):
+            # 다른 gpt-5.x 모델
+            completion = client.chat.completions.create(
+                model=gpt_pro_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_content
+                    },
+                    {
+                        "role": "user",
+                        "content": user_content
                     }
                 ],
                 temperature=0.8,
-                max_output_tokens=max_tokens
+                max_completion_tokens=max_tokens
             )
+            result = completion.choices[0].message.content.strip()
 
-            if getattr(completion, "output_text", None):
-                result = completion.output_text.strip()
-            else:
-                text_chunks = []
-                for item in getattr(completion, "output", []) or []:
-                    for content in getattr(item, "content", []) or []:
-                        if getattr(content, "type", "") == "text":
-                            text_chunks.append(getattr(content, "text", ""))
-                result = "\n".join(text_chunks).strip()
-
-            # Responses API 토큰 사용량 추출
             if hasattr(completion, 'usage') and completion.usage:
                 usage_data = {
-                    "input_tokens": getattr(completion.usage, 'input_tokens', 0),
-                    "output_tokens": getattr(completion.usage, 'output_tokens', 0),
+                    "input_tokens": getattr(completion.usage, 'prompt_tokens', 0),
+                    "output_tokens": getattr(completion.usage, 'completion_tokens', 0),
                     "total_tokens": getattr(completion.usage, 'total_tokens', 0)
                 }
         else:
-            # Chat Completions API (gpt-5, gpt-4o 등)
-            # gpt-5는 max_completion_tokens 사용, temperature 미지원
-            # gpt-4o는 max_tokens 사용
-            if gpt_pro_model == "gpt-5":
-                # gpt-5는 temperature 지원 안함 (기본값 1만 허용)
-                completion = client.chat.completions.create(
-                    model=gpt_pro_model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_content
-                        },
-                        {
-                            "role": "user",
-                            "content": user_content
-                        }
-                    ],
-                    max_completion_tokens=max_tokens
-                )
-            elif gpt_pro_model.startswith("gpt-5"):
-                # 다른 gpt-5.x 모델 (5.1 제외, 위에서 처리)
-                completion = client.chat.completions.create(
-                    model=gpt_pro_model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_content
-                        },
-                        {
-                            "role": "user",
-                            "content": user_content
-                        }
-                    ],
-                    temperature=0.8,
-                    max_completion_tokens=max_tokens
-                )
-            else:
-                completion = client.chat.completions.create(
-                    model=gpt_pro_model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_content
-                        },
-                        {
-                            "role": "user",
-                            "content": user_content
-                        }
-                    ],
-                    temperature=0.8,
-                    max_tokens=max_tokens
-                )
+            # gpt-4o 등 다른 모델
+            completion = client.chat.completions.create(
+                model=gpt_pro_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_content
+                    },
+                    {
+                        "role": "user",
+                        "content": user_content
+                    }
+                ],
+                temperature=0.8,
+                max_tokens=max_tokens
+            )
             result = completion.choices[0].message.content.strip()
 
             # Chat Completions API 토큰 사용량 추출
