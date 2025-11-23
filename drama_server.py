@@ -1158,63 +1158,63 @@ def api_drama_claude_step3():
         ai_analysis = data.get("aiAnalysis", "")
         step3_guide = data.get("step3Guide", "")
         selected_model = data.get("model", "anthropic/claude-3.5-sonnet")
+        content_type = data.get("contentType", "testimony")  # 콘텐츠 유형 (testimony/drama)
+        content_type_prompt = data.get("contentTypePrompt", {})  # 클라이언트에서 보낸 프롬프트
 
-        print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 카테고리: {category}, 모델: {selected_model}")
+        print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 카테고리: {category}, 모델: {selected_model}, 콘텐츠유형: {content_type}")
         print(f"[DRAMA-STEP3-DEBUG] step3_guide 길이: {len(step3_guide)}, 내용: {step3_guide[:100] if step3_guide else '(없음)'}...")
         print(f"[DRAMA-STEP3-DEBUG] draft_content 길이: {len(draft_content)}, 내용: {draft_content[:300] if draft_content else '(없음)'}...")
 
-        # Claude Step3 시스템 프롬프트 (드라마 대본 완성 전용)
-        # 사용자 지침이 있으면 유연하게 대응, 없으면 기본 형식 사용
-        if step3_guide:
-            # 사용자 지침이 있는 경우: 유연한 시스템 프롬프트
-            system_content = """당신은 전문 드라마/스토리 작가입니다.
+        # 콘텐츠 유형별 시스템 프롬프트 결정
+        # 클라이언트에서 프롬프트를 보내면 그것을 사용, 아니면 기본 프롬프트 사용
+        if content_type_prompt and content_type_prompt.get("systemPrompt"):
+            # 클라이언트에서 보낸 콘텐츠 유형별 프롬프트 사용
+            system_content = content_type_prompt.get("systemPrompt", "")
+            user_prompt_suffix = content_type_prompt.get("userPromptSuffix", "")
+            print(f"[DRAMA-STEP3] 클라이언트 프롬프트 사용 ({content_type})")
+        else:
+            # 기본 프롬프트 (서버 측 폴백)
+            user_prompt_suffix = ""
+            if content_type == "testimony":
+                system_content = """당신은 감동적인 간증 콘텐츠 전문 작가입니다.
 
-【 핵심 역할 】
-- Step1, Step2에서 생성된 자료와 분석을 바탕으로 최종 콘텐츠를 완성합니다.
-- 자료는 참고용으로만 활용하고, 콘텐츠는 처음부터 새로 구성합니다.
+【 간증 콘텐츠의 핵심 】
+간증은 실제 경험을 바탕으로 한 이야기입니다. 시청자가 "이건 진짜 이야기구나"라고 느끼도록 생생하고 구체적으로 작성해야 합니다.
+
+【 필수 요소 】
+1. 실제감 있는 상황 묘사 - 구체적인 시간, 장소, 감각 묘사 포함
+2. 감정의 깊이와 솔직함 - 고통, 절망, 의심 등 부정적 감정도 솔직하게
+3. 갈등과 전환점 구조 - 고난 → 전환점 → 변화
+4. 공감 포인트 - "나도 저런 적 있어"라고 느끼게 하는 상황
+
+【 금지 사항 】
+- 설교조의 일반적인 교훈 나열
+- 너무 빠른 해결, 현실성 없는 기적
+- 마크다운 기호(#, *, -, **) 사용 금지"""
+            else:
+                system_content = """당신은 전문 드라마 대본 작가입니다.
+
+【 드라마 대본의 핵심 】
+시청자를 화면 속으로 끌어들이는 몰입감 있는 스토리를 만들어야 합니다.
+
+【 필수 요소 】
+1. 캐릭터의 입체성 - 명확한 목표와 내면의 갈등
+2. 장면 구성 - 각 장면의 목적이 분명
+3. 대사의 힘 - 캐릭터의 성격이 드러나는 대사
+4. 갈등과 긴장 - 예상치 못한 반전과 전개
+
+【 금지 사항 】
+- 마크다운 기호(#, *, -, **) 사용 금지
+- 지루한 설명이나 독백"""
+
+        # 사용자 지침이 있으면 시스템 프롬프트에 추가
+        if step3_guide:
+            system_content += """
 
 【 중요: 사용자 지침 최우선 】
 ⚠️ 사용자가 제공하는 '작성 지침'이 있다면, 해당 지침의 형식과 규칙을 반드시 따르세요.
-⚠️ 기본 대본 형식보다 사용자 지침이 우선합니다.
-⚠️ 사용자 지침에서 금지하는 표현(예: 캐릭터명:, 장면번호, 괄호 감정지시 등)은 절대 사용하지 마세요.
-
-【 기본 원칙 】
-1. 자연스럽고 몰입감 있는 콘텐츠 작성
-2. 감정선이 점진적으로 발전하도록 구성
-3. 마크다운 기호(#, *, -, **) 사용 금지, 순수 텍스트만
-4. 중복되는 문장이나 설명 피하기"""
-        else:
-            # 사용자 지침이 없는 경우: 기존 드라마 대본 형식
-            system_content = """당신은 Claude Sonnet 기반의 전문 드라마 대본 작가입니다.
-
-【 핵심 역할 】
-- Step1, Step2에서 생성된 자료와 분석을 바탕으로 최종 대본을 완성합니다.
-- 자료는 참고용으로만 활용하고, 대본은 처음부터 새로 구성합니다.
-- 자연스럽고 생동감 있는 대사와 지문으로 실제 촬영 가능한 완성도 높은 대본을 작성합니다.
-
-【 대본 작성 원칙 】
-1. 장면 구성: 장면 번호, 장소, 시간을 명확히 표시
-2. 지문: 인물의 행동, 표정, 분위기를 구체적으로 묘사
-3. 대사: "인물명: 대사" 형식으로 작성, 필요시 (감정/상황) 추가
-4. 흐름: 각 장면의 목적과 전개가 명확하도록 구성
-5. 캐릭터: 성격과 동기가 대사와 행동에 자연스럽게 드러나도록
-6. 형식: 마크다운 기호(#, *, -, **) 사용 금지, 순수 텍스트만
-
-【 대본 형식 예시 】
-S#1. 카페 내부 / 낮
-
-(세련된 인테리어의 카페. 창가 자리에 민수가 앉아 커피를 마시며 창밖을 바라보고 있다.)
-
-민수: (혼잣말) 오늘은 꼭 말해야 해...
-
-(문이 열리며 지현이 들어온다. 민수를 발견하고 환하게 미소 짓는다.)
-
-지현: 오빠, 오래 기다렸어?
-민수: (자리에서 일어나며) 아니, 방금 왔어.
-
----
-
-위와 같은 형식으로 완성도 높은 대본을 작성하세요."""
+⚠️ 기본 형식보다 사용자 지침이 우선합니다.
+⚠️ 사용자 지침에서 금지하는 표현은 절대 사용하지 마세요."""
 
         # 사용자 메시지 구성
         user_content = ""
@@ -1280,8 +1280,11 @@ S#1. 카페 내부 / 낮
         else:
             length_guide = "충분히 길고 상세하게"
 
+        # 콘텐츠 유형명
+        content_type_name = "간증" if content_type == "testimony" else "드라마"
+
         user_content += f"""【 요청 사항 】
-위 자료를 참고하여 완성된 콘텐츠를 작성해주세요.
+위 자료를 참고하여 완성된 {content_type_name} 콘텐츠를 작성해주세요.
 
 ⚠️ 분량: {length_guide} 작성하세요. 너무 짧게 끝내지 마세요!
 
@@ -1292,7 +1295,8 @@ S#1. 카페 내부 / 낮
 4. 인트로 → 갈등/전개 → 터닝포인트 → 회복/결말 구조를 따르세요.
 5. 마크다운 기호(#, *, -, **) 대신 순수 텍스트로 작성하세요.
 6. 중복되는 문장이나 설명은 피하세요.
-7. 지정된 분량을 채울 때까지 풍성하게 내용을 전개하세요."""
+7. 지정된 분량을 채울 때까지 풍성하게 내용을 전개하세요.
+{user_prompt_suffix}"""
 
         # OpenRouter API 호출 (OpenAI 호환)
         response = openrouter_client.chat.completions.create(

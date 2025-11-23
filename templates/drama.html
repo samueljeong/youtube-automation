@@ -835,7 +835,7 @@
   <div class="page-wrap">
     <!-- 왼쪽 -->
     <div class="left-col">
-      <!-- 날짜 + 영상 시간 (한 줄) -->
+      <!-- 날짜 + 영상 시간 + 콘텐츠 유형 -->
       <div class="box" style="padding: .5rem .75rem;">
         <div style="display: flex; gap: .5rem; align-items: center;">
           <div style="flex: 1;">
@@ -845,6 +845,24 @@
           <div style="flex: 1;">
             <label class="label" style="font-size: .8rem; margin-bottom: .2rem; display: block;">영상 시간</label>
             <select id="drama-category" style="padding: .25rem .4rem; font-size: .85rem;"></select>
+          </div>
+          <div style="flex: 1;">
+            <label class="label" style="font-size: .8rem; margin-bottom: .2rem; display: block;">콘텐츠 유형</label>
+            <select id="content-type" style="padding: .25rem .4rem; font-size: .85rem;">
+              <option value="testimony">간증</option>
+              <option value="drama">드라마</option>
+            </select>
+          </div>
+        </div>
+        <!-- 프롬프트 미리보기 토글 -->
+        <div style="margin-top: .5rem;">
+          <button id="btn-toggle-prompt-preview" style="width: 100%; padding: .3rem; font-size: .75rem; background: #f8f9fa; color: #666; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+            📝 Step3 프롬프트 미리보기 ▼
+          </button>
+          <div id="prompt-preview-container" style="display: none; margin-top: .4rem; padding: .5rem; background: #f8f9fa; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+            <div style="font-size: .7rem; color: #333; white-space: pre-wrap; line-height: 1.4;" id="prompt-preview-content">
+              콘텐츠 유형을 선택하면 해당 프롬프트가 표시됩니다.
+            </div>
           </div>
         </div>
       </div>
@@ -1574,6 +1592,137 @@
     }
   };
 
+  // ===== 콘텐츠 유형별 Step3 프롬프트 =====
+  const contentTypePrompts = {
+    testimony: {
+      name: '간증',
+      systemPrompt: `당신은 감동적인 간증 콘텐츠 전문 작가입니다.
+
+【 간증 콘텐츠의 핵심 】
+간증은 실제 경험을 바탕으로 한 이야기입니다. 시청자가 "이건 진짜 이야기구나"라고 느끼도록 생생하고 구체적으로 작성해야 합니다.
+
+【 필수 요소 】
+1. 실제감 있는 상황 묘사
+   - 추상적 표현 금지 (X: "힘든 시간을 보냈다" → O: "새벽 3시, 텅 빈 사무실에서 해고 통보 메일을 읽었다")
+   - 구체적인 시간, 장소, 감각 묘사 포함
+   - 실제 대화처럼 자연스러운 대사
+
+2. 감정의 깊이와 솔직함
+   - 겉치레 없는 날것의 감정 표현
+   - 고통, 절망, 분노, 의심 등 부정적 감정도 솔직하게
+   - 눈물, 떨림, 심장 박동 등 신체 반응 묘사
+
+3. 갈등과 전환점 구조
+   - 시작: 평범한 일상 또는 위기의 시작
+   - 고난: 점점 깊어지는 어둠, 막다른 골목
+   - 전환점: 하나님의 개입, 깨달음의 순간 (구체적 사건으로)
+   - 변화: 이전과 확실히 달라진 모습
+
+4. 공감 포인트
+   - "나도 저런 적 있어"라고 느끼게 하는 보편적 상황
+   - 완벽한 사람이 아닌, 약하고 실수하는 인간의 모습
+
+【 금지 사항 】
+- 설교조의 일반적인 교훈 나열
+- "하나님은 선하십니다" 같은 진부한 결론
+- 너무 빠른 해결, 현실성 없는 기적
+- 감정 없이 사건만 나열
+
+【 출력 형식 】
+- 마크다운 기호(#, *, -, **) 사용 금지
+- 나레이션과 대사를 자연스럽게 섞어서 구성
+- 지문은 괄호 () 안에 작성`,
+
+      userPromptSuffix: `
+
+⚠️ 중요: 이것은 간증 콘텐츠입니다.
+- 시청자가 처음부터 끝까지 몰입할 수 있도록 긴장감 있게 전개하세요
+- 고난의 깊이가 깊을수록, 은혜의 감동도 커집니다
+- "이건 진짜 이야기구나"라고 느끼게 하는 구체적인 디테일을 넣으세요
+- 결말이 너무 뻔하거나 교훈적이면 안 됩니다`
+    },
+
+    drama: {
+      name: '드라마',
+      systemPrompt: `당신은 전문 드라마 대본 작가입니다.
+
+【 드라마 대본의 핵심 】
+시청자를 화면 속으로 끌어들이는 몰입감 있는 스토리를 만들어야 합니다.
+
+【 필수 요소 】
+1. 캐릭터의 입체성
+   - 주인공의 명확한 목표와 내면의 갈등
+   - 각 인물만의 말투, 습관, 가치관
+   - 캐릭터 간의 긴장감 있는 관계
+
+2. 장면 구성
+   - 각 장면의 목적이 분명해야 함
+   - 시각적으로 그려지는 공간 묘사
+   - 적절한 장면 전환과 템포
+
+3. 대사의 힘
+   - 캐릭터의 성격이 드러나는 대사
+   - 서브텍스트 (말하지 않은 것의 힘)
+   - 기억에 남는 명대사
+
+4. 갈등과 긴장
+   - 외적 갈등 (인물 vs 인물, 상황)
+   - 내적 갈등 (인물 내면의 싸움)
+   - 예상치 못한 반전과 전개
+
+【 대본 형식 】
+S#1. 장소 / 시간
+
+(장면 설명 - 공간, 분위기, 인물 배치)
+
+인물명: 대사
+인물명: (감정/행동) 대사
+
+【 금지 사항 】
+- 마크다운 기호(#, *, -, **) 사용 금지
+- 지루한 설명이나 독백
+- 캐릭터 행동의 일관성 부재
+- 결말로 향하는 긴장감 없이 늘어지는 전개`,
+
+      userPromptSuffix: `
+
+⚠️ 중요: 이것은 드라마 대본입니다.
+- 시청자가 다음 장면이 궁금해지도록 긴장감을 유지하세요
+- 각 캐릭터의 목소리가 구분되어야 합니다
+- 장면 전환이 자연스럽고 목적이 있어야 합니다
+- 촬영 가능한 수준의 구체적인 지문을 작성하세요`
+    }
+  };
+
+  // 현재 선택된 콘텐츠 유형의 프롬프트 가져오기
+  function getCurrentPrompt() {
+    const contentType = document.getElementById('content-type')?.value || 'testimony';
+    return contentTypePrompts[contentType] || contentTypePrompts.testimony;
+  }
+
+  // 프롬프트 미리보기 업데이트
+  function updatePromptPreview() {
+    const prompt = getCurrentPrompt();
+    const previewEl = document.getElementById('prompt-preview-content');
+    if (previewEl) {
+      previewEl.textContent = `【 ${prompt.name} 모드 시스템 프롬프트 】\n\n${prompt.systemPrompt}\n\n【 추가 지시사항 】${prompt.userPromptSuffix}`;
+    }
+  }
+
+  // 프롬프트 미리보기 토글
+  document.getElementById('btn-toggle-prompt-preview')?.addEventListener('click', function() {
+    const container = document.getElementById('prompt-preview-container');
+    if (container) {
+      const isHidden = container.style.display === 'none';
+      container.style.display = isHidden ? 'block' : 'none';
+      this.textContent = isHidden ? '📝 Step3 프롬프트 미리보기 ▲' : '📝 Step3 프롬프트 미리보기 ▼';
+      if (isHidden) updatePromptPreview();
+    }
+  });
+
+  // 콘텐츠 유형 변경 시 프롬프트 업데이트
+  document.getElementById('content-type')?.addEventListener('change', updatePromptPreview);
+
   // ===== 한글 → 영문 ID 자동 생성 =====
   function koreanToId(korean) {
     const map = {
@@ -2164,6 +2313,10 @@
     showLoadingOverlay('OpenRouter 대본 완성 중', 'AI가 대본을 작성하고 있습니다...');
     showStatus('🎬 Step3: OpenRouter 대본 완성 중... (약 30-60초 소요)');
 
+    // 콘텐츠 유형 가져오기 (간증/드라마)
+    const contentType = document.getElementById('content-type')?.value || 'testimony';
+    const promptData = contentTypePrompts[contentType] || contentTypePrompts.testimony;
+
     try {
       const response = await fetch('/api/drama/claude-step3', {
         method: 'POST',
@@ -2175,7 +2328,9 @@
           benchmarkScript: benchmarkScript,
           aiAnalysis: analysisResult,
           step3Guide: currentStep3Guide,  // ⭐ 최신 값 사용
-          model: aiModelSettings.step3  // 선택된 모델 전달
+          model: aiModelSettings.step3,  // 선택된 모델 전달
+          contentType: contentType,  // 콘텐츠 유형 (testimony/drama)
+          contentTypePrompt: promptData  // 유형별 프롬프트 데이터
         })
       });
 
