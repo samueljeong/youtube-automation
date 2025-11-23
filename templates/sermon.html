@@ -568,10 +568,14 @@
     }
 
     /* 관리자 공간 스크롤 */
-    #master-guide-content,
-    #guide-content {
+    #master-guide-content {
       max-height: 300px;
       overflow-y: auto;
+    }
+    /* 모달 내 guide-content는 제한 없음 */
+    #modal-admin-panel #guide-content {
+      max-height: none;
+      overflow-y: visible;
     }
 
     /* 처리 단계 + Q&A 70:30 분할 */
