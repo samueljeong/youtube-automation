@@ -935,7 +935,7 @@
         <div class="label-row" style="align-items: flex-start;">
           <div>
             <div class="label">카테고리</div>
-            <div style="font-size: .8rem; color: #777;">설교 / 성경배경지식 등을 한눈에 확인</div>
+            <div style="font-size: .8rem; color: #777;">바로가기와 추가/관리 버튼을 왼쪽에서 노출</div>
           </div>
           <div class="btn-row" style="gap: .35rem;">
             <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
@@ -1001,8 +1001,8 @@
         <div class="input-grid">
           <div class="box">
             <div class="label-row">
-              <label class="label">성경구절<span class="label-hint">필수</span></label>
-              <span style="font-size: .8rem; color: #4a90e2;">둘 중 하나만 입력해도 진행돼요</span>
+              <label class="label">성경구절<span class="label-hint">선택</span></label>
+              <span style="font-size: .8rem; color: #4a90e2;">성경구절이나 주제 둘 중 하나만 입력해도 됩니다.</span>
             </div>
             <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
           </div>
@@ -1045,66 +1045,69 @@
           </div>
         </div>
 
-        <div class="action-row">
-          <div class="box copy-all-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem;">
-            <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">📋 개인 GPT-PRO 사용</div>
-            <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭 후 사용하시는 GPT에 붙여넣기 해주세요.</div>
-            <button id="btn-copy-all" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
-          </div>
-          <div class="box gpt-pro-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .85rem;">
-            <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🚀 GPT 최신 버전 이용</div>
-            <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭하시면 유료버전 GPT를 이용해서 설교문을 요청합니다.</div>
-            <button id="btn-gpt-pro" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
-          </div>
-        </div>
-
-        <div class="box result-wrapper">
-          <div id="update-notice" class="box" style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border: none;">
-            <div style="text-align: center; margin-bottom: 1rem;">
-              <h3 style="margin: 0 0 .5rem 0; color: #667eea; font-size: 1.2rem;">📢 최근 업데이트</h3>
-              <p style="margin: 0; font-size: .85rem; color: #666;">BIBLE LAB의 새로운 기능들을 확인해보세요</p>
+          <div class="action-row">
+            <div class="box copy-all-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem;">
+              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">📋 개인 GPT-PRO 사용</div>
+              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭 후 사용하시는 GPT에 붙여넣기 해주세요.</div>
+              <button id="btn-copy-all" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
-
-            <div style="background: white; border-radius: 8px; padding: 1rem;">
-              <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #667eea; background: #f8f9ff;">
-                <div style="font-weight: 600; color: #667eea; margin-bottom: .25rem;">2025-11-19</div>
-                <div style="font-size: .9rem; color: #333;">✨ UI 디자인 개선 및 사용자 가이드 추가</div>
-              </div>
-
-              <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #4a90e2; background: #f0f8ff;">
-                <div style="font-weight: 600; color: #4a90e2; margin-bottom: .25rem;">2025-11-19</div>
-                <div style="font-size: .9rem; color: #333;">📱 모바일 UI 최적화 (Top/Content 영역 분리)</div>
-              </div>
-
-              <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #f5576c; background: #fff5f7;">
-                <div style="font-weight: 600; color: #f5576c; margin-bottom: .25rem;">2025-11-19</div>
-                <div style="font-size: .9rem; color: #333;">💾 데이터 백업 및 복원 기능 추가</div>
-              </div>
-
-              <div style="padding: .6rem; border-left: 3px solid #4caf50; background: #f1f8f4;">
-                <div style="font-weight: 600; color: #4caf50; margin-bottom: .25rem;">2025-11-19</div>
-                <div style="font-size: .9rem; color: #333;">💬 Q&A 대화 기능 추가</div>
-              </div>
-            </div>
-
-            <div style="text-align: center; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid rgba(255,255,255,0.5);">
-              <p style="margin: 0; font-size: .8rem; color: #777;">왼쪽에서 카테고리를 선택하고 설교스타일을 정하세요! 🚀</p>
+            <div class="box gpt-pro-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .85rem;">
+              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🚀 GPT 최신버전 이용</div>
+              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭하시면 유료버전 GPT를 이용해서 설교문을 요청합니다.</div>
+              <button id="btn-gpt-pro" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
             </div>
           </div>
 
-          <div id="result-boxes"></div>
-        </div>
-
-        <div id="gpt-pro-result-container" style="display: none;">
-          <div class="gpt-pro-result-box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
-              <div class="label" style="margin: 0;">🎯 Step3. 설교문 완성</div>
-              <span id="usage-step3" style="font-size: .75rem; color: rgba(255,255,255,0.9);"></span>
+          <div class="box" style="display: flex; flex-direction: column; gap: .75rem;">
+            <div class="label-row">
+              <div class="label">처리 단계 결과</div>
+              <span style="font-size: .8rem; color: #777;">선택한 단계의 결과가 여기에 순서대로 표시됩니다.</span>
             </div>
-            <button id="btn-copy-gpt-pro" style="margin: .25rem 0 .75rem 0; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 설교문 전체 복사</button>
-            <textarea id="gpt-pro-result" class="autosize" readonly placeholder="Step3 처리 결과가 여기에 표시됩니다."></textarea>
+            <div id="result-boxes"></div>
+            <div id="update-notice" class="box" style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border: none;">
+              <div style="text-align: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0 0 .5rem 0; color: #667eea; font-size: 1.1rem;">📢 최근 업데이트</h3>
+                <p style="margin: 0; font-size: .85rem; color: #666;">BIBLE LAB의 새로운 기능들을 확인해보세요</p>
+              </div>
+
+              <div style="background: white; border-radius: 8px; padding: 1rem;">
+                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #667eea; background: #f8f9ff;">
+                  <div style="font-weight: 600; color: #667eea; margin-bottom: .25rem;">2025-11-19</div>
+                  <div style="font-size: .9rem; color: #333;">✨ UI 디자인 개선 및 사용자 가이드 추가</div>
+                </div>
+
+                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #4a90e2; background: #f0f8ff;">
+                  <div style="font-weight: 600; color: #4a90e2; margin-bottom: .25rem;">2025-11-19</div>
+                  <div style="font-size: .9rem; color: #333;">📱 모바일 UI 최적화 (Top/Content 영역 분리)</div>
+                </div>
+
+                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #f5576c; background: #fff5f7;">
+                  <div style="font-weight: 600; color: #f5576c; margin-bottom: .25rem;">2025-11-19</div>
+                  <div style="font-size: .9rem; color: #333;">💾 데이터 백업 및 복원 기능 추가</div>
+                </div>
+
+                <div style="padding: .6rem; border-left: 3px solid #4caf50; background: #f1f8f4;">
+                  <div style="font-weight: 600; color: #4caf50; margin-bottom: .25rem;">2025-11-19</div>
+                  <div style="font-size: .9rem; color: #333;">💬 Q&A 대화 기능 추가</div>
+                </div>
+              </div>
+
+              <div style="text-align: center; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid rgba(255,255,255,0.5);">
+                <p style="margin: 0; font-size: .8rem; color: #777;">왼쪽에서 카테고리를 선택하고 설교스타일을 정하세요! 🚀</p>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <div id="gpt-pro-result-container" style="display: none;">
+            <div class="gpt-pro-result-box">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+                <div class="label" style="margin: 0;">🎯 Step3. 설교문 완성</div>
+                <span id="usage-step3" style="font-size: .75rem; color: rgba(255,255,255,0.9);"></span>
+              </div>
+              <button id="btn-copy-gpt-pro" style="margin: .25rem 0 .75rem 0; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 설교문 전체 복사</button>
+              <textarea id="gpt-pro-result" class="autosize" readonly placeholder="Step3 처리 결과가 여기에 표시됩니다."></textarea>
+            </div>
+          </div>
       </div>
     </div>
 
