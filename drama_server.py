@@ -1626,6 +1626,218 @@ def api_generate_image():
         return jsonify({"ok": False, "error": error_msg}), 200
 
 
+# ===== Step5: 네이버 클로바 TTS API =====
+@app.route('/api/drama/generate-tts', methods=['POST'])
+def api_generate_tts():
+    """네이버 클로바 TTS를 사용하여 음성 생성"""
+    try:
+        import requests
+        import base64
+        import tempfile
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        text = data.get("text", "")
+        speaker = data.get("speaker", "nara")
+        speed = data.get("speed", 0)
+        pitch = data.get("pitch", 0)
+        volume = data.get("volume", 0)
+
+        if not text:
+            return jsonify({"ok": False, "error": "텍스트가 없습니다."}), 400
+
+        # 네이버 클라우드 플랫폼 API 키
+        ncp_client_id = os.getenv("NCP_CLIENT_ID", "")
+        ncp_client_secret = os.getenv("NCP_CLIENT_SECRET", "")
+
+        if not ncp_client_id or not ncp_client_secret:
+            return jsonify({"ok": False, "error": "네이버 클라우드 API 키가 설정되지 않았습니다. 환경변수 NCP_CLIENT_ID, NCP_CLIENT_SECRET을 설정해주세요."}), 200
+
+        print(f"[DRAMA-STEP5-TTS] TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {len(text)}자")
+
+        # 텍스트 길이 제한 (네이버 클로바는 최대 1000자)
+        # 긴 텍스트는 분할 처리
+        max_chars = 1000
+        text_chunks = []
+
+        if len(text) > max_chars:
+            # 문장 단위로 분할
+            sentences = text.replace('\n', ' ').split('. ')
+            current_chunk = ""
+            for sentence in sentences:
+                if len(current_chunk) + len(sentence) + 2 < max_chars:
+                    current_chunk += sentence + ". "
+                else:
+                    if current_chunk:
+                        text_chunks.append(current_chunk.strip())
+                    current_chunk = sentence + ". "
+            if current_chunk:
+                text_chunks.append(current_chunk.strip())
+        else:
+            text_chunks = [text]
+
+        # 각 청크에 대해 TTS 호출
+        audio_data_list = []
+
+        for chunk in text_chunks:
+            # 네이버 클로바 TTS API 호출
+            url = "https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts"
+            headers = {
+                "X-NCP-APIGW-API-KEY-ID": ncp_client_id,
+                "X-NCP-APIGW-API-KEY": ncp_client_secret,
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+            payload = {
+                "speaker": speaker,
+                "volume": str(volume),
+                "speed": str(speed),
+                "pitch": str(pitch),
+                "format": "mp3",
+                "text": chunk
+            }
+
+            response = requests.post(url, headers=headers, data=payload)
+
+            if response.status_code == 200:
+                audio_data_list.append(response.content)
+            else:
+                error_text = response.text
+                print(f"[DRAMA-STEP5-TTS][ERROR] API 응답: {response.status_code} - {error_text}")
+                return jsonify({"ok": False, "error": f"TTS API 오류: {error_text}"}), 200
+
+        # 오디오 데이터 합치기 (단순 연결)
+        combined_audio = b''.join(audio_data_list)
+
+        # Base64로 인코딩하여 data URL 생성
+        audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
+        audio_url = f"data:audio/mp3;base64,{audio_base64}"
+
+        # 비용 계산 (네이버 클로바 Premium TTS 기준: 약 4원/글자)
+        char_count = len(text)
+        cost_krw = int(char_count * 4)
+
+        print(f"[DRAMA-STEP5-TTS] TTS 생성 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}")
+
+        return jsonify({
+            "ok": True,
+            "audioUrl": audio_url,
+            "charCount": char_count,
+            "cost": cost_krw
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-STEP5-TTS][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== Step5: 자막 생성 API =====
+@app.route('/api/drama/generate-subtitle', methods=['POST'])
+def api_generate_subtitle():
+    """텍스트를 SRT/VTT 자막 형식으로 변환"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        text = data.get("text", "")
+        speed = data.get("speed", 0)  # TTS 속도 (-5 ~ 5)
+
+        if not text:
+            return jsonify({"ok": False, "error": "텍스트가 없습니다."}), 400
+
+        print(f"[DRAMA-STEP5-SUBTITLE] 자막 생성 시작 - 텍스트 길이: {len(text)}자")
+
+        # 속도에 따른 글자당 시간 계산 (기본: 글자당 약 0.15초)
+        # 속도가 빠르면 시간 감소, 느리면 시간 증가
+        base_char_duration = 0.15
+        speed_factor = 1 - (speed * 0.1)  # speed가 5면 0.5배, -5면 1.5배
+        char_duration = base_char_duration * speed_factor
+
+        # 문장 단위로 분할
+        sentences = []
+        current_sentence = ""
+
+        for char in text:
+            current_sentence += char
+            # 문장 종결 부호에서 분할
+            if char in '.!?。':
+                sentences.append(current_sentence.strip())
+                current_sentence = ""
+            # 줄바꿈에서도 분할
+            elif char == '\n' and current_sentence.strip():
+                sentences.append(current_sentence.strip())
+                current_sentence = ""
+
+        if current_sentence.strip():
+            sentences.append(current_sentence.strip())
+
+        # 빈 문장 제거
+        sentences = [s for s in sentences if s.strip()]
+
+        # SRT 형식 생성
+        srt_lines = []
+        vtt_lines = ["WEBVTT", ""]
+
+        current_time = 0.0
+
+        for idx, sentence in enumerate(sentences, 1):
+            # 문장 길이에 따른 표시 시간 계산
+            sentence_duration = len(sentence) * char_duration
+            # 최소 1초, 최대 10초
+            sentence_duration = max(1.0, min(10.0, sentence_duration))
+
+            start_time = current_time
+            end_time = current_time + sentence_duration
+
+            # 시간 포맷팅 함수
+            def format_time_srt(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                millis = int((seconds % 1) * 1000)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+            def format_time_vtt(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                millis = int((seconds % 1) * 1000)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
+
+            # SRT 형식
+            srt_lines.append(str(idx))
+            srt_lines.append(f"{format_time_srt(start_time)} --> {format_time_srt(end_time)}")
+            srt_lines.append(sentence)
+            srt_lines.append("")
+
+            # VTT 형식
+            vtt_lines.append(f"{format_time_vtt(start_time)} --> {format_time_vtt(end_time)}")
+            vtt_lines.append(sentence)
+            vtt_lines.append("")
+
+            current_time = end_time + 0.2  # 문장 사이 간격
+
+        srt_content = "\n".join(srt_lines)
+        vtt_content = "\n".join(vtt_lines)
+
+        print(f"[DRAMA-STEP5-SUBTITLE] 자막 생성 완료 - {len(sentences)}개 문장")
+
+        return jsonify({
+            "ok": True,
+            "srt": srt_content,
+            "vtt": vtt_content,
+            "sentenceCount": len(sentences),
+            "totalDuration": current_time
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-STEP5-SUBTITLE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))

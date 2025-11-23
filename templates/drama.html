@@ -520,6 +520,89 @@
       cursor: not-allowed;
     }
 
+    /* Step5 TTS 박스 스타일 */
+    .step5-container {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      padding: 1rem;
+      border-radius: 12px;
+      margin-top: .75rem;
+    }
+    .step5-container .label {
+      color: white;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .step5-section {
+      background: white;
+      border-radius: 8px;
+      padding: .75rem;
+      margin-bottom: .75rem;
+    }
+    .step5-section .section-label {
+      font-weight: 600;
+      font-size: .9rem;
+      margin-bottom: .4rem;
+      color: #333;
+    }
+    .step5-btn {
+      background: white;
+      color: #667eea;
+      border: none;
+      padding: .5rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: .85rem;
+      transition: all 0.2s;
+    }
+    .step5-btn:hover {
+      background: #f0f0f0;
+      transform: translateY(-1px);
+    }
+    .step5-btn.generating {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .step5-audio-player {
+      width: 100%;
+      margin-top: .5rem;
+    }
+    .step5-subtitle-preview {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: .85rem;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .step5-voice-select {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: .5rem;
+    }
+    .step5-voice-option {
+      padding: .5rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      font-size: .8rem;
+    }
+    .step5-voice-option:hover {
+      border-color: #667eea;
+      background: #f8f5ff;
+    }
+    .step5-voice-option.selected {
+      border-color: #667eea;
+      background: #667eea;
+      color: white;
+    }
+
     /* Step 접기/펼치기 */
     .workflow-box.collapsed .box-content {
       display: none;
@@ -718,6 +801,122 @@
         <!-- 토큰/비용 정보 -->
         <div id="step4-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
           🖼️ 이미지 생성 비용: <span id="step4-image-cost">₩0</span>
+        </div>
+      </div>
+
+      <!-- Step5: TTS 음성 합성 및 자막 생성 -->
+      <div id="step5-container" class="step5-container" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
+          <div class="label">🎙️ Step5: 음성 합성 (TTS) & 자막</div>
+          <div style="display: flex; gap: .5rem;">
+            <button id="btn-clear-step5" class="step5-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
+          </div>
+        </div>
+
+        <!-- 음성 선택 영역 -->
+        <div class="step5-section">
+          <div class="section-label">🎤 음성 선택 (네이버 클로바)</div>
+          <div id="step5-voice-select" class="step5-voice-select">
+            <div class="step5-voice-option selected" data-voice="nara">
+              <div style="font-weight: 600;">나라</div>
+              <div style="font-size: .7rem; color: #666;">여성 (기본)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="nara_call">
+              <div style="font-weight: 600;">나라 (밝음)</div>
+              <div style="font-size: .7rem; color: #666;">여성 (경쾌)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="nminsang">
+              <div style="font-weight: 600;">민상</div>
+              <div style="font-size: .7rem; color: #666;">남성</div>
+            </div>
+            <div class="step5-voice-option" data-voice="njiyun">
+              <div style="font-weight: 600;">지윤</div>
+              <div style="font-size: .7rem; color: #666;">여성 (밝음)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="nsujin">
+              <div style="font-weight: 600;">수진</div>
+              <div style="font-size: .7rem; color: #666;">여성 (차분)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="jinho">
+              <div style="font-weight: 600;">진호</div>
+              <div style="font-size: .7rem; color: #666;">남성 (차분)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TTS 설정 -->
+        <div class="step5-section">
+          <div class="section-label">⚙️ 음성 설정</div>
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 100px;">
+              <label style="font-size: .8rem; color: #666;">속도</label>
+              <input type="range" id="step5-speed" min="-5" max="5" value="0" style="width: 100%;">
+              <div style="display: flex; justify-content: space-between; font-size: .7rem; color: #999;">
+                <span>느림</span><span>보통</span><span>빠름</span>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 100px;">
+              <label style="font-size: .8rem; color: #666;">음높이</label>
+              <input type="range" id="step5-pitch" min="-5" max="5" value="0" style="width: 100%;">
+              <div style="display: flex; justify-content: space-between; font-size: .7rem; color: #999;">
+                <span>낮음</span><span>보통</span><span>높음</span>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 100px;">
+              <label style="font-size: .8rem; color: #666;">볼륨</label>
+              <input type="range" id="step5-volume" min="-5" max="5" value="0" style="width: 100%;">
+              <div style="display: flex; justify-content: space-between; font-size: .7rem; color: #999;">
+                <span>작음</span><span>보통</span><span>큼</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 대본 텍스트 (TTS용) -->
+        <div class="step5-section">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;">
+            <div class="section-label">📜 TTS용 대본 텍스트</div>
+            <button id="btn-extract-narration" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">📝 지문만 추출</button>
+          </div>
+          <textarea id="step5-script-text" style="width: 100%; min-height: 120px; border: 1px solid #ddd; border-radius: 6px; padding: .5rem; font-size: .85rem; resize: vertical;" placeholder="Step3 대본에서 TTS로 읽을 텍스트를 입력하세요. '지문만 추출' 버튼으로 나레이션 부분만 추출할 수 있습니다."></textarea>
+        </div>
+
+        <!-- TTS 생성 버튼 -->
+        <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
+          <button id="btn-generate-tts" class="step5-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+            🎙️ 음성 생성 (TTS)
+          </button>
+          <button id="btn-generate-subtitle" class="step5-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+            📝 자막 생성 (SRT)
+          </button>
+        </div>
+
+        <!-- 오디오 플레이어 -->
+        <div class="step5-section" id="step5-audio-section" style="display: none;">
+          <div class="section-label">🔊 생성된 음성</div>
+          <audio id="step5-audio-player" class="step5-audio-player" controls></audio>
+          <div style="display: flex; gap: .5rem; margin-top: .5rem;">
+            <button id="btn-download-audio" class="step5-btn" style="flex: 1; padding: .4rem;">💾 음성 다운로드 (MP3)</button>
+          </div>
+        </div>
+
+        <!-- 자막 미리보기 -->
+        <div class="step5-section" id="step5-subtitle-section" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;">
+            <div class="section-label">📝 자막 미리보기</div>
+            <div style="display: flex; gap: .5rem;">
+              <button id="btn-download-srt" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 SRT 다운로드</button>
+              <button id="btn-download-vtt" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 VTT 다운로드</button>
+            </div>
+          </div>
+          <div id="step5-subtitle-preview" class="step5-subtitle-preview">
+            자막이 여기에 표시됩니다...
+          </div>
+        </div>
+
+        <!-- 비용 정보 -->
+        <div id="step5-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
+          🎙️ TTS 생성 비용: <span id="step5-tts-cost">₩0</span> | 글자 수: <span id="step5-char-count">0</span>자
         </div>
       </div>
     </div>
@@ -1762,6 +1961,268 @@
 
   // 페이지 로드 시 Step4 이미지 복원
   setTimeout(restoreStep4Images, 500);
+
+  // ===== Step5: TTS 음성 합성 및 자막 생성 기능 =====
+  let step5SelectedVoice = 'nara';
+  let step5AudioUrl = null;
+  let step5SubtitleData = null;
+
+  // Step3 결과가 있으면 Step5 컨테이너 표시
+  function updateStep5Visibility() {
+    const step5Container = document.getElementById('step5-container');
+    const step3Result = document.getElementById('step3-result')?.value || '';
+    if (step5Container) {
+      step5Container.style.display = step3Result.trim() ? 'block' : 'none';
+    }
+  }
+
+  // Step5 가시성 체크 (Step3 결과 변경 감지)
+  setInterval(updateStep5Visibility, 1000);
+
+  // 음성 선택 이벤트
+  document.querySelectorAll('.step5-voice-option').forEach(option => {
+    option.addEventListener('click', () => {
+      document.querySelectorAll('.step5-voice-option').forEach(o => o.classList.remove('selected'));
+      option.classList.add('selected');
+      step5SelectedVoice = option.dataset.voice;
+    });
+  });
+
+  // 지문만 추출 함수 (대사 제외)
+  function extractNarration() {
+    const step3Result = document.getElementById('step3-result')?.value || '';
+    if (!step3Result.trim()) {
+      alert('먼저 Step3 대본 완성을 실행해주세요.');
+      return;
+    }
+
+    // 대사 패턴 제거 (이름: 대사 형식)
+    let narration = step3Result;
+
+    // "인물명: 대사" 패턴 제거
+    narration = narration.replace(/^[가-힣a-zA-Z]+\s*[:：]\s*.+$/gm, '');
+
+    // (감정/행동) 형식의 지시문은 유지하되 괄호 제거
+    narration = narration.replace(/\(([^)]+)\)/g, '$1');
+
+    // 빈 줄 정리
+    narration = narration.replace(/\n{3,}/g, '\n\n').trim();
+
+    document.getElementById('step5-script-text').value = narration;
+    showStatus('📝 지문이 추출되었습니다.');
+    setTimeout(hideStatus, 2000);
+  }
+
+  // TTS 생성 함수
+  async function generateTTS() {
+    const scriptText = document.getElementById('step5-script-text')?.value || '';
+    if (!scriptText.trim()) {
+      alert('TTS용 대본 텍스트를 입력해주세요.');
+      return;
+    }
+
+    const speed = document.getElementById('step5-speed')?.value || 0;
+    const pitch = document.getElementById('step5-pitch')?.value || 0;
+    const volume = document.getElementById('step5-volume')?.value || 0;
+
+    const btnGenerateTTS = document.getElementById('btn-generate-tts');
+    if (btnGenerateTTS) {
+      btnGenerateTTS.disabled = true;
+      btnGenerateTTS.classList.add('generating');
+      btnGenerateTTS.textContent = '⏳ 음성 생성 중...';
+    }
+
+    showStatus('🎙️ Step5: 네이버 클로바 TTS 음성 생성 중...');
+    showLoadingOverlay();
+
+    try {
+      const response = await fetch('/api/drama/generate-tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: scriptText,
+          speaker: step5SelectedVoice,
+          speed: parseInt(speed),
+          pitch: parseInt(pitch),
+          volume: parseInt(volume)
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 오디오 플레이어 표시
+        const audioSection = document.getElementById('step5-audio-section');
+        const audioPlayer = document.getElementById('step5-audio-player');
+        const costInfo = document.getElementById('step5-cost-info');
+
+        if (audioPlayer && data.audioUrl) {
+          step5AudioUrl = data.audioUrl;
+          audioPlayer.src = data.audioUrl;
+          audioSection.style.display = 'block';
+        }
+
+        // 비용 정보 표시
+        if (costInfo && data.cost) {
+          document.getElementById('step5-tts-cost').textContent = '₩' + data.cost.toLocaleString();
+          document.getElementById('step5-char-count').textContent = data.charCount?.toLocaleString() || '0';
+          costInfo.style.display = 'block';
+        }
+
+        showStatus('✅ TTS 음성 생성 완료!');
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ TTS 생성 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ TTS 생성 오류');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+      if (btnGenerateTTS) {
+        btnGenerateTTS.disabled = false;
+        btnGenerateTTS.classList.remove('generating');
+        btnGenerateTTS.textContent = '🎙️ 음성 생성 (TTS)';
+      }
+    }
+  }
+
+  // 자막 생성 함수
+  async function generateSubtitle() {
+    const scriptText = document.getElementById('step5-script-text')?.value || '';
+    if (!scriptText.trim()) {
+      alert('TTS용 대본 텍스트를 입력해주세요.');
+      return;
+    }
+
+    const btnGenerateSubtitle = document.getElementById('btn-generate-subtitle');
+    if (btnGenerateSubtitle) {
+      btnGenerateSubtitle.disabled = true;
+      btnGenerateSubtitle.classList.add('generating');
+      btnGenerateSubtitle.textContent = '⏳ 자막 생성 중...';
+    }
+
+    showStatus('📝 Step5: 자막 생성 중...');
+    showLoadingOverlay();
+
+    try {
+      const response = await fetch('/api/drama/generate-subtitle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: scriptText,
+          speed: parseInt(document.getElementById('step5-speed')?.value || 0)
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 자막 미리보기 표시
+        const subtitleSection = document.getElementById('step5-subtitle-section');
+        const subtitlePreview = document.getElementById('step5-subtitle-preview');
+
+        if (subtitlePreview && data.srt) {
+          step5SubtitleData = data;
+          subtitlePreview.textContent = data.srt;
+          subtitleSection.style.display = 'block';
+        }
+
+        showStatus('✅ 자막 생성 완료!');
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ 자막 생성 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ 자막 생성 오류');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+      if (btnGenerateSubtitle) {
+        btnGenerateSubtitle.disabled = false;
+        btnGenerateSubtitle.classList.remove('generating');
+        btnGenerateSubtitle.textContent = '📝 자막 생성 (SRT)';
+      }
+    }
+  }
+
+  // 오디오 다운로드
+  function downloadAudio() {
+    if (!step5AudioUrl) {
+      alert('먼저 음성을 생성해주세요.');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = step5AudioUrl;
+    a.download = `drama-tts-${Date.now()}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // SRT 다운로드
+  function downloadSRT() {
+    if (!step5SubtitleData?.srt) {
+      alert('먼저 자막을 생성해주세요.');
+      return;
+    }
+    const blob = new Blob([step5SubtitleData.srt], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `drama-subtitle-${Date.now()}.srt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // VTT 다운로드
+  function downloadVTT() {
+    if (!step5SubtitleData?.vtt) {
+      alert('먼저 자막을 생성해주세요.');
+      return;
+    }
+    const blob = new Blob([step5SubtitleData.vtt], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `drama-subtitle-${Date.now()}.vtt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Step5 초기화
+  function clearStep5() {
+    if (!confirm('Step5의 모든 내용을 초기화하시겠습니까?')) return;
+
+    document.getElementById('step5-script-text').value = '';
+    document.getElementById('step5-audio-section').style.display = 'none';
+    document.getElementById('step5-subtitle-section').style.display = 'none';
+    document.getElementById('step5-cost-info').style.display = 'none';
+
+    const audioPlayer = document.getElementById('step5-audio-player');
+    if (audioPlayer) audioPlayer.src = '';
+
+    step5AudioUrl = null;
+    step5SubtitleData = null;
+
+    showStatus('🗑️ Step5가 초기화되었습니다.');
+    setTimeout(hideStatus, 2000);
+  }
+
+  // Step5 버튼 이벤트 바인딩
+  document.getElementById('btn-extract-narration')?.addEventListener('click', extractNarration);
+  document.getElementById('btn-generate-tts')?.addEventListener('click', generateTTS);
+  document.getElementById('btn-generate-subtitle')?.addEventListener('click', generateSubtitle);
+  document.getElementById('btn-download-audio')?.addEventListener('click', downloadAudio);
+  document.getElementById('btn-download-srt')?.addEventListener('click', downloadSRT);
+  document.getElementById('btn-download-vtt')?.addEventListener('click', downloadVTT);
+  document.getElementById('btn-clear-step5')?.addEventListener('click', clearStep5);
 
   // ===== 렌더링 함수 =====
   function renderCategories() {
