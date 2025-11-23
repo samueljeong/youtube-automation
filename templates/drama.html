@@ -27,10 +27,24 @@
     .right-col {
       flex: 1;
       display: flex;
+      flex-direction: column;
       gap: 1rem;
       min-width: 0;
       overflow-y: hidden;
     }
+    .panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+    }
+    .panel.active { display: flex; }
+    .workflow-panel { gap: 1rem; }
+    .guide-panel, .data-panel {
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .guide-panel .box,
+    .data-panel .box { border: 1px solid #eee; }
     .content-area {
       flex: 7;
       display: flex;
@@ -117,6 +131,47 @@
       width: 100%;
       margin-bottom: .5rem;
     }
+
+    .quick-nav {
+      background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%);
+      padding: 1rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15);
+      color: rgba(255,255,255,0.9);
+    }
+    .quick-nav h3 {
+      margin: 0 0 .75rem;
+      font-size: 1rem;
+      color: white;
+      text-align: center;
+      letter-spacing: .5px;
+    }
+    .quick-nav .nav-btn {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: .65rem .75rem;
+      margin-bottom: .45rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    .quick-nav .nav-btn:hover {
+      background: rgba(255,255,255,0.16);
+      transform: translateX(4px);
+    }
+    .quick-nav .nav-btn.active {
+      background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+      color: white;
+      box-shadow: 0 6px 18px rgba(249,115,22,0.3);
+    }
+    .quick-nav .nav-label { font-size: .9rem; }
+    .quick-nav .nav-desc { font-size: .72rem; opacity: .8; }
 
     /* Step 네비게이션 버튼 스타일 */
     .step-nav-btn {
@@ -956,6 +1011,39 @@
   <div class="page-wrap">
     <!-- 왼쪽 -->
     <div class="left-col">
+      <div class="quick-nav">
+        <h3>드라마 워크플로우</h3>
+        <button class="nav-btn active" data-panel-target="guide-panel">
+          <span class="nav-label">🧭 작업지침</span>
+          <span class="nav-desc">전체 가이드 보기</span>
+        </button>
+        <button class="nav-btn" data-panel-target="data-panel">
+          <span class="nav-label">📚 데이터 축적</span>
+          <span class="nav-desc">텍스트 · JSON · 벤치마킹</span>
+        </button>
+        <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step1-container">
+          <span class="nav-label">✍️ Step1 대본 생성</span>
+          <span class="nav-desc">대본 작성 흐름</span>
+        </button>
+        <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step4-container">
+          <span class="nav-label">🖼️ Step2 이미지 생성</span>
+          <span class="nav-desc">씬별 이미지 가이드</span>
+        </button>
+        <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step5-container">
+          <span class="nav-label">🔊 Step3 음성 합성</span>
+          <span class="nav-desc">목소리 & 설정</span>
+        </button>
+        <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step6-container">
+          <span class="nav-label">🎞️ Step4 영상 제작</span>
+          <span class="nav-desc">타임라인 & 컷 편집</span>
+        </button>
+        <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step7-container">
+          <span class="nav-label">🚀 Step5 업로드</span>
+          <span class="nav-desc">메타데이터 & 게시</span>
+        </button>
+      </div>
+
+      <div class="legacy-left-content" style="display: none;">
       <!-- Step 네비게이션 -->
       <div class="step-nav" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 12px; padding: .75rem; margin-bottom: .5rem;">
         <div style="color: white; font-weight: 700; font-size: .9rem; margin-bottom: .75rem; text-align: center;">📍 워크플로우</div>
@@ -1078,9 +1166,92 @@
         <button id="btn-save" style="width: 100%; margin-bottom: .5rem; font-size: .85rem; padding: .4rem;">현재 내용 저장</button>
         <div id="saved-list"></div>
       </div>
+      </div>
+    </div>
+
+
+
+    <div id="guide-panel" class="panel guide-panel active">
+      <div class="box">
+        <div class="label" style="font-size: 1rem;">🧭 작업 지침</div>
+        <p style="margin: .4rem 0; color: #555;">왼쪽 버튼을 눌러 단계별 내용을 오른쪽 패널에서 바로 확인하세요. 새 창을 열지 않고도 모든 정보를 한 눈에 볼 수 있도록 정리했습니다.</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .75rem;">
+          <div class="box" style="background: #fef3c7; border: none;">
+            <div class="label">워크플로우</div>
+            <ul style="margin: .4rem 0; padding-left: 1rem; color: #92400e; font-size: .9rem; line-height: 1.6;">
+              <li>Step1 대본 생성: 상황·캐릭터·구조를 정리하고 대본을 빌드</li>
+              <li>Step2 이미지 생성: 씬별 프롬프트와 비주얼 톤 설계</li>
+              <li>Step3 음성 합성: 화자 선택, 속도·피치·볼륨 조정</li>
+              <li>Step4 영상 제작: 컷보드, 타임라인, 자막/효과 배치</li>
+              <li>Step5 업로드: 제목·태그·썸네일·설명 최종 확정</li>
+            </ul>
+          </div>
+          <div class="box" style="background: #eef2ff; border: none;">
+            <div class="label">품질 체크</div>
+            <ul style="margin: .4rem 0; padding-left: 1rem; color: #312e81; font-size: .9rem; line-height: 1.6;">
+              <li>스토리 흐름: 갈등 → 고조 → 해결 순서를 유지</li>
+              <li>감정선: 인물 감정 변화를 장면마다 명시</li>
+              <li>시각화: 씬마다 구도/배경/조명을 적어 이미지와 연결</li>
+              <li>톤 앤 매너: 채널 톤, 말투, 속도를 일관되게 유지</li>
+              <li>리뷰: 업로드 전 체크리스트로 어조·오탈자 점검</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="box" style="background: linear-gradient(135deg, #f97316 0%, #ef4444 100%); color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem;">
+          <div class="label" style="color: white;">📚 축적된 작업 지침</div>
+          <div style="display: flex; gap: .4rem; align-items: center;">
+            <button id="btn-refresh-guide" style="background: rgba(255,255,255,0.15); color: white; border: none; padding: .45rem .75rem; border-radius: 8px; font-weight: 700; cursor: pointer;">가이드 불러오기</button>
+            <button id="btn-open-guide-modal-panel" style="background: white; color: #ef4444; border: none; padding: .45rem .75rem; border-radius: 8px; font-weight: 700; cursor: pointer;">지침 관리</button>
+          </div>
+        </div>
+        <div id="guide-panel-content" style="margin-top: .75rem; background: rgba(255,255,255,0.12); padding: .75rem; border-radius: 8px; min-height: 160px; white-space: pre-wrap; line-height: 1.6;">왼쪽의 "가이드 불러오기" 버튼을 눌러 축적된 작업 지침을 오른쪽에서 바로 확인하세요.</div>
+      </div>
+    </div>
+
+    <div id="data-panel" class="panel data-panel">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+        <div class="box">
+          <div class="label" style="font-size: 1rem;">📄 대본 작성 데이터 (텍스트)</div>
+          <p style="margin: .35rem 0; color: #555;">현재 세션의 대본을 텍스트로 확인합니다. Step3 결과가 있을 경우 자동으로 불러옵니다.</p>
+          <textarea id="data-text-view" style="min-height: 200px;">아직 불러온 대본이 없습니다. "데이터 새로고침" 버튼을 눌러 Step3 완성본을 가져오세요.</textarea>
+          <div style="display: flex; gap: .5rem; margin-top: .5rem;">
+            <button id="btn-refresh-dataset" class="primary" style="flex: 1;">데이터 새로고침</button>
+            <button id="btn-copy-text-view" style="flex: 1;">텍스트 복사</button>
+          </div>
+        </div>
+        <div class="box">
+          <div class="label" style="font-size: 1rem;">🧾 대본 메타데이터 (JSON)</div>
+          <p style="margin: .35rem 0; color: #555;">장면, 캐릭터, 톤 정보를 JSON 형태로 함께 확인하세요.</p>
+          <pre id="data-json-view" style="background: #0f172a; color: #e2e8f0; padding: .75rem; border-radius: 10px; min-height: 200px; white-space: pre-wrap; overflow: auto;">{
+  "title": "",
+  "scenes": [],
+  "tone": "",
+  "voices": []
+}</pre>
+          <div style="display: flex; gap: .5rem; margin-top: .5rem;">
+            <button id="btn-copy-json" style="flex: 1;">JSON 복사</button>
+            <button id="btn-open-json" style="flex: 1;" data-panel-target="workflow-panel" data-scroll-target="step3-container">워크플로우로 이동</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="label" style="font-size: 1rem;">🔎 벤치마킹 대본 분석</div>
+        <p style="margin: .35rem 0; color: #555;">벤치마킹할 대본을 입력하면 길이·키워드·감정 톤을 간단히 요약해줍니다.</p>
+        <textarea id="benchmark-analysis-input" placeholder="벤치마킹 대본을 붙여 넣으세요." style="min-height: 120px;"></textarea>
+        <div style="display: flex; gap: .5rem; margin-top: .5rem; align-items: center;">
+          <input type="text" id="benchmark-tag" placeholder="분석 태그 (예: 감동, 코믹)" style="flex: 1; padding: .45rem .6rem;">
+          <button id="btn-run-benchmark-analysis" class="primary" style="flex-shrink: 0;">분석하기</button>
+        </div>
+        <div id="benchmark-analysis-output" style="margin-top: .6rem; background: #f8fafc; border-radius: 10px; padding: .75rem; min-height: 80px; border: 1px dashed #cbd5e1; color: #0f172a;"></div>
+      </div>
     </div>
 
     <!-- 가운데 - 워크플로우 영역 -->
+    <div id="workflow-panel" class="panel workflow-panel">
     <div class="content-area">
       <!-- Step1 앵커 및 컨트롤 -->
       <div id="step1-container"></div>
@@ -6094,6 +6265,7 @@ S#1. 장소 / 시간
 
   // 지침 관리 모달 열기
   const btnOpenGuideModal = document.getElementById('btn-open-guide-modal');
+  const btnOpenGuideModalPanel = document.getElementById('btn-open-guide-modal-panel');
   const modalGuideManagement = document.getElementById('modal-guide-management');
   const btnCloseGuideModal = document.getElementById('btn-close-guide-modal');
   const btnModalSaveGuides = document.getElementById('btn-modal-save-guides');
@@ -6101,6 +6273,13 @@ S#1. 장소 / 시간
   if (btnOpenGuideModal && modalGuideManagement) {
     btnOpenGuideModal.addEventListener('click', () => {
       renderGuideManagement(); // 열 때 최신 상태로 렌더링
+      modalGuideManagement.classList.add('show');
+    });
+  }
+
+  if (btnOpenGuideModalPanel && modalGuideManagement) {
+    btnOpenGuideModalPanel.addEventListener('click', () => {
+      renderGuideManagement();
       modalGuideManagement.classList.add('show');
     });
   }
@@ -6508,6 +6687,103 @@ ${dramaGuidelines.quality_checklist.dialogue?.map(q => `  ☐ ${q}`).join('\n')}
 
     console.log('[SESSION] Step1 동기화 설정 완료');
   }
+
+  // ===== 패널 내비게이션 및 데이터 뷰 =====
+  function setActivePanel(panelId, scrollTarget) {
+    document.querySelectorAll('.panel').forEach(panel => panel.classList.remove('active'));
+    const targetPanel = document.getElementById(panelId);
+    if (targetPanel) {
+      targetPanel.classList.add('active');
+    }
+
+    document.querySelectorAll('.quick-nav .nav-btn').forEach(btn => {
+      const isActive = btn.dataset.panelTarget === panelId;
+      btn.classList.toggle('active', isActive);
+    });
+
+    if (panelId === 'workflow-panel' && scrollTarget) {
+      setTimeout(() => scrollToStep(scrollTarget), 50);
+    }
+  }
+
+  function refreshDatasetViews() {
+    const textArea = document.getElementById('data-text-view');
+    const jsonView = document.getElementById('data-json-view');
+
+    const step3Text = document.getElementById('step3-result')?.value?.trim();
+    if (textArea) {
+      textArea.value = step3Text || '아직 불러온 대본이 없습니다. 워크플로우 Step3을 실행한 뒤 다시 새로고침하세요.';
+    }
+
+    if (jsonView) {
+      const selectedVoice = document.querySelector('.step5-voice-option.selected')?.dataset.voice || '';
+      const scenes = (workflowBoxes || []).map(box => ({
+        name: box.name,
+        guide: box.guide || '',
+        result: box.result || ''
+      }));
+      const metadata = {
+        title: document.getElementById('step7-title')?.value || '',
+        tone: document.getElementById('content-type')?.value || '',
+        scenes,
+        voice: selectedVoice,
+        lastUpdated: new Date().toISOString()
+      };
+      jsonView.textContent = JSON.stringify(metadata, null, 2);
+    }
+  }
+
+  function copyTextFromElement(element) {
+    if (!element) return;
+    const value = element.value || element.textContent || '';
+    navigator.clipboard?.writeText(value);
+  }
+
+  function analyzeBenchmarkText() {
+    const input = document.getElementById('benchmark-analysis-input');
+    const output = document.getElementById('benchmark-analysis-output');
+    const tag = document.getElementById('benchmark-tag')?.value?.trim();
+    if (!input || !output) return;
+
+    const text = (input.value || '').trim();
+    if (!text) {
+      output.textContent = '분석할 대본을 입력해주세요.';
+      return;
+    }
+
+    const sentences = text.split(/[.!?\n]+/).filter(Boolean);
+    const words = text.replace(/[^가-힣a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+    const freq = {};
+    words.forEach((w) => { freq[w] = (freq[w] || 0) + 1; });
+    const keywords = Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word, count]) => `${word}(${count})`)
+      .join(', ');
+
+    const toneHint = tag ? `${tag} 톤` : '서술 톤';
+
+    output.innerHTML = `
+      <div><strong>길이:</strong> 문장 ${sentences.length}개, 어절 ${words.length}개</div>
+      <div><strong>주요 키워드:</strong> ${keywords || '추출된 키워드 없음'}</div>
+      <div><strong>톤 제안:</strong> ${toneHint}</div>
+      <div style="margin-top:.4rem; white-space: pre-wrap;">${text.slice(0, 300)}${text.length > 300 ? '... (생략)' : ''}</div>
+    `;
+  }
+
+  document.querySelectorAll('[data-panel-target]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setActivePanel(btn.dataset.panelTarget, btn.dataset.scrollTarget);
+    });
+  });
+
+  document.getElementById('btn-refresh-dataset')?.addEventListener('click', refreshDatasetViews);
+  document.getElementById('btn-copy-text-view')?.addEventListener('click', () => copyTextFromElement(document.getElementById('data-text-view')));
+  document.getElementById('btn-copy-json')?.addEventListener('click', () => copyTextFromElement(document.getElementById('data-json-view')));
+  document.getElementById('btn-run-benchmark-analysis')?.addEventListener('click', analyzeBenchmarkText);
+
+  // 초기 패널 상태
+  setActivePanel('guide-panel');
 
   // Step2 결과를 세션에 저장하는 함수 (기존 stepResults에 저장할 때 호출)
   function saveStep2ResultToSession(stepId, result) {
