@@ -1066,31 +1066,74 @@
           </div>
         </div>
 
+        <!-- TTS 제공자 선택 -->
+        <div class="step5-section">
+          <div class="section-label">🔊 TTS 제공자</div>
+          <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
+            <button class="step5-tts-provider selected" data-provider="google" style="flex: 1; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600;">
+              🌐 Google Cloud<br><span style="font-size: .7rem; font-weight: normal; color: #666;">₩16/3000자 (저렴)</span>
+            </button>
+            <button class="step5-tts-provider" data-provider="naver" style="flex: 1; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
+              🇰🇷 네이버 클로바<br><span style="font-size: .7rem; font-weight: normal; color: #666;">₩12,000/3000자 (고품질)</span>
+            </button>
+          </div>
+        </div>
+
         <!-- 음성 선택 영역 -->
         <div class="step5-section">
-          <div class="section-label">🎤 음성 선택 (네이버 클로바)</div>
-          <div id="step5-voice-select" class="step5-voice-select">
-            <div class="step5-voice-option selected" data-voice="nara">
+          <div class="section-label" id="step5-voice-label">🎤 음성 선택 (Google Cloud)</div>
+
+          <!-- Google TTS 음성 -->
+          <div id="step5-voice-google" class="step5-voice-select">
+            <div class="step5-voice-option selected" data-voice="ko-KR-Wavenet-A" data-provider="google">
+              <div style="font-weight: 600;">여성 A</div>
+              <div style="font-size: .7rem; color: #666;">Wavenet (자연스러움)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-B" data-provider="google">
+              <div style="font-weight: 600;">여성 B</div>
+              <div style="font-size: .7rem; color: #666;">Wavenet</div>
+            </div>
+            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-C" data-provider="google">
+              <div style="font-weight: 600;">남성 A</div>
+              <div style="font-size: .7rem; color: #666;">Wavenet</div>
+            </div>
+            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-D" data-provider="google">
+              <div style="font-weight: 600;">남성 B</div>
+              <div style="font-size: .7rem; color: #666;">Wavenet</div>
+            </div>
+            <div class="step5-voice-option" data-voice="ko-KR-Neural2-A" data-provider="google">
+              <div style="font-weight: 600;">여성 (Neural)</div>
+              <div style="font-size: .7rem; color: #666;">Neural2 (최고품질)</div>
+            </div>
+            <div class="step5-voice-option" data-voice="ko-KR-Neural2-C" data-provider="google">
+              <div style="font-weight: 600;">남성 (Neural)</div>
+              <div style="font-size: .7rem; color: #666;">Neural2 (최고품질)</div>
+            </div>
+          </div>
+
+          <!-- 네이버 TTS 음성 (숨김) -->
+          <div id="step5-voice-naver" class="step5-voice-select" style="display: none;">
+            <div class="step5-voice-option" data-voice="nara" data-provider="naver">
               <div style="font-weight: 600;">나라</div>
               <div style="font-size: .7rem; color: #666;">여성 (기본)</div>
             </div>
-            <div class="step5-voice-option" data-voice="nara_call">
+            <div class="step5-voice-option" data-voice="nara_call" data-provider="naver">
               <div style="font-weight: 600;">나라 (밝음)</div>
               <div style="font-size: .7rem; color: #666;">여성 (경쾌)</div>
             </div>
-            <div class="step5-voice-option" data-voice="nminsang">
+            <div class="step5-voice-option" data-voice="nminsang" data-provider="naver">
               <div style="font-weight: 600;">민상</div>
               <div style="font-size: .7rem; color: #666;">남성</div>
             </div>
-            <div class="step5-voice-option" data-voice="njiyun">
+            <div class="step5-voice-option" data-voice="njiyun" data-provider="naver">
               <div style="font-weight: 600;">지윤</div>
               <div style="font-size: .7rem; color: #666;">여성 (밝음)</div>
             </div>
-            <div class="step5-voice-option" data-voice="nsujin">
+            <div class="step5-voice-option" data-voice="nsujin" data-provider="naver">
               <div style="font-weight: 600;">수진</div>
               <div style="font-size: .7rem; color: #666;">여성 (차분)</div>
             </div>
-            <div class="step5-voice-option" data-voice="jinho">
+            <div class="step5-voice-option" data-voice="jinho" data-provider="naver">
               <div style="font-weight: 600;">진호</div>
               <div style="font-size: .7rem; color: #666;">남성 (차분)</div>
             </div>
@@ -3066,7 +3109,8 @@ S#1. 장소 / 시간
   setTimeout(restoreStep4Data, 500);
 
   // ===== Step5: TTS 음성 합성 및 자막 생성 기능 =====
-  let step5SelectedVoice = 'nara';
+  let step5TtsProvider = 'google';  // 기본: Google Cloud TTS
+  let step5SelectedVoice = 'ko-KR-Wavenet-A';  // Google 기본 음성
   let step5AudioUrl = null;
   let step5SubtitleData = null;
 
@@ -3082,10 +3126,53 @@ S#1. 장소 / 시간
   // Step5 가시성 체크 (Step3 결과 변경 감지)
   setInterval(updateStep5Visibility, 1000);
 
+  // TTS 제공자 선택 이벤트
+  document.querySelectorAll('.step5-tts-provider').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.step5-tts-provider').forEach(b => {
+        b.classList.remove('selected');
+        b.style.border = '2px solid #ddd';
+        b.style.background = 'white';
+      });
+      btn.classList.add('selected');
+      btn.style.border = '2px solid #10b981';
+      btn.style.background = 'rgba(16,185,129,0.2)';
+
+      step5TtsProvider = btn.dataset.provider;
+
+      // 음성 선택 영역 전환
+      const googleVoices = document.getElementById('step5-voice-google');
+      const naverVoices = document.getElementById('step5-voice-naver');
+      const voiceLabel = document.getElementById('step5-voice-label');
+
+      if (step5TtsProvider === 'google') {
+        googleVoices.style.display = 'grid';
+        naverVoices.style.display = 'none';
+        voiceLabel.textContent = '🎤 음성 선택 (Google Cloud)';
+        // Google 기본 음성으로 설정
+        step5SelectedVoice = 'ko-KR-Wavenet-A';
+        googleVoices.querySelectorAll('.step5-voice-option').forEach((o, i) => {
+          o.classList.toggle('selected', i === 0);
+        });
+      } else {
+        googleVoices.style.display = 'none';
+        naverVoices.style.display = 'grid';
+        voiceLabel.textContent = '🎤 음성 선택 (네이버 클로바)';
+        // 네이버 기본 음성으로 설정
+        step5SelectedVoice = 'nara';
+        naverVoices.querySelectorAll('.step5-voice-option').forEach((o, i) => {
+          o.classList.toggle('selected', i === 0);
+        });
+      }
+    });
+  });
+
   // 음성 선택 이벤트
   document.querySelectorAll('.step5-voice-option').forEach(option => {
     option.addEventListener('click', () => {
-      document.querySelectorAll('.step5-voice-option').forEach(o => o.classList.remove('selected'));
+      const provider = option.dataset.provider;
+      const container = provider === 'google' ? document.getElementById('step5-voice-google') : document.getElementById('step5-voice-naver');
+      container.querySelectorAll('.step5-voice-option').forEach(o => o.classList.remove('selected'));
       option.classList.add('selected');
       step5SelectedVoice = option.dataset.voice;
     });
@@ -3135,7 +3222,8 @@ S#1. 장소 / 시간
       btnGenerateTTS.textContent = '⏳ 음성 생성 중...';
     }
 
-    showStatus('🎙️ Step5: 네이버 클로바 TTS 음성 생성 중...');
+    const providerName = step5TtsProvider === 'google' ? 'Google Cloud' : '네이버 클로바';
+    showStatus(`🎙️ Step5: ${providerName} TTS 음성 생성 중...`);
     showLoadingOverlay();
 
     try {
@@ -3147,7 +3235,8 @@ S#1. 장소 / 시간
           speaker: step5SelectedVoice,
           speed: parseInt(speed),
           pitch: parseInt(pitch),
-          volume: parseInt(volume)
+          volume: parseInt(volume),
+          ttsProvider: step5TtsProvider
         })
       });
 

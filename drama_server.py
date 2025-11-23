@@ -1810,107 +1810,189 @@ def api_generate_image():
         return jsonify({"ok": False, "error": error_msg}), 200
 
 
-# ===== Step5: 네이버 클로바 TTS API =====
+# ===== Step5: TTS API (Google Cloud / 네이버 클로바 선택) =====
 @app.route('/api/drama/generate-tts', methods=['POST'])
 def api_generate_tts():
-    """네이버 클로바 TTS를 사용하여 음성 생성"""
+    """TTS 음성 생성 - Google Cloud TTS (기본) 또는 네이버 클로바"""
     try:
         import requests
         import base64
-        import tempfile
 
         data = request.get_json()
         if not data:
             return jsonify({"ok": False, "error": "No data received"}), 400
 
         text = data.get("text", "")
-        speaker = data.get("speaker", "nara")
-        speed = data.get("speed", 0)
+        speaker = data.get("speaker", "ko-KR-Wavenet-A")
+        speed = data.get("speed", 1.0)
         pitch = data.get("pitch", 0)
         volume = data.get("volume", 0)
+        tts_provider = data.get("ttsProvider", "google")  # google 또는 naver
 
         if not text:
             return jsonify({"ok": False, "error": "텍스트가 없습니다."}), 400
 
-        # 네이버 클라우드 플랫폼 API 키
-        ncp_client_id = os.getenv("NCP_CLIENT_ID", "")
-        ncp_client_secret = os.getenv("NCP_CLIENT_SECRET", "")
-
-        if not ncp_client_id or not ncp_client_secret:
-            return jsonify({"ok": False, "error": "네이버 클라우드 API 키가 설정되지 않았습니다. 환경변수 NCP_CLIENT_ID, NCP_CLIENT_SECRET을 설정해주세요."}), 200
-
-        print(f"[DRAMA-STEP5-TTS] TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {len(text)}자")
-
-        # 텍스트 길이 제한 (네이버 클로바는 최대 1000자)
-        # 긴 텍스트는 분할 처리
-        max_chars = 1000
-        text_chunks = []
-
-        if len(text) > max_chars:
-            # 문장 단위로 분할
-            sentences = text.replace('\n', ' ').split('. ')
-            current_chunk = ""
-            for sentence in sentences:
-                if len(current_chunk) + len(sentence) + 2 < max_chars:
-                    current_chunk += sentence + ". "
-                else:
-                    if current_chunk:
-                        text_chunks.append(current_chunk.strip())
-                    current_chunk = sentence + ". "
-            if current_chunk:
-                text_chunks.append(current_chunk.strip())
-        else:
-            text_chunks = [text]
-
-        # 각 청크에 대해 TTS 호출
-        audio_data_list = []
-
-        for chunk in text_chunks:
-            # 네이버 클로바 TTS API 호출
-            url = "https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts"
-            headers = {
-                "X-NCP-APIGW-API-KEY-ID": ncp_client_id,
-                "X-NCP-APIGW-API-KEY": ncp_client_secret,
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
-
-            payload = {
-                "speaker": speaker,
-                "volume": str(volume),
-                "speed": str(speed),
-                "pitch": str(pitch),
-                "format": "mp3",
-                "text": chunk
-            }
-
-            response = requests.post(url, headers=headers, data=payload)
-
-            if response.status_code == 200:
-                audio_data_list.append(response.content)
-            else:
-                error_text = response.text
-                print(f"[DRAMA-STEP5-TTS][ERROR] API 응답: {response.status_code} - {error_text}")
-                return jsonify({"ok": False, "error": f"TTS API 오류: {error_text}"}), 200
-
-        # 오디오 데이터 합치기 (단순 연결)
-        combined_audio = b''.join(audio_data_list)
-
-        # Base64로 인코딩하여 data URL 생성
-        audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
-        audio_url = f"data:audio/mp3;base64,{audio_base64}"
-
-        # 비용 계산 (네이버 클로바 Premium TTS 기준: 약 4원/글자)
         char_count = len(text)
-        cost_krw = int(char_count * 4)
 
-        print(f"[DRAMA-STEP5-TTS] TTS 생성 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}")
+        # Google Cloud TTS
+        if tts_provider == "google":
+            google_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
 
-        return jsonify({
-            "ok": True,
-            "audioUrl": audio_url,
-            "charCount": char_count,
-            "cost": cost_krw
-        })
+            if not google_api_key:
+                return jsonify({"ok": False, "error": "Google Cloud API 키가 설정되지 않았습니다. 환경변수 GOOGLE_CLOUD_API_KEY를 설정해주세요."}), 200
+
+            print(f"[DRAMA-STEP5-TTS] Google TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {char_count}자")
+
+            # Google Cloud TTS는 최대 5000바이트 (약 2500자 한글)
+            max_chars = 2500
+            text_chunks = []
+
+            if len(text) > max_chars:
+                sentences = text.replace('\n', ' ').split('. ')
+                current_chunk = ""
+                for sentence in sentences:
+                    if len(current_chunk) + len(sentence) + 2 < max_chars:
+                        current_chunk += sentence + ". "
+                    else:
+                        if current_chunk:
+                            text_chunks.append(current_chunk.strip())
+                        current_chunk = sentence + ". "
+                if current_chunk:
+                    text_chunks.append(current_chunk.strip())
+            else:
+                text_chunks = [text]
+
+            audio_data_list = []
+            url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
+
+            # 속도 변환: 네이버(-5~5) -> Google(0.25~4.0), 기본값 1.0
+            if isinstance(speed, (int, float)):
+                if speed == 0:
+                    google_speed = 1.0
+                else:
+                    google_speed = 1.0 + (speed * 0.1)  # -5->0.5, 0->1.0, 5->1.5
+                    google_speed = max(0.25, min(4.0, google_speed))
+            else:
+                google_speed = 1.0
+
+            # 피치 변환: 네이버(-5~5) -> Google(-20~20)
+            google_pitch = pitch * 4 if isinstance(pitch, (int, float)) else 0
+
+            for chunk in text_chunks:
+                payload = {
+                    "input": {"text": chunk},
+                    "voice": {
+                        "languageCode": "ko-KR",
+                        "name": speaker
+                    },
+                    "audioConfig": {
+                        "audioEncoding": "MP3",
+                        "speakingRate": google_speed,
+                        "pitch": google_pitch
+                    }
+                }
+
+                response = requests.post(url, json=payload)
+
+                if response.status_code == 200:
+                    result = response.json()
+                    audio_content = base64.b64decode(result.get("audioContent", ""))
+                    audio_data_list.append(audio_content)
+                else:
+                    error_text = response.text
+                    print(f"[DRAMA-STEP5-TTS][ERROR] Google API 응답: {response.status_code} - {error_text}")
+                    return jsonify({"ok": False, "error": f"Google TTS API 오류: {error_text}"}), 200
+
+            combined_audio = b''.join(audio_data_list)
+            audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
+            audio_url = f"data:audio/mp3;base64,{audio_base64}"
+
+            # Google Cloud TTS 비용: $4/100만 글자 (Wavenet), $16/100만 글자 (Neural2)
+            # 약 0.0054원/글자 (Wavenet 기준, 환율 1350원)
+            cost_per_char = 0.0054 if "Wavenet" in speaker else 0.0216
+            cost_krw = int(char_count * cost_per_char)
+
+            print(f"[DRAMA-STEP5-TTS] Google TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}")
+
+            return jsonify({
+                "ok": True,
+                "audioUrl": audio_url,
+                "charCount": char_count,
+                "cost": cost_krw,
+                "provider": "google"
+            })
+
+        # 네이버 클로바 TTS (기존 코드)
+        else:
+            ncp_client_id = os.getenv("NCP_CLIENT_ID", "")
+            ncp_client_secret = os.getenv("NCP_CLIENT_SECRET", "")
+
+            if not ncp_client_id or not ncp_client_secret:
+                return jsonify({"ok": False, "error": "네이버 클라우드 API 키가 설정되지 않았습니다. 환경변수 NCP_CLIENT_ID, NCP_CLIENT_SECRET을 설정해주세요."}), 200
+
+            print(f"[DRAMA-STEP5-TTS] 네이버 TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {char_count}자")
+
+            max_chars = 1000
+            text_chunks = []
+
+            if len(text) > max_chars:
+                sentences = text.replace('\n', ' ').split('. ')
+                current_chunk = ""
+                for sentence in sentences:
+                    if len(current_chunk) + len(sentence) + 2 < max_chars:
+                        current_chunk += sentence + ". "
+                    else:
+                        if current_chunk:
+                            text_chunks.append(current_chunk.strip())
+                        current_chunk = sentence + ". "
+                if current_chunk:
+                    text_chunks.append(current_chunk.strip())
+            else:
+                text_chunks = [text]
+
+            audio_data_list = []
+
+            for chunk in text_chunks:
+                url = "https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts"
+                headers = {
+                    "X-NCP-APIGW-API-KEY-ID": ncp_client_id,
+                    "X-NCP-APIGW-API-KEY": ncp_client_secret,
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+
+                payload = {
+                    "speaker": speaker,
+                    "volume": str(volume),
+                    "speed": str(speed),
+                    "pitch": str(pitch),
+                    "format": "mp3",
+                    "text": chunk
+                }
+
+                response = requests.post(url, headers=headers, data=payload)
+
+                if response.status_code == 200:
+                    audio_data_list.append(response.content)
+                else:
+                    error_text = response.text
+                    print(f"[DRAMA-STEP5-TTS][ERROR] 네이버 API 응답: {response.status_code} - {error_text}")
+                    return jsonify({"ok": False, "error": f"네이버 TTS API 오류: {error_text}"}), 200
+
+            combined_audio = b''.join(audio_data_list)
+            audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
+            audio_url = f"data:audio/mp3;base64,{audio_base64}"
+
+            cost_krw = int(char_count * 4)
+
+            print(f"[DRAMA-STEP5-TTS] 네이버 TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}")
+
+            return jsonify({
+                "ok": True,
+                "audioUrl": audio_url,
+                "charCount": char_count,
+                "cost": cost_krw,
+                "provider": "naver"
+            })
 
     except Exception as e:
         print(f"[DRAMA-STEP5-TTS][ERROR] {str(e)}")
