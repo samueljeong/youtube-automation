@@ -1003,11 +1003,12 @@
         <div class="step4-prompt-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
             <div class="prompt-label">🎬 3단계: 씬 이미지 생성</div>
-            <div style="display: flex; gap: .5rem; align-items: center;">
+            <div style="display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;">
               <select id="step4-scene-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
                 <option value="">-- 씬 선택 --</option>
               </select>
-              <button id="btn-generate-scene-prompt" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">📝 씬 프롬프트</button>
+              <button id="btn-generate-scene-prompt" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">📝 프롬프트만</button>
+              <button id="btn-generate-scene-all" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem; background: linear-gradient(135deg, #10b981, #059669); font-weight: 700;">🎬 프롬프트+이미지</button>
             </div>
           </div>
 
@@ -2750,6 +2751,139 @@ S#1. 장소 / 시간
     }
   }
 
+  // 프롬프트 + 이미지 한번에 생성
+  async function generateScenePromptAndImage() {
+    const sceneSelect = document.getElementById('step4-scene-select');
+    const idx = parseInt(sceneSelect?.value);
+
+    if (isNaN(idx) || !step4Scenes[idx]) {
+      alert('씬을 선택해주세요.');
+      return;
+    }
+
+    // 선택된 인물들 가져오기
+    const selectedCharacters = [];
+    document.querySelectorAll('.scene-character-checkbox:checked').forEach(cb => {
+      const name = cb.dataset.name;
+      if (step4CharacterImages[name]) {
+        selectedCharacters.push({
+          name: name,
+          prompt: step4CharacterImages[name].prompt
+        });
+      } else {
+        const char = step4Characters.find(c => c.name === name);
+        if (char) {
+          selectedCharacters.push({
+            name: name,
+            prompt: char.imagePrompt
+          });
+        }
+      }
+    });
+
+    const btn = document.getElementById('btn-generate-scene-all');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 프롬프트 생성 중...';
+    }
+
+    showStatus('📝 Step4: 씬 프롬프트 생성 중...');
+    showLoadingOverlay();
+
+    try {
+      // 1단계: 프롬프트 생성
+      const promptResponse = await fetch('/api/drama/generate-scene-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scene: step4Scenes[idx],
+          characters: selectedCharacters,
+          backgroundPrompt: document.getElementById('step4-background-prompt')?.value || ''
+        })
+      });
+
+      const promptData = await promptResponse.json();
+
+      if (!promptData.ok) {
+        throw new Error(promptData.error || '프롬프트 생성 실패');
+      }
+
+      document.getElementById('step4-combined-prompt').value = promptData.combinedPrompt || '';
+      if (promptData.backgroundPrompt) {
+        document.getElementById('step4-background-prompt').value = promptData.backgroundPrompt;
+      }
+
+      showStatus('✅ 프롬프트 완료! 🖼️ 이미지 생성 중... (약 30초)');
+      if (btn) btn.textContent = '⏳ 이미지 생성 중...';
+
+      // 2단계: 이미지 생성
+      const imageSize = document.getElementById('step4-image-size')?.value || '1792x1024';
+      const imageResponse = await fetch('/api/drama/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptData.combinedPrompt,
+          size: imageSize
+        })
+      });
+
+      const imageData = await imageResponse.json();
+
+      if (imageData.ok) {
+        const placeholder = document.getElementById('step4-image-placeholder');
+        const imageGrid = document.getElementById('step4-image-grid');
+        const costInfo = document.getElementById('step4-cost-info');
+
+        if (placeholder) placeholder.style.display = 'none';
+        if (imageGrid) {
+          imageGrid.style.display = 'grid';
+
+          const imageItem = document.createElement('div');
+          imageItem.className = 'step4-image-item';
+          imageItem.innerHTML = `
+            <img src="${imageData.imageUrl}" alt="Generated scene" loading="lazy" onclick="window.open('${imageData.imageUrl}', '_blank')">
+            <div class="image-caption">
+              씬 ${idx + 1}: ${step4Scenes[idx].sceneName || ''} | ${imageSize}
+              <button onclick="downloadImage('${imageData.imageUrl}')" style="margin-left: .5rem; padding: .2rem .4rem; font-size: .7rem; cursor: pointer;">💾 저장</button>
+            </div>
+          `;
+          imageGrid.insertBefore(imageItem, imageGrid.firstChild);
+
+          step4GeneratedImages.unshift({
+            url: imageData.imageUrl,
+            prompt: promptData.combinedPrompt,
+            sceneIndex: idx,
+            sceneName: step4Scenes[idx].sceneName,
+            size: imageSize,
+            createdAt: new Date().toISOString()
+          });
+          localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
+        }
+
+        if (costInfo && imageData.cost) {
+          document.getElementById('step4-image-cost').textContent = '₩' + imageData.cost.toLocaleString();
+          costInfo.style.display = 'block';
+        }
+
+        showStatus('✅ 씬 이미지 생성 완료!');
+        updateProgressIndicator('step4');
+        updateStep6Visibility();
+      } else {
+        throw new Error(imageData.error || '이미지 생성 실패');
+      }
+    } catch (err) {
+      alert(`오류: ${err.message}`);
+      showStatus('❌ 생성 실패');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🎬 프롬프트+이미지';
+      }
+    }
+  }
+
   // 이미지 생성 함수 (씬 이미지)
   async function generateStep4Image() {
     const combinedPrompt = document.getElementById('step4-combined-prompt')?.value || '';
@@ -2891,6 +3025,7 @@ S#1. 장소 / 시간
   document.getElementById('btn-analyze-characters')?.addEventListener('click', analyzeCharacters);
   document.getElementById('btn-generate-character-image')?.addEventListener('click', generateCharacterImage);
   document.getElementById('btn-generate-scene-prompt')?.addEventListener('click', generateScenePrompt);
+  document.getElementById('btn-generate-scene-all')?.addEventListener('click', generateScenePromptAndImage);
   document.getElementById('btn-generate-image')?.addEventListener('click', generateStep4Image);
   document.getElementById('btn-clear-step4')?.addEventListener('click', clearStep4);
 
