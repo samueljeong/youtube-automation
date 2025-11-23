@@ -1371,7 +1371,7 @@ def api_drama_claude_step3():
         benchmark_script = data.get("benchmarkScript", "")
         ai_analysis = data.get("aiAnalysis", "")
         step3_guide = data.get("step3Guide", "")
-        selected_model = data.get("model", "anthropic/claude-sonnet-4-5-20250929")
+        selected_model = data.get("model", "anthropic/claude-sonnet-4.5")
         content_type = data.get("contentType", "testimony")  # 콘텐츠 유형 (testimony/drama)
         content_type_prompt = data.get("contentTypePrompt", {})  # 클라이언트에서 보낸 프롬프트
 
