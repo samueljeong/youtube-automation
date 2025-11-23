@@ -1896,8 +1896,68 @@
     }
   };
 
-  // ===== 콘텐츠 유형별 Step3 프롬프트 =====
-  const contentTypePrompts = {
+  // ===== JSON 지침 로드 시스템 =====
+  let dramaGuidelines = null;
+
+  async function loadDramaGuidelines() {
+    try {
+      const response = await fetch('/api/drama/guidelines');
+      const data = await response.json();
+      if (data.ok && data.guidelines) {
+        dramaGuidelines = data.guidelines;
+        console.log('[GUIDELINES] 지침 로드 완료:', dramaGuidelines.version);
+        // 지침 로드 후 contentTypePrompts 업데이트
+        updateContentTypePromptsFromGuidelines();
+        return true;
+      }
+    } catch (error) {
+      console.warn('[GUIDELINES] 지침 로드 실패, 기본값 사용:', error);
+    }
+    return false;
+  }
+
+  function updateContentTypePromptsFromGuidelines() {
+    if (!dramaGuidelines?.contentTypes) return;
+
+    // 서버에서 로드한 지침으로 업데이트
+    for (const [key, value] of Object.entries(dramaGuidelines.contentTypes)) {
+      if (contentTypePrompts[key]) {
+        contentTypePrompts[key].name = value.name || contentTypePrompts[key].name;
+        contentTypePrompts[key].systemPrompt = value.systemPrompt || contentTypePrompts[key].systemPrompt;
+        contentTypePrompts[key].userPromptSuffix = value.userPromptSuffix || contentTypePrompts[key].userPromptSuffix;
+      }
+    }
+    console.log('[GUIDELINES] contentTypePrompts 업데이트 완료');
+
+    // 카테고리 설정 업데이트 (masterGuide)
+    if (dramaGuidelines?.categories) {
+      for (const [key, value] of Object.entries(dramaGuidelines.categories)) {
+        const configKey = key === '10min' ? '10min' : key === 'shorts' ? 'shorts' : key;
+        if (config.categorySettings[configKey]) {
+          config.categorySettings[configKey].masterGuide = value.masterGuide || '';
+        }
+      }
+      console.log('[GUIDELINES] categorySettings 업데이트 완료');
+    }
+  }
+
+  // 지침에서 특정 값 가져오기 (점 표기법 지원)
+  function getGuideline(path, defaultValue = null) {
+    if (!dramaGuidelines) return defaultValue;
+    const keys = path.split('.');
+    let value = dramaGuidelines;
+    try {
+      for (const key of keys) {
+        value = value[key];
+      }
+      return value !== undefined ? value : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
+
+  // ===== 콘텐츠 유형별 Step3 프롬프트 (초기값 - 서버 로드 시 업데이트됨) =====
+  let contentTypePrompts = {
     testimony: {
       name: '간증',
       systemPrompt: `당신은 감동적인 간증 콘텐츠 전문 작가입니다.
@@ -6147,6 +6207,13 @@ S#1. 장소 / 시간
     if (dateInput) {
       dateInput.value = new Date().toISOString().split('T')[0];
     }
+
+    // ⭐ JSON 지침 로드 (비동기, 실패해도 계속 진행)
+    loadDramaGuidelines().then(loaded => {
+      if (loaded) {
+        console.log('[INIT] 서버 지침 로드 완료');
+      }
+    });
 
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();

@@ -7,6 +7,48 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
+# ===== JSON 지침 파일 로드 =====
+GUIDES_DIR = os.path.join(os.path.dirname(__file__), 'guides')
+_drama_guidelines_cache = None
+
+def load_drama_guidelines(force_reload=False):
+    """JSON 지침 파일 로드 (캐싱 지원)"""
+    global _drama_guidelines_cache
+
+    if _drama_guidelines_cache is not None and not force_reload:
+        return _drama_guidelines_cache
+
+    json_path = os.path.join(GUIDES_DIR, 'drama.json')
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            _drama_guidelines_cache = json.load(f)
+            print(f"[GUIDELINES] drama.json 로드 완료 (version: {_drama_guidelines_cache.get('version', 'unknown')})")
+            return _drama_guidelines_cache
+    except FileNotFoundError:
+        print(f"[GUIDELINES] 경고: {json_path} 파일을 찾을 수 없습니다. 기본 프롬프트를 사용합니다.")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"[GUIDELINES] 경고: JSON 파싱 오류: {e}")
+        return None
+
+def get_guideline(path, default=None):
+    """
+    점 표기법으로 JSON 지침에서 값 가져오기
+    예: get_guideline('contentTypes.testimony.systemPrompt')
+    """
+    guidelines = load_drama_guidelines()
+    if guidelines is None:
+        return default
+
+    keys = path.split('.')
+    value = guidelines
+    try:
+        for key in keys:
+            value = value[key]
+        return value
+    except (KeyError, TypeError):
+        return default
+
 def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
@@ -297,72 +339,45 @@ def remove_markdown(text):
 
 def get_system_prompt_for_step(step_name):
     """
-    드라마 단계별로 최적화된 system prompt 반환
+    드라마 단계별로 최적화된 system prompt 반환 (JSON 지침 기반)
     mini는 개요와 자료만 생성, 완성된 대본 작성 금지
     """
     step_lower = step_name.lower()
 
+    # JSON에서 프롬프트 가져오기 시도
+    step2_prompts = get_guideline('steps.step2.systemPrompts', {})
+
     # 캐릭터 설정 단계
     if '캐릭터' in step_name or 'character' in step_lower:
-        return f"""당신은 gpt-4o-mini로서 드라마 '캐릭터 설정 자료'만 준비하는 역할입니다.
-
-현재 단계: {step_name}
-
-기본 역할:
-- 캐릭터의 기본 정보와 성격만 정리하세요
-- 완성된 대본이나 대사는 작성하지 마세요
-- 캐릭터 설정 자료만 제공하세요
-- 사용자가 제공하는 세부 지침을 최우선으로 따름
-
-⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
+        prompt = step2_prompts.get('캐릭터')
+        if prompt:
+            return f"{prompt}\n\n현재 단계: {step_name}"
 
     # 스토리라인 / 줄거리 단계
     elif '스토리' in step_name or '줄거리' in step_name or 'storyline' in step_lower or 'plot' in step_lower:
-        return f"""당신은 gpt-4o-mini로서 드라마 '스토리라인 자료'만 준비하는 역할입니다.
-
-현재 단계: {step_name}
-
-기본 역할:
-- 스토리의 구조와 전개만 정리하세요
-- 완성된 대본이나 상세한 대사는 작성하지 마세요
-- 스토리 개요와 구조만 제공하세요
-- 사용자가 제공하는 세부 지침을 최우선으로 따름
-
-⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
+        prompt = step2_prompts.get('스토리')
+        if prompt:
+            return f"{prompt}\n\n현재 단계: {step_name}"
 
     # 장면 구성 단계
     elif '장면' in step_name or 'scene' in step_lower:
-        return f"""당신은 gpt-4o-mini로서 드라마 '장면 구성 자료'만 준비하는 역할입니다.
-
-현재 단계: {step_name}
-
-기본 역할:
-- 장면의 구조와 목적만 정리하세요
-- 완성된 대본이나 대사는 작성하지 마세요
-- 장면 개요만 제공하세요
-- 사용자가 제공하는 세부 지침을 최우선으로 따름
-
-⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
+        prompt = step2_prompts.get('장면')
+        if prompt:
+            return f"{prompt}\n\n현재 단계: {step_name}"
 
     # 대사 / 대본 작성 단계
     elif '대사' in step_name or '대본' in step_name or 'dialogue' in step_lower or 'script' in step_lower:
-        return f"""당신은 gpt-4o-mini로서 드라마 '대사 작성 자료'만 준비하는 역할입니다.
+        prompt = step2_prompts.get('대사')
+        if prompt:
+            return f"{prompt}\n\n현재 단계: {step_name}"
 
-⚠️ 중요: 완성된 대본은 작성하지 마세요!
+    # 기타 단계 또는 fallback
+    default_prompt = step2_prompts.get('default')
+    if default_prompt:
+        return f"{default_prompt}\n\n현재 단계: {step_name}"
 
-현재 단계: {step_name}
-
-기본 역할:
-- 이 단계는 GPT-5.1에서 최종 작성될 부분입니다
-- 대사의 톤, 스타일, 핵심 메시지만 제공하세요
-- 완성된 대사나 대본은 작성하지 마세요
-- 사용자가 제공하는 세부 지침을 최우선으로 따름
-
-⚠️ 중요: 사용자의 세부 지침이 제공되면 그것을 절대적으로 우선하여 따라야 합니다."""
-
-    # 기타 단계
-    else:
-        return f"""당신은 gpt-4o-mini로서 드라마 '초안 자료'만 준비하는 역할입니다.
+    # JSON 로드 실패 시 기본 프롬프트
+    return f"""당신은 gpt-4o-mini로서 드라마 '초안 자료'만 준비하는 역할입니다.
 
 현재 단계: {step_name}
 
@@ -384,6 +399,37 @@ def drama():
 @app.route("/health")
 def health():
     return jsonify({"ok": True})
+
+# ===== JSON 지침 API =====
+@app.route("/api/drama/guidelines", methods=["GET"])
+def api_get_guidelines():
+    """JSON 지침 전체 반환"""
+    guidelines = load_drama_guidelines()
+    if guidelines:
+        return jsonify({"ok": True, "guidelines": guidelines})
+    return jsonify({"ok": False, "error": "지침 파일을 로드할 수 없습니다"}), 500
+
+@app.route("/api/drama/guidelines/<path:key_path>", methods=["GET"])
+def api_get_guideline_by_path(key_path):
+    """특정 경로의 지침만 반환 (예: /api/drama/guidelines/contentTypes/testimony)"""
+    # URL 경로를 점 표기법으로 변환
+    dot_path = key_path.replace('/', '.')
+    value = get_guideline(dot_path)
+    if value is not None:
+        return jsonify({"ok": True, "path": dot_path, "value": value})
+    return jsonify({"ok": False, "error": f"'{dot_path}' 경로를 찾을 수 없습니다"}), 404
+
+@app.route("/api/drama/guidelines/reload", methods=["POST"])
+def api_reload_guidelines():
+    """JSON 지침 강제 리로드 (개발/테스트용)"""
+    guidelines = load_drama_guidelines(force_reload=True)
+    if guidelines:
+        return jsonify({
+            "ok": True,
+            "message": "지침 파일이 리로드되었습니다",
+            "version": guidelines.get("version", "unknown")
+        })
+    return jsonify({"ok": False, "error": "지침 파일을 로드할 수 없습니다"}), 500
 
 # ===== 처리 단계 실행 API (gpt-4o-mini) =====
 @app.route("/api/drama/process", methods=["POST"])
