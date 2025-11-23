@@ -1570,6 +1570,9 @@ def api_gpt_pro():
         custom_prompt = data.get("customPrompt", "")
 
         print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
+        print(f"[GPT-PRO/Step3] draft_content 길이: {len(draft_content)}, 완료된 단계: {completed_step_names}")
+        if len(draft_content) < 100:
+            print(f"[GPT-PRO/Step3] ⚠️ draft_content가 너무 짧음! 내용: {draft_content[:500]}")
 
         # 제목 생성 여부 확인
         has_title = bool(title and title.strip())

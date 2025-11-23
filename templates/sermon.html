@@ -2498,6 +2498,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   // ===== GPT PRO 처리 기능 =====
   async function executeGptPro() {
     const draft = assembleGptProDraft();
+
+    // 디버그: stepResults와 draft 내용 확인
+    console.log('[Step3 Debug] stepResults:', JSON.stringify(stepResults, null, 2));
+    console.log('[Step3 Debug] getCurrentSteps():', getCurrentSteps());
+    console.log('[Step3 Debug] draft.completedStepNames:', draft.completedStepNames);
+    console.log('[Step3 Debug] draft.draftContent 길이:', draft.draftContent?.length || 0);
+
     if (draft.error) {
       alert(draft.error);
       return;
