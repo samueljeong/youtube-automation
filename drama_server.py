@@ -2234,10 +2234,10 @@ COMBINED_PROMPT: [통합 장면 프롬프트 - 영어]"""
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
-# ===== Step4: 이미지 생성 API (FLUX.1 Pro / DALL-E 3 선택) =====
+# ===== Step4: 이미지 생성 API (Gemini / FLUX.1 Pro / DALL-E 3 선택) =====
 @app.route('/api/drama/generate-image', methods=['POST'])
 def api_generate_image():
-    """이미지 생성 - FLUX.1 Pro (기본) 또는 DALL-E 3"""
+    """이미지 생성 - Gemini (기본, OpenRouter) / FLUX.1 Pro / DALL-E 3"""
     try:
         import requests as req
 
@@ -2247,13 +2247,123 @@ def api_generate_image():
 
         prompt = data.get("prompt", "")
         size = data.get("size", "1024x1024")
-        image_provider = data.get("imageProvider", "flux")  # flux 또는 dalle
+        image_provider = data.get("imageProvider", "gemini")  # gemini, flux, dalle
 
         if not prompt:
             return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
 
+        # Gemini 2.5 Flash Image (OpenRouter API) - 기본값
+        if image_provider == "gemini":
+            openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+
+            if not openrouter_api_key:
+                return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."}), 200
+
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작")
+
+            # 프롬프트에 스타일 가이드 추가
+            enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. Style: cinematic lighting, professional photography, 8k resolution, detailed"
+
+            # OpenRouter API 호출 (Chat Completions 형식)
+            headers = {
+                "Authorization": f"Bearer {openrouter_api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://drama-generator.app",
+                "X-Title": "Drama Image Generator"
+            }
+
+            payload = {
+                "model": "google/gemini-2.5-flash-image-preview",
+                "modalities": ["text", "image"],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": enhanced_prompt
+                            }
+                        ]
+                    }
+                ]
+            }
+
+            response = req.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code != 200:
+                error_text = response.text
+                print(f"[DRAMA-STEP4-IMAGE][ERROR] OpenRouter API 응답: {response.status_code} - {error_text}")
+                return jsonify({"ok": False, "error": f"Gemini API 오류: {error_text}"}), 200
+
+            result = response.json()
+
+            # 응답에서 이미지 추출 (base64 data URL)
+            image_url = None
+            try:
+                choices = result.get("choices", [])
+                if choices:
+                    message = choices[0].get("message", {})
+                    content = message.get("content", [])
+
+                    # content가 리스트인 경우 (multimodal response)
+                    if isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict):
+                                # 이미지 타입 찾기
+                                if item.get("type") == "image_url":
+                                    image_url = item.get("image_url", {}).get("url")
+                                    break
+                                elif item.get("type") == "image":
+                                    # base64 이미지
+                                    image_data = item.get("image", {})
+                                    if isinstance(image_data, dict):
+                                        base64_data = image_data.get("data") or image_data.get("base64")
+                                        media_type = image_data.get("media_type", "image/png")
+                                        if base64_data:
+                                            image_url = f"data:{media_type};base64,{base64_data}"
+                                    elif isinstance(image_data, str):
+                                        image_url = f"data:image/png;base64,{image_data}"
+                                    break
+                    # content가 문자열인 경우 (텍스트만 반환)
+                    elif isinstance(content, str):
+                        print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:100]}")
+
+                    # images 필드 확인 (일부 응답 형식)
+                    images = message.get("images", [])
+                    if images and not image_url:
+                        if isinstance(images[0], str):
+                            image_url = images[0]
+                        elif isinstance(images[0], dict):
+                            image_url = images[0].get("url") or images[0].get("data")
+
+            except Exception as parse_error:
+                print(f"[DRAMA-STEP4-IMAGE][ERROR] 응답 파싱 오류: {parse_error}")
+                print(f"[DRAMA-STEP4-IMAGE][DEBUG] 원본 응답: {json.dumps(result, indent=2)[:500]}")
+
+            if not image_url:
+                return jsonify({"ok": False, "error": "Gemini에서 이미지를 생성하지 못했습니다. 프롬프트를 수정해주세요."}), 200
+
+            # Gemini 비용: ~$0.039/장 (1290 output tokens * $30/1M)
+            cost_usd = 0.039
+            cost_krw = int(cost_usd * 1350)
+
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 완료 - 비용: ${cost_usd}")
+
+            return jsonify({
+                "ok": True,
+                "imageUrl": image_url,
+                "cost": cost_krw,
+                "costUsd": cost_usd,
+                "provider": "gemini"
+            })
+
         # FLUX.1 Pro (Replicate API)
-        if image_provider == "flux":
+        elif image_provider == "flux":
             replicate_api_key = os.getenv("REPLICATE_API_TOKEN", "")
 
             if not replicate_api_key:

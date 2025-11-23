@@ -1360,11 +1360,14 @@
         </div>
 
         <!-- 이미지 모델 선택 -->
-        <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
-          <button class="step4-image-provider selected" data-provider="flux" style="flex: 1; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600; font-size: .85rem;">
+        <div style="display: flex; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap;">
+          <button class="step4-image-provider selected" data-provider="gemini" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600; font-size: .85rem;">
+            ✨ Gemini<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.039/장 (빠름)</span>
+          </button>
+          <button class="step4-image-provider" data-provider="flux" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
             ⚡ FLUX.1 Pro<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.055/장 (고품질)</span>
           </button>
-          <button class="step4-image-provider" data-provider="dalle" style="flex: 1; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
+          <button class="step4-image-provider" data-provider="dalle" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
             🎨 DALL-E 3<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.08/장 (창의적)</span>
           </button>
         </div>
@@ -1372,7 +1375,7 @@
         <!-- 이미지 생성 버튼 영역 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
           <button id="btn-generate-image" class="step4-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
-            🖼️ 씬 이미지 생성 (FLUX.1 Pro)
+            🖼️ 씬 이미지 생성 (Gemini)
           </button>
           <select id="step4-image-size" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem;">
             <option value="1024x1024">1024x1024 (정사각형)</option>
@@ -3164,7 +3167,7 @@ S#1. 장소 / 시간
   let step4Characters = JSON.parse(localStorage.getItem('_drama-step4-characters') || '[]');
   let step4CharacterImages = JSON.parse(localStorage.getItem('_drama-step4-character-images') || '{}');
   let step4Scenes = JSON.parse(localStorage.getItem('_drama-step4-scenes') || '[]');
-  let step4ImageProvider = 'flux';  // 기본: FLUX.1 Pro
+  let step4ImageProvider = 'gemini';  // 기본: Gemini (OpenRouter)
 
   // 이미지 모델 선택 이벤트
   document.querySelectorAll('.step4-image-provider').forEach(btn => {
@@ -3183,7 +3186,7 @@ S#1. 장소 / 시간
       // 버튼 텍스트 업데이트
       const btnGenerateImage = document.getElementById('btn-generate-image');
       if (btnGenerateImage) {
-        const modelName = step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3';
+        const modelName = step4ImageProvider === 'gemini' ? 'Gemini' : (step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3');
         btnGenerateImage.textContent = `🖼️ 씬 이미지 생성 (${modelName})`;
       }
     });
@@ -3653,7 +3656,7 @@ S#1. 장소 / 시간
       btnGenerateImage.textContent = '⏳ 이미지 생성 중... (약 30초)';
     }
 
-    const modelName = step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3';
+    const modelName = step4ImageProvider === 'gemini' ? 'Gemini' : (step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3');
     showStatus(`🖼️ Step4: ${modelName} 씬 이미지 생성 중...`);
     showLoadingOverlay();
 
@@ -3720,7 +3723,7 @@ S#1. 장소 / 시간
       if (btnGenerateImage) {
         btnGenerateImage.disabled = false;
         btnGenerateImage.classList.remove('generating');
-        const currentModel = step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3';
+        const currentModel = step4ImageProvider === 'gemini' ? 'Gemini' : (step4ImageProvider === 'flux' ? 'FLUX.1 Pro' : 'DALL-E 3');
         btnGenerateImage.textContent = `🖼️ 씬 이미지 생성 (${currentModel})`;
       }
     }
