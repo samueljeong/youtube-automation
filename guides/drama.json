@@ -1,7 +1,174 @@
 {
-  "version": "2.0",
-  "lastUpdated": "2025-01-23",
-  "description": "드라마/간증 대본 자동 생성을 위한 구조화된 스타일 가이드",
+  "version": "3.0",
+  "lastUpdated": "2025-11-23",
+  "description": "드라마/간증 대본 자동 생성을 위한 구조화된 스타일 가이드 (JSON 출력 형식 포함)",
+
+  "step1_script_guidelines": {
+    "description": "Step1 대본 작성 시 반드시 따라야 할 지침",
+
+    "pre_check": {
+      "description": "대본 작성 전 반드시 확인할 사항",
+      "must_check": [
+        "영상 시간 (10분/20분/30분)",
+        "콘텐츠 유형 (간증/드라마)",
+        "주인공 정보"
+      ]
+    },
+
+    "duration_settings": {
+      "10min": {
+        "target_length": 3000,
+        "max_characters": 2,
+        "max_scenes": 4,
+        "images_per_scene": "1-2",
+        "highlight_scenes": 2
+      },
+      "20min": {
+        "target_length": 6000,
+        "max_characters": 3,
+        "max_scenes": 6,
+        "images_per_scene": "1-2",
+        "highlight_scenes": 3
+      },
+      "30min": {
+        "target_length": 9000,
+        "max_characters": 4,
+        "max_scenes": 8,
+        "images_per_scene": "1-2",
+        "highlight_scenes": 3
+      }
+    },
+
+    "character_rules": {
+      "min_count": 1,
+      "max_count": 4,
+      "reason": "TTS 음성 다양성 한계로 인해 최대 4명으로 제한",
+      "guidelines": [
+        "억지로 인물을 늘리지 말 것",
+        "스토리에 필요한 최소한의 인물만 사용",
+        "각 인물은 명확한 역할과 목적이 있어야 함"
+      ]
+    },
+
+    "highlight_rules": {
+      "purpose": "시청자 이탈 방지 - 영상 시작 1분 내 배치",
+      "duration_seconds": 60,
+      "max_scenes": 3,
+      "type_selection": {
+        "options": ["climax_preview", "curiosity_hook"],
+        "climax_preview": "가장 극적인 클라이맥스 장면 미리보기",
+        "curiosity_hook": "결말을 암시하며 궁금증 유발",
+        "selection_criteria": "대본 내용에 따라 AI가 더 효과적인 방식 선택"
+      },
+      "guidelines": [
+        "핵심 반전이나 감동 순간을 암시하되 스포일러는 피함",
+        "시청자가 끝까지 보고 싶게 만드는 장면 선택",
+        "각 하이라이트 장면은 짧고 임팩트 있게"
+      ]
+    },
+
+    "output_format": {
+      "description": "Step1 대본 출력은 반드시 아래 JSON 형식을 따를 것",
+      "note": "scene_meta 내용은 나레이션이 읽지 않음 - Step2 이미지 생성용",
+
+      "json_structure": {
+        "metadata": {
+          "title": "대본 제목",
+          "duration_minutes": "영상 길이 (10/20/30)",
+          "target_length": "목표 글자수",
+          "genre": "testimony 또는 drama",
+          "total_scenes": "총 씬 개수",
+          "total_characters": "총 등장인물 수"
+        },
+
+        "characters": {
+          "description": "등장인물 상세 정보 - Step2 이미지 생성에 사용",
+          "schema": {
+            "id": "char_01, char_02 형식",
+            "name": "이름 (성+이름)",
+            "age": "나이 (00세 형식)",
+            "gender": "남성/여성",
+            "role": "주인공/조연/단역",
+            "occupation": "직업/역할",
+            "relationship_to_protagonist": "주인공과의 관계",
+            "appearance": {
+              "height": "키와 자세",
+              "body_type": "체형",
+              "face": "얼굴 특징 상세히",
+              "hair": "머리 스타일과 색상",
+              "skin": "피부 상태/톤",
+              "distinctive_features": "특징적인 외모 요소"
+            },
+            "clothing_style": "주로 입는 옷차림",
+            "personality": "성격 특성",
+            "speaking_style": "말투 특징",
+            "voice_characteristics": "목소리 특징 (TTS 참고용)"
+          }
+        },
+
+        "highlight": {
+          "description": "영상 시작부 하이라이트 (이탈 방지용)",
+          "schema": {
+            "purpose": "하이라이트 목적 설명",
+            "duration_seconds": 60,
+            "type": "climax_preview 또는 curiosity_hook",
+            "scenes": [
+              {
+                "order": "순서 (1,2,3)",
+                "preview_text": "하이라이트 나레이션 텍스트",
+                "scene_hint": "어떤 장면인지 힌트 (스포일러 없이)",
+                "emotion": "전달할 감정"
+              }
+            ]
+          }
+        },
+
+        "script": {
+          "description": "본편 대본",
+          "scenes": {
+            "scene_meta": {
+              "description": "씬 메타데이터 - 나레이션이 읽지 않음, 이미지 생성용",
+              "schema": {
+                "scene_id": "씬 번호",
+                "scene_title": "씬 제목",
+                "structure_phase": "7단계 구조 중 해당 단계",
+                "location": {
+                  "place": "구체적 장소명",
+                  "setting": "장소 내 세부 설정/소품",
+                  "indoor_outdoor": "실내/실외"
+                },
+                "time": {
+                  "period": "시간대 (새벽/아침/낮/저녁/밤)",
+                  "season": "계절",
+                  "weather": "날씨 상태"
+                },
+                "atmosphere": {
+                  "mood": "전체적인 분위기",
+                  "lighting": "조명 상태 상세히",
+                  "sound_ambience": "배경 소리/환경음"
+                },
+                "visual_direction": {
+                  "camera_suggestion": "카메라 앵글/움직임 제안",
+                  "key_visual": "핵심 시각적 요소",
+                  "color_tone": "색감/톤"
+                },
+                "characters_in_scene": ["해당 씬 등장인물 id 배열"],
+                "character_states": {
+                  "char_id": {
+                    "emotion": "현재 감정 상태",
+                    "expression": "표정 상세",
+                    "posture": "자세/몸짓",
+                    "action": "하고 있는 행동"
+                  }
+                }
+              }
+            },
+            "narration": "실제 나레이션 텍스트 (TTS가 읽을 내용)"
+          }
+        }
+      }
+    }
+  },
 
   "script_style": {
     "narrator_type": "first_person_testimony",
