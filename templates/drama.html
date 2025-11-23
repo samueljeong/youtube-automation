@@ -4644,6 +4644,8 @@ S#1. 장소 / 시간
         // 사용자가 편집한 내용을 stepResults에 저장
         const stepId = textarea.id.replace('result-', '');
         stepResults[stepId] = textarea.value;
+        // ⭐ 세션에도 저장
+        saveStep2ResultToSession(stepId, textarea.value);
       });
     });
   }
@@ -4714,6 +4716,9 @@ S#1. 장소 / 시간
 
       if (data.ok) {
         stepResults[stepId] = data.result;
+        // ⭐ 세션에도 저장
+        saveStep2ResultToSession(stepId, data.result);
+
         const textarea = document.getElementById(`result-${stepId}`);
         if (textarea) {
           textarea.value = data.result;
@@ -6480,7 +6485,73 @@ S#1. 장소 / 시간
     renderSavedList();
 
     document.querySelectorAll('textarea').forEach(autoResize);
+
+    // ⭐ Step1 입력 필드 변경 시 세션 자동 저장
+    setupStep1SessionSync();
   });
+
+  // Step1 입력 필드들을 세션과 동기화
+  function setupStep1SessionSync() {
+    // 벤치마크 대본
+    const benchmarkScript = document.getElementById('benchmark-script');
+    if (benchmarkScript) {
+      // 세션에서 불러오기
+      if (workflowSession.step1.benchmark?.script) {
+        benchmarkScript.value = workflowSession.step1.benchmark.script;
+      }
+      // 변경 시 저장
+      benchmarkScript.addEventListener('change', () => {
+        updateSession('step1.benchmark.script', benchmarkScript.value);
+      });
+    }
+
+    // 주인공 정보
+    const mainCharacter = document.getElementById('main-character');
+    if (mainCharacter) {
+      if (workflowSession.step1.mainCharacter) {
+        mainCharacter.value = workflowSession.step1.mainCharacter;
+      }
+      mainCharacter.addEventListener('change', () => {
+        updateSession('step1.mainCharacter', mainCharacter.value);
+      });
+    }
+
+    // 카테고리 변경
+    const categorySelect = document.getElementById('category-select');
+    if (categorySelect) {
+      categorySelect.addEventListener('change', () => {
+        updateSession('category', categorySelect.value);
+      });
+    }
+
+    // 콘텐츠 유형 변경
+    const contentType = document.getElementById('content-type');
+    if (contentType) {
+      if (workflowSession.contentType) {
+        contentType.value = workflowSession.contentType;
+      }
+      contentType.addEventListener('change', () => {
+        updateSession('contentType', contentType.value);
+      });
+    }
+
+    console.log('[SESSION] Step1 동기화 설정 완료');
+  }
+
+  // Step2 결과를 세션에 저장하는 함수 (기존 stepResults에 저장할 때 호출)
+  function saveStep2ResultToSession(stepId, result) {
+    const stepMap = {
+      'character': 'character',
+      'storyline': 'storyline',
+      'scene': 'scene',
+      'dialogue': 'dialogue'
+    };
+
+    const sessionKey = stepMap[stepId];
+    if (sessionKey) {
+      updateSession(`step2.${sessionKey}`, { result, completedAt: new Date().toISOString() });
+    }
+  }
   </script>
 </body>
 </html>
