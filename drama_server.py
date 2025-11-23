@@ -49,24 +49,248 @@ def get_guideline(path, default=None):
     except (KeyError, TypeError):
         return default
 
-def build_testimony_prompt_from_guide(custom_guide=None):
+def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
     """
     guides/drama.json의 스타일 가이드를 기반으로 간증 대본 생성용 프롬프트 구축
     custom_guide: 클라이언트에서 보낸 커스텀 JSON 가이드 (있으면 우선 사용)
+    duration_minutes: 영상 길이 (10, 20, 30분)
     """
     # 커스텀 가이드가 있으면 우선 사용, 없으면 서버 파일에서 로드
     guide = custom_guide if custom_guide else load_drama_guidelines()
     if not guide:
         return None, None
 
-    # 1. 시스템 프롬프트 구축
+    # Step1 가이드라인 가져오기
+    step1_guidelines = guide.get('step1_script_guidelines', {})
+    duration_key = f"{duration_minutes}min"
+    duration_settings = step1_guidelines.get('duration_settings', {}).get(duration_key, {
+        'target_length': 6000,
+        'max_characters': 3,
+        'max_scenes': 6,
+        'highlight_scenes': 3
+    })
+
+    character_rules = step1_guidelines.get('character_rules', {})
+    highlight_rules = step1_guidelines.get('highlight_rules', {})
+    output_format = step1_guidelines.get('output_format', {})
+
+    # 기존 스타일 가이드도 참조
     script_style = guide.get('script_style', {})
     structure = guide.get('structure', {})
     dialogue_ratio = guide.get('dialogue_ratio', {})
     detail_req = guide.get('detail_requirements', {})
     emotional = guide.get('emotional_expressions', {})
     mandatory = guide.get('mandatory_elements', {})
-    forbidden = guide.get('forbidden_patterns', {})
+
+    system_prompt = f"""당신은 기독교 간증/드라마 콘텐츠 전문 작가입니다.
+반드시 JSON 형식으로 대본을 출력해야 합니다.
+
+═══════════════════════════════════════════════════
+【 ⚠️ 대본 작성 전 필수 확인 사항 】
+═══════════════════════════════════════════════════
+- 영상 길이: {duration_minutes}분
+- 목표 글자수: {duration_settings.get('target_length', 6000)}자
+- 최대 인물 수: {duration_settings.get('max_characters', 3)}명 (최소 1명 ~ 최대 4명, 억지로 늘리지 말 것)
+- 최대 씬 개수: {duration_settings.get('max_scenes', 6)}개
+- 씬당 이미지: 1-2개
+
+═══════════════════════════════════════════════════
+【 🎬 하이라이트 (영상 시작 1분) - 매우 중요! 】
+═══════════════════════════════════════════════════
+목적: 시청자 이탈 방지
+- 최대 {highlight_rules.get('max_scenes', 3)}개 장면으로 구성
+- 유형 선택:
+  * climax_preview: 극적인 클라이맥스 미리보기
+  * curiosity_hook: 결말 암시하며 궁금증 유발
+- 대본 내용에 따라 더 효과적인 방식을 선택하세요
+- 스포일러는 피하되, 시청자가 끝까지 보고 싶게 만들어야 합니다
+
+═══════════════════════════════════════════════════
+【 👤 인물 설정 규칙 】
+═══════════════════════════════════════════════════
+- 최소 {character_rules.get('min_count', 1)}명 ~ 최대 {character_rules.get('max_count', 4)}명
+- 이유: TTS 음성 다양성 한계로 인물이 많으면 목소리 중복 발생
+- 각 인물은 명확한 역할과 목적이 있어야 함
+- 억지로 인물을 늘리지 말 것!
+
+【 인물 외모 상세 작성 (Step2 이미지 생성용) 】
+각 인물에 대해 다음을 상세히 기술:
+- appearance.height: 키와 자세 (예: "170cm 정도, 약간 굽은 자세")
+- appearance.body_type: 체형 (예: "마른 체형", "건장한 체격")
+- appearance.face: 얼굴 특징 상세히 (예: "깊은 주름, 온화한 눈매, 처진 눈꼬리")
+- appearance.hair: 머리 스타일과 색상 (예: "백발, 짧게 정돈된 머리")
+- appearance.skin: 피부 상태/톤 (예: "햇볕에 그을린 검은 피부")
+- appearance.distinctive_features: 특징적인 외모 요소
+- clothing_style: 주로 입는 옷차림
+- voice_characteristics: 목소리 특징 (TTS 참고용)
+
+═══════════════════════════════════════════════════
+【 🎭 씬 메타데이터 (나레이션이 읽지 않음!) 】
+═══════════════════════════════════════════════════
+각 씬의 scene_meta는 Step2 이미지 생성용이며, TTS가 읽지 않습니다.
+반드시 다음 정보를 포함하세요:
+
+- location: 장소명, 세부 설정, 실내/실외
+- time: 시간대, 계절, 날씨
+- atmosphere: 분위기, 조명 상태, 배경 소리
+- visual_direction: 카메라 제안, 핵심 시각 요소, 색감/톤
+- character_states: 각 인물의 현재 감정, 표정, 자세, 행동
+
+═══════════════════════════════════════════════════
+【 📖 대본 스타일 】
+═══════════════════════════════════════════════════
+- 화자 유형: {script_style.get('perspective', '주인공이 직접 고백하는 형식')}
+- 시작 형식: "{script_style.get('opening', '안녕하세요. 저는...')}"
+- 마무리: 시청자에게 공감 질문 + 좋아요/구독 유도
+
+【 대화 비율 】
+- 서술/나레이션: {dialogue_ratio.get('narration', 55)}%
+- 내면 독백: {dialogue_ratio.get('inner_monologue', 15)}%
+- 직접 대화: {dialogue_ratio.get('direct_dialogue', 30)}%
+
+【 감정 표현 】
+신체 반응: {', '.join(emotional.get('physical_reactions', [])[:5])}
+감정 상태: {', '.join(emotional.get('emotional_states', [])[:4])}
+
+═══════════════════════════════════════════════════
+【 ❌ 절대 금지 】
+═══════════════════════════════════════════════════
+- 4명 초과 인물 등장
+- 3인칭 서술 (그는, 그녀는) → 반드시 1인칭 (저는, 제가)
+- 마크다운 기호 (#, *, -, **)
+- 설교조의 일반적 교훈만 나열
+- 씬 개수 초과 ({duration_settings.get('max_scenes', 6)}개 이하!)
+- 하이라이트 없이 시작
+
+═══════════════════════════════════════════════════
+【 📋 출력 JSON 형식 (반드시 준수!) 】
+═══════════════════════════════════════════════════
+```json
+{{
+  "metadata": {{
+    "title": "대본 제목",
+    "duration_minutes": {duration_minutes},
+    "target_length": {duration_settings.get('target_length', 6000)},
+    "genre": "testimony",
+    "total_scenes": 씬개수,
+    "total_characters": 인물수
+  }},
+  "characters": [
+    {{
+      "id": "char_01",
+      "name": "이름",
+      "age": "00세",
+      "gender": "남성/여성",
+      "role": "주인공/조연/단역",
+      "occupation": "직업",
+      "relationship_to_protagonist": "관계",
+      "appearance": {{
+        "height": "키와 자세",
+        "body_type": "체형",
+        "face": "얼굴 특징",
+        "hair": "머리 스타일",
+        "skin": "피부 상태",
+        "distinctive_features": "특징"
+      }},
+      "clothing_style": "옷차림",
+      "personality": "성격",
+      "speaking_style": "말투",
+      "voice_characteristics": "목소리 특징"
+    }}
+  ],
+  "highlight": {{
+    "purpose": "시청자 이탈 방지",
+    "duration_seconds": 60,
+    "type": "climax_preview 또는 curiosity_hook",
+    "scenes": [
+      {{
+        "order": 1,
+        "preview_text": "하이라이트 텍스트",
+        "scene_hint": "장면 힌트",
+        "emotion": "감정"
+      }}
+    ]
+  }},
+  "script": {{
+    "scenes": [
+      {{
+        "scene_meta": {{
+          "scene_id": 1,
+          "scene_title": "씬 제목",
+          "structure_phase": "7단계 중 해당 단계",
+          "location": {{
+            "place": "장소명",
+            "setting": "세부 설정",
+            "indoor_outdoor": "실내/실외"
+          }},
+          "time": {{
+            "period": "시간대",
+            "season": "계절",
+            "weather": "날씨"
+          }},
+          "atmosphere": {{
+            "mood": "분위기",
+            "lighting": "조명 상태",
+            "sound_ambience": "배경 소리"
+          }},
+          "visual_direction": {{
+            "camera_suggestion": "카메라 앵글",
+            "key_visual": "핵심 시각 요소",
+            "color_tone": "색감"
+          }},
+          "characters_in_scene": ["char_01"],
+          "character_states": {{
+            "char_01": {{
+              "emotion": "감정",
+              "expression": "표정",
+              "posture": "자세",
+              "action": "행동"
+            }}
+          }}
+        }},
+        "narration": "실제 나레이션 텍스트 (TTS가 읽을 내용)"
+      }}
+    ]
+  }}
+}}
+```
+"""
+
+    # 2. 사용자 프롬프트 suffix
+    user_suffix = f"""
+
+═══════════════════════════════════════════════════
+⚠️ 최종 점검 사항 (반드시 확인!)
+═══════════════════════════════════════════════════
+1. ✅ 영상 길이 {duration_minutes}분에 맞는 분량인가? (목표: {duration_settings.get('target_length', 6000)}자)
+2. ✅ 인물이 {duration_settings.get('max_characters', 3)}명 이하인가?
+3. ✅ 씬이 {duration_settings.get('max_scenes', 6)}개 이하인가?
+4. ✅ 하이라이트가 영상 시작부에 있는가?
+5. ✅ JSON 형식으로 출력했는가?
+6. ✅ scene_meta에 모든 시각 정보가 있는가?
+7. ✅ 각 인물의 외모가 상세히 기술되었는가?
+8. ✅ 1인칭 시점으로 작성했는가?
+
+반드시 유효한 JSON 형식으로 출력하세요!
+"""
+
+    return system_prompt, user_suffix
+
+
+def build_testimony_prompt_from_guide_legacy(custom_guide=None):
+    """
+    [레거시] 기존 텍스트 형식 대본용 프롬프트 (하위 호환성 유지)
+    """
+    guide = custom_guide if custom_guide else load_drama_guidelines()
+    if not guide:
+        return None, None
+
+    script_style = guide.get('script_style', {})
+    structure = guide.get('structure', {})
+    dialogue_ratio = guide.get('dialogue_ratio', {})
+    detail_req = guide.get('detail_requirements', {})
+    emotional = guide.get('emotional_expressions', {})
+    mandatory = guide.get('mandatory_elements', {})
 
     system_prompt = f"""당신은 기독교 간증 콘텐츠 전문 작가입니다.
 
@@ -81,7 +305,6 @@ def build_testimony_prompt_from_guide(custom_guide=None):
 【 7단계 구조 (반드시 준수) 】
 """
 
-    # 섹션별 구조 추가
     sections = structure.get('sections', [])
     for sec in sections:
         ratio_percent = int(sec.get('length_ratio', 0) * 100)
@@ -92,50 +315,33 @@ def build_testimony_prompt_from_guide(custom_guide=None):
    - 예시: "{sec.get('example', '')[:100]}..."
 """
 
-    # 대화 비율
     system_prompt += f"""
 【 대화 비율 】
 - 서술/나레이션: {dialogue_ratio.get('narration', 55)}%
 - 내면 독백: {dialogue_ratio.get('inner_monologue', 15)}%
 - 직접 대화: {dialogue_ratio.get('direct_dialogue', 30)}%
 
-【 필수 디테일 (구체성이 생명!) 】
-- 이름: 최소 {detail_req.get('naming', {}).get('min_count', 5)}개 (예: {', '.join(detail_req.get('naming', {}).get('examples', [])[:3])})
-- 나이: 최소 {detail_req.get('ages', {}).get('min_count', 3)}개 (예: {', '.join(detail_req.get('ages', {}).get('examples', [])[:3])})
-- 장소: 최소 {detail_req.get('locations', {}).get('min_count', 3)}개 (예: {', '.join(detail_req.get('locations', {}).get('examples', [])[:2])})
+【 필수 디테일 】
+- 이름: 최소 {detail_req.get('naming', {}).get('min_count', 5)}개
+- 나이: 최소 {detail_req.get('ages', {}).get('min_count', 3)}개
+- 장소: 최소 {detail_req.get('locations', {}).get('min_count', 3)}개
 - 숫자/기간: 최소 {detail_req.get('amounts', {}).get('min_count', 10)}개
 
-【 감정 표현 방법 】
-신체 반응으로 표현: {', '.join(emotional.get('physical_reactions', [])[:5])}
-감정 상태: {', '.join(emotional.get('emotional_states', [])[:4])}
+【 감정 표현 】
+신체 반응: {', '.join(emotional.get('physical_reactions', [])[:5])}
 
 【 절대 금지 】
-- 3인칭 서술 (그는, 그녀는, 민지는) → 반드시 1인칭 (저는, 제가)
-- 마크다운 기호 (#, *, -, **)
-- 설교조의 일반적 교훈만 나열
-- 너무 빠른 해결, 비현실적 기적
-- 짧은 분량 (최소 {structure.get('total_length', 15000)}자 필수!)
-
-【 문체 】
-- ~했습니다 (구어체) 사용
-- 친근하고 담담한 톤
-- 감정을 직접적으로 표현
+- 3인칭 서술 → 반드시 1인칭
+- 마크다운 기호
+- 짧은 분량
 """
 
-    # 2. 사용자 프롬프트 suffix (요청 사항 강화)
     user_suffix = f"""
 
-⚠️ 최종 점검 사항 (반드시 확인):
+⚠️ 최종 점검:
 1. 첫 문장이 "안녕하세요. 저는..."으로 시작하는가?
-2. 전체가 1인칭 (저는, 제가)으로만 작성되었는가?
+2. 전체가 1인칭으로 작성되었는가?
 3. 총 글자수가 {structure.get('total_length', 15000)}자 이상인가?
-4. 구체적 이름이 {mandatory.get('character_names_count', 5)}개 이상 있는가?
-5. 구체적 숫자가 {mandatory.get('specific_numbers_count', 10)}개 이상 있는가?
-6. 직접 대화 장면이 충분한가? (전체의 30%)
-7. 7단계 구조를 따랐는가?
-8. 가족(배우자/자녀) 반응이 포함되었는가?
-
-위 사항이 하나라도 빠지면 다시 작성하세요!
 """
 
     return system_prompt, user_suffix
@@ -1402,8 +1608,15 @@ def api_drama_claude_step3():
         user_prompt_suffix = ""
 
         if content_type == "testimony":
+            # category에서 duration_minutes 추출 (예: "10min" -> 10, "20min" -> 20)
+            duration_minutes = 20  # 기본값
+            if category:
+                duration_match = re.search(r'(\d+)', category)
+                if duration_match:
+                    duration_minutes = int(duration_match.group(1))
+
             # JSON 스타일 가이드에서 프롬프트 구축 (커스텀 가이드 우선 사용)
-            guide_system, guide_suffix = build_testimony_prompt_from_guide(custom_json_guide)
+            guide_system, guide_suffix = build_testimony_prompt_from_guide(custom_json_guide, duration_minutes)
             if guide_system:
                 system_content = guide_system
                 user_prompt_suffix = guide_suffix or ""
