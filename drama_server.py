@@ -1562,6 +1562,186 @@ COMBINED_PROMPT: [통합 프롬프트]
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Step4: 등장인물 및 씬 분석 API =====
+@app.route('/api/drama/analyze-characters', methods=['POST'])
+def api_analyze_characters():
+    """대본을 분석하여 등장인물과 씬 정보 추출"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        script = data.get("script", "")
+
+        if not script:
+            return jsonify({"ok": False, "error": "대본이 없습니다."}), 400
+
+        print(f"[DRAMA-STEP4-ANALYZE] 등장인물 및 씬 분석 시작")
+
+        system_content = """당신은 드라마 대본을 분석하여 등장인물과 씬 정보를 추출하는 전문가입니다.
+
+대본을 분석하여 다음 정보를 JSON 형식으로 추출해주세요:
+
+1. 등장인물 (characters): 각 인물에 대해
+   - name: 인물 이름 (한글)
+   - description: 인물 설명 (나이, 성격, 역할 등 - 한글)
+   - imagePrompt: DALL-E용 영어 이미지 프롬프트 (외모, 의상, 분위기 묘사)
+
+2. 씬 (scenes): 각 씬에 대해
+   - title: 씬 제목 또는 요약 (한글)
+   - location: 장소 (한글)
+   - description: 씬 설명 (한글)
+   - characters: 등장하는 인물들 이름 배열
+   - backgroundPrompt: DALL-E용 영어 배경 프롬프트 (장소, 분위기, 조명 묘사)
+
+응답은 반드시 다음 JSON 형식으로:
+{
+  "characters": [
+    {"name": "수진", "description": "28세 여성, 밝고 활발한 성격의 카페 사장", "imagePrompt": "A Korean woman in her late 20s, bright and cheerful expression, casual smart outfit..."},
+    ...
+  ],
+  "scenes": [
+    {"title": "첫 만남", "location": "카페", "description": "수진이 처음 민수를 만나는 장면", "characters": ["수진", "민수"], "backgroundPrompt": "A cozy Korean cafe interior, warm afternoon light..."},
+    ...
+  ]
+}
+
+중요:
+- imagePrompt와 backgroundPrompt는 반드시 영어로 작성
+- 프롬프트는 DALL-E 3에 최적화되도록 상세하게 작성
+- 인물 프롬프트는 portrait 스타일에 적합하게 작성
+- 한국 드라마 스타일의 시각적 요소 반영"""
+
+        user_content = f"""다음 드라마 대본을 분석해주세요:
+
+{script[:6000]}
+
+등장인물과 씬 정보를 JSON 형식으로 추출해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        result = completion.choices[0].message.content.strip()
+
+        import json as json_module
+        parsed = json_module.loads(result)
+
+        characters = parsed.get("characters", [])
+        scenes = parsed.get("scenes", [])
+
+        print(f"[DRAMA-STEP4-ANALYZE] 분석 완료 - 인물: {len(characters)}명, 씬: {len(scenes)}개")
+
+        return jsonify({
+            "ok": True,
+            "characters": characters,
+            "scenes": scenes
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-STEP4-ANALYZE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== Step4: 씬 프롬프트 생성 API =====
+@app.route('/api/drama/generate-scene-prompt', methods=['POST'])
+def api_generate_scene_prompt():
+    """씬에 등장하는 인물들과 배경을 결합한 통합 프롬프트 생성"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        scene = data.get("scene", {})
+        characters = data.get("characters", [])
+        background_prompt = data.get("backgroundPrompt", "")
+
+        print(f"[DRAMA-STEP4-SCENE] 씬 프롬프트 생성 시작")
+
+        # 인물 프롬프트 조합
+        character_descriptions = []
+        for char in characters:
+            if char.get("prompt"):
+                character_descriptions.append(f"{char['name']}: {char['prompt']}")
+
+        system_content = """당신은 드라마 씬을 위한 DALL-E 3 이미지 프롬프트를 작성하는 전문가입니다.
+
+주어진 씬 정보와 등장인물 정보를 바탕으로, 인물들이 배경에 자연스럽게 어울리는 통합 장면 프롬프트를 영어로 작성해주세요.
+
+프롬프트 작성 원칙:
+1. 씬의 분위기와 감정을 반영
+2. 등장인물들의 위치와 상호작용 묘사
+3. 조명, 색감, 구도 등 영화적 요소 포함
+4. 한국 드라마 스타일의 시각적 요소
+5. DALL-E 3에 최적화된 상세하고 명확한 묘사
+
+응답 형식:
+BACKGROUND_PROMPT: [배경 프롬프트 - 영어]
+COMBINED_PROMPT: [통합 장면 프롬프트 - 영어]"""
+
+        scene_info = f"""
+씬 정보:
+- 제목: {scene.get('title', '')}
+- 장소: {scene.get('location', '')}
+- 설명: {scene.get('description', '')}
+- 기존 배경 프롬프트: {background_prompt or scene.get('backgroundPrompt', '')}
+
+등장 인물:
+{chr(10).join(character_descriptions) if character_descriptions else '(인물 정보 없음)'}
+
+위 정보를 바탕으로 통합 씬 프롬프트를 생성해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": scene_info}
+            ],
+            temperature=0.7
+        )
+
+        result = completion.choices[0].message.content.strip()
+
+        # 프롬프트 파싱
+        new_background_prompt = ""
+        combined_prompt = ""
+
+        lines = result.split('\n')
+        current_type = None
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith('BACKGROUND_PROMPT:'):
+                current_type = 'background'
+                new_background_prompt = line.replace('BACKGROUND_PROMPT:', '').strip()
+            elif line.startswith('COMBINED_PROMPT:'):
+                current_type = 'combined'
+                combined_prompt = line.replace('COMBINED_PROMPT:', '').strip()
+            elif current_type and line:
+                if current_type == 'background':
+                    new_background_prompt += ' ' + line
+                elif current_type == 'combined':
+                    combined_prompt += ' ' + line
+
+        print(f"[DRAMA-STEP4-SCENE] 씬 프롬프트 생성 완료")
+
+        return jsonify({
+            "ok": True,
+            "backgroundPrompt": new_background_prompt or background_prompt,
+            "combinedPrompt": combined_prompt
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-STEP4-SCENE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Step4: DALL-E 3 이미지 생성 API =====
 @app.route('/api/drama/generate-image', methods=['POST'])
 def api_generate_image():

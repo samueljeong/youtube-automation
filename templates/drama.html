@@ -916,35 +916,74 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div class="label">🎨 Step4: 장면 이미지 생성</div>
           <div style="display: flex; gap: .5rem;">
-            <button id="btn-generate-prompts" class="step4-btn">📝 프롬프트 생성</button>
             <button id="btn-clear-step4" class="step4-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
           </div>
         </div>
 
-        <!-- 프롬프트 생성 영역 -->
+        <!-- 1단계: 인물 분석 -->
         <div class="step4-prompt-section">
-          <div class="prompt-label">👤 인물 프롬프트</div>
-          <textarea id="step4-character-prompt" placeholder="대본을 바탕으로 인물 프롬프트가 자동 생성됩니다. 직접 수정도 가능합니다.&#10;&#10;예: A Korean woman in her late 20s, gentle expression, wearing a simple white blouse..."></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+            <div class="prompt-label">👥 1단계: 등장인물 분석</div>
+            <button id="btn-analyze-characters" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">🔍 대본에서 인물 추출</button>
+          </div>
+          <div id="step4-characters-list" style="background: rgba(255,255,255,0.95); border-radius: 8px; padding: .75rem; min-height: 60px;">
+            <div style="color: #999; text-align: center; font-size: .85rem;">대본을 분석하면 등장인물이 여기에 표시됩니다</div>
+          </div>
         </div>
 
+        <!-- 2단계: 인물 이미지 생성 -->
         <div class="step4-prompt-section">
-          <div class="prompt-label">🏞️ 배경 프롬프트</div>
-          <textarea id="step4-background-prompt" placeholder="대본을 바탕으로 배경 프롬프트가 자동 생성됩니다. 직접 수정도 가능합니다.&#10;&#10;예: A cozy Korean cafe interior, warm afternoon light streaming through large windows..."></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+            <div class="prompt-label">👤 2단계: 인물 이미지 생성</div>
+            <div style="display: flex; gap: .5rem; align-items: center;">
+              <select id="step4-character-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
+                <option value="">-- 인물 선택 --</option>
+              </select>
+              <button id="btn-generate-character-image" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">🖼️ 인물 이미지 생성</button>
+            </div>
+          </div>
+          <textarea id="step4-character-prompt" placeholder="선택한 인물의 이미지 프롬프트가 여기에 표시됩니다. 직접 수정도 가능합니다."></textarea>
+          <div id="step4-character-images" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin-top: .5rem;"></div>
         </div>
 
+        <!-- 3단계: 씬 이미지 생성 -->
         <div class="step4-prompt-section">
-          <div class="prompt-label">🎬 통합 장면 프롬프트 (인물 + 배경)</div>
-          <textarea id="step4-combined-prompt" placeholder="인물이 배경에 자연스럽게 어울리는 통합 장면 프롬프트입니다.&#10;&#10;예: A Korean woman in her late 20s sitting by the window in a cozy cafe, warm afternoon sunlight..."></textarea>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+            <div class="prompt-label">🎬 3단계: 씬 이미지 생성</div>
+            <div style="display: flex; gap: .5rem; align-items: center;">
+              <select id="step4-scene-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
+                <option value="">-- 씬 선택 --</option>
+              </select>
+              <button id="btn-generate-scene-prompt" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">📝 씬 프롬프트</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: .5rem;">
+            <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">🏞️ 배경 프롬프트</div>
+            <textarea id="step4-background-prompt" placeholder="씬의 배경 프롬프트가 여기에 표시됩니다."></textarea>
+          </div>
+
+          <div style="margin-bottom: .5rem;">
+            <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">👥 등장 인물 (씬에 포함될 인물 선택)</div>
+            <div id="step4-scene-characters" style="display: flex; flex-wrap: wrap; gap: .5rem; background: rgba(255,255,255,0.1); padding: .5rem; border-radius: 6px; min-height: 40px;">
+              <span style="color: rgba(255,255,255,0.6); font-size: .85rem;">인물 분석 후 선택 가능</span>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">🎭 통합 씬 프롬프트 (인물 + 배경)</div>
+            <textarea id="step4-combined-prompt" placeholder="인물들이 배경에 자연스럽게 어울리는 통합 장면 프롬프트입니다."></textarea>
+          </div>
         </div>
 
         <!-- 이미지 생성 버튼 영역 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
           <button id="btn-generate-image" class="step4-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
-            🖼️ 이미지 생성 (DALL-E 3)
+            🖼️ 씬 이미지 생성 (DALL-E 3)
           </button>
           <select id="step4-image-size" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem;">
             <option value="1024x1024">1024x1024 (정사각형)</option>
-            <option value="1792x1024">1792x1024 (가로형)</option>
+            <option value="1792x1024" selected>1792x1024 (가로형)</option>
             <option value="1024x1792">1024x1792 (세로형)</option>
           </select>
         </div>
@@ -2071,8 +2110,11 @@
     });
   }
 
-  // ===== Step4: 이미지 생성 기능 =====
+  // ===== Step4: 이미지 생성 기능 (업그레이드 버전) =====
   let step4GeneratedImages = JSON.parse(localStorage.getItem('_drama-step4-images') || '[]');
+  let step4Characters = JSON.parse(localStorage.getItem('_drama-step4-characters') || '[]');
+  let step4CharacterImages = JSON.parse(localStorage.getItem('_drama-step4-character-images') || '{}');
+  let step4Scenes = JSON.parse(localStorage.getItem('_drama-step4-scenes') || '[]');
 
   // Step3 결과가 있으면 Step4 컨테이너 표시
   function updateStep4Visibility() {
@@ -2088,46 +2130,287 @@
   if (step3ResultTextarea) {
     const observer = new MutationObserver(updateStep4Visibility);
     observer.observe(step3ResultTextarea, { attributes: true, childList: true, subtree: true });
-    // value 변경은 MutationObserver로 감지가 안 되므로 주기적 체크
     setInterval(updateStep4Visibility, 1000);
   }
 
-  // 프롬프트 생성 함수
-  async function generateStep4Prompts() {
+  // 1단계: 등장인물 분석
+  async function analyzeCharacters() {
     const step3Result = document.getElementById('step3-result')?.value || '';
     if (!step3Result.trim()) {
       alert('먼저 Step3 대본 완성을 실행해주세요.');
       return;
     }
 
-    const btnGeneratePrompts = document.getElementById('btn-generate-prompts');
-    if (btnGeneratePrompts) {
-      btnGeneratePrompts.disabled = true;
-      btnGeneratePrompts.textContent = '⏳ 생성 중...';
+    const btn = document.getElementById('btn-analyze-characters');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 분석 중...';
     }
 
-    showStatus('🎨 Step4: 이미지 프롬프트 생성 중...');
+    showStatus('🔍 대본에서 등장인물 분석 중...');
     showLoadingOverlay();
 
     try {
-      const response = await fetch('/api/drama/generate-image-prompts', {
+      const response = await fetch('/api/drama/analyze-characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: step3Result })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        step4Characters = data.characters || [];
+        step4Scenes = data.scenes || [];
+        localStorage.setItem('_drama-step4-characters', JSON.stringify(step4Characters));
+        localStorage.setItem('_drama-step4-scenes', JSON.stringify(step4Scenes));
+
+        renderCharactersList();
+        updateCharacterSelect();
+        updateSceneSelect();
+        updateSceneCharacterCheckboxes();
+
+        showStatus(`✅ ${step4Characters.length}명의 등장인물, ${step4Scenes.length}개의 씬 분석 완료!`);
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ 분석 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ 분석 오류');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🔍 대본에서 인물 추출';
+      }
+    }
+  }
+
+  // 등장인물 목록 렌더링
+  function renderCharactersList() {
+    const container = document.getElementById('step4-characters-list');
+    if (!container) return;
+
+    if (step4Characters.length === 0) {
+      container.innerHTML = '<div style="color: #999; text-align: center; font-size: .85rem;">대본을 분석하면 등장인물이 여기에 표시됩니다</div>';
+      return;
+    }
+
+    container.innerHTML = step4Characters.map((char, idx) => `
+      <div style="background: #f8f9fa; padding: .5rem; border-radius: 6px; margin-bottom: .5rem; border-left: 4px solid #27ae60;">
+        <div style="font-weight: 600; color: #333; margin-bottom: .25rem;">
+          👤 ${char.name}
+          ${step4CharacterImages[char.name] ? '<span style="color: #27ae60; font-size: .8rem;">✅ 이미지 생성됨</span>' : ''}
+        </div>
+        <div style="font-size: .85rem; color: #666;">${char.description}</div>
+        <div style="font-size: .8rem; color: #888; margin-top: .25rem;">
+          <strong>프롬프트:</strong> ${char.imagePrompt || '(생성 전)'}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // 인물 선택 드롭다운 업데이트
+  function updateCharacterSelect() {
+    const select = document.getElementById('step4-character-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- 인물 선택 --</option>' +
+      step4Characters.map((char, idx) => `<option value="${idx}">${char.name}</option>`).join('');
+  }
+
+  // 인물 선택 시 프롬프트 표시
+  document.getElementById('step4-character-select')?.addEventListener('change', function() {
+    const idx = parseInt(this.value);
+    const promptArea = document.getElementById('step4-character-prompt');
+    if (!isNaN(idx) && step4Characters[idx] && promptArea) {
+      promptArea.value = step4Characters[idx].imagePrompt || '';
+    }
+  });
+
+  // 2단계: 인물 이미지 생성
+  async function generateCharacterImage() {
+    const selectEl = document.getElementById('step4-character-select');
+    const idx = parseInt(selectEl?.value);
+
+    if (isNaN(idx) || !step4Characters[idx]) {
+      alert('인물을 선택해주세요.');
+      return;
+    }
+
+    const characterPrompt = document.getElementById('step4-character-prompt')?.value || step4Characters[idx].imagePrompt;
+    if (!characterPrompt?.trim()) {
+      alert('인물 프롬프트가 없습니다.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-generate-character-image');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 생성 중...';
+    }
+
+    showStatus(`🖼️ ${step4Characters[idx].name} 이미지 생성 중...`);
+    showLoadingOverlay();
+
+    try {
+      const response = await fetch('/api/drama/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          script: step3Result,
-          mainCharacter: mainCharacterText
+          prompt: characterPrompt + ', portrait style, high quality, detailed face, professional lighting',
+          size: '1024x1024'
         })
       });
 
       const data = await response.json();
 
       if (data.ok) {
-        // 프롬프트 텍스트 영역에 결과 채우기
-        document.getElementById('step4-character-prompt').value = data.characterPrompt || '';
-        document.getElementById('step4-background-prompt').value = data.backgroundPrompt || '';
-        document.getElementById('step4-combined-prompt').value = data.combinedPrompt || '';
+        // 인물 이미지 저장
+        step4CharacterImages[step4Characters[idx].name] = {
+          url: data.imageUrl,
+          prompt: characterPrompt,
+          createdAt: new Date().toISOString()
+        };
+        localStorage.setItem('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
 
-        showStatus('✅ 이미지 프롬프트 생성 완료!');
+        // 인물 이미지 표시
+        renderCharacterImages();
+        renderCharactersList();
+
+        showStatus(`✅ ${step4Characters[idx].name} 이미지 생성 완료!`);
+      } else {
+        alert(`오류: ${data.error}`);
+        showStatus('❌ 이미지 생성 실패');
+      }
+    } catch (err) {
+      alert(`네트워크 오류: ${err.message}`);
+      showStatus('❌ 이미지 생성 오류');
+    } finally {
+      hideLoadingOverlay();
+      setTimeout(hideStatus, 3000);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🖼️ 인물 이미지 생성';
+      }
+    }
+  }
+
+  // 인물 이미지 렌더링
+  function renderCharacterImages() {
+    const container = document.getElementById('step4-character-images');
+    if (!container) return;
+
+    const images = Object.entries(step4CharacterImages);
+    if (images.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    container.innerHTML = images.map(([name, data]) => `
+      <div style="background: #f8f9fa; padding: .5rem; border-radius: 6px; text-align: center;">
+        <img src="${data.url}" alt="${name}" style="width: 100%; max-width: 150px; border-radius: 6px; cursor: pointer;" onclick="window.open('${data.url}', '_blank')">
+        <div style="font-size: .8rem; font-weight: 600; margin-top: .25rem;">${name}</div>
+        <button onclick="downloadImage('${data.url}')" style="margin-top: .25rem; padding: .2rem .4rem; font-size: .7rem; cursor: pointer;">💾 저장</button>
+      </div>
+    `).join('');
+  }
+
+  // 씬 선택 드롭다운 업데이트
+  function updateSceneSelect() {
+    const select = document.getElementById('step4-scene-select');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">-- 씬 선택 --</option>' +
+      step4Scenes.map((scene, idx) => `<option value="${idx}">씬 ${idx + 1}: ${scene.title || scene.location || '장면'}</option>`).join('');
+  }
+
+  // 씬에 등장하는 인물 체크박스 업데이트
+  function updateSceneCharacterCheckboxes() {
+    const container = document.getElementById('step4-scene-characters');
+    if (!container) return;
+
+    if (step4Characters.length === 0) {
+      container.innerHTML = '<span style="color: rgba(255,255,255,0.6); font-size: .85rem;">인물 분석 후 선택 가능</span>';
+      return;
+    }
+
+    container.innerHTML = step4Characters.map((char, idx) => `
+      <label style="display: flex; align-items: center; gap: .25rem; background: rgba(255,255,255,0.9); padding: .3rem .5rem; border-radius: 4px; cursor: pointer; font-size: .85rem;">
+        <input type="checkbox" class="scene-character-checkbox" data-name="${char.name}" checked>
+        ${char.name}
+      </label>
+    `).join('');
+  }
+
+  // 씬 선택 시 프롬프트 생성
+  document.getElementById('step4-scene-select')?.addEventListener('change', function() {
+    const idx = parseInt(this.value);
+    if (!isNaN(idx) && step4Scenes[idx]) {
+      document.getElementById('step4-background-prompt').value = step4Scenes[idx].backgroundPrompt || '';
+    }
+  });
+
+  // 3단계: 씬 프롬프트 생성
+  async function generateScenePrompt() {
+    const sceneSelect = document.getElementById('step4-scene-select');
+    const idx = parseInt(sceneSelect?.value);
+
+    if (isNaN(idx) || !step4Scenes[idx]) {
+      alert('씬을 선택해주세요.');
+      return;
+    }
+
+    // 선택된 인물들 가져오기
+    const selectedCharacters = [];
+    document.querySelectorAll('.scene-character-checkbox:checked').forEach(cb => {
+      const name = cb.dataset.name;
+      if (step4CharacterImages[name]) {
+        selectedCharacters.push({
+          name: name,
+          prompt: step4CharacterImages[name].prompt
+        });
+      } else {
+        const char = step4Characters.find(c => c.name === name);
+        if (char) {
+          selectedCharacters.push({
+            name: name,
+            prompt: char.imagePrompt
+          });
+        }
+      }
+    });
+
+    const btn = document.getElementById('btn-generate-scene-prompt');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 생성 중...';
+    }
+
+    showStatus('📝 씬 프롬프트 생성 중...');
+    showLoadingOverlay();
+
+    try {
+      const response = await fetch('/api/drama/generate-scene-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scene: step4Scenes[idx],
+          characters: selectedCharacters,
+          backgroundPrompt: document.getElementById('step4-background-prompt')?.value || ''
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        document.getElementById('step4-combined-prompt').value = data.combinedPrompt || '';
+        if (data.backgroundPrompt) {
+          document.getElementById('step4-background-prompt').value = data.backgroundPrompt;
+        }
+        showStatus('✅ 씬 프롬프트 생성 완료!');
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 프롬프트 생성 실패');
@@ -2138,22 +2421,22 @@
     } finally {
       hideLoadingOverlay();
       setTimeout(hideStatus, 3000);
-      if (btnGeneratePrompts) {
-        btnGeneratePrompts.disabled = false;
-        btnGeneratePrompts.textContent = '📝 프롬프트 생성';
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '📝 씬 프롬프트';
       }
     }
   }
 
-  // 이미지 생성 함수
+  // 이미지 생성 함수 (씬 이미지)
   async function generateStep4Image() {
     const combinedPrompt = document.getElementById('step4-combined-prompt')?.value || '';
     if (!combinedPrompt.trim()) {
-      alert('먼저 프롬프트를 생성하거나 직접 입력해주세요.');
+      alert('먼저 씬 프롬프트를 생성하거나 직접 입력해주세요.');
       return;
     }
 
-    const imageSize = document.getElementById('step4-image-size')?.value || '1024x1024';
+    const imageSize = document.getElementById('step4-image-size')?.value || '1792x1024';
     const btnGenerateImage = document.getElementById('btn-generate-image');
 
     if (btnGenerateImage) {
@@ -2162,7 +2445,7 @@
       btnGenerateImage.textContent = '⏳ 이미지 생성 중... (약 30초)';
     }
 
-    showStatus('🖼️ Step4: DALL-E 3 이미지 생성 중...');
+    showStatus('🖼️ Step4: DALL-E 3 씬 이미지 생성 중...');
     showLoadingOverlay();
 
     try {
@@ -2178,7 +2461,6 @@
       const data = await response.json();
 
       if (data.ok) {
-        // 이미지 결과 표시
         const placeholder = document.getElementById('step4-image-placeholder');
         const imageGrid = document.getElementById('step4-image-grid');
         const costInfo = document.getElementById('step4-cost-info');
@@ -2187,7 +2469,6 @@
         if (imageGrid) {
           imageGrid.style.display = 'grid';
 
-          // 새 이미지 추가
           const imageItem = document.createElement('div');
           imageItem.className = 'step4-image-item';
           imageItem.innerHTML = `
@@ -2199,23 +2480,21 @@
           `;
           imageGrid.insertBefore(imageItem, imageGrid.firstChild);
 
-          // 저장
           step4GeneratedImages.unshift({
             url: data.imageUrl,
             prompt: combinedPrompt,
             size: imageSize,
             createdAt: new Date().toISOString()
           });
-          localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 10)));
+          localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
         }
 
-        // 비용 표시
         if (costInfo && data.cost) {
           document.getElementById('step4-image-cost').textContent = '₩' + data.cost.toLocaleString();
           costInfo.style.display = 'block';
         }
 
-        showStatus('✅ 이미지 생성 완료!');
+        showStatus('✅ 씬 이미지 생성 완료!');
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 이미지 생성 실패');
@@ -2229,7 +2508,7 @@
       if (btnGenerateImage) {
         btnGenerateImage.disabled = false;
         btnGenerateImage.classList.remove('generating');
-        btnGenerateImage.textContent = '🖼️ 이미지 생성 (DALL-E 3)';
+        btnGenerateImage.textContent = '🖼️ 씬 이미지 생성 (DALL-E 3)';
       }
     }
   }
@@ -2247,11 +2526,27 @@
 
   // Step4 초기화 함수
   function clearStep4() {
-    if (!confirm('Step4의 모든 프롬프트와 이미지를 초기화하시겠습니까?')) return;
+    if (!confirm('Step4의 모든 데이터(인물, 씬, 이미지)를 초기화하시겠습니까?')) return;
+
+    step4Characters = [];
+    step4CharacterImages = {};
+    step4Scenes = [];
+    step4GeneratedImages = [];
+
+    localStorage.removeItem('_drama-step4-characters');
+    localStorage.removeItem('_drama-step4-character-images');
+    localStorage.removeItem('_drama-step4-scenes');
+    localStorage.removeItem('_drama-step4-images');
 
     document.getElementById('step4-character-prompt').value = '';
     document.getElementById('step4-background-prompt').value = '';
     document.getElementById('step4-combined-prompt').value = '';
+
+    renderCharactersList();
+    updateCharacterSelect();
+    updateSceneSelect();
+    updateSceneCharacterCheckboxes();
+    renderCharacterImages();
 
     const imageGrid = document.getElementById('step4-image-grid');
     const placeholder = document.getElementById('step4-image-placeholder');
@@ -2264,31 +2559,26 @@
     if (placeholder) placeholder.style.display = 'block';
     if (costInfo) costInfo.style.display = 'none';
 
-    step4GeneratedImages = [];
-    localStorage.removeItem('_drama-step4-images');
-
     showStatus('🗑️ Step4가 초기화되었습니다.');
     setTimeout(hideStatus, 2000);
   }
 
   // Step4 버튼 이벤트 바인딩
-  const btnGeneratePrompts = document.getElementById('btn-generate-prompts');
-  if (btnGeneratePrompts) {
-    btnGeneratePrompts.addEventListener('click', generateStep4Prompts);
-  }
+  document.getElementById('btn-analyze-characters')?.addEventListener('click', analyzeCharacters);
+  document.getElementById('btn-generate-character-image')?.addEventListener('click', generateCharacterImage);
+  document.getElementById('btn-generate-scene-prompt')?.addEventListener('click', generateScenePrompt);
+  document.getElementById('btn-generate-image')?.addEventListener('click', generateStep4Image);
+  document.getElementById('btn-clear-step4')?.addEventListener('click', clearStep4);
 
-  const btnGenerateImage = document.getElementById('btn-generate-image');
-  if (btnGenerateImage) {
-    btnGenerateImage.addEventListener('click', generateStep4Image);
-  }
+  // Step4 저장된 데이터 복원
+  function restoreStep4Data() {
+    renderCharactersList();
+    updateCharacterSelect();
+    updateSceneSelect();
+    updateSceneCharacterCheckboxes();
+    renderCharacterImages();
 
-  const btnClearStep4 = document.getElementById('btn-clear-step4');
-  if (btnClearStep4) {
-    btnClearStep4.addEventListener('click', clearStep4);
-  }
-
-  // Step4 저장된 이미지 복원
-  function restoreStep4Images() {
+    // 이미지 복원
     if (step4GeneratedImages.length === 0) return;
 
     const imageGrid = document.getElementById('step4-image-grid');
@@ -2313,8 +2603,8 @@
     }
   }
 
-  // 페이지 로드 시 Step4 이미지 복원
-  setTimeout(restoreStep4Images, 500);
+  // 페이지 로드 시 Step4 데이터 복원
+  setTimeout(restoreStep4Data, 500);
 
   // ===== Step5: TTS 음성 합성 및 자막 생성 기능 =====
   let step5SelectedVoice = 'nara';
