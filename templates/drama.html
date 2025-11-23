@@ -1243,7 +1243,10 @@
 
         <!-- 영상 정보 입력 -->
         <div class="step7-section">
-          <div class="section-label">📝 영상 정보</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+            <div class="section-label" style="margin-bottom: 0;">📝 영상 정보</div>
+            <button id="btn-auto-metadata" class="step7-btn" style="padding: .4rem .8rem; font-size: .8rem;">🤖 대본 기반 자동 입력</button>
+          </div>
           <input type="text" id="step7-title" class="step7-input" placeholder="영상 제목" maxlength="100">
           <textarea id="step7-description" class="step7-input" style="min-height: 80px; resize: vertical;" placeholder="영상 설명&#10;&#10;해시태그, 링크 등을 포함할 수 있습니다." maxlength="5000"></textarea>
           <input type="text" id="step7-tags" class="step7-input" placeholder="태그 (쉼표로 구분: 드라마, 단편영화, 감동)" maxlength="500">
@@ -1253,8 +1256,8 @@
         <div class="step7-section">
           <div class="section-label">🔒 공개 설정</div>
           <div id="step7-privacy-options">
-            <label class="step7-privacy-option selected" data-privacy="private">
-              <input type="radio" name="step7-privacy" value="private" checked style="display: none;">
+            <label class="step7-privacy-option" data-privacy="private">
+              <input type="radio" name="step7-privacy" value="private" style="display: none;">
               🔒 비공개
             </label>
             <label class="step7-privacy-option" data-privacy="unlisted">
@@ -1264,6 +1267,10 @@
             <label class="step7-privacy-option" data-privacy="public">
               <input type="radio" name="step7-privacy" value="public" style="display: none;">
               🌍 공개
+            </label>
+            <label class="step7-privacy-option selected" data-privacy="scheduled">
+              <input type="radio" name="step7-privacy" value="scheduled" checked style="display: none;">
+              📅 예약 (30분 후 공개)
             </label>
           </div>
         </div>
@@ -3077,18 +3084,64 @@
 
   // 개인정보 옵션 선택
   function selectStep7Privacy(value) {
-    document.querySelectorAll('.step7-privacy-btn').forEach(btn => {
-      btn.classList.remove('selected');
-      if (btn.dataset.value === value) {
-        btn.classList.add('selected');
+    document.querySelectorAll('.step7-privacy-option').forEach(opt => {
+      opt.classList.remove('selected');
+      const input = opt.querySelector('input[type="radio"]');
+      if (input) input.checked = false;
+      if (opt.dataset.privacy === value) {
+        opt.classList.add('selected');
+        if (input) input.checked = true;
       }
     });
   }
 
-  // 개인정보 버튼 이벤트
-  document.querySelectorAll('.step7-privacy-btn').forEach(btn => {
-    btn.addEventListener('click', () => selectStep7Privacy(btn.dataset.value));
+  // 개인정보 옵션 이벤트
+  document.querySelectorAll('.step7-privacy-option').forEach(opt => {
+    opt.addEventListener('click', () => selectStep7Privacy(opt.dataset.privacy));
   });
+
+  // 대본 기반 자동 메타데이터 생성
+  async function generateAutoMetadata() {
+    const btn = document.getElementById('btn-auto-metadata');
+    const step3Result = document.getElementById('step3-result')?.value || '';
+
+    if (!step3Result.trim()) {
+      showStatus('Step3 대본 결과가 없습니다. 먼저 대본을 작성해주세요.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '생성 중...';
+    showStatus('대본을 분석하여 제목, 설명, 태그를 생성 중...');
+
+    try {
+      const response = await fetch('/api/drama/generate-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: step3Result })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        document.getElementById('step7-title').value = data.title || '';
+        document.getElementById('step7-description').value = data.description || '';
+        document.getElementById('step7-tags').value = data.tags || '';
+        showStatus('메타데이터가 자동으로 입력되었습니다!');
+      } else {
+        throw new Error(data.error || '메타데이터 생성 실패');
+      }
+    } catch (error) {
+      console.error('Auto metadata error:', error);
+      showStatus(`메타데이터 생성 실패: ${error.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '대본 기반 자동 입력';
+    }
+  }
+
+  // 자동 메타데이터 버튼 이벤트
+  document.getElementById('btn-auto-metadata')?.addEventListener('click', generateAutoMetadata);
 
   // 유튜브 인증
   async function authenticateYouTube() {
@@ -3189,8 +3242,17 @@
     const description = document.getElementById('step7-description').value.trim();
     const tags = document.getElementById('step7-tags').value.trim();
     const category = document.getElementById('step7-category').value;
-    const privacyBtn = document.querySelector('.step7-privacy-btn.selected');
-    const privacy = privacyBtn ? privacyBtn.dataset.value : 'private';
+    const privacyOption = document.querySelector('.step7-privacy-option.selected');
+    const privacyValue = privacyOption ? privacyOption.dataset.privacy : 'scheduled';
+
+    // 예약 업로드인 경우 30분 후 공개 시간 계산
+    let privacy = privacyValue;
+    let publishAt = null;
+    if (privacyValue === 'scheduled') {
+      privacy = 'private';  // 예약 시 일단 비공개로 업로드
+      const scheduledTime = new Date(Date.now() + 30 * 60 * 1000);  // 30분 후
+      publishAt = scheduledTime.toISOString();
+    }
 
     const uploadBtn = document.getElementById('btn-upload-youtube');
     const progressContainer = document.getElementById('step7-progress');
@@ -3212,7 +3274,7 @@
       const videoBlob = await videoResponse.blob();
       const videoBase64 = await blobToBase64(videoBlob);
 
-      progressText.textContent = '유튜브에 업로드 중...';
+      progressText.textContent = publishAt ? '유튜브에 예약 업로드 중...' : '유튜브에 업로드 중...';
       progressFill.style.width = '30%';
 
       const response = await fetch('/api/drama/upload-youtube', {
@@ -3224,7 +3286,8 @@
           description: description,
           tags: tags.split(',').map(t => t.trim()).filter(t => t),
           category_id: category,
-          privacy_status: privacy
+          privacy_status: privacy,
+          publish_at: publishAt
         })
       });
 
@@ -3234,14 +3297,15 @@
 
       if (data.success) {
         progressFill.style.width = '100%';
-        progressText.textContent = '업로드 완료!';
+        progressText.textContent = publishAt ? '예약 업로드 완료!' : '업로드 완료!';
 
         resultContainer.style.display = 'block';
         document.getElementById('step7-video-link').href = data.video_url;
         document.getElementById('step7-video-link').textContent = data.video_url;
         document.getElementById('step7-video-id').textContent = data.video_id;
 
-        showStatus('🎉 YouTube 업로드가 완료되었습니다!');
+        const scheduledMsg = publishAt ? ` (${new Date(publishAt).toLocaleString('ko-KR')}에 공개 예정)` : '';
+        showStatus(`🎉 YouTube 업로드가 완료되었습니다!${scheduledMsg}`);
       } else {
         throw new Error(data.error || '업로드 실패');
       }
@@ -3275,14 +3339,14 @@
     document.getElementById('step7-description').value = '';
     document.getElementById('step7-tags').value = '';
     document.getElementById('step7-category').value = '22';
-    selectStep7Privacy('private');
+    selectStep7Privacy('scheduled');
 
     document.getElementById('step7-progress').style.display = 'none';
     document.getElementById('step7-progress-fill').style.width = '0%';
     document.getElementById('step7-progress-fill').style.background = 'linear-gradient(135deg, #ff0000, #cc0000)';
     document.getElementById('step7-result').style.display = 'none';
 
-    showStatus('🗑️ Step7이 초기화되었습니다.');
+    showStatus('Step7이 초기화되었습니다.');
     setTimeout(hideStatus, 2000);
   }
 
@@ -3291,8 +3355,8 @@
   document.getElementById('btn-upload-youtube')?.addEventListener('click', uploadToYouTube);
   document.getElementById('btn-clear-step7')?.addEventListener('click', clearStep7);
 
-  // Step7 초기화 - 기본 개인정보 설정
-  selectStep7Privacy('private');
+  // Step7 초기화 - 기본 공개 설정은 예약 (30분 후 공개)
+  selectStep7Privacy('scheduled');
 
   // ===== 렌더링 함수 =====
   function renderCategories() {

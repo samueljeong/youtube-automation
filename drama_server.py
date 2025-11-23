@@ -2195,6 +2195,106 @@ def api_generate_video():
 
 # ===== Step7: 유튜브 업로드 API =====
 
+@app.route('/api/drama/generate-metadata', methods=['POST'])
+def generate_metadata():
+    """대본 기반 YouTube 메타데이터 자동 생성"""
+    try:
+        data = request.get_json()
+        script = data.get('script', '')
+
+        if not script.strip():
+            return jsonify({"success": False, "error": "대본이 비어있습니다."})
+
+        # OpenAI API 호출하여 메타데이터 생성
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            return jsonify({"success": False, "error": "OpenAI API 키가 설정되지 않았습니다."})
+
+        import requests as req
+
+        prompt = f"""다음 드라마 대본을 분석하여 YouTube 업로드용 메타데이터를 생성해주세요.
+
+대본:
+{script[:3000]}
+
+다음 형식으로 응답해주세요:
+제목: (50자 이내의 흥미로운 제목, 시청자의 관심을 끌 수 있도록)
+설명: (200자 이내의 영상 설명, 줄거리 요약과 해시태그 포함)
+태그: (쉼표로 구분된 10개 이내의 관련 태그)
+
+응답 예시:
+제목: 그녀가 떠난 이유 | 감동 단편 드라마
+설명: 10년을 함께한 연인이 갑자기 떠났다. 남겨진 그는 그녀의 마지막 편지를 발견하고...
+
+#단편드라마 #감동 #사랑 #이별
+태그: 단편드라마, 감동, 사랑, 이별, 로맨스, AI드라마, 한국드라마, 감성, 눈물, 스토리"""
+
+        response = req.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {openai_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o-mini',
+                'messages': [
+                    {'role': 'system', 'content': 'YouTube 영상 메타데이터 전문가입니다. 드라마 대본을 분석하여 시청자의 관심을 끌 수 있는 제목, 설명, 태그를 생성합니다.'},
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': 500,
+                'temperature': 0.7
+            },
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            return jsonify({"success": False, "error": f"OpenAI API 오류: {response.text}"})
+
+        result = response.json()
+        content = result['choices'][0]['message']['content']
+
+        # 응답 파싱
+        title = ''
+        description = ''
+        tags = ''
+
+        lines = content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith('제목:'):
+                title = line[3:].strip()
+            elif line.startswith('설명:'):
+                description = line[3:].strip()
+            elif line.startswith('태그:'):
+                tags = line[3:].strip()
+            elif description and not line.startswith('태그:') and not title:
+                # 설명이 여러 줄일 경우
+                description += '\n' + line
+
+        # 설명에 해시태그 라인이 있으면 합치기
+        desc_lines = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith('#') or (description and line and not line.startswith('태그:')):
+                if not line.startswith('제목:') and not line.startswith('설명:') and not line.startswith('태그:'):
+                    if '#' in line:
+                        desc_lines.append(line)
+
+        if desc_lines:
+            description = description + '\n\n' + '\n'.join(desc_lines)
+
+        return jsonify({
+            "success": True,
+            "title": title,
+            "description": description,
+            "tags": tags
+        })
+
+    except Exception as e:
+        print(f"[GENERATE-METADATA][ERROR] {str(e)}")
+        return jsonify({"success": False, "error": str(e)})
+
+
 # YouTube OAuth 인증 상태 저장 (세션 기반)
 youtube_auth_state = {}
 
@@ -2372,6 +2472,7 @@ def upload_youtube():
         tags = data.get('tags', [])
         category_id = data.get('category_id', '22')  # 22 = People & Blogs
         privacy_status = data.get('privacy_status', 'private')
+        publish_at = data.get('publish_at')  # ISO 8601 형식의 예약 공개 시간
 
         if not video_data:
             return jsonify({"success": False, "error": "비디오 데이터가 없습니다."})
@@ -2409,6 +2510,18 @@ def upload_youtube():
             youtube = build('youtube', 'v3', credentials=credentials)
 
             # 비디오 메타데이터
+            status_data = {
+                'privacyStatus': privacy_status,
+                'selfDeclaredMadeForKids': False
+            }
+
+            # 예약 업로드 설정 (publishAt이 있으면 예약 공개)
+            if publish_at:
+                status_data['publishAt'] = publish_at
+                # 예약 업로드 시 privacyStatus는 반드시 private이어야 함
+                status_data['privacyStatus'] = 'private'
+                print(f"[YOUTUBE-UPLOAD] 예약 업로드 설정: {publish_at}")
+
             body = {
                 'snippet': {
                     'title': title,
@@ -2416,10 +2529,7 @@ def upload_youtube():
                     'tags': tags,
                     'categoryId': category_id
                 },
-                'status': {
-                    'privacyStatus': privacy_status,
-                    'selfDeclaredMadeForKids': False
-                }
+                'status': status_data
             }
 
             # 업로드 실행
@@ -2445,13 +2555,19 @@ def upload_youtube():
             video_id = response['id']
             video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            print(f"[YOUTUBE-UPLOAD] 업로드 완료! Video ID: {video_id}")
+            if publish_at:
+                print(f"[YOUTUBE-UPLOAD] 예약 업로드 완료! Video ID: {video_id}, 공개 예정: {publish_at}")
+                message = f"YouTube 예약 업로드가 완료되었습니다! ({publish_at}에 공개 예정)"
+            else:
+                print(f"[YOUTUBE-UPLOAD] 업로드 완료! Video ID: {video_id}")
+                message = "YouTube 업로드가 완료되었습니다!"
 
             return jsonify({
                 "success": True,
                 "video_id": video_id,
                 "video_url": video_url,
-                "message": "YouTube 업로드가 완료되었습니다!"
+                "publish_at": publish_at,
+                "message": message
             })
 
     except ImportError:
