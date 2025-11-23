@@ -2105,7 +2105,7 @@ def api_sermon_qa():
 @app.route("/api/sermon/recommend-scripture", methods=["POST"])
 @api_login_required
 def api_recommend_scripture():
-    """상황에 맞는 성경 본문 추천"""
+    """상황에 맞는 성경 본문 추천 (단락 단위, 본문 포함)"""
     try:
         data = request.get_json()
         if not data:
@@ -2117,25 +2117,49 @@ def api_recommend_scripture():
 
         print(f"[본문추천] 검색어: {query}")
 
-        system_content = """당신은 성경 전문가입니다. 사용자가 제시하는 상황이나 행사에 적합한 성경 본문을 추천해주세요.
+        system_content = """당신은 설교 본문 선정 전문가입니다. 사용자가 제시하는 상황, 행사, 주제에 가장 적합한 성경 본문을 추천해주세요.
 
-응답 형식 (반드시 이 JSON 형식으로만 응답):
+【 핵심 원칙 】
+1. 단락(Pericope) 단위로 추천: 1-2절이 아닌, 하나의 완결된 이야기나 논증 단위로 추천하세요.
+   - 좋은 예: 창세기 18:17-33 (아브라함의 중보기도), 요한복음 15:1-17 (포도나무 비유)
+   - 나쁜 예: 창세기 18:17 (너무 짧음), 시편 23:1 (단절됨)
+2. 새벽설교, 주일설교 등에 적합한 5-20절 분량의 본문을 추천하세요.
+3. 실제 성경 본문 내용을 포함하세요 (개역개정 기준).
+
+【 응답 형식 】
+반드시 아래 JSON 형식으로만 응답하세요:
 [
-  {"scripture": "요한복음 3:16", "reason": "하나님의 사랑을 가장 명확하게 보여주는 구절"},
-  {"scripture": "시편 23:1-6", "reason": "위로와 평안을 주는 대표적인 시편"},
+  {
+    "scripture": "창세기 18:17-33",
+    "title": "아브라함의 중보기도",
+    "text": "여호와께서 이르시되 내가 하려는 것을 아브라함에게 숨기겠느냐... (핵심 구절 3-5개 발췌)",
+    "reason": "이 본문이 해당 상황에 적합한 이유를 2-3문장으로 구체적으로 설명. 본문의 핵심 메시지와 상황의 연결점을 분석적으로 제시하세요."
+  },
   ...
 ]
 
-주의사항:
+【 주의사항 】
 - 정확히 5개의 추천을 제공하세요
-- scripture는 한글 성경 표기법 (예: 창세기 1:1, 요한복음 3:16)
-- reason은 20자 이내로 간결하게
-- JSON 형식만 응답하세요 (다른 텍스트 없이)"""
+- scripture: 한글 성경 표기법 + 단락 범위 (예: 창세기 18:17-33)
+- title: 본문의 핵심 주제를 5-10자로
+- text: 해당 본문의 핵심 구절 3-5개를 발췌 (... 으로 연결)
+- reason: 50-100자로 상황과 본문의 연결점을 분석적으로 설명
+- JSON 형식만 응답하세요"""
 
-        user_content = f"다음 상황/행사에 적합한 성경 본문 5개를 추천해주세요: {query}"
+        user_content = f"""다음 상황/행사/주제에 적합한 설교 본문 5개를 추천해주세요.
+
+상황: {query}
+
+각 추천에 대해:
+1. 단락 단위의 본문 범위 (5-20절)
+2. 본문 제목
+3. 핵심 성경 구절 발췌
+4. 이 본문을 추천하는 구체적인 이유 (상황과의 연결점)
+
+를 제공해주세요."""
 
         completion = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -2146,7 +2170,6 @@ def api_recommend_scripture():
         response_text = completion.choices[0].message.content.strip()
 
         # JSON 파싱
-        import json
         try:
             # 코드블록 제거
             if response_text.startswith("```"):
