@@ -233,6 +233,17 @@
       border-radius: 999px;
       font-size: .85rem;
       font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .category-chip:hover {
+      background: #dbe4ff;
+      border-color: #4a90e2;
+    }
+    .category-chip.active {
+      background: #4a90e2;
+      color: white;
+      border-color: #4a90e2;
     }
     .result-wrapper {
       display: flex;
@@ -927,18 +938,12 @@
         <div class="label-row" style="align-items: flex-start;">
           <div>
             <div class="label">카테고리</div>
-            <div style="font-size: .8rem; color: #777;">바로가기와 추가/관리 버튼을 왼쪽에서 노출</div>
+            <div style="font-size: .8rem; color: #777;">클릭하여 선택</div>
           </div>
-          <div class="btn-row" style="gap: .35rem;">
-            <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
-            <button id="btn-add-category" style="font-size: .75rem; padding: .2rem .5rem;" onclick="document.getElementById('btn-manage-categories').click();">추가 등록</button>
-          </div>
+          <button id="btn-manage-categories" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
         </div>
-        <div class="category-buttons">
-          <span class="category-chip">설교</span>
-          <span class="category-chip">성경배경지식</span>
-        </div>
-        <select id="sermon-category"></select>
+        <div id="category-buttons" class="category-buttons"></div>
+        <select id="sermon-category" style="display: none;"></select>
       </div>
 
       <div class="box" id="series-box" style="display: none;">
@@ -2716,6 +2721,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   // ===== 렌더링 함수 =====
   function renderCategories() {
     const select = document.getElementById('sermon-category');
+    const buttonsContainer = document.getElementById('category-buttons');
+
     if (!select) return;
 
     const current = select.value;
@@ -2729,6 +2736,48 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       select.value = config.categories[0].value;
     }
     currentCategory = select.value;
+
+    // 카테고리 버튼 렌더링
+    if (buttonsContainer) {
+      buttonsContainer.innerHTML = config.categories.map(c =>
+        `<span class="category-chip ${c.value === currentCategory ? 'active' : ''}" data-category="${c.value}">${c.label}</span>`
+      ).join('');
+
+      // 클릭 이벤트 추가
+      buttonsContainer.querySelectorAll('.category-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const categoryValue = chip.dataset.category;
+          select.value = categoryValue;
+          currentCategory = categoryValue;
+          currentStyleId = '';
+          stepResults = {};
+          stepUsage = {};
+          titleOptions = [];
+          selectedTitle = '';
+
+          const titleBox = document.getElementById('title-selection-box');
+          if (titleBox) titleBox.style.display = 'none';
+          const gptProContainer = document.getElementById('gpt-pro-result-container');
+          if (gptProContainer) gptProContainer.style.display = 'none';
+
+          // 버튼 활성화 상태 업데이트
+          buttonsContainer.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+
+          loadMasterGuide(currentCategory);
+          loadModelSettings();
+          renderStyles();
+          renderProcessingSteps();
+          renderResultBoxes();
+          renderGuideTabs();
+
+          const seriesBox = document.getElementById('series-box');
+          if (seriesBox) {
+            seriesBox.style.display = currentCategory === 'series' ? 'block' : 'none';
+          }
+        });
+      });
+    }
   }
 
   function renderStyles() {
