@@ -49,6 +49,96 @@ def get_guideline(path, default=None):
     except (KeyError, TypeError):
         return default
 
+def build_testimony_prompt_from_guide():
+    """
+    guides/drama.json의 스타일 가이드를 기반으로 간증 대본 생성용 프롬프트 구축
+    """
+    guide = load_drama_guidelines()
+    if not guide:
+        return None, None
+
+    # 1. 시스템 프롬프트 구축
+    script_style = guide.get('script_style', {})
+    structure = guide.get('structure', {})
+    dialogue_ratio = guide.get('dialogue_ratio', {})
+    detail_req = guide.get('detail_requirements', {})
+    emotional = guide.get('emotional_expressions', {})
+    mandatory = guide.get('mandatory_elements', {})
+    forbidden = guide.get('forbidden_patterns', {})
+
+    system_prompt = f"""당신은 기독교 간증 콘텐츠 전문 작가입니다.
+
+【 핵심 원칙 】
+- 화자 유형: {script_style.get('perspective', '주인공이 직접 고백하는 형식')}
+- 시작 형식: "{script_style.get('opening', '안녕하세요. 저는...')}"
+- 마무리 형식: 시청자에게 공감 질문 + 좋아요/구독 유도
+
+【 필수 분량 】
+총 {structure.get('total_length', 15000)}자 이상 (매우 중요!)
+
+【 7단계 구조 (반드시 준수) 】
+"""
+
+    # 섹션별 구조 추가
+    sections = structure.get('sections', [])
+    for sec in sections:
+        ratio_percent = int(sec.get('length_ratio', 0) * 100)
+        system_prompt += f"""
+{sec.get('id')}. {sec.get('korean_name', sec.get('name'))} ({ratio_percent}%)
+   - 목적: {sec.get('purpose', '')}
+   - 필수 포함: {', '.join(sec.get('must_include', []))}
+   - 예시: "{sec.get('example', '')[:100]}..."
+"""
+
+    # 대화 비율
+    system_prompt += f"""
+【 대화 비율 】
+- 서술/나레이션: {dialogue_ratio.get('narration', 55)}%
+- 내면 독백: {dialogue_ratio.get('inner_monologue', 15)}%
+- 직접 대화: {dialogue_ratio.get('direct_dialogue', 30)}%
+
+【 필수 디테일 (구체성이 생명!) 】
+- 이름: 최소 {detail_req.get('naming', {}).get('min_count', 5)}개 (예: {', '.join(detail_req.get('naming', {}).get('examples', [])[:3])})
+- 나이: 최소 {detail_req.get('ages', {}).get('min_count', 3)}개 (예: {', '.join(detail_req.get('ages', {}).get('examples', [])[:3])})
+- 장소: 최소 {detail_req.get('locations', {}).get('min_count', 3)}개 (예: {', '.join(detail_req.get('locations', {}).get('examples', [])[:2])})
+- 숫자/기간: 최소 {detail_req.get('amounts', {}).get('min_count', 10)}개
+
+【 감정 표현 방법 】
+신체 반응으로 표현: {', '.join(emotional.get('physical_reactions', [])[:5])}
+감정 상태: {', '.join(emotional.get('emotional_states', [])[:4])}
+
+【 절대 금지 】
+- 3인칭 서술 (그는, 그녀는, 민지는) → 반드시 1인칭 (저는, 제가)
+- 마크다운 기호 (#, *, -, **)
+- 설교조의 일반적 교훈만 나열
+- 너무 빠른 해결, 비현실적 기적
+- 짧은 분량 (최소 {structure.get('total_length', 15000)}자 필수!)
+
+【 문체 】
+- ~했습니다 (구어체) 사용
+- 친근하고 담담한 톤
+- 감정을 직접적으로 표현
+"""
+
+    # 2. 사용자 프롬프트 suffix (요청 사항 강화)
+    user_suffix = f"""
+
+⚠️ 최종 점검 사항 (반드시 확인):
+1. 첫 문장이 "안녕하세요. 저는..."으로 시작하는가?
+2. 전체가 1인칭 (저는, 제가)으로만 작성되었는가?
+3. 총 글자수가 {structure.get('total_length', 15000)}자 이상인가?
+4. 구체적 이름이 {mandatory.get('character_names_count', 5)}개 이상 있는가?
+5. 구체적 숫자가 {mandatory.get('specific_numbers_count', 10)}개 이상 있는가?
+6. 직접 대화 장면이 충분한가? (전체의 30%)
+7. 7단계 구조를 따랐는가?
+8. 가족(배우자/자녀) 반응이 포함되었는가?
+
+위 사항이 하나라도 빠지면 다시 작성하세요!
+"""
+
+    return system_prompt, user_suffix
+
+
 def get_client():
     key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not key:
@@ -1290,33 +1380,43 @@ def api_drama_claude_step3():
         print(f"[DRAMA-STEP3-DEBUG] draft_content 길이: {len(draft_content)}, 내용: {draft_content[:300] if draft_content else '(없음)'}...")
 
         # 콘텐츠 유형별 시스템 프롬프트 결정
-        # 클라이언트에서 프롬프트를 보내면 그것을 사용, 아니면 기본 프롬프트 사용
-        if content_type_prompt and content_type_prompt.get("systemPrompt"):
-            # 클라이언트에서 보낸 콘텐츠 유형별 프롬프트 사용
-            system_content = content_type_prompt.get("systemPrompt", "")
-            user_prompt_suffix = content_type_prompt.get("userPromptSuffix", "")
-            print(f"[DRAMA-STEP3] 클라이언트 프롬프트 사용 ({content_type})")
-        else:
-            # 기본 프롬프트 (서버 측 폴백)
-            user_prompt_suffix = ""
-            if content_type == "testimony":
+        # 간증 콘텐츠는 JSON 스타일 가이드 기반 프롬프트 사용
+        user_prompt_suffix = ""
+
+        if content_type == "testimony":
+            # JSON 스타일 가이드에서 프롬프트 구축
+            guide_system, guide_suffix = build_testimony_prompt_from_guide()
+            if guide_system:
+                system_content = guide_system
+                user_prompt_suffix = guide_suffix or ""
+                print(f"[DRAMA-STEP3] JSON 스타일 가이드 프롬프트 사용 (v{load_drama_guidelines().get('version', '?')})")
+            else:
+                # JSON 로드 실패 시 기본 프롬프트 (폴백)
+                print(f"[DRAMA-STEP3] JSON 로드 실패, 기본 프롬프트 사용")
                 system_content = """당신은 감동적인 간증 콘텐츠 전문 작가입니다.
 
 【 간증 콘텐츠의 핵심 】
 간증은 실제 경험을 바탕으로 한 이야기입니다. 시청자가 "이건 진짜 이야기구나"라고 느끼도록 생생하고 구체적으로 작성해야 합니다.
 
 【 필수 요소 】
-1. 실제감 있는 상황 묘사 - 구체적인 시간, 장소, 감각 묘사 포함
-2. 감정의 깊이와 솔직함 - 고통, 절망, 의심 등 부정적 감정도 솔직하게
-3. 갈등과 전환점 구조 - 고난 → 전환점 → 변화
-4. 공감 포인트 - "나도 저런 적 있어"라고 느끼게 하는 상황
+1. 반드시 1인칭 서술 ("저는", "제가") - 절대 3인칭 금지
+2. 총 15,000자 이상 분량
+3. 구체적 이름 5개, 숫자 10개, 장소 3개 이상
+4. 직접 대화 30% 포함
+5. 가족 반응 필수 포함
 
 【 금지 사항 】
-- 설교조의 일반적인 교훈 나열
-- 너무 빠른 해결, 현실성 없는 기적
-- 마크다운 기호(#, *, -, **) 사용 금지"""
-            else:
-                system_content = """당신은 전문 드라마 대본 작가입니다.
+- 3인칭 서술 (그는, 그녀는) 절대 금지
+- 마크다운 기호(#, *, -, **) 사용 금지
+- 짧은 분량"""
+        elif content_type_prompt and content_type_prompt.get("systemPrompt"):
+            # 클라이언트에서 보낸 콘텐츠 유형별 프롬프트 사용
+            system_content = content_type_prompt.get("systemPrompt", "")
+            user_prompt_suffix = content_type_prompt.get("userPromptSuffix", "")
+            print(f"[DRAMA-STEP3] 클라이언트 프롬프트 사용 ({content_type})")
+        else:
+            # 드라마 기본 프롬프트
+            system_content = """당신은 전문 드라마 대본 작가입니다.
 
 【 드라마 대본의 핵심 】
 시청자를 화면 속으로 끌어들이는 몰입감 있는 스토리를 만들어야 합니다.
@@ -1393,9 +1493,13 @@ def api_drama_claude_step3():
             user_content += step3_guide
             user_content += "\n\n위 지침을 반드시 우선적으로 따라 대본을 작성해주세요.\n\n"
 
-        # 대본 작성 요청 - 카테고리 기반 분량 지시 추가
-        length_guide = ""
-        if "10분" in category:
+        # 대본 작성 요청 - 콘텐츠 유형 및 카테고리 기반 분량 지시
+        content_type_name = "간증" if content_type == "testimony" else "드라마"
+
+        # 간증 콘텐츠는 무조건 15,000자 이상
+        if content_type == "testimony":
+            length_guide = "최소 15,000자 이상 (필수!)"
+        elif "10분" in category:
             length_guide = "약 3000~4000자 분량으로"
         elif "20분" in category:
             length_guide = "약 6000~8000자 분량으로"
@@ -1404,10 +1508,24 @@ def api_drama_claude_step3():
         else:
             length_guide = "충분히 길고 상세하게"
 
-        # 콘텐츠 유형명
-        content_type_name = "간증" if content_type == "testimony" else "드라마"
+        # 간증 콘텐츠 전용 요청 사항
+        if content_type == "testimony":
+            user_content += f"""【 요청 사항 】
+위 자료를 참고하여 완성된 {content_type_name} 콘텐츠를 작성해주세요.
 
-        user_content += f"""【 요청 사항 】
+🚨 필수 요구사항 (반드시 준수!):
+1. 첫 문장: "안녕하세요. 저는 [장소]에서 [역할]을 하고 있는 [이름]입니다." 형식
+2. 분량: {length_guide} - 절대 짧게 끝내지 마세요!
+3. 시점: 반드시 1인칭 (저는, 제가) - 3인칭(그는, 그녀는) 절대 금지!
+4. 구체적 디테일: 이름 5개+, 숫자 10개+, 장소 3개+ 필수
+5. 대화 비율: 직접 대화 30% 포함 (가족, 지인과의 대화)
+6. 가족 반응: 배우자/자녀의 반응과 대화 필수 포함
+7. 7단계 구조: 인사 → 상황설명 → 갈등발생 → 갈등심화 → 절망 → 전환점 → 회복
+
+마크다운 기호(#, *, -, **) 대신 순수 텍스트로 작성하세요.
+{user_prompt_suffix}"""
+        else:
+            user_content += f"""【 요청 사항 】
 위 자료를 참고하여 완성된 {content_type_name} 콘텐츠를 작성해주세요.
 
 ⚠️ 분량: {length_guide} 작성하세요. 너무 짧게 끝내지 마세요!
@@ -1423,9 +1541,11 @@ def api_drama_claude_step3():
 {user_prompt_suffix}"""
 
         # OpenRouter API 호출 (OpenAI 호환)
+        # 간증 콘텐츠는 15,000자 필요 → max_tokens 16000
+        max_output_tokens = 16000 if content_type == "testimony" else 8000
         response = openrouter_client.chat.completions.create(
             model=selected_model,
-            max_tokens=8000,
+            max_tokens=max_output_tokens,
             messages=[
                 {
                     "role": "system",
