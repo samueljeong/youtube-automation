@@ -1451,6 +1451,181 @@ def api_drama_chat():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ===== Step4: 이미지 프롬프트 생성 API =====
+@app.route('/api/drama/generate-image-prompts', methods=['POST'])
+def api_generate_image_prompts():
+    """대본을 분석하여 인물/배경/통합 이미지 프롬프트 생성"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        script = data.get("script", "")
+        main_character = data.get("mainCharacter", "")
+
+        if not script:
+            return jsonify({"ok": False, "error": "대본이 없습니다."}), 400
+
+        print(f"[DRAMA-STEP4-PROMPT] 이미지 프롬프트 생성 시작")
+
+        # GPT를 사용하여 이미지 프롬프트 생성
+        system_content = """당신은 드라마 대본을 분석하여 DALL-E 3 이미지 생성을 위한 프롬프트를 작성하는 전문가입니다.
+
+대본을 읽고 다음 세 가지 프롬프트를 영어로 작성해주세요:
+
+1. 인물 프롬프트 (Character Prompt)
+   - 주인공의 외모, 표정, 의상, 자세를 묘사
+   - 나이, 성별, 분위기를 포함
+   - 예: "A Korean woman in her late 20s, gentle and warm expression, wearing a soft beige cardigan over a white blouse, sitting gracefully"
+
+2. 배경 프롬프트 (Background Prompt)
+   - 장면의 배경, 장소, 시간대, 분위기를 묘사
+   - 조명, 색감, 분위기를 포함
+   - 예: "A cozy Korean cafe interior, warm afternoon sunlight streaming through large windows, wooden furniture, soft ambient lighting"
+
+3. 통합 장면 프롬프트 (Combined Scene Prompt)
+   - 인물이 배경에 자연스럽게 어울리는 완전한 장면 묘사
+   - 영화적이고 시각적으로 매력적인 구도
+   - 예: "A Korean woman in her late 20s sitting by the window in a cozy cafe, warm afternoon sunlight illuminating her gentle smile, holding a cup of coffee, cinematic composition, soft bokeh background"
+
+응답 형식:
+CHARACTER_PROMPT: [인물 프롬프트]
+BACKGROUND_PROMPT: [배경 프롬프트]
+COMBINED_PROMPT: [통합 프롬프트]
+
+중요:
+- 모든 프롬프트는 영어로 작성
+- DALL-E 3에 최적화된 상세하고 시각적인 묘사
+- 부정적이거나 폭력적인 내용 제외
+- 사실적이고 고품질의 이미지를 생성할 수 있도록 작성"""
+
+        user_content = f"""다음 드라마 대본을 분석하여 이미지 프롬프트를 생성해주세요.
+
+[주인공 정보]
+{main_character if main_character else '(별도 정보 없음 - 대본에서 추출)'}
+
+[드라마 대본]
+{script[:4000]}
+
+위 대본의 핵심 장면에 대한 이미지 프롬프트를 생성해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7
+        )
+
+        result = completion.choices[0].message.content.strip()
+
+        # 프롬프트 파싱
+        character_prompt = ""
+        background_prompt = ""
+        combined_prompt = ""
+
+        lines = result.split('\n')
+        current_type = None
+
+        for line in lines:
+            line = line.strip()
+            if line.startswith('CHARACTER_PROMPT:'):
+                current_type = 'character'
+                character_prompt = line.replace('CHARACTER_PROMPT:', '').strip()
+            elif line.startswith('BACKGROUND_PROMPT:'):
+                current_type = 'background'
+                background_prompt = line.replace('BACKGROUND_PROMPT:', '').strip()
+            elif line.startswith('COMBINED_PROMPT:'):
+                current_type = 'combined'
+                combined_prompt = line.replace('COMBINED_PROMPT:', '').strip()
+            elif current_type and line:
+                # 여러 줄에 걸친 프롬프트 처리
+                if current_type == 'character':
+                    character_prompt += ' ' + line
+                elif current_type == 'background':
+                    background_prompt += ' ' + line
+                elif current_type == 'combined':
+                    combined_prompt += ' ' + line
+
+        print(f"[DRAMA-STEP4-PROMPT] 프롬프트 생성 완료")
+
+        return jsonify({
+            "ok": True,
+            "characterPrompt": character_prompt,
+            "backgroundPrompt": background_prompt,
+            "combinedPrompt": combined_prompt
+        })
+
+    except Exception as e:
+        print(f"[DRAMA-STEP4-PROMPT][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== Step4: DALL-E 3 이미지 생성 API =====
+@app.route('/api/drama/generate-image', methods=['POST'])
+def api_generate_image():
+    """DALL-E 3를 사용하여 이미지 생성"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        prompt = data.get("prompt", "")
+        size = data.get("size", "1024x1024")
+
+        if not prompt:
+            return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
+
+        # 허용된 사이즈 검증
+        allowed_sizes = ["1024x1024", "1792x1024", "1024x1792"]
+        if size not in allowed_sizes:
+            size = "1024x1024"
+
+        print(f"[DRAMA-STEP4-IMAGE] DALL-E 3 이미지 생성 시작 - 사이즈: {size}")
+
+        # 프롬프트에 스타일 가이드 추가
+        enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
+
+        # DALL-E 3 API 호출
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=enhanced_prompt,
+            size=size,
+            quality="standard",
+            n=1
+        )
+
+        image_url = response.data[0].url
+
+        # DALL-E 3 비용 계산 (2024년 기준)
+        # Standard quality: $0.040 (1024x1024), $0.080 (1792x1024, 1024x1792)
+        # HD quality: $0.080 (1024x1024), $0.120 (1792x1024, 1024x1792)
+        cost_usd = 0.04 if size == "1024x1024" else 0.08
+        cost_krw = int(cost_usd * 1350)  # 대략적인 환율
+
+        print(f"[DRAMA-STEP4-IMAGE] 이미지 생성 완료 - 비용: ${cost_usd}")
+
+        return jsonify({
+            "ok": True,
+            "imageUrl": image_url,
+            "cost": cost_krw,
+            "costUsd": cost_usd
+        })
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[DRAMA-STEP4-IMAGE][ERROR] {error_msg}")
+
+        # DALL-E 관련 오류 메시지 개선
+        if "content_policy" in error_msg.lower():
+            return jsonify({"ok": False, "error": "이미지 생성이 콘텐츠 정책에 위배됩니다. 프롬프트를 수정해주세요."}), 200
+        elif "rate_limit" in error_msg.lower():
+            return jsonify({"ok": False, "error": "API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요."}), 200
+
+        return jsonify({"ok": False, "error": error_msg}), 200
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))
