@@ -1374,6 +1374,12 @@ def api_drama_claude_step3():
         selected_model = data.get("model", "anthropic/claude-sonnet-4.5")
         content_type = data.get("contentType", "testimony")  # 콘텐츠 유형 (testimony/drama)
         content_type_prompt = data.get("contentTypePrompt", {})  # 클라이언트에서 보낸 프롬프트
+        duration_text = (data.get("durationText") or "").strip()
+        auto_story_mode = bool(data.get("autoStoryMode", False))
+
+        effective_category = duration_text or category
+        if effective_category:
+            category = effective_category
 
         print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 카테고리: {category}, 모델: {selected_model}, 콘텐츠유형: {content_type}")
         print(f"[DRAMA-STEP3-DEBUG] step3_guide 길이: {len(step3_guide)}, 내용: {step3_guide[:100] if step3_guide else '(없음)'}...")
@@ -1486,6 +1492,11 @@ def api_drama_claude_step3():
             user_content += "【 Step2 작업 결과 (참고 자료) 】\n"
             user_content += draft_content
             user_content += "\n\n"
+        elif auto_story_mode:
+            user_content += "【 Step2 자료 없이 작성 지시 】\n"
+            user_content += "입력된 영상 시간과 지침만을 기반으로 완전히 새로운 드라마를 작성하세요."
+            user_content += " 주인공, 배경, 갈등, 전환점을 자유롭게 설계하고, 참고 자료가 없더라도 자연스럽게 이어지는 스토리라인을 만들어주세요."
+            user_content += "\n\n"
 
         # Step3 사용자 지침 (있다면)
         if step3_guide:
@@ -1499,14 +1510,20 @@ def api_drama_claude_step3():
         # 간증 콘텐츠는 무조건 15,000자 이상
         if content_type == "testimony":
             length_guide = "최소 15,000자 이상 (필수!)"
-        elif "10분" in category:
-            length_guide = "약 3000~4000자 분량으로"
-        elif "20분" in category:
-            length_guide = "약 6000~8000자 분량으로"
-        elif "30분" in category:
-            length_guide = "약 9000~12000자 분량으로"
         else:
-            length_guide = "충분히 길고 상세하게"
+            minutes_match = re.search(r"(\d+)\s*분", category) or re.search(r"(\d+)", category)
+            minutes_value = int(minutes_match.group(1)) if minutes_match else None
+
+            if minutes_value and minutes_value <= 10:
+                length_guide = "약 3000~4000자 분량으로"
+            elif minutes_value and minutes_value <= 20:
+                length_guide = "약 6000~8000자 분량으로"
+            elif minutes_value and minutes_value <= 30:
+                length_guide = "약 9000~12000자 분량으로"
+            elif minutes_value:
+                length_guide = "약 12000자 이상, 입력한 시간에 어울리게 충분히 길고 상세하게"
+            else:
+                length_guide = "충분히 길고 상세하게"
 
         # 간증 콘텐츠 전용 요청 사항
         if content_type == "testimony":

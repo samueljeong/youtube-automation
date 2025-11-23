@@ -2211,6 +2211,7 @@
   let nextStep2BoxNum = 1;
   let step1Collapsed = false;
   let step2Collapsed = false;
+  let customDurationText = localStorage.getItem('_drama-duration-text') || '';
 
   // 기본 설정
   let config = {
@@ -2993,14 +2994,9 @@ S#1. 장소 / 시간
     console.log('[Step3 Debug] draftContent length:', draftContent.length);
     console.log('[Step3 Debug] draftContent preview:', draftContent.substring(0, 500));
 
-    if (!hasResults) {
-      alert('Step2 결과가 없습니다. 먼저 Step2 박스를 실행해주세요.');
-      return;
-    }
-
     // 기본 정보 수집
     const categorySelect = document.getElementById('drama-category');
-    const categoryLabel = categorySelect ? categorySelect.options[categorySelect.selectedIndex].text : '';
+    const categoryLabel = (customDurationText || '').trim() || (categorySelect ? categorySelect.options[categorySelect.selectedIndex].text : '');
     const mainCharacterInput = document.getElementById('main-character');
     const mainCharacter = mainCharacterInput ? mainCharacterInput.value : '';
     const benchmarkScript = document.getElementById('benchmark-script')?.value || '';
@@ -3037,7 +3033,9 @@ S#1. 장소 / 시간
           step3Guide: currentStep3Guide,  // ⭐ 최신 값 사용
           model: aiModelSettings.step3,  // 선택된 모델 전달
           contentType: contentType,  // 콘텐츠 유형 (testimony/drama)
-          contentTypePrompt: promptData  // 유형별 프롬프트 데이터
+          contentTypePrompt: promptData,  // 유형별 프롬프트 데이터
+          durationText: customDurationText,
+          autoStoryMode: !hasResults
         })
       });
 
@@ -3100,6 +3098,17 @@ S#1. 장소 / 시간
   const btnExecuteStep3 = document.getElementById('btn-execute-step3');
   if (btnExecuteStep3) {
     btnExecuteStep3.addEventListener('click', executeStep3);
+  }
+
+  // Sonnet 4.5 버튼은 항상 해당 모델을 사용하도록 강제 설정
+  if (btnExecuteStep3) {
+    btnExecuteStep3.addEventListener('click', () => {
+      if (aiModelSettings.step3 !== 'anthropic/claude-sonnet-4.5') {
+        aiModelSettings.step3 = 'anthropic/claude-sonnet-4.5';
+        localStorage.setItem('_drama-ai-models', JSON.stringify(aiModelSettings));
+        saveToFirebase('_drama-ai-models', JSON.stringify(aiModelSettings));
+      }
+    }, { capture: true });
   }
 
   // Step3 결과 복사 버튼 이벤트
@@ -5501,7 +5510,32 @@ S#1. 장소 / 시간
     if (!container) return;
 
     if (workflowBoxes.length === 0) {
-      container.innerHTML = '<p style="color: #999; text-align: center; padding: 2rem;">➕ 버튼을 눌러 작업 박스를 추가하세요.</p>';
+      container.innerHTML = `
+        <div class="box" style="padding: .75rem;">
+          <div style="font-weight: 700; font-size: .95rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .4rem;">
+            <span style="font-size: 1.1rem;">⏱️</span> 대본 작성 시간 지정
+          </div>
+          <input
+            type="text"
+            id="custom-duration-input"
+            value="${customDurationText}"
+            placeholder="예: 10분, 15분 30초, 1시간 20분"
+            style="width: 100%; padding: .55rem .65rem; font-size: .9rem; border-radius: 10px; border: 1px solid #e5e7eb; background: #f9fafb;"
+          />
+          <div style="font-size: .8rem; color: #6b7280; margin-top: .4rem; line-height: 1.5;">
+            시간을 입력하면 Step2 없이도 Claude Sonnet 4.5가 주인공·배경을 랜덤으로 설정해 해당 길이에 맞춰 대본을 작성합니다.
+          </div>
+        </div>
+      `;
+
+      const durationInput = document.getElementById('custom-duration-input');
+      if (durationInput) {
+        durationInput.addEventListener('input', (e) => {
+          customDurationText = e.target.value.trim();
+          localStorage.setItem('_drama-duration-text', customDurationText);
+          saveToFirebase('_drama-duration-text', customDurationText);
+        });
+      }
       return;
     }
 
