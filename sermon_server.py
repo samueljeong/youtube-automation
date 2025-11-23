@@ -1744,8 +1744,11 @@ def api_gpt_pro():
         target_audience = data.get("target", "")  # 대상
         worship_type = data.get("worshipType", "")  # 예배 유형
 
-        # JSON 모드 여부 확인
-        is_json_mode = step1_result is not None or step2_result is not None
+        # JSON 모드 여부 확인 (실제 객체가 있을 때만)
+        is_json_mode = (isinstance(step1_result, dict) and len(step1_result) > 0) or \
+                       (isinstance(step2_result, dict) and len(step2_result) > 0)
+
+        print(f"[GPT-PRO/Step3] JSON 모드: {is_json_mode}, step1_result 타입: {type(step1_result)}, step2_result 타입: {type(step2_result)}")
 
         print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
         print(f"[GPT-PRO/Step3] draft_content 길이: {len(draft_content)}, 완료된 단계: {completed_step_names}")
@@ -1786,44 +1789,49 @@ def api_gpt_pro():
 
         # JSON 모드 vs 기존 텍스트 모드
         if is_json_mode:
-            print(f"[GPT-PRO/Step3] JSON 모드 활성화")
-            # meta 데이터 구성
-            meta_data = {
-                "scripture": reference,
-                "title": title,
-                "target": target_audience,
-                "worship_type": worship_type,
-                "sermon_style": style_name,
-                "category": category
-            }
+            try:
+                print(f"[GPT-PRO/Step3] JSON 모드 활성화")
+                # meta 데이터 구성
+                meta_data = {
+                    "scripture": reference,
+                    "title": title,
+                    "target": target_audience,
+                    "worship_type": worship_type,
+                    "sermon_style": style_name,
+                    "category": category
+                }
 
-            # Step2에서 writing_spec 추출하여 시스템 프롬프트에 반영
-            writing_spec = {}
-            if step2_result and isinstance(step2_result, dict):
-                writing_spec = step2_result.get("writing_spec", {})
+                # Step2에서 writing_spec 추출하여 시스템 프롬프트에 반영
+                writing_spec = {}
+                if step2_result and isinstance(step2_result, dict):
+                    writing_spec = step2_result.get("writing_spec", {})
 
-            # 시스템 프롬프트에 writing_spec 반영
-            if writing_spec:
-                system_content += "\n\n【 작성 규격 】\n"
-                for key, value in writing_spec.items():
-                    if isinstance(value, list):
-                        system_content += f"- {key}: {', '.join(value)}\n"
-                    else:
-                        system_content += f"- {key}: {value}\n"
+                # 시스템 프롬프트에 writing_spec 반영
+                if writing_spec:
+                    system_content += "\n\n【 작성 규격 】\n"
+                    for key, value in writing_spec.items():
+                        if isinstance(value, list):
+                            system_content += f"- {key}: {', '.join(value)}\n"
+                        else:
+                            system_content += f"- {key}: {value}\n"
 
-            # JSON 기반 user_content 생성
-            user_content = build_step3_prompt_from_json(
-                json_guide=None,
-                meta_data=meta_data,
-                step1_result=step1_result,
-                step2_result=step2_result
-            )
+                # JSON 기반 user_content 생성
+                user_content = build_step3_prompt_from_json(
+                    json_guide=None,
+                    meta_data=meta_data,
+                    step1_result=step1_result,
+                    step2_result=step2_result
+                )
 
-            # 추가 지침이 있으면 포함
-            if custom_prompt and custom_prompt.strip():
-                user_content += f"\n\n【추가 지침】\n{custom_prompt.strip()}"
+                # 추가 지침이 있으면 포함
+                if custom_prompt and custom_prompt.strip():
+                    user_content += f"\n\n【추가 지침】\n{custom_prompt.strip()}"
 
-        else:
+            except Exception as json_err:
+                print(f"[GPT-PRO/Step3] JSON 모드 오류, 텍스트 모드로 전환: {str(json_err)}")
+                is_json_mode = False  # 텍스트 모드로 전환
+
+        if not is_json_mode:
             # 기존 텍스트 모드
             user_content = (
                 "아래는 gpt-4o-mini가 정리한 연구·개요 자료입니다."
