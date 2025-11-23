@@ -866,6 +866,20 @@
     </div>
   </div>
 
+  <!-- 지침 보기 모달 -->
+  <div id="guidelines-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📋 대본 작성 지침</span>
+        <button onclick="closeGuidelinesModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
+      </div>
+      <div id="guidelines-modal-content" style="padding: 1rem 0; white-space: pre-wrap; font-size: 0.9rem; line-height: 1.8;"></div>
+      <div class="modal-buttons">
+        <button onclick="closeGuidelinesModal()" class="primary">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Auth Header -->
   <div class="auth-header">
     <h1>🎭 드라마 스크립트 작성 도구</h1>
@@ -1070,6 +1084,7 @@
       <div style="display: flex; gap: .3rem; margin-bottom: .75rem; align-items: center;">
         <button id="btn-auto-execute-all" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">⚡ 전체 순차실행</button>
         <button id="btn-execute-step3" style="flex: 2; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">🎬 Step3: OpenRouter 대본완성</button>
+        <button id="btn-view-guidelines" style="flex: 1; padding: .35rem .5rem; font-size: .75rem; background: linear-gradient(135deg, #00b894 0%, #00cec9 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">📋 지침 보기</button>
       </div>
 
       <!-- 상태 표시 -->
@@ -6488,6 +6503,89 @@ S#1. 장소 / 시간
 
     // ⭐ Step1 입력 필드 변경 시 세션 자동 저장
     setupStep1SessionSync();
+  });
+
+  // ===== 지침 보기 모달 =====
+  function openGuidelinesModal() {
+    const modal = document.getElementById('guidelines-modal');
+    const content = document.getElementById('guidelines-modal-content');
+    const contentType = document.getElementById('content-type')?.value || 'testimony';
+    const contentTypeName = contentType === 'testimony' ? '간증' : '드라마';
+
+    // 현재 선택된 콘텐츠 유형의 프롬프트 가져오기
+    const prompt = contentTypePrompts[contentType] || contentTypePrompts.testimony;
+
+    // 지침 내용 구성
+    let guidelineText = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 현재 설정: ${contentTypeName} 모드
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【 시스템 프롬프트 】
+${prompt.systemPrompt}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+【 추가 지시사항 (User Prompt Suffix) 】
+${prompt.userPromptSuffix}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+
+    // 금지 패턴 추가 (JSON 지침에서)
+    if (dramaGuidelines?.forbiddenPatterns) {
+      guidelineText += `
+【 금지 패턴 】
+
+📝 포맷팅:
+${dramaGuidelines.forbiddenPatterns.formatting?.map(p => `  - ${p}`).join('\n') || '  (없음)'}
+
+📝 콘텐츠:
+${dramaGuidelines.forbiddenPatterns.content?.map(p => `  - ${p}`).join('\n') || '  (없음)'}
+
+📝 구조:
+${dramaGuidelines.forbiddenPatterns.structure?.map(p => `  - ${p}`).join('\n') || '  (없음)'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`;
+    }
+
+    // 품질 체크리스트 추가 (JSON 지침에서)
+    if (dramaGuidelines?.qualityChecklist) {
+      guidelineText += `
+【 품질 체크리스트 】
+
+📖 스토리:
+${dramaGuidelines.qualityChecklist.story?.map(q => `  ☐ ${q}`).join('\n') || '  (없음)'}
+
+👤 캐릭터:
+${dramaGuidelines.qualityChecklist.character?.map(q => `  ☐ ${q}`).join('\n') || '  (없음)'}
+
+💬 대사:
+${dramaGuidelines.qualityChecklist.dialogue?.map(q => `  ☐ ${q}`).join('\n') || '  (없음)'}
+
+❤️ 감정:
+${dramaGuidelines.qualityChecklist.emotion?.map(q => `  ☐ ${q}`).join('\n') || '  (없음)'}
+`;
+    }
+
+    content.textContent = guidelineText;
+    modal.classList.add('show');
+  }
+
+  function closeGuidelinesModal() {
+    const modal = document.getElementById('guidelines-modal');
+    modal.classList.remove('show');
+  }
+
+  // 지침 보기 버튼 이벤트
+  document.getElementById('btn-view-guidelines')?.addEventListener('click', openGuidelinesModal);
+
+  // 모달 외부 클릭 시 닫기
+  document.getElementById('guidelines-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'guidelines-modal') {
+      closeGuidelinesModal();
+    }
   });
 
   // Step1 입력 필드들을 세션과 동기화
