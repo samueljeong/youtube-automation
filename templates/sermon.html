@@ -924,14 +924,6 @@
     <!-- 왼쪽 -->
     <div class="left-col">
       <div class="box">
-        <div class="label-row">
-          <label class="label" for="sermon-date">날짜</label>
-          <span style="font-size: .8rem; color: #666;">오늘 일정</span>
-        </div>
-        <input type="date" id="sermon-date">
-      </div>
-
-      <div class="box">
         <div class="label-row" style="align-items: flex-start;">
           <div>
             <div class="label">카테고리</div>
@@ -1027,8 +1019,11 @@
         </div>
 
         <div class="box">
-          <label class="label">성경 본문<span class="label-hint">선택</span></label>
-          <textarea id="sermon-text" class="autosize" placeholder="본문을 여기에 붙여넣으세요."></textarea>
+          <div class="label-row">
+            <label class="label">대상<span class="label-hint">선택</span></label>
+            <span style="font-size: .8rem; color: #777;">예) 장년, 청년, 어린이</span>
+          </div>
+          <input type="text" id="sermon-target" placeholder="예) 장년, 청년, 어린이">
         </div>
 
         <div class="dual-row">
