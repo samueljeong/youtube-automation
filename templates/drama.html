@@ -1861,7 +1861,7 @@
         </div>
       </div>
       <div style="font-size: .85rem; color: #666; margin-bottom: 1rem; padding: .75rem; background: #f8f9fa; border-radius: 6px;">
-        모든 작업 박스와 Step3의 지침을 한 곳에서 관리합니다. 수정 후 <strong>💾 저장</strong> 버튼을 눌러주세요.
+        모든 Step(1~7)의 작업 지침과 JSON 스타일 가이드를 한 곳에서 관리합니다. 수정 후 <strong>💾 저장</strong> 버튼을 눌러주세요.
       </div>
       <div id="modal-guide-container" style="flex: 1; overflow-y: auto; padding-right: .5rem;">
         <p style="color: #999; text-align: center; padding: 2rem;">작업 박스를 추가하면 여기에 표시됩니다.</p>
@@ -3020,6 +3020,10 @@ S#1. 장소 / 시간
     const contentType = document.getElementById('content-type')?.value || 'testimony';
     const promptData = contentTypePrompts[contentType] || contentTypePrompts.testimony;
 
+    // ⭐ 모달 textarea에서 최신 JSON 지침 값을 가져옴 (저장 안해도 반영되도록)
+    const jsonGuideTextarea = document.getElementById('modal-guide-json');
+    const currentJsonGuide = jsonGuideTextarea ? jsonGuideTextarea.value : dramaJsonGuide;
+
     try {
       const response = await fetch('/api/drama/claude-step3', {
         method: 'POST',
@@ -3035,7 +3039,8 @@ S#1. 장소 / 시간
           contentType: contentType,  // 콘텐츠 유형 (testimony/drama)
           contentTypePrompt: promptData,  // 유형별 프롬프트 데이터
           durationText: customDurationText,
-          autoStoryMode: !hasResults
+          autoStoryMode: !hasResults,
+          customJsonGuide: currentJsonGuide  // ⭐ 커스텀 JSON 지침
         })
       });
 
@@ -5615,8 +5620,15 @@ S#1. 장소 / 시간
     setupDragAndDrop();
   }
 
-  // Step3 지침 저장용 변수
+  // Step별 지침 저장용 변수
   let step3Guide = localStorage.getItem('_drama-step3-guide') || '';
+  let step4Guide = localStorage.getItem('_drama-step4-guide') || '';
+  let step5Guide = localStorage.getItem('_drama-step5-guide') || '';
+  let step6Guide = localStorage.getItem('_drama-step6-guide') || '';
+  let step7Guide = localStorage.getItem('_drama-step7-guide') || '';
+
+  // JSON 지침 (drama.json 스타일 가이드)
+  let dramaJsonGuide = localStorage.getItem('_drama-json-guide') || '';
 
   // Step3 결과 저장용 변수
   let step3Result = localStorage.getItem('_drama-step3-result') || '';
@@ -5789,11 +5801,138 @@ S#1. 장소 / 시간
       </div>
     </div>`;
 
+    // Step4 지침 (이미지 생성)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🖼️ Step4 지침 (이미지 생성)</div>
+      <div style="background: #faf5ff; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #9b59b6; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          이미지 생성 시 참고할 스타일, 분위기, 구도 등의 지침입니다.
+        </div>
+        <textarea
+          id="modal-guide-step4"
+          style="width: 100%; min-height: 100px; font-size: .85rem; padding: .6rem; border: 1px solid #d4a8e8; border-radius: 6px; font-family: inherit; resize: vertical;"
+          placeholder="예: 따뜻한 색감, 한국적 분위기, 인물 중심 구도, 실사 스타일...">${step4Guide}</textarea>
+      </div>
+    </div>`;
+
+    // Step5 지침 (음성 합성)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🔊 Step5 지침 (음성 합성)</div>
+      <div style="background: #f0f8ff; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #3498db; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          TTS 음성 생성 시 참고할 톤, 속도, 감정 표현 등의 지침입니다.
+        </div>
+        <textarea
+          id="modal-guide-step5"
+          style="width: 100%; min-height: 100px; font-size: .85rem; padding: .6rem; border: 1px solid #a8d4f0; border-radius: 6px; font-family: inherit; resize: vertical;"
+          placeholder="예: 차분하고 따뜻한 톤, 감정 부분은 천천히, 대화는 자연스럽게...">${step5Guide}</textarea>
+      </div>
+    </div>`;
+
+    // Step6 지침 (영상 편집)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">🎥 Step6 지침 (영상 편집)</div>
+      <div style="background: #fff5f5; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #e74c3c; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          영상 편집 시 참고할 전환 효과, 자막 스타일, BGM 등의 지침입니다.
+        </div>
+        <textarea
+          id="modal-guide-step6"
+          style="width: 100%; min-height: 100px; font-size: .85rem; padding: .6rem; border: 1px solid #f0a8a8; border-radius: 6px; font-family: inherit; resize: vertical;"
+          placeholder="예: 부드러운 페이드 전환, 자막은 하단 중앙, 잔잔한 피아노 BGM...">${step6Guide}</textarea>
+      </div>
+    </div>`;
+
+    // Step7 지침 (업로드)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📤 Step7 지침 (업로드)</div>
+      <div style="background: #f0fffc; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #1abc9c; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          YouTube 업로드 시 참고할 제목 형식, 설명, 태그 등의 지침입니다.
+        </div>
+        <textarea
+          id="modal-guide-step7"
+          style="width: 100%; min-height: 100px; font-size: .85rem; padding: .6rem; border: 1px solid #a8e8d8; border-radius: 6px; font-family: inherit; resize: vertical;"
+          placeholder="예: 제목에 '감동 실화' 포함, 설명에 타임스탬프 추가, 기독교/간증 태그...">${step7Guide}</textarea>
+      </div>
+    </div>`;
+
+    // JSON 지침 편집기 (drama.json 스타일 가이드)
+    html += `<div style="margin-bottom: 1rem;">
+      <div style="background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: .5rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <span>📋 JSON 지침 (스타일 가이드)</span>
+        <div style="display: flex; gap: .5rem;">
+          <button onclick="loadDefaultJsonGuide()" style="padding: .25rem .5rem; font-size: .75rem; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 4px; cursor: pointer;">기본값 불러오기</button>
+          <button onclick="validateJsonGuide()" style="padding: .25rem .5rem; font-size: .75rem; background: rgba(39,174,96,0.8); color: white; border: none; border-radius: 4px; cursor: pointer;">JSON 검증</button>
+        </div>
+      </div>
+      <div style="background: #f8f9fa; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #2c3e50; border-top: none;">
+        <div style="font-size: .85rem; color: #666; margin-bottom: .5rem;">
+          대본 생성에 사용할 JSON 형식의 상세 스타일 가이드입니다. 구조, 대화 비율, 필수 요소 등을 정의합니다.
+        </div>
+        <textarea
+          id="modal-guide-json"
+          style="width: 100%; min-height: 300px; font-size: .8rem; padding: .6rem; border: 1px solid #bdc3c7; border-radius: 6px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; resize: vertical; line-height: 1.4;"
+          placeholder='{"version": "2.0", "script_style": {...}, "structure": {...}}'>${escapeHtml(dramaJsonGuide)}</textarea>
+        <div id="json-validation-result" style="margin-top: .5rem; font-size: .8rem; display: none;"></div>
+      </div>
+    </div>`;
+
     if (workflowBoxes.length === 0) {
       html = `<p style="color: #999; text-align: center; padding: 1rem;">작업 박스를 추가하면 Step1/Step2 지침이 표시됩니다.</p>` + html;
     }
 
     container.innerHTML = html;
+  }
+
+  // HTML 이스케이프 함수
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // 기본 JSON 가이드 불러오기
+  async function loadDefaultJsonGuide() {
+    try {
+      const response = await fetch('/api/drama/guidelines');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok && data.guidelines) {
+          const jsonStr = JSON.stringify(data.guidelines, null, 2);
+          document.getElementById('modal-guide-json').value = jsonStr;
+          showStatus('✅ 기본 JSON 지침을 불러왔습니다.');
+        }
+      }
+    } catch (err) {
+      alert('기본 지침 불러오기 실패: ' + err.message);
+    }
+  }
+
+  // JSON 유효성 검증
+  function validateJsonGuide() {
+    const textarea = document.getElementById('modal-guide-json');
+    const resultDiv = document.getElementById('json-validation-result');
+    if (!textarea || !resultDiv) return;
+
+    const jsonText = textarea.value.trim();
+    resultDiv.style.display = 'block';
+
+    if (!jsonText) {
+      resultDiv.innerHTML = '<span style="color: #666;">JSON 내용이 비어있습니다.</span>';
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText);
+      const hasVersion = parsed.version ? '✓' : '✗';
+      const hasStructure = parsed.structure ? '✓' : '✗';
+      const hasScriptStyle = parsed.script_style ? '✓' : '✗';
+      resultDiv.innerHTML = `<span style="color: #27ae60;">✅ 유효한 JSON입니다.</span> <span style="color: #666; font-size: .75rem;">(version: ${hasVersion}, structure: ${hasStructure}, script_style: ${hasScriptStyle})</span>`;
+    } catch (err) {
+      resultDiv.innerHTML = `<span style="color: #e74c3c;">❌ JSON 오류: ${err.message}</span>`;
+    }
   }
 
   // 박스 이름 업데이트
@@ -6347,12 +6486,48 @@ S#1. 장소 / 시간
         }
       });
 
-      // Step3 지침 저장
+      // Step3~Step7 지침 저장
       const step3Textarea = document.getElementById('modal-guide-step3');
       if (step3Textarea) {
         step3Guide = step3Textarea.value;
         localStorage.setItem('_drama-step3-guide', step3Guide);
         await saveToFirebase('_drama-step3-guide', step3Guide);
+      }
+
+      const step4Textarea = document.getElementById('modal-guide-step4');
+      if (step4Textarea) {
+        step4Guide = step4Textarea.value;
+        localStorage.setItem('_drama-step4-guide', step4Guide);
+        await saveToFirebase('_drama-step4-guide', step4Guide);
+      }
+
+      const step5Textarea = document.getElementById('modal-guide-step5');
+      if (step5Textarea) {
+        step5Guide = step5Textarea.value;
+        localStorage.setItem('_drama-step5-guide', step5Guide);
+        await saveToFirebase('_drama-step5-guide', step5Guide);
+      }
+
+      const step6Textarea = document.getElementById('modal-guide-step6');
+      if (step6Textarea) {
+        step6Guide = step6Textarea.value;
+        localStorage.setItem('_drama-step6-guide', step6Guide);
+        await saveToFirebase('_drama-step6-guide', step6Guide);
+      }
+
+      const step7Textarea = document.getElementById('modal-guide-step7');
+      if (step7Textarea) {
+        step7Guide = step7Textarea.value;
+        localStorage.setItem('_drama-step7-guide', step7Guide);
+        await saveToFirebase('_drama-step7-guide', step7Guide);
+      }
+
+      // JSON 지침 저장
+      const jsonTextarea = document.getElementById('modal-guide-json');
+      if (jsonTextarea) {
+        dramaJsonGuide = jsonTextarea.value;
+        localStorage.setItem('_drama-json-guide', dramaJsonGuide);
+        await saveToFirebase('_drama-json-guide', dramaJsonGuide);
       }
 
       // AI 모델 설정 저장
@@ -6397,8 +6572,15 @@ S#1. 장소 / 시간
     showStatus('☁️ 클라우드 동기화 중...');
     await loadFromFirebase();
 
-    // ⭐ Step3 지침 불러오기 (Firebase 동기화 후)
+    // ⭐ Step3~Step7 지침 불러오기 (Firebase 동기화 후)
     step3Guide = localStorage.getItem('_drama-step3-guide') || '';
+    step4Guide = localStorage.getItem('_drama-step4-guide') || '';
+    step5Guide = localStorage.getItem('_drama-step5-guide') || '';
+    step6Guide = localStorage.getItem('_drama-step6-guide') || '';
+    step7Guide = localStorage.getItem('_drama-step7-guide') || '';
+
+    // ⭐ JSON 지침 불러오기
+    dramaJsonGuide = localStorage.getItem('_drama-json-guide') || '';
 
     // ⭐ Step3 결과 불러오기 (Firebase 동기화 후)
     step3Result = localStorage.getItem('_drama-step3-result') || '';

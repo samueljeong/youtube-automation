@@ -49,11 +49,13 @@ def get_guideline(path, default=None):
     except (KeyError, TypeError):
         return default
 
-def build_testimony_prompt_from_guide():
+def build_testimony_prompt_from_guide(custom_guide=None):
     """
     guides/drama.json의 스타일 가이드를 기반으로 간증 대본 생성용 프롬프트 구축
+    custom_guide: 클라이언트에서 보낸 커스텀 JSON 가이드 (있으면 우선 사용)
     """
-    guide = load_drama_guidelines()
+    # 커스텀 가이드가 있으면 우선 사용, 없으면 서버 파일에서 로드
+    guide = custom_guide if custom_guide else load_drama_guidelines()
     if not guide:
         return None, None
 
@@ -1376,6 +1378,16 @@ def api_drama_claude_step3():
         content_type_prompt = data.get("contentTypePrompt", {})  # 클라이언트에서 보낸 프롬프트
         duration_text = (data.get("durationText") or "").strip()
         auto_story_mode = bool(data.get("autoStoryMode", False))
+        custom_json_guide_str = data.get("customJsonGuide", "")  # 클라이언트에서 보낸 커스텀 JSON 지침
+
+        # 커스텀 JSON 지침 파싱
+        custom_json_guide = None
+        if custom_json_guide_str:
+            try:
+                custom_json_guide = json.loads(custom_json_guide_str)
+                print(f"[DRAMA-STEP3] 커스텀 JSON 지침 사용 (v{custom_json_guide.get('version', '?')})")
+            except json.JSONDecodeError as e:
+                print(f"[DRAMA-STEP3] 커스텀 JSON 파싱 실패: {e}, 서버 기본 지침 사용")
 
         effective_category = duration_text or category
         if effective_category:
@@ -1390,12 +1402,14 @@ def api_drama_claude_step3():
         user_prompt_suffix = ""
 
         if content_type == "testimony":
-            # JSON 스타일 가이드에서 프롬프트 구축
-            guide_system, guide_suffix = build_testimony_prompt_from_guide()
+            # JSON 스타일 가이드에서 프롬프트 구축 (커스텀 가이드 우선 사용)
+            guide_system, guide_suffix = build_testimony_prompt_from_guide(custom_json_guide)
             if guide_system:
                 system_content = guide_system
                 user_prompt_suffix = guide_suffix or ""
-                print(f"[DRAMA-STEP3] JSON 스타일 가이드 프롬프트 사용 (v{load_drama_guidelines().get('version', '?')})")
+                guide_version = custom_json_guide.get('version', '?') if custom_json_guide else load_drama_guidelines().get('version', '?')
+                guide_source = "커스텀" if custom_json_guide else "서버"
+                print(f"[DRAMA-STEP3] {guide_source} JSON 스타일 가이드 프롬프트 사용 (v{guide_version})")
             else:
                 # JSON 로드 실패 시 기본 프롬프트 (폴백)
                 print(f"[DRAMA-STEP3] JSON 로드 실패, 기본 프롬프트 사용")
