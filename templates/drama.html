@@ -797,6 +797,41 @@
     </div>
   </div>
 
+  <!-- 전체 진행 상황 Progress Bar -->
+  <div id="workflow-progress" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: .6rem 1.5rem; display: flex; align-items: center; gap: 1rem;">
+    <div style="color: white; font-weight: 600; font-size: .85rem; white-space: nowrap;">진행 상황:</div>
+    <div style="flex: 1; display: flex; gap: .3rem; align-items: center;">
+      <div class="progress-step" data-step="step1" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step1: 상황 제시">1</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">→</div>
+      <div class="progress-step" data-step="step2" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step2: 대사+지문">2</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">→</div>
+      <div class="progress-step" data-step="step3" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step3: 대본 완성">3</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">→</div>
+      <div class="progress-step" data-step="step4" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step4: 이미지 생성">4</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">+</div>
+      <div class="progress-step" data-step="step5" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step5: 음성+자막">5</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">→</div>
+      <div class="progress-step" data-step="step6" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step6: 영상 제작">6</div>
+      </div>
+      <div style="color: rgba(255,255,255,0.5);">→</div>
+      <div class="progress-step" data-step="step7" style="flex: 1; text-align: center;">
+        <div style="background: rgba(255,255,255,0.3); border-radius: 4px; padding: .25rem .4rem; font-size: .7rem; color: white; cursor: default;" title="Step7: YouTube 업로드">7</div>
+      </div>
+    </div>
+    <div id="progress-status" style="color: rgba(255,255,255,0.9); font-size: .75rem; white-space: nowrap;">Step1부터 시작하세요</div>
+  </div>
+
   <div class="page-wrap">
     <!-- 왼쪽 -->
     <div class="left-col">
@@ -1291,10 +1326,15 @@
         </div>
 
         <!-- 업로드 버튼 -->
-        <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
+        <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
           <button id="btn-upload-youtube" class="step7-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;" disabled>
             📺 YouTube에 업로드
           </button>
+        </div>
+
+        <!-- 업로드 상태 메시지 -->
+        <div id="step7-upload-status" style="padding: .4rem .6rem; background: #fff3cd; border-radius: 6px; font-size: .8rem; color: #856404; margin-bottom: .75rem;">
+          Step6에서 영상을 먼저 생성해주세요
         </div>
 
         <!-- 업로드 진행 상태 -->
@@ -1953,6 +1993,122 @@
     });
   }
 
+  // ===== 전체 진행 상황 관리 =====
+  const completedSteps = new Set();
+
+  function updateProgressIndicator(stepName) {
+    completedSteps.add(stepName);
+
+    // 각 단계 표시 업데이트
+    document.querySelectorAll('.progress-step').forEach(stepEl => {
+      const step = stepEl.dataset.step;
+      const innerDiv = stepEl.querySelector('div');
+      if (completedSteps.has(step)) {
+        innerDiv.style.background = '#27ae60';
+        innerDiv.style.fontWeight = '700';
+      }
+    });
+
+    // 상태 텍스트 업데이트
+    const statusEl = document.getElementById('progress-status');
+    const stepMessages = {
+      step1: 'Step2로 진행하세요',
+      step2: 'Step3 대본 완성을 실행하세요',
+      step3: 'Step4(이미지) + Step5(음성)을 진행하세요',
+      step4: completedSteps.has('step5') ? 'Step6 영상 생성 가능!' : 'Step5 음성 생성을 진행하세요',
+      step5: completedSteps.has('step4') ? 'Step6 영상 생성 가능!' : 'Step4 이미지 생성을 진행하세요',
+      step6: 'Step7 YouTube 업로드 가능!',
+      step7: '모든 단계 완료!'
+    };
+    if (statusEl) {
+      statusEl.textContent = stepMessages[stepName] || '';
+    }
+  }
+
+  // Step3 완료 후 Step4/Step5 자동 활성화
+  function activateNextSteps(scriptContent) {
+    // Step4 컨테이너 표시
+    const step4Container = document.getElementById('step4-container');
+    if (step4Container) {
+      step4Container.style.display = 'block';
+    }
+
+    // Step5 TTS 텍스트 자동 채우기 (지문만 추출)
+    if (scriptContent) {
+      const ttsTextarea = document.getElementById('step5-script-text');
+      if (ttsTextarea && !ttsTextarea.value.trim()) {
+        // 지문만 추출 (괄호 안의 내용 또는 나레이션)
+        const narrationText = extractNarrationFromScript(scriptContent);
+        if (narrationText) {
+          ttsTextarea.value = narrationText;
+        }
+      }
+    }
+
+    // 안내 토스트 표시
+    showNextStepGuide();
+  }
+
+  // 대본에서 지문(나레이션) 추출
+  function extractNarrationFromScript(script) {
+    const lines = script.split('\n');
+    const narrations = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      // 괄호로 시작하는 지문 (예: (어두운 방 안...))
+      if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+        narrations.push(trimmed.slice(1, -1));
+      }
+      // 대괄호 지문 (예: [나레이션] 또는 [장면 설명])
+      else if (trimmed.startsWith('[') && (trimmed.includes('나레이션') || trimmed.includes('장면'))) {
+        const content = trimmed.replace(/\[.*?\]/g, '').trim();
+        if (content) narrations.push(content);
+      }
+      // "지문:" 또는 "나레이션:" 으로 시작하는 줄
+      else if (trimmed.startsWith('지문:') || trimmed.startsWith('나레이션:')) {
+        narrations.push(trimmed.replace(/^(지문|나레이션):?\s*/, ''));
+      }
+    }
+
+    return narrations.join('\n\n');
+  }
+
+  // 다음 단계 안내 가이드 표시
+  function showNextStepGuide() {
+    // 안내 배너 생성
+    const guideEl = document.createElement('div');
+    guideEl.id = 'next-step-guide';
+    guideEl.innerHTML = `
+      <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 1rem; border-radius: 8px; margin: .75rem 0; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <div style="color: white; font-weight: 700; font-size: 1rem; margin-bottom: .5rem;">다음 단계로 진행하세요!</div>
+        <div style="color: rgba(255,255,255,0.95); font-size: .85rem; line-height: 1.5;">
+          <div style="margin-bottom: .3rem;"><strong>Step4:</strong> 대본에서 인물을 추출하고 이미지를 생성하세요</div>
+          <div><strong>Step5:</strong> TTS 음성과 자막을 생성하세요 (텍스트가 자동 입력됨)</div>
+          <div style="margin-top: .5rem; font-size: .75rem; opacity: 0.8;">Step4와 Step5는 동시에 진행할 수 있습니다</div>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" style="position: absolute; top: .5rem; right: .5rem; background: rgba(255,255,255,0.3); border: none; color: white; padding: .25rem .5rem; border-radius: 4px; cursor: pointer; font-size: .75rem;">닫기</button>
+      </div>
+    `;
+    guideEl.style.position = 'relative';
+
+    // Step4 컨테이너 앞에 삽입
+    const step4Container = document.getElementById('step4-container');
+    if (step4Container && step4Container.parentNode) {
+      step4Container.parentNode.insertBefore(guideEl, step4Container);
+
+      // 5초 후 자동 제거
+      setTimeout(() => {
+        guideEl.remove();
+      }, 8000);
+
+      // Step4로 스크롤
+      setTimeout(() => {
+        step4Container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 500);
+    }
+  }
+
   // ===== Step3 (OpenRouter) 대본 완성 기능 =====
   async function executeStep3() {
     // Step2 결과만 수집 (Step2에서 새로운 대본 제작한 결과)
@@ -2052,9 +2208,13 @@
 
           // 결과 박스로 스크롤
           resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+          // Step4/Step5 자동 활성화 및 안내
+          activateNextSteps(step3Result);
         }
 
         showStatus('✅ Step3: OpenRouter 대본 완성!');
+        updateProgressIndicator('step3');
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ Step3 실패');
@@ -2502,6 +2662,8 @@
         }
 
         showStatus('✅ 씬 이미지 생성 완료!');
+        updateProgressIndicator('step4');
+        updateStep6Visibility();
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 이미지 생성 실패');
@@ -2515,7 +2677,7 @@
       if (btnGenerateImage) {
         btnGenerateImage.disabled = false;
         btnGenerateImage.classList.remove('generating');
-        btnGenerateImage.textContent = '🖼️ 씬 이미지 생성 (DALL-E 3)';
+        btnGenerateImage.textContent = '씬 이미지 생성 (DALL-E 3)';
       }
     }
   }
@@ -2721,6 +2883,8 @@
         }
 
         showStatus('✅ TTS 음성 생성 완료!');
+        updateProgressIndicator('step5');
+        updateStep6Visibility();
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ TTS 생성 실패');
@@ -2734,7 +2898,7 @@
       if (btnGenerateTTS) {
         btnGenerateTTS.disabled = false;
         btnGenerateTTS.classList.remove('generating');
-        btnGenerateTTS.textContent = '🎙️ 음성 생성 (TTS)';
+        btnGenerateTTS.textContent = '음성 생성 (TTS)';
       }
     }
   }
@@ -3017,7 +3181,9 @@
           videoSection.style.display = 'block';
         }
 
-        showStatus('✅ 영상 생성 완료!');
+        showStatus('✅ 영상 생성 완료! Step7에서 YouTube 업로드가 가능합니다.');
+        updateProgressIndicator('step6');
+        updateStep7Status();
 
         setTimeout(() => {
           progressDiv.style.display = 'none';
@@ -3081,6 +3247,35 @@
 
   // ===== Step7: 유튜브 업로드 =====
   let youtubeAuthenticated = false;
+
+  // Step7 업로드 상태 메시지 업데이트
+  function updateStep7Status() {
+    const statusEl = document.getElementById('step7-upload-status');
+    const uploadBtn = document.getElementById('btn-upload-youtube');
+    const videoSrc = getStep6Video();
+
+    if (!statusEl) return;
+
+    if (!youtubeAuthenticated) {
+      statusEl.style.background = '#fff3cd';
+      statusEl.style.color = '#856404';
+      statusEl.textContent = 'YouTube 인증을 먼저 진행해주세요';
+      if (uploadBtn) uploadBtn.disabled = true;
+    } else if (!videoSrc) {
+      statusEl.style.background = '#fff3cd';
+      statusEl.style.color = '#856404';
+      statusEl.textContent = 'Step6에서 영상을 먼저 생성해주세요';
+      if (uploadBtn) uploadBtn.disabled = true;
+    } else {
+      statusEl.style.background = '#d4edda';
+      statusEl.style.color = '#155724';
+      statusEl.textContent = '영상이 준비되었습니다. 업로드할 수 있습니다!';
+      if (uploadBtn) uploadBtn.disabled = false;
+    }
+  }
+
+  // 주기적으로 Step7 상태 업데이트
+  setInterval(updateStep7Status, 3000);
 
   // 개인정보 옵션 선택
   function selectStep7Privacy(value) {
@@ -3165,7 +3360,7 @@
         authBtn.textContent = '✅ 인증 완료';
         authBtn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
         authStatus.innerHTML = '<span style="color: #27ae60;">✅ YouTube 인증이 완료되었습니다.</span>';
-        document.getElementById('btn-upload-youtube').disabled = false;
+        updateStep7Status();
       } else if (data.auth_url) {
         // OAuth URL이 제공되면 새 창에서 열기
         window.open(data.auth_url, '_blank', 'width=600,height=700');
@@ -3203,7 +3398,7 @@
           authBtn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
           authBtn.disabled = true;
           authStatus.innerHTML = '<span style="color: #27ae60;">✅ YouTube 인증이 완료되었습니다.</span>';
-          document.getElementById('btn-upload-youtube').disabled = false;
+          updateStep7Status();
           return;
         }
       } catch (e) {
@@ -3306,6 +3501,7 @@
 
         const scheduledMsg = publishAt ? ` (${new Date(publishAt).toLocaleString('ko-KR')}에 공개 예정)` : '';
         showStatus(`🎉 YouTube 업로드가 완료되었습니다!${scheduledMsg}`);
+        updateProgressIndicator('step7');
       } else {
         throw new Error(data.error || '업로드 실패');
       }
