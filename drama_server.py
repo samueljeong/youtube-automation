@@ -2676,6 +2676,11 @@ def api_generate_tts():
             def apply_emotion_ssml(text_chunk, base_rate):
                 """감정 표현이 있는 문장에 SSML 속도 조절 적용"""
                 import re
+                import html
+
+                def escape_for_ssml(text):
+                    """SSML에서 사용할 수 있도록 XML 특수 문자 이스케이프"""
+                    return html.escape(text, quote=False)
 
                 # 문장 단위로 분할
                 sentences = re.split(r'([.!?。！？])', text_chunk)
@@ -2706,9 +2711,10 @@ def api_generate_tts():
                         # 감정 문장: 기본 속도의 90% (더 천천히)
                         emotion_rate = max(0.25, base_rate * 0.9)
                         # 감정 문장 전에 짧은 휴지, 더 느린 속도로 읽기
-                        result_parts.append(f'<break time="300ms"/><prosody rate="{emotion_rate:.2f}">{sentence}</prosody><break time="200ms"/>')
+                        escaped_sentence = escape_for_ssml(sentence)
+                        result_parts.append(f'<break time="300ms"/><prosody rate="{emotion_rate:.2f}">{escaped_sentence}</prosody><break time="200ms"/>')
                     else:
-                        result_parts.append(sentence)
+                        result_parts.append(escape_for_ssml(sentence))
 
                 if has_emotion:
                     ssml_text = f'<speak>{" ".join(result_parts)}</speak>'
