@@ -1283,6 +1283,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
           <div class="label">🎬 Step1: OpenRouter 대본 완성 결과</div>
           <div style="display: flex; gap: .5rem;">
+            <button id="btn-toggle-script-view" style="padding: .4rem .8rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📖 대본 보기</button>
             <button id="btn-copy-step3-result" style="padding: .4rem .8rem; background: white; color: #f39c12; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📋 복사</button>
             <button id="btn-clear-step3-result" style="padding: .4rem .8rem; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">🗑️ 지우기</button>
           </div>
@@ -1290,7 +1291,12 @@
         <div id="step3-token-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-bottom: .5rem; display: none;">
           📥 <span id="step3-input-tokens">0</span> (입력) / 📤 <span id="step3-output-tokens">0</span> (출력) | 💰 <span id="step3-cost">₩0</span>
         </div>
+        <!-- JSON 원본 뷰 -->
         <textarea id="step3-result" readonly style="width: 100%; font-size: .9rem; line-height: 1.6; resize: vertical;" placeholder="Step3 결과가 여기에 표시됩니다..."></textarea>
+        <!-- 대본 텍스트 뷰 -->
+        <div id="step3-script-viewer" style="display: none; background: white; border-radius: 8px; padding: 1rem; max-height: 600px; overflow-y: auto;">
+          <div id="step3-script-content" style="font-size: .95rem; line-height: 1.8; color: #333;"></div>
+        </div>
       </div>
 
       <!-- Step4: 이미지 생성 -->
@@ -1298,8 +1304,19 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
           <div class="label">🎨 Step2: 장면 이미지 생성</div>
           <div style="display: flex; gap: .5rem;">
+            <button id="btn-generate-all-auto" class="step4-btn" style="background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: white; font-weight: 700; padding: .5rem 1rem;">🚀 전체 생성</button>
             <button id="btn-clear-step4" class="step4-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
           </div>
+        </div>
+
+        <!-- 전체 자동 생성 진행 상황 -->
+        <div id="auto-generate-progress" style="display: none; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; padding: 1rem; margin-bottom: .75rem; color: white;">
+          <div style="font-weight: 600; margin-bottom: .5rem;">🤖 전체 자동 생성 진행 중...</div>
+          <div id="auto-generate-status" style="font-size: .85rem; margin-bottom: .5rem;">준비 중...</div>
+          <div style="background: rgba(255,255,255,0.3); border-radius: 4px; height: 8px; overflow: hidden;">
+            <div id="auto-generate-progress-bar" style="background: white; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+          </div>
+          <div id="auto-generate-details" style="font-size: .75rem; margin-top: .5rem; opacity: 0.9;"></div>
         </div>
 
         <!-- 1단계: 인물 분석 -->
@@ -3162,6 +3179,146 @@ S#1. 장소 / 시간
     });
   }
 
+  // ===== 대본 보기 토글 기능 =====
+  let isScriptViewerOpen = false;
+
+  // JSON 대본을 읽기 쉬운 텍스트로 변환하는 함수
+  function formatScriptToText(jsonStr) {
+    try {
+      const data = JSON.parse(jsonStr);
+      let html = '';
+
+      // 메타데이터
+      if (data.metadata) {
+        html += `<div style="background: #f0f9ff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #3b82f6;">`;
+        html += `<h2 style="margin: 0 0 .5rem 0; color: #1e40af;">📺 ${data.metadata.title || '제목 없음'}</h2>`;
+        if (data.metadata.duration_minutes) html += `<div style="color: #64748b;">⏱️ 분량: ${data.metadata.duration_minutes}분</div>`;
+        if (data.metadata.total_scenes) html += `<div style="color: #64748b;">🎬 총 씬: ${data.metadata.total_scenes}개</div>`;
+        if (data.metadata.total_characters) html += `<div style="color: #64748b;">👥 등장인물: ${data.metadata.total_characters}명</div>`;
+        html += `</div>`;
+      }
+
+      // 등장인물
+      if (data.characters && data.characters.length > 0) {
+        html += `<div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #f59e0b;">`;
+        html += `<h3 style="margin: 0 0 .75rem 0; color: #b45309;">👥 등장인물</h3>`;
+        data.characters.forEach(char => {
+          html += `<div style="margin-bottom: .75rem; padding: .5rem; background: rgba(255,255,255,0.7); border-radius: 6px;">`;
+          html += `<strong style="color: #92400e;">${char.name || char.id}</strong>`;
+          if (char.role) html += ` <span style="color: #78716c; font-size: .85rem;">(${char.role})</span>`;
+          if (char.appearance) {
+            const app = char.appearance;
+            const details = [app.height, app.body_type, app.face, app.hair, app.skin].filter(Boolean).join(', ');
+            if (details) html += `<div style="font-size: .85rem; color: #78716c; margin-top: .25rem;">외모: ${details}</div>`;
+          }
+          if (char.voice_characteristics) html += `<div style="font-size: .85rem; color: #78716c;">음성: ${char.voice_characteristics}</div>`;
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+
+      // 하이라이트
+      if (data.highlight && data.highlight.scenes) {
+        html += `<div style="background: #fce7f3; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #ec4899;">`;
+        html += `<h3 style="margin: 0 0 .75rem 0; color: #be185d;">✨ 하이라이트 (${data.highlight.type === 'climax_preview' ? '클라이맥스 미리보기' : '호기심 유발'})</h3>`;
+        data.highlight.scenes.forEach((scene, idx) => {
+          html += `<div style="margin-bottom: .5rem; padding: .5rem; background: rgba(255,255,255,0.7); border-radius: 6px;">`;
+          html += `<div style="font-weight: 600; color: #9d174d;">[하이라이트 ${idx + 1}]</div>`;
+          if (scene.narration) html += `<div style="margin-top: .25rem; color: #333;">"${scene.narration}"</div>`;
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+
+      // 대본 (씬별)
+      if (data.script && data.script.scenes) {
+        html += `<div style="background: #ecfdf5; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981;">`;
+        html += `<h3 style="margin: 0 0 1rem 0; color: #047857;">📜 대본</h3>`;
+
+        data.script.scenes.forEach((scene, idx) => {
+          const meta = scene.scene_meta || {};
+          html += `<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.8); border-radius: 8px; border: 1px solid #d1fae5;">`;
+
+          // 씬 헤더
+          html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; padding-bottom: .5rem; border-bottom: 2px solid #10b981;">`;
+          html += `<h4 style="margin: 0; color: #065f46;">🎬 씬 ${idx + 1}</h4>`;
+          if (meta.location) html += `<span style="font-size: .85rem; color: #64748b;">📍 ${meta.location.place || meta.location}</span>`;
+          html += `</div>`;
+
+          // 씬 메타 정보
+          if (meta.time || meta.atmosphere) {
+            html += `<div style="display: flex; gap: 1rem; margin-bottom: .75rem; font-size: .85rem; color: #64748b;">`;
+            if (meta.time) html += `<span>🕐 ${meta.time.period || meta.time}</span>`;
+            if (meta.atmosphere) html += `<span>🎭 ${meta.atmosphere.mood || meta.atmosphere}</span>`;
+            html += `</div>`;
+          }
+
+          // 등장인물 상태
+          if (meta.character_states) {
+            html += `<div style="background: #fefce8; padding: .5rem; border-radius: 6px; margin-bottom: .75rem; font-size: .85rem;">`;
+            html += `<strong style="color: #ca8a04;">👥 등장인물:</strong> `;
+            const charNames = Object.keys(meta.character_states);
+            html += charNames.map(name => {
+              const state = meta.character_states[name];
+              return `${name}${state.emotion ? ' (' + state.emotion + ')' : ''}`;
+            }).join(', ');
+            html += `</div>`;
+          }
+
+          // 나레이션
+          if (scene.narration) {
+            html += `<div style="padding: .75rem; background: linear-gradient(135deg, #f0fdfa, #ecfdf5); border-radius: 8px; font-size: 1rem; line-height: 1.8; color: #1f2937; border-left: 3px solid #14b8a6;">`;
+            html += scene.narration;
+            html += `</div>`;
+          }
+
+          html += `</div>`;
+        });
+        html += `</div>`;
+      }
+
+      return html || '<div style="color: #999; text-align: center; padding: 2rem;">대본 구조를 분석할 수 없습니다. JSON 형식을 확인해주세요.</div>';
+    } catch (e) {
+      console.error('대본 파싱 오류:', e);
+      return `<div style="color: #ef4444; text-align: center; padding: 2rem;">⚠️ JSON 파싱 오류: ${e.message}<br><br>원본 JSON을 확인해주세요.</div>`;
+    }
+  }
+
+  // 대본 보기 토글 버튼 이벤트
+  const btnToggleScriptView = document.getElementById('btn-toggle-script-view');
+  if (btnToggleScriptView) {
+    btnToggleScriptView.addEventListener('click', () => {
+      const jsonTextarea = document.getElementById('step3-result');
+      const scriptViewer = document.getElementById('step3-script-viewer');
+      const scriptContent = document.getElementById('step3-script-content');
+
+      if (!jsonTextarea || !scriptViewer || !scriptContent) return;
+
+      isScriptViewerOpen = !isScriptViewerOpen;
+
+      if (isScriptViewerOpen) {
+        // 대본 텍스트 뷰 표시
+        const jsonStr = jsonTextarea.value;
+        if (jsonStr.trim()) {
+          scriptContent.innerHTML = formatScriptToText(jsonStr);
+          jsonTextarea.style.display = 'none';
+          scriptViewer.style.display = 'block';
+          btnToggleScriptView.textContent = '📄 JSON 보기';
+          btnToggleScriptView.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+        } else {
+          alert('표시할 대본이 없습니다.');
+          isScriptViewerOpen = false;
+        }
+      } else {
+        // JSON 원본 뷰 표시
+        jsonTextarea.style.display = 'block';
+        scriptViewer.style.display = 'none';
+        btnToggleScriptView.textContent = '📖 대본 보기';
+        btnToggleScriptView.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+      }
+    });
+  }
+
   // ===== Step4: 이미지 생성 기능 (업그레이드 버전) =====
   let step4GeneratedImages = JSON.parse(localStorage.getItem('_drama-step4-images') || '[]');
   let step4Characters = JSON.parse(localStorage.getItem('_drama-step4-characters') || '[]');
@@ -3824,6 +3981,227 @@ S#1. 장소 / 시간
   document.getElementById('btn-generate-scene-all')?.addEventListener('click', generateScenePromptAndImage);
   document.getElementById('btn-generate-image')?.addEventListener('click', generateStep4Image);
   document.getElementById('btn-clear-step4')?.addEventListener('click', clearStep4);
+
+  // ===== 전체 자동 생성 기능 =====
+  let isAutoGenerating = false;
+
+  async function generateAllAuto() {
+    if (isAutoGenerating) {
+      alert('이미 자동 생성이 진행 중입니다.');
+      return;
+    }
+
+    const step3Result = document.getElementById('step3-result')?.value || '';
+    if (!step3Result.trim()) {
+      alert('먼저 Step1 대본 완성을 실행해주세요.');
+      return;
+    }
+
+    if (!confirm('전체 자동 생성을 시작하시겠습니까?\n\n1. 대본에서 인물/씬 분석\n2. 모든 인물 이미지 생성\n3. 모든 씬 배경 이미지 생성 (대본 기반 인물 자동 배치)\n\n⚠️ 많은 API 호출이 발생합니다.')) {
+      return;
+    }
+
+    isAutoGenerating = true;
+    const progressContainer = document.getElementById('auto-generate-progress');
+    const progressBar = document.getElementById('auto-generate-progress-bar');
+    const statusText = document.getElementById('auto-generate-status');
+    const detailsText = document.getElementById('auto-generate-details');
+    const btnGenerateAll = document.getElementById('btn-generate-all-auto');
+
+    if (progressContainer) progressContainer.style.display = 'block';
+    if (btnGenerateAll) {
+      btnGenerateAll.disabled = true;
+      btnGenerateAll.textContent = '⏳ 생성 중...';
+    }
+
+    const updateProgress = (percent, status, details = '') => {
+      if (progressBar) progressBar.style.width = `${percent}%`;
+      if (statusText) statusText.textContent = status;
+      if (detailsText) detailsText.textContent = details;
+    };
+
+    try {
+      // 1단계: 대본 분석
+      updateProgress(5, '📊 대본 분석 중...', '등장인물과 씬 정보를 추출합니다');
+      showStatus('🔍 대본에서 등장인물 및 씬 분석 중...');
+
+      const analyzeResponse = await fetch('/api/drama/analyze-characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script: step3Result })
+      });
+
+      const analyzeData = await analyzeResponse.json();
+      if (!analyzeData.ok) throw new Error(analyzeData.error || '대본 분석 실패');
+
+      step4Characters = analyzeData.characters || [];
+      step4Scenes = analyzeData.scenes || [];
+      localStorage.setItem('_drama-step4-characters', JSON.stringify(step4Characters));
+      localStorage.setItem('_drama-step4-scenes', JSON.stringify(step4Scenes));
+
+      renderCharactersList();
+      updateCharacterSelect();
+      updateSceneSelect();
+      updateSceneCharacterCheckboxes();
+
+      updateProgress(15, `✅ 분석 완료: ${step4Characters.length}명의 인물, ${step4Scenes.length}개의 씬`, '인물 이미지 생성을 시작합니다');
+
+      // 2단계: 인물 이미지 생성
+      const totalCharacters = step4Characters.length;
+      const totalScenes = step4Scenes.length;
+      const totalSteps = totalCharacters + totalScenes;
+      let completedSteps = 0;
+
+      for (let i = 0; i < step4Characters.length; i++) {
+        const char = step4Characters[i];
+        completedSteps++;
+        const percent = 15 + (completedSteps / totalSteps) * 80;
+        updateProgress(percent, `👤 인물 이미지 생성 중: ${char.name} (${i + 1}/${totalCharacters})`, char.imagePrompt?.substring(0, 50) + '...');
+        showStatus(`👤 ${char.name} 이미지 생성 중... (${i + 1}/${totalCharacters})`);
+
+        try {
+          const imageResponse = await fetch('/api/drama/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: char.imagePrompt || `Portrait of ${char.name}, ${char.description}, Korean drama style, professional photography, soft lighting`,
+              size: '1024x1024',
+              imageProvider: step4ImageProvider
+            })
+          });
+
+          const imageData = await imageResponse.json();
+          if (imageData.ok) {
+            step4CharacterImages[char.name] = {
+              url: imageData.imageUrl,
+              prompt: char.imagePrompt,
+              createdAt: new Date().toISOString()
+            };
+            localStorage.setItem('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
+            renderCharacterImages();
+          }
+        } catch (imgErr) {
+          console.error(`인물 이미지 생성 실패 (${char.name}):`, imgErr);
+        }
+
+        // API 과부하 방지
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
+      // 3단계: 씬 배경 이미지 생성 (대본 기반 인물 자동 배치)
+      for (let i = 0; i < step4Scenes.length; i++) {
+        const scene = step4Scenes[i];
+        completedSteps++;
+        const percent = 15 + (completedSteps / totalSteps) * 80;
+
+        // 대본에서 해당 씬에 등장하는 인물 자동 추출
+        const sceneCharacterNames = scene.characters || [];
+        const sceneCharacters = step4Characters.filter(c => sceneCharacterNames.includes(c.name));
+
+        updateProgress(percent, `🎬 씬 이미지 생성 중: ${scene.title || '씬 ' + (i + 1)} (${i + 1}/${totalScenes})`, `등장인물: ${sceneCharacterNames.join(', ') || '없음'}`);
+        showStatus(`🎬 씬 ${i + 1} 이미지 생성 중... (${i + 1}/${totalScenes}) - 등장인물: ${sceneCharacterNames.join(', ')}`);
+
+        try {
+          // 씬 프롬프트 생성 (인물 포함)
+          const promptResponse = await fetch('/api/drama/generate-scene-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scene: scene,
+              characters: sceneCharacters.map(c => ({
+                name: c.name,
+                prompt: c.imagePrompt || c.description
+              })),
+              backgroundPrompt: scene.backgroundPrompt || ''
+            })
+          });
+
+          const promptData = await promptResponse.json();
+          if (!promptData.ok) throw new Error(promptData.error || '프롬프트 생성 실패');
+
+          // 씬 이미지 생성
+          const imageResponse = await fetch('/api/drama/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: promptData.combinedPrompt,
+              size: '1792x1024',
+              imageProvider: step4ImageProvider
+            })
+          });
+
+          const imageData = await imageResponse.json();
+          if (imageData.ok) {
+            const placeholder = document.getElementById('step4-image-placeholder');
+            const imageGrid = document.getElementById('step4-image-grid');
+
+            if (placeholder) placeholder.style.display = 'none';
+            if (imageGrid) {
+              imageGrid.style.display = 'grid';
+
+              const imageItem = document.createElement('div');
+              imageItem.className = 'step4-image-item';
+              imageItem.innerHTML = `
+                <img src="${imageData.imageUrl}" alt="Scene ${i + 1}" loading="lazy" onclick="window.open('${imageData.imageUrl}', '_blank')">
+                <div class="image-caption">
+                  씬 ${i + 1}: ${scene.title || scene.location || ''} | 등장: ${sceneCharacterNames.join(', ') || '-'}
+                  <button onclick="downloadImage('${imageData.imageUrl}')" style="margin-left: .5rem; padding: .2rem .4rem; font-size: .7rem; cursor: pointer;">💾 저장</button>
+                </div>
+              `;
+              imageGrid.appendChild(imageItem);
+
+              step4GeneratedImages.push({
+                url: imageData.imageUrl,
+                prompt: promptData.combinedPrompt,
+                sceneIndex: i,
+                sceneName: scene.title,
+                characters: sceneCharacterNames,
+                size: '1792x1024',
+                createdAt: new Date().toISOString()
+              });
+
+              if (!imageData.imageUrl.startsWith('data:')) {
+                try {
+                  localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(-20)));
+                } catch (e) {
+                  console.warn('localStorage 저장 실패:', e.message);
+                }
+              }
+            }
+          }
+        } catch (sceneErr) {
+          console.error(`씬 이미지 생성 실패 (씬 ${i + 1}):`, sceneErr);
+        }
+
+        // API 과부하 방지
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+      updateProgress(100, '✅ 전체 자동 생성 완료!', `인물 ${totalCharacters}명, 씬 ${totalScenes}개의 이미지가 생성되었습니다`);
+      showStatus('🎉 전체 자동 생성 완료!');
+      updateProgressIndicator('step4');
+      updateStep6Visibility();
+
+      // 3초 후 진행 상황 숨기기
+      setTimeout(() => {
+        if (progressContainer) progressContainer.style.display = 'none';
+      }, 5000);
+
+    } catch (err) {
+      console.error('전체 자동 생성 오류:', err);
+      updateProgress(0, `❌ 오류 발생: ${err.message}`, '다시 시도해주세요');
+      showStatus(`❌ 자동 생성 오류: ${err.message}`);
+    } finally {
+      isAutoGenerating = false;
+      if (btnGenerateAll) {
+        btnGenerateAll.disabled = false;
+        btnGenerateAll.textContent = '🚀 전체 생성';
+      }
+    }
+  }
+
+  // 전체 자동 생성 버튼 이벤트
+  document.getElementById('btn-generate-all-auto')?.addEventListener('click', generateAllAuto);
 
   // Step4 저장된 데이터 복원
   function restoreStep4Data() {
