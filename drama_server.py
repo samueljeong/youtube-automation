@@ -2979,6 +2979,72 @@ def api_generate_subtitle():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Step6: 이미지 업로드 API =====
+@app.route('/api/drama/upload-image', methods=['POST'])
+def api_upload_image():
+    """Base64 이미지를 서버에 업로드하고 URL 반환 (영상 생성 전 요청 크기 줄이기 위함)"""
+    try:
+        import base64
+        from datetime import datetime as dt
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        image_data = data.get("imageData", "")
+
+        if not image_data:
+            return jsonify({"ok": False, "error": "이미지 데이터가 없습니다."}), 400
+
+        # 이미 HTTP URL인 경우 그대로 반환
+        if image_data.startswith('http://') or image_data.startswith('https://') or image_data.startswith('/'):
+            return jsonify({"ok": True, "imageUrl": image_data})
+
+        # Base64 데이터 URL인 경우 디코딩하여 저장
+        if image_data.startswith('data:'):
+            try:
+                header, encoded = image_data.split(',', 1)
+                img_bytes = base64.b64decode(encoded)
+
+                # 이미지 형식 확인
+                if 'png' in header:
+                    ext = 'png'
+                elif 'jpeg' in header or 'jpg' in header:
+                    ext = 'jpg'
+                elif 'webp' in header:
+                    ext = 'webp'
+                else:
+                    ext = 'png'  # 기본값
+
+                # 저장 디렉토리 생성
+                static_image_dir = os.path.join(os.path.dirname(__file__), 'static', 'drama_images')
+                os.makedirs(static_image_dir, exist_ok=True)
+
+                # 고유한 파일명 생성
+                timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
+                image_filename = f"drama_{timestamp}.{ext}"
+                image_path = os.path.join(static_image_dir, image_filename)
+
+                # 이미지 저장
+                with open(image_path, 'wb') as f:
+                    f.write(img_bytes)
+
+                image_url = f"/static/drama_images/{image_filename}"
+                print(f"[DRAMA-UPLOAD] 이미지 업로드 완료: {image_filename} ({len(img_bytes) / 1024:.1f}KB)")
+
+                return jsonify({"ok": True, "imageUrl": image_url})
+
+            except Exception as e:
+                print(f"[DRAMA-UPLOAD][ERROR] Base64 디코딩 실패: {str(e)}")
+                return jsonify({"ok": False, "error": f"이미지 처리 실패: {str(e)}"}), 200
+
+        return jsonify({"ok": False, "error": "지원하지 않는 이미지 형식입니다."}), 400
+
+    except Exception as e:
+        print(f"[DRAMA-UPLOAD][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Step6: 영상 제작 API =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():

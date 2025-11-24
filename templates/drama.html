@@ -5028,6 +5028,32 @@ S#1. 장소 / 시간
   // Step6 가시성 체크 (주기적)
   setInterval(updateStep6Visibility, 2000);
 
+  // 이미지 업로드 함수 (base64 -> 서버 URL)
+  async function uploadImageToServer(imageData) {
+    // 이미 HTTP URL인 경우 그대로 반환
+    if (imageData.startsWith('http://') || imageData.startsWith('https://') || imageData.startsWith('/')) {
+      return imageData;
+    }
+
+    // Base64 이미지인 경우 서버에 업로드
+    const response = await fetch('/api/drama/upload-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageData: imageData })
+    });
+
+    if (!response.ok) {
+      throw new Error(`이미지 업로드 실패 (${response.status})`);
+    }
+
+    const data = await response.json();
+    if (!data.ok) {
+      throw new Error(data.error || '이미지 업로드 실패');
+    }
+
+    return data.imageUrl;
+  }
+
   // 영상 생성 함수
   async function generateVideo() {
     // 유효성 검사
@@ -5059,34 +5085,53 @@ S#1. 장소 / 시간
     }
 
     progressDiv.style.display = 'block';
-    progressBar.style.width = '10%';
-    progressText.textContent = '영상 준비 중...';
+    progressBar.style.width = '5%';
+    progressText.textContent = '이미지 업로드 준비 중...';
 
     showStatus('🎬 Step4: 영상 생성 중...');
 
     try {
-      // 진행 상황 시뮬레이션
-      let progress = 10;
+      // 1. Base64 이미지를 서버에 먼저 업로드 (요청 크기 줄이기)
+      const uploadedImageUrls = [];
+      const totalImages = step6SelectedImages.length;
+
+      for (let i = 0; i < totalImages; i++) {
+        progressBar.style.width = (5 + (i / totalImages) * 25) + '%';
+        progressText.textContent = `이미지 업로드 중... (${i + 1}/${totalImages})`;
+
+        try {
+          const uploadedUrl = await uploadImageToServer(step6SelectedImages[i]);
+          uploadedImageUrls.push(uploadedUrl);
+        } catch (uploadErr) {
+          console.error(`이미지 ${i + 1} 업로드 실패:`, uploadErr);
+          throw new Error(`이미지 ${i + 1} 업로드 실패: ${uploadErr.message}`);
+        }
+      }
+
+      console.log(`[VIDEO] ${uploadedImageUrls.length}개 이미지 업로드 완료`);
+
+      // 2. 진행 상황 업데이트
+      let progress = 30;
       const progressInterval = setInterval(() => {
         progress += 5;
         if (progress < 90) {
           progressBar.style.width = progress + '%';
-          if (progress < 30) progressText.textContent = '이미지 처리 중...';
-          else if (progress < 50) progressText.textContent = '오디오 처리 중...';
+          if (progress < 50) progressText.textContent = '오디오 처리 중...';
           else if (progress < 70) progressText.textContent = '영상 인코딩 중...';
           else progressText.textContent = '마무리 중...';
         }
       }, 500);
 
-      // 5분 타임아웃 설정 (영상 생성은 오래 걸릴 수 있음)
+      // 3. 5분 타임아웃 설정 (영상 생성은 오래 걸릴 수 있음)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 300000); // 5분
 
+      // 4. 업로드된 URL로 영상 생성 요청 (작은 요청 크기)
       const response = await fetch('/api/drama/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images: step6SelectedImages,
+          images: uploadedImageUrls,
           audioUrl: step5AudioUrl,
           subtitleData: includeSubtitle ? step5SubtitleData : null,
           burnSubtitle: burnSubtitle,
