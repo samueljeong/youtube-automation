@@ -3345,13 +3345,21 @@ S#1. 장소 / 시간
       const data = await response.json();
 
       if (data.ok) {
-        // 인물 이미지 저장
+        // 인물 이미지 저장 (메모리에만 - base64는 localStorage에 저장하지 않음)
         step4CharacterImages[step4Characters[idx].name] = {
           url: data.imageUrl,
           prompt: characterPrompt,
           createdAt: new Date().toISOString()
         };
-        localStorage.setItem('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
+
+        // base64가 아닌 외부 URL만 localStorage에 저장
+        if (!data.imageUrl.startsWith('data:')) {
+          try {
+            localStorage.setItem('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
+          } catch (e) {
+            console.warn('localStorage 저장 실패 (용량 초과):', e.message);
+          }
+        }
 
         // 인물 이미지 표시
         renderCharacterImages();
@@ -3612,7 +3620,15 @@ S#1. 장소 / 시간
             size: imageSize,
             createdAt: new Date().toISOString()
           });
-          localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
+
+          // base64가 아닌 외부 URL만 localStorage에 저장
+          if (!imageData.imageUrl.startsWith('data:')) {
+            try {
+              localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
+            } catch (e) {
+              console.warn('localStorage 저장 실패 (용량 초과):', e.message);
+            }
+          }
         }
 
         if (costInfo && imageData.cost) {
@@ -3661,6 +3677,8 @@ S#1. 장소 / 시간
     showLoadingOverlay();
 
     try {
+      console.log(`[DEBUG] 이미지 생성 요청 - Provider: ${step4ImageProvider}, Size: ${imageSize}`);
+
       const response = await fetch('/api/drama/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3671,7 +3689,17 @@ S#1. 장소 / 시간
         })
       });
 
+      console.log(`[DEBUG] 응답 상태: ${response.status} ${response.statusText}`);
+
+      // 응답이 OK가 아니면 텍스트로 읽어서 확인
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[DEBUG] 서버 오류 응답: ${errorText}`);
+        throw new Error(`서버 오류 (${response.status}): ${errorText.substring(0, 100)}`);
+      }
+
       const data = await response.json();
+      console.log(`[DEBUG] 응답 데이터:`, data);
 
       if (data.ok) {
         const placeholder = document.getElementById('step4-image-placeholder');
@@ -3699,7 +3727,15 @@ S#1. 장소 / 시간
             size: imageSize,
             createdAt: new Date().toISOString()
           });
-          localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
+
+          // base64가 아닌 외부 URL만 localStorage에 저장
+          if (!data.imageUrl.startsWith('data:')) {
+            try {
+              localStorage.setItem('_drama-step4-images', JSON.stringify(step4GeneratedImages.slice(0, 20)));
+            } catch (e) {
+              console.warn('localStorage 저장 실패 (용량 초과):', e.message);
+            }
+          }
         }
 
         if (costInfo && data.cost) {
@@ -3715,7 +3751,9 @@ S#1. 장소 / 시간
         showStatus('❌ 이미지 생성 실패');
       }
     } catch (err) {
-      alert(`네트워크 오류: ${err.message}`);
+      console.error(`[DEBUG] 이미지 생성 오류:`, err);
+      console.error(`[DEBUG] 현재 Provider: ${step4ImageProvider}`);
+      alert(`오류 (${step4ImageProvider}): ${err.message}`);
       showStatus('❌ 이미지 생성 오류');
     } finally {
       hideLoadingOverlay();

@@ -2249,6 +2249,9 @@ def api_generate_image():
         size = data.get("size", "1024x1024")
         image_provider = data.get("imageProvider", "gemini")  # gemini, flux, dalle
 
+        print(f"[DRAMA-STEP4-IMAGE] 요청 수신 - Provider: {image_provider}, Size: {size}")
+        print(f"[DRAMA-STEP4-IMAGE] 프롬프트 길이: {len(prompt)} 글자")
+
         if not prompt:
             return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
 
@@ -2538,6 +2541,8 @@ def api_generate_image():
 
         # DALL-E 3 (기존 코드)
         else:
+            print(f"[DRAMA-STEP4-IMAGE] DALL-E 3 분기 진입 (provider: {image_provider})")
+
             # 허용된 사이즈 검증
             allowed_sizes = ["1024x1024", "1792x1024", "1024x1792"]
             if size not in allowed_sizes:
