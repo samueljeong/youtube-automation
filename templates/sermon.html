@@ -3221,6 +3221,19 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const guideKey = getGuideKey(currentCategory, stepId);
     const guide = localStorage.getItem(guideKey) || '';
 
+    // 디버그: 지침 로딩 상태 출력
+    console.log(`[executeStep] 카테고리: ${currentCategory}, 스타일: ${currentStyleId}, 단계: ${stepId}`);
+    console.log(`[executeStep] guideKey: ${guideKey}`);
+    console.log(`[executeStep] guide 길이: ${guide.length}, JSON 여부: ${guide.trim().startsWith('{')}`);
+    if (guide.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(guide);
+        console.log(`[executeStep] JSON 파싱 성공 - style: ${parsed.style}, role: ${parsed.role}`);
+      } catch (e) {
+        console.log(`[executeStep] JSON 파싱 실패: ${e.message}`);
+      }
+    }
+
     // 총괄 지침 가져오기
     const settings = config.categorySettings[currentCategory];
     const masterGuide = settings ? settings.masterGuide : '';
