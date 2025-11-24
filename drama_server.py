@@ -2658,6 +2658,64 @@ def api_generate_tts():
 
             print(f"[DRAMA-STEP5-TTS] Google TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {char_count}자")
 
+            # 감정 표현 키워드 (이 표현이 포함된 문장은 더 천천히 읽음)
+            emotional_keywords = [
+                # 신체 반응
+                "눈물이", "눈시울", "손이 떨", "목이 메", "가슴이 먹먹",
+                "잠이 오지", "밥이 넘어가지", "숨이 막", "몸이 굳",
+                # 감정 상태
+                "마음이 무거", "희망이", "미안", "허무", "믿기지 않",
+                "슬", "아프", "고통", "절망", "두려", "무서",
+                "감사", "감격", "벅차", "뭉클", "찡",
+                # 강조 표현
+                "정말", "진심으로", "간절히", "애타게", "처절하게",
+                # 특수 상황
+                "마지막", "이별", "죽음", "떠나", "영원히"
+            ]
+
+            def apply_emotion_ssml(text_chunk, base_rate):
+                """감정 표현이 있는 문장에 SSML 속도 조절 적용"""
+                import re
+
+                # 문장 단위로 분할
+                sentences = re.split(r'([.!?。！？])', text_chunk)
+                merged = []
+                i = 0
+                while i < len(sentences):
+                    if i + 1 < len(sentences) and sentences[i+1] in '.!?。！？':
+                        merged.append(sentences[i] + sentences[i+1])
+                        i += 2
+                    else:
+                        if sentences[i].strip():
+                            merged.append(sentences[i])
+                        i += 1
+
+                result_parts = []
+                has_emotion = False
+
+                for sentence in merged:
+                    sentence = sentence.strip()
+                    if not sentence:
+                        continue
+
+                    # 감정 키워드 체크
+                    is_emotional = any(kw in sentence for kw in emotional_keywords)
+
+                    if is_emotional:
+                        has_emotion = True
+                        # 감정 문장: 기본 속도의 90% (더 천천히)
+                        emotion_rate = max(0.25, base_rate * 0.9)
+                        # 감정 문장 전에 짧은 휴지, 더 느린 속도로 읽기
+                        result_parts.append(f'<break time="300ms"/><prosody rate="{emotion_rate:.2f}">{sentence}</prosody><break time="200ms"/>')
+                    else:
+                        result_parts.append(sentence)
+
+                if has_emotion:
+                    ssml_text = f'<speak>{" ".join(result_parts)}</speak>'
+                    return ssml_text, True
+                else:
+                    return text_chunk, False
+
             # Google Cloud TTS는 최대 5000바이트 제한
             # 한글은 UTF-8에서 3바이트이므로 안전하게 4500바이트(약 1500자) 이하로 유지
             max_bytes = 4500
@@ -2739,19 +2797,38 @@ def api_generate_tts():
             # 피치 변환: 네이버(-5~5) -> Google(-20~20)
             google_pitch = pitch * 4 if isinstance(pitch, (int, float)) else 0
 
+            emotion_chunk_count = 0
             for chunk in text_chunks:
-                payload = {
-                    "input": {"text": chunk},
-                    "voice": {
-                        "languageCode": "ko-KR",
-                        "name": speaker
-                    },
-                    "audioConfig": {
-                        "audioEncoding": "MP3",
-                        "speakingRate": google_speed,
-                        "pitch": google_pitch
+                # 감정 표현 SSML 적용
+                processed_chunk, is_ssml = apply_emotion_ssml(chunk, google_speed)
+
+                if is_ssml:
+                    emotion_chunk_count += 1
+                    payload = {
+                        "input": {"ssml": processed_chunk},
+                        "voice": {
+                            "languageCode": "ko-KR",
+                            "name": speaker
+                        },
+                        "audioConfig": {
+                            "audioEncoding": "MP3",
+                            "speakingRate": google_speed,
+                            "pitch": google_pitch
+                        }
                     }
-                }
+                else:
+                    payload = {
+                        "input": {"text": chunk},
+                        "voice": {
+                            "languageCode": "ko-KR",
+                            "name": speaker
+                        },
+                        "audioConfig": {
+                            "audioEncoding": "MP3",
+                            "speakingRate": google_speed,
+                            "pitch": google_pitch
+                        }
+                    }
 
                 response = requests.post(url, json=payload)
 
@@ -2780,14 +2857,16 @@ def api_generate_tts():
             cost_per_char = 0.0054 if "Wavenet" in speaker else 0.0216
             cost_krw = int(char_count * cost_per_char)
 
-            print(f"[DRAMA-STEP5-TTS] Google TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}")
+            print(f"[DRAMA-STEP5-TTS] Google TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}, 감정 SSML 적용: {emotion_chunk_count}/{len(text_chunks)}청크")
 
             return jsonify({
                 "ok": True,
                 "audioUrl": audio_url,
                 "charCount": char_count,
                 "cost": cost_krw,
-                "provider": "google"
+                "provider": "google",
+                "emotionChunks": emotion_chunk_count,
+                "totalChunks": len(text_chunks)
             })
 
         # 네이버 클로바 TTS (기존 코드)
