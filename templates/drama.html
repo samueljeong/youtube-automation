@@ -1121,8 +1121,20 @@
       <!-- 주인공 선택 -->
       <div class="box" style="padding: .5rem .75rem;">
         <label class="label" style="font-size: .8rem; margin-bottom: .3rem; display: block;">주인공 (선택사항)</label>
+        <!-- 성별 선택 -->
+        <div style="display: flex; gap: 1rem; margin-bottom: .4rem;">
+          <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer; font-size: .85rem;">
+            <input type="radio" name="protagonist-gender" id="gender-male" value="male" style="cursor: pointer;">
+            <span>👨 남성</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: .3rem; cursor: pointer; font-size: .85rem;">
+            <input type="radio" name="protagonist-gender" id="gender-female" value="female" style="cursor: pointer;">
+            <span>👩 여성</span>
+          </label>
+          <span style="font-size: .7rem; color: #999; align-self: center;">(TTS 나레이션 목소리 자동 설정)</span>
+        </div>
         <div style="display: flex; gap: .4rem; align-items: center;">
-          <input type="text" id="main-character" placeholder="예: 30대 남성 목사, 청년 대학생 등" style="flex: 1; font-size: .85rem; padding: .3rem .4rem;">
+          <input type="text" id="main-character" placeholder="예: 60대 은퇴 목사, 70대 할머니 등" style="flex: 1; font-size: .85rem; padding: .3rem .4rem;">
           <button id="btn-random-character" style="padding: .3rem .6rem; font-size: .75rem; background: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">🎲 랜덤</button>
         </div>
         <div style="font-size: .7rem; color: #666; margin-top: .3rem;">
@@ -3005,7 +3017,7 @@ S#1. 장소 / 시간
     if (scriptContent) {
       const ttsTextarea = document.getElementById('step5-script-text');
       if (ttsTextarea && !ttsTextarea.value.trim()) {
-        // 지문만 추출 (괄호 안의 내용 또는 나레이션)
+        // JSON에서 나레이션만 추출
         const narrationText = extractNarrationFromScript(scriptContent);
         if (narrationText) {
           ttsTextarea.value = narrationText;
@@ -3013,12 +3025,100 @@ S#1. 장소 / 시간
       }
     }
 
+    // 🎤 성별에 따른 TTS 음성 자동 선택
+    autoSelectVoiceByGender();
+
     // 안내 토스트 표시
     showNextStepGuide();
   }
 
-  // 대본에서 지문(나레이션) 추출
+  // 🎤 성별에 따른 TTS 음성 자동 선택
+  function autoSelectVoiceByGender() {
+    const maleRadio = document.getElementById('gender-male');
+    const femaleRadio = document.getElementById('gender-female');
+
+    let targetVoice = null;
+
+    if (femaleRadio && femaleRadio.checked) {
+      // 여성 → 여성B (ko-KR-Wavenet-B)
+      targetVoice = 'ko-KR-Wavenet-B';
+      console.log('[TTS] 여성 주인공 → 여성B 음성 자동 선택');
+    } else if (maleRadio && maleRadio.checked) {
+      // 남성 → 남성A (ko-KR-Wavenet-C)
+      targetVoice = 'ko-KR-Wavenet-C';
+      console.log('[TTS] 남성 주인공 → 남성A 음성 자동 선택');
+    }
+
+    if (targetVoice) {
+      // Google TTS 프로바이더로 설정
+      step5TtsProvider = 'google';
+      step5SelectedVoice = targetVoice;
+
+      // UI 업데이트
+      const googleContainer = document.getElementById('step5-voice-google');
+      const naverContainer = document.getElementById('step5-voice-naver');
+      if (googleContainer) googleContainer.style.display = 'grid';
+      if (naverContainer) naverContainer.style.display = 'none';
+
+      // 음성 옵션 선택 표시
+      document.querySelectorAll('#step5-voice-google .step5-voice-option').forEach(opt => {
+        opt.classList.remove('selected');
+        if (opt.dataset.voice === targetVoice) {
+          opt.classList.add('selected');
+        }
+      });
+
+      // 라벨 업데이트
+      const voiceLabel = document.getElementById('step5-voice-label');
+      if (voiceLabel) {
+        const genderText = targetVoice === 'ko-KR-Wavenet-B' ? '여성B' : '남성A';
+        voiceLabel.innerHTML = `🎤 음성 선택 (Google Cloud) <span style="font-size: .75rem; font-weight: normal; color: rgba(255,255,255,0.7);">- ${genderText} 자동 선택됨</span>`;
+      }
+
+      showStatus(`🎤 주인공 성별에 따라 ${targetVoice === 'ko-KR-Wavenet-B' ? '여성B' : '남성A'} 음성이 자동 선택되었습니다.`);
+      setTimeout(hideStatus, 3000);
+    }
+  }
+
+  // 대본에서 지문(나레이션) 추출 - JSON 파싱 지원
   function extractNarrationFromScript(script) {
+    // 1. JSON 형태인지 확인하고 파싱 시도
+    try {
+      // ```json ... ``` 블록 추출
+      let jsonStr = script;
+      const jsonMatch = script.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
+
+      // JSON 파싱
+      const data = JSON.parse(jsonStr);
+
+      // scenes 배열에서 narration 추출
+      if (data.scenes && Array.isArray(data.scenes)) {
+        const narrations = [];
+        data.scenes.forEach((scene, idx) => {
+          if (scene.narration) {
+            narrations.push(scene.narration);
+          }
+          // scene_narration 필드도 확인
+          if (scene.scene_narration) {
+            narrations.push(scene.scene_narration);
+          }
+        });
+
+        if (narrations.length > 0) {
+          console.log('[extractNarration] JSON에서 나레이션 추출 성공:', narrations.length + '개');
+          return narrations.join('\n\n');
+        }
+      }
+
+      console.log('[extractNarration] JSON 파싱 성공했으나 narration 필드 없음, 기존 방식으로 처리');
+    } catch (e) {
+      console.log('[extractNarration] JSON 파싱 실패, 기존 텍스트 방식으로 처리');
+    }
+
+    // 2. 기존 텍스트 기반 추출 방식 (fallback)
     const lines = script.split('\n');
     const narrations = [];
 
@@ -4472,7 +4572,7 @@ S#1. 장소 / 시간
     });
   });
 
-  // 지문만 추출 함수 (대사 제외)
+  // 지문만 추출 함수 (대사 제외) - JSON 파싱 지원
   function extractNarration() {
     const step3Result = document.getElementById('step3-result')?.value || '';
     if (!step3Result.trim()) {
@@ -4480,7 +4580,41 @@ S#1. 장소 / 시간
       return;
     }
 
-    // 대사 패턴 제거 (이름: 대사 형식)
+    // 1. JSON 형태인지 확인하고 파싱 시도
+    try {
+      let jsonStr = step3Result;
+      const jsonMatch = step3Result.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[1];
+      }
+
+      const data = JSON.parse(jsonStr);
+
+      // scenes 배열에서 narration 추출
+      if (data.scenes && Array.isArray(data.scenes)) {
+        const narrations = [];
+        data.scenes.forEach((scene) => {
+          if (scene.narration) {
+            narrations.push(scene.narration);
+          }
+          if (scene.scene_narration) {
+            narrations.push(scene.scene_narration);
+          }
+        });
+
+        if (narrations.length > 0) {
+          document.getElementById('step5-script-text').value = narrations.join('\n\n');
+          showStatus(`📝 JSON에서 ${narrations.length}개의 나레이션이 추출되었습니다.`);
+          setTimeout(hideStatus, 2000);
+          console.log('[extractNarration] JSON에서 나레이션 추출 성공');
+          return;
+        }
+      }
+    } catch (e) {
+      console.log('[extractNarration] JSON 파싱 실패, 기존 방식으로 처리');
+    }
+
+    // 2. 기존 텍스트 기반 추출 방식 (fallback)
     let narration = step3Result;
 
     // "인물명: 대사" 패턴 제거
@@ -4555,9 +4689,12 @@ S#1. 장소 / 시간
           costInfo.style.display = 'block';
         }
 
-        showStatus('✅ TTS 음성 생성 완료!');
+        showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');
         updateProgressIndicator('step5');
         updateStep6Visibility();
+
+        // 🎬 TTS 완료 후 SRT 자막 자동 생성
+        await generateSubtitleAuto();
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ TTS 생성 실패');
@@ -4573,6 +4710,52 @@ S#1. 장소 / 시간
         btnGenerateTTS.classList.remove('generating');
         btnGenerateTTS.textContent = '음성 생성 (TTS)';
       }
+    }
+  }
+
+  // 🎬 SRT 자막 자동 생성 (TTS 완료 후 호출)
+  async function generateSubtitleAuto() {
+    const scriptText = document.getElementById('step5-script-text')?.value || '';
+    if (!scriptText.trim()) return;
+
+    try {
+      const response = await fetch('/api/drama/generate-subtitle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: scriptText,
+          speed: parseInt(document.getElementById('step5-speed')?.value || 0)
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 자막 미리보기 표시
+        const subtitleSection = document.getElementById('step5-subtitle-section');
+        const subtitlePreview = document.getElementById('step5-subtitle-preview');
+
+        if (subtitlePreview && data.srt) {
+          step5SubtitleData = data;
+          subtitlePreview.textContent = data.srt;
+          subtitleSection.style.display = 'block';
+        }
+
+        // 자막 정보 표시
+        const subtitleInfo = document.getElementById('step5-subtitle-info');
+        if (subtitleInfo && data.sentenceCount) {
+          document.getElementById('step5-sentence-count').textContent = data.sentenceCount;
+          document.getElementById('step5-total-duration').textContent = formatDuration(data.totalDuration);
+          subtitleInfo.style.display = 'block';
+        }
+
+        showStatus('✅ TTS + SRT 자막 생성 완료!');
+        console.log('[TTS+SRT] 자동 생성 완료');
+      }
+    } catch (err) {
+      console.error('[SRT 자동생성 오류]', err);
+      // SRT 실패해도 TTS는 성공했으므로 경고만 표시
+      showStatus('⚠️ TTS 완료, SRT 자막 생성 실패');
     }
   }
 
