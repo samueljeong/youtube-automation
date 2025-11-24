@@ -3025,26 +3025,58 @@ S#1. 장소 / 시간
       }
     }
 
-    // 🎤 성별에 따른 TTS 음성 자동 선택
-    autoSelectVoiceByGender();
+    // 🎤 성별에 따른 TTS 음성 자동 선택 (대본에서 주인공 성별 자동 감지)
+    autoSelectVoiceByGender(scriptContent);
 
     // 안내 토스트 표시
     showNextStepGuide();
   }
 
-  // 🎤 성별에 따른 TTS 음성 자동 선택
-  function autoSelectVoiceByGender() {
-    const maleRadio = document.getElementById('gender-male');
-    const femaleRadio = document.getElementById('gender-female');
-
+  // 🎤 성별에 따른 TTS 음성 자동 선택 (대본 JSON에서 자동 감지 포함)
+  function autoSelectVoiceByGender(scriptContent = null) {
     let targetVoice = null;
+    let detectedGender = null;
 
-    if (femaleRadio && femaleRadio.checked) {
-      // 여성 → 여성B (ko-KR-Wavenet-B)
+    // 1. 대본 JSON에서 주인공 성별 자동 감지 시도
+    if (scriptContent) {
+      try {
+        let jsonStr = scriptContent;
+        const jsonMatch = scriptContent.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[1];
+        }
+        const data = JSON.parse(jsonStr);
+
+        // characters 배열에서 주인공(role이 '주인공') 찾기
+        const characters = data.characters || [];
+        const protagonist = characters.find(c => c.role === '주인공' || c.role?.includes('주인공'));
+
+        if (protagonist && protagonist.gender) {
+          detectedGender = protagonist.gender;
+          console.log('[TTS] 대본에서 주인공 성별 감지:', detectedGender);
+        }
+      } catch (e) {
+        console.log('[TTS] 대본 파싱 실패, 라디오 버튼 확인');
+      }
+    }
+
+    // 2. 대본에서 감지 못했으면 라디오 버튼 확인
+    if (!detectedGender) {
+      const maleRadio = document.getElementById('gender-male');
+      const femaleRadio = document.getElementById('gender-female');
+
+      if (femaleRadio && femaleRadio.checked) {
+        detectedGender = '여성';
+      } else if (maleRadio && maleRadio.checked) {
+        detectedGender = '남성';
+      }
+    }
+
+    // 3. 성별에 따라 목소리 선택
+    if (detectedGender && (detectedGender.includes('여') || detectedGender.toLowerCase().includes('female'))) {
       targetVoice = 'ko-KR-Wavenet-B';
       console.log('[TTS] 여성 주인공 → 여성B 음성 자동 선택');
-    } else if (maleRadio && maleRadio.checked) {
-      // 남성 → 남성A (ko-KR-Wavenet-C)
+    } else if (detectedGender && (detectedGender.includes('남') || detectedGender.toLowerCase().includes('male'))) {
       targetVoice = 'ko-KR-Wavenet-C';
       console.log('[TTS] 남성 주인공 → 남성A 음성 자동 선택');
     }
@@ -3072,15 +3104,15 @@ S#1. 장소 / 시간
       const voiceLabel = document.getElementById('step5-voice-label');
       if (voiceLabel) {
         const genderText = targetVoice === 'ko-KR-Wavenet-B' ? '여성B' : '남성A';
-        voiceLabel.innerHTML = `🎤 음성 선택 (Google Cloud) <span style="font-size: .75rem; font-weight: normal; color: rgba(255,255,255,0.7);">- ${genderText} 자동 선택됨</span>`;
+        voiceLabel.innerHTML = `🎤 음성 선택 (Google Cloud) <span style="font-size: .75rem; font-weight: normal; color: rgba(255,255,255,0.7);">- ${genderText} 자동 선택됨 (${detectedGender} 주인공)</span>`;
       }
 
-      showStatus(`🎤 주인공 성별에 따라 ${targetVoice === 'ko-KR-Wavenet-B' ? '여성B' : '남성A'} 음성이 자동 선택되었습니다.`);
+      showStatus(`🎤 ${detectedGender} 주인공 감지 → ${targetVoice === 'ko-KR-Wavenet-B' ? '여성B' : '남성A'} 음성 자동 선택`);
       setTimeout(hideStatus, 3000);
     }
   }
 
-  // 대본에서 지문(나레이션) 추출 - JSON 파싱 지원
+  // 대본에서 지문(나레이션) 추출 - JSON 파싱 지원 (개선 버전)
   function extractNarrationFromScript(script) {
     // 1. JSON 형태인지 확인하고 파싱 시도
     try {
@@ -3093,15 +3125,22 @@ S#1. 장소 / 시간
 
       // JSON 파싱
       const data = JSON.parse(jsonStr);
+      const narrations = [];
 
-      // scenes 배열에서 narration 추출
-      if (data.scenes && Array.isArray(data.scenes)) {
-        const narrations = [];
-        data.scenes.forEach((scene, idx) => {
+      // 다양한 JSON 구조 지원
+      // 1) data.script.scenes 구조 (가장 일반적)
+      let scenes = null;
+      if (data.script && data.script.scenes && Array.isArray(data.script.scenes)) {
+        scenes = data.script.scenes;
+      } else if (data.scenes && Array.isArray(data.scenes)) {
+        scenes = data.scenes;
+      }
+
+      if (scenes && scenes.length > 0) {
+        scenes.forEach((scene, idx) => {
           if (scene.narration) {
             narrations.push(scene.narration);
           }
-          // scene_narration 필드도 확인
           if (scene.scene_narration) {
             narrations.push(scene.scene_narration);
           }
@@ -3113,9 +3152,19 @@ S#1. 장소 / 시간
         }
       }
 
+      // 2) highlight 씬의 나레이션도 추출 (선택적)
+      if (data.highlight && data.highlight.scenes) {
+        data.highlight.scenes.forEach(scene => {
+          if (scene.narration) {
+            // 하이라이트는 중복될 수 있으므로 별도로 처리하지 않음
+          }
+        });
+      }
+
       console.log('[extractNarration] JSON 파싱 성공했으나 narration 필드 없음, 기존 방식으로 처리');
+      console.log('[extractNarration] JSON 구조:', Object.keys(data));
     } catch (e) {
-      console.log('[extractNarration] JSON 파싱 실패, 기존 텍스트 방식으로 처리');
+      console.log('[extractNarration] JSON 파싱 실패, 기존 텍스트 방식으로 처리:', e.message);
     }
 
     // 2. 기존 텍스트 기반 추출 방식 (fallback)
@@ -3137,6 +3186,11 @@ S#1. 장소 / 시간
       else if (trimmed.startsWith('지문:') || trimmed.startsWith('나레이션:')) {
         narrations.push(trimmed.replace(/^(지문|나레이션):?\s*/, ''));
       }
+    }
+
+    // 3. 아무것도 추출되지 않았으면 경고
+    if (narrations.length === 0) {
+      console.warn('[extractNarration] 나레이션을 추출할 수 없습니다. JSON 구조를 확인해주세요.');
     }
 
     return narrations.join('\n\n');
@@ -3396,7 +3450,14 @@ S#1. 장소 / 시간
         data.characters.forEach(char => {
           html += `<div style="margin-bottom: .75rem; padding: .5rem; background: rgba(255,255,255,0.7); border-radius: 6px;">`;
           html += `<strong style="color: #92400e;">${char.name || char.id}</strong>`;
-          if (char.role) html += ` <span style="color: #78716c; font-size: .85rem;">(${char.role})</span>`;
+          // 성별, 나이, 역할 표시
+          const charInfo = [];
+          if (char.gender) charInfo.push(char.gender);
+          if (char.age) charInfo.push(char.age);
+          if (char.role) charInfo.push(char.role);
+          if (charInfo.length > 0) html += ` <span style="color: #78716c; font-size: .85rem;">(${charInfo.join(', ')})</span>`;
+          // 직업 표시
+          if (char.occupation) html += `<div style="font-size: .85rem; color: #78716c; margin-top: .25rem;">직업: ${char.occupation}</div>`;
           if (char.appearance) {
             const app = char.appearance;
             const details = [app.height, app.body_type, app.face, app.hair, app.skin].filter(Boolean).join(', ');
@@ -4572,7 +4633,7 @@ S#1. 장소 / 시간
     });
   });
 
-  // 지문만 추출 함수 (대사 제외) - JSON 파싱 지원
+  // 지문만 추출 함수 (대사 제외) - JSON 파싱 지원 (개선 버전)
   function extractNarration() {
     const step3Result = document.getElementById('step3-result')?.value || '';
     if (!step3Result.trim()) {
@@ -4589,11 +4650,20 @@ S#1. 장소 / 시간
       }
 
       const data = JSON.parse(jsonStr);
+      const narrations = [];
 
-      // scenes 배열에서 narration 추출
-      if (data.scenes && Array.isArray(data.scenes)) {
-        const narrations = [];
-        data.scenes.forEach((scene) => {
+      // 다양한 JSON 구조 지원
+      let scenes = null;
+      if (data.script && data.script.scenes && Array.isArray(data.script.scenes)) {
+        scenes = data.script.scenes;
+        console.log('[extractNarration] data.script.scenes 구조 사용');
+      } else if (data.scenes && Array.isArray(data.scenes)) {
+        scenes = data.scenes;
+        console.log('[extractNarration] data.scenes 구조 사용');
+      }
+
+      if (scenes && scenes.length > 0) {
+        scenes.forEach((scene) => {
           if (scene.narration) {
             narrations.push(scene.narration);
           }
@@ -4606,12 +4676,14 @@ S#1. 장소 / 시간
           document.getElementById('step5-script-text').value = narrations.join('\n\n');
           showStatus(`📝 JSON에서 ${narrations.length}개의 나레이션이 추출되었습니다.`);
           setTimeout(hideStatus, 2000);
-          console.log('[extractNarration] JSON에서 나레이션 추출 성공');
+          console.log('[extractNarration] JSON에서 나레이션 추출 성공:', narrations.length + '개');
           return;
         }
       }
+
+      console.log('[extractNarration] JSON 파싱 성공했으나 narration 없음, 구조:', Object.keys(data));
     } catch (e) {
-      console.log('[extractNarration] JSON 파싱 실패, 기존 방식으로 처리');
+      console.log('[extractNarration] JSON 파싱 실패, 기존 방식으로 처리:', e.message);
     }
 
     // 2. 기존 텍스트 기반 추출 방식 (fallback)
@@ -4627,7 +4699,7 @@ S#1. 장소 / 시간
     narration = narration.replace(/\n{3,}/g, '\n\n').trim();
 
     document.getElementById('step5-script-text').value = narration;
-    showStatus('📝 지문이 추출되었습니다.');
+    showStatus('📝 지문이 추출되었습니다. (텍스트 기반)');
     setTimeout(hideStatus, 2000);
   }
 
