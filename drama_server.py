@@ -2,10 +2,76 @@ import os
 import re
 import json
 import sqlite3
+import threading
+import queue
+import uuid
+from datetime import datetime as dt
 from flask import Flask, render_template, request, jsonify, send_file
 from openai import OpenAI
 
 app = Flask(__name__)
+
+# ===== 비동기 영상 생성 작업 큐 시스템 =====
+video_job_queue = queue.Queue()
+video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
+video_jobs_lock = threading.Lock()
+
+def video_worker():
+    """백그라운드 워커: 영상 생성 작업 처리"""
+    while True:
+        try:
+            job = video_job_queue.get()
+            if job is None:  # 종료 신호
+                break
+
+            job_id = job['job_id']
+            print(f"[VIDEO-WORKER] 작업 시작: {job_id}")
+
+            # 상태 업데이트: processing
+            with video_jobs_lock:
+                if job_id in video_jobs:
+                    video_jobs[job_id]['status'] = 'processing'
+                    video_jobs[job_id]['progress'] = 0
+
+            try:
+                # 실제 영상 생성 로직 실행
+                result = _generate_video_sync(
+                    images=job['images'],
+                    audio_url=job['audio_url'],
+                    subtitle_data=job['subtitle_data'],
+                    burn_subtitle=job['burn_subtitle'],
+                    resolution=job['resolution'],
+                    fps=job['fps'],
+                    transition=job['transition'],
+                    job_id=job_id
+                )
+
+                # 성공
+                with video_jobs_lock:
+                    if job_id in video_jobs:
+                        video_jobs[job_id]['status'] = 'completed'
+                        video_jobs[job_id]['progress'] = 100
+                        video_jobs[job_id]['result'] = result
+                        video_jobs[job_id]['completed_at'] = dt.now().isoformat()
+
+                print(f"[VIDEO-WORKER] 작업 완료: {job_id}")
+
+            except Exception as e:
+                # 실패
+                print(f"[VIDEO-WORKER] 작업 실패: {job_id} - {str(e)}")
+                with video_jobs_lock:
+                    if job_id in video_jobs:
+                        video_jobs[job_id]['status'] = 'failed'
+                        video_jobs[job_id]['error'] = str(e)
+
+            video_job_queue.task_done()
+
+        except Exception as e:
+            print(f"[VIDEO-WORKER] 워커 오류: {str(e)}")
+
+# 워커 스레드 시작
+video_worker_thread = threading.Thread(target=video_worker, daemon=True)
+video_worker_thread.start()
 
 # ===== JSON 지침 파일 로드 =====
 GUIDES_DIR = os.path.join(os.path.dirname(__file__), 'guides')
@@ -3187,17 +3253,216 @@ def api_upload_image():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
-# ===== Step6: 영상 제작 API =====
+# ===== Step6: 영상 제작 (동기 함수) =====
+def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolution, fps, transition, job_id=None):
+    """
+    실제 영상 생성 로직 (동기)
+    백그라운드 워커에서 호출됨
+    """
+    import requests
+    import base64
+    import tempfile
+    import subprocess
+    import shutil
+
+    print(f"[DRAMA-STEP6-VIDEO] 영상 생성 시작 - 이미지: {len(images)}개, 해상도: {resolution}, job_id: {job_id}")
+
+    # 진행률 업데이트 함수
+    def update_progress(progress, message=""):
+        if job_id:
+            with video_jobs_lock:
+                if job_id in video_jobs:
+                    video_jobs[job_id]['progress'] = progress
+                    if message:
+                        video_jobs[job_id]['message'] = message
+
+    update_progress(5, "FFmpeg 확인 중...")
+
+    # FFmpeg 설치 확인
+    ffmpeg_path = shutil.which('ffmpeg')
+    if not ffmpeg_path:
+        raise Exception("FFmpeg가 설치되어 있지 않습니다. 서버에 FFmpeg를 설치해주세요.")
+
+    # 임시 디렉토리 생성
+    with tempfile.TemporaryDirectory() as temp_dir:
+        update_progress(10, "이미지 다운로드 중...")
+        # 1. 이미지 다운로드
+        image_paths = []
+        for idx, img_url in enumerate(images):
+            img_path = os.path.join(temp_dir, f"image_{idx:03d}.png")
+
+            if img_url.startswith('data:'):
+                # Base64 데이터 URL
+                header, encoded = img_url.split(',', 1)
+                img_data = base64.b64decode(encoded)
+                with open(img_path, 'wb') as f:
+                    f.write(img_data)
+            elif img_url.startswith('/static/'):
+                # 로컬 static 파일 경로
+                local_path = os.path.join(os.path.dirname(__file__), img_url.lstrip('/'))
+                if os.path.exists(local_path):
+                    shutil.copy2(local_path, img_path)
+                else:
+                    print(f"[DRAMA-STEP6-VIDEO] 로컬 이미지 파일 없음: {local_path}")
+                    continue
+            else:
+                # HTTP URL
+                response = requests.get(img_url, timeout=30)
+                if response.status_code == 200:
+                    with open(img_path, 'wb') as f:
+                        f.write(response.content)
+                else:
+                    print(f"[DRAMA-STEP6-VIDEO] 이미지 다운로드 실패: {img_url}")
+                    continue
+
+            image_paths.append(img_path)
+
+        if not image_paths:
+            raise Exception("이미지를 다운로드할 수 없습니다.")
+
+        update_progress(30, "오디오 처리 중...")
+
+        # 2. 오디오 저장
+        audio_path = os.path.join(temp_dir, "audio.mp3")
+        if audio_url.startswith('data:'):
+            header, encoded = audio_url.split(',', 1)
+            audio_data = base64.b64decode(encoded)
+            with open(audio_path, 'wb') as f:
+                f.write(audio_data)
+        elif audio_url.startswith('/static/'):
+            # 로컬 static 파일 경로
+            local_audio_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
+            if os.path.exists(local_audio_path):
+                shutil.copy2(local_audio_path, audio_path)
+            else:
+                raise Exception(f"오디오 파일을 찾을 수 없습니다: {audio_url}")
+        else:
+            response = requests.get(audio_url, timeout=30)
+            if response.status_code == 200:
+                with open(audio_path, 'wb') as f:
+                    f.write(response.content)
+            else:
+                raise Exception("오디오를 다운로드할 수 없습니다.")
+
+        update_progress(40, "영상 인코딩 준비 중...")
+
+        # 3. 오디오 길이 확인
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+        ]
+        result = subprocess.run(probe_cmd, capture_output=True, text=True)
+        audio_duration = float(result.stdout.strip()) if result.stdout.strip() else 60.0
+
+        # 4. 이미지당 표시 시간 계산
+        image_duration = audio_duration / len(image_paths)
+
+        # 5. 이미지 리스트 파일 생성 (FFmpeg용)
+        list_path = os.path.join(temp_dir, "images.txt")
+        with open(list_path, 'w') as f:
+            for img_path in image_paths:
+                f.write(f"file '{img_path}'\n")
+                f.write(f"duration {image_duration}\n")
+            # 마지막 이미지 한번 더 (FFmpeg concat demuxer 요구사항)
+            f.write(f"file '{image_paths[-1]}'\n")
+
+        # 6. 해상도 파싱
+        width, height = resolution.split('x')
+
+        # 7. FFmpeg로 영상 생성
+        output_path = os.path.join(temp_dir, "output.mp4")
+
+        # 기본 FFmpeg 명령어
+        ffmpeg_cmd = [
+            'ffmpeg', '-y',
+            '-f', 'concat', '-safe', '0', '-i', list_path,
+            '-i', audio_path,
+            '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-r', str(fps),
+            '-shortest',
+            '-pix_fmt', 'yuv420p',
+            output_path
+        ]
+
+        # 자막 하드코딩 옵션
+        if burn_subtitle and subtitle_data and subtitle_data.get('srt'):
+            srt_path = os.path.join(temp_dir, "subtitle.srt")
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                f.write(subtitle_data['srt'])
+
+            # 자막 필터 추가
+            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'"
+            ffmpeg_cmd = [
+                'ffmpeg', '-y',
+                '-f', 'concat', '-safe', '0', '-i', list_path,
+                '-i', audio_path,
+                '-vf', vf_filter,
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-c:a', 'aac', '-b:a', '128k',
+                '-r', str(fps),
+                '-shortest',
+                '-pix_fmt', 'yuv420p',
+                output_path
+            ]
+
+        print(f"[DRAMA-STEP6-VIDEO] FFmpeg 명령어 실행: {' '.join(ffmpeg_cmd[:5])}...")
+        update_progress(50, "영상 인코딩 중...")
+
+        # FFmpeg 실행
+        process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
+
+        if process.returncode != 0:
+            print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 오류: {process.stderr}")
+            raise Exception(f"영상 인코딩 실패: {process.stderr[:200]}")
+
+        update_progress(80, "영상 저장 중...")
+
+        # 8. 생성된 영상을 static 폴더에 저장
+        static_video_dir = os.path.join(os.path.dirname(__file__), 'static', 'videos')
+        os.makedirs(static_video_dir, exist_ok=True)
+
+        # 고유한 파일명 생성
+        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+        video_filename = f"drama_{timestamp}.mp4"
+        final_video_path = os.path.join(static_video_dir, video_filename)
+
+        # 영상 파일 복사
+        shutil.copy2(output_path, final_video_path)
+
+        # 파일 크기 확인
+        file_size = os.path.getsize(final_video_path)
+        file_size_mb = file_size / (1024 * 1024)
+
+        # 파일 크기가 50MB 이하면 Base64로도 제공 (기존 호환성)
+        video_url = f"/static/videos/{video_filename}"
+        if file_size_mb <= 50:
+            with open(final_video_path, 'rb') as f:
+                video_data = f.read()
+            video_base64 = base64.b64encode(video_data).decode('utf-8')
+            video_url_base64 = f"data:video/mp4;base64,{video_base64}"
+        else:
+            video_url_base64 = None
+
+        print(f"[DRAMA-STEP6-VIDEO] 영상 생성 완료 - 크기: {file_size_mb:.2f}MB, 길이: {audio_duration:.1f}초, 파일: {video_filename}")
+
+        # 결과를 dict로 반환 (jsonify 대신)
+        return {
+            "ok": True,
+            "videoUrl": video_url_base64 if video_url_base64 else video_url,
+            "videoFileUrl": video_url,
+            "duration": audio_duration,
+            "fileSize": file_size,
+            "fileSizeMB": round(file_size_mb, 2)
+        }
+
+
+# ===== Step6: 영상 제작 API (비동기) =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():
-    """이미지와 오디오를 합쳐서 영상 생성"""
+    """이미지와 오디오를 합쳐서 영상 생성 (비동기)"""
     try:
-        import requests
-        import base64
-        import tempfile
-        import subprocess
-        import shutil
-
         data = request.get_json()
         if not data:
             return jsonify({"ok": False, "error": "No data received"}), 400
@@ -3216,182 +3481,69 @@ def api_generate_video():
         if not audio_url:
             return jsonify({"ok": False, "error": "오디오가 없습니다."}), 400
 
-        print(f"[DRAMA-STEP6-VIDEO] 영상 생성 시작 - 이미지: {len(images)}개, 해상도: {resolution}")
+        # Job ID 생성
+        job_id = str(uuid.uuid4())
 
-        # FFmpeg 설치 확인
-        ffmpeg_path = shutil.which('ffmpeg')
-        if not ffmpeg_path:
-            return jsonify({"ok": False, "error": "FFmpeg가 설치되어 있지 않습니다. 서버에 FFmpeg를 설치해주세요."}), 200
+        # Job 상태 초기화
+        with video_jobs_lock:
+            video_jobs[job_id] = {
+                'status': 'pending',
+                'progress': 0,
+                'message': '작업 대기 중...',
+                'result': None,
+                'error': None,
+                'created_at': dt.now().isoformat()
+            }
 
-        # 임시 디렉토리 생성
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # 1. 이미지 다운로드
-            image_paths = []
-            for idx, img_url in enumerate(images):
-                img_path = os.path.join(temp_dir, f"image_{idx:03d}.png")
+        # 작업을 큐에 추가
+        video_job_queue.put({
+            'job_id': job_id,
+            'images': images,
+            'audio_url': audio_url,
+            'subtitle_data': subtitle_data,
+            'burn_subtitle': burn_subtitle,
+            'resolution': resolution,
+            'fps': fps,
+            'transition': transition
+        })
 
-                if img_url.startswith('data:'):
-                    # Base64 데이터 URL
-                    header, encoded = img_url.split(',', 1)
-                    img_data = base64.b64decode(encoded)
-                    with open(img_path, 'wb') as f:
-                        f.write(img_data)
-                elif img_url.startswith('/static/'):
-                    # 로컬 static 파일 경로
-                    local_path = os.path.join(os.path.dirname(__file__), img_url.lstrip('/'))
-                    if os.path.exists(local_path):
-                        shutil.copy2(local_path, img_path)
-                    else:
-                        print(f"[DRAMA-STEP6-VIDEO] 로컬 이미지 파일 없음: {local_path}")
-                        continue
-                else:
-                    # HTTP URL
-                    response = requests.get(img_url, timeout=30)
-                    if response.status_code == 200:
-                        with open(img_path, 'wb') as f:
-                            f.write(response.content)
-                    else:
-                        print(f"[DRAMA-STEP6-VIDEO] 이미지 다운로드 실패: {img_url}")
-                        continue
+        print(f"[DRAMA-STEP6-VIDEO] 작업 큐에 추가됨: {job_id}")
 
-                image_paths.append(img_path)
-
-            if not image_paths:
-                return jsonify({"ok": False, "error": "이미지를 다운로드할 수 없습니다."}), 200
-
-            # 2. 오디오 저장
-            audio_path = os.path.join(temp_dir, "audio.mp3")
-            if audio_url.startswith('data:'):
-                header, encoded = audio_url.split(',', 1)
-                audio_data = base64.b64decode(encoded)
-                with open(audio_path, 'wb') as f:
-                    f.write(audio_data)
-            elif audio_url.startswith('/static/'):
-                # 로컬 static 파일 경로
-                local_audio_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
-                if os.path.exists(local_audio_path):
-                    shutil.copy2(local_audio_path, audio_path)
-                else:
-                    return jsonify({"ok": False, "error": f"오디오 파일을 찾을 수 없습니다: {audio_url}"}), 200
-            else:
-                response = requests.get(audio_url, timeout=30)
-                if response.status_code == 200:
-                    with open(audio_path, 'wb') as f:
-                        f.write(response.content)
-                else:
-                    return jsonify({"ok": False, "error": "오디오를 다운로드할 수 없습니다."}), 200
-
-            # 3. 오디오 길이 확인
-            probe_cmd = [
-                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
-            ]
-            result = subprocess.run(probe_cmd, capture_output=True, text=True)
-            audio_duration = float(result.stdout.strip()) if result.stdout.strip() else 60.0
-
-            # 4. 이미지당 표시 시간 계산
-            image_duration = audio_duration / len(image_paths)
-
-            # 5. 이미지 리스트 파일 생성 (FFmpeg용)
-            list_path = os.path.join(temp_dir, "images.txt")
-            with open(list_path, 'w') as f:
-                for img_path in image_paths:
-                    f.write(f"file '{img_path}'\n")
-                    f.write(f"duration {image_duration}\n")
-                # 마지막 이미지 한번 더 (FFmpeg concat demuxer 요구사항)
-                f.write(f"file '{image_paths[-1]}'\n")
-
-            # 6. 해상도 파싱
-            width, height = resolution.split('x')
-
-            # 7. FFmpeg로 영상 생성
-            output_path = os.path.join(temp_dir, "output.mp4")
-
-            # 기본 FFmpeg 명령어
-            ffmpeg_cmd = [
-                'ffmpeg', '-y',
-                '-f', 'concat', '-safe', '0', '-i', list_path,
-                '-i', audio_path,
-                '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
-                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                '-c:a', 'aac', '-b:a', '128k',
-                '-r', str(fps),
-                '-shortest',
-                '-pix_fmt', 'yuv420p',
-                output_path
-            ]
-
-            # 자막 하드코딩 옵션
-            if burn_subtitle and subtitle_data and subtitle_data.get('srt'):
-                srt_path = os.path.join(temp_dir, "subtitle.srt")
-                with open(srt_path, 'w', encoding='utf-8') as f:
-                    f.write(subtitle_data['srt'])
-
-                # 자막 필터 추가
-                vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'"
-                ffmpeg_cmd = [
-                    'ffmpeg', '-y',
-                    '-f', 'concat', '-safe', '0', '-i', list_path,
-                    '-i', audio_path,
-                    '-vf', vf_filter,
-                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
-                    '-c:a', 'aac', '-b:a', '128k',
-                    '-r', str(fps),
-                    '-shortest',
-                    '-pix_fmt', 'yuv420p',
-                    output_path
-                ]
-
-            print(f"[DRAMA-STEP6-VIDEO] FFmpeg 명령어 실행: {' '.join(ffmpeg_cmd[:5])}...")
-
-            # FFmpeg 실행
-            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
-
-            if process.returncode != 0:
-                print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 오류: {process.stderr}")
-                return jsonify({"ok": False, "error": f"영상 인코딩 실패: {process.stderr[:200]}"}), 200
-
-            # 8. 생성된 영상을 static 폴더에 저장
-            from datetime import datetime as dt
-            static_video_dir = os.path.join(os.path.dirname(__file__), 'static', 'videos')
-            os.makedirs(static_video_dir, exist_ok=True)
-
-            # 고유한 파일명 생성
-            timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-            video_filename = f"drama_{timestamp}.mp4"
-            final_video_path = os.path.join(static_video_dir, video_filename)
-
-            # 영상 파일 복사
-            shutil.copy2(output_path, final_video_path)
-
-            # 파일 크기 확인
-            file_size = os.path.getsize(final_video_path)
-            file_size_mb = file_size / (1024 * 1024)
-
-            # 파일 크기가 50MB 이하면 Base64로도 제공 (기존 호환성)
-            video_url = f"/static/videos/{video_filename}"
-            if file_size_mb <= 50:
-                with open(final_video_path, 'rb') as f:
-                    video_data = f.read()
-                video_base64 = base64.b64encode(video_data).decode('utf-8')
-                video_url_base64 = f"data:video/mp4;base64,{video_base64}"
-            else:
-                video_url_base64 = None
-
-            print(f"[DRAMA-STEP6-VIDEO] 영상 생성 완료 - 크기: {file_size_mb:.2f}MB, 길이: {audio_duration:.1f}초, 파일: {video_filename}")
-
-            return jsonify({
-                "ok": True,
-                "videoUrl": video_url_base64 if video_url_base64 else video_url,
-                "videoFileUrl": video_url,
-                "duration": audio_duration,
-                "fileSize": file_size,
-                "fileSizeMB": round(file_size_mb, 2)
-            })
+        # 즉시 job_id 반환
+        return jsonify({
+            "ok": True,
+            "jobId": job_id,
+            "message": "영상 생성 작업이 시작되었습니다."
+        })
 
     except Exception as e:
         print(f"[DRAMA-STEP6-VIDEO][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== 작업 상태 조회 API =====
+@app.route('/api/drama/video-status/<job_id>', methods=['GET'])
+def api_video_status(job_id):
+    """영상 생성 작업 상태 조회"""
+    with video_jobs_lock:
+        if job_id not in video_jobs:
+            return jsonify({"ok": False, "error": "작업을 찾을 수 없습니다."}), 404
+
+        job = video_jobs[job_id]
+        response = {
+            "ok": True,
+            "jobId": job_id,
+            "status": job['status'],  # pending, processing, completed, failed
+            "progress": job['progress'],
+            "message": job.get('message', '')
+        }
+
+        if job['status'] == 'completed':
+            response['result'] = job['result']
+        elif job['status'] == 'failed':
+            response['error'] = job['error']
+
+        return jsonify(response)
 
 
 # ===== Step7: 유튜브 업로드 API =====

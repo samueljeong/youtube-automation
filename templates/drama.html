@@ -4595,6 +4595,11 @@ S#1. 장소 / 시간
       return;
     }
 
+    // 브라우저 알림 권한 요청 (자동화 시작 시)
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+
     const resolution = document.getElementById('step6-resolution')?.value || '1920x1080';
     const fps = document.getElementById('step6-fps')?.value || '30';
     const transition = document.getElementById('step6-transition')?.value || 'fade';
@@ -4609,7 +4614,7 @@ S#1. 장소 / 시간
     progressBar.style.width = '5%';
     progressText.textContent = '[자동화] 이미지 업로드 준비 중...';
 
-    showStatus('🎬 자동화: 영상 생성 중...');
+    showStatus('🎬 자동화: 영상 생성 시작...');
 
     try {
       // 1. 이미지 업로드
@@ -4617,7 +4622,7 @@ S#1. 장소 / 시간
       const totalImages = step6SelectedImages.length;
 
       for (let i = 0; i < totalImages; i++) {
-        progressBar.style.width = (5 + (i / totalImages) * 25) + '%';
+        progressBar.style.width = (5 + (i / totalImages) * 20) + '%';
         progressText.textContent = `[자동화] 이미지 업로드 중... (${i + 1}/${totalImages})`;
 
         try {
@@ -4631,112 +4636,135 @@ S#1. 장소 / 시간
 
       console.log(`[AUTO] ${uploadedImageUrls.length}개 이미지 업로드 완료`);
 
-      // 2. 진행 상황 업데이트
-      let progress = 30;
-      const progressInterval = setInterval(() => {
-        progress += 5;
-        if (progress < 90) {
-          progressBar.style.width = progress + '%';
-          if (progress < 50) progressText.textContent = '[자동화] 오디오 처리 중...';
-          else if (progress < 70) progressText.textContent = '[자동화] 영상 인코딩 중...';
-          else progressText.textContent = '[자동화] 마무리 중...';
-        }
-      }, 500);
+      progressBar.style.width = '25%';
+      progressText.textContent = '[자동화] 영상 생성 작업 시작 중...';
 
-      // 3. 영상 생성 요청 (10분 타임아웃)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000);
+      // 2. 영상 생성 작업 시작 (즉시 job_id 반환)
+      const response = await fetch('/api/drama/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: uploadedImageUrls,
+          audioUrl: step5AudioUrl,
+          subtitleData: includeSubtitle ? step5SubtitleData : null,
+          burnSubtitle: burnSubtitle,
+          resolution: resolution,
+          fps: parseInt(fps),
+          transition: transition
+        })
+      });
 
-      const maxRetries = 5;
-      let response;
-      let lastError;
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          response = await fetch('/api/drama/generate-video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              images: uploadedImageUrls,
-              audioUrl: step5AudioUrl,
-              subtitleData: includeSubtitle ? step5SubtitleData : null,
-              burnSubtitle: burnSubtitle,
-              resolution: resolution,
-              fps: parseInt(fps),
-              transition: transition
-            }),
-            signal: controller.signal
-          });
-
-          if ([502, 503, 504].includes(response.status)) {
-            const retryDelay = Math.pow(2, attempt + 1) * 2000; // 4초, 8초, 16초, 32초, 64초
-            const errorMsg = response.status === 503 ? '서비스 일시 불가' : '서버 오류';
-            console.log(`[AUTO] ${errorMsg} (${response.status}), ${retryDelay/1000}초 후 재시도... (${attempt + 1}/${maxRetries})`);
-            progressText.textContent = `[자동화] ⚠️ ${errorMsg} (${response.status}) - ${retryDelay/1000}초 후 재시도 (${attempt + 1}/${maxRetries})`;
-            lastError = `${errorMsg} (${response.status})`;
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            continue;
-          }
-          break;
-        } catch (fetchErr) {
-          if (fetchErr.name === 'AbortError') throw fetchErr;
-          lastError = fetchErr.message;
-          if (attempt < maxRetries - 1) {
-            const retryDelay = Math.pow(2, attempt + 1) * 2000; // 4초, 8초, 16초, 32초, 64초
-            console.log(`[AUTO] 네트워크 오류, ${retryDelay/1000}초 후 재시도... (${attempt + 1}/${maxRetries})`);
-            progressText.textContent = `[자동화] ⚠️ 네트워크 오류 - ${retryDelay/1000}초 후 재시도 (${attempt + 1}/${maxRetries})`;
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-          }
-        }
-      }
-
-      clearTimeout(timeoutId);
-      clearInterval(progressInterval);
-
-      if (!response) {
-        throw new Error(`네트워크 오류: ${lastError || '응답 없음'}`);
-      }
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`서버 오류 (${response.status}): ${errorText || '응답 없음'}`);
       }
 
-      const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        throw new Error('서버에서 빈 응답이 반환되었습니다.');
+      const data = await response.json();
+
+      if (!data.ok || !data.jobId) {
+        throw new Error(data.error || '작업 시작 실패');
       }
 
-      const data = JSON.parse(responseText);
+      const jobId = data.jobId;
+      console.log(`[AUTO] 영상 생성 작업 시작됨: ${jobId}`);
 
-      if (data.ok) {
-        progressBar.style.width = '100%';
-        progressText.textContent = '🎉 자동화 완료!';
+      progressBar.style.width = '30%';
+      progressText.textContent = '[자동화] 백그라운드에서 영상 생성 중...';
+      showStatus('🎬 자동화: 영상 생성 중... (백그라운드)');
 
-        const videoSection = document.getElementById('step6-video-section');
-        const videoPlayer = document.getElementById('step6-video-player');
+      // 3. Polling으로 상태 체크
+      const startTime = Date.now();
+      const maxWaitTime = 600000; // 10분
+      let lastProgress = 30;
 
-        if (videoPlayer && data.videoUrl) {
-          step6VideoUrl = data.videoUrl;
-          step6VideoFileUrl = data.videoFileUrl || data.videoUrl;
-          videoPlayer.src = data.videoUrl;
-          videoSection.style.display = 'block';
+      while (Date.now() - startTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초마다 체크
+
+        try {
+          const statusResponse = await fetch(`/api/drama/video-status/${jobId}`);
+
+          if (!statusResponse.ok) {
+            console.error('[AUTO] 상태 조회 실패:', statusResponse.status);
+            continue;
+          }
+
+          const statusData = await statusResponse.json();
+
+          if (!statusData.ok) {
+            throw new Error(statusData.error || '상태 조회 실패');
+          }
+
+          // 진행률 업데이트
+          const serverProgress = statusData.progress || 0;
+          const displayProgress = Math.max(lastProgress, 30 + serverProgress * 0.7);
+          lastProgress = displayProgress;
+          progressBar.style.width = displayProgress + '%';
+          progressText.textContent = `[자동화] ${statusData.message || '영상 생성 중...'}`;
+
+          console.log(`[AUTO] 상태: ${statusData.status}, 진행률: ${serverProgress}%`);
+
+          // 완료 확인
+          if (statusData.status === 'completed' && statusData.result) {
+            progressBar.style.width = '100%';
+            progressText.textContent = '🎉 자동화 완료!';
+
+            const result = statusData.result;
+
+            const videoSection = document.getElementById('step6-video-section');
+            const videoPlayer = document.getElementById('step6-video-player');
+
+            if (videoPlayer && result.videoUrl) {
+              step6VideoUrl = result.videoUrl;
+              step6VideoFileUrl = result.videoFileUrl || result.videoUrl;
+              videoPlayer.src = result.videoUrl;
+              videoSection.style.display = 'block';
+            }
+
+            showStatus('🎉 자동화 완료! 영상이 생성되었습니다. YouTube 업로드를 진행하세요.');
+            updateProgressIndicator('step6');
+            updateStep7Status();
+
+            // 브라우저 알림
+            if (Notification.permission === 'granted') {
+              new Notification('🎉 자동화 완료!', {
+                body: '드라마 영상이 성공적으로 생성되었습니다.',
+                icon: '/static/favicon.ico'
+              });
+            }
+
+            setTimeout(() => {
+              progressDiv.style.display = 'none';
+            }, 3000);
+
+            break;
+
+          } else if (statusData.status === 'failed') {
+            throw new Error(statusData.error || '영상 생성 실패');
+          }
+
+        } catch (pollErr) {
+          console.error('[AUTO] Polling 오류:', pollErr);
+          // 계속 재시도
         }
+      }
 
-        showStatus('🎉 자동화 완료! 영상이 생성되었습니다. YouTube 업로드를 진행하세요.');
-        updateProgressIndicator('step6');
-        updateStep7Status();
-
-        setTimeout(() => {
-          progressDiv.style.display = 'none';
-        }, 3000);
-      } else {
-        throw new Error(data.error || '영상 생성 실패');
+      // 타임아웃 체크
+      if (Date.now() - startTime >= maxWaitTime) {
+        throw new Error('영상 생성 시간 초과 (10분)');
       }
 
     } catch (err) {
       console.error('[AUTO] 영상 생성 오류:', err);
       progressDiv.style.display = 'none';
       showStatus(`❌ 자동화 영상 생성 오류: ${err.message}`);
+
+      // 실패 알림
+      if (Notification.permission === 'granted') {
+        new Notification('❌ 자동화 실패', {
+          body: `영상 생성 오류: ${err.message}`,
+          icon: '/static/favicon.ico'
+        });
+      }
     }
   }
 
@@ -5382,6 +5410,11 @@ S#1. 장소 / 시간
       return;
     }
 
+    // 브라우저 알림 권한 요청
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+
     const resolution = document.getElementById('step6-resolution')?.value || '1920x1080';
     const fps = document.getElementById('step6-fps')?.value || '30';
     const transition = document.getElementById('step6-transition')?.value || 'fade';
@@ -5403,7 +5436,7 @@ S#1. 장소 / 시간
     progressBar.style.width = '5%';
     progressText.textContent = '이미지 업로드 준비 중...';
 
-    showStatus('🎬 Step4: 영상 생성 중...');
+    showStatus('🎬 Step4: 영상 생성 시작...');
 
     try {
       // 1. Base64 이미지를 서버에 먼저 업로드 (요청 크기 줄이기)
@@ -5411,7 +5444,7 @@ S#1. 장소 / 시간
       const totalImages = step6SelectedImages.length;
 
       for (let i = 0; i < totalImages; i++) {
-        progressBar.style.width = (5 + (i / totalImages) * 25) + '%';
+        progressBar.style.width = (5 + (i / totalImages) * 20) + '%';
         progressText.textContent = `이미지 업로드 중... (${i + 1}/${totalImages})`;
 
         try {
@@ -5425,131 +5458,139 @@ S#1. 장소 / 시간
 
       console.log(`[VIDEO] ${uploadedImageUrls.length}개 이미지 업로드 완료`);
 
-      // 2. 진행 상황 업데이트
-      let progress = 30;
-      const progressInterval = setInterval(() => {
-        progress += 5;
-        if (progress < 90) {
-          progressBar.style.width = progress + '%';
-          if (progress < 50) progressText.textContent = '오디오 처리 중...';
-          else if (progress < 70) progressText.textContent = '영상 인코딩 중...';
-          else progressText.textContent = '마무리 중...';
-        }
-      }, 500);
+      progressBar.style.width = '25%';
+      progressText.textContent = '영상 생성 작업 시작 중...';
 
-      // 3. 10분 타임아웃 설정 (영상 생성은 오래 걸릴 수 있음)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10분
+      // 2. 영상 생성 작업 시작 (즉시 job_id 반환)
+      const response = await fetch('/api/drama/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          images: uploadedImageUrls,
+          audioUrl: step5AudioUrl,
+          subtitleData: includeSubtitle ? step5SubtitleData : null,
+          burnSubtitle: burnSubtitle,
+          resolution: resolution,
+          fps: parseInt(fps),
+          transition: transition
+        })
+      });
 
-      // 4. 업로드된 URL로 영상 생성 요청 (작은 요청 크기) - 502/503/504 재시도 포함
-      const maxRetries = 5;
-      let response;
-      let lastError;
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        try {
-          response = await fetch('/api/drama/generate-video', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              images: uploadedImageUrls,
-              audioUrl: step5AudioUrl,
-              subtitleData: includeSubtitle ? step5SubtitleData : null,
-              burnSubtitle: burnSubtitle,
-              resolution: resolution,
-              fps: parseInt(fps),
-              transition: transition
-            }),
-            signal: controller.signal
-          });
-
-          // 502, 503, 504 서버 오류는 재시도
-          if ([502, 503, 504].includes(response.status)) {
-            const retryDelay = Math.pow(2, attempt + 1) * 2000; // 4초, 8초, 16초, 32초, 64초
-            const errorMsg = response.status === 503 ? '서비스 일시 불가' : '서버 오류';
-            console.log(`[VIDEO] ${errorMsg} (${response.status}), ${retryDelay/1000}초 후 재시도... (${attempt + 1}/${maxRetries})`);
-            progressText.textContent = `⚠️ ${errorMsg} (${response.status}) - ${retryDelay/1000}초 후 재시도 (${attempt + 1}/${maxRetries})`;
-            lastError = `${errorMsg} (${response.status})`;
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-            continue;
-          }
-
-          // 성공 또는 다른 오류 - 루프 종료
-          break;
-        } catch (fetchErr) {
-          if (fetchErr.name === 'AbortError') throw fetchErr;
-          lastError = fetchErr.message;
-          if (attempt < maxRetries - 1) {
-            const retryDelay = Math.pow(2, attempt + 1) * 2000; // 4초, 8초, 16초, 32초, 64초
-            console.log(`[VIDEO] 네트워크 오류, ${retryDelay/1000}초 후 재시도... (${attempt + 1}/${maxRetries})`);
-            progressText.textContent = `⚠️ 네트워크 오류 - ${retryDelay/1000}초 후 재시도 (${attempt + 1}/${maxRetries})`;
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-          }
-        }
-      }
-
-      clearTimeout(timeoutId);
-      clearInterval(progressInterval);
-
-      // 응답 상태 확인
-      if (!response) {
-        throw new Error(`네트워크 오류: ${lastError || '응답 없음'}`);
-      }
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`서버 오류 (${response.status}): ${errorText || '응답 없음'}`);
       }
 
-      // 응답 텍스트 먼저 확인
-      const responseText = await response.text();
-      if (!responseText || responseText.trim() === '') {
-        throw new Error('서버에서 빈 응답이 반환되었습니다. 영상 파일이 너무 크거나 서버 타임아웃이 발생했을 수 있습니다.');
+      const data = await response.json();
+
+      if (!data.ok || !data.jobId) {
+        throw new Error(data.error || '작업 시작 실패');
       }
 
-      // JSON 파싱
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('JSON 파싱 오류:', responseText.substring(0, 500));
-        throw new Error('서버 응답을 파싱할 수 없습니다. 영상 파일이 너무 크거나 연결이 중단되었을 수 있습니다.');
-      }
+      const jobId = data.jobId;
+      console.log(`[VIDEO] 작업 시작됨: ${jobId}`);
 
-      if (data.ok) {
-        progressBar.style.width = '100%';
-        progressText.textContent = '완료!';
+      progressBar.style.width = '30%';
+      progressText.textContent = '백그라운드에서 영상 생성 중... (다른 작업 가능)';
+      showStatus('🎬 영상 생성 중... (백그라운드 작업)');
 
-        // 영상 플레이어 표시
-        const videoSection = document.getElementById('step6-video-section');
-        const videoPlayer = document.getElementById('step6-video-player');
+      // 3. Polling으로 상태 체크
+      const startTime = Date.now();
+      const maxWaitTime = 600000; // 10분
+      let lastProgress = 30;
 
-        if (videoPlayer && data.videoUrl) {
-          step6VideoUrl = data.videoUrl;
-          step6VideoFileUrl = data.videoFileUrl || data.videoUrl; // 파일 URL 저장
-          videoPlayer.src = data.videoUrl;
-          videoSection.style.display = 'block';
+      while (Date.now() - startTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초마다 체크
+
+        try {
+          const statusResponse = await fetch(`/api/drama/video-status/${jobId}`);
+
+          if (!statusResponse.ok) {
+            console.error('상태 조회 실패:', statusResponse.status);
+            continue;
+          }
+
+          const statusData = await statusResponse.json();
+
+          if (!statusData.ok) {
+            throw new Error(statusData.error || '상태 조회 실패');
+          }
+
+          // 진행률 업데이트
+          const serverProgress = statusData.progress || 0;
+          const displayProgress = Math.max(lastProgress, 30 + serverProgress * 0.7); // 30~100%
+          lastProgress = displayProgress;
+          progressBar.style.width = displayProgress + '%';
+          progressText.textContent = statusData.message || '영상 생성 중...';
+
+          console.log(`[VIDEO] 상태: ${statusData.status}, 진행률: ${serverProgress}%`);
+
+          // 완료 확인
+          if (statusData.status === 'completed' && statusData.result) {
+            // 성공!
+            progressBar.style.width = '100%';
+            progressText.textContent = '완료!';
+
+            const result = statusData.result;
+
+            // 영상 플레이어 표시
+            const videoSection = document.getElementById('step6-video-section');
+            const videoPlayer = document.getElementById('step6-video-player');
+
+            if (videoPlayer && result.videoUrl) {
+              step6VideoUrl = result.videoUrl;
+              step6VideoFileUrl = result.videoFileUrl || result.videoUrl;
+              videoPlayer.src = result.videoUrl;
+              videoSection.style.display = 'block';
+            }
+
+            showStatus('✅ 영상 생성 완료! Step5에서 YouTube 업로드가 가능합니다.');
+            updateProgressIndicator('step6');
+            updateStep7Status();
+
+            // 브라우저 알림
+            if (Notification.permission === 'granted') {
+              new Notification('✅ 영상 생성 완료!', {
+                body: '드라마 영상이 성공적으로 생성되었습니다.',
+                icon: '/static/favicon.ico'
+              });
+            }
+
+            setTimeout(() => {
+              progressDiv.style.display = 'none';
+            }, 1500);
+
+            break;
+
+          } else if (statusData.status === 'failed') {
+            // 실패
+            throw new Error(statusData.error || '영상 생성 실패');
+          }
+
+          // pending 또는 processing 상태 - 계속 대기
+
+        } catch (pollErr) {
+          console.error('Polling 오류:', pollErr);
+          // 계속 재시도
         }
-
-        showStatus('✅ 영상 생성 완료! Step5에서 YouTube 업로드가 가능합니다.');
-        updateProgressIndicator('step6');
-        updateStep7Status();
-
-        setTimeout(() => {
-          progressDiv.style.display = 'none';
-        }, 1500);
-      } else {
-        progressDiv.style.display = 'none';
-        alert(`오류: ${data.error}`);
-        showStatus('❌ 영상 생성 실패');
       }
+
+      // 타임아웃 체크
+      if (Date.now() - startTime >= maxWaitTime) {
+        throw new Error('영상 생성 시간 초과 (10분). 작업은 백그라운드에서 계속 진행될 수 있습니다.');
+      }
+
     } catch (err) {
       progressDiv.style.display = 'none';
-      if (err.name === 'AbortError') {
-        alert('영상 생성 시간이 초과되었습니다 (5분). 이미지 수를 줄이거나 해상도를 낮추어 다시 시도해주세요.');
-        showStatus('❌ 영상 생성 타임아웃');
-      } else {
-        alert(`네트워크 오류: ${err.message}`);
-        showStatus('❌ 영상 생성 오류');
+      alert(`오류: ${err.message}`);
+      showStatus('❌ 영상 생성 실패');
+
+      // 실패 알림
+      if (Notification.permission === 'granted') {
+        new Notification('❌ 영상 생성 실패', {
+          body: err.message,
+          icon: '/static/favicon.ico'
+        });
       }
     } finally {
       setTimeout(hideStatus, 3000);
