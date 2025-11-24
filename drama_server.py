@@ -3094,6 +3094,14 @@ def api_generate_video():
                     img_data = base64.b64decode(encoded)
                     with open(img_path, 'wb') as f:
                         f.write(img_data)
+                elif img_url.startswith('/static/'):
+                    # 로컬 static 파일 경로
+                    local_path = os.path.join(os.path.dirname(__file__), img_url.lstrip('/'))
+                    if os.path.exists(local_path):
+                        shutil.copy2(local_path, img_path)
+                    else:
+                        print(f"[DRAMA-STEP6-VIDEO] 로컬 이미지 파일 없음: {local_path}")
+                        continue
                 else:
                     # HTTP URL
                     response = requests.get(img_url, timeout=30)
@@ -3116,6 +3124,13 @@ def api_generate_video():
                 audio_data = base64.b64decode(encoded)
                 with open(audio_path, 'wb') as f:
                     f.write(audio_data)
+            elif audio_url.startswith('/static/'):
+                # 로컬 static 파일 경로
+                local_audio_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
+                if os.path.exists(local_audio_path):
+                    shutil.copy2(local_audio_path, audio_path)
+                else:
+                    return jsonify({"ok": False, "error": f"오디오 파일을 찾을 수 없습니다: {audio_url}"}), 200
             else:
                 response = requests.get(audio_url, timeout=30)
                 if response.status_code == 200:
