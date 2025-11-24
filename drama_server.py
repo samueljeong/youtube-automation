@@ -1529,15 +1529,33 @@ def api_generate_metadata():
 반드시 아래 JSON 형식으로만 응답하세요:
 {{
   "title": "시청자의 호기심을 자극하는 제목 (50자 이내)",
+  "thumbnailTitle": "썸네일용 제목 (3~4줄, 줄바꿈으로 구분)",
   "description": "영상 설명 (200자 내외, 핵심 내용 요약)",
   "tags": ["태그1", "태그2", "태그3", ...] (10-15개)
 }}
 
-【 제목 작성 가이드 】
-- 감정을 자극하는 단어 사용 (기적, 눈물, 고백, 비밀 등)
-- 숫자 활용 (40년, 3번의 시도 등)
-- 궁금증 유발 (왜, 어떻게, 결국 등)
-- 50자 이내로 작성
+【 제목 작성 가이드 - 어그로성 제목 패턴 】
+필수 요소:
+1. 구체적인 숫자 사용: "10년 후", "76세", "새벽 2시 30분", "1년간", "40년"
+2. 인물 + 상황: "목사님", "권사님", "집사님" + 구체적 상황
+3. 반전/궁금증 유발: "...한 이유", "그날", "결국", "그런데"
+4. 감정 자극: "눈물", "후회", "기적", "고백"
+
+성공 패턴 예시:
+- "10년 후, 약속대로 떠난 목사님과 건축헌금 없이 지어진 교회"
+- "1년간 혼자 예배드리던 76세 목사님 교회 문 닫으려던 그날 한 청년이 나타났습니다"
+- "새벽 2시 30분, 술 취한 손님이 대리기사 목사님을 집으로 초대한 이유"
+- "손주 봐주려고 시골집 팔고 아들네로 올라온 권사님 땅을 치고 후회하게 된 이유"
+
+【 썸네일 제목 가이드 】
+- 3~4줄로 나누어 작성 (줄바꿈 \\n 사용)
+- 1줄: 시간/숫자 + 상황 훅
+- 2줄: 핵심 인물/사건
+- 3줄: 감정 강조 (색상 강조될 부분)
+- 4줄: 반전/결과
+
+예시:
+"1년간 혼자 예배드리던\\n76세 목사님\\n교회 문 닫으려던 그날\\n한 청년이 나타났습니다"
 
 【 설명 작성 가이드 】
 - 첫 문장에 핵심 메시지
@@ -2346,10 +2364,11 @@ def api_generate_image():
                     # 성공 또는 quota 외 오류
                     if response.status_code == 200:
                         break
-                    elif response.status_code == 429 or "quota" in response.text.lower() or "rate" in response.text.lower():
-                        # Rate limit / Quota 오류 - 재시도
+                    elif response.status_code in [429, 502, 503, 504] or "quota" in response.text.lower() or "rate" in response.text.lower():
+                        # Rate limit / Quota / 서버 오류 (502, 503, 504) - 재시도
                         last_error = response.text
-                        print(f"[DRAMA-STEP4-IMAGE][RETRY] Gemini quota/rate limit (시도 {attempt + 1}/{max_retries}), {retry_delay}초 후 재시도...")
+                        error_type = "서버 오류" if response.status_code in [502, 503, 504] else "quota/rate limit"
+                        print(f"[DRAMA-STEP4-IMAGE][RETRY] Gemini {error_type} ({response.status_code}) (시도 {attempt + 1}/{max_retries}), {retry_delay}초 후 재시도...")
                         time.sleep(retry_delay)
                         retry_delay *= 2  # 지수 백오프
                         continue
@@ -3710,6 +3729,156 @@ def upload_youtube():
     except Exception as e:
         print(f"[YOUTUBE-UPLOAD][ERROR] {str(e)}")
         return jsonify({"success": False, "error": str(e)})
+
+
+# ===== 썸네일 생성 API (텍스트 오버레이) =====
+@app.route('/api/drama/generate-thumbnail', methods=['POST'])
+def api_generate_thumbnail():
+    """이미지에 텍스트 오버레이하여 썸네일 생성"""
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        from io import BytesIO
+        import requests as req
+        import base64
+        import urllib.request
+        import os as os_module
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        # 입력 파라미터
+        image_url = data.get("imageUrl", "")  # base64 data URL 또는 HTTP URL
+        text_lines = data.get("textLines", [])  # ["1줄", "2줄", "3줄", "4줄"]
+        highlight_lines = data.get("highlightLines", [2])  # 강조할 줄 인덱스 (0부터 시작)
+        text_color = data.get("textColor", "#FFFFFF")  # 기본 텍스트 색상
+        highlight_color = data.get("highlightColor", "#FFD700")  # 강조 텍스트 색상 (노란색)
+        outline_color = data.get("outlineColor", "#000000")  # 외곽선 색상
+        outline_width = data.get("outlineWidth", 4)  # 외곽선 두께
+        font_size = data.get("fontSize", 60)  # 폰트 크기
+        position = data.get("position", "left")  # 텍스트 위치: left, center, right
+
+        print(f"[THUMBNAIL] 썸네일 생성 시작 - 텍스트 {len(text_lines)}줄")
+
+        if not image_url:
+            return jsonify({"ok": False, "error": "이미지 URL이 필요합니다."}), 400
+
+        if not text_lines:
+            return jsonify({"ok": False, "error": "텍스트가 필요합니다."}), 400
+
+        # 이미지 로드
+        if image_url.startswith("data:"):
+            # Base64 data URL
+            header, encoded = image_url.split(",", 1)
+            image_data = base64.b64decode(encoded)
+            img = Image.open(BytesIO(image_data))
+        else:
+            # HTTP URL
+            response = req.get(image_url, timeout=30)
+            img = Image.open(BytesIO(response.content))
+
+        # RGBA로 변환 (투명도 지원)
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+
+        # 이미지 크기 (유튜브 썸네일: 1280x720 권장)
+        width, height = img.size
+        print(f"[THUMBNAIL] 이미지 크기: {width}x{height}")
+
+        # 폰트 로드 (한글 지원 폰트)
+        font = None
+        font_paths = [
+            # Linux (Render)
+            "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+            "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            # Mac
+            "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+            "/Library/Fonts/NanumGothicBold.ttf",
+            # Windows
+            "C:/Windows/Fonts/malgunbd.ttf",
+            "C:/Windows/Fonts/malgun.ttf",
+        ]
+
+        for font_path in font_paths:
+            if os_module.path.exists(font_path):
+                try:
+                    font = ImageFont.truetype(font_path, font_size)
+                    print(f"[THUMBNAIL] 폰트 로드: {font_path}")
+                    break
+                except Exception:
+                    continue
+
+        if font is None:
+            # 기본 폰트 사용 (한글 지원 안 될 수 있음)
+            font = ImageFont.load_default()
+            print(f"[THUMBNAIL] 기본 폰트 사용 (한글 미지원 가능)")
+
+        # 드로잉 객체 생성
+        draw = ImageDraw.Draw(img)
+
+        # 텍스트 위치 계산
+        line_height = font_size + 20  # 줄 간격
+        total_text_height = len(text_lines) * line_height
+
+        # Y 시작 위치 (상단 여백 고려)
+        y_start = int(height * 0.1)  # 상단 10%부터 시작
+
+        # X 위치
+        x_margin = int(width * 0.05)  # 좌우 여백 5%
+
+        for i, line in enumerate(text_lines):
+            y = y_start + (i * line_height)
+
+            # 텍스트 크기 측정
+            bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = bbox[2] - bbox[0]
+
+            # X 위치 결정
+            if position == "center":
+                x = (width - text_width) // 2
+            elif position == "right":
+                x = width - text_width - x_margin
+            else:  # left
+                x = x_margin
+
+            # 색상 결정 (강조 줄인지 확인)
+            if i in highlight_lines:
+                fill_color = highlight_color
+            else:
+                fill_color = text_color
+
+            # 외곽선 그리기 (8방향)
+            for dx in range(-outline_width, outline_width + 1):
+                for dy in range(-outline_width, outline_width + 1):
+                    if dx != 0 or dy != 0:
+                        draw.text((x + dx, y + dy), line, font=font, fill=outline_color)
+
+            # 메인 텍스트 그리기
+            draw.text((x, y), line, font=font, fill=fill_color)
+
+        # 결과 이미지를 base64로 인코딩
+        output_buffer = BytesIO()
+        img_rgb = img.convert('RGB')  # JPEG는 RGB 필요
+        img_rgb.save(output_buffer, format='JPEG', quality=95)
+        output_buffer.seek(0)
+        result_base64 = base64.b64encode(output_buffer.read()).decode('utf-8')
+        result_url = f"data:image/jpeg;base64,{result_base64}"
+
+        print(f"[THUMBNAIL] 썸네일 생성 완료")
+
+        return jsonify({
+            "ok": True,
+            "thumbnailUrl": result_url,
+            "width": width,
+            "height": height
+        })
+
+    except Exception as e:
+        print(f"[THUMBNAIL][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 200
 
 
 # ===== Render 배포를 위한 설정 =====
