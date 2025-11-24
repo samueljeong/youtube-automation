@@ -4970,6 +4970,7 @@ S#1. 장소 / 시간
   // ===== Step6: 영상 제작 기능 =====
   let step6SelectedImages = [];
   let step6VideoUrl = null;
+  let step6VideoFileUrl = null; // 파일 URL (다운로드용)
 
   // Step6 컨테이너 업데이트 (이미지/오디오 상태 갱신)
   function updateStep6Visibility() {
@@ -5077,6 +5078,10 @@ S#1. 장소 / 시간
         }
       }, 500);
 
+      // 5분 타임아웃 설정 (영상 생성은 오래 걸릴 수 있음)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5분
+
       const response = await fetch('/api/drama/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5088,12 +5093,33 @@ S#1. 장소 / 시간
           resolution: resolution,
           fps: parseInt(fps),
           transition: transition
-        })
+        }),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
       clearInterval(progressInterval);
 
-      const data = await response.json();
+      // 응답 상태 확인
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`서버 오류 (${response.status}): ${errorText || '응답 없음'}`);
+      }
+
+      // 응답 텍스트 먼저 확인
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('서버에서 빈 응답이 반환되었습니다. 영상 파일이 너무 크거나 서버 타임아웃이 발생했을 수 있습니다.');
+      }
+
+      // JSON 파싱
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON 파싱 오류:', responseText.substring(0, 500));
+        throw new Error('서버 응답을 파싱할 수 없습니다. 영상 파일이 너무 크거나 연결이 중단되었을 수 있습니다.');
+      }
 
       if (data.ok) {
         progressBar.style.width = '100%';
@@ -5105,6 +5131,7 @@ S#1. 장소 / 시간
 
         if (videoPlayer && data.videoUrl) {
           step6VideoUrl = data.videoUrl;
+          step6VideoFileUrl = data.videoFileUrl || data.videoUrl; // 파일 URL 저장
           videoPlayer.src = data.videoUrl;
           videoSection.style.display = 'block';
         }
@@ -5123,8 +5150,13 @@ S#1. 장소 / 시간
       }
     } catch (err) {
       progressDiv.style.display = 'none';
-      alert(`네트워크 오류: ${err.message}`);
-      showStatus('❌ 영상 생성 오류');
+      if (err.name === 'AbortError') {
+        alert('영상 생성 시간이 초과되었습니다 (5분). 이미지 수를 줄이거나 해상도를 낮추어 다시 시도해주세요.');
+        showStatus('❌ 영상 생성 타임아웃');
+      } else {
+        alert(`네트워크 오류: ${err.message}`);
+        showStatus('❌ 영상 생성 오류');
+      }
     } finally {
       setTimeout(hideStatus, 3000);
       if (btnGenerateVideo) {
@@ -5137,12 +5169,13 @@ S#1. 장소 / 시간
 
   // 영상 다운로드
   function downloadVideo() {
-    if (!step6VideoUrl) {
+    if (!step6VideoUrl && !step6VideoFileUrl) {
       alert('먼저 영상을 생성해주세요.');
       return;
     }
     const a = document.createElement('a');
-    a.href = step6VideoUrl;
+    // 파일 URL이 있으면 우선 사용 (더 안정적)
+    a.href = step6VideoFileUrl || step6VideoUrl;
     a.download = `drama-video-${Date.now()}.mp4`;
     document.body.appendChild(a);
     a.click();
@@ -5155,6 +5188,7 @@ S#1. 장소 / 시간
 
     step6SelectedImages = [];
     step6VideoUrl = null;
+    step6VideoFileUrl = null;
 
     document.getElementById('step6-video-section').style.display = 'none';
     document.getElementById('step6-progress').style.display = 'none';

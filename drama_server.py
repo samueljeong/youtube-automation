@@ -2,7 +2,7 @@ import os
 import re
 import json
 import sqlite3
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -3128,22 +3128,39 @@ def api_generate_video():
                 print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 오류: {process.stderr}")
                 return jsonify({"ok": False, "error": f"영상 인코딩 실패: {process.stderr[:200]}"}), 200
 
-            # 8. 생성된 영상을 Base64로 인코딩
-            with open(output_path, 'rb') as f:
-                video_data = f.read()
+            # 8. 생성된 영상을 static 폴더에 저장
+            from datetime import datetime as dt
+            static_video_dir = os.path.join(os.path.dirname(__file__), 'static', 'videos')
+            os.makedirs(static_video_dir, exist_ok=True)
 
-            video_base64 = base64.b64encode(video_data).decode('utf-8')
-            video_url = f"data:video/mp4;base64,{video_base64}"
+            # 고유한 파일명 생성
+            timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+            video_filename = f"drama_{timestamp}.mp4"
+            final_video_path = os.path.join(static_video_dir, video_filename)
+
+            # 영상 파일 복사
+            shutil.copy2(output_path, final_video_path)
 
             # 파일 크기 확인
-            file_size = len(video_data)
+            file_size = os.path.getsize(final_video_path)
             file_size_mb = file_size / (1024 * 1024)
 
-            print(f"[DRAMA-STEP6-VIDEO] 영상 생성 완료 - 크기: {file_size_mb:.2f}MB, 길이: {audio_duration:.1f}초")
+            # 파일 크기가 50MB 이하면 Base64로도 제공 (기존 호환성)
+            video_url = f"/static/videos/{video_filename}"
+            if file_size_mb <= 50:
+                with open(final_video_path, 'rb') as f:
+                    video_data = f.read()
+                video_base64 = base64.b64encode(video_data).decode('utf-8')
+                video_url_base64 = f"data:video/mp4;base64,{video_base64}"
+            else:
+                video_url_base64 = None
+
+            print(f"[DRAMA-STEP6-VIDEO] 영상 생성 완료 - 크기: {file_size_mb:.2f}MB, 길이: {audio_duration:.1f}초, 파일: {video_filename}")
 
             return jsonify({
                 "ok": True,
-                "videoUrl": video_url,
+                "videoUrl": video_url_base64 if video_url_base64 else video_url,
+                "videoFileUrl": video_url,
                 "duration": audio_duration,
                 "fileSize": file_size,
                 "fileSizeMB": round(file_size_mb, 2)
