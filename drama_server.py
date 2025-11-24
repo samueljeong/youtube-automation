@@ -106,12 +106,30 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
 - 스포일러는 피하되, 시청자가 끝까지 보고 싶게 만들어야 합니다
 
 ═══════════════════════════════════════════════════
-【 👤 인물 설정 규칙 】
+【 👤 인물 설정 규칙 - 매우 중요! 】
 ═══════════════════════════════════════════════════
 - 최소 {character_rules.get('min_count', 1)}명 ~ 최대 {character_rules.get('max_count', 4)}명
 - 이유: TTS 음성 다양성 한계로 인물이 많으면 목소리 중복 발생
 - 각 인물은 명확한 역할과 목적이 있어야 함
 - 억지로 인물을 늘리지 말 것!
+
+⭐ 【 주인공 나이 필수 조건 】
+- 주인공은 반드시 60대 이상이어야 합니다!
+- 시청자 대부분이 시니어이므로 공감할 수 있는 연령대 설정 필수
+- 60세, 65세, 70세, 75세, 80세 등 구체적인 나이 명시
+
+⭐ 【 매번 다른 인물 생성 - 최우선 규칙 】
+- 이 채널에는 계속해서 새로운 영상이 업로드됩니다
+- 따라서 매번 완전히 새롭고 독특한 인물을 창조해야 합니다!
+- 반드시 다르게 설정할 항목:
+  * 이름: 매번 새로운 한국식 이름 (흔하지 않은 이름도 사용)
+  * 직업/역할: 다양한 직업군 (목사, 농부, 어부, 상인, 교사, 간호사, 요리사, 운전사, 경비원, 청소부, 봉사자 등)
+  * 거주지: 매번 다른 지역 (강원도, 전라도, 경상도, 충청도, 제주도, 서울 외곽 등)
+  * 가족 구성: 배우자 유무, 자녀 수, 손자녀 등 다양하게
+  * 성격과 말투: 독특한 개성 부여
+  * 외모: 체형, 얼굴 특징, 머리 스타일 등 구체적으로
+  * 배경 스토리: 전혀 다른 인생 경험
+- 절대 금지: 전형적이거나 이전에 사용된 듯한 설정
 
 【 인물 외모 상세 작성 (Step2 이미지 생성용) 】
 각 인물에 대해 다음을 상세히 기술:
@@ -178,8 +196,8 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
   "characters": [
     {{
       "id": "char_01",
-      "name": "이름",
-      "age": "00세",
+      "name": "이름 (매번 새로운 이름)",
+      "age": "60세 이상 (예: 67세, 72세, 78세)",
       "gender": "남성/여성",
       "role": "주인공/조연/단역",
       "occupation": "직업",
@@ -1513,7 +1531,7 @@ def api_generate_metadata():
         user_prompt = f"다음 {content_type_name} 대본의 메타데이터를 생성하세요:\n\n{script_preview}"
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",  # gpt-4o 사용 (제목, 설명, 태그 품질 향상)
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

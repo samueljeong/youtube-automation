@@ -2195,6 +2195,80 @@
     setTimeout(hideStatus, 3000);
   }
 
+  // ⭐ Step1 결과에서 나레이션 텍스트 추출
+  function extractNarrationFromResult(resultText) {
+    try {
+      // JSON으로 파싱 시도
+      let data;
+      const jsonMatch = resultText.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch) {
+        data = JSON.parse(jsonMatch[1]);
+      } else {
+        data = JSON.parse(resultText);
+      }
+
+      let narrationText = '';
+
+      // 하이라이트 나레이션 추출
+      if (data.highlight && data.highlight.scenes) {
+        data.highlight.scenes.forEach(scene => {
+          if (scene.preview_text) {
+            narrationText += scene.preview_text + '\n\n';
+          }
+          if (scene.narration) {
+            narrationText += scene.narration + '\n\n';
+          }
+        });
+      }
+
+      // 본문 씬별 나레이션 추출
+      if (data.script && data.script.scenes) {
+        data.script.scenes.forEach((scene, idx) => {
+          if (scene.narration) {
+            narrationText += scene.narration + '\n\n';
+          }
+        });
+      }
+
+      return narrationText.trim();
+    } catch (e) {
+      console.warn('[extractNarration] JSON 파싱 실패, 원본 텍스트 반환:', e);
+      return resultText;
+    }
+  }
+
+  // ⭐ Step1 대본 뷰어 표시
+  function displayStep1ScriptViewer(resultText) {
+    // Step3 결과 컨테이너에 결과 표시 (재사용)
+    const resultContainer = document.getElementById('step3-result-container');
+    const resultTextarea = document.getElementById('step3-result');
+    const scriptViewer = document.getElementById('step3-script-viewer');
+    const scriptContent = document.getElementById('step3-script-content');
+
+    if (!resultContainer || !resultTextarea) return;
+
+    // JSON 원본 표시
+    resultTextarea.value = resultText;
+    resultContainer.style.display = 'block';
+
+    // 대본 뷰어에 보기 좋게 표시
+    if (scriptViewer && scriptContent) {
+      const formattedHtml = formatScriptToText(resultText);
+      scriptContent.innerHTML = formattedHtml;
+      // 기본적으로 대본 뷰어 표시
+      scriptViewer.style.display = 'block';
+      resultTextarea.style.display = 'none';
+      isScriptViewerOpen = true;
+      const btnToggle = document.getElementById('btn-toggle-script-view');
+      if (btnToggle) btnToggle.textContent = '📋 JSON 보기';
+    }
+
+    // 컨테이너로 스크롤
+    resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    console.log('[Step1] 대본 뷰어 표시 완료');
+  }
+
   // 메타데이터 생성 알림 표시 및 Step5 필드 자동 채우기
   function showMetadataNotification(metadata) {
     // ⭐ Step5(유튜브 업로드) 필드에 자동으로 값 채우기
@@ -6760,6 +6834,26 @@ S#1. 장소 / 시간
     showStatus(`✅ ${title} 순차 실행 완료!`);
     setTimeout(hideStatus, 2000);
     renderWorkflowBoxes();
+
+    // ⭐ Step1 완료 시 자동으로 메타데이터 생성 및 대본 뷰어 표시
+    if (title === 'Step1') {
+      const step1Results = boxes.filter(b => b.result).map(b => b.result);
+      if (step1Results.length > 0) {
+        // 마지막 Step1 결과에서 대본 추출
+        const lastResult = step1Results[step1Results.length - 1];
+
+        // 대본 뷰어에 표시
+        displayStep1ScriptViewer(lastResult);
+
+        // 대본 텍스트 추출 (나레이션만)
+        const scriptText = extractNarrationFromResult(lastResult);
+        if (scriptText) {
+          const contentType = document.getElementById('content-type')?.value || 'testimony';
+          console.log('[Step1] 대본 완료, 메타데이터 자동 생성 시작...');
+          generateMetadataFromScript(scriptText, contentType);
+        }
+      }
+    }
   }
 
   // 순차 실행 버튼 이벤트 리스너
