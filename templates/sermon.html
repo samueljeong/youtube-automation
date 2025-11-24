@@ -1015,33 +1015,33 @@
           </div>
         </div>
 
-        <!-- 성경구절 (필수) -->
-        <div class="box">
-          <label class="label">성경구절<span class="label-hint" style="background: #ffe6e6; color: #e74c3c;">필수</span></label>
-          <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8">
+        <!-- 성경구절 (필수) - 강조 스타일 -->
+        <div class="box" style="background: linear-gradient(135deg, #f8f9ff 0%, #e8f4fd 100%); border: 2px solid #667eea; border-left: 4px solid #667eea;">
+          <label class="label">📖 성경구절<span class="label-hint" style="background: #667eea; color: white;">필수</span></label>
+          <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8" style="border: 1px solid #667eea; background: white;">
         </div>
 
-        <!-- 제목, 예배·집회 유형, 대상 (한 줄) -->
-        <div class="input-grid" style="grid-template-columns: repeat(3, 1fr);">
-          <div class="box">
-            <label class="label">제목<span class="label-hint">선택</span></label>
-            <input type="text" id="manual-title" placeholder="직접 입력">
+        <!-- 제목, 예배·집회 유형, 분량, 대상 (한 줄 - 4열) -->
+        <div class="input-grid" style="grid-template-columns: repeat(4, 1fr); gap: .5rem;">
+          <div class="box" style="padding: .6rem;">
+            <label class="label" style="font-size: .8rem;">제목<span class="label-hint">선택</span></label>
+            <input type="text" id="manual-title" placeholder="직접 입력" style="font-size: .85rem;">
             <div id="title-selection-box" style="display: none; margin-top: .5rem;">
-              <div style="font-size: .8rem; color: #667eea; margin-bottom: .3rem;">✨ 추천 제목</div>
+              <div style="font-size: .75rem; color: #667eea; margin-bottom: .3rem;">✨ 추천 제목</div>
               <div id="title-options"></div>
             </div>
           </div>
-          <div class="box">
-            <label class="label">예배·집회 유형<span class="label-hint">선택</span></label>
-            <input type="text" id="sermon-worship-type" placeholder="예) 새벽, 주일, 수요">
+          <div class="box" style="padding: .6rem;">
+            <label class="label" style="font-size: .8rem;">예배·집회 유형<span class="label-hint">선택</span></label>
+            <input type="text" id="sermon-worship-type" placeholder="예) 새벽, 주일" style="font-size: .85rem;">
           </div>
-          <div class="box">
-            <label class="label">분량<span class="label-hint">선택</span></label>
-            <input type="text" id="sermon-duration" placeholder="기본 20분" value="">
+          <div class="box" style="padding: .6rem;">
+            <label class="label" style="font-size: .8rem;">분량<span class="label-hint">선택</span></label>
+            <input type="text" id="sermon-duration" placeholder="기본 20분" value="" style="font-size: .85rem;">
           </div>
-          <div class="box">
-            <label class="label">대상<span class="label-hint">선택</span></label>
-            <input type="text" id="sermon-target" placeholder="예) 장년, 청년, 어린이">
+          <div class="box" style="padding: .6rem;">
+            <label class="label" style="font-size: .8rem;">대상<span class="label-hint">선택</span></label>
+            <input type="text" id="sermon-target" placeholder="예) 장년, 청년" style="font-size: .85rem;">
           </div>
         </div>
 
@@ -1081,38 +1081,6 @@
               <span style="font-size: .8rem; color: #777;">선택한 단계의 결과가 여기에 순서대로 표시됩니다.</span>
             </div>
             <div id="result-boxes"></div>
-            <div id="update-notice" class="box" style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border: none;">
-              <div style="text-align: center; margin-bottom: 1rem;">
-                <h3 style="margin: 0 0 .5rem 0; color: #667eea; font-size: 1.1rem;">📢 최근 업데이트</h3>
-                <p style="margin: 0; font-size: .85rem; color: #666;">BIBLE LAB의 새로운 기능들을 확인해보세요</p>
-              </div>
-
-              <div style="background: white; border-radius: 8px; padding: 1rem;">
-                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #667eea; background: #f8f9ff;">
-                  <div style="font-weight: 600; color: #667eea; margin-bottom: .25rem;">2025-11-19</div>
-                  <div style="font-size: .9rem; color: #333;">✨ UI 디자인 개선 및 사용자 가이드 추가</div>
-                </div>
-
-                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #4a90e2; background: #f0f8ff;">
-                  <div style="font-weight: 600; color: #4a90e2; margin-bottom: .25rem;">2025-11-19</div>
-                  <div style="font-size: .9rem; color: #333;">📱 모바일 UI 최적화 (Top/Content 영역 분리)</div>
-                </div>
-
-                <div style="margin-bottom: .75rem; padding: .6rem; border-left: 3px solid #f5576c; background: #fff5f7;">
-                  <div style="font-weight: 600; color: #f5576c; margin-bottom: .25rem;">2025-11-19</div>
-                  <div style="font-size: .9rem; color: #333;">💾 데이터 백업 및 복원 기능 추가</div>
-                </div>
-
-                <div style="padding: .6rem; border-left: 3px solid #4caf50; background: #f1f8f4;">
-                  <div style="font-weight: 600; color: #4caf50; margin-bottom: .25rem;">2025-11-19</div>
-                  <div style="font-size: .9rem; color: #333;">💬 Q&A 대화 기능 추가</div>
-                </div>
-              </div>
-
-              <div style="text-align: center; margin-top: 1rem; padding-top: .75rem; border-top: 1px solid rgba(255,255,255,0.5);">
-                <p style="margin: 0; font-size: .8rem; color: #777;">왼쪽에서 카테고리를 선택하고 설교스타일을 정하세요! 🚀</p>
-              </div>
-            </div>
           </div>
 
           <div id="gpt-pro-result-container" style="display: none;">
@@ -2574,6 +2542,11 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const style = getCurrentStyle();
     const finalTitle = getSelectedTitle();
 
+    // 추가 필드들
+    const worshipType = document.getElementById('sermon-worship-type')?.value.trim() || '';
+    const duration = document.getElementById('sermon-duration')?.value.trim() || '20분';
+    const target = document.getElementById('sermon-target')?.value.trim() || '';
+
     if (!ref) {
       return { error: '성경구절을 입력하세요.' };
     }
@@ -2595,6 +2568,23 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     let fullText = `====================================\n`;
     fullText += `📖 설교 초안 자료 (GPT-5.1 작성용)\n`;
     fullText += `====================================\n\n`;
+
+    // ★★★ 최우선 지침: 분량과 예배유형 ★★★
+    fullText += `${'='.repeat(50)}\n`;
+    fullText += `【 ★★★ 최우선 지침 ★★★ 】\n`;
+    fullText += `${'='.repeat(50)}\n`;
+    fullText += `\n🚨 분량: ${duration}\n`;
+    fullText += `   → 이 설교는 반드시 ${duration} 분량으로 작성하세요.\n`;
+    fullText += `   → 아래 초안이 길더라도 ${duration}에 맞춰 압축하세요.\n`;
+    if (worshipType) {
+      fullText += `\n🚨 예배/집회 유형: ${worshipType}\n`;
+      fullText += `   → '${worshipType}'에 적합한 톤과 내용으로 작성하세요.\n`;
+    }
+    if (target) {
+      fullText += `\n🚨 대상: ${target}\n`;
+    }
+    fullText += `\n${'='.repeat(50)}\n\n`;
+
     fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
     fullText += `GPT-5.1은 이 자료를 참고하되, 처음부터 새로 작성해주세요.\n`;
     fullText += `mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 설교문으로 재작성하세요.\n\n`;
@@ -2611,6 +2601,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     }
     if (seriesName) {
       fullText += `- 시리즈명: ${seriesName}\n`;
+    }
+    if (worshipType) {
+      fullText += `- 예배·집회 유형: ${worshipType}\n`;
+    }
+    fullText += `- 분량: ${duration}\n`;
+    if (target) {
+      fullText += `- 대상: ${target}\n`;
     }
     fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
     fullText += `\n${'='.repeat(50)}\n\n`;
@@ -2639,9 +2636,15 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       return { error: '제목 추천 외의 완료된 단계가 없습니다. 다른 단계를 먼저 실행해주세요.' };
     }
 
-    fullText += `\n📝 작성 지침:\n`;
+    fullText += `\n${'='.repeat(50)}\n`;
+    fullText += `📝 최종 작성 지침:\n`;
+    fullText += `${'='.repeat(50)}\n`;
     fullText += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n`;
-    fullText += `⚠️ 중요: max_tokens를 16000으로 설정하고, 충분히 길고 상세하며 풍성한 내용으로 작성해주세요.\n`;
+    fullText += `\n⚠️ 가장 중요: 반드시 ${duration} 분량을 지켜주세요!\n`;
+    if (worshipType) {
+      fullText += `⚠️ 예배 유형 '${worshipType}'에 맞는 톤으로 작성하세요.\n`;
+    }
+    fullText += `\nmax_tokens를 16000으로 설정하고, ${duration} 분량 내에서 충분히 상세하게 작성해주세요.\n`;
 
     // 제목 추천 단계를 제외한 완료된 단계 이름들
     const stepNames = completedSteps
@@ -3023,12 +3026,14 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       return;
     }
 
+    // 가로 배치를 위한 flex 컨테이너 스타일
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '.5rem';
+
     container.innerHTML = styles.map(style =>
-      `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}">
-        <div>
-          <div style="font-weight: 600;">${style.name}</div>
-          <div class="style-desc">${style.description || ''}</div>
-        </div>
+      `<div class="style-item ${style.id === currentStyleId ? 'active' : ''}" data-style="${style.id}" style="flex: 1 1 auto; min-width: 80px; text-align: center; padding: .5rem .75rem;">
+        <div style="font-weight: 600; font-size: .85rem;">${style.name}</div>
       </div>`
     ).join('');
 
@@ -3067,8 +3072,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       return;
     }
 
+    // 가로 배치를 위한 flex 컨테이너 스타일
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '.4rem';
+
     container.innerHTML = steps.map(step =>
-      `<button class="step-btn primary" data-step="${step.id}">${step.name} <span style="float: right;">(클릭!)</span></button>`
+      `<button class="step-btn primary" data-step="${step.id}" style="flex: 1 1 auto; min-width: 70px; font-size: .8rem; padding: .4rem .6rem;">${step.name}</button>`
     ).join('');
 
     container.querySelectorAll('.step-btn').forEach(btn => {
@@ -3112,15 +3122,9 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   function renderResultBoxes() {
     const steps = getCurrentSteps();
     const container = document.getElementById('result-boxes');
-    const updateNotice = document.getElementById('update-notice');
     const modelSettings = getModelSettings(currentCategory);
 
     if (!container) return;
-
-    // 업데이트 안내 표시/숨김
-    if (updateNotice) {
-      updateNotice.style.display = steps.length === 0 ? 'block' : 'none';
-    }
 
     container.innerHTML = steps.map(step => {
       const stepType = step.stepType || 'step1';
