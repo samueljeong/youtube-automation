@@ -2681,7 +2681,14 @@ def api_generate_tts():
                 else:
                     error_text = response.text
                     print(f"[DRAMA-STEP5-TTS][ERROR] Google API 응답: {response.status_code} - {error_text}")
-                    return jsonify({"ok": False, "error": f"Google TTS API 오류: {error_text}"}), 200
+
+                    # 403 에러에 대한 특별한 안내
+                    if response.status_code == 403:
+                        error_msg = "Google TTS API 접근 권한이 없습니다. Google Cloud Console에서 'Cloud Text-to-Speech API'가 활성화되어 있는지 확인하고, API 키에 해당 API 접근 권한이 있는지 확인해주세요."
+                        print(f"[DRAMA-STEP5-TTS][ERROR] 403 Forbidden - API 활성화 필요 또는 API 키 권한 부족")
+                        return jsonify({"ok": False, "error": error_msg, "statusCode": 403}), 200
+
+                    return jsonify({"ok": False, "error": f"Google TTS API 오류 ({response.status_code}): {error_text}"}), 200
 
             combined_audio = b''.join(audio_data_list)
             audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
@@ -2756,7 +2763,14 @@ def api_generate_tts():
                 else:
                     error_text = response.text
                     print(f"[DRAMA-STEP5-TTS][ERROR] 네이버 API 응답: {response.status_code} - {error_text}")
-                    return jsonify({"ok": False, "error": f"네이버 TTS API 오류: {error_text}"}), 200
+
+                    # 403 에러에 대한 특별한 안내
+                    if response.status_code == 403:
+                        error_msg = "네이버 TTS API 접근 권한이 없습니다. 네이버 클라우드 플랫폼에서 CLOVA Voice API가 활성화되어 있는지, API 키가 유효한지 확인해주세요."
+                        print(f"[DRAMA-STEP5-TTS][ERROR] 403 Forbidden - 네이버 API 키 또는 권한 문제")
+                        return jsonify({"ok": False, "error": error_msg, "statusCode": 403}), 200
+
+                    return jsonify({"ok": False, "error": f"네이버 TTS API 오류 ({response.status_code}): {error_text}"}), 200
 
             combined_audio = b''.join(audio_data_list)
             audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
