@@ -2302,51 +2302,89 @@ def api_generate_image():
 
             result = response.json()
 
+            # 디버그: 전체 응답 로깅
+            print(f"[DRAMA-STEP4-IMAGE][DEBUG] Gemini 응답: {json.dumps(result, ensure_ascii=False)[:1000]}")
+
             # 응답에서 이미지 추출 (base64 data URL)
             image_url = None
             try:
                 choices = result.get("choices", [])
                 if choices:
                     message = choices[0].get("message", {})
-                    content = message.get("content", [])
 
-                    # content가 리스트인 경우 (multimodal response)
-                    if isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, dict):
-                                # 이미지 타입 찾기
-                                if item.get("type") == "image_url":
-                                    image_url = item.get("image_url", {}).get("url")
+                    # 1. images 배열 먼저 확인 (OpenRouter 표준 형식)
+                    images = message.get("images", [])
+                    if images:
+                        for img in images:
+                            if isinstance(img, str):
+                                # 직접 URL 또는 base64
+                                image_url = img
+                                break
+                            elif isinstance(img, dict):
+                                # {"type": "image_url", "image_url": {"url": "..."}}
+                                if img.get("type") == "image_url":
+                                    image_url = img.get("image_url", {}).get("url")
+                                elif "url" in img:
+                                    image_url = img.get("url")
+                                elif "data" in img:
+                                    image_url = img.get("data")
+                                if image_url:
                                     break
-                                elif item.get("type") == "image":
-                                    # base64 이미지
-                                    image_data = item.get("image", {})
-                                    if isinstance(image_data, dict):
-                                        base64_data = image_data.get("data") or image_data.get("base64")
-                                        media_type = image_data.get("media_type", "image/png")
+
+                    # 2. content 배열 확인
+                    if not image_url:
+                        content = message.get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict):
+                                    item_type = item.get("type", "")
+
+                                    # image_url 타입
+                                    if item_type == "image_url":
+                                        image_url = item.get("image_url", {}).get("url")
+                                        if image_url:
+                                            break
+
+                                    # image 타입 (inline_data)
+                                    elif item_type == "image":
+                                        image_data = item.get("image", {})
+                                        if isinstance(image_data, dict):
+                                            base64_data = image_data.get("data") or image_data.get("base64")
+                                            media_type = image_data.get("media_type", "image/png")
+                                            if base64_data:
+                                                image_url = f"data:{media_type};base64,{base64_data}"
+                                                break
+                                        elif isinstance(image_data, str):
+                                            image_url = f"data:image/png;base64,{image_data}"
+                                            break
+
+                                    # inline_data 타입 (Google 형식)
+                                    elif "inline_data" in item:
+                                        inline = item.get("inline_data", {})
+                                        base64_data = inline.get("data", "")
+                                        media_type = inline.get("mime_type", "image/png")
                                         if base64_data:
                                             image_url = f"data:{media_type};base64,{base64_data}"
-                                    elif isinstance(image_data, str):
-                                        image_url = f"data:image/png;base64,{image_data}"
-                                    break
-                    # content가 문자열인 경우 (텍스트만 반환)
-                    elif isinstance(content, str):
-                        print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:100]}")
+                                            break
 
-                    # images 필드 확인 (일부 응답 형식)
-                    images = message.get("images", [])
-                    if images and not image_url:
-                        if isinstance(images[0], str):
-                            image_url = images[0]
-                        elif isinstance(images[0], dict):
-                            image_url = images[0].get("url") or images[0].get("data")
+                        elif isinstance(content, str):
+                            print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:200]}")
 
             except Exception as parse_error:
                 print(f"[DRAMA-STEP4-IMAGE][ERROR] 응답 파싱 오류: {parse_error}")
-                print(f"[DRAMA-STEP4-IMAGE][DEBUG] 원본 응답: {json.dumps(result, indent=2)[:500]}")
+                import traceback
+                traceback.print_exc()
 
             if not image_url:
-                return jsonify({"ok": False, "error": "Gemini에서 이미지를 생성하지 못했습니다. 프롬프트를 수정해주세요."}), 200
+                # 에러 메시지에 더 많은 정보 포함
+                error_detail = ""
+                if choices:
+                    msg = choices[0].get("message", {})
+                    if msg.get("content"):
+                        content = msg.get("content")
+                        if isinstance(content, str):
+                            error_detail = f" 응답: {content[:100]}"
+                return jsonify({"ok": False, "error": f"Gemini에서 이미지를 생성하지 못했습니다.{error_detail} 프롬프트를 수정해주세요."}), 200
 
             # Gemini 비용: ~$0.039/장 (1290 output tokens * $30/1M)
             cost_usd = 0.039
