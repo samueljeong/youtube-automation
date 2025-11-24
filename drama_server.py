@@ -2658,24 +2658,70 @@ def api_generate_tts():
 
             print(f"[DRAMA-STEP5-TTS] Google TTS 생성 시작 - 음성: {speaker}, 텍스트 길이: {char_count}자")
 
-            # Google Cloud TTS는 최대 5000바이트 (약 2500자 한글)
-            max_chars = 2500
+            # Google Cloud TTS는 최대 5000바이트 제한
+            # 한글은 UTF-8에서 3바이트이므로 안전하게 4500바이트(약 1500자) 이하로 유지
+            max_bytes = 4500
             text_chunks = []
 
-            if len(text) > max_chars:
-                sentences = text.replace('\n', ' ').split('. ')
+            def get_byte_length(s):
+                return len(s.encode('utf-8'))
+
+            def split_text_by_bytes(text, max_bytes):
+                """텍스트를 바이트 제한에 맞게 분할"""
+                chunks = []
+                # 문장 단위로 먼저 분할 (마침표, 느낌표, 물음표 기준)
+                import re
+                sentences = re.split(r'([.!?。！？])', text)
+                # 구분자를 문장에 다시 붙이기
+                merged_sentences = []
+                i = 0
+                while i < len(sentences):
+                    if i + 1 < len(sentences) and sentences[i+1] in '.!?。！？':
+                        merged_sentences.append(sentences[i] + sentences[i+1])
+                        i += 2
+                    else:
+                        if sentences[i].strip():
+                            merged_sentences.append(sentences[i])
+                        i += 1
+
                 current_chunk = ""
-                for sentence in sentences:
-                    if len(current_chunk) + len(sentence) + 2 < max_chars:
-                        current_chunk += sentence + ". "
+                for sentence in merged_sentences:
+                    sentence = sentence.strip()
+                    if not sentence:
+                        continue
+
+                    # 문장 자체가 너무 길면 더 작게 분할
+                    if get_byte_length(sentence) > max_bytes:
+                        # 현재 청크 저장
+                        if current_chunk:
+                            chunks.append(current_chunk.strip())
+                            current_chunk = ""
+                        # 긴 문장을 쉼표나 공백으로 분할
+                        sub_parts = re.split(r'([,，、\s])', sentence)
+                        sub_chunk = ""
+                        for part in sub_parts:
+                            if get_byte_length(sub_chunk + part) < max_bytes:
+                                sub_chunk += part
+                            else:
+                                if sub_chunk:
+                                    chunks.append(sub_chunk.strip())
+                                sub_chunk = part
+                        if sub_chunk:
+                            current_chunk = sub_chunk
+                    elif get_byte_length(current_chunk + " " + sentence) < max_bytes:
+                        current_chunk = (current_chunk + " " + sentence).strip()
                     else:
                         if current_chunk:
-                            text_chunks.append(current_chunk.strip())
-                        current_chunk = sentence + ". "
+                            chunks.append(current_chunk.strip())
+                        current_chunk = sentence
+
                 if current_chunk:
-                    text_chunks.append(current_chunk.strip())
-            else:
-                text_chunks = [text]
+                    chunks.append(current_chunk.strip())
+
+                return chunks if chunks else [text[:1500]]  # 최소 하나의 청크 보장
+
+            text_chunks = split_text_by_bytes(text, max_bytes)
+            print(f"[DRAMA-STEP5-TTS] 텍스트를 {len(text_chunks)}개 청크로 분할 (바이트 제한: {max_bytes})")
 
             audio_data_list = []
             url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
