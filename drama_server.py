@@ -3083,12 +3083,12 @@ def generate_metadata():
         script = data.get('script', '')
 
         if not script.strip():
-            return jsonify({"success": False, "error": "대본이 비어있습니다."})
+            return jsonify({"ok": False, "error": "대본이 비어있습니다."})
 
         # OpenAI API 호출하여 메타데이터 생성
         openai_api_key = os.getenv('OPENAI_API_KEY')
         if not openai_api_key:
-            return jsonify({"success": False, "error": "OpenAI API 키가 설정되지 않았습니다."})
+            return jsonify({"ok": False, "error": "OpenAI API 키가 설정되지 않았습니다."})
 
         import requests as req
 
@@ -3116,7 +3116,7 @@ def generate_metadata():
                 'Content-Type': 'application/json'
             },
             json={
-                'model': 'gpt-4o-mini',
+                'model': 'gpt-4o',
                 'messages': [
                     {'role': 'system', 'content': 'YouTube 영상 메타데이터 전문가입니다. 드라마 대본을 분석하여 시청자의 관심을 끌 수 있는 제목, 설명, 태그를 생성합니다.'},
                     {'role': 'user', 'content': prompt}
@@ -3128,7 +3128,7 @@ def generate_metadata():
         )
 
         if response.status_code != 200:
-            return jsonify({"success": False, "error": f"OpenAI API 오류: {response.text}"})
+            return jsonify({"ok": False, "error": f"OpenAI API 오류: {response.text}"})
 
         result = response.json()
         content = result['choices'][0]['message']['content']
@@ -3163,16 +3163,19 @@ def generate_metadata():
         if desc_lines:
             description = description + '\n\n' + '\n'.join(desc_lines)
 
+        print(f"[GENERATE-METADATA] 생성 완료 - 제목: {title[:30]}...")
         return jsonify({
-            "success": True,
-            "title": title,
-            "description": description,
-            "tags": tags
+            "ok": True,
+            "metadata": {
+                "title": title,
+                "description": description,
+                "tags": tags
+            }
         })
 
     except Exception as e:
         print(f"[GENERATE-METADATA][ERROR] {str(e)}")
-        return jsonify({"success": False, "error": str(e)})
+        return jsonify({"ok": False, "error": str(e)})
 
 
 # YouTube OAuth 인증 상태 저장 (세션 기반)

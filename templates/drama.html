@@ -2195,8 +2195,25 @@
     setTimeout(hideStatus, 3000);
   }
 
-  // 메타데이터 생성 알림 표시
+  // 메타데이터 생성 알림 표시 및 Step5 필드 자동 채우기
   function showMetadataNotification(metadata) {
+    // ⭐ Step5(유튜브 업로드) 필드에 자동으로 값 채우기
+    const titleField = document.getElementById('step7-title');
+    const descField = document.getElementById('step7-description');
+    const tagsField = document.getElementById('step7-tags');
+
+    if (titleField && metadata.title) {
+      titleField.value = metadata.title;
+    }
+    if (descField && metadata.description) {
+      descField.value = metadata.description;
+    }
+    if (tagsField && metadata.tags) {
+      tagsField.value = metadata.tags;
+    }
+
+    console.log('[METADATA] Step5 필드 자동 채움 완료:', metadata);
+
     const notification = document.createElement('div');
     notification.className = 'metadata-notification';
     notification.innerHTML = `
@@ -2211,7 +2228,7 @@
           <strong>제목:</strong> ${metadata.title}
         </div>
         <div style="color: #888; font-size: 12px;">
-          Step7에서 자동으로 사용됩니다
+          ✅ Step5 업로드 필드에 자동 입력되었습니다
         </div>
         <button onclick="this.parentElement.parentElement.remove()"
                 style="position: absolute; top: 8px; right: 8px; background: none;
@@ -4900,10 +4917,10 @@ S#1. 장소 / 시간
 
       const data = await response.json();
 
-      if (data.success) {
-        document.getElementById('step7-title').value = data.title || '';
-        document.getElementById('step7-description').value = data.description || '';
-        document.getElementById('step7-tags').value = data.tags || '';
+      if (data.ok && data.metadata) {
+        document.getElementById('step7-title').value = data.metadata.title || '';
+        document.getElementById('step7-description').value = data.metadata.description || '';
+        document.getElementById('step7-tags').value = data.metadata.tags || '';
         showStatus('메타데이터가 자동으로 입력되었습니다!');
       } else {
         throw new Error(data.error || '메타데이터 생성 실패');
