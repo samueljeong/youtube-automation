@@ -1402,18 +1402,39 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
     Step3용 프롬프트 생성 - Step1, Step2 JSON 결과와 meta 데이터 통합
 
     json_guide: Step3 지침 (writing_spec 포함)
-    meta_data: 사용자 입력 정보 (scripture, title, target, worship_type 등)
+    meta_data: 사용자 입력 정보 (scripture, title, target, worship_type, duration 등)
     step1_result: Step1 JSON 결과
     step2_result: Step2 JSON 결과 (writing_spec 포함)
     """
     prompt = "【 설교문 작성 지침 】\n\n"
 
-    # Meta 정보
+    # Meta 정보 (한글 키 매핑)
+    key_labels = {
+        "scripture": "성경 본문",
+        "title": "설교 제목",
+        "target": "대상",
+        "worship_type": "예배·집회 유형",
+        "duration": "분량",
+        "sermon_style": "설교 스타일",
+        "category": "카테고리"
+    }
+
     prompt += "▶ 기본 정보\n"
     for key, value in meta_data.items():
         if value:
-            prompt += f"  - {key}: {value}\n"
+            label = key_labels.get(key, key)
+            prompt += f"  - {label}: {value}\n"
     prompt += "\n"
+
+    # 분량 강조 (duration이 있으면 명확히 지시)
+    duration = meta_data.get("duration", "")
+    if duration:
+        prompt += f"⚠️ 중요: 설교문 분량은 반드시 {duration} 분량으로 작성하세요.\n\n"
+
+    # 예배 유형 강조 (worship_type이 있으면 명확히 지시)
+    worship_type = meta_data.get("worship_type", "")
+    if worship_type:
+        prompt += f"⚠️ 중요: 이 설교는 '{worship_type}' 예배/집회용입니다. 해당 상황과 분위기에 맞게 작성하세요.\n\n"
 
     # Step2의 writing_spec 적용
     if step2_result and isinstance(step2_result, dict):
@@ -1743,6 +1764,7 @@ def api_gpt_pro():
         step2_result = data.get("step2Result")  # Step2 JSON 결과 (writing_spec 포함)
         target_audience = data.get("target", "")  # 대상
         worship_type = data.get("worshipType", "")  # 예배 유형
+        duration = data.get("duration", "20분")  # 분량 (기본 20분)
 
         # JSON 모드 여부 확인 (실제 객체가 있을 때만)
         is_json_mode = (isinstance(step1_result, dict) and len(step1_result) > 0) or \
@@ -1800,6 +1822,7 @@ def api_gpt_pro():
                     "title": title,
                     "target": target_audience,
                     "worship_type": worship_type,
+                    "duration": duration,
                     "sermon_style": style_name,
                     "category": category
                 }

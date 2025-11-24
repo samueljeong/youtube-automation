@@ -1036,6 +1036,10 @@
             <input type="text" id="sermon-worship-type" placeholder="예) 새벽, 주일, 수요">
           </div>
           <div class="box">
+            <label class="label">분량<span class="label-hint">선택</span></label>
+            <input type="text" id="sermon-duration" placeholder="기본 20분" value="">
+          </div>
+          <div class="box">
             <label class="label">대상<span class="label-hint">선택</span></label>
             <input type="text" id="sermon-target" placeholder="예) 장년, 청년, 어린이">
           </div>
@@ -2743,13 +2747,15 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const isJsonMode = (typeof step1Data === 'object' && step1Data !== null) ||
                        (typeof step2Data === 'object' && step2Data !== null);
 
-    // 대상 및 예배 유형 가져오기
+    // 대상, 예배 유형, 분량 가져오기
     const targetEl = document.getElementById('sermon-target');
-    const worshipTypeEl = document.getElementById('worship-type');
+    const worshipTypeEl = document.getElementById('sermon-worship-type');
+    const durationEl = document.getElementById('sermon-duration');
     const targetAudience = targetEl ? targetEl.value.trim() : '';
     const worshipType = worshipTypeEl ? worshipTypeEl.value.trim() : '';
+    const duration = durationEl ? (durationEl.value.trim() || '20분') : '20분';  // 기본값 20분
 
-    console.log(`[Step3] JSON 모드: ${isJsonMode}, 대상: ${targetAudience}, 예배유형: ${worshipType}`);
+    console.log(`[Step3] JSON 모드: ${isJsonMode}, 대상: ${targetAudience}, 예배유형: ${worshipType}, 분량: ${duration}`);
 
     try {
       const requestBody = {
@@ -2766,7 +2772,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         completedStepNames: draft.completedStepNames,
         // 추가 필드
         target: targetAudience,
-        worshipType: worshipType
+        worshipType: worshipType,
+        duration: duration  // 분량 (기본 20분)
       };
 
       // JSON 모드일 경우 step1Result, step2Result 추가
@@ -4882,6 +4889,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
             const scripture = item.dataset.scripture;
             document.getElementById('sermon-ref').value = scripture;
 
+            // 검색 키워드를 예배·집회 유형 상자에 설정
+            const searchKeyword = document.getElementById('scripture-search').value.trim();
+            const worshipTypeInput = document.getElementById('sermon-worship-type');
+            if (searchKeyword && worshipTypeInput) {
+              worshipTypeInput.value = searchKeyword;
+            }
+
             // 선택된 항목 스타일
             scriptureList.querySelectorAll('.scripture-item').forEach(i => {
               i.style.borderColor = 'transparent';
@@ -4890,7 +4904,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
             item.style.borderColor = '#4a90e2';
             item.style.background = '#e6f2ff';
 
-            showStatus('✅ 본문이 선택되었습니다!');
+            showStatus('✅ 본문이 선택되었습니다! (예배 유형도 설정됨)');
             setTimeout(hideStatus, 2000);
           });
 
