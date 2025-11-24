@@ -16,6 +16,20 @@
     },
 
     "duration_settings": {
+      "2min": {
+        "target_length": 600,
+        "max_characters": 1,
+        "max_scenes": 2,
+        "images_per_scene": "1",
+        "highlight_scenes": 1
+      },
+      "5min": {
+        "target_length": 1500,
+        "max_characters": 2,
+        "max_scenes": 3,
+        "images_per_scene": "1-2",
+        "highlight_scenes": 1
+      },
       "10min": {
         "target_length": 3000,
         "max_characters": 2,
