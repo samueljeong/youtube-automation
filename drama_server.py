@@ -3529,6 +3529,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             # SRT를 ASS 이벤트로 변환
             import re
+
+            def srt_to_ass_time(srt_time):
+                """SRT 타임스탬프(00:00:00,000)를 ASS 형식(0:00:00.00)으로 변환"""
+                # SRT: HH:MM:SS,mmm (밀리초 3자리)
+                # ASS: H:MM:SS.cc (센티초 2자리, 시간은 앞의 0 제거)
+                hours, minutes, seconds_ms = srt_time.split(':')
+                seconds, milliseconds = seconds_ms.split(',')
+                centiseconds = int(milliseconds) // 10  # 밀리초를 센티초로 변환
+                return f"{int(hours)}:{minutes}:{seconds}.{centiseconds:02d}"
+
             ass_events = []
             srt_blocks = srt_content.strip().split('\n\n')
 
@@ -3538,8 +3548,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     # 타임코드 파싱 (00:00:00,000 --> 00:00:03,000)
                     time_match = re.match(r'(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})', lines[1])
                     if time_match:
-                        start_time = time_match.group(1).replace(',', '.')
-                        end_time = time_match.group(2).replace(',', '.')
+                        start_time = srt_to_ass_time(time_match.group(1))
+                        end_time = srt_to_ass_time(time_match.group(2))
                         text = '\\N'.join(lines[2:])  # ASS는 \N으로 줄바꿈
                         ass_events.append(f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{text}")
 
