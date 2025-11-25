@@ -277,6 +277,8 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
     detail_req = guide.get('detail_requirements', {})
     emotional = guide.get('emotional_expressions', {})
     mandatory = guide.get('mandatory_elements', {})
+    honorific_rules = guide.get('honorific_rules', {})
+    number_rules = guide.get('number_expression_rules', {})
 
     system_prompt = f"""당신은 기독교 간증/드라마 콘텐츠 전문 작가입니다.
 반드시 JSON 형식으로 대본을 출력해야 합니다.
@@ -375,6 +377,28 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
 - 서술/나레이션: {dialogue_ratio.get('narration', 55)}%
 - 내면 독백: {dialogue_ratio.get('inner_monologue', 15)}%
 - 직접 대화: {dialogue_ratio.get('direct_dialogue', 30)}%
+
+【 호칭 규칙 - 매우 중요! 】
+🚨 핵심 원칙: {honorific_rules.get('core_principle', '60대 이상 인물들은 서로 이름을 직접 부르지 않음')}
+
+✅ 부부 간 호칭 (반드시 사용):
+- 남편→아내: {', '.join(honorific_rules.get('spouse_terms', {}).get('husband_calls_wife', ['여보', '당신', '아이 엄마']))}
+- 아내→남편: {', '.join(honorific_rules.get('spouse_terms', {}).get('wife_calls_husband', ['여보', '당신', '아이 아빠']))}
+
+🚫 절대 금지:
+{chr(10).join('- ' + x for x in honorific_rules.get('forbidden_patterns', ['부부가 서로 이름 부르기 (순자야, 영수야)', '60대 이상끼리 이름으로 호칭', '대화 중 상대방 이름 직접 언급']))}
+
+예시:
+❌ 잘못된 표현: "순자야, 밥 먹었어?" / "영수 씨, 어디 가세요?"
+✅ 올바른 표현: "여보, 진지 드셨어요?" / "당신, 어디 가시는 거예요?"
+
+【 숫자 표현 규칙 - TTS 필수! 】
+🚨 중요: {number_rules.get('tts_narration', {}).get('rule', '모든 숫자는 한글로 표기')}
+이유: {number_rules.get('tts_narration', {}).get('reason', 'TTS가 숫자를 잘못 읽는 문제 방지')}
+
+예시:
+❌ 잘못: 76세, 20년, 112, 3명
+✅ 올바름: 일흔여섯 살, 이십 년, 일일이, 세 명
 
 【 감정 표현 】
 신체 반응: {', '.join(emotional.get('physical_reactions', [])[:5])}
@@ -2460,9 +2484,16 @@ def api_generate_scene_prompt():
 4. 한국 드라마 스타일의 시각적 요소
 5. DALL-E 3에 최적화된 상세하고 명확한 묘사
 
+🚨 매우 중요 - 인물 외모 일관성 유지:
+- 등장인물 정보에 제공된 외모 설명(나이, 머리 스타일, 체형, 얼굴 특징 등)을 정확히 그대로 사용하세요
+- 외모 설명을 재해석하거나 변경하지 마세요
+- 예: "78 years old elderly man" → 반드시 "78 years old elderly man"으로 유지
+- 예: "white hair, wrinkled face" → 반드시 "white hair, wrinkled face"로 유지
+- 추가할 수 있는 것: 위치, 표정, 행동, 자세 (외모는 변경 금지!)
+
 응답 형식:
 BACKGROUND_PROMPT: [배경 프롬프트 - 영어]
-COMBINED_PROMPT: [통합 장면 프롬프트 - 영어]"""
+COMBINED_PROMPT: [통합 장면 프롬프트 - 영어, 등장인물 외모는 정확히 유지]"""
 
         scene_info = f"""
 씬 정보:
@@ -3652,8 +3683,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f.write(ass_header)
                 f.write('\n'.join(ass_events))
 
-            # ASS 자막 필터 추가
-            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,ass={ass_path}"
+            # ASS 자막 필터 추가 (경로 이스케이프 처리)
+            # FFmpeg ass 필터는 경로에서 콜론(:)과 백슬래시(\)를 이스케이프해야 함
+            escaped_ass_path = ass_path.replace('\\', '\\\\').replace(':', '\\:')
+            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,ass={escaped_ass_path}"
             ffmpeg_cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat', '-safe', '0', '-i', list_path,
@@ -4318,11 +4351,29 @@ def youtube_channels():
         })
 
     except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
         print(f"[YOUTUBE-CHANNELS][ERROR] {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        })
+        print(f"[YOUTUBE-CHANNELS][ERROR] Traceback: {error_detail}")
+
+        # 더 구체적인 에러 메시지
+        if "invalid_grant" in str(e).lower():
+            return jsonify({
+                "success": False,
+                "error": "YouTube 인증이 만료되었습니다. 다시 인증해주세요.",
+                "need_reauth": True
+            })
+        elif "credentials" in str(e).lower():
+            return jsonify({
+                "success": False,
+                "error": "YouTube 인증 정보가 올바르지 않습니다. 다시 인증해주세요.",
+                "need_reauth": True
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"채널 목록을 가져오는 데 실패했습니다: {str(e)}"
+            })
 
 
 @app.route('/api/drama/upload-youtube', methods=['POST'])
