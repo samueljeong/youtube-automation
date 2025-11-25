@@ -3984,14 +3984,15 @@ def youtube_auth():
         import json as json_module
 
         # 환경 변수에서 OAuth 클라이언트 정보 가져오기
-        client_id = os.getenv('YOUTUBE_CLIENT_ID')
-        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET')
+        # YOUTUBE_CLIENT_ID가 없으면 GOOGLE_CLIENT_ID를 사용 (같은 Google Cloud Project의 OAuth 클라이언트)
+        client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
         redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI', 'http://localhost:5059/api/drama/youtube-callback')
 
         if not client_id or not client_secret:
             return jsonify({
                 "success": False,
-                "error": "YouTube API 인증 정보가 설정되지 않았습니다. YOUTUBE_CLIENT_ID와 YOUTUBE_CLIENT_SECRET 환경 변수를 설정해주세요."
+                "error": "YouTube API 인증 정보가 설정되지 않았습니다. YOUTUBE_CLIENT_ID/GOOGLE_CLIENT_ID와 YOUTUBE_CLIENT_SECRET/GOOGLE_CLIENT_SECRET 환경 변수를 설정해주세요."
             })
 
         # 이미 인증된 토큰이 있는지 확인
