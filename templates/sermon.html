@@ -1048,6 +1048,12 @@
         <!-- 숨겨진 주제 입력 (기존 코드 호환용) -->
         <input type="hidden" id="sermon-topic">
 
+        <!-- 특별 참고 사항 -->
+        <div class="box" style="padding: .6rem; margin-bottom: .5rem;">
+          <label class="label" style="font-size: .8rem;">특별 참고 사항<span class="label-hint">선택</span></label>
+          <textarea id="special-notes" placeholder="설교 작성 시 고려해야 할 특별한 상황, 요청, 주의점을 자유롭게 기입하세요.&#10;예) 현장 상황, 성도 사정, 교회 일정, 설교자의 의도 등" style="font-size: .85rem; min-height: 60px; resize: vertical; width: 100%; padding: .5rem; border: 1px solid #e0e0e0; border-radius: 6px; line-height: 1.4;"></textarea>
+        </div>
+
         <div class="dual-row">
           <div class="box">
             <div class="label-row">
@@ -2546,6 +2552,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const worshipType = document.getElementById('sermon-worship-type')?.value.trim() || '';
     const duration = document.getElementById('sermon-duration')?.value.trim() || '20분';
     const target = document.getElementById('sermon-target')?.value.trim() || '';
+    const specialNotes = document.getElementById('special-notes')?.value.trim() || '';
 
     if (!ref) {
       return { error: '성경구절을 입력하세요.' };
@@ -2583,6 +2590,11 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (target) {
       fullText += `\n🚨 대상: ${target}\n`;
     }
+    if (specialNotes) {
+      fullText += `\n🚨 특별 참고 사항:\n`;
+      fullText += `   ${specialNotes.replace(/\n/g, '\n   ')}\n`;
+      fullText += `   → 위 내용을 설교문 작성 시 반드시 고려하세요.\n`;
+    }
     fullText += `\n${'='.repeat(50)}\n\n`;
 
     fullText += `⚠️ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n`;
@@ -2608,6 +2620,9 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     fullText += `- 분량: ${duration}\n`;
     if (target) {
       fullText += `- 대상: ${target}\n`;
+    }
+    if (specialNotes) {
+      fullText += `- 특별 참고 사항: ${specialNotes.replace(/\n/g, ' / ')}\n`;
     }
     fullText += `- 작성일: ${new Date().toLocaleDateString('ko-KR')}\n`;
     fullText += `\n${'='.repeat(50)}\n\n`;
@@ -2661,7 +2676,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         styleName,
         styleDescription,
         finalTitle,
-        categoryLabel
+        categoryLabel,
+        specialNotes
       },
       completedStepNames: stepNames
     };
@@ -2776,7 +2792,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         // 추가 필드
         target: targetAudience,
         worshipType: worshipType,
-        duration: duration  // 분량 (기본 20분)
+        duration: duration,  // 분량 (기본 20분)
+        specialNotes: draft.meta.specialNotes  // 특별 참고 사항
       };
 
       // JSON 모드일 경우 step1Result, step2Result 추가
@@ -3388,6 +3405,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       selectedTitle = '';
       const titleBox = document.getElementById('title-selection-box');
       if (titleBox) titleBox.style.display = 'none';
+      const specialNotesEl = document.getElementById('special-notes');
+      if (specialNotesEl) specialNotesEl.value = '';  // 특별 참고 사항 초기화
       const gptProContainer = document.getElementById('gpt-pro-result-container');
       if (gptProContainer) gptProContainer.style.display = 'none';
 
@@ -4202,6 +4221,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         manualTitle: document.getElementById('manual-title').value,
         selectedTitle: selectedTitle,
         text: document.getElementById('sermon-text').value,
+        specialNotes: document.getElementById('special-notes')?.value || '',
         results: stepResults,
         titleOptions: titleOptions,
         savedAt: new Date().toISOString()
@@ -4252,6 +4272,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     document.getElementById('sermon-text').value = item.text || '';
     document.getElementById('series-name').value = item.seriesName || '';
     document.getElementById('manual-title').value = item.manualTitle || '';
+    const specialNotesEl = document.getElementById('special-notes');
+    if (specialNotesEl) specialNotesEl.value = item.specialNotes || '';
 
     currentCategory = item.category || 'general';
     currentStyleId = item.styleId || '';
