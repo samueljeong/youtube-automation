@@ -27,8 +27,38 @@ class VideoGenerator:
         self.height = 1920
         self.fps = 30
 
-        # 한글 지원 폰트 설정
-        self.korean_font = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
+        # 한글 폰트 설정 - 여러 경로 시도
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        font_candidates = [
+            # 프로젝트 내부 폰트 (우선순위 1)
+            os.path.join(base_dir, 'fonts', 'NanumGothicBold.ttf'),
+            os.path.join(base_dir, 'fonts', 'NanumGothic.ttf'),
+            os.path.join(base_dir, 'fonts', 'NotoSansKR-Bold.ttf'),
+            # 시스템 나눔 폰트 (우선순위 2)
+            '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+            '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+            '/usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf',
+            # Noto Sans KR (우선순위 3)
+            '/usr/share/fonts/truetype/noto/NotoSansKR-Bold.ttf',
+            '/usr/share/fonts/truetype/noto/NotoSansKR-Regular.ttf',
+        ]
+
+        self.korean_font = None
+        for font_path in font_candidates:
+            if os.path.exists(font_path):
+                self.korean_font = font_path
+                print(f"✅ 한글 폰트 발견: {font_path}")
+                break
+
+        if not self.korean_font:
+            raise Exception(
+                "❌ 한글 폰트를 찾을 수 없습니다.\n"
+                "다음 중 하나를 수행하세요:\n"
+                "1. fonts/ 디렉토리에 나눔고딕 또는 Noto Sans KR 폰트 파일 추가\n"
+                "2. 시스템에 fonts-nanum 패키지 설치: apt-get install fonts-nanum\n"
+                "3. Dockerfile에 'RUN apt-get install -y fonts-nanum' 추가"
+            )
 
     def create_background_image(self, color: tuple = (30, 30, 50)) -> str:
         """배경 이미지 생성"""
