@@ -1784,6 +1784,7 @@ def api_gpt_pro():
         target_audience = data.get("target", "")  # 대상
         worship_type = data.get("worshipType", "")  # 예배 유형
         duration = data.get("duration", "20분")  # 분량 (기본 20분)
+        special_notes = data.get("specialNotes", "")  # 특별 참고 사항
 
         # JSON 모드 여부 확인 (실제 객체가 있을 때만)
         is_json_mode = (isinstance(step1_result, dict) and len(step1_result) > 0) or \
@@ -1814,6 +1815,10 @@ def api_gpt_pro():
         if worship_type:
             system_content += f"\n\n🚨 예배/집회 유형: '{worship_type}'"
             system_content += f"\n   - 이 설교는 '{worship_type}'에 맞는 톤과 내용으로 작성하세요."
+        if special_notes:
+            system_content += f"\n\n🚨 특별 참고 사항:"
+            system_content += f"\n   {special_notes}"
+            system_content += f"\n   - 위 내용을 설교문 작성 시 반드시 고려하세요."
         system_content += "\n" + "=" * 50
 
         # 제목이 없으면 GPT가 생성하도록 지시
@@ -1857,7 +1862,8 @@ def api_gpt_pro():
                     "worship_type": worship_type,
                     "duration": duration,
                     "sermon_style": style_name,
-                    "category": category
+                    "category": category,
+                    "special_notes": special_notes
                 }
 
                 # Step2에서 writing_spec 추출하여 시스템 프롬프트에 반영
