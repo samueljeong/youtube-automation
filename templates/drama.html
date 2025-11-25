@@ -5424,6 +5424,31 @@ S#1. 장소 / 시간
   // 썸네일 자동 생성 (AI)
   let generatedThumbnailUrl = null;
 
+  // 페이지 로드 시 저장된 썸네일 복원
+  function restoreThumbnail() {
+    const savedThumbnail = localStorage.getItem('_drama-thumbnail');
+    if (!savedThumbnail) return;
+
+    try {
+      const thumbnailData = JSON.parse(savedThumbnail);
+      const thumbnailPreview = document.getElementById('step4-thumbnail-preview');
+      const thumbnailImage = document.getElementById('step4-thumbnail-image');
+      const thumbnailTextOverlay = document.getElementById('step4-thumbnail-text-overlay');
+      const thumbnailPrompt = document.getElementById('step4-thumbnail-prompt');
+
+      if (thumbnailImage && thumbnailData.url) {
+        generatedThumbnailUrl = thumbnailData.url;
+        thumbnailImage.src = thumbnailData.url;
+        thumbnailTextOverlay.textContent = thumbnailData.text || '드라마';
+        thumbnailPrompt.textContent = thumbnailData.prompt || '-';
+        thumbnailPreview.style.display = 'block';
+        console.log('[THUMBNAIL] 저장된 썸네일 복원:', thumbnailData.url);
+      }
+    } catch (e) {
+      console.error('[THUMBNAIL] 복원 실패:', e);
+    }
+  }
+
   async function generateYouTubeThumbnail() {
     const btn = document.getElementById('btn-generate-thumbnail');
     const thumbnailPreview = document.getElementById('step4-thumbnail-preview');
@@ -5463,6 +5488,15 @@ S#1. 장소 / 시간
         thumbnailTextOverlay.textContent = data.thumbnailText || title || '드라마';
         thumbnailPrompt.textContent = data.imagePrompt || '-';
         thumbnailPreview.style.display = 'block';
+
+        // 썸네일 데이터 localStorage에 저장
+        const thumbnailData = {
+          url: data.thumbnailUrl,
+          text: data.thumbnailText || title || '드라마',
+          prompt: data.imagePrompt || '-',
+          createdAt: new Date().toISOString()
+        };
+        localStorage.setItem('_drama-thumbnail', JSON.stringify(thumbnailData));
 
         showStatus('✅ 썸네일 생성 완료!');
         console.log('[THUMBNAIL] 생성 완료:', data.thumbnailUrl);
@@ -8176,6 +8210,10 @@ S#1. 장소 / 시간
     renderSavedList();
 
     document.querySelectorAll('textarea').forEach(autoResize);
+
+    // ⭐ 저장된 썸네일 및 인물 이미지 복원
+    restoreThumbnail();
+    renderCharacterImages();
 
     // ⭐ Step1 입력 필드 변경 시 세션 자동 저장
     setupStep1SessionSync();
