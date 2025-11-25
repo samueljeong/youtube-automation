@@ -2992,7 +2992,7 @@ def api_generate_tts():
                         }
                     }
 
-                response = requests.post(url, json=payload)
+                response = requests.post(url, json=payload, timeout=90)
 
                 if response.status_code == 200:
                     result = response.json()
@@ -3509,8 +3509,10 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
             with open(srt_path, 'w', encoding='utf-8') as f:
                 f.write(subtitle_data['srt'])
 
-            # 자막 필터 추가 (메모리 최적화)
-            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,subtitles={srt_path}:force_style='FontSize=24,PrimaryColour=&HFFFFFF&'"
+            # 자막 필터 추가 (메모리 최적화, 한글 폰트 지원 개선)
+            # FontSize를 36으로 증가, 한글 지원을 위한 폰트 명시
+            # 아웃라인과 그림자 추가로 가독성 향상
+            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,subtitles={srt_path}:force_style='FontName=Noto Sans CJK KR,FontSize=36,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,Shadow=1,Bold=1,Alignment=2'"
             ffmpeg_cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat', '-safe', '0', '-i', list_path,
@@ -3528,12 +3530,12 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
         print(f"[DRAMA-STEP6-VIDEO] FFmpeg 명령어 실행: {' '.join(ffmpeg_cmd[:5])}...")
         update_progress(50, "영상 인코딩 중...")
 
-        # FFmpeg 실행 (타임아웃 15분)
+        # FFmpeg 실행 (타임아웃 30분 - 10분 이상 영상 지원)
         try:
-            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=900)
+            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=1800)
         except subprocess.TimeoutExpired:
-            print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 타임아웃 (15분)")
-            raise Exception("영상 인코딩 시간 초과 (15분). 이미지 수를 줄이거나 해상도를 낮춰주세요.")
+            print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 타임아웃 (30분)")
+            raise Exception("영상 인코딩 시간 초과 (30분). 이미지 수를 줄이거나 해상도를 낮춰주세요.")
 
         if process.returncode != 0:
             error_msg = process.stderr.strip()
