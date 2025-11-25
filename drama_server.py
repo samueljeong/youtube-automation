@@ -719,10 +719,42 @@ def init_db():
             ON benchmark_analyses(created_at DESC)
         ''')
 
+    # YouTube 토큰 테이블 생성
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id VARCHAR(100) UNIQUE DEFAULT 'default',
+                token TEXT,
+                refresh_token TEXT,
+                token_uri TEXT,
+                client_id TEXT,
+                client_secret TEXT,
+                scopes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT UNIQUE DEFAULT 'default',
+                token TEXT,
+                refresh_token TEXT,
+                token_uri TEXT,
+                client_id TEXT,
+                client_secret TEXT,
+                scopes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     conn.commit()
     cursor.close()
     conn.close()
-    print("[DRAMA-DB] Database initialized")
+    print("[DRAMA-DB] Database initialized (including youtube_tokens)")
 
 # 앱 시작 시 DB 초기화
 init_db()
@@ -4183,7 +4215,30 @@ def generate_thumbnail():
 
 
 # YouTube OAuth 인증 상태 저장 (세션 기반)
-youtube_auth_state = {}
+# YouTube OAuth 상태를 파일 기반으로 저장 (멀티 워커 환경 대응)
+OAUTH_STATE_FILE = 'data/oauth_state.json'
+
+def save_oauth_state(state_data):
+    """OAuth 상태를 파일에 저장"""
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open(OAUTH_STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(state_data, f, ensure_ascii=False)
+        print(f"[OAUTH-STATE] 저장 완료: {list(state_data.keys())}")
+    except Exception as e:
+        print(f"[OAUTH-STATE] 저장 실패: {e}")
+
+def load_oauth_state():
+    """OAuth 상태를 파일에서 로드"""
+    try:
+        if os.path.exists(OAUTH_STATE_FILE):
+            with open(OAUTH_STATE_FILE, 'r', encoding='utf-8') as f:
+                state_data = json.load(f)
+            print(f"[OAUTH-STATE] 로드 완료: {list(state_data.keys())}")
+            return state_data
+    except Exception as e:
+        print(f"[OAUTH-STATE] 로드 실패: {e}")
+    return {}
 
 @app.route('/api/drama/youtube-auth', methods=['POST'])
 def youtube_auth():
@@ -4197,7 +4252,17 @@ def youtube_auth():
         # YOUTUBE_CLIENT_ID가 없으면 GOOGLE_CLIENT_ID를 사용 (같은 Google Cloud Project의 OAuth 클라이언트)
         client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
         client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
-        redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI', 'http://localhost:5059/api/drama/youtube-callback')
+
+        # Render 환경에서는 반드시 HTTPS URL 사용
+        redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI')
+        if not redirect_uri:
+            # 요청 URL에서 자동 추출
+            redirect_uri = request.url_root.rstrip('/') + '/api/drama/youtube-callback'
+            # HTTP를 HTTPS로 변환 (Render는 HTTPS 사용)
+            if redirect_uri.startswith('http://') and 'onrender.com' in redirect_uri:
+                redirect_uri = redirect_uri.replace('http://', 'https://')
+
+        print(f"[YOUTUBE-AUTH] Redirect URI: {redirect_uri}")
 
         if not client_id or not client_secret:
             return jsonify({
@@ -4207,13 +4272,13 @@ def youtube_auth():
 
         # 이미 인증된 토큰이 있는지 확인 (데이터베이스에서)
         token_data = load_youtube_token_from_db()
-        if token_data:
+        if token_data and token_data.get('refresh_token'):
             try:
                 credentials = Credentials.from_authorized_user_info(token_data)
-                if credentials and credentials.valid:
+                if credentials and (credentials.valid or credentials.refresh_token):
                     return jsonify({"success": True, "message": "이미 인증되어 있습니다."})
             except Exception as e:
-                print(f"[YOUTUBE-AUTH] 기존 토큰 로드 실패: {e}")
+                print(f"[YOUTUBE-AUTH] 기존 토큰 검증 실패: {e}")
 
         # OAuth 플로우 생성
         client_config = {
@@ -4238,9 +4303,13 @@ def youtube_auth():
             prompt='consent'
         )
 
-        # 상태 저장
-        youtube_auth_state['state'] = state
-        youtube_auth_state['flow'] = flow
+        # 상태를 파일에 저장 (멀티 워커 대응)
+        save_oauth_state({
+            'state': state,
+            'redirect_uri': redirect_uri,
+            'client_id': client_id,
+            'client_secret': client_secret
+        })
 
         return jsonify({
             "success": False,
@@ -4262,43 +4331,70 @@ def youtube_auth():
 def youtube_callback():
     """YouTube OAuth 콜백 처리"""
     try:
-        import json as json_module
+        from google_auth_oauthlib.flow import Flow
 
         code = request.args.get('code')
         state = request.args.get('state')
+        error = request.args.get('error')
+
+        if error:
+            return f"인증 오류: {error}", 400
 
         if not code:
             return "인증 코드가 없습니다.", 400
 
-        if 'flow' not in youtube_auth_state:
-            return "인증 플로우가 만료되었습니다. 다시 시도해주세요.", 400
+        # 저장된 상태 로드
+        oauth_state = load_oauth_state()
+        if not oauth_state:
+            return "인증 세션이 만료되었습니다. 다시 시도해주세요.", 400
 
-        flow = youtube_auth_state['flow']
+        # Flow 재생성
+        client_config = {
+            "web": {
+                "client_id": oauth_state['client_id'],
+                "client_secret": oauth_state['client_secret'],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [oauth_state['redirect_uri']]
+            }
+        }
+
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=['https://www.googleapis.com/auth/youtube.upload'],
+            redirect_uri=oauth_state['redirect_uri']
+        )
+
         flow.fetch_token(code=code)
-
         credentials = flow.credentials
 
-        # 토큰 저장 (데이터베이스에)
+        # 토큰 저장
         token_data = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
             'token_uri': credentials.token_uri,
             'client_id': credentials.client_id,
             'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
+            'scopes': list(credentials.scopes) if credentials.scopes else []
         }
 
         save_youtube_token_to_db(token_data)
-        youtube_auth_state['authenticated'] = True
 
         return """
         <html>
         <head><title>YouTube 인증 완료</title></head>
-        <body style="font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #ff0000, #cc0000);">
+        <body style="font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #ff0000, #cc0000);">
             <div style="text-align: center; color: white; padding: 40px; background: rgba(0,0,0,0.3); border-radius: 16px;">
                 <h1>✅ YouTube 인증 완료!</h1>
                 <p>이 창을 닫고 원래 페이지로 돌아가세요.</p>
-                <script>setTimeout(() => window.close(), 3000);</script>
+                <script>
+                    setTimeout(() => {
+                        if (window.opener) {
+                            window.opener.postMessage({type: 'youtube-auth-success'}, '*');
+                        }
+                        window.close();
+                    }, 2000);
+                </script>
             </div>
         </body>
         </html>
@@ -4306,6 +4402,8 @@ def youtube_callback():
 
     except Exception as e:
         print(f"[YOUTUBE-CALLBACK][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
         return f"인증 오류: {str(e)}", 500
 
 
@@ -4324,10 +4422,6 @@ def youtube_auth_status():
                     return jsonify({"authenticated": True})
             except Exception:
                 pass
-
-        # 인메모리 상태 확인
-        if youtube_auth_state.get('authenticated'):
-            return jsonify({"authenticated": True})
 
         return jsonify({"authenticated": False})
 
