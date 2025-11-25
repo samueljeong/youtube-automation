@@ -15,6 +15,32 @@ app = Flask(__name__)
 video_job_queue = queue.Queue()
 video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
 video_jobs_lock = threading.Lock()
+VIDEO_JOBS_FILE = 'data/video_jobs.json'
+
+# Job 파일 저장/로드 함수 (Render 재시작 대비)
+def save_video_jobs():
+    """video_jobs를 파일에 저장"""
+    try:
+        os.makedirs('data', exist_ok=True)
+        with open(VIDEO_JOBS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(video_jobs, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[VIDEO-JOBS] 저장 실패: {e}")
+
+def load_video_jobs():
+    """파일에서 video_jobs 로드"""
+    global video_jobs
+    try:
+        if os.path.exists(VIDEO_JOBS_FILE):
+            with open(VIDEO_JOBS_FILE, 'r', encoding='utf-8') as f:
+                video_jobs = json.load(f)
+            print(f"[VIDEO-JOBS] {len(video_jobs)}개 작업 로드됨")
+        else:
+            video_jobs = {}
+            print("[VIDEO-JOBS] 새로운 작업 저장소 생성")
+    except Exception as e:
+        print(f"[VIDEO-JOBS] 로드 실패: {e}")
+        video_jobs = {}
 
 def video_worker():
     """백그라운드 워커: 영상 생성 작업 처리"""
@@ -32,6 +58,7 @@ def video_worker():
                 if job_id in video_jobs:
                     video_jobs[job_id]['status'] = 'processing'
                     video_jobs[job_id]['progress'] = 0
+                    save_video_jobs()  # 파일에 저장
 
             try:
                 # 실제 영상 생성 로직 실행
@@ -53,6 +80,7 @@ def video_worker():
                         video_jobs[job_id]['progress'] = 100
                         video_jobs[job_id]['result'] = result
                         video_jobs[job_id]['completed_at'] = dt.now().isoformat()
+                        save_video_jobs()  # 파일에 저장
 
                 print(f"[VIDEO-WORKER] 작업 완료: {job_id}")
 
@@ -63,11 +91,15 @@ def video_worker():
                     if job_id in video_jobs:
                         video_jobs[job_id]['status'] = 'failed'
                         video_jobs[job_id]['error'] = str(e)
+                        save_video_jobs()  # 파일에 저장
 
             video_job_queue.task_done()
 
         except Exception as e:
             print(f"[VIDEO-WORKER] 워커 오류: {str(e)}")
+
+# 서버 시작 시 저장된 jobs 로드
+load_video_jobs()
 
 # 워커 스레드 시작
 video_worker_thread = threading.Thread(target=video_worker, daemon=True)
@@ -3275,6 +3307,7 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
                     video_jobs[job_id]['progress'] = progress
                     if message:
                         video_jobs[job_id]['message'] = message
+                    save_video_jobs()  # 파일에 저장
 
     update_progress(5, "FFmpeg 확인 중...")
 
@@ -3548,6 +3581,7 @@ def api_generate_video():
                 'error': None,
                 'created_at': dt.now().isoformat()
             }
+            save_video_jobs()  # 파일에 저장
 
         # 작업을 큐에 추가
         video_job_queue.put({

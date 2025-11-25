@@ -68,6 +68,9 @@ users.db
 # Backup files
 *.old
 
+# Video job data (임시 작업 정보)
+data/
+
 # Flask stuff:
 instance/
 .webassets-cache
