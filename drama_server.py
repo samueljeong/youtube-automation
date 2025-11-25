@@ -18,8 +18,102 @@ video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
 video_jobs_lock = threading.Lock()
 VIDEO_JOBS_FILE = 'data/video_jobs.json'
 
-# YouTube 토큰 파일 경로 (재부팅 시에도 유지)
+# YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
+
+# YouTube 토큰 DB 저장/로드 함수
+def save_youtube_token_to_db(token_data, user_id='default'):
+    """YouTube 토큰을 데이터베이스에 저장"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    token = EXCLUDED.token,
+                    refresh_token = EXCLUDED.refresh_token,
+                    token_uri = EXCLUDED.token_uri,
+                    client_id = EXCLUDED.client_id,
+                    client_secret = EXCLUDED.client_secret,
+                    scopes = EXCLUDED.scopes,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (
+                user_id,
+                token_data.get('token'),
+                token_data.get('refresh_token'),
+                token_data.get('token_uri'),
+                token_data.get('client_id'),
+                token_data.get('client_secret'),
+                ','.join(token_data.get('scopes', []))
+            ))
+        else:
+            cursor.execute('''
+                INSERT OR REPLACE INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ''', (
+                user_id,
+                token_data.get('token'),
+                token_data.get('refresh_token'),
+                token_data.get('token_uri'),
+                token_data.get('client_id'),
+                token_data.get('client_secret'),
+                ','.join(token_data.get('scopes', []))
+            ))
+
+        conn.commit()
+        conn.close()
+        print(f"[YOUTUBE-TOKEN] 데이터베이스에 저장 완료 (user_id: {user_id})")
+        return True
+    except Exception as e:
+        print(f"[YOUTUBE-TOKEN] 데이터베이스 저장 실패: {e}")
+        return False
+
+
+def load_youtube_token_from_db(user_id='default'):
+    """YouTube 토큰을 데이터베이스에서 로드"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = %s', (user_id,))
+        else:
+            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = ?', (user_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            token_data = {
+                'token': row['token'] if USE_POSTGRES else row[2],
+                'refresh_token': row['refresh_token'] if USE_POSTGRES else row[3],
+                'token_uri': row['token_uri'] if USE_POSTGRES else row[4],
+                'client_id': row['client_id'] if USE_POSTGRES else row[5],
+                'client_secret': row['client_secret'] if USE_POSTGRES else row[6],
+                'scopes': (row['scopes'] if USE_POSTGRES else row[7]).split(',') if (row['scopes'] if USE_POSTGRES else row[7]) else []
+            }
+            print(f"[YOUTUBE-TOKEN] 데이터베이스에서 로드 완료 (user_id: {user_id})")
+            return token_data
+        else:
+            print(f"[YOUTUBE-TOKEN] 데이터베이스에 토큰 없음 (user_id: {user_id})")
+            return None
+    except Exception as e:
+        print(f"[YOUTUBE-TOKEN] 데이터베이스 로드 실패: {e}")
+        # 마이그레이션 전 레거시 파일에서 로드 시도
+        if os.path.exists(YOUTUBE_TOKEN_FILE):
+            try:
+                import json as json_module
+                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
+                    token_data = json_module.load(f)
+                print("[YOUTUBE-TOKEN] 레거시 파일에서 로드 성공, DB로 마이그레이션 시도")
+                save_youtube_token_to_db(token_data, user_id)
+                return token_data
+            except Exception as file_error:
+                print(f"[YOUTUBE-TOKEN] 레거시 파일 로드도 실패: {file_error}")
+        return None
 
 # Job 파일 저장/로드 함수 (Render 재시작 대비)
 def save_video_jobs():
@@ -4045,12 +4139,10 @@ def youtube_auth():
                 "error": "YouTube API 인증 정보가 설정되지 않았습니다. YOUTUBE_CLIENT_ID/GOOGLE_CLIENT_ID와 YOUTUBE_CLIENT_SECRET/GOOGLE_CLIENT_SECRET 환경 변수를 설정해주세요."
             })
 
-        # 이미 인증된 토큰이 있는지 확인
-        os.makedirs('data', exist_ok=True)
-        if os.path.exists(YOUTUBE_TOKEN_FILE):
+        # 이미 인증된 토큰이 있는지 확인 (데이터베이스에서)
+        token_data = load_youtube_token_from_db()
+        if token_data:
             try:
-                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
-                    token_data = json_module.load(f)
                 credentials = Credentials.from_authorized_user_info(token_data)
                 if credentials and credentials.valid:
                     return jsonify({"success": True, "message": "이미 인증되어 있습니다."})
@@ -4120,8 +4212,7 @@ def youtube_callback():
 
         credentials = flow.credentials
 
-        # 토큰 저장
-        os.makedirs('data', exist_ok=True)
+        # 토큰 저장 (데이터베이스에)
         token_data = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
@@ -4131,9 +4222,7 @@ def youtube_callback():
             'scopes': credentials.scopes
         }
 
-        with open(YOUTUBE_TOKEN_FILE, 'w') as f:
-            json_module.dump(token_data, f)
-
+        save_youtube_token_to_db(token_data)
         youtube_auth_state['authenticated'] = True
 
         return """
@@ -4159,12 +4248,11 @@ def youtube_auth_status():
     """YouTube 인증 상태 확인"""
     try:
         from google.oauth2.credentials import Credentials
-        import json as json_module
 
-        if os.path.exists(YOUTUBE_TOKEN_FILE):
+        # 데이터베이스에서 토큰 로드
+        token_data = load_youtube_token_from_db()
+        if token_data:
             try:
-                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
-                    token_data = json_module.load(f)
                 credentials = Credentials.from_authorized_user_info(token_data)
                 if credentials and (credentials.valid or credentials.refresh_token):
                     return jsonify({"authenticated": True})
@@ -4188,26 +4276,23 @@ def youtube_channels():
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
-        import json as json_module
 
-        if not os.path.exists(YOUTUBE_TOKEN_FILE):
+        # 데이터베이스에서 토큰 로드
+        token_data = load_youtube_token_from_db()
+        if not token_data:
             return jsonify({
                 "success": False,
                 "error": "YouTube 인증이 필요합니다."
             })
-
-        with open(YOUTUBE_TOKEN_FILE, 'r') as f:
-            token_data = json_module.load(f)
 
         credentials = Credentials.from_authorized_user_info(token_data)
 
         # 토큰 갱신 필요시
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
-            # 갱신된 토큰 저장
+            # 갱신된 토큰 저장 (데이터베이스에)
             token_data['token'] = credentials.token
-            with open(YOUTUBE_TOKEN_FILE, 'w') as f:
-                json_module.dump(token_data, f)
+            save_youtube_token_to_db(token_data)
 
         # YouTube API 클라이언트 생성
         youtube = build('youtube', 'v3', credentials=credentials)
@@ -4248,7 +4333,6 @@ def upload_youtube():
         from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
-        import json as json_module
 
         data = request.get_json()
         video_data = data.get('video_data')
@@ -4266,22 +4350,19 @@ def upload_youtube():
         if channel_id:
             print(f"[YOUTUBE-UPLOAD] 선택된 채널 ID: {channel_id}")
 
-        # 토큰 로드
-        if not os.path.exists(YOUTUBE_TOKEN_FILE):
+        # 데이터베이스에서 토큰 로드
+        token_data = load_youtube_token_from_db()
+        if not token_data:
             return jsonify({"success": False, "error": "YouTube 인증이 필요합니다."})
-
-        with open(YOUTUBE_TOKEN_FILE, 'r') as f:
-            token_data = json_module.load(f)
 
         credentials = Credentials.from_authorized_user_info(token_data)
 
         # 토큰 갱신
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
-            # 갱신된 토큰 저장
+            # 갱신된 토큰 저장 (데이터베이스에)
             token_data['token'] = credentials.token
-            with open(YOUTUBE_TOKEN_FILE, 'w') as f:
-                json_module.dump(token_data, f)
+            save_youtube_token_to_db(token_data)
 
         # 비디오 파일 임시 저장
         with tempfile.TemporaryDirectory() as temp_dir:

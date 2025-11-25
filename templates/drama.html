@@ -3897,6 +3897,8 @@ S#1. 장소 / 시간
         if (!data.imageUrl.startsWith('data:')) {
           try {
             localStorage.setItem('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
+            // Firebase에도 백업
+            saveToFirebase('_drama-step4-character-images', JSON.stringify(step4CharacterImages));
           } catch (e) {
             console.warn('localStorage 저장 실패 (용량 초과):', e.message);
           }
@@ -5497,6 +5499,8 @@ S#1. 장소 / 시간
           createdAt: new Date().toISOString()
         };
         localStorage.setItem('_drama-thumbnail', JSON.stringify(thumbnailData));
+        // Firebase에도 백업
+        saveToFirebase('_drama-thumbnail', JSON.stringify(thumbnailData));
 
         showStatus('✅ 썸네일 생성 완료!');
         console.log('[THUMBNAIL] 생성 완료:', data.thumbnailUrl);
