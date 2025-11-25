@@ -3275,7 +3275,7 @@ S#1. 장소 / 시간
       // 2) highlight 씬의 나레이션도 추출 (선택적)
       if (data.highlight && data.highlight.scenes) {
         data.highlight.scenes.forEach(scene => {
-          if (scene.narration) {
+          if (scene.preview_text || scene.narration) {
             // 하이라이트는 중복될 수 있으므로 별도로 처리하지 않음
           }
         });
@@ -3607,7 +3607,7 @@ S#1. 장소 / 시간
         data.highlight.scenes.forEach((scene, idx) => {
           html += `<div style="margin-bottom: .5rem; padding: .5rem; background: rgba(255,255,255,0.7); border-radius: 6px;">`;
           html += `<div style="font-weight: 600; color: #9d174d;">[하이라이트 ${idx + 1}]</div>`;
-          if (scene.narration) html += `<div style="margin-top: .25rem; color: #333;">"${scene.narration}"</div>`;
+          if (scene.preview_text || scene.narration) html += `<div style="margin-top: .25rem; color: #333;">"${scene.preview_text || scene.narration}"</div>`;
           html += `</div>`;
         });
         html += `</div>`;
