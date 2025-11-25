@@ -18,6 +18,9 @@ video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
 video_jobs_lock = threading.Lock()
 VIDEO_JOBS_FILE = 'data/video_jobs.json'
 
+# YouTube 토큰 파일 경로 (재부팅 시에도 유지)
+YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
+
 # Job 파일 저장/로드 함수 (Render 재시작 대비)
 def save_video_jobs():
     """video_jobs를 파일에 저장"""
@@ -3505,15 +3508,48 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
 
         # 자막 하드코딩 옵션
         if burn_subtitle and subtitle_data and subtitle_data.get('srt'):
-            srt_path = os.path.join(temp_dir, "subtitle.srt")
-            with open(srt_path, 'w', encoding='utf-8') as f:
-                f.write(subtitle_data['srt'])
+            # SRT를 ASS로 변환하여 한글 폰트 명시적 지정
+            ass_path = os.path.join(temp_dir, "subtitle.ass")
+            srt_content = subtitle_data['srt']
 
-            # 자막 필터 추가 (메모리 최적화, 한글 폰트 지원 개선)
-            # FontSize를 36으로 증가, 한글 지원을 위한 폰트 명시
-            # fontsdir로 시스템 폰트 디렉토리 지정하여 한글 폰트 자동 감지
-            # 아웃라인과 그림자 추가로 가독성 향상
-            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,subtitles={srt_path}:fontsdir=/usr/share/fonts:force_style='FontSize=36,PrimaryColour=&HFFFFFF&,OutlineColour=&H000000&,Outline=2,Shadow=1,Bold=1,Alignment=2'"
+            # ASS 헤더 생성 (한글 폰트 명시)
+            ass_header = """[Script Info]
+ScriptType: v4.00+
+Collisions: Normal
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,WenQuanYi Zen Hei,36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+            # SRT를 ASS 이벤트로 변환
+            import re
+            ass_events = []
+            srt_blocks = srt_content.strip().split('\n\n')
+
+            for block in srt_blocks:
+                lines = block.strip().split('\n')
+                if len(lines) >= 3:
+                    # 타임코드 파싱 (00:00:00,000 --> 00:00:03,000)
+                    time_match = re.match(r'(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})', lines[1])
+                    if time_match:
+                        start_time = time_match.group(1).replace(',', '.')
+                        end_time = time_match.group(2).replace(',', '.')
+                        text = '\\N'.join(lines[2:])  # ASS는 \N으로 줄바꿈
+                        ass_events.append(f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{text}")
+
+            # ASS 파일 작성
+            with open(ass_path, 'w', encoding='utf-8') as f:
+                f.write(ass_header)
+                f.write('\n'.join(ass_events))
+
+            # ASS 자막 필터 추가
+            vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,ass={ass_path}"
             ffmpeg_cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat', '-safe', '0', '-i', list_path,
@@ -4000,10 +4036,10 @@ def youtube_auth():
             })
 
         # 이미 인증된 토큰이 있는지 확인
-        token_file = os.path.join(tempfile.gettempdir(), 'youtube_token.json')
-        if os.path.exists(token_file):
+        os.makedirs('data', exist_ok=True)
+        if os.path.exists(YOUTUBE_TOKEN_FILE):
             try:
-                with open(token_file, 'r') as f:
+                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
                     token_data = json_module.load(f)
                 credentials = Credentials.from_authorized_user_info(token_data)
                 if credentials and credentials.valid:
@@ -4075,7 +4111,7 @@ def youtube_callback():
         credentials = flow.credentials
 
         # 토큰 저장
-        token_file = os.path.join(tempfile.gettempdir(), 'youtube_token.json')
+        os.makedirs('data', exist_ok=True)
         token_data = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
@@ -4085,7 +4121,7 @@ def youtube_callback():
             'scopes': credentials.scopes
         }
 
-        with open(token_file, 'w') as f:
+        with open(YOUTUBE_TOKEN_FILE, 'w') as f:
             json_module.dump(token_data, f)
 
         youtube_auth_state['authenticated'] = True
@@ -4115,11 +4151,9 @@ def youtube_auth_status():
         from google.oauth2.credentials import Credentials
         import json as json_module
 
-        token_file = os.path.join(tempfile.gettempdir(), 'youtube_token.json')
-
-        if os.path.exists(token_file):
+        if os.path.exists(YOUTUBE_TOKEN_FILE):
             try:
-                with open(token_file, 'r') as f:
+                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
                     token_data = json_module.load(f)
                 credentials = Credentials.from_authorized_user_info(token_data)
                 if credentials and (credentials.valid or credentials.refresh_token):
@@ -4146,15 +4180,13 @@ def youtube_channels():
         from googleapiclient.discovery import build
         import json as json_module
 
-        token_file = os.path.join(tempfile.gettempdir(), 'youtube_token.json')
-
-        if not os.path.exists(token_file):
+        if not os.path.exists(YOUTUBE_TOKEN_FILE):
             return jsonify({
                 "success": False,
                 "error": "YouTube 인증이 필요합니다."
             })
 
-        with open(token_file, 'r') as f:
+        with open(YOUTUBE_TOKEN_FILE, 'r') as f:
             token_data = json_module.load(f)
 
         credentials = Credentials.from_authorized_user_info(token_data)
@@ -4164,7 +4196,7 @@ def youtube_channels():
             credentials.refresh(Request())
             # 갱신된 토큰 저장
             token_data['token'] = credentials.token
-            with open(token_file, 'w') as f:
+            with open(YOUTUBE_TOKEN_FILE, 'w') as f:
                 json_module.dump(token_data, f)
 
         # YouTube API 클라이언트 생성
@@ -4225,11 +4257,10 @@ def upload_youtube():
             print(f"[YOUTUBE-UPLOAD] 선택된 채널 ID: {channel_id}")
 
         # 토큰 로드
-        token_file = os.path.join(tempfile.gettempdir(), 'youtube_token.json')
-        if not os.path.exists(token_file):
+        if not os.path.exists(YOUTUBE_TOKEN_FILE):
             return jsonify({"success": False, "error": "YouTube 인증이 필요합니다."})
 
-        with open(token_file, 'r') as f:
+        with open(YOUTUBE_TOKEN_FILE, 'r') as f:
             token_data = json_module.load(f)
 
         credentials = Credentials.from_authorized_user_info(token_data)
@@ -4239,7 +4270,7 @@ def upload_youtube():
             credentials.refresh(Request())
             # 갱신된 토큰 저장
             token_data['token'] = credentials.token
-            with open(token_file, 'w') as f:
+            with open(YOUTUBE_TOKEN_FILE, 'w') as f:
                 json_module.dump(token_data, f)
 
         # 비디오 파일 임시 저장
