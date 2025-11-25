@@ -3822,7 +3822,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{subtitle_font},36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: Default,{subtitle_font},52,&H00FFFFFF,&H000000FF,&H00000000,&HC0000000,-1,0,0,0,100,100,0,0,1,3,2,2,20,20,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -4175,25 +4175,36 @@ def generate_thumbnail():
 
         import requests as req
 
-        # 1. GPT로 썸네일 콘셉트 생성 (인물 + 감정 + 텍스트)
-        concept_prompt = f"""다음 드라마 대본을 분석하여 유튜브 썸네일을 만들기 위한 정보를 생성해주세요.
+        # 1. GPT로 썸네일 콘셉트 생성 (주인공 + 클릭 유도 문구)
+        concept_prompt = f"""다음 드라마 대본을 분석하여 유튜브 썸네일을 만들어주세요.
+
+🎯 목표: 시청자가 클릭하고 싶게 만드는 썸네일
 
 대본:
-{script[:2000]}
+{script[:3000]}
 
 제목: {title}
 
-다음 형식으로 응답해주세요:
-1. 주요 인물: (대본의 핵심 인물 1-2명, 간단한 특징 포함)
-2. 핵심 감정: (드라마의 주된 감정, 예: 슬픔, 분노, 사랑, 긴장감 등)
-3. 썸네일 이미지 프롬프트: (인물의 클로즈업 샷, 강렬한 표정, 감정이 잘 드러나도록. 영어로 작성)
-4. 썸네일 텍스트: (10자 이내의 강렬한 한글 문구, 클릭을 유도할 수 있도록)
+【필수 형식】으로 응답해주세요:
 
-예시:
-1. 주요 인물: 30대 여성, 슬픔에 잠긴 표정
-2. 핵심 감정: 이별의 슬픔, 그리움
-3. 썸네일 이미지 프롬프트: Close-up portrait of a sad Korean woman in her 30s, tears in eyes, emotional expression, cinematic lighting, blurred background, dramatic mood
-4. 썸네일 텍스트: 그녀가 떠났다"""
+1. 주인공 정보: (대본의 주인공 - 나이, 성별, 직업, 현재 상황/감정)
+2. 이미지 프롬프트: (영어로, 아래 조건 포함)
+   - 주인공의 나이와 외모 반영 (60~80대 한국인)
+   - 현재 감정 상태 (슬픔, 분노, 눈물, 기쁨 등)
+   - 클로즈업 또는 미디엄 샷
+   - 시네마틱 조명, 드라마틱한 분위기
+3. 썸네일 텍스트: (3~4줄로 구성, 각 줄 \\n으로 구분)
+   - 1줄: 훅 (충격적인 숫자/상황)
+   - 2줄: 핵심 인물/사건
+   - 3줄: 감정 강조 (강조색으로 표시될 부분)
+   - 4줄: 궁금증 유발
+4. 강조 줄 번호: (3줄 중 강조할 줄 번호, 예: 3)
+
+【예시】
+1. 주인공 정보: 76세 남성 목사, 교회 문을 닫으려던 절망적 순간
+2. 이미지 프롬프트: Dramatic close-up portrait of a 76-year-old Korean elderly man pastor, tears streaming down wrinkled face, wearing simple clothes, emotional expression of despair turning to hope, cinematic golden hour lighting, church interior blurred background, high quality photograph
+3. 썸네일 텍스트: 1년간 혼자 예배드리던\\n76세 목사님\\n교회 문 닫으려던 그날\\n한 청년이 나타났습니다
+4. 강조 줄 번호: 3"""
 
         response = req.post(
             'https://api.openai.com/v1/chat/completions',
@@ -4222,15 +4233,21 @@ def generate_thumbnail():
 
         # 콘셉트 파싱
         image_prompt = ""
-        thumbnail_text = title[:15]  # 기본값
+        thumbnail_text = title[:30] if title else "드라마"
+        highlight_line = 2  # 기본값: 3번째 줄 강조 (0-indexed)
 
         lines = concept_content.strip().split('\n')
         for line in lines:
             line = line.strip()
-            if '썸네일 이미지 프롬프트:' in line or 'Image Prompt:' in line.lower():
+            if '이미지 프롬프트:' in line or 'Image Prompt:' in line.lower():
                 image_prompt = line.split(':', 1)[1].strip()
-            elif '썸네일 텍스트:' in line or 'Thumbnail Text:' in line.lower():
+            elif '썸네일 텍스트:' in line:
                 thumbnail_text = line.split(':', 1)[1].strip()
+            elif '강조 줄 번호:' in line:
+                try:
+                    highlight_line = int(line.split(':', 1)[1].strip()) - 1  # 0-indexed
+                except:
+                    highlight_line = 2
 
         if not image_prompt:
             # 파싱 실패 시 기본 프롬프트 생성
@@ -4317,8 +4334,73 @@ def generate_thumbnail():
         if not image_url:
             return jsonify({"ok": False, "error": "이미지 생성 실패"})
 
-        # 3. PIL로 텍스트 오버레이 (선택적)
-        # 향후 추가 가능: 이미지에 한글 텍스트 추가
+        # 3. PIL로 텍스트 오버레이 (강조색 포함)
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+            from io import BytesIO
+            import os as os_module
+
+            # 이미지 로드
+            static_dir = os.path.dirname(__file__)
+            img_path = os.path.join(static_dir, image_url.lstrip('/'))
+            img = Image.open(img_path)
+
+            if img.mode != 'RGBA':
+                img = img.convert('RGBA')
+
+            width, height = img.size
+            draw = ImageDraw.Draw(img)
+
+            # 폰트 로드
+            font_size = int(height * 0.08)  # 이미지 높이의 8%
+            font = None
+            font_paths = [
+                os.path.join(static_dir, 'fonts', 'NanumGothicBold.ttf'),
+                "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+                "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                "C:/Windows/Fonts/malgunbd.ttf",
+            ]
+            for fp in font_paths:
+                if os_module.path.exists(fp):
+                    try:
+                        font = ImageFont.truetype(fp, font_size)
+                        break
+                    except:
+                        continue
+            if not font:
+                font = ImageFont.load_default()
+
+            # 텍스트 줄 분리
+            text_lines = thumbnail_text.replace('\\n', '\n').split('\n')
+
+            # 색상 설정
+            normal_color = (255, 255, 255)  # 흰색
+            highlight_color = (255, 215, 0)  # 노란색 (골드)
+            outline_color = (0, 0, 0)  # 검정 외곽선
+
+            # 텍스트 위치 (왼쪽 정렬, 상단 10%)
+            x_margin = int(width * 0.05)
+            y_start = int(height * 0.08)
+            line_height = int(font_size * 1.3)
+
+            for i, line_text in enumerate(text_lines):
+                y = y_start + (i * line_height)
+                color = highlight_color if i == highlight_line else normal_color
+
+                # 외곽선 그리기 (검정)
+                for dx in [-3, -2, -1, 0, 1, 2, 3]:
+                    for dy in [-3, -2, -1, 0, 1, 2, 3]:
+                        draw.text((x_margin + dx, y + dy), line_text, font=font, fill=outline_color)
+
+                # 메인 텍스트
+                draw.text((x_margin, y), line_text, font=font, fill=color)
+
+            # 저장
+            img.save(img_path)
+            print(f"[THUMBNAIL] 텍스트 오버레이 완료: {image_url}")
+
+        except Exception as overlay_error:
+            print(f"[THUMBNAIL] 텍스트 오버레이 실패 (무시): {overlay_error}")
 
         print(f"[THUMBNAIL] 썸네일 생성 완료: {image_url}")
 
@@ -4326,6 +4408,8 @@ def generate_thumbnail():
             "ok": True,
             "thumbnailUrl": image_url,
             "thumbnailText": thumbnail_text,
+            "textLines": thumbnail_text.replace('\\n', '\n').split('\n'),
+            "highlightLine": highlight_line,
             "imagePrompt": image_prompt
         })
 
@@ -4776,9 +4860,9 @@ def upload_youtube():
         return jsonify({"success": False, "error": str(e)})
 
 
-# ===== 썸네일 생성 API (텍스트 오버레이) =====
-@app.route('/api/drama/generate-thumbnail', methods=['POST'])
-def api_generate_thumbnail():
+# ===== 썸네일 텍스트 오버레이 API (별도) =====
+@app.route('/api/drama/thumbnail-overlay', methods=['POST'])
+def api_thumbnail_overlay():
     """이미지에 텍스트 오버레이하여 썸네일 생성"""
     try:
         from PIL import Image, ImageDraw, ImageFont
