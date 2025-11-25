@@ -4182,6 +4182,14 @@ S#1. 장소 / 시간
         showStatus('✅ 씬 이미지 생성 완료!');
         updateProgressIndicator('step4');
         updateStep6Visibility();
+
+        // 🎬 썸네일 자동 생성 (프롬프트+이미지 완료 후)
+        setTimeout(() => {
+          if (typeof generateYouTubeThumbnail === 'function') {
+            console.log('[THUMBNAIL] 이미지 생성 완료, 썸네일 자동 생성 시작...');
+            generateYouTubeThumbnail();
+          }
+        }, 500);
       } else {
         throw new Error(imageData.error || '이미지 생성 실패');
       }
@@ -4289,6 +4297,14 @@ S#1. 장소 / 시간
         showStatus('✅ 씬 이미지 생성 완료!');
         updateProgressIndicator('step4');
         updateStep6Visibility();
+
+        // 🎬 썸네일 자동 생성 (씬 이미지 생성 완료 후)
+        setTimeout(() => {
+          if (typeof generateYouTubeThumbnail === 'function') {
+            console.log('[THUMBNAIL] 씬 이미지 생성 완료, 썸네일 자동 생성 시작...');
+            generateYouTubeThumbnail();
+          }
+        }, 500);
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ 이미지 생성 실패');
@@ -4580,6 +4596,13 @@ S#1. 장소 / 시간
       setTimeout(() => {
         if (progressContainer) progressContainer.style.display = 'none';
       }, 5000);
+
+      // 🎬 썸네일 자동 생성 (전체 자동 생성 완료 후)
+      if (typeof generateYouTubeThumbnail === 'function') {
+        console.log('[AUTO] 이미지 생성 완료, 썸네일 자동 생성 시작...');
+        showStatus('🎨 썸네일 자동 생성 중...');
+        await generateYouTubeThumbnail();
+      }
 
       // 🚀 전체 자동화 모드: TTS 및 영상 자동 생성
       if (isFullAutoMode) {
