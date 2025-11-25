@@ -21,6 +21,108 @@ VIDEO_JOBS_FILE = 'data/video_jobs.json'
 # YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
 
+
+# ===== 한글 숫자 → 아라비아 숫자 변환 (자막용) =====
+def korean_number_to_arabic(text):
+    """
+    한글 숫자를 아라비아 숫자로 변환 (자막 표시용)
+    TTS용 대본은 한글 숫자로 작성되어 있으므로, 자막 표시 시 아라비아 숫자로 변환
+    """
+    result = text
+
+    # 1. 고유어 숫자 (나이, 개수 등에 사용)
+    # 일흔여섯 살 → 76살, 여든일곱 살 → 87살
+    native_tens = {
+        '열': 10, '스물': 20, '서른': 30, '마흔': 40, '쉰': 50,
+        '예순': 60, '일흔': 70, '여든': 80, '아흔': 90
+    }
+    native_ones = {
+        '하나': 1, '둘': 2, '셋': 3, '넷': 4, '다섯': 5,
+        '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9,
+        '한': 1, '두': 2, '세': 3, '네': 4
+    }
+
+    # 고유어 십단위+일단위 패턴 (예: 일흔여섯)
+    for ten_kr, ten_val in native_tens.items():
+        for one_kr, one_val in native_ones.items():
+            pattern = ten_kr + one_kr
+            if pattern in result:
+                result = result.replace(pattern, str(ten_val + one_val))
+
+    # 고유어 십단위만 (예: 스물, 서른)
+    for ten_kr, ten_val in native_tens.items():
+        # "스물 " 또는 "스물살" 등의 패턴
+        result = re.sub(rf'{ten_kr}(?=\s|살|세|명|개|번|년|월|일|시|분|$)', str(ten_val), result)
+
+    # 고유어 일단위만 (한, 두, 세, 네 + 단위)
+    result = re.sub(r'한(?=\s*(?:명|개|번|살|분|시간|달|해))', '1', result)
+    result = re.sub(r'두(?=\s*(?:명|개|번|살|분|시간|달|해))', '2', result)
+    result = re.sub(r'세(?=\s*(?:명|개|번|살|분|시간|달|해))', '3', result)
+    result = re.sub(r'네(?=\s*(?:명|개|번|살|분|시간|달|해))', '4', result)
+    result = re.sub(r'다섯(?=\s*(?:명|개|번|살|분|시간|달|해))', '5', result)
+    result = re.sub(r'여섯(?=\s*(?:명|개|번|살|분|시간|달|해))', '6', result)
+    result = re.sub(r'일곱(?=\s*(?:명|개|번|살|분|시간|달|해))', '7', result)
+    result = re.sub(r'여덟(?=\s*(?:명|개|번|살|분|시간|달|해))', '8', result)
+    result = re.sub(r'아홉(?=\s*(?:명|개|번|살|분|시간|달|해))', '9', result)
+    result = re.sub(r'열(?=\s*(?:명|개|번|살|분|시간|달|해))', '10', result)
+
+    # 2. 한자어 숫자 (전화번호, 연도, 금액 등)
+    sino_digits = {
+        '영': '0', '일': '1', '이': '2', '삼': '3', '사': '4',
+        '오': '5', '육': '6', '칠': '7', '팔': '8', '구': '9'
+    }
+
+    # 전화번호 패턴 (일일이, 일일구, 일이삼사 등)
+    # 연속된 한자어 숫자를 아라비아 숫자로 변환
+    def convert_sino_sequence(match):
+        seq = match.group(0)
+        result_num = ''
+        for char in seq:
+            if char in sino_digits:
+                result_num += sino_digits[char]
+        return result_num
+
+    # 2-4자리 연속 한자어 숫자 (전화번호 등)
+    sino_pattern = '[영일이삼사오육칠팔구]{2,4}'
+    result = re.sub(sino_pattern, convert_sino_sequence, result)
+
+    # 3. 한자어 복합 숫자 (이십, 삼십, 백, 천, 만 등)
+    # 이십 년 → 20년, 사십칠 년 → 47년
+    sino_tens = {'이십': 20, '삼십': 30, '사십': 40, '오십': 50, '육십': 60, '칠십': 70, '팔십': 80, '구십': 90}
+    sino_ones_after = {'일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9}
+
+    # 십단위+일단위 (사십칠 → 47)
+    for ten_kr, ten_val in sino_tens.items():
+        for one_kr, one_val in sino_ones_after.items():
+            pattern = ten_kr + one_kr
+            if pattern in result:
+                result = result.replace(pattern, str(ten_val + one_val))
+
+    # 십단위만 (이십 → 20)
+    for ten_kr, ten_val in sino_tens.items():
+        result = result.replace(ten_kr, str(ten_val))
+
+    # 십+일단위 (십오 → 15)
+    for one_kr, one_val in sino_ones_after.items():
+        pattern = f'십{one_kr}'
+        if pattern in result:
+            result = result.replace(pattern, str(10 + one_val))
+
+    # 십 → 10
+    result = re.sub(r'(?<![이삼사오육칠팔구])십(?![일이삼사오육칠팔구])', '10', result)
+
+    # 4. 큰 단위 (백, 천, 만)
+    # 백만 원 → 100만원, 오십만 원 → 50만원
+    result = re.sub(r'(\d+)백(\d+)', lambda m: str(int(m.group(1)) * 100 + int(m.group(2))), result)
+    result = re.sub(r'(\d+)백(?!\d)', lambda m: str(int(m.group(1)) * 100), result)
+    result = re.sub(r'(?<!\d)백(?!\d)', '100', result)
+
+    # 5. 공백 정리 (예: "50 만 원" → "50만원")
+    result = re.sub(r'(\d+)\s*(만|천|백)\s*(원|명|개)', r'\1\2\3', result)
+    result = re.sub(r'(\d+)\s+(년|월|일|살|세|명|개|번|시|분|초)', r'\1\2', result)
+
+    return result
+
 # YouTube 토큰 DB 저장/로드 함수
 def save_youtube_token_to_db(token_data, user_id='default'):
     """YouTube 토큰을 데이터베이스에 저장"""
@@ -3362,15 +3464,18 @@ def api_generate_subtitle():
                 millis = int((seconds % 1) * 1000)
                 return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
 
+            # 자막용 텍스트: 한글 숫자 → 아라비아 숫자 변환
+            subtitle_text = korean_number_to_arabic(sentence)
+
             # SRT 형식
             srt_lines.append(str(idx))
             srt_lines.append(f"{format_time_srt(start_time)} --> {format_time_srt(end_time)}")
-            srt_lines.append(sentence)
+            srt_lines.append(subtitle_text)
             srt_lines.append("")
 
             # VTT 형식
             vtt_lines.append(f"{format_time_vtt(start_time)} --> {format_time_vtt(end_time)}")
-            vtt_lines.append(sentence)
+            vtt_lines.append(subtitle_text)
             vtt_lines.append("")
 
             current_time = end_time + 0.2  # 문장 사이 간격
