@@ -3790,6 +3790,188 @@ def generate_metadata():
         return jsonify({"ok": False, "error": str(e)})
 
 
+@app.route('/api/drama/generate-thumbnail', methods=['POST'])
+def generate_thumbnail():
+    """유튜브 썸네일 자동 생성 (인물 + 강렬한 문구)"""
+    try:
+        data = request.get_json()
+        script = data.get('script', '')
+        title = data.get('title', '')
+        provider = data.get('provider', 'gemini')  # gemini, dalle, flux
+
+        if not script.strip():
+            return jsonify({"ok": False, "error": "대본이 비어있습니다."})
+
+        print(f"[THUMBNAIL] 썸네일 생성 시작 - 제공자: {provider}")
+
+        # OpenAI API 키 확인
+        openai_api_key = os.getenv('OPENAI_API_KEY')
+        if not openai_api_key:
+            return jsonify({"ok": False, "error": "OpenAI API 키가 설정되지 않았습니다."})
+
+        import requests as req
+
+        # 1. GPT로 썸네일 콘셉트 생성 (인물 + 감정 + 텍스트)
+        concept_prompt = f"""다음 드라마 대본을 분석하여 유튜브 썸네일을 만들기 위한 정보를 생성해주세요.
+
+대본:
+{script[:2000]}
+
+제목: {title}
+
+다음 형식으로 응답해주세요:
+1. 주요 인물: (대본의 핵심 인물 1-2명, 간단한 특징 포함)
+2. 핵심 감정: (드라마의 주된 감정, 예: 슬픔, 분노, 사랑, 긴장감 등)
+3. 썸네일 이미지 프롬프트: (인물의 클로즈업 샷, 강렬한 표정, 감정이 잘 드러나도록. 영어로 작성)
+4. 썸네일 텍스트: (10자 이내의 강렬한 한글 문구, 클릭을 유도할 수 있도록)
+
+예시:
+1. 주요 인물: 30대 여성, 슬픔에 잠긴 표정
+2. 핵심 감정: 이별의 슬픔, 그리움
+3. 썸네일 이미지 프롬프트: Close-up portrait of a sad Korean woman in her 30s, tears in eyes, emotional expression, cinematic lighting, blurred background, dramatic mood
+4. 썸네일 텍스트: 그녀가 떠났다"""
+
+        response = req.post(
+            'https://api.openai.com/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {openai_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'model': 'gpt-4o',
+                'messages': [
+                    {'role': 'system', 'content': '유튜브 썸네일 전문가입니다. 클릭률을 높이는 썸네일 콘셉트를 생성합니다.'},
+                    {'role': 'user', 'content': concept_prompt}
+                ],
+                'max_tokens': 500,
+                'temperature': 0.8
+            },
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            return jsonify({"ok": False, "error": f"콘셉트 생성 실패: {response.text}"})
+
+        concept_result = response.json()
+        concept_content = concept_result['choices'][0]['message']['content']
+        print(f"[THUMBNAIL] 콘셉트 생성 완료:\n{concept_content}")
+
+        # 콘셉트 파싱
+        image_prompt = ""
+        thumbnail_text = title[:15]  # 기본값
+
+        lines = concept_content.strip().split('\n')
+        for line in lines:
+            line = line.strip()
+            if '썸네일 이미지 프롬프트:' in line or 'Image Prompt:' in line.lower():
+                image_prompt = line.split(':', 1)[1].strip()
+            elif '썸네일 텍스트:' in line or 'Thumbnail Text:' in line.lower():
+                thumbnail_text = line.split(':', 1)[1].strip()
+
+        if not image_prompt:
+            # 파싱 실패 시 기본 프롬프트 생성
+            image_prompt = f"Dramatic close-up portrait of Korean drama character, emotional expression, cinematic lighting, YouTube thumbnail style, high quality"
+
+        # 썸네일 최적화 프롬프트 추가
+        image_prompt += ", 1280x720 resolution, YouTube thumbnail, eye-catching, professional"
+
+        print(f"[THUMBNAIL] 이미지 프롬프트: {image_prompt}")
+        print(f"[THUMBNAIL] 텍스트: {thumbnail_text}")
+
+        # 2. 이미지 생성
+        image_url = None
+
+        if provider == 'gemini':
+            # Gemini 이미지 생성
+            gemini_api_key = os.getenv('GEMINI_API_KEY')
+            if not gemini_api_key:
+                return jsonify({"ok": False, "error": "Gemini API 키가 설정되지 않았습니다."})
+
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_api_key)
+            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+
+            result = model.generate_content([f"Create a YouTube thumbnail image: {image_prompt}"])
+
+            if result.parts and len(result.parts) > 0:
+                for part in result.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        import base64
+                        image_data = base64.b64decode(part.inline_data.data)
+
+                        # 이미지 저장
+                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
+                        os.makedirs(static_dir, exist_ok=True)
+
+                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"thumbnail_{timestamp}.png"
+                        filepath = os.path.join(static_dir, filename)
+
+                        with open(filepath, 'wb') as f:
+                            f.write(image_data)
+
+                        image_url = f"/static/thumbnails/{filename}"
+                        break
+
+        elif provider == 'dalle':
+            # DALL-E 3 이미지 생성
+            dalle_response = req.post(
+                'https://api.openai.com/v1/images/generations',
+                headers={
+                    'Authorization': f'Bearer {openai_api_key}',
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'model': 'dall-e-3',
+                    'prompt': image_prompt,
+                    'n': 1,
+                    'size': '1792x1024',  # 가로형
+                    'quality': 'hd'
+                },
+                timeout=60
+            )
+
+            if dalle_response.status_code == 200:
+                dalle_result = dalle_response.json()
+                temp_image_url = dalle_result['data'][0]['url']
+
+                # 이미지 다운로드
+                img_response = req.get(temp_image_url, timeout=30)
+                if img_response.status_code == 200:
+                    static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
+                    os.makedirs(static_dir, exist_ok=True)
+
+                    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"thumbnail_{timestamp}.png"
+                    filepath = os.path.join(static_dir, filename)
+
+                    with open(filepath, 'wb') as f:
+                        f.write(img_response.content)
+
+                    image_url = f"/static/thumbnails/{filename}"
+
+        if not image_url:
+            return jsonify({"ok": False, "error": "이미지 생성 실패"})
+
+        # 3. PIL로 텍스트 오버레이 (선택적)
+        # 향후 추가 가능: 이미지에 한글 텍스트 추가
+
+        print(f"[THUMBNAIL] 썸네일 생성 완료: {image_url}")
+
+        return jsonify({
+            "ok": True,
+            "thumbnailUrl": image_url,
+            "thumbnailText": thumbnail_text,
+            "imagePrompt": image_prompt
+        })
+
+    except Exception as e:
+        print(f"[THUMBNAIL][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)})
+
+
 # YouTube OAuth 인증 상태 저장 (세션 기반)
 youtube_auth_state = {}
 

@@ -1474,18 +1474,37 @@
           </select>
         </div>
 
-        <!-- 썸네일 미리보기 -->
-        <div id="step4-thumbnail-preview" style="background: white; border-radius: 8px; padding: .75rem; margin-bottom: .75rem; display: none;">
-          <div style="display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem;">
-            <div style="font-weight: 700; font-size: .95rem; color: #333;">📌 썸네일 미리보기</div>
-            <div style="font-size: .75rem; color: #666;">(첫 번째 씬 이미지가 썸네일로 사용됩니다)</div>
+        <!-- 유튜브 썸네일 자동 생성 -->
+        <div style="background: white; border-radius: 8px; padding: .75rem; margin-bottom: .75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+            <div>
+              <div style="font-weight: 700; font-size: .95rem; color: #333;">🎬 유튜브 썸네일 (자동 생성)</div>
+              <div style="font-size: .75rem; color: #666; margin-top: .25rem;">AI가 대본을 분석하여 클릭을 유도하는 썸네일을 만듭니다</div>
+            </div>
+            <button id="btn-generate-thumbnail" class="step4-btn" style="padding: .5rem 1rem; font-size: .85rem; background: linear-gradient(135deg, #ff6b6b, #ee5a6f);">
+              📸 썸네일 생성
+            </button>
           </div>
-          <div style="display: flex; gap: .75rem; align-items: flex-start;">
-            <img id="step4-thumbnail-image" style="max-width: 200px; max-height: 150px; border-radius: 6px; border: 2px solid #10b981; object-fit: cover;" />
-            <div style="flex: 1;">
-              <div style="font-size: .85rem; color: #666; line-height: 1.6;">
-                <p style="margin: 0 0 .5rem 0;">✅ 이 이미지가 유튜브 썸네일로 사용됩니다</p>
-                <p style="margin: 0; font-size: .8rem; color: #999;">다른 이미지를 썸네일로 사용하려면 씬 이미지 생성 순서를 변경하세요</p>
+
+          <div id="step4-thumbnail-preview" style="display: none; margin-top: .75rem;">
+            <div style="display: flex; gap: .75rem; align-items: flex-start; padding: .75rem; background: #f8f9fa; border-radius: 6px;">
+              <div style="position: relative;">
+                <img id="step4-thumbnail-image" style="width: 240px; height: 135px; border-radius: 6px; border: 2px solid #ff6b6b; object-fit: cover;" />
+                <div id="step4-thumbnail-text-overlay" style="position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: .5rem; border-radius: 4px; font-weight: 700; font-size: .9rem; text-align: center;">
+                  썸네일 텍스트
+                </div>
+              </div>
+              <div style="flex: 1;">
+                <div style="font-size: .85rem; color: #333; line-height: 1.6;">
+                  <p style="margin: 0 0 .5rem 0; font-weight: 600; color: #ff6b6b;">✅ 유튜브 썸네일</p>
+                  <p style="margin: 0 0 .5rem 0; font-size: .8rem; color: #666;">이 이미지가 유튜브 업로드 시 썸네일로 사용됩니다</p>
+                  <div style="margin-top: .75rem; padding: .5rem; background: white; border-radius: 4px; font-size: .75rem; color: #666;">
+                    <strong>프롬프트:</strong> <span id="step4-thumbnail-prompt">-</span>
+                  </div>
+                  <button id="btn-regenerate-thumbnail" style="margin-top: .5rem; padding: .4rem .8rem; font-size: .8rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    🔄 다시 생성
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -5391,17 +5410,72 @@ S#1. 장소 / 시간
     updateStep6AudioStatus();
   }
 
-  // 썸네일 미리보기 업데이트
-  function updateThumbnailPreview(imageUrl) {
+  // 썸네일 자동 생성 (AI)
+  let generatedThumbnailUrl = null;
+
+  async function generateYouTubeThumbnail() {
+    const btn = document.getElementById('btn-generate-thumbnail');
     const thumbnailPreview = document.getElementById('step4-thumbnail-preview');
     const thumbnailImage = document.getElementById('step4-thumbnail-image');
+    const thumbnailTextOverlay = document.getElementById('step4-thumbnail-text-overlay');
+    const thumbnailPrompt = document.getElementById('step4-thumbnail-prompt');
 
-    if (thumbnailPreview && thumbnailImage) {
-      thumbnailImage.src = imageUrl;
-      thumbnailPreview.style.display = 'block';
-      console.log('[THUMBNAIL] 썸네일 업데이트:', imageUrl);
+    if (!step3Result || !step3Result.trim()) {
+      alert('먼저 Step1에서 대본을 작성해주세요.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '생성 중...';
+    showStatus('🎨 썸네일 생성 중... (약 15초 소요)');
+
+    try {
+      // Step7의 제목 가져오기 (있으면)
+      const titleInput = document.getElementById('step7-title');
+      const title = titleInput ? titleInput.value : '';
+
+      const response = await fetch('/api/drama/generate-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: step3Result,
+          title: title,
+          provider: step4ImageProvider  // gemini, dalle
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.thumbnailUrl) {
+        generatedThumbnailUrl = data.thumbnailUrl;
+        thumbnailImage.src = data.thumbnailUrl;
+        thumbnailTextOverlay.textContent = data.thumbnailText || title || '드라마';
+        thumbnailPrompt.textContent = data.imagePrompt || '-';
+        thumbnailPreview.style.display = 'block';
+
+        showStatus('✅ 썸네일 생성 완료!');
+        console.log('[THUMBNAIL] 생성 완료:', data.thumbnailUrl);
+      } else {
+        throw new Error(data.error || '썸네일 생성 실패');
+      }
+    } catch (error) {
+      console.error('Thumbnail generation error:', error);
+      showStatus(`❌ 썸네일 생성 실패: ${error.message}`);
+      alert(`썸네일 생성 실패: ${error.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📸 썸네일 생성';
     }
   }
+
+  // 썸네일 재생성
+  async function regenerateThumbnail() {
+    await generateYouTubeThumbnail();
+  }
+
+  // 썸네일 버튼 이벤트
+  document.getElementById('btn-generate-thumbnail')?.addEventListener('click', generateYouTubeThumbnail);
+  document.getElementById('btn-regenerate-thumbnail')?.addEventListener('click', regenerateThumbnail);
 
   // Step6 이미지 그리드 업데이트
   function updateStep6ImageGrid() {
