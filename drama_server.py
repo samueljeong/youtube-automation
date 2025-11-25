@@ -2399,7 +2399,7 @@ def api_analyze_characters():
 응답은 반드시 다음 JSON 형식으로:
 {
   "characters": [
-    {"name": "수진", "description": "28세 여성, 밝고 활발한 성격의 카페 사장", "imagePrompt": "A Korean woman in her late 20s, bright and cheerful expression, casual smart outfit..."},
+    {"name": "수진", "description": "28세 여성, 밝고 활발한 성격의 카페 사장", "imagePrompt": "A Korean woman in her late 20s with East Asian features, Korean ethnicity, bright and cheerful expression, casual smart outfit..."},
     ...
   ],
   "scenes": [
@@ -2412,7 +2412,9 @@ def api_analyze_characters():
 - imagePrompt와 backgroundPrompt는 반드시 영어로 작성
 - 프롬프트는 DALL-E 3에 최적화되도록 상세하게 작성
 - 인물 프롬프트는 portrait 스타일에 적합하게 작성
-- 한국 드라마 스타일의 시각적 요소 반영"""
+- 한국 드라마 스타일의 시각적 요소 반영
+- ⚠️ CRITICAL: 모든 인물의 imagePrompt는 반드시 "Korean" 또는 "Korean ethnicity", "East Asian features"를 명시적으로 포함해야 합니다
+- 한국인 할머니/할아버지는 "elderly Korean woman/man with East Asian features" 등으로 명확히 표현"""
 
         user_content = f"""다음 드라마 대본을 분석해주세요:
 
@@ -2582,8 +2584,12 @@ def api_generate_image():
 
             print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작")
 
-            # 프롬프트에 스타일 가이드 추가
-            enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. Style: cinematic lighting, professional photography, 8k resolution, detailed"
+            # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
+            # 한국인 캐릭터인 경우 인종적 특징을 더욱 강조
+            if "Korean" in prompt or "korean" in prompt:
+                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. IMPORTANT: Ensure the person has authentic Korean/East Asian facial features, Korean ethnicity. Style: cinematic lighting, professional photography, 8k resolution, detailed"
+            else:
+                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. Style: cinematic lighting, professional photography, 8k resolution, detailed"
 
             # OpenRouter API 호출 (Chat Completions 형식)
             headers = {
@@ -2777,8 +2783,11 @@ def api_generate_image():
 
             print(f"[DRAMA-STEP4-IMAGE] FLUX.1 Pro 이미지 생성 시작 - 사이즈: {aspect_ratio}")
 
-            # 프롬프트에 스타일 가이드 추가
-            enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution, detailed"
+            # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
+            if "Korean" in prompt or "korean" in prompt:
+                enhanced_prompt = f"{prompt}, IMPORTANT: authentic Korean/East Asian facial features and ethnicity, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution, detailed"
+            else:
+                enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution, detailed"
 
             # Replicate API 호출 (FLUX.1 Pro)
             headers = {
@@ -2869,8 +2878,11 @@ def api_generate_image():
 
             print(f"[DRAMA-STEP4-IMAGE] DALL-E 3 이미지 생성 시작 - 사이즈: {size}")
 
-            # 프롬프트에 스타일 가이드 추가
-            enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
+            # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
+            if "Korean" in prompt or "korean" in prompt:
+                enhanced_prompt = f"{prompt}, IMPORTANT: authentic Korean/East Asian facial features and ethnicity, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
+            else:
+                enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
 
             # DALL-E 3 API 호출
             response = client.images.generate(
@@ -3007,8 +3019,9 @@ def api_generate_tts():
                     return text_chunk, False
 
             # Google Cloud TTS는 최대 5000바이트 제한
-            # 한글은 UTF-8에서 3바이트이므로 안전하게 4500바이트(약 1500자) 이하로 유지
-            max_bytes = 4500
+            # 한글은 UTF-8에서 3바이트이므로 안전하게 3500바이트(약 1166자) 이하로 유지
+            # SSML 태그 오버헤드(최대 1500바이트)를 고려하여 여유있게 설정
+            max_bytes = 3500
             text_chunks = []
 
             def get_byte_length(s):
