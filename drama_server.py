@@ -3682,25 +3682,31 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
             ass_path = os.path.join(temp_dir, "subtitle.ass")
             srt_content = subtitle_data['srt']
 
-            # 한글 폰트 경로 결정
+            # 한글 폰트 확인 (ASS 자막은 폰트 이름만 사용)
             base_dir = os.path.dirname(os.path.abspath(__file__))
             project_font = os.path.join(base_dir, 'fonts', 'NanumGothicBold.ttf')
 
+            font_found = False
+            font_location = None
             if os.path.exists(project_font):
-                subtitle_font = project_font
+                font_found = True
+                font_location = project_font
             else:
                 # 시스템 폰트 폴백
                 system_fonts = [
                     '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
                     '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
                 ]
-                subtitle_font = 'NanumGothic'  # 기본값 (폰트명)
                 for sf in system_fonts:
                     if os.path.exists(sf):
-                        subtitle_font = sf
+                        font_found = True
+                        font_location = sf
                         break
 
-            print(f"[VIDEO-SUBTITLE] 자막 폰트: {subtitle_font}")
+            # ASS 자막에는 폰트 경로가 아닌 폰트 이름을 사용해야 함
+            subtitle_font = 'NanumGothic' if font_found else 'Arial'
+
+            print(f"[VIDEO-SUBTITLE] 자막 폰트: {subtitle_font} (found: {font_found}, location: {font_location if font_found else 'N/A'})")
 
             # ASS 헤더 생성 (한글 폰트 명시)
             ass_header = f"""[Script Info]
