@@ -3401,38 +3401,112 @@ def api_generate_subtitle():
 
         text = data.get("text", "")
         speed = data.get("speed", 0)  # TTS 속도 (-5 ~ 5)
+        audio_duration = data.get("audioDuration", 0)  # 실제 TTS 오디오 길이 (초)
 
         if not text:
             return jsonify({"ok": False, "error": "텍스트가 없습니다."}), 400
 
-        print(f"[DRAMA-STEP5-SUBTITLE] 자막 생성 시작 - 텍스트 길이: {len(text)}자")
+        print(f"[DRAMA-STEP5-SUBTITLE] 자막 생성 시작 - 텍스트 길이: {len(text)}자, 오디오 길이: {audio_duration}초")
 
-        # 속도에 따른 글자당 시간 계산 (기본: 글자당 약 0.15초)
-        # 속도가 빠르면 시간 감소, 느리면 시간 증가
-        base_char_duration = 0.15
-        speed_factor = 1 - (speed * 0.1)  # speed가 5면 0.5배, -5면 1.5배
-        char_duration = base_char_duration * speed_factor
+        # 글자당 시간 계산
+        # 1. 실제 오디오 길이가 있으면 그에 맞게 계산
+        # 2. 없으면 속도 기반으로 추정
+        if audio_duration and audio_duration > 0:
+            # 실제 오디오 길이 기반 계산 (여유 시간 고려)
+            char_duration = audio_duration / max(len(text), 1)
+            print(f"[DRAMA-STEP5-SUBTITLE] 오디오 기반 글자당 시간: {char_duration:.4f}초")
+        else:
+            # 속도에 따른 글자당 시간 계산 (기본: 글자당 약 0.15초)
+            # 속도가 빠르면 시간 감소, 느리면 시간 증가
+            base_char_duration = 0.15
+            speed_factor = 1 - (speed * 0.1)  # speed가 5면 0.5배, -5면 1.5배
+            char_duration = base_char_duration * speed_factor
+            print(f"[DRAMA-STEP5-SUBTITLE] 속도 기반 글자당 시간: {char_duration:.4f}초")
 
-        # 문장 단위로 분할
+        # 문장 단위로 분할 (개선된 로직)
+        import re
+
+        # 1단계: 줄바꿈으로 먼저 분할
+        lines = text.split('\n')
+        raw_sentences = []
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # 2단계: 문장 종결 부호로 분할 (.!?。)
+            # 한국어 문장 종료 어미도 고려 (~요, ~다, ~죠, ~네요 등)
+            parts = re.split(r'([.!?。])', line)
+
+            current = ""
+            for i, part in enumerate(parts):
+                if part in '.!?。':
+                    current += part
+                    if current.strip():
+                        raw_sentences.append(current.strip())
+                    current = ""
+                else:
+                    current += part
+
+            # 마지막 남은 부분 추가
+            if current.strip():
+                raw_sentences.append(current.strip())
+
+        # 3단계: 긴 문장은 쉼표나 적절한 위치에서 분할
+        MAX_CHARS = 35  # 자막 한 줄 최대 글자 수
         sentences = []
-        current_sentence = ""
 
-        for char in text:
-            current_sentence += char
-            # 문장 종결 부호에서 분할
-            if char in '.!?。':
-                sentences.append(current_sentence.strip())
-                current_sentence = ""
-            # 줄바꿈에서도 분할
-            elif char == '\n' and current_sentence.strip():
-                sentences.append(current_sentence.strip())
-                current_sentence = ""
+        for sentence in raw_sentences:
+            if len(sentence) <= MAX_CHARS:
+                sentences.append(sentence)
+            else:
+                # 쉼표, 조사 위치에서 분할 시도
+                # 한국어 분할 포인트: 쉼표, ~고, ~며, ~면, ~서, ~니, ~는데
+                split_pattern = r'(,\s*|(?<=[가-힣])고\s+|(?<=[가-힣])며\s+|(?<=[가-힣])면\s+|(?<=[가-힣])서\s+|(?<=[가-힣])는데\s+)'
+                sub_parts = re.split(split_pattern, sentence)
 
-        if current_sentence.strip():
-            sentences.append(current_sentence.strip())
+                current_part = ""
+                for sub in sub_parts:
+                    if not sub:
+                        continue
+                    # 분할 패턴인 경우 현재 부분에 붙임
+                    if re.match(split_pattern, sub):
+                        current_part += sub
+                    elif len(current_part) + len(sub) <= MAX_CHARS:
+                        current_part += sub
+                    else:
+                        if current_part.strip():
+                            sentences.append(current_part.strip())
+                        current_part = sub
 
-        # 빈 문장 제거
-        sentences = [s for s in sentences if s.strip()]
+                if current_part.strip():
+                    sentences.append(current_part.strip())
+
+        # 4단계: 여전히 긴 문장은 강제 분할
+        final_sentences = []
+        for sentence in sentences:
+            if len(sentence) <= MAX_CHARS:
+                final_sentences.append(sentence)
+            else:
+                # 공백 기준 분할
+                words = sentence.split()
+                current = ""
+                for word in words:
+                    if len(current) + len(word) + 1 <= MAX_CHARS:
+                        current = current + " " + word if current else word
+                    else:
+                        if current:
+                            final_sentences.append(current)
+                        current = word
+                if current:
+                    final_sentences.append(current)
+
+        sentences = [s for s in final_sentences if s.strip()]
+
+        # 문장이 없으면 전체 텍스트를 하나의 문장으로
+        if not sentences and text.strip():
+            sentences = [text.strip()[:MAX_CHARS]]
 
         # SRT 형식 생성
         srt_lines = []
@@ -4263,36 +4337,135 @@ def generate_thumbnail():
         image_url = None
 
         if provider == 'gemini':
-            # Gemini 이미지 생성
-            gemini_api_key = os.getenv('GEMINI_API_KEY')
-            if not gemini_api_key:
-                return jsonify({"ok": False, "error": "Gemini API 키가 설정되지 않았습니다."})
+            # Gemini 이미지 생성 (OpenRouter API 사용)
+            openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
+            if not openrouter_api_key:
+                return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."})
 
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            import time
+            import base64
 
-            result = model.generate_content([f"Create a YouTube thumbnail image: {image_prompt}"])
+            # OpenRouter API 호출 설정
+            headers = {
+                "Authorization": f"Bearer {openrouter_api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://drama-generator.app",
+                "X-Title": "Drama Thumbnail Generator"
+            }
 
-            if result.parts and len(result.parts) > 0:
-                for part in result.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data:
-                        import base64
-                        image_data = base64.b64decode(part.inline_data.data)
+            enhanced_prompt = f"Generate a high quality YouTube thumbnail image: {image_prompt}. IMPORTANT: Ensure Korean/East Asian facial features if person is depicted. Style: dramatic, eye-catching, professional YouTube thumbnail quality."
 
-                        # 이미지 저장
-                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
-                        os.makedirs(static_dir, exist_ok=True)
+            payload = {
+                "model": "google/gemini-2.5-flash-image-preview",
+                "modalities": ["text", "image"],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": enhanced_prompt
+                            }
+                        ]
+                    }
+                ]
+            }
 
-                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"thumbnail_{timestamp}.png"
-                        filepath = os.path.join(static_dir, filename)
+            # 재시도 로직
+            max_retries = 3
+            retry_delay = 5
 
-                        with open(filepath, 'wb') as f:
-                            f.write(image_data)
+            response = None
+            last_error = None
 
-                        image_url = f"/static/thumbnails/{filename}"
+            for attempt in range(max_retries):
+                try:
+                    response = req.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                        timeout=90
+                    )
+
+                    if response.status_code == 200:
                         break
+                    elif response.status_code in [429, 502, 503, 504]:
+                        last_error = response.text
+                        print(f"[THUMBNAIL][RETRY] OpenRouter 오류 ({response.status_code}) (시도 {attempt + 1}/{max_retries})")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                        continue
+                    else:
+                        break
+                except Exception as e:
+                    last_error = str(e)
+                    print(f"[THUMBNAIL][RETRY] 오류: {e} (시도 {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+
+            if response is None or response.status_code != 200:
+                error_text = last_error or (response.text if response else "알 수 없는 오류")
+                return jsonify({"ok": False, "error": f"Gemini API 오류: {error_text[:200]}"})
+
+            result = response.json()
+            print(f"[THUMBNAIL][DEBUG] OpenRouter 응답: {json.dumps(result, ensure_ascii=False)[:500]}")
+
+            # 응답에서 이미지 추출
+            try:
+                choices = result.get("choices", [])
+                if choices:
+                    message = choices[0].get("message", {})
+
+                    # images 배열 확인
+                    images = message.get("images", [])
+                    if images:
+                        for img in images:
+                            if isinstance(img, str):
+                                image_data_url = img
+                                # base64 데이터 추출
+                                if image_data_url.startswith("data:"):
+                                    image_data = base64.b64decode(image_data_url.split(",")[1])
+                                else:
+                                    image_data = base64.b64decode(image_data_url)
+
+                                # 이미지 저장
+                                static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
+                                os.makedirs(static_dir, exist_ok=True)
+
+                                timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                                filename = f"thumbnail_{timestamp}.png"
+                                filepath = os.path.join(static_dir, filename)
+
+                                with open(filepath, 'wb') as f:
+                                    f.write(image_data)
+
+                                image_url = f"/static/thumbnails/{filename}"
+                                break
+
+                    # content 배열 확인
+                    if not image_url:
+                        content = message.get("content", [])
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, dict) and item.get("type") == "image_url":
+                                    img_url = item.get("image_url", {}).get("url", "")
+                                    if img_url.startswith("data:"):
+                                        image_data = base64.b64decode(img_url.split(",")[1])
+
+                                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
+                                        os.makedirs(static_dir, exist_ok=True)
+
+                                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+                                        filename = f"thumbnail_{timestamp}.png"
+                                        filepath = os.path.join(static_dir, filename)
+
+                                        with open(filepath, 'wb') as f:
+                                            f.write(image_data)
+
+                                        image_url = f"/static/thumbnails/{filename}"
+                                        break
+            except Exception as e:
+                print(f"[THUMBNAIL][ERROR] 이미지 추출 오류: {e}")
 
         elif provider == 'dalle':
             # DALL-E 3 이미지 생성

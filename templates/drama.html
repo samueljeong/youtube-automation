@@ -5218,21 +5218,46 @@ S#1. 장소 / 시간
           step5AudioUrl = data.audioUrl;
           audioPlayer.src = data.audioUrl;
           audioSection.style.display = 'block';
+
+          // 🎬 오디오 로드 후 길이를 구해서 자막 생성
+          audioPlayer.onloadedmetadata = async function() {
+            const audioDuration = audioPlayer.duration;
+            console.log('[TTS] 오디오 길이:', audioDuration, '초');
+
+            // 비용 정보 표시
+            if (costInfo && data.cost) {
+              document.getElementById('step5-tts-cost').textContent = '₩' + data.cost.toLocaleString();
+              document.getElementById('step5-char-count').textContent = data.charCount?.toLocaleString() || '0';
+              costInfo.style.display = 'block';
+            }
+
+            showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');
+            updateProgressIndicator('step5');
+            updateStep6Visibility();
+
+            // 🎬 TTS 완료 후 SRT 자막 자동 생성 (오디오 길이 전달)
+            await generateSubtitleAuto(audioDuration);
+          };
+
+          // onloadedmetadata가 이미 발생한 경우 대비
+          if (audioPlayer.readyState >= 1) {
+            audioPlayer.onloadedmetadata();
+          }
+        } else {
+          // 비용 정보 표시
+          if (costInfo && data.cost) {
+            document.getElementById('step5-tts-cost').textContent = '₩' + data.cost.toLocaleString();
+            document.getElementById('step5-char-count').textContent = data.charCount?.toLocaleString() || '0';
+            costInfo.style.display = 'block';
+          }
+
+          showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');
+          updateProgressIndicator('step5');
+          updateStep6Visibility();
+
+          // 🎬 TTS 완료 후 SRT 자막 자동 생성 (오디오 길이 없음)
+          await generateSubtitleAuto(0);
         }
-
-        // 비용 정보 표시
-        if (costInfo && data.cost) {
-          document.getElementById('step5-tts-cost').textContent = '₩' + data.cost.toLocaleString();
-          document.getElementById('step5-char-count').textContent = data.charCount?.toLocaleString() || '0';
-          costInfo.style.display = 'block';
-        }
-
-        showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');
-        updateProgressIndicator('step5');
-        updateStep6Visibility();
-
-        // 🎬 TTS 완료 후 SRT 자막 자동 생성
-        await generateSubtitleAuto();
       } else {
         alert(`오류: ${data.error}`);
         showStatus('❌ TTS 생성 실패');
@@ -5252,7 +5277,7 @@ S#1. 장소 / 시간
   }
 
   // 🎬 SRT 자막 자동 생성 (TTS 완료 후 호출)
-  async function generateSubtitleAuto() {
+  async function generateSubtitleAuto(audioDuration = 0) {
     const scriptText = document.getElementById('step5-script-text')?.value || '';
     if (!scriptText.trim()) return;
 
@@ -5262,7 +5287,8 @@ S#1. 장소 / 시간
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: scriptText,
-          speed: parseInt(document.getElementById('step5-speed')?.value || 0)
+          speed: parseInt(document.getElementById('step5-speed')?.value || 0),
+          audioDuration: audioDuration || 0  // 실제 TTS 오디오 길이 전달
         })
       });
 
@@ -5316,12 +5342,17 @@ S#1. 장소 / 시간
     showLoadingOverlay();
 
     try {
+      // 오디오 길이 가져오기 (있으면)
+      const audioPlayer = document.getElementById('step5-audio-player');
+      const audioDuration = audioPlayer?.duration || 0;
+
       const response = await fetch('/api/drama/generate-subtitle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: scriptText,
-          speed: parseInt(document.getElementById('step5-speed')?.value || 0)
+          speed: parseInt(document.getElementById('step5-speed')?.value || 0),
+          audioDuration: audioDuration || 0  // 실제 TTS 오디오 길이 전달
         })
       });
 
