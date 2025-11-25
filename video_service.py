@@ -27,6 +27,9 @@ class VideoGenerator:
         self.height = 1920
         self.fps = 30
 
+        # 한글 지원 폰트 설정
+        self.korean_font = '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'
+
     def create_background_image(self, color: tuple = (30, 30, 50)) -> str:
         """배경 이미지 생성"""
         img = Image.new('RGB', (self.width, self.height), color)
@@ -96,7 +99,7 @@ class VideoGenerator:
                 title_wrapped,
                 fontsize=80,
                 color='white',
-                font='Arial-Bold',
+                font=self.korean_font,
                 size=(self.width - 100, None),
                 method='caption'
             ).set_position(('center', 200)).set_duration(duration)
@@ -107,7 +110,7 @@ class VideoGenerator:
                 scripture_reference,
                 fontsize=50,
                 color='#FFD700',
-                font='Arial',
+                font=self.korean_font,
                 size=(self.width - 100, None)
             ).set_position(('center', 450)).set_duration(duration)
             clips.append(ref_clip)
@@ -119,7 +122,7 @@ class VideoGenerator:
                 content_wrapped,
                 fontsize=45,
                 color='white',
-                font='Arial',
+                font=self.korean_font,
                 size=(self.width - 150, None),
                 method='caption'
             ).set_position(('center', 700)).set_duration(duration)
