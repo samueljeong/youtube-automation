@@ -147,8 +147,6 @@
       border-color: #e74c3c;
     }
     button.step-btn {
-      width: 100%;
-      margin-bottom: .5rem;
       text-align: left;
       padding-left: .8rem;
     }
@@ -1070,7 +1068,7 @@
 
           <div class="action-row">
             <div class="box copy-all-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem;">
-              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">📋 개인 GPT-PRO 사용</div>
+              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">📋 개인 GPT PLUS 사용</div>
               <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭 후 사용하시는 GPT에 붙여넣기 해주세요.</div>
               <button id="btn-copy-all" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
@@ -3071,11 +3069,12 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       });
     });
 
-    // 새로고침 시 자동 선택 비활성화 - 사용자가 명시적으로 선택하도록 함
-    // if (!currentStyleId && styles.length > 0) {
-    //   currentStyleId = styles[0].id;
-    //   renderStyles();
-    // }
+    // 첫 방문/새로고침 시 첫 번째 스타일 자동 선택
+    if (!currentStyleId && styles.length > 0) {
+      currentStyleId = styles[0].id;
+      renderStyles();
+      renderProcessingSteps();
+    }
   }
 
   function renderProcessingSteps() {
