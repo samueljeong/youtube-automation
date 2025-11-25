@@ -3650,8 +3650,28 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
             ass_path = os.path.join(temp_dir, "subtitle.ass")
             srt_content = subtitle_data['srt']
 
+            # 한글 폰트 경로 결정
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            project_font = os.path.join(base_dir, 'fonts', 'NanumGothicBold.ttf')
+
+            if os.path.exists(project_font):
+                subtitle_font = project_font
+            else:
+                # 시스템 폰트 폴백
+                system_fonts = [
+                    '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+                    '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+                ]
+                subtitle_font = 'NanumGothic'  # 기본값 (폰트명)
+                for sf in system_fonts:
+                    if os.path.exists(sf):
+                        subtitle_font = sf
+                        break
+
+            print(f"[VIDEO-SUBTITLE] 자막 폰트: {subtitle_font}")
+
             # ASS 헤더 생성 (한글 폰트 명시)
-            ass_header = """[Script Info]
+            ass_header = f"""[Script Info]
 ScriptType: v4.00+
 Collisions: Normal
 PlayResX: 1920
@@ -3659,7 +3679,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,WenQuanYi Zen Hei,36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
+Style: Default,{subtitle_font},36,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
