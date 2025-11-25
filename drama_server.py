@@ -4452,36 +4452,24 @@ def youtube_callback():
 def youtube_auth_status():
     """YouTube 인증 상태 확인"""
     try:
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-
         # 데이터베이스에서 토큰 로드
         token_data = load_youtube_token_from_db()
-        if token_data and token_data.get('refresh_token'):
-            try:
-                credentials = Credentials.from_authorized_user_info(token_data)
-                if credentials:
-                    # 토큰이 만료되었으면 갱신 시도
-                    if credentials.expired and credentials.refresh_token:
-                        try:
-                            credentials.refresh(Request())
-                            # 갱신된 토큰 저장
-                            token_data['token'] = credentials.token
-                            save_youtube_token_to_db(token_data)
-                            print(f"[YOUTUBE-AUTH-STATUS] 토큰 갱신 성공")
-                        except Exception as refresh_error:
-                            print(f"[YOUTUBE-AUTH-STATUS] 토큰 갱신 실패: {refresh_error}")
-                            return jsonify({"authenticated": False})
 
-                    if credentials.valid:
-                        return jsonify({"authenticated": True})
-            except Exception as e:
-                print(f"[YOUTUBE-AUTH-STATUS] 인증 확인 실패: {e}")
-                pass
+        if token_data:
+            # refresh_token이 있으면 인증된 것으로 간주 (자동 갱신 가능)
+            if token_data.get('refresh_token'):
+                print(f"[YOUTUBE-AUTH-STATUS] 인증됨 (refresh_token 존재)")
+                return jsonify({"authenticated": True})
+            # token만 있어도 일단 인증된 것으로 처리
+            elif token_data.get('token'):
+                print(f"[YOUTUBE-AUTH-STATUS] 인증됨 (token만 존재, refresh_token 없음)")
+                return jsonify({"authenticated": True, "warning": "refresh_token 없음"})
 
+        print(f"[YOUTUBE-AUTH-STATUS] 인증 안됨 (토큰 없음)")
         return jsonify({"authenticated": False})
 
     except Exception as e:
+        print(f"[YOUTUBE-AUTH-STATUS] 오류: {e}")
         return jsonify({"authenticated": False, "error": str(e)})
 
 

@@ -6053,7 +6053,19 @@ S#1. 장소 / 시간
         authBtn.textContent = '🔗 인증 대기 중';
         authStatus.innerHTML = '<span style="color: #f39c12;">⏳ 새 창에서 YouTube 인증을 완료해주세요.</span>';
 
-        // 인증 상태 폴링
+        // postMessage 리스너 등록 (콜백 창에서 인증 완료 메시지 수신)
+        window.youtubeAuthPollActive = true;
+        const messageHandler = async (event) => {
+          if (event.data && event.data.type === 'youtube-auth-success') {
+            console.log('[YOUTUBE-AUTH] postMessage로 인증 완료 수신');
+            window.youtubeAuthPollActive = false; // 폴링 중단
+            window.removeEventListener('message', messageHandler);
+            await handleYouTubeAuthSuccess();
+          }
+        };
+        window.addEventListener('message', messageHandler);
+
+        // 인증 상태 폴링 (백업)
         pollYouTubeAuth();
       } else {
         // 에러 메시지를 더 명확하게 표시
@@ -6111,27 +6123,43 @@ S#1. 장소 / 시간
     }
   }
 
-  // 인증 상태 폴링
+  // YouTube 인증 성공 처리 (공통 함수)
+  async function handleYouTubeAuthSuccess() {
+    const authBtn = document.getElementById('btn-youtube-auth');
+    const authStatus = document.getElementById('youtube-auth-status');
+
+    youtubeAuthenticated = true;
+    authBtn.textContent = '✅ 인증 완료';
+    authBtn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
+    authBtn.disabled = true;
+    authStatus.innerHTML = '<span style="color: #27ae60;">✅ YouTube 인증이 완료되었습니다.</span>';
+    updateStep7Status();
+    // 채널 목록 로드
+    await loadYouTubeChannels();
+  }
+
+  // 인증 상태 폴링 (postMessage 실패 시 백업)
   async function pollYouTubeAuth() {
     const authBtn = document.getElementById('btn-youtube-auth');
     const authStatus = document.getElementById('youtube-auth-status');
 
     for (let i = 0; i < 60; i++) {
+      // postMessage로 이미 처리됐으면 폴링 중단
+      if (!window.youtubeAuthPollActive) {
+        console.log('[YOUTUBE-AUTH] 폴링 중단 (postMessage로 처리됨)');
+        return;
+      }
+
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       try {
         const response = await fetch('/api/drama/youtube-auth-status');
         const data = await response.json();
+        console.log('[YOUTUBE-AUTH] 폴링 상태:', data);
 
         if (data.authenticated) {
-          youtubeAuthenticated = true;
-          authBtn.textContent = '✅ 인증 완료';
-          authBtn.style.background = 'linear-gradient(135deg, #27ae60, #2ecc71)';
-          authBtn.disabled = true;
-          authStatus.innerHTML = '<span style="color: #27ae60;">✅ YouTube 인증이 완료되었습니다.</span>';
-          updateStep7Status();
-          // 채널 목록 로드
-          await loadYouTubeChannels();
+          window.youtubeAuthPollActive = false;
+          await handleYouTubeAuthSuccess();
           return;
         }
       } catch (e) {
@@ -6139,6 +6167,7 @@ S#1. 장소 / 시간
       }
     }
 
+    window.youtubeAuthPollActive = false;
     authBtn.disabled = false;
     authBtn.textContent = '🔗 YouTube 인증';
     authStatus.innerHTML = '<span style="color: #e74c3c;">❌ 인증 시간이 초과되었습니다. 다시 시도해주세요.</span>';
