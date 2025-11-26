@@ -516,8 +516,8 @@ def get_market_status():
 def get_products():
     """상품 목록 조회"""
     platform = request.args.get('platform', 'all')  # all, smartstore, coupang
-    category = request.args.get('category', '')
-    status = request.args.get('status', '')
+    filter_category = request.args.get('category', '')
+    filter_status = request.args.get('status', '')
     search = request.args.get('search', '').lower()
     sort = request.args.get('sort', 'lastModified')
     order = request.args.get('order', 'desc')
@@ -622,10 +622,10 @@ def get_products():
             products.extend(MOCK_COUPANG_PRODUCTS)
 
     # 필터링
-    if category:
-        products = [p for p in products if p.get('category') == category]
-    if status:
-        products = [p for p in products if p.get('status') == status]
+    if filter_category:
+        products = [p for p in products if p.get('category') == filter_category]
+    if filter_status:
+        products = [p for p in products if p.get('status') == filter_status]
     if search:
         products = [p for p in products if search in p.get('name', '').lower()]
 
