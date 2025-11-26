@@ -565,7 +565,6 @@ def inventory():
 
 # ===== Market Routes =====
 @app.route('/market')
-@login_required
 def market():
     """Market management page - 스마트스토어 & 쿠팡 상품 관리"""
     return render_template('market.html')
