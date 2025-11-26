@@ -1209,16 +1209,14 @@
                     <input type="radio" name="banner-model" value="dalle3" checked style="margin-right: .5rem;">
                     <div>
                       <div style="font-weight: 600; font-size: .9rem;">DALL-E 3</div>
-                      <div style="font-size: .75rem; color: #666;">$0.04~0.08/장</div>
-                      <div style="font-size: .7rem; color: #888;">텍스트 렌더링 우수</div>
+                      <div style="font-size: .75rem; color: #888;">텍스트 렌더링 우수</div>
                     </div>
                   </label>
                   <label style="display: flex; align-items: center; padding: .75rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" id="model-flux-label">
                     <input type="radio" name="banner-model" value="flux_pro" style="margin-right: .5rem;">
                     <div>
-                      <div style="font-weight: 600; font-size: .9rem;">Flux Pro (fal.ai)</div>
-                      <div style="font-size: .75rem; color: #666;">~$0.025/megapixel</div>
-                      <div style="font-size: .7rem; color: #888;">포토리얼리즘, 저렴</div>
+                      <div style="font-weight: 600; font-size: .9rem;">Flux Pro</div>
+                      <div style="font-size: .75rem; color: #888;">포토리얼리즘</div>
                     </div>
                   </label>
                 </div>
@@ -1242,25 +1240,26 @@
                 </select>
               </div>
 
-              <!-- 레이아웃 선택 -->
+              <!-- 크기 설정 -->
               <div class="box" style="margin-bottom: 1rem;">
-                <div class="label" style="margin-bottom: .5rem;">📐 레이아웃 선택</div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem;">
-                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid #667eea;" id="layout-horizontal-label">
-                    <input type="radio" name="banner-layout" value="horizontal" checked style="margin-bottom: .3rem;">
-                    <div style="width: 50px; height: 28px; background: #667eea; border-radius: 4px; margin-bottom: .3rem;"></div>
-                    <div style="font-size: .75rem; text-align: center;">가로형<br>(현수막)</div>
-                  </label>
-                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent;" id="layout-vertical-label">
-                    <input type="radio" name="banner-layout" value="vertical" style="margin-bottom: .3rem;">
-                    <div style="width: 28px; height: 50px; background: #ccc; border-radius: 4px; margin-bottom: .3rem;"></div>
-                    <div style="font-size: .75rem; text-align: center;">세로형<br>(X배너)</div>
-                  </label>
-                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent;" id="layout-square-label">
-                    <input type="radio" name="banner-layout" value="square" style="margin-bottom: .3rem;">
-                    <div style="width: 40px; height: 40px; background: #ccc; border-radius: 4px; margin-bottom: .3rem;"></div>
-                    <div style="font-size: .75rem; text-align: center;">정사각형<br>(SNS)</div>
-                  </label>
+                <div class="label" style="margin-bottom: .5rem;">📐 크기 설정 (cm)</div>
+                <div style="display: flex; flex-direction: column; gap: .75rem;">
+                  <!-- 프리셋 선택 -->
+                  <div style="display: flex; flex-wrap: wrap; gap: .4rem;">
+                    <button type="button" class="size-preset active" data-width="500" data-height="90" style="padding: .4rem .8rem; border: 1px solid #667eea; background: #667eea; color: white; border-radius: 6px; cursor: pointer; font-size: .8rem;">현수막 (500x90)</button>
+                    <button type="button" class="size-preset" data-width="300" data-height="90" style="padding: .4rem .8rem; border: 1px solid #ddd; background: #f8f9fa; border-radius: 6px; cursor: pointer; font-size: .8rem;">현수막 (300x90)</button>
+                    <button type="button" class="size-preset" data-width="60" data-height="180" style="padding: .4rem .8rem; border: 1px solid #ddd; background: #f8f9fa; border-radius: 6px; cursor: pointer; font-size: .8rem;">X배너 (60x180)</button>
+                    <button type="button" class="size-preset" data-width="80" data-height="200" style="padding: .4rem .8rem; border: 1px solid #ddd; background: #f8f9fa; border-radius: 6px; cursor: pointer; font-size: .8rem;">롤배너 (80x200)</button>
+                    <button type="button" class="size-preset" data-width="100" data-height="100" style="padding: .4rem .8rem; border: 1px solid #ddd; background: #f8f9fa; border-radius: 6px; cursor: pointer; font-size: .8rem;">정사각형 (100x100)</button>
+                  </div>
+                  <!-- 직접 입력 -->
+                  <div style="display: flex; align-items: center; gap: .5rem;">
+                    <input type="number" id="banner-width" value="500" min="10" max="1000" style="width: 80px; padding: .4rem; border-radius: 6px; border: 1px solid #ddd; text-align: center;">
+                    <span style="color: #666;">x</span>
+                    <input type="number" id="banner-height" value="90" min="10" max="1000" style="width: 80px; padding: .4rem; border-radius: 6px; border: 1px solid #ddd; text-align: center;">
+                    <span style="color: #666; font-size: .85rem;">cm</span>
+                    <div id="banner-size-preview" style="flex: 1; text-align: right; font-size: .8rem; color: #888;">비율: 5.56:1 (가로형)</div>
+                  </div>
                 </div>
               </div>
 
@@ -1342,7 +1341,7 @@
                     <div id="banner-info" style="margin-top: 1rem; padding: .75rem; background: #e8f4fd; border-radius: 6px; font-size: .8rem;">
                       <div><strong>모델:</strong> <span id="banner-info-model">-</span></div>
                       <div><strong>템플릿:</strong> <span id="banner-info-template">-</span></div>
-                      <div><strong>레이아웃:</strong> <span id="banner-info-layout">-</span></div>
+                      <div><strong>크기:</strong> <span id="banner-info-layout">-</span></div>
                       <div><strong>텍스트:</strong> <span id="banner-info-text">-</span></div>
                       <div><strong>폰트:</strong> <span id="banner-info-font">-</span></div>
                     </div>
@@ -5679,12 +5678,39 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     });
     updateModelSelection();
 
-    // 레이아웃 선택 라디오 버튼 스타일 업데이트
-    const layoutRadios = document.querySelectorAll('input[name="banner-layout"]');
-    layoutRadios.forEach(radio => {
-      radio.addEventListener('change', updateLayoutSelection);
+    // 크기 프리셋 버튼 이벤트
+    const presetButtons = document.querySelectorAll('.size-preset');
+    presetButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // 모든 버튼 비활성화 스타일
+        presetButtons.forEach(b => {
+          b.style.background = '#f8f9fa';
+          b.style.border = '1px solid #ddd';
+          b.style.color = '#333';
+          b.classList.remove('active');
+        });
+        // 클릭된 버튼 활성화 스타일
+        btn.style.background = '#667eea';
+        btn.style.border = '1px solid #667eea';
+        btn.style.color = 'white';
+        btn.classList.add('active');
+
+        // 크기 입력 필드 업데이트
+        const width = btn.dataset.width;
+        const height = btn.dataset.height;
+        document.getElementById('banner-width').value = width;
+        document.getElementById('banner-height').value = height;
+        updateSizePreview();
+      });
     });
-    updateLayoutSelection();
+
+    // 크기 입력 필드 변경 이벤트
+    const widthInput = document.getElementById('banner-width');
+    const heightInput = document.getElementById('banner-height');
+    if (widthInput) widthInput.addEventListener('input', updateSizePreview);
+    if (heightInput) heightInput.addEventListener('input', updateSizePreview);
+
+    updateSizePreview();
   }
 
   // 모델 선택 스타일 업데이트
@@ -5702,20 +5728,33 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     }
   }
 
-  // 레이아웃 선택 스타일 업데이트
-  function updateLayoutSelection() {
-    const layouts = ['horizontal', 'vertical', 'square'];
-    layouts.forEach(layout => {
-      const label = document.getElementById(`layout-${layout}-label`);
-      const radio = document.querySelector(`input[name="banner-layout"][value="${layout}"]`);
-      if (label && radio) {
-        label.style.border = radio.checked ? '2px solid #667eea' : '2px solid transparent';
-        const colorDiv = label.querySelector('div[style*="background"]');
-        if (colorDiv) {
-          colorDiv.style.background = radio.checked ? '#667eea' : '#ccc';
-        }
-      }
-    });
+  // 크기 미리보기 업데이트
+  function updateSizePreview() {
+    const width = parseInt(document.getElementById('banner-width').value) || 100;
+    const height = parseInt(document.getElementById('banner-height').value) || 100;
+    const preview = document.getElementById('banner-size-preview');
+
+    if (preview) {
+      const ratio = (width / height).toFixed(2);
+      let type = '정사각형';
+      if (width > height * 1.2) type = '가로형';
+      else if (height > width * 1.2) type = '세로형';
+      preview.textContent = `비율: ${ratio}:1 (${type})`;
+    }
+  }
+
+  // cm를 AI 이미지 비율로 변환
+  function cmToAspectRatio(widthCm, heightCm) {
+    const ratio = widthCm / heightCm;
+
+    // DALL-E 3 지원 크기로 매핑
+    if (ratio >= 1.5) {
+      return { layout: 'horizontal', dalle_size: '1792x1024', flux_aspect: '16:9' };
+    } else if (ratio <= 0.67) {
+      return { layout: 'vertical', dalle_size: '1024x1792', flux_aspect: '9:16' };
+    } else {
+      return { layout: 'square', dalle_size: '1024x1024', flux_aspect: '1:1' };
+    }
   }
 
   // 고급 옵션 토글
@@ -5766,7 +5805,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   async function generateBanner() {
     const model = document.querySelector('input[name="banner-model"]:checked').value;
     const template = document.getElementById('banner-template').value;
-    const layout = document.querySelector('input[name="banner-layout"]:checked').value;
+
+    // cm 기반 크기에서 레이아웃 결정
+    const widthCm = parseInt(document.getElementById('banner-width').value) || 500;
+    const heightCm = parseInt(document.getElementById('banner-height').value) || 90;
+    const sizeConfig = cmToAspectRatio(widthCm, heightCm);
+    const layout = sizeConfig.layout;
+
     const eventName = document.getElementById('banner-event-name').value;
     const churchName = document.getElementById('banner-church-name').value;
     const schedule = document.getElementById('banner-schedule').value;
@@ -5797,6 +5842,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
           model: model,
           template: template,
           layout: layout,
+          width_cm: widthCm,
+          height_cm: heightCm,
           event_name: eventName,
           church_name: churchName,
           schedule: schedule,
@@ -5827,7 +5874,10 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         // 정보 업데이트
         document.getElementById('banner-info-model').textContent = data.model;
         document.getElementById('banner-info-template').textContent = data.template;
-        document.getElementById('banner-info-layout').textContent = data.layout;
+        // 크기를 cm로 표시
+        const layoutNames = { horizontal: '가로형', vertical: '세로형', square: '정사각형' };
+        const layoutName = layoutNames[layout] || layout;
+        document.getElementById('banner-info-layout').textContent = `${widthCm} x ${heightCm} cm (${layoutName})`;
         document.getElementById('banner-info-text').textContent = data.text_added ? '추가됨' : '없음';
         document.getElementById('banner-info-font').textContent = data.font || '-';
 
