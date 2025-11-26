@@ -1726,6 +1726,19 @@
     return 'step_' + Date.now().toString(36);
   }
 
+  // 카테고리 ID 생성 함수 (category1, category2, ... 순차적)
+  function generateCategoryId() {
+    let maxNum = 0;
+    config.categories.forEach(cat => {
+      const match = cat.value.match(/^category(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    return 'category' + (maxNum + 1);
+  }
+
   // ===== 유틸리티 =====
   function showStatus(msg) {
     const statusBar = document.getElementById('status-bar');
@@ -3965,12 +3978,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         return;
       }
 
-      const value = koreanToId(label);
-
-      if (config.categories.find(c => c.value === value)) {
-        alert('이미 존재하는 카테고리입니다.');
+      // 같은 이름의 카테고리가 있는지 확인
+      if (config.categories.find(c => c.label === label)) {
+        alert('이미 존재하는 카테고리 이름입니다.');
         return;
       }
+
+      const value = generateCategoryId();
 
       config.categories.push({value, label});
       config.categorySettings[value] = {
