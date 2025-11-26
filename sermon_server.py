@@ -2006,9 +2006,6 @@ def api_gpt_pro():
 
         meta_section = "\n".join(meta_lines)
 
-        # 글자수 제한 변수 초기화 (JSON 모드에서 writing_spec.length로 설정됨)
-        length_constraint = None
-
         # JSON 모드 vs 기존 텍스트 모드
         if is_json_mode:
             try:
@@ -2025,16 +2022,15 @@ def api_gpt_pro():
                     "special_notes": special_notes
                 }
 
-                # Step2에서 writing_spec 추출하여 시스템 프롬프트에 반영
+                # Step2에서 writing_spec 추출하여 시스템 프롬프트에 반영 (length 제외 - duration으로 제어)
                 writing_spec = {}
-                length_constraint = None  # 글자수 제한 (예: "1800-2800자")
                 if step2_result and isinstance(step2_result, dict):
                     writing_spec = step2_result.get("writing_spec", {})
-                    length_constraint = writing_spec.get("length")  # 글자수 제한 추출
-                    if length_constraint:
-                        print(f"[GPT-PRO/Step3] writing_spec length 감지: {length_constraint}")
+                    # length는 duration으로 제어하므로 writing_spec에서 제외
+                    if "length" in writing_spec:
+                        del writing_spec["length"]
 
-                # 시스템 프롬프트에 writing_spec 반영
+                # 시스템 프롬프트에 writing_spec 반영 (length 제외됨)
                 if writing_spec:
                     system_content += "\n\n【 작성 규격 】\n"
                     for key, value in writing_spec.items():
@@ -2089,95 +2085,66 @@ def api_gpt_pro():
                     "7. 충분히 길고 상세하며 풍성한 내용으로 작성해주세요."
                 )
 
-        # 공통 지침 추가 - length_constraint가 있으면 글자수 제한 강조
-        if length_constraint:
-            user_content += f"\n\n⚠️ 매우 중요 - 글자수 제한: 설교문 전체 분량을 반드시 '{length_constraint}' 범위 내로 작성하세요!"
-            user_content += f"\n이 글자수 제한은 설교 유형에 맞춘 필수 규격입니다. 초과하거나 부족하지 않도록 주의하세요."
+        # 공통 지침 추가 - duration 분량 안에서 충분히 상세하게
+        if duration:
+            user_content += f"\n\n⚠️ 매우 중요 - 분량 제한: {duration} 분량 안에서 충분히 상세하고 풍성한 내용으로 작성하세요!"
+            user_content += f"\n{duration} 분량을 반드시 지키되, 그 안에서 최대한 깊이 있게 작성해주세요."
         else:
-            user_content += f"\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 {max_tokens} 토큰)."
+            user_content += f"\n\n⚠️ 중요: 충분히 길고 상세하며 풍성한 내용으로 작성해주세요."
 
         # 토큰 사용량 저장용 변수
         usage_data = None
 
-        # 모델에 따라 적절한 API 호출
+        # 모델에 따라 API 호출 파라미터 구성
         # gpt-5 계열은 max_completion_tokens 사용, temperature 미지원
         # gpt-4o 계열은 max_tokens 사용, temperature 지원
+        messages = [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content}
+        ]
+
+        api_kwargs = {"model": gpt_pro_model, "messages": messages}
         if gpt_pro_model in ["gpt-5", "gpt-5.1"]:
-            # gpt-5, gpt-5.1은 temperature 지원 안함 (기본값 1만 허용)
-            completion = client.chat.completions.create(
-                model=gpt_pro_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_content
-                    },
-                    {
-                        "role": "user",
-                        "content": user_content
-                    }
-                ],
-                max_completion_tokens=max_tokens
-            )
-            result = completion.choices[0].message.content.strip()
-
-            # Chat Completions API 토큰 사용량 추출
-            if hasattr(completion, 'usage') and completion.usage:
-                usage_data = {
-                    "input_tokens": getattr(completion.usage, 'prompt_tokens', 0),
-                    "output_tokens": getattr(completion.usage, 'completion_tokens', 0),
-                    "total_tokens": getattr(completion.usage, 'total_tokens', 0)
-                }
+            api_kwargs["max_completion_tokens"] = max_tokens
         elif gpt_pro_model.startswith("gpt-5"):
-            # 다른 gpt-5.x 모델
-            completion = client.chat.completions.create(
-                model=gpt_pro_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_content
-                    },
-                    {
-                        "role": "user",
-                        "content": user_content
-                    }
-                ],
-                temperature=0.8,
-                max_completion_tokens=max_tokens
-            )
-            result = completion.choices[0].message.content.strip()
-
-            if hasattr(completion, 'usage') and completion.usage:
-                usage_data = {
-                    "input_tokens": getattr(completion.usage, 'prompt_tokens', 0),
-                    "output_tokens": getattr(completion.usage, 'completion_tokens', 0),
-                    "total_tokens": getattr(completion.usage, 'total_tokens', 0)
-                }
+            api_kwargs["temperature"] = 0.8
+            api_kwargs["max_completion_tokens"] = max_tokens
         else:
-            # gpt-4o 등 다른 모델
-            completion = client.chat.completions.create(
-                model=gpt_pro_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_content
-                    },
-                    {
-                        "role": "user",
-                        "content": user_content
-                    }
-                ],
-                temperature=0.8,
-                max_tokens=max_tokens
-            )
-            result = completion.choices[0].message.content.strip()
+            api_kwargs["temperature"] = 0.8
+            api_kwargs["max_tokens"] = max_tokens
 
-            # Chat Completions API 토큰 사용량 추출
-            if hasattr(completion, 'usage') and completion.usage:
-                usage_data = {
-                    "input_tokens": completion.usage.prompt_tokens,
-                    "output_tokens": completion.usage.completion_tokens,
-                    "total_tokens": completion.usage.total_tokens
-                }
+        # API 호출 (최대 3회 재시도)
+        import time
+        max_retries = 3
+        completion = None
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                completion = client.chat.completions.create(**api_kwargs)
+                break  # 성공하면 루프 종료
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 1초, 2초, 4초
+                    print(f"[GPT-PRO/Step3] API 호출 실패 (시도 {attempt + 1}/{max_retries}), {wait_time}초 후 재시도: {str(e)}")
+                    time.sleep(wait_time)
+                else:
+                    print(f"[GPT-PRO/Step3] API 호출 최종 실패 ({max_retries}회 시도): {str(e)}")
+                    raise e
+
+        if not completion:
+            raise RuntimeError(f"{gpt_pro_model} API 호출 실패: {str(last_error)}")
+
+        result = completion.choices[0].message.content.strip()
+
+        # Chat Completions API 토큰 사용량 추출
+        if hasattr(completion, 'usage') and completion.usage:
+            usage_data = {
+                "input_tokens": getattr(completion.usage, 'prompt_tokens', 0),
+                "output_tokens": getattr(completion.usage, 'completion_tokens', 0),
+                "total_tokens": getattr(completion.usage, 'total_tokens', 0)
+            }
 
         if not result:
             raise RuntimeError(f"{gpt_pro_model} API로부터 결과를 받지 못했습니다.")
