@@ -466,13 +466,38 @@ def get_market_status():
     """API 연동 상태 및 요약 정보"""
     api_status = check_api_status()
 
-    # Mock 데이터 기반 요약 (실제 연동 시 API에서 가져옴)
-    all_products = MOCK_SMARTSTORE_PRODUCTS + MOCK_COUPANG_PRODUCTS
+    # 실제 상품 데이터 가져오기 (내부 호출)
+    ss_products = []
+    cp_products = []
+
+    # 스마트스토어 상품
+    if api_status['smartstore']['connected']:
+        result = call_naver_api('/v1/products/search', method='POST', data={"page": 1, "size": 100})
+        if result and 'contents' in result:
+            for item in result['contents']:
+                channel_product = item.get('channelProducts', [{}])[0] if item.get('channelProducts') else item
+                ss_products.append({
+                    "stock": channel_product.get('stockQuantity') or 0,
+                    "salePrice": channel_product.get('discountedPrice') or channel_product.get('salePrice') or 0
+                })
+
+    # 쿠팡 상품 (API 연동 시)
+    if api_status['coupang']['connected']:
+        # 쿠팡 API는 아직 Mock 데이터 사용
+        pass
+
+    # API가 연동되지 않은 경우 Mock 데이터 사용
+    if not ss_products and not api_status['smartstore']['connected']:
+        ss_products = MOCK_SMARTSTORE_PRODUCTS
+    if not cp_products:
+        cp_products = MOCK_COUPANG_PRODUCTS if not api_status['coupang']['connected'] else []
+
+    all_products = ss_products + cp_products
 
     summary = {
         "totalProducts": len(all_products),
-        "smartstoreProducts": len(MOCK_SMARTSTORE_PRODUCTS),
-        "coupangProducts": len(MOCK_COUPANG_PRODUCTS),
+        "smartstoreProducts": len(ss_products),
+        "coupangProducts": len(cp_products),
         "outOfStock": len([p for p in all_products if p.get('stock', 0) == 0]),
         "lowStock": len([p for p in all_products if 0 < p.get('stock', 0) <= 10]),
         "totalOrders": len(MOCK_ORDERS),
@@ -560,28 +585,40 @@ def get_products():
                     })
                 print(f"[Naver API] {len(products)}개 상품 로드 완료")
             else:
-                print("[Naver API] 상품 데이터 없음, Mock 데이터 사용")
-                products.extend(MOCK_SMARTSTORE_PRODUCTS)
+                print("[Naver API] 상품 데이터 없음 (Mock 데이터 미사용)")
+            # API 연동 시 Mock 데이터 사용 안함
         else:
+            # API 미연동 시에만 Mock 데이터 사용
             products.extend(MOCK_SMARTSTORE_PRODUCTS)
 
     if platform in ['all', 'coupang']:
         if api_status['coupang']['connected']:
             # 실제 쿠팡 API 호출
+            print("[Coupang API] 상품 조회 시도...")
             result = call_coupang_api(f'/v2/providers/seller_api/apis/api/v1/marketplace/seller-products')
             if result and 'data' in result:
+                print(f"[Coupang API] {len(result['data'])}개 상품 로드")
                 for item in result['data']:
                     products.append({
-                        "id": item.get('sellerProductId'),
+                        "id": str(item.get('sellerProductId', '')),
                         "platform": "coupang",
-                        "name": item.get('sellerProductName'),
-                        "price": item.get('salePrice'),
+                        "name": item.get('sellerProductName', ''),
+                        "category": item.get('displayCategoryName', '기타'),
+                        "price": item.get('salePrice', 0),
+                        "salePrice": item.get('salePrice', 0),
                         "stock": item.get('maximumBuyCount', 0),
-                        # ... 추가 필드 매핑
+                        "status": "SALE",
+                        "imageUrl": "",
+                        "salesCount": 0,
+                        "reviewCount": 0,
+                        "rating": 0,
+                        "lastModified": ""
                     })
             else:
-                products.extend(MOCK_COUPANG_PRODUCTS)
+                print("[Coupang API] 상품 데이터 없음 (Mock 데이터 미사용)")
+            # API 연동 시 Mock 데이터 사용 안함
         else:
+            # API 미연동 시에만 Mock 데이터 사용
             products.extend(MOCK_COUPANG_PRODUCTS)
 
     # 필터링
@@ -872,9 +909,36 @@ def sync_prices():
 def get_analytics():
     """판매 분석 데이터"""
     period = request.args.get('period', '7d')  # 7d, 30d, 90d
+    api_status = check_api_status()
 
-    # Mock 분석 데이터
-    all_products = MOCK_SMARTSTORE_PRODUCTS + MOCK_COUPANG_PRODUCTS
+    # 실제 데이터 또는 Mock 데이터 사용
+    ss_products = []
+    cp_products = []
+
+    # 스마트스토어 상품
+    if api_status['smartstore']['connected']:
+        result = call_naver_api('/v1/products/search', method='POST', data={"page": 1, "size": 100})
+        if result and 'contents' in result:
+            for item in result['contents']:
+                channel_product = item.get('channelProducts', [{}])[0] if item.get('channelProducts') else item
+                ss_products.append({
+                    "id": str(item.get('originProductNo', '')),
+                    "platform": "smartstore",
+                    "name": channel_product.get('name', ''),
+                    "category": (channel_product.get('wholeCategoryName') or '').split('>')[-1].strip() or '기타',
+                    "salePrice": channel_product.get('discountedPrice') or channel_product.get('salePrice') or 0,
+                    "stock": channel_product.get('stockQuantity') or 0,
+                    "salesCount": channel_product.get('saleCount', 0) or 0,
+                    "rating": channel_product.get('reviewScore', 0) or 0
+                })
+    else:
+        ss_products = MOCK_SMARTSTORE_PRODUCTS
+
+    # 쿠팡 상품
+    if not api_status['coupang']['connected']:
+        cp_products = MOCK_COUPANG_PRODUCTS
+
+    all_products = ss_products + cp_products
 
     total_sales = sum(p.get('salesCount', 0) for p in all_products)
     total_revenue = sum(p.get('salesCount', 0) * p.get('salePrice', 0) for p in all_products)
@@ -892,12 +956,12 @@ def get_analytics():
     # 플랫폼별 판매
     platform_sales = {
         "smartstore": {
-            "count": sum(p.get('salesCount', 0) for p in MOCK_SMARTSTORE_PRODUCTS),
-            "revenue": sum(p.get('salesCount', 0) * p.get('salePrice', 0) for p in MOCK_SMARTSTORE_PRODUCTS)
+            "count": sum(p.get('salesCount', 0) for p in ss_products),
+            "revenue": sum(p.get('salesCount', 0) * p.get('salePrice', 0) for p in ss_products)
         },
         "coupang": {
-            "count": sum(p.get('salesCount', 0) for p in MOCK_COUPANG_PRODUCTS),
-            "revenue": sum(p.get('salesCount', 0) * p.get('salePrice', 0) for p in MOCK_COUPANG_PRODUCTS)
+            "count": sum(p.get('salesCount', 0) for p in cp_products),
+            "revenue": sum(p.get('salesCount', 0) * p.get('salePrice', 0) for p in cp_products)
         }
     }
 
