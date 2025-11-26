@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>디자인 자동화 - 상세페이지 생성</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      min-height: 100vh;
+    }
+
+    /* 헤더 */
+    .header {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+      color: white;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { font-size: 1.3rem; display: flex; align-items: center; gap: 0.5rem; }
+    .header-actions { display: flex; gap: 1rem; align-items: center; }
+    .status-badge {
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-connected { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .status-disconnected { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    /* 메인 컨테이너 */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* 탭 네비게이션 */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      background: transparent;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-weight: 500;
+      color: #64748b;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { background: #f1f5f9; color: #334155; }
+    .tab-btn.active {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+      color: white;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* 카드 */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      margin-bottom: 1.5rem;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    /* 그리드 */
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+
+    @media (max-width: 1024px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* 폼 */
+    .form-group { margin-bottom: 1rem; }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #475569;
+      margin-bottom: 0.4rem;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 0.6rem 0.8rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #8b5cf6;
+    }
+
+    /* 버튼 */
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4); }
+    .btn-secondary { background: #f1f5f9; color: #475569; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-outline { background: white; border: 1px solid #e2e8f0; color: #475569; }
+    .btn-outline:hover { border-color: #8b5cf6; color: #8b5cf6; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-small { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+
+    /* 폰트 카드 */
+    .font-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1rem;
+      transition: all 0.2s;
+    }
+    .font-card:hover { border-color: #8b5cf6; }
+    .font-card .font-preview {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      color: #1e293b;
+    }
+    .font-card .font-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #475569;
+    }
+    .font-card .font-weights {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.3rem;
+    }
+
+    /* 템플릿 카드 */
+    .template-card {
+      background: white;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .template-card:hover { border-color: #8b5cf6; transform: translateY(-2px); }
+    .template-card.selected { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); }
+    .template-preview {
+      height: 150px;
+      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+    }
+    .template-info { padding: 1rem; }
+    .template-name { font-weight: 600; color: #1e293b; margin-bottom: 0.3rem; }
+    .template-category { font-size: 0.8rem; color: #64748b; }
+
+    /* Figma 파일 목록 */
+    .figma-file-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: #f8fafc;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .figma-file-item:hover { background: #f1f5f9; }
+    .figma-icon { font-size: 1.5rem; }
+    .figma-file-info { flex: 1; }
+    .figma-file-name { font-weight: 600; color: #1e293b; }
+    .figma-file-date { font-size: 0.8rem; color: #64748b; }
+
+    /* 변수 리스트 */
+    .variable-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.8rem;
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+    .variable-name {
+      font-family: monospace;
+      background: #8b5cf6;
+      color: white;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .variable-input { flex: 1; }
+
+    /* 생성 미리보기 */
+    .preview-container {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 2rem;
+      min-height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .preview-image {
+      max-width: 100%;
+      max-height: 500px;
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    .preview-placeholder {
+      text-align: center;
+      color: #64748b;
+    }
+    .preview-placeholder .icon { font-size: 4rem; margin-bottom: 1rem; }
+
+    /* 토스트 */
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      padding: 1rem 1.5rem;
+      background: #1e293b;
+      color: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      z-index: 1000;
+      display: none;
+    }
+    .toast.success { background: #10b981; }
+    .toast.error { background: #ef4444; }
+    .toast.show { display: block; animation: slideIn 0.3s ease; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* 로딩 */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .loading-overlay.show { display: flex; }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 모달 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-header h2 { font-size: 1.2rem; color: #1e293b; }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #64748b;
+    }
+    .modal-body { padding: 1.5rem; }
+    .modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    /* 연결 상태 카드 */
+    .connection-card {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 2px dashed #e2e8f0;
+    }
+    .connection-card.connected {
+      background: #ecfdf5;
+      border: 2px solid #10b981;
+      border-style: solid;
+    }
+    .connection-icon { font-size: 2.5rem; }
+    .connection-info { flex: 1; }
+    .connection-title { font-weight: 600; color: #1e293b; margin-bottom: 0.3rem; }
+    .connection-status { font-size: 0.85rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <!-- 헤더 -->
+  <header class="header">
+    <h1>🎨 디자인 자동화</h1>
+    <div class="header-actions">
+      <span class="status-badge" id="figmaStatus">Figma 연결 확인 중...</span>
+      <a href="/market" class="btn btn-outline" style="color:white;border-color:rgba(255,255,255,0.3);">← 마켓으로</a>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 탭 -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">📊 대시보드</button>
+      <button class="tab-btn" data-tab="templates">📄 템플릿</button>
+      <button class="tab-btn" data-tab="fonts">🔤 폰트</button>
+      <button class="tab-btn" data-tab="generate">✨ 생성</button>
+      <button class="tab-btn" data-tab="benchmark">🔍 벤치마킹</button>
+    </div>
+
+    <!-- 대시보드 탭 -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="grid-2">
+        <!-- Figma 연결 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Figma 연동</h3>
+          </div>
+          <div class="connection-card" id="figmaConnectionCard">
+            <div class="connection-icon">🎨</div>
+            <div class="connection-info">
+              <div class="connection-title">Figma</div>
+              <div class="connection-status" id="figmaConnectionStatus">연결 상태 확인 중...</div>
+            </div>
+            <button class="btn btn-primary btn-small" onclick="openFigmaSettings()">설정</button>
+          </div>
+          <div style="margin-top:1rem;">
+            <div class="form-group">
+              <label>Figma 파일 키</label>
+              <div style="display:flex;gap:0.5rem;">
+                <input type="text" id="figmaFileKey" placeholder="Figma URL에서 /file/ 뒤의 값">
+                <button class="btn btn-primary" onclick="loadFigmaFile()">불러오기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 빠른 통계 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">현황</h3>
+          </div>
+          <div class="grid-3" style="text-align:center;">
+            <div>
+              <div style="font-size:2rem;font-weight:700;color:#8b5cf6;" id="templateCount">0</div>
+              <div style="font-size:0.85rem;color:#64748b;">템플릿</div>
+            </div>
+            <div>
+              <div style="font-size:2rem;font-weight:700;color:#10b981;" id="fontCount">0</div>
+              <div style="font-size:0.85rem;color:#64748b;">폰트</div>
+            </div>
+            <div>
+              <div style="font-size:2rem;font-weight:700;color:#f59e0b;" id="generatedCount">0</div>
+              <div style="font-size:0.85rem;color:#64748b;">생성됨</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Figma 파일 내용 -->
+      <div class="card" id="figmaFileCard" style="display:none;">
+        <div class="card-header">
+          <h3 class="card-title" id="figmaFileName">Figma 파일</h3>
+          <button class="btn btn-secondary btn-small" onclick="closeFigmaFile()">닫기</button>
+        </div>
+        <div id="figmaFileContent"></div>
+      </div>
+    </div>
+
+    <!-- 템플릿 탭 -->
+    <div class="tab-content" id="tab-templates">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">템플릿 라이브러리</h3>
+          <button class="btn btn-primary" onclick="openCreateTemplateModal()">+ 새 템플릿</button>
+        </div>
+        <div class="grid-4" id="templateGrid">
+          <div class="template-card" onclick="openCreateTemplateModal()">
+            <div class="template-preview" style="background:#f1f5f9;">➕</div>
+            <div class="template-info">
+              <div class="template-name">새 템플릿 추가</div>
+              <div class="template-category">Figma에서 가져오기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 폰트 탭 -->
+    <div class="tab-content" id="tab-fonts">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">폰트 라이브러리</h3>
+          <button class="btn btn-primary" onclick="openAddFontModal()">+ 폰트 추가</button>
+        </div>
+        <div class="grid-4" id="fontGrid"></div>
+      </div>
+    </div>
+
+    <!-- 생성 탭 -->
+    <div class="tab-content" id="tab-generate">
+      <div class="grid-2">
+        <!-- 입력 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">상품 정보 입력</h3>
+          </div>
+
+          <div class="form-group">
+            <label>템플릿 선택</label>
+            <select id="generateTemplate">
+              <option value="">템플릿을 선택하세요</option>
+            </select>
+          </div>
+
+          <div id="variableInputs">
+            <!-- 동적으로 변수 입력 필드 생성 -->
+          </div>
+
+          <div class="form-group">
+            <label>상품명 *</label>
+            <input type="text" id="genProductName" placeholder="프리미엄 블루투스 이어폰">
+          </div>
+          <div class="form-group">
+            <label>가격 *</label>
+            <input type="text" id="genPrice" placeholder="29,000원">
+          </div>
+          <div class="form-group">
+            <label>할인율</label>
+            <input type="text" id="genDiscount" placeholder="50%">
+          </div>
+          <div class="form-group">
+            <label>특징 (줄바꿈으로 구분)</label>
+            <textarea id="genFeatures" rows="3" placeholder="노이즈 캔슬링&#10;20시간 배터리&#10;IPX5 방수"></textarea>
+          </div>
+          <div class="form-group">
+            <label>상품 이미지 URL</label>
+            <input type="text" id="genImageUrl" placeholder="https://...">
+          </div>
+
+          <button class="btn btn-primary" onclick="generateImage()" style="width:100%;margin-top:1rem;">
+            ✨ 상세페이지 생성
+          </button>
+        </div>
+
+        <!-- 미리보기 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">미리보기</h3>
+            <button class="btn btn-secondary btn-small" onclick="downloadImage()">💾 다운로드</button>
+          </div>
+          <div class="preview-container">
+            <div class="preview-placeholder" id="previewPlaceholder">
+              <div class="icon">🖼️</div>
+              <div>상품 정보를 입력하고<br>생성 버튼을 클릭하세요</div>
+            </div>
+            <img src="" alt="" class="preview-image" id="previewImage" style="display:none;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 벤치마킹 탭 -->
+    <div class="tab-content" id="tab-benchmark">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">상세페이지 벤치마킹</h3>
+        </div>
+        <p style="color:#64748b;margin-bottom:1rem;">
+          좋은 상세페이지 URL을 입력하면 AI가 분석하여 템플릿을 생성합니다.
+        </p>
+        <div class="form-group">
+          <label>상세페이지 URL</label>
+          <div style="display:flex;gap:0.5rem;">
+            <input type="text" id="benchmarkUrl" placeholder="https://smartstore.naver.com/...">
+            <button class="btn btn-primary" onclick="analyzeBenchmark()">분석하기</button>
+          </div>
+        </div>
+
+        <div id="benchmarkResult" style="display:none;margin-top:1.5rem;">
+          <h4 style="margin-bottom:1rem;">분석 결과</h4>
+          <div class="grid-2">
+            <div>
+              <h5 style="margin-bottom:0.5rem;color:#64748b;">색상 팔레트</h5>
+              <div id="colorPalette" style="display:flex;gap:0.5rem;"></div>
+            </div>
+            <div>
+              <h5 style="margin-bottom:0.5rem;color:#64748b;">감지된 폰트</h5>
+              <div id="detectedFonts"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 템플릿 생성 모달 -->
+  <div class="modal-overlay" id="templateModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>새 템플릿 만들기</h2>
+        <button class="modal-close" onclick="closeTemplateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>템플릿 이름 *</label>
+          <input type="text" id="templateName" placeholder="예: 전자제품 프리미엄">
+        </div>
+        <div class="form-group">
+          <label>카테고리</label>
+          <select id="templateCategory">
+            <option value="general">일반</option>
+            <option value="electronics">전자제품</option>
+            <option value="fashion">패션</option>
+            <option value="food">식품</option>
+            <option value="living">생활용품</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Figma 파일 키</label>
+          <input type="text" id="templateFigmaKey" placeholder="Figma 파일 키 (선택)">
+        </div>
+        <div class="form-group">
+          <label>Figma 노드 ID</label>
+          <input type="text" id="templateFigmaNode" placeholder="프레임 노드 ID (선택)">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeTemplateModal()">취소</button>
+        <button class="btn btn-primary" onclick="createTemplate()">생성</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 폰트 추가 모달 -->
+  <div class="modal-overlay" id="fontModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>폰트 추가</h2>
+        <button class="modal-close" onclick="closeFontModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>폰트 이름 *</label>
+          <input type="text" id="fontName" placeholder="예: 마루부리">
+        </div>
+        <div class="form-group">
+          <label>Font Family *</label>
+          <input type="text" id="fontFamily" placeholder="예: MaruBuri">
+        </div>
+        <div class="form-group">
+          <label>CSS URL 또는 파일</label>
+          <input type="text" id="fontSource" placeholder="https://fonts.googleapis.com/...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeFontModal()">취소</button>
+        <button class="btn btn-primary" onclick="addFont()">추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Figma 설정 모달 -->
+  <div class="modal-overlay" id="figmaSettingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Figma 설정</h2>
+        <button class="modal-close" onclick="closeFigmaSettings()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom:1rem;color:#64748b;">
+          Figma Personal Access Token이 필요합니다.<br>
+          Figma → Settings → Personal Access Tokens에서 생성하세요.
+        </p>
+        <div class="form-group">
+          <label>Access Token</label>
+          <input type="password" id="figmaToken" placeholder="figd_xxxxx...">
+        </div>
+        <p style="font-size:0.8rem;color:#94a3b8;">
+          * 토큰은 서버 환경변수 FIGMA_ACCESS_TOKEN에 설정해야 합니다.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeFigmaSettings()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 로딩 -->
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    // ===== 상태 =====
+    let fonts = [];
+    let templates = [];
+    let figmaConnected = false;
+    let currentFigmaFile = null;
+
+    // ===== 초기화 =====
+    document.addEventListener('DOMContentLoaded', () => {
+      initTabs();
+      loadStatus();
+      loadFonts();
+      loadTemplates();
+    });
+
+    function initTabs() {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+      });
+    }
+
+    // ===== API 호출 =====
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/design/status');
+        const data = await res.json();
+        if (data.ok) {
+          figmaConnected = data.status.figma.connected;
+          updateFigmaStatus(data.status.figma);
+          document.getElementById('templateCount').textContent = data.status.templates;
+          document.getElementById('fontCount').textContent = data.status.fonts.default + data.status.fonts.custom;
+        }
+      } catch (e) {
+        console.error('Status error:', e);
+      }
+    }
+
+    function updateFigmaStatus(figma) {
+      const statusEl = document.getElementById('figmaStatus');
+      const cardEl = document.getElementById('figmaConnectionCard');
+      const statusTextEl = document.getElementById('figmaConnectionStatus');
+
+      if (figma.connected) {
+        statusEl.className = 'status-badge status-connected';
+        statusEl.textContent = `Figma: ${figma.user}`;
+        cardEl.classList.add('connected');
+        statusTextEl.textContent = `연결됨 (${figma.user})`;
+      } else {
+        statusEl.className = 'status-badge status-disconnected';
+        statusEl.textContent = 'Figma 미연결';
+        cardEl.classList.remove('connected');
+        statusTextEl.textContent = '토큰을 설정해주세요';
+      }
+    }
+
+    async function loadFonts() {
+      try {
+        const res = await fetch('/api/design/fonts');
+        const data = await res.json();
+        if (data.ok) {
+          fonts = data.fonts;
+          renderFonts();
+        }
+      } catch (e) {
+        console.error('Fonts error:', e);
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const res = await fetch('/api/design/templates');
+        const data = await res.json();
+        if (data.ok) {
+          templates = data.templates;
+          renderTemplates();
+          updateTemplateSelect();
+        }
+      } catch (e) {
+        console.error('Templates error:', e);
+      }
+    }
+
+    // ===== 렌더링 =====
+    function renderFonts() {
+      const grid = document.getElementById('fontGrid');
+      grid.innerHTML = fonts.map(font => `
+        <div class="font-card">
+          <div class="font-preview" style="font-family:'${font.family}',sans-serif;">
+            가나다 ABC 123
+          </div>
+          <div class="font-name">${font.name}</div>
+          <div class="font-weights">${font.weights.join(', ')}</div>
+          ${font.type === 'custom' ? `<button class="btn btn-danger btn-small" style="margin-top:0.5rem;" onclick="deleteFont('${font.id}')">삭제</button>` : ''}
+        </div>
+      `).join('');
+
+      // 웹 폰트 로드
+      fonts.forEach(font => {
+        if (font.source && (font.type === 'google' || font.type === 'web')) {
+          const link = document.createElement('link');
+          link.href = font.source;
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }
+      });
+    }
+
+    function renderTemplates() {
+      const grid = document.getElementById('templateGrid');
+      const templatesHtml = templates.map(t => `
+        <div class="template-card" onclick="selectTemplate('${t.id}')">
+          <div class="template-preview">📄</div>
+          <div class="template-info">
+            <div class="template-name">${t.name}</div>
+            <div class="template-category">${t.category}</div>
+          </div>
+        </div>
+      `).join('');
+
+      grid.innerHTML = `
+        <div class="template-card" onclick="openCreateTemplateModal()">
+          <div class="template-preview" style="background:#f1f5f9;">➕</div>
+          <div class="template-info">
+            <div class="template-name">새 템플릿 추가</div>
+            <div class="template-category">Figma에서 가져오기</div>
+          </div>
+        </div>
+        ${templatesHtml}
+      `;
+    }
+
+    function updateTemplateSelect() {
+      const select = document.getElementById('generateTemplate');
+      select.innerHTML = '<option value="">템플릿을 선택하세요</option>' +
+        templates.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    }
+
+    // ===== Figma =====
+    async function loadFigmaFile() {
+      const fileKey = document.getElementById('figmaFileKey').value.trim();
+      if (!fileKey) {
+        showToast('Figma 파일 키를 입력하세요', 'error');
+        return;
+      }
+
+      showLoading();
+      try {
+        const res = await fetch(`/api/design/figma/file/${fileKey}`);
+        const data = await res.json();
+
+        if (data.ok) {
+          currentFigmaFile = data.file;
+          displayFigmaFile(data.file);
+          showToast('파일을 불러왔습니다');
+        } else {
+          showToast(data.error || '파일을 불러올 수 없습니다', 'error');
+        }
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+      hideLoading();
+    }
+
+    function displayFigmaFile(file) {
+      document.getElementById('figmaFileCard').style.display = 'block';
+      document.getElementById('figmaFileName').textContent = file.name;
+
+      let html = '';
+      file.pages.forEach(page => {
+        html += `<div style="margin-bottom:1rem;">
+          <h4 style="margin-bottom:0.5rem;color:#64748b;">${page.name}</h4>`;
+
+        page.frames.forEach(frame => {
+          html += `
+            <div class="figma-file-item" onclick="selectFigmaFrame('${file.key}', '${frame.id}', '${frame.name}')">
+              <div class="figma-icon">🖼️</div>
+              <div class="figma-file-info">
+                <div class="figma-file-name">${frame.name}</div>
+                <div class="figma-file-date">${frame.width} x ${frame.height}</div>
+              </div>
+              <button class="btn btn-primary btn-small">템플릿으로 저장</button>
+            </div>
+          `;
+        });
+        html += '</div>';
+      });
+
+      document.getElementById('figmaFileContent').innerHTML = html;
+    }
+
+    function closeFigmaFile() {
+      document.getElementById('figmaFileCard').style.display = 'none';
+      currentFigmaFile = null;
+    }
+
+    function selectFigmaFrame(fileKey, nodeId, name) {
+      document.getElementById('templateFigmaKey').value = fileKey;
+      document.getElementById('templateFigmaNode').value = nodeId;
+      document.getElementById('templateName').value = name;
+      openCreateTemplateModal();
+    }
+
+    // ===== 모달 =====
+    function openCreateTemplateModal() {
+      document.getElementById('templateModal').classList.add('active');
+    }
+    function closeTemplateModal() {
+      document.getElementById('templateModal').classList.remove('active');
+    }
+
+    function openAddFontModal() {
+      document.getElementById('fontModal').classList.add('active');
+    }
+    function closeFontModal() {
+      document.getElementById('fontModal').classList.remove('active');
+    }
+
+    function openFigmaSettings() {
+      document.getElementById('figmaSettingsModal').classList.add('active');
+    }
+    function closeFigmaSettings() {
+      document.getElementById('figmaSettingsModal').classList.remove('active');
+    }
+
+    // ===== 액션 =====
+    async function createTemplate() {
+      const name = document.getElementById('templateName').value.trim();
+      const category = document.getElementById('templateCategory').value;
+      const figmaKey = document.getElementById('templateFigmaKey').value.trim();
+      const figmaNode = document.getElementById('templateFigmaNode').value.trim();
+
+      if (!name) {
+        showToast('템플릿 이름을 입력하세요', 'error');
+        return;
+      }
+
+      showLoading();
+      try {
+        const res = await fetch('/api/design/templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            category,
+            figmaFileKey: figmaKey || null,
+            figmaNodeId: figmaNode || null
+          })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showToast('템플릿이 생성되었습니다', 'success');
+          closeTemplateModal();
+          loadTemplates();
+          loadStatus();
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+      hideLoading();
+    }
+
+    async function addFont() {
+      const name = document.getElementById('fontName').value.trim();
+      const family = document.getElementById('fontFamily').value.trim();
+      const source = document.getElementById('fontSource').value.trim();
+
+      if (!name || !family) {
+        showToast('폰트 이름과 Family를 입력하세요', 'error');
+        return;
+      }
+
+      showLoading();
+      try {
+        const res = await fetch('/api/design/fonts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, family, source })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showToast('폰트가 추가되었습니다', 'success');
+          closeFontModal();
+          loadFonts();
+          loadStatus();
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+      hideLoading();
+    }
+
+    async function deleteFont(fontId) {
+      if (!confirm('폰트를 삭제하시겠습니까?')) return;
+
+      try {
+        const res = await fetch(`/api/design/fonts/${fontId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.ok) {
+          showToast('삭제되었습니다');
+          loadFonts();
+        }
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+    }
+
+    function selectTemplate(templateId) {
+      document.getElementById('generateTemplate').value = templateId;
+      document.querySelectorAll('.tab-btn')[3].click(); // 생성 탭으로 이동
+    }
+
+    async function generateImage() {
+      const templateId = document.getElementById('generateTemplate').value;
+      const productName = document.getElementById('genProductName').value;
+      const price = document.getElementById('genPrice').value;
+
+      if (!productName || !price) {
+        showToast('상품명과 가격을 입력하세요', 'error');
+        return;
+      }
+
+      showLoading();
+      try {
+        const res = await fetch('/api/design/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId,
+            variables: {
+              product_name: productName,
+              price: price,
+              discount: document.getElementById('genDiscount').value,
+              features: document.getElementById('genFeatures').value,
+              image_url: document.getElementById('genImageUrl').value
+            }
+          })
+        });
+        const data = await res.json();
+
+        if (data.ok && data.image && data.image.url) {
+          document.getElementById('previewPlaceholder').style.display = 'none';
+          document.getElementById('previewImage').src = data.image.url;
+          document.getElementById('previewImage').style.display = 'block';
+          showToast('이미지가 생성되었습니다', 'success');
+        } else {
+          showToast(data.error || '이미지 생성 실패', 'error');
+        }
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+      hideLoading();
+    }
+
+    function downloadImage() {
+      const img = document.getElementById('previewImage');
+      if (!img.src || img.style.display === 'none') {
+        showToast('다운로드할 이미지가 없습니다', 'error');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = img.src;
+      link.download = 'detail-page.png';
+      link.click();
+    }
+
+    async function analyzeBenchmark() {
+      const url = document.getElementById('benchmarkUrl').value.trim();
+      if (!url) {
+        showToast('URL을 입력하세요', 'error');
+        return;
+      }
+
+      showLoading();
+      try {
+        const res = await fetch('/api/design/benchmark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        showToast(data.message);
+      } catch (e) {
+        showToast('오류가 발생했습니다', 'error');
+      }
+      hideLoading();
+    }
+
+    // ===== 유틸 =====
+    function showToast(message, type = '') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function showLoading() {
+      document.getElementById('loading').classList.add('show');
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').classList.remove('show');
+    }
+  </script>
+</body>
+</html>

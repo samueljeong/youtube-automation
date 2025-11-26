@@ -13,6 +13,10 @@ app = Flask(__name__)
 # Market Server Blueprint 등록
 from market_server import market_bp
 app.register_blueprint(market_bp)
+
+# Design Server Blueprint 등록
+from design_server import design_bp
+app.register_blueprint(design_bp)
 app.secret_key = os.urandom(24)  # Secret key for session management
 
 # OpenAI client setup
@@ -568,6 +572,11 @@ def inventory():
 def market():
     """Market management page - 스마트스토어 & 쿠팡 상품 관리"""
     return render_template('market.html')
+
+@app.route('/design')
+def design():
+    """Design automation page - 상세페이지 자동 생성"""
+    return render_template('design.html')
 
 @app.route('/health')
 def health():
