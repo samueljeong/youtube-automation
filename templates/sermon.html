@@ -1109,12 +1109,14 @@
 
             <!-- 첫 번째 줄: 날짜(요일 포함), 성경구절, 보내는 사람 -->
             <div style="display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: .75rem;">
-              <div style="min-width: 180px;">
+              <div>
                 <label style="font-size: .8rem; color: #666; display: block; margin-bottom: .3rem;">날짜</label>
-                <div style="display: flex; gap: .3rem; align-items: center;">
-                  <input type="text" id="meditation-date-text" placeholder="7월 16일" style="width: 100px; text-align: center;">
-                  <span id="meditation-day" style="font-size: .85rem; color: #667eea; font-weight: 600; min-width: 30px;">(수)</span>
-                  <input type="date" id="meditation-date-picker" style="width: 28px; padding: 0; border: none; background: transparent; cursor: pointer;" title="달력에서 선택">
+                <div style="display: flex; align-items: center; gap: .2rem;">
+                  <input type="number" id="meditation-month" min="1" max="12" style="width: 55px; text-align: center; padding: .4rem .2rem;">
+                  <span style="font-size: .9rem; color: #666;">월</span>
+                  <input type="number" id="meditation-day-num" min="1" max="31" style="width: 55px; text-align: center; padding: .4rem .2rem;">
+                  <span style="font-size: .9rem; color: #666;">일</span>
+                  <span id="meditation-day" style="font-size: .9rem; color: #667eea; font-weight: 600; margin-left: .3rem;">(수)</span>
                 </div>
               </div>
               <div style="flex: 1; min-width: 120px;">
@@ -3578,51 +3580,40 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   // 요일 배열 (한국어)
   const koreanDays = ['일', '월', '화', '수', '목', '금', '토'];
 
-  // 날짜 텍스트 파싱 (예: "7월 16일" -> Date 객체)
-  function parseDateText(text) {
-    const match = text.match(/(\d{1,2})월\s*(\d{1,2})일/);
-    if (match) {
-      const now = new Date();
-      const month = parseInt(match[1], 10) - 1;
-      const day = parseInt(match[2], 10);
-      return new Date(now.getFullYear(), month, day);
-    }
-    return null;
-  }
-
-  // 날짜에서 요일 업데이트
-  function updateMeditationDay(date) {
+  // 월/일에서 요일 업데이트
+  function updateMeditationDayFromInputs() {
+    const monthInput = document.getElementById('meditation-month');
+    const dayNumInput = document.getElementById('meditation-day-num');
     const daySpan = document.getElementById('meditation-day');
-    if (daySpan && date) {
-      const dayIndex = date.getDay();
-      daySpan.textContent = `(${koreanDays[dayIndex]})`;
+
+    if (monthInput && dayNumInput && daySpan) {
+      const month = parseInt(monthInput.value, 10);
+      const day = parseInt(dayNumInput.value, 10);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        const now = new Date();
+        const date = new Date(now.getFullYear(), month - 1, day);
+        const dayIndex = date.getDay();
+        daySpan.textContent = `(${koreanDays[dayIndex]})`;
+      }
     }
   }
 
   // 묵상메시지 날짜 초기화 (서울 시간)
   function initMeditationDate() {
-    const dateTextInput = document.getElementById('meditation-date-text');
-    const datePicker = document.getElementById('meditation-date-picker');
+    const monthInput = document.getElementById('meditation-month');
+    const dayNumInput = document.getElementById('meditation-day-num');
 
-    if (dateTextInput) {
+    if (monthInput && dayNumInput) {
       // 서울 시간대로 현재 날짜 계산
       const now = new Date();
       const seoulOffset = 9 * 60; // UTC+9
       const localOffset = now.getTimezoneOffset();
       const seoulTime = new Date(now.getTime() + (seoulOffset + localOffset) * 60 * 1000);
 
-      const month = seoulTime.getMonth() + 1;
-      const day = seoulTime.getDate();
-      dateTextInput.value = `${month}월 ${day}일`;
+      monthInput.value = seoulTime.getMonth() + 1;
+      dayNumInput.value = seoulTime.getDate();
 
-      if (datePicker) {
-        const year = seoulTime.getFullYear();
-        const monthStr = String(month).padStart(2, '0');
-        const dayStr = String(day).padStart(2, '0');
-        datePicker.value = `${year}-${monthStr}-${dayStr}`;
-      }
-
-      updateMeditationDay(seoulTime);
+      updateMeditationDayFromInputs();
     }
 
     // 템플릿 로드
@@ -3662,30 +3653,16 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     textarea.style.height = Math.max(250, textarea.scrollHeight) + 'px';
   }
 
-  // 날짜 텍스트 입력 이벤트
-  const meditationDateText = document.getElementById('meditation-date-text');
-  if (meditationDateText) {
-    meditationDateText.addEventListener('input', () => {
-      const date = parseDateText(meditationDateText.value);
-      if (date) {
-        updateMeditationDay(date);
-      }
-    });
+  // 월/일 입력 변경 이벤트
+  const meditationMonth = document.getElementById('meditation-month');
+  const meditationDayNum = document.getElementById('meditation-day-num');
+  if (meditationMonth) {
+    meditationMonth.addEventListener('change', updateMeditationDayFromInputs);
+    meditationMonth.addEventListener('input', updateMeditationDayFromInputs);
   }
-
-  // 날짜 picker 변경 이벤트
-  const meditationDatePicker = document.getElementById('meditation-date-picker');
-  if (meditationDatePicker) {
-    meditationDatePicker.addEventListener('change', () => {
-      const date = new Date(meditationDatePicker.value);
-      const month = date.getMonth() + 1;
-      const day = date.getDate();
-      const dateText = document.getElementById('meditation-date-text');
-      if (dateText) {
-        dateText.value = `${month}월 ${day}일`;
-      }
-      updateMeditationDay(date);
-    });
+  if (meditationDayNum) {
+    meditationDayNum.addEventListener('change', updateMeditationDayFromInputs);
+    meditationDayNum.addEventListener('input', updateMeditationDayFromInputs);
   }
 
   // 템플릿 textarea 이벤트
@@ -3710,7 +3687,8 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   const btnCreateMeditation = document.getElementById('btn-create-meditation');
   if (btnCreateMeditation) {
     btnCreateMeditation.addEventListener('click', async () => {
-      const dateTextInput = document.getElementById('meditation-date-text');
+      const monthInput = document.getElementById('meditation-month');
+      const dayNumInput = document.getElementById('meditation-day-num');
       const daySpan = document.getElementById('meditation-day');
       const ref = document.getElementById('meditation-ref')?.value.trim();
       const verse = document.getElementById('meditation-verse')?.value.trim();
@@ -3728,9 +3706,9 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
 
       // 날짜 포맷팅 (예: 7월 16일 (수))
       let dateStr = '';
-      if (dateTextInput && dateTextInput.value) {
+      if (monthInput && dayNumInput && monthInput.value && dayNumInput.value) {
         const dayText = daySpan ? daySpan.textContent : '';
-        dateStr = `${dateTextInput.value} ${dayText}`;
+        dateStr = `${monthInput.value}월 ${dayNumInput.value}일 ${dayText}`;
       }
 
       showStatus('🙏 묵상메시지 생성 중...');
