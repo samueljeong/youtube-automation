@@ -1158,6 +1158,16 @@
           </div>
         </div>
         <!-- // 성경 배경지식 콘텐츠 끝 -->
+
+        <!-- 빈 페이지 콘텐츠 (새 카테고리용) -->
+        <div id="empty-content" style="display: none;">
+          <div class="box" style="text-align: center; padding: 3rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+            <div style="font-size: 1.1rem; color: #666;">새 카테고리입니다.</div>
+            <div style="font-size: .85rem; color: #999; margin-top: .5rem;">곧 콘텐츠가 추가될 예정입니다.</div>
+          </div>
+        </div>
+        <!-- // 빈 페이지 콘텐츠 끝 -->
       </div>
     </div>
 
@@ -3114,29 +3124,35 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const sermonContent = document.getElementById('sermon-content');
     const meditationContent = document.getElementById('meditation-content');
     const bibleKnowledgeContent = document.getElementById('bible-knowledge-content');
+    const emptyContent = document.getElementById('empty-content');
 
     // 모든 콘텐츠 숨기기
     if (sermonContent) sermonContent.style.display = 'none';
     if (meditationContent) meditationContent.style.display = 'none';
     if (bibleKnowledgeContent) bibleKnowledgeContent.style.display = 'none';
+    if (emptyContent) emptyContent.style.display = 'none';
 
-    // 카테고리 value 또는 label로 판단 (한글 카테고리명 지원)
-    const categoryLower = category.toLowerCase();
-    const isMeditation = categoryLower === 'meditation' || category.includes('묵상');
-    const isBibleKnowledge = categoryLower === 'bible-knowledge' || category.includes('배경지식');
+    // 카테고리 label 가져오기
+    const catConfig = config.categories.find(c => c.value === category);
+    const label = catConfig ? catConfig.label : '';
 
     // 카테고리에 따라 해당 콘텐츠만 표시
-    if (isMeditation) {
+    if (category === 'category1' || label.includes('묵상')) {
+      // 묵상메시지
       if (meditationContent) meditationContent.style.display = 'block';
-      // 묵상메시지 날짜 초기화
       if (typeof initMeditationDate === 'function') {
         initMeditationDate();
       }
-    } else if (isBibleKnowledge) {
+    } else if (label.includes('배경지식')) {
+      // 성경 배경지식
       if (bibleKnowledgeContent) bibleKnowledgeContent.style.display = 'block';
-    } else {
-      // 설교 관련 카테고리 (general, series 등)
+    } else if (label.includes('설교') || category.startsWith('step_') ||
+               ['general', 'series', 'education', 'lecture'].includes(category)) {
+      // 설교 관련 카테고리
       if (sermonContent) sermonContent.style.display = 'block';
+    } else {
+      // 새로 추가된 카테고리 (category2, category3, ...) → 빈 페이지
+      if (emptyContent) emptyContent.style.display = 'block';
     }
   }
 
