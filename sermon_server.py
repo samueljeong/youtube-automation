@@ -3574,6 +3574,226 @@ def get_reference_style_description(template_type):
         return None
 
 
+# ===== 이미지 크롤링 API =====
+
+@app.route('/api/banner/crawl', methods=['POST'])
+def crawl_banner_images():
+    """웹사이트에서 이미지 URL 크롤링"""
+    try:
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin, urlparse
+
+        data = request.json
+        target_url = data.get('url', '').strip()
+        min_width = data.get('min_width', 200)  # 최소 이미지 너비
+        min_height = data.get('min_height', 100)  # 최소 이미지 높이
+
+        if not target_url:
+            return jsonify({"ok": False, "error": "URL을 입력해주세요."}), 400
+
+        if not target_url.startswith(('http://', 'https://')):
+            target_url = 'https://' + target_url
+
+        print(f"[CRAWL] 크롤링 시작: {target_url}")
+
+        # 웹페이지 가져오기
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+
+        response = requests.get(target_url, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        # HTML 파싱
+        soup = BeautifulSoup(response.text, 'html.parser')
+        base_url = f"{urlparse(target_url).scheme}://{urlparse(target_url).netloc}"
+
+        # 이미지 URL 추출
+        images = []
+        seen_urls = set()
+
+        # 1. <img> 태그에서 이미지 추출
+        for img in soup.find_all('img'):
+            src = img.get('src') or img.get('data-src') or img.get('data-lazy-src')
+            if src:
+                full_url = urljoin(target_url, src)
+                if full_url not in seen_urls and is_valid_image_url(full_url):
+                    seen_urls.add(full_url)
+                    images.append({
+                        'url': full_url,
+                        'alt': img.get('alt', ''),
+                        'source': 'img'
+                    })
+
+        # 2. background-image 스타일에서 이미지 추출
+        for elem in soup.find_all(style=True):
+            style = elem.get('style', '')
+            urls = re.findall(r'url\(["\']?([^"\')\s]+)["\']?\)', style)
+            for url in urls:
+                full_url = urljoin(target_url, url)
+                if full_url not in seen_urls and is_valid_image_url(full_url):
+                    seen_urls.add(full_url)
+                    images.append({
+                        'url': full_url,
+                        'alt': '',
+                        'source': 'background'
+                    })
+
+        # 3. <a> 태그 내 이미지 링크 (고해상도 이미지)
+        for a in soup.find_all('a', href=True):
+            href = a.get('href', '')
+            if is_valid_image_url(href):
+                full_url = urljoin(target_url, href)
+                if full_url not in seen_urls:
+                    seen_urls.add(full_url)
+                    images.append({
+                        'url': full_url,
+                        'alt': a.get('title', ''),
+                        'source': 'link'
+                    })
+
+        # 이미지 유효성 검사 및 크기 필터링 (병렬 처리)
+        valid_images = []
+        for img_data in images[:50]:  # 최대 50개까지만 처리
+            try:
+                # HEAD 요청으로 빠르게 확인
+                head_resp = requests.head(img_data['url'], headers=headers, timeout=5, allow_redirects=True)
+                content_type = head_resp.headers.get('content-type', '')
+                if 'image' in content_type:
+                    valid_images.append(img_data)
+            except:
+                # HEAD 실패 시 그냥 추가 (나중에 로드 시 확인)
+                if img_data['url'].lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                    valid_images.append(img_data)
+
+        print(f"[CRAWL] 완료: {len(valid_images)}개 이미지 발견")
+
+        return jsonify({
+            "ok": True,
+            "url": target_url,
+            "images": valid_images,
+            "count": len(valid_images)
+        })
+
+    except requests.exceptions.RequestException as e:
+        print(f"[CRAWL][ERROR] 요청 실패: {str(e)}")
+        return jsonify({"ok": False, "error": f"웹페이지 접근 실패: {str(e)}"}), 400
+    except Exception as e:
+        print(f"[CRAWL][ERROR] 크롤링 실패: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def is_valid_image_url(url):
+    """이미지 URL 유효성 검사"""
+    if not url:
+        return False
+
+    # 데이터 URL 제외
+    if url.startswith('data:'):
+        return False
+
+    # 너무 작은 이미지 (아이콘 등) 제외
+    excluded_patterns = [
+        'icon', 'logo', 'favicon', 'sprite', 'button', 'arrow',
+        'loading', 'spinner', 'placeholder', 'blank', 'pixel',
+        '1x1', 'spacer', 'transparent'
+    ]
+    url_lower = url.lower()
+    for pattern in excluded_patterns:
+        if pattern in url_lower:
+            return False
+
+    # 일반적인 이미지 확장자 또는 이미지 서비스 URL
+    image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')
+    image_services = ('images', 'img', 'photo', 'upload', 'cdn', 'media')
+
+    if any(url_lower.endswith(ext) for ext in image_extensions):
+        return True
+    if any(service in url_lower for service in image_services):
+        return True
+
+    return True  # 확실하지 않으면 일단 포함
+
+
+@app.route('/api/banner/references/bulk', methods=['POST'])
+def bulk_add_banner_references():
+    """참조 이미지 일괄 추가"""
+    try:
+        data = request.json
+        images = data.get('images', [])
+        template_type = data.get('template_type', 'general')
+        style_tags = data.get('style_tags', '')
+
+        if not images:
+            return jsonify({"ok": False, "error": "추가할 이미지가 없습니다."}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        added_count = 0
+        failed_count = 0
+
+        for img in images:
+            try:
+                image_url = img.get('url', '')
+                if not image_url:
+                    continue
+
+                # 색상 추출 시도
+                color_palette = ''
+                try:
+                    response = requests.get(image_url, timeout=10)
+                    if response.status_code == 200:
+                        img_obj = Image.open(io.BytesIO(response.content))
+                        img_small = img_obj.resize((100, 100))
+                        colors = img_small.convert('RGB').getcolors(10000)
+                        if colors:
+                            sorted_colors = sorted(colors, key=lambda x: x[0], reverse=True)[:5]
+                            hex_colors = ['#{:02x}{:02x}{:02x}'.format(c[1][0], c[1][1], c[1][2]) for c in sorted_colors]
+                            color_palette = ','.join(hex_colors)
+                except Exception as color_error:
+                    pass  # 색상 추출 실패해도 계속 진행
+
+                description = img.get('alt', '')
+
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO banner_references (image_url, template_type, title, description, color_palette, style_tags)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    ''', (image_url, template_type, '', description, color_palette, style_tags))
+                else:
+                    cursor.execute('''
+                        INSERT INTO banner_references (image_url, template_type, title, description, color_palette, style_tags)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (image_url, template_type, '', description, color_palette, style_tags))
+
+                added_count += 1
+
+            except Exception as e:
+                print(f"[BULK-ADD] 이미지 추가 실패: {str(e)}")
+                failed_count += 1
+
+        conn.commit()
+        conn.close()
+
+        print(f"[BULK-ADD] 완료: {added_count}개 추가, {failed_count}개 실패")
+
+        return jsonify({
+            "ok": True,
+            "message": f"{added_count}개 이미지가 추가되었습니다.",
+            "added": added_count,
+            "failed": failed_count
+        })
+
+    except Exception as e:
+        print(f"[BULK-ADD][ERROR] 일괄 추가 실패: {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     # 데이터베이스 연결 상태 로그 출력

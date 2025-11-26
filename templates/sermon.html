@@ -1410,6 +1410,54 @@
               </div>
             </div>
 
+            <!-- 웹사이트 일괄 크롤링 -->
+            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #f59e0b;">
+              <div style="font-weight: 600; color: #b45309; margin-bottom: .75rem; font-size: .9rem;">🔍 웹사이트에서 일괄 수집</div>
+              <div style="font-size: .8rem; color: #92400e; margin-bottom: .75rem;">현수막 업체 포트폴리오 페이지 URL을 입력하면 이미지를 자동으로 수집합니다.</div>
+              <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
+                <input type="text" id="crawl-url" placeholder="웹사이트 URL (예: https://현수막업체.com/portfolio)" style="flex: 1; padding: .5rem; border-radius: 6px; border: 1px solid #fbbf24;">
+                <button onclick="crawlImages()" id="btn-crawl" style="padding: .5rem 1rem; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                  🔍 수집
+                </button>
+              </div>
+              <!-- 크롤링 결과 -->
+              <div id="crawl-result" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin: .75rem 0 .5rem;">
+                  <span id="crawl-count" style="font-size: .85rem; color: #92400e; font-weight: 600;">0개 이미지 발견</span>
+                  <div style="display: flex; gap: .5rem;">
+                    <button onclick="selectAllCrawled(true)" style="padding: .3rem .6rem; background: white; border: 1px solid #fbbf24; border-radius: 4px; cursor: pointer; font-size: .75rem;">전체 선택</button>
+                    <button onclick="selectAllCrawled(false)" style="padding: .3rem .6rem; background: white; border: 1px solid #fbbf24; border-radius: 4px; cursor: pointer; font-size: .75rem;">전체 해제</button>
+                  </div>
+                </div>
+                <div id="crawl-images" style="max-height: 250px; overflow-y: auto; background: white; border-radius: 6px; padding: .5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .5rem;">
+                </div>
+                <div style="display: flex; gap: .5rem; margin-top: .75rem;">
+                  <select id="crawl-template-type" style="flex: 1; padding: .5rem; border-radius: 6px; border: 1px solid #fbbf24;">
+                    <option value="general">행사 유형: 일반</option>
+                    <option value="revival">부흥회</option>
+                    <option value="christmas">성탄절</option>
+                    <option value="easter">부활절</option>
+                    <option value="thanksgiving">추수감사절</option>
+                    <option value="new_year">신년/송년</option>
+                    <option value="special_service">특별집회</option>
+                    <option value="bible_school">성경학교</option>
+                    <option value="baptism">세례/침례</option>
+                    <option value="ordination">임직/취임</option>
+                    <option value="mission">선교/전도</option>
+                  </select>
+                  <input type="text" id="crawl-style-tags" placeholder="스타일 태그" style="flex: 1; padding: .5rem; border-radius: 6px; border: 1px solid #fbbf24;">
+                </div>
+                <button onclick="bulkAddCrawledImages()" id="btn-bulk-add" style="width: 100%; margin-top: .5rem; padding: .6rem; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                  📥 선택한 이미지 일괄 등록
+                </button>
+              </div>
+              <!-- 로딩 표시 -->
+              <div id="crawl-loading" style="display: none; text-align: center; padding: 1rem; color: #92400e;">
+                <div style="font-size: 1.5rem; margin-bottom: .5rem;">⏳</div>
+                <div>이미지를 수집하고 있습니다...</div>
+              </div>
+            </div>
+
             <!-- 등록된 참조 이미지 목록 -->
             <div>
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
@@ -6140,6 +6188,150 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       observer.observe(designHelperContent, { attributes: true });
     }
   });
+
+  // ===== 웹사이트 크롤링 함수 =====
+
+  // 크롤링된 이미지 데이터 저장
+  let crawledImages = [];
+
+  // 웹사이트에서 이미지 크롤링
+  async function crawlImages() {
+    const url = document.getElementById('crawl-url').value.trim();
+    if (!url) {
+      alert('웹사이트 URL을 입력해주세요.');
+      return;
+    }
+
+    const btnCrawl = document.getElementById('btn-crawl');
+    const loadingDiv = document.getElementById('crawl-loading');
+    const resultDiv = document.getElementById('crawl-result');
+
+    btnCrawl.disabled = true;
+    btnCrawl.textContent = '수집 중...';
+    loadingDiv.style.display = 'block';
+    resultDiv.style.display = 'none';
+
+    try {
+      const response = await fetch('/api/banner/crawl', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ url: url })
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.images.length > 0) {
+        crawledImages = data.images;
+        document.getElementById('crawl-count').textContent = `${data.count}개 이미지 발견`;
+
+        // 이미지 그리드 표시
+        const imagesContainer = document.getElementById('crawl-images');
+        let html = '';
+
+        data.images.forEach((img, index) => {
+          html += `
+            <div class="crawl-image-item" style="position: relative; cursor: pointer;" onclick="toggleCrawlImage(${index})">
+              <img src="${img.url}" style="width: 100%; height: 80px; object-fit: cover; border-radius: 4px; border: 2px solid transparent;"
+                   id="crawl-img-${index}"
+                   onerror="this.parentElement.style.display='none'">
+              <input type="checkbox" id="crawl-check-${index}" style="position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;">
+            </div>
+          `;
+        });
+
+        imagesContainer.innerHTML = html;
+        resultDiv.style.display = 'block';
+      } else if (data.ok && data.images.length === 0) {
+        alert('이미지를 찾을 수 없습니다. 다른 페이지를 시도해보세요.');
+      } else {
+        alert('크롤링 실패: ' + data.error);
+      }
+    } catch (err) {
+      alert('네트워크 오류: ' + err.message);
+    } finally {
+      btnCrawl.disabled = false;
+      btnCrawl.textContent = '🔍 수집';
+      loadingDiv.style.display = 'none';
+    }
+  }
+
+  // 크롤링된 이미지 선택 토글
+  function toggleCrawlImage(index) {
+    const checkbox = document.getElementById(`crawl-check-${index}`);
+    const img = document.getElementById(`crawl-img-${index}`);
+
+    checkbox.checked = !checkbox.checked;
+    img.style.border = checkbox.checked ? '2px solid #f59e0b' : '2px solid transparent';
+  }
+
+  // 전체 선택/해제
+  function selectAllCrawled(select) {
+    crawledImages.forEach((_, index) => {
+      const checkbox = document.getElementById(`crawl-check-${index}`);
+      const img = document.getElementById(`crawl-img-${index}`);
+      if (checkbox) {
+        checkbox.checked = select;
+        img.style.border = select ? '2px solid #f59e0b' : '2px solid transparent';
+      }
+    });
+  }
+
+  // 선택한 이미지 일괄 등록
+  async function bulkAddCrawledImages() {
+    const selectedImages = [];
+
+    crawledImages.forEach((img, index) => {
+      const checkbox = document.getElementById(`crawl-check-${index}`);
+      if (checkbox && checkbox.checked) {
+        selectedImages.push(img);
+      }
+    });
+
+    if (selectedImages.length === 0) {
+      alert('등록할 이미지를 선택해주세요.');
+      return;
+    }
+
+    const templateType = document.getElementById('crawl-template-type').value;
+    const styleTags = document.getElementById('crawl-style-tags').value.trim();
+
+    const btnBulkAdd = document.getElementById('btn-bulk-add');
+    btnBulkAdd.disabled = true;
+    btnBulkAdd.textContent = `⏳ ${selectedImages.length}개 등록 중...`;
+
+    try {
+      const response = await fetch('/api/banner/references/bulk', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          images: selectedImages,
+          template_type: templateType,
+          style_tags: styleTags
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        alert(`${data.added}개 이미지가 등록되었습니다!` + (data.failed > 0 ? ` (${data.failed}개 실패)` : ''));
+
+        // 결과 초기화
+        document.getElementById('crawl-result').style.display = 'none';
+        document.getElementById('crawl-url').value = '';
+        crawledImages = [];
+
+        // 참조 이미지 목록 새로고침
+        loadReferenceImages();
+      } else {
+        alert('등록 실패: ' + data.error);
+      }
+    } catch (err) {
+      alert('네트워크 오류: ' + err.message);
+    } finally {
+      btnBulkAdd.disabled = false;
+      btnBulkAdd.textContent = '📥 선택한 이미지 일괄 등록';
+    }
+  }
   </script>
 </body>
 </html>
