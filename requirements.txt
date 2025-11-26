@@ -26,6 +26,7 @@ typing-inspection==0.4.2
 typing_extensions>=4.0.0
 Werkzeug>=3.0.0
 requests
+bcrypt>=4.0.0
 psycopg2-binary==2.9.10
 Pillow>=10.0.0
 google-auth>=2.0.0

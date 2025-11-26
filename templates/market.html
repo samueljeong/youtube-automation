@@ -1387,24 +1387,38 @@
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-products').classList.add('active');
 
-    // 필터 적용
-    if (filter === 'outofstock') {
-      document.getElementById('statusFilter').value = 'OUTOFSTOCK';
-      loadProducts();
-      showToast('품절 상품만 표시', 'info');
-    } else if (filter === 'lowstock') {
-      document.getElementById('statusFilter').value = '';
-      // 재고 10개 이하 필터링은 클라이언트에서 처리
-      loadProducts().then(() => {
-        const filtered = products.filter(p => p.stock > 0 && p.stock <= 10);
-        renderProducts(filtered);
-        showToast('재고부족 상품만 표시', 'info');
-      });
-    } else {
-      document.getElementById('statusFilter').value = '';
-      document.getElementById('platformFilter').value = 'all';
-      loadProducts();
-    }
+    // 필터 초기화
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('platformFilter').value = 'all';
+    document.getElementById('filterCategory').value = '';
+    document.getElementById('searchInput').value = '';
+
+    // 상품 로드 후 필터 적용
+    showLoading();
+    fetch('/api/market/products')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          products = data.products;
+          let filtered = products;
+          let message = '';
+
+          if (filter === 'outofstock') {
+            filtered = products.filter(p => p.stock === 0);
+            message = `품절 상품 ${filtered.length}개`;
+          } else if (filter === 'lowstock') {
+            filtered = products.filter(p => p.stock > 0 && p.stock <= 10);
+            message = `재고부족 상품 ${filtered.length}개 (10개 이하)`;
+          } else {
+            message = `전체 상품 ${filtered.length}개`;
+          }
+
+          renderProducts(filtered);
+          showToast(message, 'info');
+        }
+      })
+      .catch(e => { console.error(e); showToast('상품 로드 실패', 'error'); })
+      .finally(() => hideLoading());
   }
 
   function goToOrders() {
@@ -1414,6 +1428,7 @@
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-orders').classList.add('active');
     loadOrders();
+    showToast('대기 중인 주문 목록', 'info');
   }
 
   // ===== AI 채팅 =====

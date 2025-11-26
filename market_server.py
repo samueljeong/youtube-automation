@@ -8,6 +8,7 @@ import hashlib
 import base64
 import time
 import requests
+import bcrypt
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from openai import OpenAI
@@ -294,7 +295,7 @@ MOCK_ORDERS = [
 
 # ===== 네이버 스마트스토어 API 헬퍼 =====
 def get_naver_access_token():
-    """네이버 커머스 API OAuth 토큰 발급"""
+    """네이버 커머스 API OAuth 토큰 발급 (bcrypt 서명 사용)"""
     print(f"[Naver API] 토큰 발급 시도...")
     print(f"[Naver API] CLIENT_ID 존재: {bool(NAVER_CLIENT_ID)}, SECRET 존재: {bool(NAVER_CLIENT_SECRET)}")
 
@@ -303,14 +304,22 @@ def get_naver_access_token():
         return None
 
     timestamp = str(int(time.time() * 1000))
-    # 서명 생성: client_id + "_" + timestamp를 client_secret으로 HMAC-SHA256 후 Base64 인코딩
+
+    # bcrypt 서명 생성 (네이버 커머스 API 공식 방식)
+    # 1. password = client_id + "_" + timestamp
+    # 2. bcrypt 해싱 (client_secret을 salt로 사용)
+    # 3. base64 인코딩
     password = f"{NAVER_CLIENT_ID}_{timestamp}"
-    signature = hmac.new(
-        NAVER_CLIENT_SECRET.encode('utf-8'),
-        password.encode('utf-8'),
-        hashlib.sha256
-    ).digest()
-    signature_base64 = base64.b64encode(signature).decode('utf-8')
+
+    try:
+        # client_secret을 bcrypt salt 형식으로 사용
+        # bcrypt salt는 "$2a$" 또는 "$2b$"로 시작해야 함
+        hashed = bcrypt.hashpw(password.encode('utf-8'), NAVER_CLIENT_SECRET.encode('utf-8'))
+        signature_base64 = base64.b64encode(hashed).decode('utf-8')
+        print(f"[Naver API] bcrypt 서명 생성 완료")
+    except Exception as e:
+        print(f"[Naver API] bcrypt 서명 생성 실패: {e}")
+        return None
 
     try:
         print(f"[Naver API] 토큰 요청 URL: {NAVER_API_BASE}/v1/oauth2/token")
