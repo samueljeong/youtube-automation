@@ -2804,6 +2804,7 @@ def api_generate_image():
 
             # 응답에서 이미지 추출 (base64 data URL)
             image_url = None
+            base64_image_data = None  # 파일로 저장할 base64 데이터
             try:
                 choices = result.get("choices", [])
                 if choices:
@@ -2814,22 +2815,34 @@ def api_generate_image():
                     if images:
                         for img in images:
                             if isinstance(img, str):
-                                # 직접 URL 또는 base64
-                                image_url = img
+                                # base64 문자열 또는 data URL
+                                if img.startswith("data:"):
+                                    base64_image_data = img.split(",", 1)[1] if "," in img else img
+                                else:
+                                    base64_image_data = img
                                 break
                             elif isinstance(img, dict):
-                                # {"type": "image_url", "image_url": {"url": "..."}}
                                 if img.get("type") == "image_url":
-                                    image_url = img.get("image_url", {}).get("url")
+                                    url = img.get("image_url", {}).get("url", "")
+                                    if url.startswith("data:"):
+                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                    else:
+                                        image_url = url
                                 elif "url" in img:
-                                    image_url = img.get("url")
+                                    url = img.get("url", "")
+                                    if url.startswith("data:"):
+                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                    else:
+                                        image_url = url
                                 elif "data" in img:
-                                    image_url = img.get("data")
-                                if image_url:
+                                    base64_image_data = img.get("data")
+                                elif "b64_json" in img:
+                                    base64_image_data = img.get("b64_json")
+                                if base64_image_data or image_url:
                                     break
 
                     # 2. content 배열 확인
-                    if not image_url:
+                    if not image_url and not base64_image_data:
                         content = message.get("content", [])
                         if isinstance(content, list):
                             for item in content:
@@ -2838,34 +2851,67 @@ def api_generate_image():
 
                                     # image_url 타입
                                     if item_type == "image_url":
-                                        image_url = item.get("image_url", {}).get("url")
-                                        if image_url:
+                                        url = item.get("image_url", {}).get("url", "")
+                                        if url.startswith("data:"):
+                                            base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                        else:
+                                            image_url = url
+                                        if base64_image_data or image_url:
                                             break
 
                                     # image 타입 (inline_data)
                                     elif item_type == "image":
                                         image_data = item.get("image", {})
                                         if isinstance(image_data, dict):
-                                            base64_data = image_data.get("data") or image_data.get("base64")
-                                            media_type = image_data.get("media_type", "image/png")
-                                            if base64_data:
-                                                image_url = f"data:{media_type};base64,{base64_data}"
+                                            base64_image_data = image_data.get("data") or image_data.get("base64") or image_data.get("b64_json")
+                                            if base64_image_data:
                                                 break
                                         elif isinstance(image_data, str):
-                                            image_url = f"data:image/png;base64,{image_data}"
+                                            base64_image_data = image_data
                                             break
 
                                     # inline_data 타입 (Google 형식)
                                     elif "inline_data" in item:
                                         inline = item.get("inline_data", {})
-                                        base64_data = inline.get("data", "")
-                                        media_type = inline.get("mime_type", "image/png")
-                                        if base64_data:
-                                            image_url = f"data:{media_type};base64,{base64_data}"
+                                        base64_image_data = inline.get("data", "")
+                                        if base64_image_data:
                                             break
+
+                                    # source 타입 (Claude API 형식)
+                                    elif "source" in item:
+                                        source = item.get("source", {})
+                                        if source.get("type") == "base64":
+                                            base64_image_data = source.get("data", "")
+                                            if base64_image_data:
+                                                break
 
                         elif isinstance(content, str):
                             print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:200]}")
+
+                # base64 데이터가 있으면 파일로 저장
+                if base64_image_data and not image_url:
+                    import base64 as b64
+                    try:
+                        # base64 디코딩
+                        image_bytes = b64.b64decode(base64_image_data)
+
+                        # 파일 저장
+                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'images')
+                        os.makedirs(static_dir, exist_ok=True)
+
+                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
+                        filename = f"gemini_{timestamp}.png"
+                        filepath = os.path.join(static_dir, filename)
+
+                        with open(filepath, 'wb') as f:
+                            f.write(image_bytes)
+
+                        image_url = f"/static/images/{filename}"
+                        print(f"[DRAMA-STEP4-IMAGE] 이미지 저장 완료: {image_url}")
+                    except Exception as save_err:
+                        print(f"[DRAMA-STEP4-IMAGE][ERROR] 이미지 저장 실패: {save_err}")
+                        # 저장 실패 시 base64 URL로 반환
+                        image_url = f"data:image/png;base64,{base64_image_data}"
 
             except Exception as parse_error:
                 print(f"[DRAMA-STEP4-IMAGE][ERROR] 응답 파싱 오류: {parse_error}")
@@ -3931,9 +3977,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # ASS 파일 작성
             with open(ass_path, 'w', encoding='utf-8') as f:
                 f.write(ass_header)
-                # 이벤트 줄 사이에 줄바꿈 추가 (첫 이벤트 앞에도 줄바꿈 필요)
-                if ass_events:
-                    f.write('\n'.join(ass_events) + '\n')
+                # 이벤트 줄 사이에 줄바꿈 추가
+                for event in ass_events:
+                    f.write(event + '\n')
 
             # ASS 자막 필터 추가 (경로 이스케이프 처리)
             # FFmpeg ass 필터는 경로에서 콜론(:)과 백슬래시(\)를 이스케이프해야 함
@@ -4411,6 +4457,7 @@ def generate_thumbnail():
             print(f"[THUMBNAIL][DEBUG] OpenRouter 응답: {json.dumps(result, ensure_ascii=False)[:500]}")
 
             # 응답에서 이미지 추출
+            base64_image_data = None
             try:
                 choices = result.get("choices", [])
                 if choices:
@@ -4421,51 +4468,79 @@ def generate_thumbnail():
                     if images:
                         for img in images:
                             if isinstance(img, str):
-                                image_data_url = img
-                                # base64 데이터 추출
-                                if image_data_url.startswith("data:"):
-                                    image_data = base64.b64decode(image_data_url.split(",")[1])
+                                # base64 문자열 또는 data URL
+                                if img.startswith("data:"):
+                                    base64_image_data = img.split(",", 1)[1] if "," in img else img
                                 else:
-                                    image_data = base64.b64decode(image_data_url)
-
-                                # 이미지 저장
-                                static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
-                                os.makedirs(static_dir, exist_ok=True)
-
-                                timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-                                filename = f"thumbnail_{timestamp}.png"
-                                filepath = os.path.join(static_dir, filename)
-
-                                with open(filepath, 'wb') as f:
-                                    f.write(image_data)
-
-                                image_url = f"/static/thumbnails/{filename}"
+                                    base64_image_data = img
                                 break
+                            elif isinstance(img, dict):
+                                # dict 형태의 이미지 데이터 처리
+                                if img.get("type") == "image_url":
+                                    url = img.get("image_url", {}).get("url", "")
+                                    if url.startswith("data:"):
+                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                elif "url" in img:
+                                    url = img.get("url", "")
+                                    if url.startswith("data:"):
+                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                elif "data" in img:
+                                    base64_image_data = img.get("data")
+                                elif "b64_json" in img:
+                                    base64_image_data = img.get("b64_json")
+                                if base64_image_data:
+                                    break
 
                     # content 배열 확인
-                    if not image_url:
+                    if not base64_image_data:
                         content = message.get("content", [])
                         if isinstance(content, list):
                             for item in content:
-                                if isinstance(item, dict) and item.get("type") == "image_url":
-                                    img_url = item.get("image_url", {}).get("url", "")
-                                    if img_url.startswith("data:"):
-                                        image_data = base64.b64decode(img_url.split(",")[1])
+                                if isinstance(item, dict):
+                                    item_type = item.get("type", "")
 
-                                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
-                                        os.makedirs(static_dir, exist_ok=True)
+                                    if item_type == "image_url":
+                                        url = item.get("image_url", {}).get("url", "")
+                                        if url.startswith("data:"):
+                                            base64_image_data = url.split(",", 1)[1] if "," in url else url
+                                            break
 
-                                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-                                        filename = f"thumbnail_{timestamp}.png"
-                                        filepath = os.path.join(static_dir, filename)
+                                    elif item_type == "image":
+                                        image_data = item.get("image", {})
+                                        if isinstance(image_data, dict):
+                                            base64_image_data = image_data.get("data") or image_data.get("base64") or image_data.get("b64_json")
+                                        elif isinstance(image_data, str):
+                                            base64_image_data = image_data
+                                        if base64_image_data:
+                                            break
 
-                                        with open(filepath, 'wb') as f:
-                                            f.write(image_data)
+                                    elif "inline_data" in item:
+                                        inline = item.get("inline_data", {})
+                                        base64_image_data = inline.get("data", "")
+                                        if base64_image_data:
+                                            break
 
-                                        image_url = f"/static/thumbnails/{filename}"
-                                        break
+                    # base64 데이터가 있으면 파일로 저장
+                    if base64_image_data:
+                        image_bytes = base64.b64decode(base64_image_data)
+
+                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
+                        os.makedirs(static_dir, exist_ok=True)
+
+                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
+                        filename = f"thumbnail_{timestamp}.png"
+                        filepath = os.path.join(static_dir, filename)
+
+                        with open(filepath, 'wb') as f:
+                            f.write(image_bytes)
+
+                        image_url = f"/static/thumbnails/{filename}"
+                        print(f"[THUMBNAIL] 이미지 저장 완료: {image_url}")
+
             except Exception as e:
                 print(f"[THUMBNAIL][ERROR] 이미지 추출 오류: {e}")
+                import traceback
+                traceback.print_exc()
 
         elif provider == 'dalle':
             # DALL-E 3 이미지 생성
