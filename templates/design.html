@@ -551,15 +551,41 @@
 
         <div id="benchmarkResult" style="display:none;margin-top:1.5rem;">
           <h4 style="margin-bottom:1rem;">분석 결과</h4>
-          <div class="grid-2">
+
+          <!-- 스크린샷 미리보기 -->
+          <div style="margin-bottom:1.5rem;">
+            <img id="benchmarkScreenshot" src="" alt="스크린샷" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;display:none;">
+          </div>
+
+          <div class="grid-2" style="gap:1.5rem;">
             <div>
               <h5 style="margin-bottom:0.5rem;color:#64748b;">색상 팔레트</h5>
-              <div id="colorPalette" style="display:flex;gap:0.5rem;"></div>
+              <div id="colorPalette" style="display:flex;gap:0.5rem;flex-wrap:wrap;"></div>
             </div>
             <div>
-              <h5 style="margin-bottom:0.5rem;color:#64748b;">감지된 폰트</h5>
-              <div id="detectedFonts"></div>
+              <h5 style="margin-bottom:0.5rem;color:#64748b;">폰트 스타일</h5>
+              <div id="detectedFonts" style="font-size:0.9rem;color:#334155;"></div>
             </div>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <h5 style="margin-bottom:0.5rem;color:#64748b;">디자인 스타일</h5>
+            <div id="designStyle" style="font-size:0.9rem;color:#334155;"></div>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <h5 style="margin-bottom:0.5rem;color:#64748b;">레이아웃 구조</h5>
+            <div id="layoutStructure" style="font-size:0.9rem;color:#334155;"></div>
+          </div>
+
+          <div style="margin-top:1.5rem;">
+            <h5 style="margin-bottom:0.5rem;color:#64748b;">주요 특징</h5>
+            <div id="highlights" style="font-size:0.9rem;color:#334155;"></div>
+          </div>
+
+          <div style="margin-top:1.5rem;padding:1rem;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;">
+            <h5 style="margin-bottom:0.5rem;color:#16a34a;">💡 추천 사항</h5>
+            <div id="suggestions" style="font-size:0.9rem;color:#166534;"></div>
           </div>
         </div>
       </div>
@@ -1057,11 +1083,85 @@
           body: JSON.stringify({ url })
         });
         const data = await res.json();
-        showToast(data.message);
+
+        if (data.ok) {
+          displayBenchmarkResult(data);
+          showToast('분석 완료!');
+        } else {
+          showToast(data.error || '분석 실패', 'error');
+        }
       } catch (e) {
+        console.error('Benchmark error:', e);
         showToast('오류가 발생했습니다', 'error');
       }
       hideLoading();
+    }
+
+    function displayBenchmarkResult(data) {
+      const resultEl = document.getElementById('benchmarkResult');
+      resultEl.style.display = 'block';
+
+      // 스크린샷 표시
+      if (data.imageUrl) {
+        const screenshot = document.getElementById('benchmarkScreenshot');
+        screenshot.src = data.imageUrl;
+        screenshot.style.display = 'block';
+      }
+
+      const analysis = data.analysis || {};
+
+      // 색상 팔레트
+      const colorPalette = document.getElementById('colorPalette');
+      if (analysis.colors && Array.isArray(analysis.colors)) {
+        colorPalette.innerHTML = analysis.colors.map(color => `
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div style="width:50px;height:50px;background:${color};border-radius:8px;border:1px solid #e2e8f0;"></div>
+            <span style="font-size:0.7rem;color:#64748b;margin-top:4px;">${color}</span>
+          </div>
+        `).join('');
+      } else {
+        colorPalette.innerHTML = '<span style="color:#94a3b8;">분석 결과 없음</span>';
+      }
+
+      // 폰트 스타일
+      const detectedFonts = document.getElementById('detectedFonts');
+      if (analysis.fonts) {
+        if (typeof analysis.fonts === 'object' && !Array.isArray(analysis.fonts)) {
+          detectedFonts.innerHTML = Object.entries(analysis.fonts).map(([key, value]) =>
+            `<div><strong>${key}:</strong> ${value}</div>`
+          ).join('');
+        } else if (Array.isArray(analysis.fonts)) {
+          detectedFonts.innerHTML = analysis.fonts.map(f => `<div>• ${f}</div>`).join('');
+        } else {
+          detectedFonts.textContent = analysis.fonts;
+        }
+      }
+
+      // 디자인 스타일
+      document.getElementById('designStyle').textContent = analysis.style || '-';
+
+      // 레이아웃 구조
+      document.getElementById('layoutStructure').textContent = analysis.layout || '-';
+
+      // 주요 특징
+      const highlights = document.getElementById('highlights');
+      if (analysis.highlights) {
+        if (Array.isArray(analysis.highlights)) {
+          highlights.innerHTML = analysis.highlights.map(h => `<div>• ${h}</div>`).join('');
+        } else {
+          highlights.textContent = analysis.highlights;
+        }
+      }
+
+      // 추천 사항
+      const suggestions = document.getElementById('suggestions');
+      if (analysis.suggestions) {
+        if (Array.isArray(analysis.suggestions)) {
+          suggestions.innerHTML = analysis.suggestions.map(s => `<div>• ${s}</div>`).join('');
+        } else {
+          suggestions.textContent = analysis.suggestions;
+        }
+      }
     }
 
     // ===== 유틸 =====

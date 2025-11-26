@@ -8,6 +8,14 @@ import json
 import base64
 from datetime import datetime
 import hashlib
+from openai import OpenAI
+
+# OpenAI 클라이언트
+def get_openai_client():
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        return None
+    return OpenAI(api_key=key)
 
 design_bp = Blueprint('design', __name__)
 
@@ -423,19 +431,83 @@ def benchmark_page():
     """웹페이지 벤치마킹 (스크린샷 + AI 분석)"""
     data = request.get_json()
     url = data.get('url')
+    image_url = data.get('imageUrl')  # 직접 이미지 URL 입력도 지원
 
-    if not url:
-        return jsonify({"ok": False, "error": "URL이 필요합니다."}), 400
+    if not url and not image_url:
+        return jsonify({"ok": False, "error": "URL 또는 이미지 URL이 필요합니다."}), 400
 
-    # TODO: Playwright/Puppeteer로 스크린샷 캡처
-    # TODO: AI로 레이아웃/색상/폰트 분석
+    client = get_openai_client()
+    if not client:
+        return jsonify({"ok": False, "error": "OpenAI API 키가 설정되지 않았습니다."}), 400
 
-    return jsonify({
-        "ok": True,
-        "message": "벤치마킹 기능은 준비 중입니다.",
-        "url": url,
-        "status": "pending"
-    })
+    try:
+        # 이미지 URL 결정 (직접 입력 또는 스크린샷 서비스 사용)
+        if image_url:
+            analysis_image_url = image_url
+        else:
+            # thum.io 무료 스크린샷 서비스 사용
+            analysis_image_url = f"https://image.thum.io/get/width/1200/crop/2000/{url}"
+
+        print(f"[Benchmark] 분석 이미지 URL: {analysis_image_url}")
+
+        # OpenAI Vision API로 분석
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """당신은 전문 UI/UX 디자이너입니다. 상세페이지 이미지를 분석하여 다음 정보를 JSON 형식으로 추출해주세요:
+
+1. colors: 주요 색상 팔레트 (HEX 코드 5개)
+2. fonts: 감지된 폰트 스타일 (제목, 본문, 강조 등)
+3. layout: 레이아웃 구조 설명
+4. style: 전체적인 디자인 스타일 (모던, 미니멀, 화려함 등)
+5. highlights: 눈에 띄는 디자인 요소
+6. suggestions: 이 스타일을 참고할 때 추천 사항
+
+반드시 JSON 형식으로만 응답하세요."""
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "이 상세페이지의 디자인을 분석해주세요."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": analysis_image_url}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1500
+        )
+
+        result_text = response.choices[0].message.content
+        print(f"[Benchmark] AI 응답: {result_text[:200]}...")
+
+        # JSON 파싱 시도
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', result_text)
+        if json_match:
+            analysis = json.loads(json_match.group())
+        else:
+            analysis = {"raw": result_text}
+
+        return jsonify({
+            "ok": True,
+            "url": url,
+            "imageUrl": analysis_image_url,
+            "analysis": analysis
+        })
+
+    except Exception as e:
+        print(f"[Benchmark] 오류: {e}")
+        return jsonify({
+            "ok": False,
+            "error": f"분석 중 오류가 발생했습니다: {str(e)}"
+        }), 500
 
 # ===== 변수 추출 (Figma 레이어에서) =====
 
