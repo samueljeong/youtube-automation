@@ -9,6 +9,10 @@ from openai import OpenAI
 from urllib.parse import urlparse
 
 app = Flask(__name__)
+
+# Market Server Blueprint 등록
+from market_server import market_bp
+app.register_blueprint(market_bp)
 app.secret_key = os.urandom(24)  # Secret key for session management
 
 # OpenAI client setup
@@ -558,6 +562,13 @@ def drama():
 def inventory():
     """Inventory management page - 재고 관리"""
     return render_template('inventory.html')
+
+# ===== Market Routes =====
+@app.route('/market')
+@login_required
+def market():
+    """Market management page - 스마트스토어 & 쿠팡 상품 관리"""
+    return render_template('market.html')
 
 @app.route('/health')
 def health():
