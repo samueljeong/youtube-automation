@@ -1,0 +1,136 @@
+{
+  "models": {
+    "dalle3": {
+      "name": "DALL-E 3",
+      "provider": "openai",
+      "price_per_image": 0.04,
+      "description": "프롬프트 이해력 최고, 텍스트 렌더링 우수",
+      "sizes": ["1024x1024", "1024x1792", "1792x1024"]
+    },
+    "flux_pro": {
+      "name": "Flux Pro",
+      "provider": "replicate",
+      "price_per_image": 0.055,
+      "description": "2025 최고 포토리얼리즘",
+      "model_id": "black-forest-labs/flux-1.1-pro",
+      "sizes": ["1:1", "16:9", "9:16", "4:3", "3:4"]
+    }
+  },
+  "templates": {
+    "revival": {
+      "name": "부흥회",
+      "name_en": "Revival Meeting",
+      "prompt_style": "교회 십자가, 따뜻한 조명, 영적인 분위기, 불꽃과 성령의 바람",
+      "colors": ["#8B4513", "#FFD700", "#DC143C"],
+      "recommended_layout": "horizontal",
+      "keywords": ["부흥", "성령", "은혜", "능력"]
+    },
+    "christmas": {
+      "name": "성탄절",
+      "name_en": "Christmas",
+      "prompt_style": "성탄 장식, 별빛, 구유, 아기 예수, 목자들, 따뜻한 촛불",
+      "colors": ["#C41E3A", "#228B22", "#FFD700"],
+      "recommended_layout": "horizontal",
+      "keywords": ["성탄", "구주", "탄생", "기쁨"]
+    },
+    "easter": {
+      "name": "부활절",
+      "name_en": "Easter",
+      "prompt_style": "빈 무덤, 부활의 빛, 새벽 햇살, 백합꽃, 희망의 빛",
+      "colors": ["#FFFFFF", "#FFD700", "#87CEEB"],
+      "recommended_layout": "horizontal",
+      "keywords": ["부활", "승리", "생명", "소망"]
+    },
+    "thanksgiving": {
+      "name": "추수감사절",
+      "name_en": "Thanksgiving",
+      "prompt_style": "황금 밀밭, 풍성한 수확, 가을 단풍, 감사의 제단",
+      "colors": ["#DAA520", "#8B4513", "#FF8C00"],
+      "recommended_layout": "horizontal",
+      "keywords": ["감사", "수확", "풍성", "은혜"]
+    },
+    "new_year": {
+      "name": "신년/송년",
+      "name_en": "New Year",
+      "prompt_style": "새벽 일출, 희망의 빛, 새로운 시작, 하늘과 구름",
+      "colors": ["#4169E1", "#FFD700", "#FFFFFF"],
+      "recommended_layout": "horizontal",
+      "keywords": ["새해", "소망", "축복", "시작"]
+    },
+    "special_service": {
+      "name": "특별집회",
+      "name_en": "Special Service",
+      "prompt_style": "교회 강단, 은혜로운 조명, 경건한 분위기, 성경책",
+      "colors": ["#4A90E2", "#2C3E50", "#ECF0F1"],
+      "recommended_layout": "horizontal",
+      "keywords": ["말씀", "은혜", "집회", "예배"]
+    },
+    "bible_school": {
+      "name": "성경학교/여름캠프",
+      "name_en": "Bible School",
+      "prompt_style": "밝고 활기찬 색상, 어린이들, 자연 배경, 즐거운 분위기",
+      "colors": ["#FF6B6B", "#4ECDC4", "#FFE66D"],
+      "recommended_layout": "horizontal",
+      "keywords": ["어린이", "캠프", "즐거움", "성장"]
+    },
+    "baptism": {
+      "name": "세례/침례",
+      "name_en": "Baptism",
+      "prompt_style": "맑은 물, 비둘기, 하늘에서 내려오는 빛, 평화로운 분위기",
+      "colors": ["#87CEEB", "#FFFFFF", "#4169E1"],
+      "recommended_layout": "vertical",
+      "keywords": ["세례", "거듭남", "새생명", "헌신"]
+    },
+    "ordination": {
+      "name": "임직/취임",
+      "name_en": "Ordination",
+      "prompt_style": "경건한 분위기, 안수의 손, 성경책, 엄숙한 조명",
+      "colors": ["#2C3E50", "#8E44AD", "#F39C12"],
+      "recommended_layout": "horizontal",
+      "keywords": ["임직", "헌신", "사명", "섬김"]
+    },
+    "mission": {
+      "name": "선교/전도",
+      "name_en": "Mission",
+      "prompt_style": "세계 지도, 다양한 민족, 복음의 빛, 지구본",
+      "colors": ["#3498DB", "#2ECC71", "#F1C40F"],
+      "recommended_layout": "horizontal",
+      "keywords": ["선교", "전도", "복음", "세계"]
+    },
+    "general": {
+      "name": "일반",
+      "name_en": "General",
+      "prompt_style": "교회 십자가, 은은한 조명, 평화로운 분위기",
+      "colors": ["#4A90E2", "#667eea", "#764ba2"],
+      "recommended_layout": "horizontal",
+      "keywords": ["교회", "예배", "말씀", "은혜"]
+    }
+  },
+  "layouts": {
+    "horizontal": {
+      "name": "가로형 (현수막)",
+      "aspect_ratio": "16:9",
+      "dalle_size": "1792x1024",
+      "flux_aspect": "16:9",
+      "use_cases": ["현수막", "배너", "유튜브 썸네일"]
+    },
+    "vertical": {
+      "name": "세로형 (X배너)",
+      "aspect_ratio": "9:16",
+      "dalle_size": "1024x1792",
+      "flux_aspect": "9:16",
+      "use_cases": ["X배너", "롤배너", "포스터"]
+    },
+    "square": {
+      "name": "정사각형 (SNS)",
+      "aspect_ratio": "1:1",
+      "dalle_size": "1024x1024",
+      "flux_aspect": "1:1",
+      "use_cases": ["인스타그램", "카드뉴스", "프로필"]
+    }
+  },
+  "prompt_templates": {
+    "background_only": "Create a beautiful {style} background image for a church banner. Style: {prompt_style}. The image should be atmospheric and suitable for text overlay. No text in the image. High quality, professional design.",
+    "with_theme": "Create a beautiful church banner background for {event_name}. Theme: {theme}. Style: {prompt_style}. Atmospheric image suitable for text overlay. No text in the image. High quality, professional design."
+  }
+}

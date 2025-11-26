@@ -1186,6 +1186,158 @@
           </div>
         </div>
         <!-- // 빈 페이지 콘텐츠 끝 -->
+
+        <!-- 디자인 도우미 콘텐츠 -->
+        <div id="design-helper-content" style="display: none;">
+          <!-- 안내 박스 -->
+          <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; margin-bottom: 1rem;">
+            <div style="color: white; font-size: 1.1rem; font-weight: 700; margin-bottom: .5rem;">🎨 현수막/배너 AI 생성기</div>
+            <div style="color: rgba(255,255,255,0.9); font-size: .85rem; line-height: 1.5;">
+              행사 정보를 입력하면 AI가 교회 현수막/배너용 배경 이미지를 자동으로 생성합니다.<br>
+              생성된 이미지에 텍스트를 추가하여 완성된 현수막을 만드세요.
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <!-- 왼쪽: 입력 폼 -->
+            <div>
+              <!-- AI 모델 선택 -->
+              <div class="box" style="margin-bottom: 1rem;">
+                <div class="label" style="margin-bottom: .5rem;">🤖 AI 모델 선택</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: .5rem;">
+                  <label style="display: flex; align-items: center; padding: .75rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" id="model-dalle3-label">
+                    <input type="radio" name="banner-model" value="dalle3" checked style="margin-right: .5rem;">
+                    <div>
+                      <div style="font-weight: 600; font-size: .9rem;">DALL-E 3</div>
+                      <div style="font-size: .75rem; color: #666;">$0.04~0.08/장</div>
+                      <div style="font-size: .7rem; color: #888;">텍스트 렌더링 우수</div>
+                    </div>
+                  </label>
+                  <label style="display: flex; align-items: center; padding: .75rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;" id="model-flux-label">
+                    <input type="radio" name="banner-model" value="flux_pro" style="margin-right: .5rem;">
+                    <div>
+                      <div style="font-weight: 600; font-size: .9rem;">Flux Pro</div>
+                      <div style="font-size: .75rem; color: #666;">$0.05~0.06/장</div>
+                      <div style="font-size: .7rem; color: #888;">최고 포토리얼리즘</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 템플릿 선택 -->
+              <div class="box" style="margin-bottom: 1rem;">
+                <div class="label" style="margin-bottom: .5rem;">📋 행사 유형 선택</div>
+                <select id="banner-template" style="width: 100%; padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                  <option value="general">일반</option>
+                  <option value="revival">부흥회</option>
+                  <option value="christmas">성탄절</option>
+                  <option value="easter">부활절</option>
+                  <option value="thanksgiving">추수감사절</option>
+                  <option value="new_year">신년/송년</option>
+                  <option value="special_service">특별집회</option>
+                  <option value="bible_school">성경학교/여름캠프</option>
+                  <option value="baptism">세례/침례</option>
+                  <option value="ordination">임직/취임</option>
+                  <option value="mission">선교/전도</option>
+                </select>
+              </div>
+
+              <!-- 레이아웃 선택 -->
+              <div class="box" style="margin-bottom: 1rem;">
+                <div class="label" style="margin-bottom: .5rem;">📐 레이아웃 선택</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem;">
+                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid #667eea;" id="layout-horizontal-label">
+                    <input type="radio" name="banner-layout" value="horizontal" checked style="margin-bottom: .3rem;">
+                    <div style="width: 50px; height: 28px; background: #667eea; border-radius: 4px; margin-bottom: .3rem;"></div>
+                    <div style="font-size: .75rem; text-align: center;">가로형<br>(현수막)</div>
+                  </label>
+                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent;" id="layout-vertical-label">
+                    <input type="radio" name="banner-layout" value="vertical" style="margin-bottom: .3rem;">
+                    <div style="width: 28px; height: 50px; background: #ccc; border-radius: 4px; margin-bottom: .3rem;"></div>
+                    <div style="font-size: .75rem; text-align: center;">세로형<br>(X배너)</div>
+                  </label>
+                  <label style="display: flex; flex-direction: column; align-items: center; padding: .5rem; background: #f8f9fa; border-radius: 8px; cursor: pointer; border: 2px solid transparent;" id="layout-square-label">
+                    <input type="radio" name="banner-layout" value="square" style="margin-bottom: .3rem;">
+                    <div style="width: 40px; height: 40px; background: #ccc; border-radius: 4px; margin-bottom: .3rem;"></div>
+                    <div style="font-size: .75rem; text-align: center;">정사각형<br>(SNS)</div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- 행사 정보 입력 -->
+              <div class="box" style="margin-bottom: 1rem;">
+                <div class="label" style="margin-bottom: .5rem;">✏️ 행사 정보 (선택)</div>
+                <div style="display: flex; flex-direction: column; gap: .5rem;">
+                  <input type="text" id="banner-event-name" placeholder="행사명 (예: 2024 가을 부흥회)" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                  <input type="text" id="banner-church-name" placeholder="교회명 (예: 소망교회)" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                  <input type="text" id="banner-schedule" placeholder="일정 (예: 11/25~27 저녁 7시)" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                  <input type="text" id="banner-speaker" placeholder="강사 (예: 홍길동 목사)" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                  <input type="text" id="banner-theme" placeholder="주제/말씀 (예: 새 힘을 얻으리니 사40:31)" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd;">
+                </div>
+              </div>
+
+              <!-- 고급 옵션 -->
+              <div class="box" style="margin-bottom: 1rem;">
+                <div class="toggle-header" style="cursor: pointer;" onclick="toggleAdvancedOptions()">
+                  <div class="label" style="margin: 0;">⚙️ 고급 옵션</div>
+                  <span id="advanced-options-arrow" style="transition: transform 0.2s;">▼</span>
+                </div>
+                <div id="advanced-options" style="display: none; margin-top: .75rem;">
+                  <div style="font-size: .8rem; color: #666; margin-bottom: .5rem;">직접 프롬프트를 입력하거나 AI가 생성한 프롬프트를 수정할 수 있습니다.</div>
+                  <textarea id="banner-custom-prompt" placeholder="AI 이미지 생성 프롬프트를 직접 입력하세요 (영어 권장)" style="width: 100%; min-height: 100px; padding: .5rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; resize: vertical;"></textarea>
+                  <button onclick="generateBannerPrompt()" style="margin-top: .5rem; width: 100%; padding: .5rem; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; cursor: pointer;">🤖 AI로 프롬프트 생성</button>
+                </div>
+              </div>
+
+              <!-- 생성 버튼 -->
+              <button id="btn-generate-banner" onclick="generateBanner()" style="width: 100%; padding: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                🎨 배경 이미지 생성
+              </button>
+              <div id="banner-loading" style="display: none; text-align: center; margin-top: 1rem; color: #666;">
+                <div style="font-size: 2rem; margin-bottom: .5rem;">⏳</div>
+                <div>이미지를 생성하고 있습니다...</div>
+                <div style="font-size: .85rem; color: #888;">30초~1분 정도 소요될 수 있습니다.</div>
+              </div>
+            </div>
+
+            <!-- 오른쪽: 결과 표시 -->
+            <div>
+              <div class="box" style="height: 100%; min-height: 500px; display: flex; flex-direction: column;">
+                <div class="label" style="margin-bottom: .5rem;">🖼️ 생성된 이미지</div>
+                <div id="banner-result-container" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 8px; padding: 1rem;">
+                  <div id="banner-placeholder" style="text-align: center; color: #888;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">🖼️</div>
+                    <div>왼쪽에서 설정을 선택하고<br>"배경 이미지 생성" 버튼을 클릭하세요.</div>
+                  </div>
+                  <div id="banner-result" style="display: none; width: 100%;">
+                    <img id="banner-image" src="" alt="생성된 배너 이미지" style="width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                    <div style="margin-top: 1rem; display: flex; gap: .5rem;">
+                      <a id="banner-download-link" href="" download="banner.png" style="flex: 1; padding: .75rem; background: #667eea; color: white; text-align: center; border-radius: 6px; text-decoration: none; font-weight: 600;">📥 다운로드</a>
+                      <button onclick="regenerateBanner()" style="flex: 1; padding: .75rem; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-weight: 600;">🔄 다시 생성</button>
+                    </div>
+                    <div id="banner-info" style="margin-top: 1rem; padding: .75rem; background: #e8f4fd; border-radius: 6px; font-size: .8rem;">
+                      <div><strong>모델:</strong> <span id="banner-info-model">-</span></div>
+                      <div><strong>템플릿:</strong> <span id="banner-info-template">-</span></div>
+                      <div><strong>레이아웃:</strong> <span id="banner-info-layout">-</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 사용 팁 -->
+          <div class="box" style="margin-top: 1rem; background: #fffbeb; border: 1px solid #f59e0b;">
+            <div style="font-weight: 600; color: #b45309; margin-bottom: .5rem;">💡 사용 팁</div>
+            <ul style="margin: 0; padding-left: 1.2rem; font-size: .85rem; color: #78350f; line-height: 1.6;">
+              <li>생성된 이미지는 <strong>배경용</strong>입니다. 텍스트는 Canva, 포토샵 등에서 추가하세요.</li>
+              <li><strong>DALL-E 3</strong>은 텍스트 렌더링에 강하고, <strong>Flux Pro</strong>는 사실적인 이미지에 강합니다.</li>
+              <li>원하는 결과가 나오지 않으면 "다시 생성"을 눌러 새로운 이미지를 받아보세요.</li>
+              <li>Flux Pro 사용 시 <strong>REPLICATE_API_TOKEN</strong> 환경변수 설정이 필요합니다.</li>
+            </ul>
+          </div>
+        </div>
+        <!-- // 디자인 도우미 콘텐츠 끝 -->
       </div>
     </div>
 
@@ -1669,7 +1821,8 @@
       {value: "general", label: "일반 설교"},
       {value: "series", label: "시리즈 설교"},
       {value: "education", label: "교육"},
-      {value: "lecture", label: "강의"}
+      {value: "lecture", label: "강의"},
+      {value: "design_helper", label: "🎨 디자인 도우미"}
     ],
     categorySettings: {
       general: {
@@ -3143,12 +3296,14 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const meditationContent = document.getElementById('meditation-content');
     const bibleKnowledgeContent = document.getElementById('bible-knowledge-content');
     const emptyContent = document.getElementById('empty-content');
+    const designHelperContent = document.getElementById('design-helper-content');
 
     // 모든 콘텐츠 숨기기
     if (sermonContent) sermonContent.style.display = 'none';
     if (meditationContent) meditationContent.style.display = 'none';
     if (bibleKnowledgeContent) bibleKnowledgeContent.style.display = 'none';
     if (emptyContent) emptyContent.style.display = 'none';
+    if (designHelperContent) designHelperContent.style.display = 'none';
 
     // 카테고리 label 가져오기
     const catConfig = config.categories.find(c => c.value === category);
@@ -3164,6 +3319,10 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     } else if (label.includes('배경지식')) {
       // 성경 배경지식
       if (bibleKnowledgeContent) bibleKnowledgeContent.style.display = 'block';
+    } else if (category === 'design_helper' || label.includes('디자인')) {
+      // 디자인 도우미
+      if (designHelperContent) designHelperContent.style.display = 'block';
+      initDesignHelper();
     } else if (label.includes('설교') || category.startsWith('step_') ||
                ['general', 'series', 'education', 'lecture'].includes(category)) {
       // 설교 관련 카테고리
@@ -5482,6 +5641,176 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
 
     document.querySelectorAll('textarea').forEach(autoResize);
   });
+
+  // ===== 디자인 도우미 함수 =====
+
+  // 디자인 도우미 초기화
+  function initDesignHelper() {
+    // 모델 선택 라디오 버튼 스타일 업데이트
+    const modelRadios = document.querySelectorAll('input[name="banner-model"]');
+    modelRadios.forEach(radio => {
+      radio.addEventListener('change', updateModelSelection);
+    });
+    updateModelSelection();
+
+    // 레이아웃 선택 라디오 버튼 스타일 업데이트
+    const layoutRadios = document.querySelectorAll('input[name="banner-layout"]');
+    layoutRadios.forEach(radio => {
+      radio.addEventListener('change', updateLayoutSelection);
+    });
+    updateLayoutSelection();
+  }
+
+  // 모델 선택 스타일 업데이트
+  function updateModelSelection() {
+    const dalleLabel = document.getElementById('model-dalle3-label');
+    const fluxLabel = document.getElementById('model-flux-label');
+    const dalleRadio = document.querySelector('input[name="banner-model"][value="dalle3"]');
+    const fluxRadio = document.querySelector('input[name="banner-model"][value="flux_pro"]');
+
+    if (dalleLabel && fluxLabel) {
+      dalleLabel.style.border = dalleRadio.checked ? '2px solid #667eea' : '2px solid transparent';
+      dalleLabel.style.background = dalleRadio.checked ? '#f0f4ff' : '#f8f9fa';
+      fluxLabel.style.border = fluxRadio.checked ? '2px solid #667eea' : '2px solid transparent';
+      fluxLabel.style.background = fluxRadio.checked ? '#f0f4ff' : '#f8f9fa';
+    }
+  }
+
+  // 레이아웃 선택 스타일 업데이트
+  function updateLayoutSelection() {
+    const layouts = ['horizontal', 'vertical', 'square'];
+    layouts.forEach(layout => {
+      const label = document.getElementById(`layout-${layout}-label`);
+      const radio = document.querySelector(`input[name="banner-layout"][value="${layout}"]`);
+      if (label && radio) {
+        label.style.border = radio.checked ? '2px solid #667eea' : '2px solid transparent';
+        const colorDiv = label.querySelector('div[style*="background"]');
+        if (colorDiv) {
+          colorDiv.style.background = radio.checked ? '#667eea' : '#ccc';
+        }
+      }
+    });
+  }
+
+  // 고급 옵션 토글
+  function toggleAdvancedOptions() {
+    const options = document.getElementById('advanced-options');
+    const arrow = document.getElementById('advanced-options-arrow');
+    if (options && arrow) {
+      const isHidden = options.style.display === 'none';
+      options.style.display = isHidden ? 'block' : 'none';
+      arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+  }
+
+  // AI로 프롬프트 생성
+  async function generateBannerPrompt() {
+    const template = document.getElementById('banner-template').value;
+    const eventName = document.getElementById('banner-event-name').value;
+    const theme = document.getElementById('banner-theme').value;
+    const customPromptTextarea = document.getElementById('banner-custom-prompt');
+
+    customPromptTextarea.value = '프롬프트 생성 중...';
+
+    try {
+      const response = await fetch('/api/banner/generate-prompt', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          template: template,
+          event_name: eventName,
+          theme: theme
+        })
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        customPromptTextarea.value = data.prompt;
+      } else {
+        customPromptTextarea.value = '';
+        alert('프롬프트 생성 실패: ' + data.error);
+      }
+    } catch (err) {
+      customPromptTextarea.value = '';
+      alert('네트워크 오류: ' + err.message);
+    }
+  }
+
+  // 현수막 이미지 생성
+  async function generateBanner() {
+    const model = document.querySelector('input[name="banner-model"]:checked').value;
+    const template = document.getElementById('banner-template').value;
+    const layout = document.querySelector('input[name="banner-layout"]:checked').value;
+    const eventName = document.getElementById('banner-event-name').value;
+    const churchName = document.getElementById('banner-church-name').value;
+    const schedule = document.getElementById('banner-schedule').value;
+    const speaker = document.getElementById('banner-speaker').value;
+    const theme = document.getElementById('banner-theme').value;
+    const customPrompt = document.getElementById('banner-custom-prompt').value;
+
+    // UI 업데이트
+    const btnGenerate = document.getElementById('btn-generate-banner');
+    const loadingDiv = document.getElementById('banner-loading');
+    const placeholder = document.getElementById('banner-placeholder');
+    const resultDiv = document.getElementById('banner-result');
+
+    btnGenerate.disabled = true;
+    btnGenerate.innerHTML = '⏳ 생성 중...';
+    loadingDiv.style.display = 'block';
+    placeholder.style.display = 'none';
+    resultDiv.style.display = 'none';
+
+    try {
+      const response = await fetch('/api/banner/generate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          model: model,
+          template: template,
+          layout: layout,
+          event_name: eventName,
+          church_name: churchName,
+          schedule: schedule,
+          speaker: speaker,
+          theme: theme,
+          custom_prompt: customPrompt
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 결과 표시
+        const bannerImage = document.getElementById('banner-image');
+        const downloadLink = document.getElementById('banner-download-link');
+
+        bannerImage.src = data.image_url;
+        downloadLink.href = data.image_url;
+
+        // 정보 업데이트
+        document.getElementById('banner-info-model').textContent = data.model;
+        document.getElementById('banner-info-template').textContent = data.template;
+        document.getElementById('banner-info-layout').textContent = data.layout;
+
+        resultDiv.style.display = 'block';
+      } else {
+        alert('이미지 생성 실패: ' + data.error);
+        placeholder.style.display = 'block';
+      }
+    } catch (err) {
+      alert('네트워크 오류: ' + err.message);
+      placeholder.style.display = 'block';
+    } finally {
+      btnGenerate.disabled = false;
+      btnGenerate.innerHTML = '🎨 배경 이미지 생성';
+      loadingDiv.style.display = 'none';
+    }
+  }
+
+  // 다시 생성
+  function regenerateBanner() {
+    generateBanner();
+  }
   </script>
 </body>
 </html>

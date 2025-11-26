@@ -2764,6 +2764,218 @@ def api_sermon_chat():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ===== 디자인 도우미 (현수막/배너 생성) =====
+
+# 배너 템플릿 로드
+def load_banner_templates():
+    """배너 템플릿 JSON 파일 로드"""
+    template_path = os.path.join(os.path.dirname(__file__), 'banner_templates.json')
+    try:
+        with open(template_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[BANNER] 템플릿 로드 실패: {e}")
+        return None
+
+@app.route('/api/banner/templates')
+def get_banner_templates():
+    """배너 템플릿 목록 반환"""
+    templates = load_banner_templates()
+    if templates:
+        return jsonify({"ok": True, "data": templates})
+    return jsonify({"ok": False, "error": "템플릿 로드 실패"}), 500
+
+@app.route('/api/banner/generate', methods=['POST'])
+def generate_banner():
+    """현수막/배너 이미지 생성"""
+    try:
+        data = request.json
+        model = data.get('model', 'dalle3')  # dalle3 또는 flux_pro
+        template_type = data.get('template', 'general')
+        layout = data.get('layout', 'horizontal')
+
+        # 사용자 입력
+        event_name = data.get('event_name', '')  # 행사명
+        church_name = data.get('church_name', '')  # 교회명
+        schedule = data.get('schedule', '')  # 일정
+        speaker = data.get('speaker', '')  # 강사
+        theme = data.get('theme', '')  # 주제/말씀
+        custom_prompt = data.get('custom_prompt', '')  # 사용자 정의 프롬프트
+
+        # 템플릿 로드
+        templates = load_banner_templates()
+        if not templates:
+            return jsonify({"ok": False, "error": "템플릿 로드 실패"}), 500
+
+        # 템플릿 정보 가져오기
+        template_info = templates['templates'].get(template_type, templates['templates']['general'])
+        layout_info = templates['layouts'].get(layout, templates['layouts']['horizontal'])
+        model_info = templates['models'].get(model, templates['models']['dalle3'])
+
+        # 이미지 생성 프롬프트 구성
+        if custom_prompt:
+            base_prompt = custom_prompt
+        else:
+            base_prompt = f"Create a beautiful church banner background for {template_info['name_en']}."
+            if event_name:
+                base_prompt += f" Event: {event_name}."
+            if theme:
+                base_prompt += f" Theme: {theme}."
+
+        full_prompt = f"{base_prompt} Style: {template_info['prompt_style']}. "
+        full_prompt += "The image should be atmospheric and suitable for text overlay. "
+        full_prompt += "No text, letters, or words in the image. High quality, professional design, "
+        full_prompt += "beautiful lighting, church-appropriate aesthetic."
+
+        print(f"[BANNER] 생성 요청 - 모델: {model}, 템플릿: {template_type}, 레이아웃: {layout}")
+        print(f"[BANNER] 프롬프트: {full_prompt[:100]}...")
+
+        image_url = None
+
+        if model == 'dalle3':
+            # DALL-E 3 사용
+            image_url = generate_with_dalle3(full_prompt, layout_info['dalle_size'])
+        elif model == 'flux_pro':
+            # Flux Pro 사용
+            image_url = generate_with_flux_pro(full_prompt, layout_info['flux_aspect'])
+        else:
+            return jsonify({"ok": False, "error": f"지원하지 않는 모델: {model}"}), 400
+
+        if image_url:
+            print(f"[BANNER] 이미지 생성 성공")
+            return jsonify({
+                "ok": True,
+                "image_url": image_url,
+                "model": model_info['name'],
+                "template": template_info['name'],
+                "layout": layout_info['name'],
+                "prompt_used": full_prompt
+            })
+        else:
+            return jsonify({"ok": False, "error": "이미지 생성 실패"}), 500
+
+    except Exception as e:
+        print(f"[BANNER][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def generate_with_dalle3(prompt, size="1792x1024"):
+    """DALL-E 3로 이미지 생성"""
+    try:
+        print(f"[DALLE3] 이미지 생성 시작 - 크기: {size}")
+
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size=size,
+            quality="standard",
+            n=1
+        )
+
+        image_url = response.data[0].url
+        print(f"[DALLE3] 이미지 생성 완료")
+        return image_url
+
+    except Exception as e:
+        print(f"[DALLE3][ERROR] {str(e)}")
+        raise e
+
+
+def generate_with_flux_pro(prompt, aspect_ratio="16:9"):
+    """Flux Pro (Replicate)로 이미지 생성"""
+    try:
+        import replicate
+
+        # Replicate API 토큰 확인
+        replicate_token = os.getenv("REPLICATE_API_TOKEN")
+        if not replicate_token:
+            raise RuntimeError("REPLICATE_API_TOKEN이 설정되지 않았습니다.")
+
+        print(f"[FLUX_PRO] 이미지 생성 시작 - 비율: {aspect_ratio}")
+
+        # Flux 1.1 Pro 모델 호출
+        output = replicate.run(
+            "black-forest-labs/flux-1.1-pro",
+            input={
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio,
+                "output_format": "webp",
+                "output_quality": 80,
+                "safety_tolerance": 2,
+                "prompt_upsampling": True
+            }
+        )
+
+        # output은 URL 문자열
+        image_url = str(output)
+        print(f"[FLUX_PRO] 이미지 생성 완료")
+        return image_url
+
+    except Exception as e:
+        print(f"[FLUX_PRO][ERROR] {str(e)}")
+        raise e
+
+
+@app.route('/api/banner/generate-prompt', methods=['POST'])
+def generate_banner_prompt():
+    """GPT를 사용하여 현수막용 이미지 프롬프트 생성"""
+    try:
+        data = request.json
+        template_type = data.get('template', 'general')
+        event_name = data.get('event_name', '')
+        theme = data.get('theme', '')
+        mood = data.get('mood', '')  # 분위기 (따뜻한, 경건한, 활기찬 등)
+
+        # 템플릿 정보 로드
+        templates = load_banner_templates()
+        template_info = templates['templates'].get(template_type, templates['templates']['general'])
+
+        system_prompt = """당신은 교회 현수막/배너 디자인을 위한 이미지 프롬프트 전문가입니다.
+사용자가 제공한 정보를 바탕으로 AI 이미지 생성에 최적화된 영어 프롬프트를 작성해주세요.
+
+규칙:
+1. 프롬프트는 반드시 영어로 작성
+2. 이미지에 텍스트/글자가 포함되지 않도록 명시
+3. 교회에 적합한 경건하고 아름다운 분위기
+4. 배경 이미지로 적합하게 (텍스트 오버레이 공간 확보)
+5. 고품질, 전문적인 디자인 스타일"""
+
+        user_prompt = f"""다음 정보로 현수막 배경 이미지 프롬프트를 생성해주세요:
+
+행사 유형: {template_info['name']} ({template_info['name_en']})
+행사명: {event_name if event_name else '미지정'}
+주제/말씀: {theme if theme else '미지정'}
+분위기: {mood if mood else template_info['prompt_style']}
+
+기본 스타일 참고: {template_info['prompt_style']}
+
+프롬프트만 출력해주세요 (설명 없이)."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=300
+        )
+
+        generated_prompt = completion.choices[0].message.content.strip()
+
+        return jsonify({
+            "ok": True,
+            "prompt": generated_prompt,
+            "template": template_info['name']
+        })
+
+    except Exception as e:
+        print(f"[BANNER-PROMPT][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     # 데이터베이스 연결 상태 로그 출력
