@@ -1639,6 +1639,48 @@
           </div>
         </div>
 
+        <!-- Step3/Step4 프롬프트 비교 -->
+        <div style="margin-bottom: 1.5rem;">
+          <div style="background: linear-gradient(135deg, #f5576c 0%, #667eea 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <span>📊 Step3 vs Step4 프롬프트 비교</span>
+            <button id="btn-refresh-step-compare" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: .3rem .6rem; border-radius: 4px; cursor: pointer; font-size: .8rem;">🔄 새로고침</button>
+          </div>
+          <div style="background: #fef5ff; padding: 1rem; border-radius: 0 0 8px 8px; border: 2px solid #667eea; border-top: none;">
+            <div style="font-size: .85rem; color: #666; margin-bottom: .75rem;">
+              <strong>Step3</strong> (🔴 분홍색 버튼): 서버에서 GPT API 직접 호출 &nbsp;|&nbsp;
+              <strong>Step4</strong> (🟣 보라색 버튼): 프롬프트 복사 → 개인 GPT에 붙여넣기
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+              <!-- Step3 프롬프트 -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+                  <div style="font-weight: 700; font-size: .9rem; color: #f5576c;">🔴 Step3 (서버 호출)</div>
+                  <button onclick="copyStepPrompt('step3')" style="font-size: .7rem; padding: .2rem .4rem; cursor: pointer;">복사</button>
+                </div>
+                <textarea id="step3-prompt-preview" readonly style="width: 100%; height: 300px; font-size: .75rem; font-family: monospace; background: #1a1a2e; color: #ff6b9d; padding: .75rem; border-radius: 6px; border: none; resize: vertical;"></textarea>
+                <div id="step3-prompt-stats" style="font-size: .7rem; color: #888; margin-top: .3rem;">글자수: -</div>
+              </div>
+              <!-- Step4 프롬프트 -->
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+                  <div style="font-weight: 700; font-size: .9rem; color: #667eea;">🟣 Step4 (전체 복사)</div>
+                  <button onclick="copyStepPrompt('step4')" style="font-size: .7rem; padding: .2rem .4rem; cursor: pointer;">복사</button>
+                </div>
+                <textarea id="step4-prompt-preview" readonly style="width: 100%; height: 300px; font-size: .75rem; font-family: monospace; background: #1a1a2e; color: #9d6bff; padding: .75rem; border-radius: 6px; border: none; resize: vertical;"></textarea>
+                <div id="step4-prompt-stats" style="font-size: .7rem; color: #888; margin-top: .3rem;">글자수: -</div>
+              </div>
+            </div>
+            <!-- 차이점 요약 -->
+            <div style="margin-top: 1rem; background: white; padding: .75rem; border-radius: 6px; border: 1px solid #ddd;">
+              <div style="font-weight: 600; font-size: .85rem; margin-bottom: .5rem;">📌 현재 상태</div>
+              <div id="step-compare-summary" style="font-size: .8rem; color: #666;">
+                현재 Step3과 Step4는 <strong>동일한 프롬프트</strong>를 사용합니다.<br>
+                추후 Step3에 고급 기능(RAG, 예시 설교 참조 등)을 추가하여 차별화할 예정입니다.
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Step3 지침 (통합) -->
         <div style="margin-bottom: 1.5rem;">
           <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: .6rem 1rem; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 1rem;">📝 Step3 지침</div>
@@ -2929,6 +2971,156 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const steps = getCurrentSteps();
     const step = steps.find(s => s.id === stepId);
     return step ? step.name : stepId;
+  }
+
+  // ===== Step3/Step4 프롬프트 비교 기능 =====
+  function refreshStepCompare() {
+    const step3Preview = document.getElementById('step3-prompt-preview');
+    const step4Preview = document.getElementById('step4-prompt-preview');
+    const step3Stats = document.getElementById('step3-prompt-stats');
+    const step4Stats = document.getElementById('step4-prompt-stats');
+    const summaryEl = document.getElementById('step-compare-summary');
+
+    if (!step3Preview || !step4Preview) return;
+
+    // Step4 프롬프트 (전체 복사용)
+    const draft = assembleGptProDraft();
+    const step4Text = draft.error ? `[오류] ${draft.error}` : draft.fullText;
+    step4Preview.value = step4Text;
+    step4Stats.textContent = `글자수: ${step4Text.length.toLocaleString()}자`;
+
+    // Step3 프롬프트 (서버에서 생성하는 방식 시뮬레이션)
+    const step3Text = generateStep3PromptPreview();
+    step3Preview.value = step3Text;
+    step3Stats.textContent = `글자수: ${step3Text.length.toLocaleString()}자`;
+
+    // 차이점 분석
+    const diff = Math.abs(step3Text.length - step4Text.length);
+    const diffPercent = ((diff / Math.max(step3Text.length, step4Text.length)) * 100).toFixed(1);
+
+    if (diffPercent < 5) {
+      summaryEl.innerHTML = `
+        현재 Step3과 Step4는 <strong>거의 동일한 프롬프트</strong>를 사용합니다. (차이: ${diffPercent}%)<br>
+        <span style="color: #888;">추후 Step3에 고급 기능(RAG, 예시 설교 참조, 벤치마킹 등)을 추가하여 차별화할 예정입니다.</span>
+      `;
+    } else {
+      summaryEl.innerHTML = `
+        Step3과 Step4 프롬프트 <strong>차이: ${diff.toLocaleString()}자 (${diffPercent}%)</strong><br>
+        Step3: ${step3Text.length.toLocaleString()}자 | Step4: ${step4Text.length.toLocaleString()}자
+      `;
+    }
+  }
+
+  function generateStep3PromptPreview() {
+    // 서버의 build_step3_prompt_from_json과 유사한 로직
+    const ref = document.getElementById('sermon-ref')?.value.trim() || '';
+    const style = getCurrentStyle();
+    const finalTitle = getSelectedTitle();
+    const worshipType = document.getElementById('sermon-worship-type')?.value.trim() || '';
+    const duration = document.getElementById('sermon-duration')?.value.trim() || '20분';
+    const target = document.getElementById('sermon-target')?.value.trim() || '';
+    const specialNotes = document.getElementById('special-notes')?.value.trim() || '';
+
+    if (!ref) {
+      return '[오류] 성경구절을 입력하세요.';
+    }
+
+    let prompt = '';
+
+    // 최우선 지침 (서버와 동일)
+    prompt += '='.repeat(50) + '\n';
+    prompt += '【 ★★★ 최우선 지침 ★★★ 】\n';
+    prompt += '='.repeat(50) + '\n';
+    if (duration) {
+      prompt += `\n🚨 분량: ${duration}\n`;
+      prompt += `   → 이 설교는 반드시 ${duration} 분량으로 작성하세요.\n`;
+      prompt += `   → Step1/Step2 자료가 길더라도 ${duration}에 맞춰 압축하세요.\n`;
+      prompt += '   → 분량 제한은 다른 모든 지침보다 우선합니다.\n';
+    }
+    if (worshipType) {
+      prompt += `\n🚨 예배/집회 유형: ${worshipType}\n`;
+      prompt += `   → '${worshipType}'에 적합한 톤과 내용으로 작성하세요.\n`;
+    }
+    if (specialNotes) {
+      prompt += `\n🚨 특별 참고 사항:\n`;
+      prompt += `   ${specialNotes}\n`;
+    }
+    prompt += '\n' + '='.repeat(50) + '\n\n';
+
+    prompt += '【 설교문 작성 지침 】\n\n';
+
+    // 기본 정보
+    prompt += '▶ 기본 정보\n';
+    prompt += `  - 성경 본문: ${ref}\n`;
+    if (finalTitle) prompt += `  - 설교 제목: ${finalTitle}\n`;
+    if (target) prompt += `  - 대상: ${target}\n`;
+    if (worshipType) prompt += `  - 예배·집회 유형: ${worshipType}\n`;
+    if (duration) prompt += `  - 분량: ${duration}\n`;
+    if (style) prompt += `  - 설교 스타일: ${style.name}\n`;
+    prompt += '\n';
+
+    // Step1 결과가 있으면 추가
+    const step1Data = stepResults['step1'] || stepResults['background_analysis'];
+    if (step1Data) {
+      prompt += '▶ Step1 분석 자료 (참고용)\n';
+      if (typeof step1Data === 'object') {
+        prompt += JSON.stringify(step1Data, null, 2);
+      } else {
+        prompt += step1Data;
+      }
+      prompt += '\n\n';
+    }
+
+    // Step2 결과가 있으면 추가
+    const step2Data = stepResults['step2'] || stepResults['sermon_structure'];
+    if (step2Data) {
+      prompt += '▶ Step2 설교 구조 (참고용 - 분량에 맞게 조절)\n';
+      if (typeof step2Data === 'object') {
+        prompt += JSON.stringify(step2Data, null, 2);
+      } else {
+        prompt += step2Data;
+      }
+      prompt += '\n\n';
+    }
+
+    // 최종 지침
+    prompt += '='.repeat(50) + '\n';
+    prompt += '【 최종 작성 지침 】\n';
+    prompt += '위 Step1/Step2 자료를 참고하여 설교문을 작성하세요.\n';
+    if (duration) {
+      prompt += `\n⚠️ 매우 중요 - 분량 제한: ${duration} 분량 안에서 충분히 상세하고 풍성한 내용으로 작성하세요!\n`;
+      prompt += `${duration} 분량을 반드시 지키되, 그 안에서 최대한 깊이 있게 작성해주세요.\n`;
+    }
+    prompt += '='.repeat(50);
+
+    return prompt;
+  }
+
+  function copyStepPrompt(stepType) {
+    const textareaId = stepType === 'step3' ? 'step3-prompt-preview' : 'step4-prompt-preview';
+    const textarea = document.getElementById(textareaId);
+    if (textarea) {
+      navigator.clipboard.writeText(textarea.value).then(() => {
+        showStatus(`✅ ${stepType.toUpperCase()} 프롬프트가 복사되었습니다.`);
+      }).catch(err => {
+        console.error('복사 실패:', err);
+      });
+    }
+  }
+
+  // Step 비교 새로고침 버튼 이벤트
+  document.getElementById('btn-refresh-step-compare')?.addEventListener('click', refreshStepCompare);
+
+  // 관리자 패널 열릴 때 자동 새로고침
+  const adminModalObserver = new MutationObserver((mutations) => {
+    const adminModal = document.getElementById('modal-admin-panel');
+    if (adminModal && (adminModal.style.display === 'flex' || adminModal.classList.contains('active'))) {
+      setTimeout(refreshStepCompare, 100);
+    }
+  });
+  const adminModalEl = document.getElementById('modal-admin-panel');
+  if (adminModalEl) {
+    adminModalObserver.observe(adminModalEl, { attributes: true, attributeFilter: ['style', 'class'] });
   }
 
   // ===== GPT PRO 초안 구성 유틸 =====
