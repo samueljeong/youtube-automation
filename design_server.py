@@ -22,6 +22,26 @@ design_bp = Blueprint('design', __name__)
 # ===== 환경 변수 =====
 FIGMA_ACCESS_TOKEN = os.getenv('FIGMA_ACCESS_TOKEN', '')
 FIGMA_API_BASE = 'https://api.figma.com/v1'
+FAL_API_KEY = os.getenv('FAL_KEY', '')
+
+# ===== fal.ai 모델 설정 =====
+FAL_MODELS = {
+    "flux-schnell": {
+        "id": "fal-ai/flux/schnell",
+        "name": "Flux Schnell",
+        "description": "빠르고 저렴 (~$0.003/장)",
+        "speed": "fast"
+    },
+    "flux-dev": {
+        "id": "fal-ai/flux/dev",
+        "name": "Flux Dev",
+        "description": "고품질, 상업용 (~$0.025/장)",
+        "speed": "normal"
+    }
+}
+
+# ===== 벤치마킹 저장소 (메모리) =====
+BENCHMARK_STORE = []
 
 # ===== 폰트 저장 경로 =====
 FONTS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'fonts')
@@ -508,6 +528,257 @@ def benchmark_page():
             "ok": False,
             "error": f"분석 중 오류가 발생했습니다: {str(e)}"
         }), 500
+
+# ===== 벤치마킹 저장/조회 =====
+
+@design_bp.route('/api/design/benchmark/save', methods=['POST'])
+def save_benchmark():
+    """벤치마킹 결과 저장"""
+    data = request.get_json()
+
+    benchmark_data = {
+        "id": hashlib.md5(f"{data.get('url')}{datetime.now().isoformat()}".encode()).hexdigest()[:12],
+        "url": data.get('url'),
+        "imageUrl": data.get('imageUrl'),
+        "analysis": data.get('analysis'),
+        "category": data.get('category', '기타'),
+        "tags": data.get('tags', []),
+        "createdAt": datetime.now().isoformat()
+    }
+
+    BENCHMARK_STORE.append(benchmark_data)
+
+    return jsonify({
+        "ok": True,
+        "message": "벤치마킹이 저장되었습니다.",
+        "benchmark": benchmark_data
+    })
+
+@design_bp.route('/api/design/benchmarks', methods=['GET'])
+def get_benchmarks():
+    """저장된 벤치마킹 목록"""
+    category = request.args.get('category', '')
+
+    benchmarks = BENCHMARK_STORE
+    if category:
+        benchmarks = [b for b in benchmarks if b.get('category') == category]
+
+    # 최신순 정렬
+    benchmarks = sorted(benchmarks, key=lambda x: x.get('createdAt', ''), reverse=True)
+
+    return jsonify({
+        "ok": True,
+        "benchmarks": benchmarks,
+        "total": len(benchmarks)
+    })
+
+@design_bp.route('/api/design/benchmark/trends', methods=['GET'])
+def get_benchmark_trends():
+    """벤치마킹 트렌드 분석"""
+    if len(BENCHMARK_STORE) < 3:
+        return jsonify({
+            "ok": True,
+            "message": "트렌드 분석을 위해 최소 3개 이상의 벤치마킹이 필요합니다.",
+            "trends": None
+        })
+
+    # 색상 집계
+    all_colors = []
+    all_styles = []
+
+    for b in BENCHMARK_STORE:
+        analysis = b.get('analysis', {})
+        if analysis.get('colors'):
+            all_colors.extend(analysis['colors'])
+        if analysis.get('style'):
+            all_styles.append(analysis['style'])
+
+    # 색상 빈도
+    color_counts = {}
+    for color in all_colors:
+        color_counts[color] = color_counts.get(color, 0) + 1
+    top_colors = sorted(color_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    return jsonify({
+        "ok": True,
+        "trends": {
+            "totalBenchmarks": len(BENCHMARK_STORE),
+            "topColors": [{"color": c, "count": n} for c, n in top_colors],
+            "styles": all_styles
+        }
+    })
+
+# ===== fal.ai 이미지 생성 =====
+
+@design_bp.route('/api/design/generate/models', methods=['GET'])
+def get_generation_models():
+    """사용 가능한 이미지 생성 모델 목록"""
+    return jsonify({
+        "ok": True,
+        "models": [
+            {
+                "key": key,
+                "name": model["name"],
+                "description": model["description"],
+                "speed": model["speed"]
+            }
+            for key, model in FAL_MODELS.items()
+        ],
+        "connected": bool(FAL_API_KEY)
+    })
+
+@design_bp.route('/api/design/generate/image', methods=['POST'])
+def generate_image():
+    """fal.ai로 이미지 생성"""
+    if not FAL_API_KEY:
+        return jsonify({"ok": False, "error": "FAL_KEY가 설정되지 않았습니다."}), 400
+
+    data = request.get_json()
+    prompt = data.get('prompt')
+    model_key = data.get('model', 'flux-schnell')
+    size = data.get('size', '1024x1024')
+
+    if not prompt:
+        return jsonify({"ok": False, "error": "프롬프트가 필요합니다."}), 400
+
+    model = FAL_MODELS.get(model_key)
+    if not model:
+        return jsonify({"ok": False, "error": f"지원하지 않는 모델: {model_key}"}), 400
+
+    try:
+        # 사이즈 파싱
+        width, height = map(int, size.split('x'))
+
+        print(f"[fal.ai] 이미지 생성 시작 - 모델: {model['name']}, 프롬프트: {prompt[:50]}...")
+
+        # fal.ai API 호출
+        response = requests.post(
+            f"https://fal.run/{model['id']}",
+            headers={
+                "Authorization": f"Key {FAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "prompt": prompt,
+                "image_size": {
+                    "width": width,
+                    "height": height
+                },
+                "num_images": 1,
+                "enable_safety_checker": True
+            },
+            timeout=60
+        )
+
+        print(f"[fal.ai] 응답 상태: {response.status_code}")
+
+        if response.status_code == 200:
+            result = response.json()
+            images = result.get('images', [])
+
+            if images:
+                return jsonify({
+                    "ok": True,
+                    "image": images[0],
+                    "model": model['name'],
+                    "prompt": prompt
+                })
+            else:
+                return jsonify({"ok": False, "error": "이미지 생성 결과가 없습니다."}), 500
+        else:
+            error_text = response.text[:500]
+            print(f"[fal.ai] 오류: {error_text}")
+            return jsonify({"ok": False, "error": f"fal.ai 오류: {response.status_code}"}), 500
+
+    except Exception as e:
+        print(f"[fal.ai] 예외: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@design_bp.route('/api/design/generate/from-benchmark', methods=['POST'])
+def generate_from_benchmark():
+    """벤치마킹 스타일을 참고해서 이미지 생성"""
+    if not FAL_API_KEY:
+        return jsonify({"ok": False, "error": "FAL_KEY가 설정되지 않았습니다."}), 400
+
+    data = request.get_json()
+    benchmark_id = data.get('benchmarkId')
+    product_name = data.get('productName', '')
+    product_description = data.get('productDescription', '')
+    image_type = data.get('imageType', 'thumbnail')  # thumbnail, banner, detail
+    model_key = data.get('model', 'flux-schnell')
+
+    # 벤치마킹 데이터 찾기
+    benchmark = next((b for b in BENCHMARK_STORE if b['id'] == benchmark_id), None)
+
+    # 벤치마킹 스타일 정보 추출
+    style_info = ""
+    if benchmark and benchmark.get('analysis'):
+        analysis = benchmark['analysis']
+        if analysis.get('style'):
+            style_info += f"Style: {analysis['style']}. "
+        if analysis.get('colors'):
+            style_info += f"Colors: {', '.join(analysis['colors'][:3])}. "
+
+    # 이미지 타입별 프롬프트
+    type_prompts = {
+        "thumbnail": f"Product thumbnail image for e-commerce. {product_name}. {product_description}. Clean white background, professional product photography, high quality.",
+        "banner": f"E-commerce promotional banner. {product_name}. {product_description}. Modern design, eye-catching, Korean style marketing banner.",
+        "detail": f"Product detail page hero image. {product_name}. {product_description}. Lifestyle photography, premium quality, attractive composition."
+    }
+
+    base_prompt = type_prompts.get(image_type, type_prompts['thumbnail'])
+    full_prompt = f"{base_prompt} {style_info}"
+
+    # 사이즈 설정
+    sizes = {
+        "thumbnail": "1024x1024",
+        "banner": "1920x640",
+        "detail": "1200x800"
+    }
+    size = sizes.get(image_type, "1024x1024")
+
+    # 이미지 생성 요청
+    return generate_image_internal(full_prompt, model_key, size)
+
+def generate_image_internal(prompt, model_key, size):
+    """내부 이미지 생성 함수"""
+    model = FAL_MODELS.get(model_key)
+    if not model:
+        return jsonify({"ok": False, "error": f"지원하지 않는 모델: {model_key}"}), 400
+
+    try:
+        width, height = map(int, size.split('x'))
+
+        response = requests.post(
+            f"https://fal.run/{model['id']}",
+            headers={
+                "Authorization": f"Key {FAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "prompt": prompt,
+                "image_size": {"width": width, "height": height},
+                "num_images": 1,
+                "enable_safety_checker": True
+            },
+            timeout=60
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            images = result.get('images', [])
+            if images:
+                return jsonify({
+                    "ok": True,
+                    "image": images[0],
+                    "model": model['name'],
+                    "prompt": prompt
+                })
+
+        return jsonify({"ok": False, "error": "이미지 생성 실패"}), 500
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 # ===== 변수 추출 (Figma 레이어에서) =====
 

@@ -378,6 +378,7 @@
       <button class="tab-btn" data-tab="fonts">🔤 폰트</button>
       <button class="tab-btn" data-tab="generate">✨ 생성</button>
       <button class="tab-btn" data-tab="benchmark">🔍 벤치마킹</button>
+      <button class="tab-btn" data-tab="ai-generate">🎨 AI 이미지</button>
     </div>
 
     <!-- 대시보드 탭 -->
@@ -587,6 +588,116 @@
             <h5 style="margin-bottom:0.5rem;color:#16a34a;">💡 추천 사항</h5>
             <div id="suggestions" style="font-size:0.9rem;color:#166534;"></div>
           </div>
+
+          <!-- 저장 버튼 -->
+          <div style="margin-top:1.5rem;display:flex;gap:0.5rem;">
+            <select id="benchmarkCategory" style="flex:1;padding:0.5rem;border-radius:6px;border:1px solid #e2e8f0;">
+              <option value="기타">카테고리 선택</option>
+              <option value="전자제품">전자제품</option>
+              <option value="패션">패션</option>
+              <option value="식품">식품</option>
+              <option value="뷰티">뷰티</option>
+              <option value="생활용품">생활용품</option>
+            </select>
+            <button class="btn btn-primary" onclick="saveBenchmark()">💾 저장하기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 이미지 생성 탭 -->
+    <div class="tab-content" id="tab-ai-generate">
+      <div class="grid-2">
+        <!-- 이미지 생성 입력 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">AI 이미지 생성</h3>
+          </div>
+
+          <div class="form-group">
+            <label>모델 선택</label>
+            <select id="aiModel">
+              <option value="flux-schnell">Flux Schnell (빠름, ~$0.003)</option>
+              <option value="flux-dev">Flux Dev (고품질, ~$0.025)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>이미지 타입</label>
+            <select id="imageType">
+              <option value="thumbnail">상품 썸네일 (1024x1024)</option>
+              <option value="banner">배너 (1920x640)</option>
+              <option value="detail">상세페이지 히어로 (1200x800)</option>
+              <option value="custom">커스텀</option>
+            </select>
+          </div>
+
+          <div id="customSizeGroup" style="display:none;" class="form-group">
+            <label>커스텀 사이즈</label>
+            <div style="display:flex;gap:0.5rem;">
+              <input type="number" id="customWidth" placeholder="너비" value="1024" style="flex:1;">
+              <span style="line-height:2.5;">x</span>
+              <input type="number" id="customHeight" placeholder="높이" value="1024" style="flex:1;">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>상품명</label>
+            <input type="text" id="aiProductName" placeholder="예: 프리미엄 블루투스 이어폰">
+          </div>
+
+          <div class="form-group">
+            <label>상품 설명</label>
+            <textarea id="aiProductDesc" rows="2" placeholder="예: 노이즈 캔슬링, 20시간 배터리, 고급 가죽 케이스"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>추가 스타일 (선택)</label>
+            <input type="text" id="aiStyle" placeholder="예: 미니멀, 고급스러운, 화이트 배경">
+          </div>
+
+          <div class="form-group">
+            <label>저장된 벤치마킹 스타일 참고 (선택)</label>
+            <select id="benchmarkRef">
+              <option value="">선택 안함</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary" onclick="generateAIImage()" style="width:100%;margin-top:1rem;">
+            🎨 이미지 생성
+          </button>
+        </div>
+
+        <!-- 생성 결과 -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">생성 결과</h3>
+            <button class="btn btn-secondary btn-small" onclick="downloadAIImage()" id="downloadAIBtn" style="display:none;">💾 다운로드</button>
+          </div>
+
+          <div id="aiResultPlaceholder" style="padding:3rem;text-align:center;color:#94a3b8;background:#f8fafc;border-radius:8px;">
+            <div style="font-size:3rem;margin-bottom:1rem;">🎨</div>
+            <div>상품 정보를 입력하고<br>생성 버튼을 클릭하세요</div>
+          </div>
+
+          <div id="aiResultContainer" style="display:none;">
+            <img id="aiResultImage" src="" alt="생성된 이미지" style="width:100%;border-radius:8px;">
+            <div style="margin-top:1rem;padding:0.75rem;background:#f1f5f9;border-radius:6px;font-size:0.8rem;">
+              <strong>사용 모델:</strong> <span id="aiUsedModel"></span><br>
+              <strong>프롬프트:</strong> <span id="aiUsedPrompt" style="color:#64748b;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 저장된 벤치마킹 목록 -->
+      <div class="card" style="margin-top:1.5rem;">
+        <div class="card-header">
+          <h3 class="card-title">저장된 벤치마킹</h3>
+          <button class="btn btn-secondary btn-small" onclick="loadBenchmarks()">🔄 새로고침</button>
+        </div>
+        <div id="savedBenchmarks" class="grid-4" style="gap:1rem;">
+          <div style="padding:2rem;text-align:center;color:#94a3b8;">저장된 벤치마킹이 없습니다.</div>
         </div>
       </div>
     </div>
@@ -1085,6 +1196,7 @@
         const data = await res.json();
 
         if (data.ok) {
+          currentBenchmarkData = data;  // 저장용 데이터 보관
           displayBenchmarkResult(data);
           showToast('분석 완료!');
         } else {
@@ -1163,6 +1275,172 @@
         }
       }
     }
+
+    // ===== 벤치마킹 저장/조회 =====
+    let currentBenchmarkData = null;
+
+    function displayBenchmarkResultWithSave(data) {
+      currentBenchmarkData = data;
+      displayBenchmarkResult(data);
+    }
+
+    async function saveBenchmark() {
+      if (!currentBenchmarkData) {
+        showToast('먼저 벤치마킹 분석을 실행하세요', 'error');
+        return;
+      }
+
+      const category = document.getElementById('benchmarkCategory').value;
+
+      try {
+        const res = await fetch('/api/design/benchmark/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: currentBenchmarkData.url,
+            imageUrl: currentBenchmarkData.imageUrl,
+            analysis: currentBenchmarkData.analysis,
+            category: category
+          })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          showToast('벤치마킹이 저장되었습니다!');
+          loadBenchmarks();
+        } else {
+          showToast(data.error || '저장 실패', 'error');
+        }
+      } catch (e) {
+        showToast('저장 중 오류가 발생했습니다', 'error');
+      }
+    }
+
+    async function loadBenchmarks() {
+      try {
+        const res = await fetch('/api/design/benchmarks');
+        const data = await res.json();
+
+        if (data.ok) {
+          renderBenchmarks(data.benchmarks);
+          updateBenchmarkSelect(data.benchmarks);
+        }
+      } catch (e) {
+        console.error('Benchmarks load error:', e);
+      }
+    }
+
+    function renderBenchmarks(benchmarks) {
+      const container = document.getElementById('savedBenchmarks');
+
+      if (benchmarks.length === 0) {
+        container.innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;grid-column:1/-1;">저장된 벤치마킹이 없습니다.</div>';
+        return;
+      }
+
+      container.innerHTML = benchmarks.map(b => `
+        <div style="background:#f8fafc;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
+          <img src="${b.imageUrl}" alt="" style="width:100%;height:120px;object-fit:cover;">
+          <div style="padding:0.75rem;">
+            <div style="font-size:0.8rem;font-weight:600;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b.category}</div>
+            <div style="font-size:0.7rem;color:#94a3b8;">${new Date(b.createdAt).toLocaleDateString()}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updateBenchmarkSelect(benchmarks) {
+      const select = document.getElementById('benchmarkRef');
+      select.innerHTML = '<option value="">선택 안함</option>' +
+        benchmarks.map(b => `<option value="${b.id}">${b.category} - ${new Date(b.createdAt).toLocaleDateString()}</option>`).join('');
+    }
+
+    // ===== AI 이미지 생성 =====
+    let lastGeneratedImage = null;
+
+    // 커스텀 사이즈 토글
+    document.getElementById('imageType')?.addEventListener('change', function() {
+      document.getElementById('customSizeGroup').style.display = this.value === 'custom' ? 'block' : 'none';
+    });
+
+    async function generateAIImage() {
+      const model = document.getElementById('aiModel').value;
+      const imageType = document.getElementById('imageType').value;
+      const productName = document.getElementById('aiProductName').value.trim();
+      const productDesc = document.getElementById('aiProductDesc').value.trim();
+      const style = document.getElementById('aiStyle').value.trim();
+      const benchmarkId = document.getElementById('benchmarkRef').value;
+
+      if (!productName) {
+        showToast('상품명을 입력하세요', 'error');
+        return;
+      }
+
+      // 사이즈 결정
+      let size;
+      if (imageType === 'custom') {
+        const w = document.getElementById('customWidth').value;
+        const h = document.getElementById('customHeight').value;
+        size = `${w}x${h}`;
+      } else {
+        const sizes = { thumbnail: '1024x1024', banner: '1920x640', detail: '1200x800' };
+        size = sizes[imageType];
+      }
+
+      // 프롬프트 생성
+      let prompt = `Product image for e-commerce. ${productName}. ${productDesc}. `;
+      if (style) prompt += `Style: ${style}. `;
+      prompt += 'Professional product photography, high quality, clean composition.';
+
+      showLoading();
+      try {
+        const res = await fetch('/api/design/generate/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, model, size })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          displayAIResult(data);
+          showToast('이미지 생성 완료!');
+        } else {
+          showToast(data.error || '생성 실패', 'error');
+        }
+      } catch (e) {
+        console.error('AI generate error:', e);
+        showToast('이미지 생성 중 오류 발생', 'error');
+      }
+      hideLoading();
+    }
+
+    function displayAIResult(data) {
+      document.getElementById('aiResultPlaceholder').style.display = 'none';
+      document.getElementById('aiResultContainer').style.display = 'block';
+      document.getElementById('downloadAIBtn').style.display = 'inline-block';
+
+      const imageUrl = data.image.url || data.image;
+      document.getElementById('aiResultImage').src = imageUrl;
+      document.getElementById('aiUsedModel').textContent = data.model;
+      document.getElementById('aiUsedPrompt').textContent = data.prompt.substring(0, 100) + '...';
+
+      lastGeneratedImage = imageUrl;
+    }
+
+    function downloadAIImage() {
+      if (!lastGeneratedImage) return;
+
+      const link = document.createElement('a');
+      link.href = lastGeneratedImage;
+      link.download = 'ai-generated-image.png';
+      link.target = '_blank';
+      link.click();
+    }
+
+    // 페이지 로드 시 벤치마킹 목록 로드
+    document.addEventListener('DOMContentLoaded', function() {
+      loadBenchmarks();
+    });
 
     // ===== 유틸 =====
     function showToast(message, type = '') {
