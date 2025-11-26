@@ -1083,8 +1083,11 @@
     try {
       const res = await fetch('/api/market/products');
       const data = await res.json();
+      console.log('[loadProducts] API 응답:', data);
       if (data.ok) {
         products = data.products;
+        console.log('[loadProducts] 상품 개수:', products.length);
+        console.log('[loadProducts] 첫 번째 상품:', products[0]);
         renderProducts(products);
       }
     } catch (e) { console.error('Products error:', e); showToast('상품 로드 실패', 'error'); }
@@ -1132,26 +1135,32 @@
   function renderProducts(list) {
     const tbody = document.getElementById('productTableBody');
     const emptyState = document.getElementById('productEmptyState');
-    if (list.length === 0) { tbody.innerHTML = ''; emptyState.style.display = 'block'; return; }
+    if (!list || list.length === 0) { tbody.innerHTML = ''; emptyState.style.display = 'block'; return; }
     emptyState.style.display = 'none';
 
     tbody.innerHTML = list.map(p => {
-      const stockClass = p.stock === 0 ? 'stock-out' : p.stock <= 10 ? 'stock-low' : '';
+      // 안전한 기본값 설정
+      const price = p.price || 0;
+      const salePrice = p.salePrice || price;
+      const stock = p.stock || 0;
+      const salesCount = p.salesCount || 0;
+      const rating = p.rating || 0;
+      const stockClass = stock === 0 ? 'stock-out' : stock <= 10 ? 'stock-low' : '';
       return `
         <tr>
-          <td><input type="checkbox" value="${p.id}" onchange="toggleSelect('${p.id}')"></td>
-          <td><span class="platform-badge platform-${p.platform}">${p.platform === 'smartstore' ? 'SS' : 'CP'}</span></td>
+          <td><input type="checkbox" value="${p.id || ''}" onchange="toggleSelect('${p.id || ''}')"></td>
+          <td><span class="platform-badge platform-${p.platform || 'smartstore'}">${p.platform === 'smartstore' ? 'SS' : 'CP'}</span></td>
           <td>${p.imageUrl ? `<img src="${p.imageUrl}" class="product-image" onerror="this.src='https://via.placeholder.com/40'">` : '-'}</td>
-          <td><div class="product-name">${p.name}</div></td>
-          <td>${p.category}</td>
-          <td class="price-cell">${p.price !== p.salePrice ? `<div class="original-price">₩${p.price.toLocaleString()}</div>` : ''}₩${p.salePrice.toLocaleString()}</td>
-          <td class="${stockClass}">${p.stock}</td>
-          <td>${p.salesCount}</td>
-          <td>⭐${p.rating}</td>
-          <td><span class="status-badge status-${p.status}">${p.status === 'SALE' ? '판매중' : '품절'}</span></td>
+          <td><div class="product-name">${p.name || '-'}</div></td>
+          <td>${p.category || '기타'}</td>
+          <td class="price-cell">${price !== salePrice ? `<div class="original-price">₩${price.toLocaleString()}</div>` : ''}₩${salePrice.toLocaleString()}</td>
+          <td class="${stockClass}">${stock}</td>
+          <td>${salesCount}</td>
+          <td>⭐${rating}</td>
+          <td><span class="status-badge status-${p.status || 'SALE'}">${p.status === 'SALE' ? '판매중' : '품절'}</span></td>
           <td><div class="action-buttons">
-            <button class="btn-small btn-outline" onclick="editProduct('${p.id}')">수정</button>
-            <button class="btn-small btn-danger" onclick="deleteProduct('${p.id}')">삭제</button>
+            <button class="btn-small btn-outline" onclick="editProduct('${p.id || ''}')">수정</button>
+            <button class="btn-small btn-danger" onclick="deleteProduct('${p.id || ''}')">삭제</button>
           </div></td>
         </tr>`;
     }).join('');
@@ -1387,11 +1396,11 @@
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-products').classList.add('active');
 
-    // 필터 초기화
-    document.getElementById('statusFilter').value = '';
-    document.getElementById('platformFilter').value = 'all';
+    // 필터 초기화 (올바른 element ID 사용)
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterPlatform').value = 'all';
     document.getElementById('filterCategory').value = '';
-    document.getElementById('searchInput').value = '';
+    document.getElementById('searchProduct').value = '';
 
     // 상품 로드 후 필터 적용
     showLoading();
