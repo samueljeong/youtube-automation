@@ -294,10 +294,24 @@ MOCK_ORDERS = [
 ]
 
 # ===== 네이버 스마트스토어 API 헬퍼 =====
+def get_server_outbound_ip():
+    """서버의 outbound IP 확인"""
+    try:
+        response = requests.get('https://api.ipify.org?format=json', timeout=5)
+        if response.status_code == 200:
+            return response.json().get('ip')
+    except:
+        pass
+    return None
+
 def get_naver_access_token():
     """네이버 커머스 API OAuth 토큰 발급 (bcrypt 서명 사용)"""
     print(f"[Naver API] 토큰 발급 시도...")
     print(f"[Naver API] CLIENT_ID 존재: {bool(NAVER_CLIENT_ID)}, SECRET 존재: {bool(NAVER_CLIENT_SECRET)}")
+
+    # 서버 outbound IP 로깅
+    outbound_ip = get_server_outbound_ip()
+    print(f"[Naver API] 서버 Outbound IP: {outbound_ip}")
 
     if not NAVER_CLIENT_ID or not NAVER_CLIENT_SECRET:
         print("[Naver API] CLIENT_ID 또는 SECRET이 없음")
