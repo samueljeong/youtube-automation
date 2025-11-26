@@ -419,10 +419,12 @@ def get_coupang_signature(method, uri, query_params=''):
 def call_coupang_api(endpoint, method='GET', data=None):
     """쿠팡 API 호출"""
     if not COUPANG_ACCESS_KEY or not COUPANG_SECRET_KEY:
+        print("[Coupang API] API 키가 설정되지 않음")
         return None
 
     auth, datetime_str = get_coupang_signature(method, endpoint)
     if not auth:
+        print("[Coupang API] 서명 생성 실패")
         return None
 
     headers = {
@@ -432,6 +434,8 @@ def call_coupang_api(endpoint, method='GET', data=None):
 
     try:
         url = f"{COUPANG_API_BASE}{endpoint}"
+        print(f"[Coupang API] 요청: {method} {url}")
+
         if method == 'GET':
             response = requests.get(url, headers=headers)
         elif method == 'POST':
@@ -439,8 +443,13 @@ def call_coupang_api(endpoint, method='GET', data=None):
         elif method == 'PUT':
             response = requests.put(url, headers=headers, json=data)
 
+        print(f"[Coupang API] 응답 상태: {response.status_code}")
+        print(f"[Coupang API] 응답 내용: {response.text[:500] if response.text else 'empty'}")
+
         if response.status_code == 200:
             return response.json()
+        else:
+            print(f"[Coupang API] 오류 응답: {response.text}")
     except Exception as e:
         print(f"[Coupang API] Error: {e}")
     return None
@@ -593,9 +602,10 @@ def get_products():
 
     if platform in ['all', 'coupang']:
         if api_status['coupang']['connected']:
-            # 실제 쿠팡 API 호출
-            print("[Coupang API] 상품 조회 시도...")
-            result = call_coupang_api(f'/v2/providers/seller_api/apis/api/v1/marketplace/seller-products')
+            # 실제 쿠팡 API 호출 - vendorId 포함
+            print(f"[Coupang API] 상품 조회 시도... (vendorId: {COUPANG_VENDOR_ID})")
+            coupang_endpoint = f'/v2/providers/seller_api/apis/api/v1/marketplace/seller-products?vendorId={COUPANG_VENDOR_ID}' if COUPANG_VENDOR_ID else '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products'
+            result = call_coupang_api(coupang_endpoint)
             if result and 'data' in result:
                 print(f"[Coupang API] {len(result['data'])}개 상품 로드")
                 for item in result['data']:
@@ -1029,7 +1039,8 @@ def fetch_products_for_ai():
 
     # 쿠팡 상품 가져오기
     if api_status['coupang']['connected']:
-        result = call_coupang_api(f'/v2/providers/seller_api/apis/api/v1/marketplace/seller-products')
+        coupang_endpoint = f'/v2/providers/seller_api/apis/api/v1/marketplace/seller-products?vendorId={COUPANG_VENDOR_ID}' if COUPANG_VENDOR_ID else '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products'
+        result = call_coupang_api(coupang_endpoint)
         if result and 'data' in result:
             for item in result['data']:
                 products.append({
