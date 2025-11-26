@@ -3,6 +3,8 @@ import re
 import json
 import sqlite3
 import hashlib
+import requests as http_requests
+import io
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -3016,7 +3018,7 @@ def add_text_overlay(image_url, texts, font_id="nanum_gothic"):
         print(f"[TEXT_OVERLAY] 텍스트 오버레이 시작 - 폰트: {font_id}")
 
         # 이미지 다운로드
-        response = requests.get(image_url, timeout=30)
+        response = http_requests.get(image_url, timeout=30)
         response.raise_for_status()
         img = Image.open(BytesIO(response.content)).convert('RGBA')
 
@@ -3416,7 +3418,7 @@ def add_banner_reference():
         color_palette = ''
         try:
             # 이미지를 다운로드하여 주요 색상 추출
-            response = requests.get(image_url, timeout=10)
+            response = http_requests.get(image_url, timeout=10)
             if response.status_code == 200:
                 img = Image.open(io.BytesIO(response.content))
                 img_small = img.resize((100, 100))
@@ -3603,7 +3605,7 @@ def crawl_banner_images():
             'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         }
 
-        response = requests.get(target_url, headers=headers, timeout=30)
+        response = http_requests.get(target_url, headers=headers, timeout=30)
         response.raise_for_status()
 
         # HTML 파싱
@@ -3659,7 +3661,7 @@ def crawl_banner_images():
         for img_data in images[:50]:  # 최대 50개까지만 처리
             try:
                 # HEAD 요청으로 빠르게 확인
-                head_resp = requests.head(img_data['url'], headers=headers, timeout=5, allow_redirects=True)
+                head_resp = http_requests.head(img_data['url'], headers=headers, timeout=5, allow_redirects=True)
                 content_type = head_resp.headers.get('content-type', '')
                 if 'image' in content_type:
                     valid_images.append(img_data)
@@ -3677,7 +3679,7 @@ def crawl_banner_images():
             "count": len(valid_images)
         })
 
-    except requests.exceptions.RequestException as e:
+    except http_requests.exceptions.RequestException as e:
         print(f"[CRAWL][ERROR] 요청 실패: {str(e)}")
         return jsonify({"ok": False, "error": f"웹페이지 접근 실패: {str(e)}"}), 400
     except Exception as e:
@@ -3746,7 +3748,7 @@ def bulk_add_banner_references():
                 # 색상 추출 시도
                 color_palette = ''
                 try:
-                    response = requests.get(image_url, timeout=10)
+                    response = http_requests.get(image_url, timeout=10)
                     if response.status_code == 200:
                         img_obj = Image.open(io.BytesIO(response.content))
                         img_small = img_obj.resize((100, 100))
