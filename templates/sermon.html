@@ -74,6 +74,11 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: .75rem;
+      align-items: stretch;
+    }
+    .dual-row > * {
+      display: flex;
+      flex-direction: column;
     }
     .action-row {
       display: grid;
@@ -1075,8 +1080,8 @@
             <div id="analysis-status" style="display: none;"></div>
             <div id="processing-steps" style="display: none;"></div>
           </div>
-          <!-- 보라색/분홍색 박스 (가로 배치) -->
-          <div style="display: flex; flex-direction: row; gap: .5rem;">
+          <!-- 보라색/분홍색 박스 (가로 배치, 높이 자동 맞춤) -->
+          <div style="display: flex; flex-direction: row; gap: .5rem; align-items: stretch;">
             <div class="box copy-all-box" id="step4-box" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .6rem; opacity: 0.5; pointer-events: none; text-align: center; display: flex; flex-direction: column; justify-content: center;">
               <div class="box-title" style="font-size: .85rem; margin-bottom: .25rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
               <div class="box-desc" style="font-size: .7rem; margin-bottom: .4rem; color: rgba(255,255,255,0.95);">분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
@@ -1801,14 +1806,14 @@
           <span style="font-size: .8rem;">각 단계별 처리 상황이 실시간으로 표시됩니다<br>(✅완료, ⏳처리중, ⏸️대기)</span>
         </div>
 
-        <div style="background: #fff9e6; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #ffc107;">
-          <strong style="color: #f57c00;">🟣 내 GPT에 붙여넣기</strong><br>
-          <span style="font-size: .8rem;">분석 결과를 복사해서 개인 ChatGPT에서 설교문 작성</span>
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: .65rem; border-radius: 6px; margin-bottom: .6rem;">
+          <strong style="color: white;">🟣 내 GPT에 붙여넣기</strong><br>
+          <span style="font-size: .8rem; color: rgba(255,255,255,0.95);">분석 결과를 복사해서 개인 ChatGPT에서 설교문 작성</span>
         </div>
 
-        <div style="background: #ffe6f0; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #f5576c;">
-          <strong style="color: #c2185b;">🔴 AI 설교문 완성</strong><br>
-          <span style="font-size: .8rem;">PRO 기능 · BIBLE LAB이 직접 설교문 작성 (크레딧 차감)</span>
+        <div style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); padding: .65rem; border-radius: 6px; margin-bottom: .6rem;">
+          <strong style="color: white;">🔴 AI 설교문 완성</strong><br>
+          <span style="font-size: .8rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 직접 설교문 작성 (크레딧 차감)</span>
         </div>
 
         <div style="background: #e8f5e9; padding: .65rem; border-radius: 6px; border-left: 3px solid #4caf50;">
