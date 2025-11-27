@@ -5852,6 +5852,136 @@ def api_gpt_plan_step2():
         return jsonify({'ok': False, 'error': str(e)}), 200
 
 
+# ===== GPT-4o-mini 이미지 프롬프트 분석 API =====
+@app.route('/api/drama/gpt-analyze-prompts', methods=['POST'])
+def api_gpt_analyze_prompts():
+    """GPT-4o-mini: 대본 분석 → 이미지 프롬프트 생성"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'ok': False, 'error': 'No data received'}), 400
+
+        script = data.get('script', '')
+        video_category = data.get('videoCategory', '간증')
+        style_guide = data.get('styleGuide', '')
+
+        if not script:
+            return jsonify({'ok': False, 'error': '대본이 필요합니다.'}), 400
+
+        print(f"[GPT-ANALYZE-PROMPTS] 시작 - 카테고리: {video_category}, 대본 길이: {len(script)}자")
+
+        system_prompt = """당신은 영상 제작을 위한 이미지 프롬프트 전문가입니다.
+
+【 역할 】
+주어진 대본을 분석하여 AI 이미지 생성에 최적화된 프롬프트를 생성합니다.
+
+【 출력 형식 - 반드시 JSON 형태로 출력 】
+```json
+{
+  "visualStyle": "전체 영상의 시각적 스타일 설명 (예: cinematic, warm lighting, soft focus)",
+  "characters": [
+    {
+      "name": "캐릭터명",
+      "description": "캐릭터 설명 (한국어)",
+      "imagePrompt": "영문 이미지 프롬프트 - 나이, 성별, 외모, 표정, 의상 등 상세히"
+    }
+  ],
+  "scenes": [
+    {
+      "sceneNumber": 1,
+      "description": "장면 설명 (한국어)",
+      "backgroundPrompt": "영문 배경 프롬프트 - 장소, 조명, 분위기, 시간대 등",
+      "characterAction": "이 장면에서 캐릭터의 동작/표정"
+    }
+  ]
+}
+```
+
+【 프롬프트 작성 규칙 】
+1. 캐릭터 프롬프트:
+   - 일관된 외모 묘사 (같은 캐릭터는 항상 동일하게)
+   - 구체적인 나이, 헤어스타일, 의상 색상
+   - 표정과 포즈 기본값 포함
+   - 예: "Korean woman, 35 years old, shoulder-length black hair, gentle smile, wearing navy cardigan over white blouse"
+
+2. 배경 프롬프트:
+   - 장면의 분위기를 살리는 조명
+   - 구체적인 장소 설명
+   - 시간대와 날씨 정보
+   - 예: "cozy Korean apartment living room, warm evening light through window, wooden furniture, family photos on wall"
+
+3. 일관성 유지:
+   - 동일 캐릭터는 모든 장면에서 같은 외모
+   - 전체적인 색감과 분위기 통일
+   - 한 영상 내에서 스타일 일관성
+
+【 주의사항 】
+- 모든 이미지 프롬프트는 반드시 영어로 작성
+- 설명(description)은 한국어로 작성
+- JSON 형식만 출력 (다른 텍스트 없이)
+- 장면 수는 대본에 맞게 조절"""
+
+        user_prompt = f"""【 영상 카테고리 】
+{video_category}
+
+【 분석할 대본 】
+{script}
+"""
+        if style_guide:
+            user_prompt += f"""
+【 스타일 가이드 】
+{style_guide}
+"""
+
+        user_prompt += """
+위 대본을 분석하여 각 캐릭터와 장면에 대한 이미지 프롬프트를 JSON 형식으로 생성해주세요.
+반드시 위에서 지정한 JSON 형식을 정확히 따라주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=3000,
+            temperature=0.7
+        )
+
+        result = completion.choices[0].message.content.strip()
+        tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+
+        # JSON 파싱 시도
+        import re
+        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', result)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # JSON 블록이 없으면 전체를 JSON으로 시도
+            json_str = result
+
+        try:
+            parsed_result = json.loads(json_str)
+        except json.JSONDecodeError:
+            # JSON 파싱 실패시 원본 반환
+            parsed_result = None
+
+        print(f"[GPT-ANALYZE-PROMPTS] 완료 - 토큰: {tokens}, JSON 파싱: {'성공' if parsed_result else '실패'}")
+
+        return jsonify({
+            'ok': True,
+            'result': parsed_result if parsed_result else result,
+            'rawResult': result,
+            'tokens': tokens,
+            'parsed': parsed_result is not None
+        })
+
+    except Exception as e:
+        print(f"[GPT-ANALYZE-PROMPTS][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 200
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))
