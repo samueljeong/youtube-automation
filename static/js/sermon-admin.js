@@ -266,10 +266,23 @@ async function addStyle() {
   const catSettings = window.config.categorySettings[window.currentCategory];
   if (!catSettings.styles) catSettings.styles = [];
 
+  // DEFAULT_GUIDES 키 순서대로 이름 자동 설정
+  const guideKeys = Object.keys(window.DEFAULT_GUIDES || {});
+  const existingNames = catSettings.styles.map(s => s.name);
+
+  // 아직 사용되지 않은 첫 번째 가이드 키 찾기
+  let newName = '새 스타일';
+  for (const key of guideKeys) {
+    if (!existingNames.includes(key)) {
+      newName = key;
+      break;
+    }
+  }
+
   const newId = 'style_' + Date.now().toString(36);
   catSettings.styles.push({
     id: newId,
-    name: '새 스타일',
+    name: newName,
     description: '',
     steps: [
       { id: 'step1', name: 'Step1', stepType: 'step1', order: 1 },
