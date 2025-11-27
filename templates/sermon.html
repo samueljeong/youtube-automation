@@ -1056,37 +1056,39 @@
           <textarea id="special-notes" placeholder="설교 작성 시 고려해야 할 특별한 상황, 요청, 주의점을 자유롭게 기입하세요.&#10;예) 현장 상황, 성도 사정, 교회 일정, 설교자의 의도 등" style="font-size: .85rem; min-height: 60px; resize: vertical; width: 100%; padding: .5rem; border: 1px solid #e0e0e0; border-radius: 6px; line-height: 1.4;"></textarea>
         </div>
 
-        <div class="box">
-          <div class="label-row">
-            <label class="label">설교 스타일<span class="label-hint">클릭하여 선택</span></label>
-            <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
+        <div class="dual-row">
+          <div class="box">
+            <div class="label-row">
+              <label class="label">설교 스타일<span class="label-hint">클릭하여 선택</span></label>
+              <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
+            </div>
+            <div id="styles-list"></div>
+            <!-- 설교 준비 시작 안내문구 (버튼 비활성화시 표시) -->
+            <div id="start-analysis-guide" style="width: 100%; margin-top: .75rem; padding: .7rem; text-align: center; background: #f8f9ff; border-radius: 8px; border: 2px dashed #667eea;">
+              <span style="font-size: .95rem; font-weight: 700; color: #667eea;">📖 성경본문을 입력해주세요</span>
+            </div>
+            <!-- 설교 준비 시작 버튼 -->
+            <button id="btn-start-analysis" style="display: none; width: 100%; margin-top: .75rem; padding: .7rem; font-size: .95rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
+              ✨ 설교 준비 시작
+            </button>
+            <!-- 숨겨진 진행 상태 (내부 기능 유지) -->
+            <div id="analysis-status" style="display: none;"></div>
+            <div id="processing-steps" style="display: none;"></div>
           </div>
-          <div id="styles-list"></div>
-          <!-- 설교 준비 시작 안내문구 (버튼 비활성화시 표시) -->
-          <div id="start-analysis-guide" style="width: 100%; margin-top: .75rem; padding: .7rem; text-align: center; background: #f8f9ff; border-radius: 8px; border: 2px dashed #667eea;">
-            <span style="font-size: .95rem; font-weight: 700; color: #667eea;">📖 성경본문을 입력해주세요</span>
+          <!-- 보라색/분홍색 박스 (세로 배치) -->
+          <div style="display: flex; flex-direction: column; gap: .5rem;">
+            <div class="box copy-all-box" id="step4-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
+              <div class="box-title" style="font-size: .85rem; margin-bottom: .3rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
+              <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">무료 · 분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
+              <button id="btn-copy-all" style="width: 100%; padding: .5rem; font-size: .8rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
+            </div>
+            <div class="box gpt-pro-box" id="step3-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
+              <div class="box-title" style="font-size: .85rem; margin-bottom: .3rem; color: white; font-weight: 700;">🔴 AI 설교문 완성</div>
+              <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
+              <button id="btn-gpt-pro" style="width: 100%; padding: .5rem; font-size: .8rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
+            </div>
           </div>
-          <!-- 설교 준비 시작 버튼 -->
-          <button id="btn-start-analysis" style="display: none; width: 100%; margin-top: .75rem; padding: .7rem; font-size: .95rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
-            ✨ 설교 준비 시작
-          </button>
-          <!-- 숨겨진 진행 상태 (내부 기능 유지) -->
-          <div id="analysis-status" style="display: none;"></div>
-          <div id="processing-steps" style="display: none;"></div>
         </div>
-
-          <div class="action-row">
-            <div class="box copy-all-box" id="step4-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem; opacity: 0.5; pointer-events: none;">
-              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
-              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">무료 · 분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
-              <button id="btn-copy-all" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
-            </div>
-            <div class="box gpt-pro-box" id="step3-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .85rem; opacity: 0.5; pointer-events: none;">
-              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🔴 AI 설교문 완성</div>
-              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
-              <button id="btn-gpt-pro" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
-            </div>
-          </div>
 
           <div class="box" style="display: flex; flex-direction: column; gap: .75rem;">
             <div class="label-row">
