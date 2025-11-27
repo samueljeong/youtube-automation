@@ -2060,36 +2060,33 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
-  <!-- Q&A 대화 기록 모듈 -->
+  <!-- Drama Lab 모듈화된 JavaScript 파일 -->
+  <!-- 유틸리티 함수 -->
+  <script src="/static/js/drama-utils.js"></script>
+  <!-- 메인 로직 (Firebase, 전역변수, 세션관리) -->
+  <script src="/static/js/drama-main.js"></script>
+  <!-- Q&A 대화 기록 -->
   <script src="/static/js/drama-session.js"></script>
+  <!-- Step1: 대본 생성 -->
+  <script src="/static/js/drama-step1.js"></script>
+  <!-- Step2: 이미지 생성 -->
+  <script src="/static/js/drama-step2.js"></script>
+  <!-- Step3: TTS 음성합성 -->
+  <script src="/static/js/drama-step3.js"></script>
+  <!-- Step4: 영상 제작 -->
+  <script src="/static/js/drama-step4.js"></script>
+  <!-- Step5: 유튜브 업로드 -->
+  <script src="/static/js/drama-step5.js"></script>
 
   <script>
-  // ===== Firebase 초기화 =====
-  const firebaseConfig = {
-    apiKey: "AIzaSyBacmJDk-PG5FaoqnXV8Rg3P__AKOS2vu4",
-    authDomain: "my-sermon-guides.firebaseapp.com",
-    projectId: "my-sermon-guides",
-    storageBucket: "my-sermon-guides.firebasestorage.app",
-    messagingSenderId: "539520456089",
-    appId: "1:539520456089:web:d6aceb7838baa89e70af08",
-    measurementId: "G-KWN8TH7Z26"
-  };
+  // ===== 추가 초기화 및 호환성 코드 =====
 
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-
-  const USER_CODE = 'samuel123';
-  const PAGE_NAME = 'drama';
-  const GUIDE_PASSWORD = '5555';
-  const GPT_PRO_PASSWORD = '6039';
-  const CONFIG_KEY = '_drama-config';
-
-  // ===== 전역 변수 =====
-  let guideUnlocked = false;
-  let gptProUnlocked = false;
-  let currentCategory = '10min';
+  // 전역 변수 참조 (모듈에서 노출)
+  let guideUnlocked = window.DramaMain?.guideUnlocked || false;
+  let gptProUnlocked = window.DramaMain?.gptProUnlocked || false;
+  let currentCategory = window.DramaMain?.currentCategory || '10min';
   let currentGuideStep = '';
-  let stepResults = {};
+  let stepResults = window.stepResults || {};
 
   // ===== Step 네비게이션 함수 =====
   function scrollToStep(containerId) {
