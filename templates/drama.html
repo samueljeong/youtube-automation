@@ -242,9 +242,13 @@
         </div>
       </div>
 
-      <!-- 작업지침 / 데이터 축적 버튼 (진행현황 아래) -->
+      <!-- 대본 작성 / 작업지침 / 데이터 축적 버튼 (진행현황 아래) -->
       <div class="quick-nav-mini" style="display: flex; flex-direction: column; gap: .4rem;">
-        <button class="nav-btn active" data-panel-target="guide-panel" style="padding: .5rem .75rem; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer; font-weight: 600; font-size: .85rem; text-align: left; display: flex; align-items: center; gap: .5rem;">
+        <button class="nav-btn active" data-panel-target="workflow-panel" style="padding: .5rem .75rem; border-radius: 8px; background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%); color: white; border: none; cursor: pointer; font-weight: 600; font-size: .85rem; text-align: left; display: flex; align-items: center; gap: .5rem;">
+          <span>🎬</span>
+          <span>대본 작성</span>
+        </button>
+        <button class="nav-btn" data-panel-target="guide-panel" style="padding: .5rem .75rem; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; cursor: pointer; font-weight: 600; font-size: .85rem; text-align: left; display: flex; align-items: center; gap: .5rem;">
           <span>🧭</span>
           <span>작업지침</span>
         </button>
@@ -411,7 +415,7 @@
 
 
 
-    <div id="guide-panel" class="panel guide-panel active">
+    <div id="guide-panel" class="panel guide-panel">
       <div class="box">
         <div class="label" style="font-size: 1rem;">🧭 작업 지침</div>
         <p style="margin: .4rem 0; color: #555;">왼쪽 버튼을 눌러 단계별 내용을 오른쪽 패널에서 바로 확인하세요. 새 창을 열지 않고도 모든 정보를 한 눈에 볼 수 있도록 정리했습니다.</p>
@@ -491,7 +495,7 @@
     </div>
 
     <!-- 가운데 - 워크플로우 영역 -->
-    <div id="workflow-panel" class="panel workflow-panel">
+    <div id="workflow-panel" class="panel workflow-panel active">
     <div class="content-area">
       <!-- Step1 앵커 및 컨트롤 -->
       <div id="step1-container"></div>
