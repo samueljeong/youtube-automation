@@ -174,6 +174,12 @@ async function executeStep1() {
       throw new Error('GPT 기획 1단계 실패: ' + (planStep1Data.error || '알 수 없는 오류'));
     }
 
+    // 💰 Step1-1 GPT 비용 추가
+    if (planStep1Data.tokens && typeof window.addCost === 'function') {
+      const cost = Math.round(planStep1Data.tokens * 0.0002);
+      window.addCost('step1', cost);
+    }
+
     console.log('[Step1-1] GPT 기획 완료');
 
     // Step1 상태 업데이트
@@ -199,6 +205,12 @@ async function executeStep1() {
     const planStep2Data = await planStep2Response.json();
     if (!planStep2Data.ok) {
       throw new Error('GPT 기획 2단계 실패: ' + (planStep2Data.error || '알 수 없는 오류'));
+    }
+
+    // 💰 Step1-2 GPT 비용 추가
+    if (planStep2Data.tokens && typeof window.addCost === 'function') {
+      const cost = Math.round(planStep2Data.tokens * 0.0002);
+      window.addCost('step1', cost);
     }
 
     console.log('[Step1-2] 장면 구성 완료');
