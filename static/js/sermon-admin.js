@@ -328,3 +328,137 @@ window.addStyle = addStyle;
 window.deleteStyle = deleteStyle;
 window.updateAdminStyleSelect = updateAdminStyleSelect;
 window.bindAdminStyleSelect = bindAdminStyleSelect;
+
+// ===== Step3 사용 코드 관리 =====
+const CODES_KEY = '_sermon-step3-codes';
+let step3Codes = {};
+
+function loadStep3Codes() {
+  const saved = localStorage.getItem(CODES_KEY);
+  if (saved) {
+    try {
+      step3Codes = JSON.parse(saved);
+    } catch (e) {
+      step3Codes = {};
+    }
+  }
+  renderCodeList();
+}
+
+function saveStep3Codes() {
+  localStorage.setItem(CODES_KEY, JSON.stringify(step3Codes));
+}
+
+function generateRandomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function createNewCode() {
+  const nameInput = document.getElementById('new-code-name');
+  const limitInput = document.getElementById('new-code-limit');
+
+  let codeName = nameInput.value.trim().toUpperCase();
+  const limit = parseInt(limitInput.value) || 3;
+
+  if (!codeName) {
+    do {
+      codeName = generateRandomCode();
+    } while (step3Codes[codeName]);
+  }
+
+  if (step3Codes[codeName]) {
+    alert(`'${codeName}' 코드가 이미 존재합니다.`);
+    return;
+  }
+
+  step3Codes[codeName] = {
+    limit: limit,
+    remaining: limit,
+    createdAt: new Date().toISOString()
+  };
+
+  saveStep3Codes();
+  renderCodeList();
+
+  nameInput.value = '';
+  limitInput.value = '3';
+
+  alert(`코드 '${codeName}' 생성 완료!`);
+}
+
+function deleteCode(codeName) {
+  if (!confirm(`'${codeName}' 코드를 삭제하시겠습니까?`)) return;
+
+  delete step3Codes[codeName];
+  saveStep3Codes();
+  renderCodeList();
+}
+
+function renderCodeList() {
+  const tbody = document.getElementById('code-list-body');
+  if (!tbody) return;
+
+  const codeNames = Object.keys(step3Codes);
+
+  if (codeNames.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding: 1rem; text-align: center; color: #999;">생성된 코드가 없습니다.</td></tr>';
+    return;
+  }
+
+  codeNames.sort((a, b) => {
+    const dateA = new Date(step3Codes[a].createdAt || 0);
+    const dateB = new Date(step3Codes[b].createdAt || 0);
+    return dateB - dateA;
+  });
+
+  tbody.innerHTML = codeNames.map(code => {
+    const info = step3Codes[code];
+    const isExhausted = info.remaining <= 0;
+    const statusText = isExhausted ? '소진' : '활성';
+    const statusColor = isExhausted ? '#e74c3c' : '#27ae60';
+    const statusBg = isExhausted ? '#fde8e8' : '#e8f8e8';
+
+    return `
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: .5rem; font-family: monospace; font-weight: 600;">${code}</td>
+        <td style="padding: .5rem; text-align: center;">${info.remaining}/${info.limit}</td>
+        <td style="padding: .5rem; text-align: center;">
+          <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600;">${statusText}</span>
+        </td>
+        <td style="padding: .5rem; text-align: center;">
+          <button onclick="deleteCode('${code}')" style="padding: 4px 8px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: .75rem;">삭제</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// 코드 사용 함수 (외부에서 호출)
+function useStep3Code(codeName) {
+  if (!step3Codes[codeName]) {
+    return { success: false, error: '존재하지 않는 코드입니다.' };
+  }
+  if (step3Codes[codeName].remaining <= 0) {
+    return { success: false, error: '사용 횟수가 소진된 코드입니다.' };
+  }
+
+  step3Codes[codeName].remaining--;
+  saveStep3Codes();
+  renderCodeList();
+
+  return { success: true, remaining: step3Codes[codeName].remaining };
+}
+
+// 코드 관리 전역 노출
+window.loadStep3Codes = loadStep3Codes;
+window.saveStep3Codes = saveStep3Codes;
+window.createNewCode = createNewCode;
+window.deleteCode = deleteCode;
+window.renderCodeList = renderCodeList;
+window.useStep3Code = useStep3Code;
+window.step3Codes = step3Codes;
