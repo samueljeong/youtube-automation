@@ -505,6 +505,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  // 워크플로우 박스 로드 및 렌더링
+  loadWorkflowBoxes();
+  renderWorkflowBoxes();
+
   console.log('[DramaMain] 초기화 완료');
 });
 
@@ -685,3 +689,144 @@ function showMetadataNotification(metadata) {
 
 window.generateMetadataFromScript = generateMetadataFromScript;
 window.showMetadataNotification = showMetadataNotification;
+
+// ===== 워크플로우 박스 시스템 =====
+
+// 워크플로우 박스 저장
+async function saveWorkflowBoxes() {
+  localStorage.setItem('_drama-workflow-boxes', JSON.stringify(workflowBoxes));
+  localStorage.setItem('_drama-next-box-id', nextBoxId.toString());
+  localStorage.setItem('_drama-next-step1-num', nextStep1BoxNum.toString());
+  localStorage.setItem('_drama-next-step2-num', nextStep2BoxNum.toString());
+  await saveToFirebase('_drama-workflow-boxes', JSON.stringify(workflowBoxes));
+  await saveToFirebase('_drama-next-box-id', nextBoxId.toString());
+  await saveToFirebase('_drama-next-step1-num', nextStep1BoxNum.toString());
+  await saveToFirebase('_drama-next-step2-num', nextStep2BoxNum.toString());
+}
+
+// 워크플로우 박스 불러오기
+function loadWorkflowBoxes() {
+  const saved = localStorage.getItem('_drama-workflow-boxes');
+  const savedNextId = localStorage.getItem('_drama-next-box-id');
+  const savedStep1Num = localStorage.getItem('_drama-next-step1-num');
+  const savedStep2Num = localStorage.getItem('_drama-next-step2-num');
+
+  if (saved) {
+    workflowBoxes = JSON.parse(saved);
+  }
+  if (savedNextId) {
+    nextBoxId = parseInt(savedNextId);
+  }
+  if (savedStep1Num) {
+    nextStep1BoxNum = parseInt(savedStep1Num);
+  }
+  if (savedStep2Num) {
+    nextStep2BoxNum = parseInt(savedStep2Num);
+  }
+  // Reset collapsed state to false to ensure boxes are visible
+  step1Collapsed = false;
+  step2Collapsed = false;
+}
+
+// 워크플로우 박스 렌더링
+function renderWorkflowBoxes() {
+  const container = document.getElementById('workflow-boxes-container');
+  if (!container) return;
+
+  if (workflowBoxes.length === 0) {
+    container.innerHTML = `
+      <div class="box" style="padding: .75rem;">
+        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+          <!-- 왼쪽: 시간 지정 -->
+          <div style="flex: 0 0 140px;">
+            <div style="font-weight: 700; font-size: .85rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem;">
+              <span style="font-size: 1rem;">⏱️</span> 시간
+            </div>
+            <input
+              type="text"
+              id="custom-duration-input"
+              value="${customDurationText}"
+              placeholder="예: 2분"
+              style="width: 100%; padding: .5rem .55rem; font-size: .85rem; border-radius: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"
+            />
+          </div>
+          <!-- 오른쪽: 카테고리 선택 -->
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: .85rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem;">
+              <span style="font-size: 1rem;">🎬</span> 카테고리
+            </div>
+            <div id="category-toggle-container" style="display: flex; flex-wrap: wrap; gap: .4rem;">
+              ${videoCategories.map(cat => `
+                <button
+                  class="category-toggle-btn ${selectedCategory === cat ? 'active' : ''}"
+                  data-category="${cat}"
+                  style="padding: .45rem .7rem; font-size: .8rem; border-radius: 20px; border: 2px solid ${selectedCategory === cat ? '#6366f1' : '#e5e7eb'}; background: ${selectedCategory === cat ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : '#fff'}; color: ${selectedCategory === cat ? '#fff' : '#6b7280'}; cursor: pointer; font-weight: ${selectedCategory === cat ? '600' : '500'}; transition: all 0.2s ease; box-shadow: ${selectedCategory === cat ? '0 2px 8px rgba(99, 102, 241, 0.3)' : 'none'};"
+                >${cat}</button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        <!-- 사용자 지침 입력 (선택사항) -->
+        <div style="margin-top: .75rem;">
+          <div style="font-weight: 700; font-size: .85rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem;">
+            <span style="font-size: 1rem;">📝</span> 지침 <span style="font-weight: 400; font-size: .75rem; color: #9ca3af;">(선택)</span>
+          </div>
+          <input
+            type="text"
+            id="custom-directive-input"
+            value="${customDirective}"
+            placeholder="예: 쇼팬하우어 명언, 부모님과의 갈등 이야기, 직장 스트레스 주제..."
+            style="width: 100%; padding: .5rem .65rem; font-size: .85rem; border-radius: 8px; border: 1px solid #e5e7eb; background: #f9fafb;"
+          />
+          <div style="font-size: .7rem; color: #9ca3af; margin-top: .3rem;">
+            구체적인 주제나 방향을 지시하면 해당 내용이 최우선으로 반영됩니다.
+          </div>
+        </div>
+      </div>
+    `;
+
+    // 시간 입력 이벤트
+    const durationInput = document.getElementById('custom-duration-input');
+    if (durationInput) {
+      durationInput.addEventListener('input', (e) => {
+        customDurationText = e.target.value.trim();
+        window.customDurationText = customDurationText;
+        localStorage.setItem('_drama-duration-text', customDurationText);
+        saveToFirebase('_drama-duration-text', customDurationText);
+      });
+    }
+
+    // 사용자 지침 입력 이벤트
+    const directiveInput = document.getElementById('custom-directive-input');
+    if (directiveInput) {
+      directiveInput.addEventListener('input', (e) => {
+        customDirective = e.target.value.trim();
+        window.customDirective = customDirective;
+        localStorage.setItem('_drama-custom-directive', customDirective);
+        saveToFirebase('_drama-custom-directive', customDirective);
+      });
+    }
+
+    // 카테고리 토글 버튼 이벤트
+    const categoryButtons = document.querySelectorAll('.category-toggle-btn');
+    categoryButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const cat = e.target.dataset.category;
+        selectedCategory = cat;
+        window.selectedCategory = selectedCategory;
+        localStorage.setItem('_drama-video-category', cat);
+        saveToFirebase('_drama-video-category', cat);
+        renderWorkflowBoxes(); // UI 갱신
+      });
+    });
+    return;
+  }
+
+  // workflowBoxes가 있을 경우의 렌더링은 여기에 추가 가능
+  // 현재는 기본 UI만 표시
+}
+
+// 전역 노출
+window.saveWorkflowBoxes = saveWorkflowBoxes;
+window.loadWorkflowBoxes = loadWorkflowBoxes;
+window.renderWorkflowBoxes = renderWorkflowBoxes;
