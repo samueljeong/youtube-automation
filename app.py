@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
@@ -582,6 +582,12 @@ def design():
 def health():
     """Health check endpoint"""
     return jsonify({"ok": True})
+
+@app.route('/guides/<path:filename>')
+def serve_guides(filename):
+    """Serve files from guides directory"""
+    guides_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'guides')
+    return send_from_directory(guides_dir, filename)
 
 @app.route('/setup-admin', methods=['GET', 'POST'])
 def setup_admin():

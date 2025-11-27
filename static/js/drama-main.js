@@ -752,8 +752,17 @@ function renderWorkflowBoxes() {
           </div>
           <!-- 오른쪽: 카테고리 선택 -->
           <div style="flex: 1;">
-            <div style="font-weight: 700; font-size: .85rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem;">
-              <span style="font-size: 1rem;">🎬</span> 카테고리
+            <div style="font-weight: 700; font-size: .85rem; color: #4b5563; margin-bottom: .35rem; display: flex; align-items: center; gap: .3rem; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: .3rem;">
+                <span style="font-size: 1rem;">🎬</span> 카테고리
+              </div>
+              <button
+                id="btn-view-category-prompts"
+                onclick="openCategoryPromptsModal(selectedCategory || '옛날이야기')"
+                style="padding: .3rem .6rem; font-size: .7rem; border-radius: 6px; border: 1px solid #8b5cf6; background: white; color: #8b5cf6; cursor: pointer; font-weight: 500; transition: all 0.2s ease;"
+                onmouseover="this.style.background='#8b5cf6'; this.style.color='white';"
+                onmouseout="this.style.background='white'; this.style.color='#8b5cf6';"
+              >📚 지침 보기</button>
             </div>
             <div id="category-toggle-container" style="display: flex; flex-wrap: wrap; gap: .4rem;">
               ${videoCategories.map(cat => `
@@ -826,7 +835,139 @@ function renderWorkflowBoxes() {
   // 현재는 기본 UI만 표시
 }
 
+// ===== 카테고리 프롬프트 모달 관련 =====
+let categoryPromptsData = null;
+let currentCategoryForPrompts = null;
+let currentPromptStep = 'step1_1_meta';
+
+// 카테고리별 프롬프트 JSON 키 매핑
+const categoryPromptKeyMap = {
+  '옛날이야기': '옛날이야기',
+  '마음위로': '마음위로',
+  '인생명언': '인생명언',
+  // 기존 카테고리는 nostalgia-drama-prompts.json에 없으므로 기본값 사용
+  '간증': null,
+  '드라마': null,
+  '명언': null,
+  '마음': null,
+  '철학': null,
+  '인간관계': null
+};
+
+// 프롬프트 데이터 로드
+async function loadCategoryPrompts() {
+  if (categoryPromptsData) return categoryPromptsData;
+
+  try {
+    const response = await fetch('/guides/nostalgia-drama-prompts.json');
+    if (response.ok) {
+      categoryPromptsData = await response.json();
+      console.log('[CategoryPrompts] 프롬프트 데이터 로드 완료');
+      return categoryPromptsData;
+    }
+  } catch (err) {
+    console.error('[CategoryPrompts] 프롬프트 데이터 로드 실패:', err);
+  }
+  return null;
+}
+
+// 카테고리 프롬프트 모달 열기
+async function openCategoryPromptsModal(category) {
+  const modal = document.getElementById('category-prompts-modal');
+  if (!modal) return;
+
+  currentCategoryForPrompts = category;
+
+  // 데이터 로드
+  const data = await loadCategoryPrompts();
+  if (!data) {
+    alert('프롬프트 데이터를 불러올 수 없습니다.');
+    return;
+  }
+
+  // 카테고리 키 확인
+  const categoryKey = categoryPromptKeyMap[category];
+  if (!categoryKey || !data.categories[categoryKey]) {
+    alert(`"${category}" 카테고리의 프롬프트가 아직 정의되지 않았습니다.`);
+    return;
+  }
+
+  // 모달 제목 업데이트
+  document.getElementById('category-prompts-title').textContent = `${category} 프롬프트 지침`;
+
+  // 첫 번째 Step 표시
+  currentPromptStep = 'step1_1_meta';
+  showCategoryPromptStep('step1_1_meta');
+
+  modal.style.display = 'flex';
+}
+
+// 카테고리 프롬프트 모달 닫기
+function closeCategoryPromptsModal() {
+  const modal = document.getElementById('category-prompts-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Step 탭 전환
+function showCategoryPromptStep(stepKey) {
+  currentPromptStep = stepKey;
+
+  // 탭 버튼 활성화 상태 업데이트
+  document.querySelectorAll('.category-step-tab').forEach(btn => {
+    if (btn.dataset.step === stepKey) {
+      btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      btn.style.color = 'white';
+    } else {
+      btn.style.background = '#e5e7eb';
+      btn.style.color = '#374151';
+    }
+  });
+
+  // 프롬프트 데이터 표시
+  if (!categoryPromptsData || !currentCategoryForPrompts) return;
+
+  const categoryKey = categoryPromptKeyMap[currentCategoryForPrompts];
+  const categoryData = categoryPromptsData.categories[categoryKey];
+  if (!categoryData || !categoryData.prompts[stepKey]) {
+    document.getElementById('category-prompt-content').textContent = '해당 Step의 프롬프트가 정의되지 않았습니다.';
+    return;
+  }
+
+  const promptData = categoryData.prompts[stepKey];
+
+  // 메타 정보 업데이트
+  document.getElementById('prompt-meta-name').textContent = promptData.name || '-';
+  document.getElementById('prompt-meta-model').textContent = promptData.model || '-';
+  document.getElementById('prompt-meta-input').textContent = promptData.inputFrom ? promptData.inputFrom.join(', ') : '없음 (첫 단계)';
+  document.getElementById('prompt-meta-description').textContent = promptData.description || '-';
+
+  // 시스템 프롬프트 표시
+  const systemPrompt = promptData.systemPrompt || 'TODO';
+  document.getElementById('category-prompt-content').textContent = systemPrompt;
+
+  // 출력 스키마 표시
+  const schema = promptData.outputSchema;
+  if (schema) {
+    document.getElementById('category-prompt-schema').textContent = JSON.stringify(schema, null, 2);
+  } else {
+    document.getElementById('category-prompt-schema').textContent = '스키마 정의 없음';
+  }
+}
+
+// 프롬프트 복사
+function copyCategoryPrompt() {
+  const content = document.getElementById('category-prompt-content').textContent;
+  if (content) {
+    navigator.clipboard.writeText(content);
+    alert('프롬프트가 클립보드에 복사되었습니다.');
+  }
+}
+
 // 전역 노출
 window.saveWorkflowBoxes = saveWorkflowBoxes;
 window.loadWorkflowBoxes = loadWorkflowBoxes;
 window.renderWorkflowBoxes = renderWorkflowBoxes;
+window.openCategoryPromptsModal = openCategoryPromptsModal;
+window.closeCategoryPromptsModal = closeCategoryPromptsModal;
+window.showCategoryPromptStep = showCategoryPromptStep;
+window.copyCategoryPrompt = copyCategoryPrompt;

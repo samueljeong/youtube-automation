@@ -53,6 +53,54 @@
     </div>
   </div>
 
+  <!-- 카테고리 프롬프트 지침 모달 -->
+  <div id="category-prompts-modal" class="modal">
+    <div class="modal-content" style="max-width: 95vw; width: 1200px; max-height: 95vh; overflow: hidden; display: flex; flex-direction: column;">
+      <div class="modal-title" style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <span>📚 <span id="category-prompts-title">카테고리 프롬프트 지침</span></span>
+        <button onclick="closeCategoryPromptsModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
+      </div>
+
+      <!-- Step 탭 버튼들 -->
+      <div id="category-step-tabs" style="display: flex; gap: 0.5rem; margin: 0.5rem 0; flex-shrink: 0; flex-wrap: wrap;">
+        <button onclick="showCategoryPromptStep('step1_1_meta')" class="category-step-tab active" data-step="step1_1_meta" style="padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">Step 1.1 메타 기획</button>
+        <button onclick="showCategoryPromptStep('step1_2_planning')" class="category-step-tab" data-step="step1_2_planning" style="padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: #e5e7eb; color: #374151;">Step 1.2 기획</button>
+        <button onclick="showCategoryPromptStep('step1_3_structure')" class="category-step-tab" data-step="step1_3_structure" style="padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: #e5e7eb; color: #374151;">Step 1.3 구조</button>
+        <button onclick="showCategoryPromptStep('step1_4_script')" class="category-step-tab" data-step="step1_4_script" style="padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; background: #e5e7eb; color: #374151;">Step 1.4 대본</button>
+      </div>
+
+      <!-- 프롬프트 정보 표시 영역 -->
+      <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem;">
+        <!-- 프롬프트 메타 정보 -->
+        <div id="category-prompt-meta" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;">
+          <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+            <div><strong>이름:</strong> <span id="prompt-meta-name">-</span></div>
+            <div><strong>모델:</strong> <span id="prompt-meta-model">-</span></div>
+            <div><strong>입력:</strong> <span id="prompt-meta-input">-</span></div>
+          </div>
+          <div style="margin-top: 0.5rem; color: #64748b;"><strong>설명:</strong> <span id="prompt-meta-description">-</span></div>
+        </div>
+
+        <!-- 시스템 프롬프트 -->
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <div style="font-weight: 600; margin-bottom: 0.5rem; color: #374151;">📝 시스템 프롬프트</div>
+          <div id="category-prompt-content" style="flex: 1; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; white-space: pre-wrap; min-height: 300px;"></div>
+        </div>
+
+        <!-- 출력 스키마 -->
+        <div>
+          <div style="font-weight: 600; margin-bottom: 0.5rem; color: #374151;">📦 출력 스키마</div>
+          <div id="category-prompt-schema" style="background: #f8fafc; padding: 1rem; border-radius: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; overflow-x: auto;"></div>
+        </div>
+      </div>
+
+      <div class="modal-buttons" style="flex-shrink: 0; margin-top: 0.5rem;">
+        <button onclick="copyCategoryPrompt()" style="flex: 1; background: #2196F3;">📋 프롬프트 복사</button>
+        <button onclick="closeCategoryPromptsModal()" class="primary" style="flex: 1;">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Auth Header -->
   <div class="auth-header">
     <h1>🎭 드라마 스크립트 작성 도구</h1>
