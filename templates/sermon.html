@@ -1962,6 +1962,22 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
+  <!-- Sermon JS Modules (점진적 마이그레이션용) -->
+  <!-- 모듈화된 코드: static/js/sermon-*.js -->
+  <!-- 현재는 인라인 코드와 병행 사용, 추후 인라인 코드 제거 예정 -->
+  <!--
+  <script src="{{ url_for('static', filename='js/sermon-utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-firebase.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-render.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-step.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-gpt-pro.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-admin.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-qa.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-meditation.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sermon-design.js') }}"></script>
+  -->
+
   <script>
   // ===== Firebase 초기화 =====
   const firebaseConfig = {
