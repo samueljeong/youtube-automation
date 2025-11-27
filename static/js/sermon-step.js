@@ -16,7 +16,7 @@ async function executeStep(stepId) {
 
   const ref = document.getElementById('sermon-ref')?.value || '';
   const target = document.getElementById('sermon-target')?.value || '';
-  const worshipType = document.getElementById('worship-type')?.value || '';
+  const worshipType = document.getElementById('sermon-worship-type')?.value || '';
   const duration = document.getElementById('sermon-duration')?.value || '';
   const specialNotes = document.getElementById('special-notes')?.value || '';
 
@@ -51,7 +51,7 @@ async function executeStep(stepId) {
     step: stepId,
     stepName: step.name,
     stepType: stepType,
-    ref: ref,
+    reference: ref,
     target: target,
     worshipType: worshipType,
     duration: duration,

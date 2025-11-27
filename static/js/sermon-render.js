@@ -77,6 +77,7 @@ function renderCategories() {
         renderProcessingSteps();
         renderResultBoxes();
         if (typeof renderGuideTabs === 'function') renderGuideTabs();
+        updateAnalysisUI();
 
         const seriesBox = document.getElementById('series-box');
         if (seriesBox) {
@@ -144,8 +145,33 @@ function renderStyles() {
   console.log('[renderStyles] currentCategory:', window.currentCategory);
   console.log('[renderStyles] currentStyleId:', window.currentStyleId);
 
+  // 카테고리 설정이 없으면 생성
+  if (!window.config.categorySettings[window.currentCategory]) {
+    console.log('[renderStyles] 카테고리 설정 생성:', window.currentCategory);
+    window.config.categorySettings[window.currentCategory] = {
+      masterGuide: '',
+      styles: []
+    };
+  }
+
   const settings = window.config.categorySettings[window.currentCategory];
-  const styles = (settings && settings.styles) ? settings.styles : [];
+  let styles = (settings && settings.styles) ? settings.styles : [];
+
+  // 스타일이 없으면 기본 스타일 복구
+  if (styles.length === 0 && window.DEFAULT_STYLES) {
+    // 현재 카테고리의 기본 스타일이 있으면 사용, 없으면 general 스타일 사용
+    const defaultStyles = window.DEFAULT_STYLES[window.currentCategory] || window.DEFAULT_STYLES['general'];
+    if (defaultStyles && defaultStyles.length > 0) {
+      console.log('[renderStyles] 기본 스타일 복구:', window.currentCategory, '(using:', window.DEFAULT_STYLES[window.currentCategory] ? 'own' : 'general', ')');
+      settings.styles = JSON.parse(JSON.stringify(defaultStyles));
+      styles = settings.styles;
+      // 비동기로 저장
+      if (typeof saveConfig === 'function') {
+        setTimeout(() => saveConfig(), 100);
+      }
+    }
+  }
+
   const container = document.getElementById('styles-list');
 
   console.log('[renderStyles] 스타일 수:', styles.length);
@@ -159,8 +185,10 @@ function renderStyles() {
   }
 
   if (styles.length === 0) {
-    container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
+    container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요. (관리 버튼 클릭)</p>';
     console.log('[renderStyles] 스타일이 없어서 안내 메시지 표시');
+    // 스타일이 없으면 UI 업데이트
+    updateAnalysisUI();
     return;
   }
 
@@ -213,10 +241,10 @@ function updateAnalysisUI() {
   const guideDiv = document.getElementById('start-analysis-guide');
   const step3Box = document.getElementById('step3-box');
   const step4Box = document.getElementById('step4-box');
-  const ref = document.getElementById('sermon-ref')?.value;
+  const ref = document.getElementById('sermon-ref')?.value?.trim();
 
   console.log('[updateAnalysisUI] 버튼 찾음:', !!startBtn);
-  console.log('[updateAnalysisUI] ref:', ref ? '있음' : '없음');
+  console.log('[updateAnalysisUI] ref:', ref ? `있음(${ref})` : '없음');
   console.log('[updateAnalysisUI] currentStyleId:', window.currentStyleId);
   console.log('[updateAnalysisUI] analysisInProgress:', analysisInProgress);
 
@@ -245,6 +273,21 @@ function updateAnalysisUI() {
   console.log('[updateAnalysisUI] step2Steps:', step2Steps.length, 'completed:', step2Completed);
   console.log('[updateAnalysisUI] allCompleted:', allCompleted);
 
+  // 안내 문구 업데이트 헬퍼 함수
+  function setGuideMessage(message, isReady = false) {
+    if (!guideDiv) return;
+    guideDiv.style.display = 'block';
+    if (isReady) {
+      guideDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      guideDiv.style.border = 'none';
+      guideDiv.innerHTML = `<span style="font-size: .9rem; font-weight: 700; color: white;">${message}</span>`;
+    } else {
+      guideDiv.style.background = '#f8f9ff';
+      guideDiv.style.border = '2px dashed #667eea';
+      guideDiv.innerHTML = `<span style="font-size: .9rem; font-weight: 700; color: #667eea;">${message}</span>`;
+    }
+  }
+
   // 버튼 표시 조건 결정
   let buttonAction = '';
 
@@ -257,19 +300,26 @@ function updateAnalysisUI() {
   } else if (!ref) {
     buttonAction = 'hide (no ref)';
     startBtn.style.display = 'none';
-    if (guideDiv) guideDiv.style.display = 'block';
+    setGuideMessage('📖 성경본문을 입력해주세요');
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
-  } else if (window.currentStyleId && !analysisInProgress) {
+  } else if (!window.currentStyleId) {
+    // ref는 있지만 스타일이 선택되지 않음
+    buttonAction = 'hide (no style selected)';
+    startBtn.style.display = 'none';
+    setGuideMessage('👆 위에서 설교 스타일을 선택해주세요');
+    if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
+    if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
+  } else if (!analysisInProgress) {
     buttonAction = 'SHOW (ref + style + not processing)';
     startBtn.style.display = 'block';
     if (guideDiv) guideDiv.style.display = 'none';
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   } else {
-    buttonAction = 'hide (else - no style or processing)';
+    buttonAction = 'hide (processing)';
     startBtn.style.display = 'none';
-    if (guideDiv) guideDiv.style.display = 'none';
+    // 처리 중에는 guideDiv가 진행상황을 표시하므로 건드리지 않음
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   }

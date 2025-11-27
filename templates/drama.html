@@ -449,16 +449,19 @@
       <!-- Step3 앵커 및 전체 순차실행 -->
       <div id="step3-container"></div>
 
-      <!-- 워크플로우 박스들이 동적으로 추가되는 영역 (카테고리/시간/지침 입력) -->
-      <div id="workflow-boxes-container"></div>
+      <!-- Step1 상단 고정 헤더 (카테고리/시간/지침 + 대본 작성 버튼) -->
+      <div class="step1-sticky-header">
+        <!-- 워크플로우 박스들이 동적으로 추가되는 영역 (카테고리/시간/지침 입력) -->
+        <div id="workflow-boxes-container"></div>
 
-      <!-- Step3 실행: Sonnet 4.5 대본 작성 -->
-      <div class="box" style="padding: .6rem .75rem;">
-        <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
-          🎬 Claude Sonnet 4.5로 대본 작성
-        </button>
-        <div style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
-          OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.
+        <!-- Step3 실행: Sonnet 4.5 대본 작성 -->
+        <div class="box" style="padding: .6rem .75rem;">
+          <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
+            🎬 Claude Sonnet 4.5로 대본 작성
+          </button>
+          <div style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
+            OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.
+          </div>
         </div>
       </div>
 

@@ -85,17 +85,8 @@ function showGptLoading(message) {
 
 function hideGptLoading() {
   currentLoadingMessage = '';
-  const guideDiv = document.getElementById('start-analysis-guide');
 
-  // 안내문구 원래대로 복구
-  if (guideDiv) {
-    guideDiv.style.display = 'none';
-    guideDiv.style.background = '#f8f9ff';
-    guideDiv.style.border = '2px dashed #667eea';
-    guideDiv.innerHTML = `<span style="font-size: .95rem; font-weight: 700; color: #667eea;">📖 성경본문을 입력해주세요</span>`;
-  }
-
-  // UI 상태 업데이트
+  // UI 상태 업데이트 (안내 문구도 updateAnalysisUI에서 처리)
   if (typeof updateAnalysisUI === 'function') {
     updateAnalysisUI();
   }
