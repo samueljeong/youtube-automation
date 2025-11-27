@@ -521,12 +521,9 @@
                 <div style="font-size: .7rem; color: rgba(255,255,255,0.8);">비용 최소화 (500자, 2씬)</div>
               </div>
             </div>
-            <label style="display: flex; align-items: center; cursor: pointer;">
-              <input type="checkbox" id="test-mode-toggle" style="display: none;">
-              <div id="test-mode-switch" style="width: 50px; height: 26px; background: rgba(0,0,0,0.3); border-radius: 13px; position: relative; transition: background 0.3s;">
-                <div id="test-mode-knob" style="width: 22px; height: 22px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
-              </div>
-            </label>
+            <div id="test-mode-switch" onclick="toggleTestMode()" style="width: 50px; height: 26px; background: rgba(0,0,0,0.3); border-radius: 13px; position: relative; transition: background 0.3s; cursor: pointer;">
+              <div id="test-mode-knob" style="width: 22px; height: 22px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+            </div>
           </div>
         </div>
 

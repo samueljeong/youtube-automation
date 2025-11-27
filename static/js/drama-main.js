@@ -1141,33 +1141,12 @@ window.copyCategoryPrompt = copyCategoryPrompt;
 // ===== 🧪 테스트 모드 관리 =====
 window.testMode = localStorage.getItem('_drama-test-mode') === 'true';
 
-// 테스트 모드 초기화
-function initTestMode() {
-  const toggle = document.getElementById('test-mode-toggle');
-  const switchEl = document.getElementById('test-mode-switch');
-  const knobEl = document.getElementById('test-mode-knob');
-  const boxEl = document.getElementById('test-mode-box');
-  const indicatorEl = document.getElementById('step3-mode-indicator');
-
-  if (!toggle || !switchEl || !knobEl) return;
-
-  // 초기 상태 설정
-  toggle.checked = window.testMode;
+// 테스트 모드 토글 함수 (onclick에서 호출)
+function toggleTestMode() {
+  window.testMode = !window.testMode;
+  localStorage.setItem('_drama-test-mode', window.testMode);
   updateTestModeUI(window.testMode);
-
-  // 토글 이벤트
-  toggle.addEventListener('change', function() {
-    window.testMode = this.checked;
-    localStorage.setItem('_drama-test-mode', this.checked);
-    updateTestModeUI(this.checked);
-    console.log('[TestMode]', this.checked ? '활성화' : '비활성화');
-  });
-
-  // 스위치 클릭 이벤트 (라벨 외 직접 클릭 시)
-  switchEl.addEventListener('click', function() {
-    toggle.checked = !toggle.checked;
-    toggle.dispatchEvent(new Event('change'));
-  });
+  console.log('[TestMode]', window.testMode ? '🧪 활성화' : '⚡ 비활성화');
 }
 
 // 테스트 모드 UI 업데이트
@@ -1204,9 +1183,15 @@ function updateTestModeUI(isTestMode) {
   }
 }
 
+// 테스트 모드 초기화 (페이지 로드 시 저장된 상태 반영)
+function initTestMode() {
+  updateTestModeUI(window.testMode);
+}
+
 // DOM 로드 후 테스트 모드 초기화
 document.addEventListener('DOMContentLoaded', initTestMode);
 
 // 전역 노출
-window.initTestMode = initTestMode;
+window.toggleTestMode = toggleTestMode;
 window.updateTestModeUI = updateTestModeUI;
+window.initTestMode = initTestMode;
