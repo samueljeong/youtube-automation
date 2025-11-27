@@ -44,6 +44,717 @@ const DEFAULT_STYLES = {
   ]
 };
 
+// ===== 기본 지침 정의 (스타일 이름으로 매핑) =====
+const DEFAULT_GUIDES = {
+  "3대지": {
+    "step1": {
+      "style": "3대지",
+      "step": "step1",
+      "role": "본문 분석가",
+      "principle": "본문의 의미를 객관적으로 해석하되, 적용이나 설교 구조는 다루지 않는다",
+      "task": "성경 본문의 역사적·문법적·신학적 의미를 분석하여 Step2의 구조 설계를 위한 재료를 제공한다",
+      "output_format": {
+        "type": "JSON",
+        "structure": {
+          "본문_개요": "본문의 역사적 배경, 저자 의도, 문맥 요약",
+          "핵심_단어_분석": { "단어(원어)": "의미와 신학적 함의" },
+          "구조_분석": { "단락구분": "절 범위와 내용 요약" },
+          "주요_절_해설": { "절번호": { "본문": "해당 절 내용", "해석": "문법적·신학적 의미" } },
+          "대지_후보": ["본문에서 도출 가능한 3~5개 핵심 포인트 (절 번호 포함)"],
+          "핵심_메시지": "본문 전체가 전달하는 중심 진리 (1-2문장)",
+          "신학적_주제": ["본문에서 도출되는 주요 신학적 주제들"]
+        }
+      },
+      "interpretation_rules": {
+        "허용": ["원어 분석", "역사적 배경 설명", "문맥 해석", "신학적 의미 도출"],
+        "금지": ["현대적 적용", "설교 구조 제안", "예화 삽입", "청중 언급"]
+      },
+      "quality_criteria": [
+        "본문에 충실한 해석인가",
+        "주요 절에 대한 해설이 명확한가",
+        "대지 후보가 3~5개 제공되었는가",
+        "핵심 메시지가 본문에서 도출되었는가"
+      ]
+    },
+    "step2": {
+      "style": "3대지",
+      "step": "step2",
+      "role": "설교 구조 설계자",
+      "principle": "Step1의 해석과 대지 후보를 바탕으로 3개의 대지로 구조화하되, 새로운 해석을 추가하지 않는다",
+      "task": "Step1 분석 결과에서 대지 후보를 선택하여 3대지 구조로 조직하고, Step3를 위한 설계도를 완성한다",
+      "input_reference": {
+        "필수_참조": "Step1의 핵심_메시지, 대지_후보, 주요_절_해설, 신학적_주제",
+        "주의": "대지는 반드시 Step1의 대지_후보에서 선택할 것"
+      },
+      "output_format": {
+        "type": "JSON",
+        "structure": {
+          "설교_제목": "본문의 핵심 메시지를 반영한 제목",
+          "서론_방향": "청중의 관심을 끌고 본문으로 이끄는 도입 방향",
+          "대지_1": { "소제목": "첫 번째 핵심 포인트", "본문_근거": "절 번호", "핵심_내용": "Step1 해설 기반 정리", "전개_방향": "설명-예증-적용의 방향성" },
+          "대지_2": { "소제목": "두 번째 핵심 포인트", "본문_근거": "절 번호", "핵심_내용": "Step1 해설 기반 정리", "전개_방향": "설명-예증-적용의 방향성" },
+          "대지_3": { "소제목": "세 번째 핵심 포인트", "본문_근거": "절 번호", "핵심_내용": "Step1 해설 기반 정리", "전개_방향": "설명-예증-적용의 방향성" },
+          "결론_방향": "3대지를 종합하고 삶의 적용으로 마무리하는 방향",
+          "대지_연결_흐름": "3개 대지가 어떻게 유기적으로 연결되는지 설명"
+        }
+      },
+      "interpretation_rules": {
+        "허용": ["Step1 내용 재구성", "대지 간 연결 논리 구성", "적용 방향 제시"],
+        "금지": ["Step1에 없는 새로운 해석 추가", "본문에 없는 내용 삽입", "구체적 예화 작성"]
+      },
+      "quality_criteria": [
+        "대지가 Step1의 대지_후보에서 선택되었는가",
+        "각 대지에 절 번호 근거가 있는가",
+        "3개 대지가 균형있게 구성되었는가",
+        "대지 간 논리적 흐름이 자연스러운가"
+      ]
+    },
+    "step3": {
+      "style": "3대지",
+      "step": "step3",
+      "role": "설교문 작성자",
+      "principle": "Step1의 해석과 Step2의 구조를 충실히 따라 설교문을 작성하며, 새로운 해석이나 구조 변경 없이 글로 완성한다",
+      "task": "Step1+Step2 자료를 바탕으로 완성된 설교문 작성",
+      "input_reference": {
+        "Step1에서_가져올_것": "본문_개요, 핵심_단어_분석, 주요_절_해설, 핵심_메시지",
+        "Step2에서_가져올_것": "설교_제목, 서론_방향, 대지_1/2/3, 결론_방향, 대지_연결_흐름",
+        "시스템_설정_참조": "분량, 대상, 예배유형 정보 반영"
+      },
+      "output_format": {
+        "type": "완성된 설교문 (마크다운)",
+        "structure": {
+          "제목": "Step2의 설교_제목 사용",
+          "아이스브레이킹": "서론 전 청중과의 라포 형성 (일상 이야기, 가벼운 유머, 공감 질문 등)",
+          "서론": "Step2 서론_방향을 구체적 글로 전개 (청중 공감, 본문 도입)",
+          "본론": {
+            "대지1": "Step2 대지_1을 설명-예증-적용 구조로 전개",
+            "대지2": "Step2 대지_2를 설명-예증-적용 구조로 전개",
+            "대지3": "Step2 대지_3을 설명-예증-적용 구조로 전개"
+          },
+          "결론": "Step2 결론_방향을 구체적 글로 전개 (요약, 도전, 기도)"
+        },
+        "길이_조절": "시스템에서 지정된 분량에 맞춰 각 섹션 길이 조절"
+      },
+      "writing_guidelines": {
+        "아이스브레이킹": {
+          "목적": "청중의 주의를 집중시키고 설교자와의 라포 형성",
+          "내용": ["최근 일상 이야기", "가벼운 유머나 에피소드", "청중에게 던지는 공감 질문", "시사적 이슈나 계절 이야기"],
+          "분량": "2-4문장",
+          "주의": "본문 내용과 자연스럽게 연결되도록 구성"
+        },
+        "문체": "구어체, 설교 현장에서 바로 사용 가능한 톤",
+        "예화": "각 대지당 1개의 적절한 예화 또는 비유 포함",
+        "적용": "각 대지 끝에 청중이 실천할 수 있는 구체적 적용 포함",
+        "전환": "대지 간 자연스러운 연결 문장 사용"
+      },
+      "interpretation_rules": {
+        "허용": ["Step1/Step2 내용을 문장으로 풀어쓰기", "예화 추가", "적용 구체화", "수사적 표현"],
+        "금지": ["Step1에 없는 새로운 성경 해석", "Step2 구조 변경", "대지 순서 변경", "새로운 대지 추가"]
+      },
+      "quality_criteria": [
+        "Step2의 3대지 구조를 정확히 따랐는가",
+        "Step1의 해석이 왜곡 없이 반영되었는가",
+        "각 대지에 설명-예증-적용이 포함되었는가",
+        "지정된 분량에 맞게 작성되었는가",
+        "설교 현장에서 바로 사용 가능한 문체인가"
+      ]
+    }
+  },
+  "강해설교": {
+    "step1": {
+      "step": "step1",
+      "style": "강해설교",
+      "role": "성경 본문 분석가",
+      "principle": "강해설교는 본문이 말하는 그대로 해석하는 데 초점을 둔다. Step1은 설교를 위한 해석 원자료만 제공하며, 적용이나 설교적 언어는 포함하지 않는다.",
+      "output_format": {
+        "historical_background": {
+          "label": "역사·정황 배경",
+          "description": "본문의 시대·저자·수신자·정치·사회·지리·신앙적 상황을 6-10문장으로 정리",
+          "required_items": [
+            "기록 시기",
+            "저자와 수신자",
+            "문맥(앞뒤 단락과의 연결)",
+            "당시 공동체가 직면한 문제",
+            "지리적·문화적 배경",
+            "작성 목적"
+          ]
+        },
+        "literary_structure": {
+          "label": "문학 구조",
+          "description": "본문의 자연스러운 단락 구분과 흐름",
+          "required_items": [
+            "단락 구분 (절 범위 명시)",
+            "각 단락의 핵심 내용",
+            "단락 간 논리적 연결"
+          ],
+          "example": "1-3절: 감사 → 4-6절: 권면 → 7-10절: 결론"
+        },
+        "verse_structure": {
+          "label": "절별 분석",
+          "description": "각 절의 관찰(Observation) 중심 분석",
+          "per_verse": {
+            "observation": "문법·주어·동사·핵심 표현 분석",
+            "meaning": "문장이 말하는 객관적 의미",
+            "connection": "앞뒤 절과 연결되는 논리적 흐름"
+          },
+          "purpose": "강해설교의 핵심인 절-by-절 해석의 기초 자료"
+        },
+        "section_grouping": {
+          "label": "대지 단위 절 그룹핑",
+          "description": "Step2의 3대지 구성을 위해 절을 3개 섹션으로 사전 그룹핑",
+          "format": {
+            "section1": { "verses": "절 범위", "theme": "섹션 주제 한 문장" },
+            "section2": { "verses": "절 범위", "theme": "섹션 주제 한 문장" },
+            "section3": { "verses": "절 범위", "theme": "섹션 주제 한 문장" }
+          },
+          "note": "이 그룹핑은 본문의 자연스러운 흐름을 따르며, Step2에서 조정 가능"
+        },
+        "key_terms": {
+          "label": "핵심 단어·원어 분석",
+          "description": "본문의 주요 단어 5-8개에 대한 원어 분석",
+          "per_term": {
+            "word": "본문에 나온 단어",
+            "original": "원어 (헬라어/히브리어)",
+            "basic_meaning": "기본 사전적 의미",
+            "contextual_meaning": "본문 안에서의 뉘앙스",
+            "theological_significance": "신학적 의미 (있는 경우)"
+          }
+        },
+        "cross_references": {
+          "label": "보충 성경구절",
+          "description": "본문 해석을 강화하는 직접 연결 구절 4-6개",
+          "format": {
+            "reference": "성경구절 (예: 롬 8:15)",
+            "connection_reason": "본문과 연결되는 이유 한 문장"
+          },
+          "purpose": "성경이 성경을 해석하게 하는 원칙 적용"
+        },
+        "author_intent": {
+          "label": "저자 의도",
+          "description": "저자가 이 본문을 기록한 목적을 3-5문장으로 정리",
+          "focus": "수신자에게 전달하고자 한 핵심 메시지"
+        },
+        "theological_summary": {
+          "label": "신학적 요약",
+          "description": "본문이 말하는 하나님·인간·구원·순종에 관한 신학적 핵심 3-5문장",
+          "exclude": ["적용", "권면", "감성적 표현"],
+          "focus": "오직 '이 본문이 신학적으로 무엇을 말하는가'"
+        },
+        "logical_flow": {
+          "label": "본문 논리 흐름",
+          "description": "본문 전체의 논리적 흐름을 한 줄로 정리",
+          "example": "상황 제시 → 문제 인식 → 해결 방향 → 결론"
+        }
+      }
+    },
+    "step2": {
+      "step": "step2",
+      "style": "강해설교",
+      "role": "설교 구조 설계자",
+      "principle": "Step1의 분석 자료를 바탕으로 설교 구조만을 설계한다. 새로운 해석이나 신학적 주장을 추가하지 않는다.",
+      "required_input": [
+        "step1.section_grouping",
+        "step1.literary_structure",
+        "step1.theological_summary",
+        "step1.key_terms (대지별 1개씩, 총 3개 선택)",
+        "step1.cross_references"
+      ],
+      "output_format": {
+        "title": {
+          "label": "설교 제목",
+          "description": "본문 전체 내용을 압축한 제목"
+        },
+        "scripture_text": {
+          "label": "본문",
+          "description": "장과 절 범위 (예: 디모데후서 1:3-8)"
+        },
+        "introduction": {
+          "label": "서론 구성",
+          "components": {
+            "hook": {
+              "label": "도입",
+              "description": "청중의 관심을 끄는 질문이나 상황 1-2문장"
+            },
+            "previous_context": {
+              "label": "이전 본문 요약",
+              "description": "직전 본문과의 연결 3-4문장"
+            },
+            "historical_link": {
+              "label": "역사적 배경",
+              "description": "본문 이해에 필요한 최소한의 배경 2-3문장",
+              "source": "step1.historical_background에서 발췌"
+            },
+            "sermon_direction": {
+              "label": "설교 방향",
+              "description": "이 설교가 다루는 핵심 질문 또는 메시지 1문장"
+            }
+          }
+        },
+        "big_idea": {
+          "label": "핵심 주제 (Big Idea)",
+          "description": "설교 전체를 관통하는 단 하나의 메시지",
+          "example": "하나님은 두려움에 빠진 자녀에게 담대함의 영을 주신다"
+        },
+        "sermon_outline": {
+          "label": "3대지 구조",
+          "description": "본문을 3개의 대지로 나눔. Step1의 section_grouping을 기반으로 구성",
+          "format": {
+            "point1": {
+              "title": "대지1 제목",
+              "verses": "절 범위 (예: 3-5절)",
+              "summary": "핵심 내용 3-4문장",
+              "key_term": "이 대지에서 강조할 원어 단어 (step1.key_terms에서 선택)",
+              "supporting_verses": ["보충 구절1", "보충 구절2"]
+            },
+            "point2": {
+              "title": "대지2 제목",
+              "verses": "절 범위",
+              "summary": "핵심 내용 3-4문장",
+              "key_term": "원어 단어",
+              "supporting_verses": ["보충 구절1", "보충 구절2"]
+            },
+            "point3": {
+              "title": "대지3 제목",
+              "verses": "절 범위",
+              "summary": "핵심 내용 3-4문장",
+              "key_term": "원어 단어",
+              "supporting_verses": ["보충 구절1", "보충 구절2"]
+            }
+          }
+        },
+        "flow_connection": {
+          "label": "대지 연결 흐름",
+          "description": "대지1 → 대지2 → 대지3이 어떤 논리로 연결되는지 2-3문장"
+        },
+        "application_direction": {
+          "label": "적용 방향",
+          "description": "Step3에서 적용을 작성할 때 참고할 방향 2-3문장",
+          "note": "구체적 적용은 Step3에서 작성"
+        },
+        "conclusion_direction": {
+          "label": "결론 방향",
+          "description": "설교 결론에서 강조할 핵심 메시지 방향 1-2문장"
+        }
+      },
+      "writing_spec": {
+        "style": "강해설교",
+        "tone": "자연스러운 문장 흐름, 대화형",
+        "interpretation": "본문에 충실한 해석",
+        "vocabulary": "60-80대 성도도 이해 가능한 어휘",
+        "avoid": ["과도한 수사", "감정적 과장", "본문에 없는 상상"]
+      },
+      "constraints": {
+        "no_new_interpretation": "Step1에 없는 새로운 신학·해석 추가 금지",
+        "balanced_points": "세 대지는 분량과 논리 비중이 균형 있게",
+        "verse_coverage": "본문의 모든 절이 대지 안에 포함되어야 함"
+      }
+    },
+    "step3": {
+      "step": "step3",
+      "style": "강해설교",
+      "role": "설교문 작성자",
+      "principle": "Step1의 해석 자료와 Step2의 구조를 변경 없이 그대로 반영하여 설교문을 작성한다.",
+      "priority_order": {
+        "1_최우선": "홈화면 설정 (분량, 예배유형, 대상, 특별참고사항)",
+        "2_필수반영": "Step2 구조 (3대지, 절 범위, supporting_verses)",
+        "3_핵심활용": "Step1 절별 분석 (verse_structure) + 원어 (key_terms)",
+        "4_참고활용": "Step1 보충 구절 (cross_references), 저자 의도 (author_intent)"
+      },
+      "required_input": [
+        "step1.verse_structure",
+        "step1.key_terms",
+        "step1.cross_references",
+        "step1.author_intent",
+        "step2.sermon_outline",
+        "step2.big_idea",
+        "step2.introduction",
+        "step2.writing_spec",
+        "system_settings: frontend에서 전달되는 설정값(분량, 대상, 예배유형)을 그대로 반영"
+      ],
+      "use_from_step1": {
+        "verse_structure": {
+          "instruction": "각 절의 observation·meaning을 설교 본론에 자연스럽게 풀어서 강해",
+          "format": "~절을 보면, '~'라고 되어 있습니다. 이것은 ~를 의미합니다.",
+          "priority": "필수"
+        },
+        "key_terms": {
+          "instruction": "각 대지에서 지정된 원어(key_term)를 설명에 포함",
+          "format": "여기서 '~'라는 단어는 헬라어로 '~'인데, 이는 ~를 뜻합니다.",
+          "frequency": "대지별 1회 이상",
+          "priority": "필수"
+        },
+        "cross_references": {
+          "instruction": "각 대지의 supporting_verses를 인용하여 해석 강화",
+          "format": "~에서도 이렇게 말씀합니다.",
+          "priority": "권장"
+        },
+        "author_intent": {
+          "instruction": "결론부에서 저자 의도를 강조",
+          "priority": "권장"
+        }
+      },
+      "use_from_step2": {
+        "sermon_outline": {
+          "instruction": "3대지 구조와 절 범위를 그대로 유지",
+          "priority": "필수 - 변경 금지"
+        },
+        "big_idea": {
+          "instruction": "설교 전체를 관통하는 메시지로 유지, 결론에서 재강조",
+          "priority": "필수"
+        },
+        "introduction": {
+          "instruction": "hook, previous_context, historical_link, sermon_direction을 자연스러운 문장으로 확장",
+          "priority": "필수"
+        },
+        "supporting_verses": {
+          "instruction": "각 대지에서 지정된 보충 구절 인용",
+          "priority": "필수"
+        },
+        "writing_spec": {
+          "instruction": "tone, vocabulary, avoid 규칙을 설교문 전체에 적용",
+          "priority": "필수"
+        }
+      },
+      "writing_rules": {
+        "ice_breaking": {
+          "label": "아이스브레이킹",
+          "rules": [
+            "서론 시작 전 청중과의 라포 형성을 위한 짧은 도입",
+            "최근 일상 이야기, 가벼운 유머, 공감 질문 등 활용",
+            "2-4문장으로 간결하게 구성",
+            "본문 내용과 자연스럽게 연결되도록 구성"
+          ]
+        },
+        "structure": {
+          "label": "설교 구조",
+          "rules": [
+            "아이스브레이킹 → 서론 → 본론(대지1 → 대지2 → 대지3) → 결론 순서 유지",
+            "각 대지는 해당 절 범위의 내용만 다룸",
+            "대지 전환 시 연결 문장 필수 (예: '이제 다음 부분으로 넘어가겠습니다')"
+          ]
+        },
+        "verse_exposition": {
+          "label": "절별 강해",
+          "rules": [
+            "절을 인용한 후 meaning 설명",
+            "verse_structure의 connection을 활용하여 흐름 연결",
+            "절 순서대로 진행 (역순 또는 건너뛰기 금지)"
+          ]
+        },
+        "original_language": {
+          "label": "원어 활용",
+          "rules": [
+            "각 대지에서 지정된 key_term을 1회 이상 설명",
+            "원어는 쉬운 설명과 함께 제시",
+            "과도한 학문적 용어 사용 금지"
+          ]
+        },
+        "scripture_citation": {
+          "label": "성경 인용",
+          "rules": [
+            "각 대지의 supporting_verses 인용",
+            "같은 구절 반복 인용 금지",
+            "본문 외 구절은 supporting_verses에서만 선택"
+          ]
+        },
+        "application": {
+          "label": "적용",
+          "rules": [
+            "각 대지 끝에 신앙 적용 또는 일상 적용 1개",
+            "추상적 권면이 아닌 구체적 행동 제시",
+            "결론에서 전체 적용 요약"
+          ]
+        },
+        "tone": {
+          "label": "어조",
+          "rules": [
+            "대화형·설득형 톤 유지",
+            "과도한 수사, 감정적 과장 금지",
+            "대상(장년/청년/새벽)에 맞는 어휘 사용"
+          ]
+        }
+      },
+      "prohibitions": [
+        "Step2의 대지 구조 변경 금지",
+        "Step1에 없는 새로운 신학적 주장 금지",
+        "본문에 없는 내용 상상 금지",
+        "대지 순서 변경 금지",
+        "해당 절 범위를 중심으로 설명하되, 자연스러운 연결을 위한 최소한의 앞뒤 언급은 허용"
+      ],
+      "output_structure": {
+        "description": "순수 텍스트 형식으로 출력 (마크다운 기호 사용 금지)",
+        "sections": [
+          "아이스브레이킹 (청중 라포 형성, 2-4문장)",
+          "서론",
+          "본론 - 대지1 (제목, 절 강해, 원어 설명, 보충 구절, 적용)",
+          "본론 - 대지2 (동일 구조)",
+          "본론 - 대지3 (동일 구조)",
+          "결론 (요약, big_idea 재강조, 결단 촉구)"
+        ]
+      }
+    }
+  },
+  "주제설교": {
+    "step1": {
+      "step": "step1",
+      "style": "주제설교",
+      "role": "성경 주제 분석가",
+      "principle": "주제설교는 '주제를 성경 전체에서 추적'하여 조직적으로 설명해야 하므로, 분석 항목이 강해설교와 다르다.",
+      "output_format": {
+        "topic_definition": {
+          "label": "주제 정의",
+          "description": "주제의 성경적 의미를 정확하게 정의",
+          "items": [
+            "사용자가 지정한 주제의 성경적 정의",
+            "핵심 개념과 신학적 의미",
+            "일반 언어가 아닌 성경 전체 기준의 정의"
+          ],
+          "purpose": "주제 범위를 명확히 하여 혼란을 방지"
+        },
+        "biblical_scope": {
+          "label": "성경 전체 흐름",
+          "description": "성경 전체(구약→신약)에서 주제가 어떻게 전개·발전했는지 설명",
+          "items": [
+            "구약에서의 주제 출발점",
+            "지혜문학·예언서에서의 심화",
+            "예수님이 다루신 방식",
+            "사도행전·서신서에서의 발전",
+            "언약적·역사적 확장"
+          ],
+          "purpose": "주제설교는 성경 전체를 관통해야 하기 때문"
+        },
+        "key_passages": {
+          "label": "핵심 본문 3–5개",
+          "description": "주제를 대표하는 본문 선정 후 2–3문장 요약",
+          "items": [
+            "본문과 주제의 관계",
+            "주제 해석에 제공하는 방향성"
+          ],
+          "purpose": "설교의 신학적 뿌리 제공",
+          "format": [
+            {"reference": "성경구절", "summary": "2-3문장 요약"}
+          ]
+        },
+        "key_terms": {
+          "label": "핵심 단어·원어 분석",
+          "description": "주제에 직접 연결되는 원어 단어를 연구",
+          "items": [
+            "원어(히/헬)",
+            "기본 의미",
+            "성경 전체 사용 방식",
+            "주제와의 신학적 연결성"
+          ],
+          "purpose": "주제의 깊이를 확보하기 위함"
+        },
+        "theological_points": {
+          "label": "신학적 핵심 3–5개",
+          "description": "주제를 성경·신학적으로 정리하는 핵심 명제들",
+          "purpose": "설교의 중심 명제를 구성하는 재료"
+        },
+        "problem_diagnosis": {
+          "label": "현대 신앙인의 문제 진단",
+          "description": "이 주제와 관련해 현대 성도들이 겪는 문제를 분석",
+          "items": [
+            "실패·미래에 대한 과도한 불안",
+            "정체성 기반의 약함",
+            "관계와 경쟁 구조에서 오는 지속적 압박"
+          ],
+          "purpose": "상위 설교 AI의 적용 방향을 정확히 잡기 위해"
+        },
+        "summary": {
+          "label": "주제 해석 요약",
+          "description": "주제의 본질을 3–5문장으로 신학적으로 요약",
+          "exclude": ["적용", "감정", "권면"],
+          "focus": "오직 신학적 본질만 서술",
+          "purpose": "상위 설교 단계(step2/3)로 넘어가기 위한 최종 요약"
+        }
+      }
+    },
+    "step2": {
+      "step": "step2",
+      "style": "주제설교",
+      "role": "설교 구조 설계자",
+      "principle": "Step1에서 정리된 주제 분석 자료를 기반으로 설교 구조를 설계한다. Step3은 이 구조를 반영해 설교문을 작성한다.",
+      "output_format": {
+        "title": {
+          "label": "설교 제목",
+          "description": "설교의 주제를 한 문장으로 명확하게 표현"
+        },
+        "topic": {
+          "label": "주제",
+          "description": "사용자가 요청한 설교 주제"
+        },
+        "introduction_context": {
+          "label": "서론을 위한 배경 설명",
+          "sub_items": {
+            "topic_definition_summary": {
+              "label": "주제 정의 요약",
+              "description": "Step1의 topic_definition을 3-5문장으로 간단히 요약"
+            },
+            "biblical_scope_summary": {
+              "label": "성경 전체 흐름 요약",
+              "description": "구약→신약의 주제 흐름을 3-5문장으로 요약"
+            }
+          }
+        },
+        "big_idea": {
+          "label": "설교 핵심 명제",
+          "description": "주제를 한 문장으로 요약하는 강력한 메시지"
+        },
+        "sermon_outline": {
+          "label": "주제설교 3대지 구조",
+          "description": "본문 흐름이 아니라 '주제의 논리 흐름'에 따라 3개의 대지를 구성",
+          "format": [
+            "1. 주제의 본질은 무엇인가?",
+            "2. 주제가 성경 전체에서 어떻게 나타나는가?",
+            "3. 이 주제가 오늘 우리의 신앙에서 어떤 의미를 가지는가?"
+          ]
+        },
+        "each_point_summary": {
+          "label": "각 대지 요약",
+          "description": "각 대지가 말하는 핵심 논리를 5-8문장으로 요약",
+          "constraints": {
+            "focus": "해석 중심",
+            "exclude": ["예화", "감정", "적용"]
+          }
+        },
+        "key_supporting_verses_per_point": {
+          "label": "대지별 보충 성경구절",
+          "description": "각 대지마다 2-3개씩 Step1의 key_passages에서 선정",
+          "format": {
+            "point1": ["구절1", "구절2", "구절3"],
+            "point2": ["구절1", "구절2"],
+            "point3": ["구절1", "구절2", "구절3"]
+          }
+        },
+        "application_direction": {
+          "label": "적용 방향성",
+          "description": "Step3에서 어떤 방향으로 적용을 전개하면 좋은지 3-5줄로 제시"
+        }
+      },
+      "writing_spec": {
+        "style": "주제설교",
+        "tone": "명료하고 논리적이며 목회적으로 따뜻한 톤",
+        "interpretation": "주제를 성경 전체에서 균형 있게 해석",
+        "application": "실제 신앙에 연결되도록 구체적으로 안내",
+        "vocabulary": "60-80대 성도도 이해하기 쉬운 어휘",
+        "avoid": ["불필요한 수사", "과한 감정 표현", "학문적 난해함"]
+      }
+    },
+    "step3": {
+      "step": "step3",
+      "style": "주제설교",
+      "role": "설교문 작성자",
+      "principle": "홈화면 설정값을 최우선으로, Step1/Step2 결과를 활용하여 주제설교문 작성",
+      "priority_order": {
+        "1_최우선": "홈화면 설정 (제목, 예배유형, 분량, 대상, 특별참고사항)",
+        "2_필수반영": "Step2 구조 (3대지, 각 대지 요약, 대지별 보충구절)",
+        "3_참고활용": "Step1 분석 (key_passages, key_terms, theological_points, biblical_scope)"
+      },
+      "use_from_step1": {
+        "key_passages": {
+          "instruction": "각 대지에서 핵심 본문으로 인용",
+          "format": "~말씀에서 보듯이"
+        },
+        "key_terms": {
+          "instruction": "핵심 단어의 원어 의미를 설교에 자연스럽게 녹여내기",
+          "format": "히브리어/헬라어 원어로 ~라는 뜻입니다"
+        },
+        "biblical_scope": {
+          "instruction": "구약→신약 흐름을 서론이나 2대지에서 활용"
+        },
+        "theological_points": {
+          "instruction": "각 대지의 핵심 명제로 활용"
+        },
+        "problem_diagnosis": {
+          "instruction": "적용부에서 현대 성도의 문제와 연결"
+        }
+      },
+      "use_from_step2": {
+        "sermon_outline": {
+          "instruction": "3대지 구조 반드시 유지 (논리 흐름 기반)",
+          "priority": "필수"
+        },
+        "each_point_summary": {
+          "instruction": "각 대지 요약을 확장하여 본론 작성",
+          "priority": "필수"
+        },
+        "key_supporting_verses_per_point": {
+          "instruction": "각 대지에서 보충 성경구절 반드시 인용",
+          "priority": "필수"
+        },
+        "big_idea": {
+          "instruction": "설교 전체를 관통하는 메시지로 유지"
+        },
+        "application_direction": {
+          "instruction": "결론부 적용에 반영"
+        }
+      },
+      "writing_rules": {
+        "ice_breaking": {
+          "label": "아이스브레이킹",
+          "rules": [
+            "서론 시작 전 청중과의 라포 형성을 위한 짧은 도입",
+            "최근 일상 이야기, 가벼운 유머, 공감 질문 등 활용",
+            "2-4문장으로 간결하게 구성",
+            "주제와 자연스럽게 연결되도록 구성"
+          ]
+        },
+        "structure": {
+          "label": "주제설교 구조",
+          "rules": [
+            "아이스브레이킹 → 서론 → 본론 → 결론 순서 유지",
+            "1대지: 주제의 본질 (성경적 정의)",
+            "2대지: 주제의 성경적 전개 (구약→신약)",
+            "3대지: 주제의 오늘 의미 (적용)"
+          ]
+        },
+        "connection": {
+          "label": "대지 연결",
+          "rules": [
+            "대지 전환 시 연결 문장 필수",
+            "예: '~의 본질을 살펴보았습니다. 이제 이 주제가 성경 전체에서 어떻게 나타나는지 보겠습니다.'"
+          ]
+        },
+        "scripture_usage": {
+          "label": "성경 인용",
+          "rules": [
+            "각 대지마다 2-3개의 보충 성경구절 인용",
+            "구약-신약 균형 있게 인용",
+            "주제와 직접 연결된 구절만 사용"
+          ]
+        },
+        "no_duplication": {
+          "label": "중복 방지",
+          "rules": [
+            "대지 간 내용 중복 금지",
+            "같은 성경구절 반복 인용 금지"
+          ]
+        },
+        "application": {
+          "label": "적용",
+          "rules": [
+            "3대지에서 현대 신앙인의 삶과 연결",
+            "Step1의 problem_diagnosis 활용",
+            "구체적이고 실천 가능한 적용 제시"
+          ]
+        }
+      },
+      "output_structure": {
+        "description": "순수 텍스트 형식으로 출력",
+        "sections": [
+          "아이스브레이킹 (청중 라포 형성, 2-4문장)",
+          "서론 (주제 정의, 성경 전체 흐름 요약)",
+          "본론 - 1대지 (주제의 본질)",
+          "본론 - 2대지 (주제의 성경적 전개)",
+          "본론 - 3대지 (주제의 오늘 의미, 적용)",
+          "결론 (big_idea 재강조, 결단 촉구)"
+        ]
+      }
+    }
+  }
+};
+
 // ===== Firebase 초기화 =====
 const firebaseConfig = {
   apiKey: "AIzaSyBacmJDk-PG5FaoqnXV8Rg3P__AKOS2vu4",
@@ -541,6 +1252,7 @@ window.CONFIG_KEY = CONFIG_KEY;
 window.AUTO_SAVE_KEY = AUTO_SAVE_KEY;
 window.CONFIG_VERSION = CONFIG_VERSION;
 window.DEFAULT_STYLES = DEFAULT_STYLES;
+window.DEFAULT_GUIDES = DEFAULT_GUIDES;
 window.validateAndMigrateConfig = validateAndMigrateConfig;
 window.ensureStyleSelected = ensureStyleSelected;
 window.loadFromFirebase = loadFromFirebase;
