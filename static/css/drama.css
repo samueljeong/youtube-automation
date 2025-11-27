@@ -906,6 +906,33 @@ textarea.autosize { overflow: hidden; }
   opacity: 0.6;
 }
 
+/* Step 헤더 상단 고정 (sticky) */
+.step-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .75rem;
+  padding: .75rem 1rem;
+  border-radius: 10px;
+  background: inherit;
+  backdrop-filter: blur(10px);
+}
+.step4-container .step-header {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+.step5-container .step-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.step6-container .step-header {
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+}
+.step7-container .step-header {
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+}
+
 /* ===== Q&A 대화 기록 스타일 (추가) ===== */
 .qa-history {
   max-height: 400px;
