@@ -1075,14 +1075,14 @@
             <div id="analysis-status" style="display: none;"></div>
             <div id="processing-steps" style="display: none;"></div>
           </div>
-          <!-- 보라색/분홍색 박스 (세로 배치) -->
-          <div style="display: flex; flex-direction: column; gap: .5rem;">
-            <div class="box copy-all-box" id="step4-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
+          <!-- 보라색/분홍색 박스 (가로 배치) -->
+          <div style="display: flex; flex-direction: row; gap: .5rem;">
+            <div class="box copy-all-box" id="step4-box" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
               <div class="box-title" style="font-size: .85rem; margin-bottom: .3rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
               <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
               <button id="btn-copy-all" style="width: 100%; padding: .5rem; font-size: .8rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
-            <div class="box gpt-pro-box" id="step3-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
+            <div class="box gpt-pro-box" id="step3-box" style="flex: 1; background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
               <div class="box-title" style="font-size: .85rem; margin-bottom: .3rem; color: white; font-weight: 700;">🔴 AI 설교문 완성</div>
               <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
               <button id="btn-gpt-pro" style="width: 100%; padding: .5rem; font-size: .8rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
@@ -4015,35 +4015,23 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         </span>
       ` : `<span id="usage-${step.id}" style="font-size: .75rem; color: #888;"></span>`;
 
-      if (step.id === 'step2' || stepType === 'step2') {
-        // Step2는 서론까지만 표시 + 더보기 표시
-        return `
-          <div class="box step2-box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
-              <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
-              ${usageHtml}
-            </div>
-            <div class="step2-content-wrapper">
-              <textarea id="result-${step.id}" class="autosize" style="min-height: 100px; max-height: 150px;" readonly placeholder="${step.name} 결과가 표시됩니다."></textarea>
-              <div class="step2-gradient-overlay"></div>
-            </div>
-            <div style="text-align: center; color: #999; font-size: .85rem; padding: .5rem; border-top: 1px dashed #ddd; margin-top: .3rem;">
-              -<br>-<br>-<br>
-              <span style="font-size: .75rem;">이하 내용 생략</span>
-            </div>
+      // Step1, Step2 모두 동일한 축약 디자인
+      return `
+        <div class="box step2-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
+            <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
+            ${usageHtml}
           </div>
-        `;
-      } else {
-        return `
-          <div class="box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
-              <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
-              ${usageHtml}
-            </div>
-            <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
+          <div class="step2-content-wrapper">
+            <textarea id="result-${step.id}" class="autosize" style="min-height: 100px; max-height: 150px;" readonly placeholder="${step.name} 결과가 표시됩니다."></textarea>
+            <div class="step2-gradient-overlay"></div>
           </div>
-        `;
-      }
+          <div style="text-align: center; color: #999; font-size: .85rem; padding: .5rem; border-top: 1px dashed #ddd; margin-top: .3rem;">
+            -<br>-<br>-<br>
+            <span style="font-size: .75rem;">이하 내용 생략</span>
+          </div>
+        </div>
+      `;
     }).join('');
 
     // 결과 복원 및 자동 높이 (Step1, Step2 모두 축약 표시)
