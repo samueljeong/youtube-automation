@@ -841,7 +841,8 @@ function clearStep4() {
 
 // ===== 이벤트 리스너 설정 =====
 document.addEventListener('DOMContentLoaded', () => {
-  // Step4 가시성 체크 (주기적)
+  // Step4/Step5 가시성 체크 (즉시 + 주기적)
+  updateStep4Visibility();
   setInterval(updateStep4Visibility, 2000);
 
   // 썸네일 복원
