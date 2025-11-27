@@ -783,12 +783,9 @@ async function generateAllAuto(skipConfirm = false) {
       await generateYouTubeThumbnail();
     }
 
-    // 전체 자동화 모드: TTS 및 영상 자동 생성
-    if (isFullAutoMode && typeof runAutoTTSAndVideo === 'function') {
-      console.log('[AUTO] 이미지 생성 완료, TTS 자동 시작...');
-      showStatus('🎙️ 자동화: TTS 음성 생성 시작...');
-      await runAutoTTSAndVideo();
-    }
+    // 참고: 병렬 실행 모드에서는 TTS가 별도로 처리되므로 여기서 호출하지 않음
+    // runAutoTTSAndVideo는 runStep2AndStep3InParallel에서 별도로 처리됨
+    console.log('[AUTO] Step2 이미지 생성 완료 (TTS는 병렬로 처리 중)');
 
   } catch (err) {
     console.error('전체 자동 생성 오류:', err);

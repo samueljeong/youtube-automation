@@ -5,8 +5,8 @@
 
 // ===== 영상 제작 관련 변수 =====
 let step4SelectedImages = [];
-let step4VideoUrl = null;
-let step4VideoFileUrl = null; // 파일 URL (다운로드용)
+let step4VideoUrl = localStorage.getItem('_drama-step4-video-url') || null;
+let step4VideoFileUrl = localStorage.getItem('_drama-step4-video-file-url') || null;
 let generatedThumbnailUrl = null;
 
 // ===== Step4 컨테이너 업데이트 =====
@@ -522,6 +522,14 @@ async function generateVideo() {
             step4VideoFileUrl = result.videoFileUrl || result.videoUrl;
             videoPlayer.src = result.videoUrl;
             videoSection.style.display = 'block';
+
+            // ⭐ localStorage에 저장 (새로고침 후에도 유지)
+            localStorage.setItem('_drama-step4-video-url', step4VideoUrl);
+            localStorage.setItem('_drama-step4-video-file-url', step4VideoFileUrl);
+            if (typeof saveToFirebase === 'function') {
+              saveToFirebase('_drama-step4-video-url', step4VideoUrl);
+              saveToFirebase('_drama-step4-video-file-url', step4VideoFileUrl);
+            }
           }
 
           showStatus('✅ 영상 생성 완료! Step5에서 YouTube 업로드가 가능합니다.');
@@ -747,6 +755,14 @@ async function generateVideoAuto() {
             step4VideoFileUrl = result.videoFileUrl || result.videoUrl;
             videoPlayer.src = result.videoUrl;
             videoSection.style.display = 'block';
+
+            // ⭐ localStorage에 저장 (새로고침 후에도 유지)
+            localStorage.setItem('_drama-step4-video-url', step4VideoUrl);
+            localStorage.setItem('_drama-step4-video-file-url', step4VideoFileUrl);
+            if (typeof saveToFirebase === 'function') {
+              saveToFirebase('_drama-step4-video-url', step4VideoUrl);
+              saveToFirebase('_drama-step4-video-file-url', step4VideoFileUrl);
+            }
           }
 
           showStatus('🎉 자동화 완료! 영상이 생성되었습니다. YouTube 업로드를 진행하세요.');
@@ -839,6 +855,34 @@ function clearStep4() {
   setTimeout(hideStatus, 2000);
 }
 
+// ===== 저장된 영상 데이터 복원 =====
+function restoreStep4Data() {
+  let restored = false;
+
+  // 영상 URL 복원
+  if (step4VideoUrl && step4VideoUrl.trim()) {
+    const videoSection = document.getElementById('step6-video-section');
+    const videoPlayer = document.getElementById('step6-video-player');
+
+    if (videoPlayer) {
+      videoPlayer.src = step4VideoUrl;
+      if (videoSection) videoSection.style.display = 'block';
+      console.log('[DramaStep4] 영상 URL 복원 완료');
+      restored = true;
+
+      // Step 완료 표시
+      if (typeof updateProgressIndicator === 'function') {
+        updateProgressIndicator('step6');
+      }
+      if (typeof updateStepNavCompleted === 'function') {
+        updateStepNavCompleted('step4', true);
+      }
+    }
+  }
+
+  return restored;
+}
+
 // ===== 이벤트 리스너 설정 =====
 document.addEventListener('DOMContentLoaded', () => {
   // Step4/Step5 가시성 체크 (즉시 + 주기적)
@@ -847,6 +891,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 썸네일 복원
   setTimeout(restoreThumbnail, 500);
+
+  // ⭐ 저장된 영상 데이터 복원
+  setTimeout(() => {
+    const restored = restoreStep4Data();
+    if (restored) {
+      console.log('[DramaStep4] 이전 세션 영상 데이터 복원됨');
+    }
+  }, 600);
 
   // 버튼 이벤트 바인딩
   document.getElementById('btn-generate-thumbnail')?.addEventListener('click', generateYouTubeThumbnail);

@@ -138,6 +138,12 @@ async function executeStep1() {
       step1Result = data.result;
       localStorage.setItem('_drama-step1-result', step1Result);
 
+      // ⭐ Firebase에도 저장 (새로고침 후에도 유지)
+      if (typeof saveToFirebase === 'function') {
+        saveToFirebase('_drama-step1-result', step1Result);
+        console.log('[Step1] Firebase에 대본 저장됨');
+      }
+
       const resultTextarea = document.getElementById('step1-result') || document.getElementById('step3-result');
       const resultContainer = document.getElementById('step1-result-container') || document.getElementById('step3-result-container');
 
@@ -163,13 +169,11 @@ async function executeStep1() {
         updateProgressIndicator('step1');
       }
 
-      // 자동화 모드면 다음 Step 실행
+      // 자동화 모드면 Step2(이미지)와 Step3(TTS) 병렬 실행
       if (window.isFullAutoMode) {
-        console.log('[Step1] 자동화 모드: Step2(이미지 생성) 시작...');
+        console.log('[Step1] 자동화 모드: Step2+Step3 병렬 시작...');
         setTimeout(() => {
-          if (typeof generateAllAuto === 'function') {
-            generateAllAuto(true);
-          }
+          runStep2AndStep3InParallel();
         }, 2000);
       }
 
@@ -316,6 +320,131 @@ function extractNarrationFromScript(script) {
   }
 }
 
+// ===== Step2(이미지)와 Step3(TTS) 병렬 실행 =====
+async function runStep2AndStep3InParallel() {
+  console.log('[PARALLEL] Step2(이미지) + Step3(TTS) 병렬 실행 시작...');
+  showStatus('🚀 Step2(이미지) + Step3(TTS) 동시 생성 시작...');
+
+  let step2Completed = false;
+  let step3Completed = false;
+  let step2Error = null;
+  let step3Error = null;
+
+  // Step2: 이미지 생성 (비동기)
+  const step2Promise = (async () => {
+    try {
+      console.log('[PARALLEL] Step2 시작: 이미지 생성');
+      showLoadingOverlay('Step2: 이미지 생성', 'Step3(TTS)와 동시에 진행 중...');
+
+      if (typeof generateAllAuto === 'function') {
+        await generateAllAuto(true);  // skipConfirm = true
+      }
+      step2Completed = true;
+      console.log('[PARALLEL] Step2 완료: 이미지 생성 성공');
+    } catch (err) {
+      step2Error = err;
+      console.error('[PARALLEL] Step2 오류:', err);
+    }
+  })();
+
+  // Step3: TTS 음성 생성 (비동기) - Step2와 동시에 시작
+  const step3Promise = (async () => {
+    try {
+      console.log('[PARALLEL] Step3 시작: TTS 음성 생성');
+
+      // 잠시 대기 (DOM 업데이트 대기)
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 지문 추출
+      if (typeof extractNarration === 'function') {
+        extractNarration();
+      }
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // TTS 생성
+      if (typeof generateTTS === 'function') {
+        await generateTTS();
+      }
+      step3Completed = true;
+      console.log('[PARALLEL] Step3 완료: TTS 생성 성공');
+    } catch (err) {
+      step3Error = err;
+      console.error('[PARALLEL] Step3 오류:', err);
+    }
+  })();
+
+  // 두 작업 모두 완료 대기
+  await Promise.allSettled([step2Promise, step3Promise]);
+
+  hideLoadingOverlay();
+
+  // 결과 확인
+  if (step2Completed && step3Completed) {
+    console.log('[PARALLEL] Step2 + Step3 모두 완료! Step4(영상) 시작...');
+    showStatus('✅ Step2+Step3 완료! Step4(영상 생성) 시작...');
+
+    // Step4: 영상 생성
+    setTimeout(async () => {
+      if (typeof window.DramaStep4 !== 'undefined') {
+        // 이미지 자동 선택
+        if (typeof window.DramaStep4.autoSelectImages === 'function') {
+          await window.DramaStep4.autoSelectImages();
+        }
+        // 영상 생성
+        if (typeof window.DramaStep4.generateVideoAuto === 'function') {
+          await window.DramaStep4.generateVideoAuto();
+        }
+      }
+    }, 2000);
+  } else {
+    const errors = [];
+    if (step2Error) errors.push(`이미지: ${step2Error.message}`);
+    if (step3Error) errors.push(`TTS: ${step3Error.message}`);
+    showStatus(`⚠️ 일부 작업 실패 - ${errors.join(', ')}`);
+  }
+
+  // 자동화 모드 해제
+  window.isFullAutoMode = false;
+  if (typeof window.DramaStep2 !== 'undefined') {
+    window.DramaStep2.isFullAutoMode = false;
+  }
+}
+
+// 전역 노출
+window.runStep2AndStep3InParallel = runStep2AndStep3InParallel;
+
+// ===== 저장된 대본 결과 복원 =====
+function restoreStep1Data() {
+  const savedResult = localStorage.getItem('_drama-step1-result');
+  if (savedResult && savedResult.trim()) {
+    step1Result = savedResult;
+
+    const resultTextarea = document.getElementById('step1-result') || document.getElementById('step3-result');
+    const resultContainer = document.getElementById('step1-result-container') || document.getElementById('step3-result-container');
+
+    if (resultTextarea) {
+      resultTextarea.value = savedResult;
+      if (typeof autoResize === 'function') autoResize(resultTextarea);
+      console.log('[DramaStep1] 대본 결과 복원 완료 (길이: ' + savedResult.length + '자)');
+    }
+
+    if (resultContainer) {
+      resultContainer.style.display = 'block';
+    }
+
+    // Step 완료 표시
+    if (typeof updateProgressIndicator === 'function') {
+      updateProgressIndicator('step1');
+    }
+    if (typeof updateStepNavCompleted === 'function') {
+      updateStepNavCompleted('step1', true);
+    }
+
+    return true;
+  }
+  return false;
+}
+
 // ===== 이벤트 리스너 설정 =====
 document.addEventListener('DOMContentLoaded', () => {
   // Step1 실행 버튼 (화면에서는 "대본 작성" 버튼)
@@ -359,6 +488,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // ⭐ 저장된 대본 결과 복원 (중요!)
+  setTimeout(() => {
+    const restored = restoreStep1Data();
+    if (restored) {
+      console.log('[DramaStep1] 이전 세션 대본 복원됨');
+    }
+  }, 300);
 
   console.log('[DramaStep1] 초기화 완료');
 });

@@ -6,8 +6,9 @@
 // ===== TTS 관련 변수 =====
 let step3TtsProvider = 'google';  // 기본: Google Cloud TTS
 let step3SelectedVoice = 'ko-KR-Wavenet-A';  // Google 기본 음성
-let step3AudioUrl = null;
-let step3SubtitleData = null;
+let step3AudioUrl = localStorage.getItem('_drama-step3-audio-url') || null;
+let step3SubtitleData = JSON.parse(localStorage.getItem('_drama-step3-subtitle') || 'null');
+let step3ScriptText = localStorage.getItem('_drama-step3-script-text') || '';
 let step3PreviewAudio = null;  // 미리듣기용 오디오
 
 // ===== Step3 컨테이너 표시 =====
@@ -264,6 +265,14 @@ async function generateTTS() {
         audioPlayer.src = data.audioUrl;
         audioSection.style.display = 'block';
 
+        // ⭐ localStorage에 저장 (새로고침 후에도 유지)
+        localStorage.setItem('_drama-step3-audio-url', step3AudioUrl);
+        localStorage.setItem('_drama-step3-script-text', scriptText);
+        if (typeof saveToFirebase === 'function') {
+          saveToFirebase('_drama-step3-audio-url', step3AudioUrl);
+          saveToFirebase('_drama-step3-script-text', scriptText);
+        }
+
         // 오디오 로드 후 길이를 구해서 자막 생성
         audioPlayer.onloadedmetadata = async function() {
           const audioDuration = audioPlayer.duration;
@@ -352,6 +361,12 @@ async function generateSubtitleAuto(audioDuration = 0) {
         step3SubtitleData = data;
         subtitlePreview.textContent = data.srt;
         subtitleSection.style.display = 'block';
+
+        // ⭐ localStorage에 저장 (새로고침 후에도 유지)
+        localStorage.setItem('_drama-step3-subtitle', JSON.stringify(data));
+        if (typeof saveToFirebase === 'function') {
+          saveToFirebase('_drama-step3-subtitle', JSON.stringify(data));
+        }
       }
 
       // 자막 정보 표시
@@ -513,6 +528,12 @@ function clearStep3() {
 
   step3AudioUrl = null;
   step3SubtitleData = null;
+  step3ScriptText = '';
+
+  // ⭐ localStorage에서도 삭제
+  localStorage.removeItem('_drama-step3-audio-url');
+  localStorage.removeItem('_drama-step3-subtitle');
+  localStorage.removeItem('_drama-step3-script-text');
 
   showStatus('🗑️ Step3가 초기화되었습니다.');
   setTimeout(hideStatus, 2000);
@@ -612,6 +633,67 @@ async function runAutoTTSAndVideo() {
   }
 }
 
+// ===== 저장된 TTS 데이터 복원 =====
+function restoreStep3Data() {
+  let restored = false;
+
+  // 1. 스크립트 텍스트 복원
+  if (step3ScriptText && step3ScriptText.trim()) {
+    const scriptTextarea = document.getElementById('step5-script-text');
+    if (scriptTextarea) {
+      scriptTextarea.value = step3ScriptText;
+      console.log('[DramaStep3] 스크립트 텍스트 복원 완료');
+      restored = true;
+    }
+  }
+
+  // 2. 오디오 URL 복원
+  if (step3AudioUrl && step3AudioUrl.trim()) {
+    const audioSection = document.getElementById('step5-audio-section');
+    const audioPlayer = document.getElementById('step5-audio-player');
+    if (audioPlayer) {
+      audioPlayer.src = step3AudioUrl;
+      if (audioSection) audioSection.style.display = 'block';
+      console.log('[DramaStep3] 오디오 URL 복원 완료');
+      restored = true;
+    }
+  }
+
+  // 3. 자막 데이터 복원
+  if (step3SubtitleData && step3SubtitleData.srt) {
+    const subtitleSection = document.getElementById('step5-subtitle-section');
+    const subtitlePreview = document.getElementById('step5-subtitle-preview');
+    if (subtitlePreview) {
+      subtitlePreview.textContent = step3SubtitleData.srt;
+      if (subtitleSection) subtitleSection.style.display = 'block';
+
+      // 자막 정보 표시
+      const subtitleInfo = document.getElementById('step5-subtitle-info');
+      if (subtitleInfo && step3SubtitleData.sentenceCount) {
+        const sentenceCountEl = document.getElementById('step5-sentence-count');
+        const totalDurationEl = document.getElementById('step5-total-duration');
+        if (sentenceCountEl) sentenceCountEl.textContent = step3SubtitleData.sentenceCount;
+        if (totalDurationEl) totalDurationEl.textContent = formatDuration(step3SubtitleData.totalDuration);
+        subtitleInfo.style.display = 'block';
+      }
+      console.log('[DramaStep3] 자막 데이터 복원 완료');
+      restored = true;
+    }
+  }
+
+  // Step 완료 표시
+  if (restored) {
+    if (typeof updateProgressIndicator === 'function') {
+      updateProgressIndicator('step5');
+    }
+    if (typeof updateStepNavCompleted === 'function') {
+      updateStepNavCompleted('step3', true);
+    }
+  }
+
+  return restored;
+}
+
 // ===== 이벤트 리스너 설정 =====
 document.addEventListener('DOMContentLoaded', () => {
   // TTS 제공자 및 음성 선택 초기화
@@ -629,6 +711,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-download-srt')?.addEventListener('click', downloadSRT);
   document.getElementById('btn-download-vtt')?.addEventListener('click', downloadVTT);
   document.getElementById('btn-clear-step5')?.addEventListener('click', clearStep3);
+
+  // ⭐ 저장된 TTS 데이터 복원 (중요!)
+  setTimeout(() => {
+    const restored = restoreStep3Data();
+    if (restored) {
+      console.log('[DramaStep3] 이전 세션 TTS 데이터 복원됨');
+    }
+  }, 500);
 
   console.log('[DramaStep3] 초기화 완료');
 });
