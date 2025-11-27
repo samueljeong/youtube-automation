@@ -1079,7 +1079,7 @@
           <div style="display: flex; flex-direction: column; gap: .5rem;">
             <div class="box copy-all-box" id="step4-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
               <div class="box-title" style="font-size: .85rem; margin-bottom: .3rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
-              <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">무료 · 분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
+              <div class="box-desc" style="font-size: .75rem; margin-bottom: .5rem; color: rgba(255,255,255,0.95);">분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
               <button id="btn-copy-all" style="width: 100%; padding: .5rem; font-size: .8rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
             <div class="box gpt-pro-box" id="step3-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .75rem; opacity: 0.5; pointer-events: none;">
@@ -2110,18 +2110,47 @@
     }
   }
 
-  // ===== GPT 로딩 오버레이 =====
-  function showGptLoading() {
-    const overlay = document.getElementById('gpt-loading-overlay');
-    if (overlay) {
-      overlay.style.display = 'flex';
+  // ===== GPT 로딩 (오버레이 대신 안내문구) =====
+  let currentLoadingMessage = '';
+
+  function showGptLoading(message) {
+    currentLoadingMessage = message || '처리 중입니다...';
+    const guideDiv = document.getElementById('start-analysis-guide');
+    const startBtn = document.getElementById('btn-start-analysis');
+
+    // 버튼 비활성화
+    if (startBtn) startBtn.style.display = 'none';
+
+    // 안내문구에 진행상황 표시
+    if (guideDiv) {
+      guideDiv.style.display = 'block';
+      guideDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      guideDiv.style.border = 'none';
+      guideDiv.innerHTML = `<span style="font-size: .95rem; font-weight: 700; color: white;">⏳ ${currentLoadingMessage}</span>`;
     }
   }
 
   function hideGptLoading() {
-    const overlay = document.getElementById('gpt-loading-overlay');
-    if (overlay) {
-      overlay.style.display = 'none';
+    currentLoadingMessage = '';
+    const guideDiv = document.getElementById('start-analysis-guide');
+
+    // 안내문구 원래대로 복구
+    if (guideDiv) {
+      guideDiv.style.display = 'none';
+      guideDiv.style.background = '#f8f9ff';
+      guideDiv.style.border = '2px dashed #667eea';
+      guideDiv.innerHTML = `<span style="font-size: .95rem; font-weight: 700; color: #667eea;">📖 성경본문을 입력해주세요</span>`;
+    }
+
+    // UI 상태 업데이트
+    updateAnalysisUI();
+  }
+
+  function updateLoadingMessage(message) {
+    currentLoadingMessage = message;
+    const guideDiv = document.getElementById('start-analysis-guide');
+    if (guideDiv && guideDiv.style.display !== 'none') {
+      guideDiv.innerHTML = `<span style="font-size: .95rem; font-weight: 700; color: white;">⏳ ${message}</span>`;
     }
   }
 
@@ -3782,25 +3811,31 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     }
   }
 
-  // 진행 상태 표시 업데이트
+  // 진행 상태 표시 업데이트 (안내문구에 표시)
   function updateProgressStatus(statuses) {
-    const statusContainer = document.getElementById('analysis-status');
-    if (!statusContainer) return;
+    const guideDiv = document.getElementById('start-analysis-guide');
+    if (!guideDiv) return;
 
-    const statusIcons = { pending: '⏸️', running: '⏳', done: '✅', error: '❌' };
+    // 현재 진행 중인 단계 찾기
+    const runningSteps = statuses.filter(s => s.status === 'running');
+    const doneCount = statuses.filter(s => s.status === 'done').length;
+    const totalCount = statuses.length;
 
-    let html = '<div style="padding: .3rem;">';
-    html += '<div style="font-size: .8rem; color: #667eea; font-weight: 600; margin-bottom: .5rem; text-align: center;">BIBLE LAB을 이용해 주셔서 감사합니다.</div>';
-    html += '<div style="border-top: 1px dashed #ddd; padding-top: .5rem;">';
+    let message = '';
+    if (runningSteps.length > 0) {
+      const stepNames = runningSteps.map(s => s.name).join(', ');
+      message = `${stepNames} 처리 중... (${doneCount}/${totalCount})`;
+    } else if (doneCount === totalCount) {
+      message = '✅ 분석 완료!';
+    } else {
+      message = '분석 준비 중...';
+    }
 
-    statuses.forEach(s => {
-      const icon = statusIcons[s.status] || '⏸️';
-      const color = s.status === 'done' ? '#28a745' : s.status === 'running' ? '#667eea' : '#999';
-      html += `<div style="font-size: .8rem; color: ${color}; padding: .15rem 0;">${icon} ${s.name}</div>`;
-    });
-
-    html += '</div></div>';
-    statusContainer.innerHTML = html;
+    // 안내문구에 진행상황 표시
+    guideDiv.style.display = 'block';
+    guideDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    guideDiv.style.border = 'none';
+    guideDiv.innerHTML = `<span style="font-size: .95rem; font-weight: 700; color: white;">⏳ ${message}</span>`;
   }
 
   // 자동 분석 실행 (Step1 병렬 → Step2 순차)
@@ -3875,42 +3910,12 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   }
 
   function renderProcessingSteps() {
-    const steps = getCurrentSteps();
+    // 처리 단계 버튼은 더 이상 표시하지 않음 (자동 분석으로 대체)
     const container = document.getElementById('processing-steps');
-
-    if (!container) return;
-
-    if (steps.length === 0) {
-      container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">단계를 추가하세요.</p>';
-      return;
+    if (container) {
+      container.style.display = 'none';
+      container.innerHTML = '';
     }
-
-    // Step1 완료 여부 확인 (Step2 활성화 조건)
-    const step1Steps = steps.filter(s => (s.stepType || 'step1') === 'step1');
-    const step1Completed = step1Steps.length > 0 && step1Steps.every(s => stepResults[s.id]);
-
-    // 가로 배치를 위한 flex 컨테이너 스타일
-    container.style.display = 'flex';
-    container.style.flexWrap = 'wrap';
-    container.style.gap = '.4rem';
-
-    container.innerHTML = steps.map(step => {
-      const stepType = step.stepType || 'step1';
-      const isStep2 = stepType === 'step2';
-      const isDisabled = isStep2 && !step1Completed;
-
-      if (isDisabled) {
-        return `<button class="step-btn" data-step="${step.id}" disabled
-          style="flex: 1 1 auto; min-width: 70px; font-size: .8rem; padding: .4rem .6rem; background: #ccc; color: #888; cursor: not-allowed;"
-          title="Step1을 먼저 완료해주세요">${step.name} 🔒</button>`;
-      }
-      return `<button class="step-btn primary" data-step="${step.id}"
-        style="flex: 1 1 auto; min-width: 70px; font-size: .8rem; padding: .4rem .6rem;">${step.name}</button>`;
-    }).join('');
-
-    container.querySelectorAll('.step-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', () => executeStep(btn.dataset.step));
-    });
   }
 
   // Step1/Step2 결과를 일부만 표시하는 함수
