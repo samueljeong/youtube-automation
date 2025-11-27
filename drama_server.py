@@ -1861,6 +1861,110 @@ def api_get_accumulated_guide():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Q&A 대화 API =====
+@app.route('/api/drama/qa', methods=['POST'])
+def api_drama_qa():
+    """대본/작업에 대한 Q&A 대화"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        question = data.get("question", "")
+        script = data.get("script", "")
+        session_context = data.get("sessionContext", "")
+        history = data.get("history", [])
+
+        if not question:
+            return jsonify({"ok": False, "error": "질문이 없습니다."}), 400
+
+        print(f"[Q&A] 질문: {question[:100]}...")
+
+        # 대화 히스토리 구성
+        history_text = ""
+        if history:
+            history_text = "\n\n【 이전 대화 】\n"
+            for item in history[-5:]:  # 최근 5개만
+                if item.get('question') and item.get('answer') and item.get('answer') != '답변을 생성 중입니다...':
+                    history_text += f"Q: {item['question'][:200]}\n"
+                    history_text += f"A: {item['answer'][:500]}\n\n"
+
+        # 대본 컨텍스트 (앞부분만)
+        script_context = ""
+        if script:
+            script_preview = script[:3000] if len(script) > 3000 else script
+            script_context = f"\n\n【 현재 대본 (일부) 】\n{script_preview}"
+
+        system_prompt = f"""당신은 드라마/간증 대본 제작 전문 AI 어시스턴트입니다.
+사용자의 질문에 친절하고 전문적으로 답변해주세요.
+
+{session_context}
+{script_context}
+{history_text}
+
+【 답변 가이드 】
+- 대본 구조, 캐릭터, 스토리에 대한 전문적 조언 제공
+- 구체적이고 실행 가능한 제안
+- 한국어로 자연스럽게 답변
+- 필요시 예시 제공
+"""
+
+        user_prompt = f"질문: {question}"
+
+        # OpenRouter API 호출 (GPT-4o-mini 사용)
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not openrouter_api_key:
+            return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다."}), 200
+
+        import requests as req
+
+        headers = {
+            "Authorization": f"Bearer {openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://drama-lab.app",
+            "X-Title": "Drama Lab Q&A"
+        }
+
+        payload = {
+            "model": "openai/gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1500
+        }
+
+        response = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            answer = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            if answer:
+                print(f"[Q&A] 답변 생성 완료: {len(answer)}자")
+                return jsonify({
+                    "ok": True,
+                    "answer": answer,
+                    "model": "gpt-4o-mini"
+                })
+            else:
+                return jsonify({"ok": False, "error": "답변 생성 실패"}), 200
+        else:
+            error_text = response.text
+            print(f"[Q&A][ERROR] OpenRouter 응답: {response.status_code} - {error_text}")
+            return jsonify({"ok": False, "error": f"API 오류: {response.status_code}"}), 200
+
+    except Exception as e:
+        print(f"[Q&A][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Step3: OpenRouter를 통한 Claude 대본 완성 =====
 @app.route('/api/drama/generate-metadata', methods=['POST'])
 def api_generate_metadata():

@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <title>DRAMA LAB</title>
+  <!-- 외부 CSS 파일 -->
+  <link rel="stylesheet" href="/static/css/drama.css">
   <style>
+    /* 페이지별 추가 스타일 (필요시) */
     * { box-sizing: border-box; }
     body {
       margin: 0;
@@ -1239,6 +1242,21 @@
         <button id="btn-save" style="width: 100%; margin-bottom: .5rem; font-size: .85rem; padding: .4rem;">현재 내용 저장</button>
         <div id="saved-list"></div>
       </div>
+
+      <!-- Q&A 대화 -->
+      <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+          <label class="label" style="color: white; font-size: .9rem;">💬 AI 대화</label>
+          <button onclick="DramaSession.clearHistory()" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: .2rem .5rem; border-radius: 4px; font-size: .7rem; cursor: pointer;">기록 삭제</button>
+        </div>
+        <div id="qa-history" class="qa-history" style="background: white; border-radius: 8px; max-height: 200px; overflow-y: auto; margin-bottom: .5rem;">
+          <div class="qa-empty-state">아직 대화가 없습니다.<br>대본이나 작업에 대해 궁금한 점을 물어보세요.</div>
+        </div>
+        <div class="qa-input-container" style="display: flex; gap: .3rem;">
+          <input type="text" id="qa-input" placeholder="질문을 입력하세요..." style="flex: 1; padding: .4rem .5rem; border: none; border-radius: 6px; font-size: .8rem;" onkeypress="if(event.key==='Enter') DramaSession.sendQuestion()">
+          <button onclick="DramaSession.sendQuestion()" style="background: white; color: #667eea; border: none; padding: .4rem .6rem; border-radius: 6px; font-weight: 600; font-size: .8rem; cursor: pointer;">전송</button>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -2041,6 +2059,9 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <!-- Q&A 대화 기록 모듈 -->
+  <script src="/static/js/drama-session.js"></script>
 
   <script>
   // ===== Firebase 초기화 =====
