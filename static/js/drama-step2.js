@@ -666,6 +666,59 @@ async function generateAllAuto(skipConfirm = false) {
 
     step2Characters = analyzeData.characters || [];
     step2Scenes = analyzeData.scenes || [];
+
+    // ⭐ GPT 분석 프롬프트가 있으면 병합
+    const gptPrompts = window.gptAnalyzedPrompts || JSON.parse(localStorage.getItem('_drama-gpt-prompts') || 'null');
+    if (gptPrompts) {
+      console.log('[Step2] GPT 분석 프롬프트 적용 중...');
+
+      // 캐릭터 프롬프트 병합
+      if (gptPrompts.characters && gptPrompts.characters.length > 0) {
+        step2Characters = step2Characters.map(char => {
+          const gptChar = gptPrompts.characters.find(gc =>
+            gc.name === char.name ||
+            gc.name.includes(char.name) ||
+            char.name.includes(gc.name)
+          );
+          if (gptChar && gptChar.imagePrompt) {
+            console.log(`[Step2] 캐릭터 "${char.name}" GPT 프롬프트 적용`);
+            return {
+              ...char,
+              imagePrompt: gptChar.imagePrompt,
+              gptDescription: gptChar.description
+            };
+          }
+          return char;
+        });
+      }
+
+      // 씬 프롬프트 병합
+      if (gptPrompts.scenes && gptPrompts.scenes.length > 0) {
+        step2Scenes = step2Scenes.map((scene, idx) => {
+          const gptScene = gptPrompts.scenes[idx] || gptPrompts.scenes.find(gs =>
+            gs.sceneNumber === (idx + 1)
+          );
+          if (gptScene && gptScene.backgroundPrompt) {
+            console.log(`[Step2] 씬 ${idx + 1} GPT 배경 프롬프트 적용`);
+            return {
+              ...scene,
+              backgroundPrompt: gptScene.backgroundPrompt,
+              characterAction: gptScene.characterAction,
+              gptDescription: gptScene.description
+            };
+          }
+          return scene;
+        });
+      }
+
+      // 시각적 스타일 저장
+      if (gptPrompts.visualStyle) {
+        window.gptVisualStyle = gptPrompts.visualStyle;
+      }
+
+      showStatus('✅ GPT 프롬프트가 적용되었습니다.');
+    }
+
     localStorage.setItem('_drama-step4-characters', JSON.stringify(step2Characters));
     localStorage.setItem('_drama-step4-scenes', JSON.stringify(step2Scenes));
 
@@ -674,7 +727,8 @@ async function generateAllAuto(skipConfirm = false) {
     updateSceneSelect();
     updateSceneCharacterCheckboxes();
 
-    updateProgress(15, `✅ 분석 완료: ${step2Characters.length}명의 인물, ${step2Scenes.length}개의 씬`, '인물 이미지 생성을 시작합니다');
+    const gptStatus = gptPrompts ? ' (GPT 프롬프트 적용)' : '';
+    updateProgress(15, `✅ 분석 완료: ${step2Characters.length}명의 인물, ${step2Scenes.length}개의 씬${gptStatus}`, '인물 이미지 생성을 시작합니다');
 
     // 2단계: 인물 이미지 생성
     const totalCharacters = step2Characters.length;
@@ -690,11 +744,17 @@ async function generateAllAuto(skipConfirm = false) {
       showStatus(`👤 ${char.name} 이미지 생성 중... (${i + 1}/${totalCharacters})`);
 
       try {
+        // GPT 스타일이 있으면 프롬프트에 추가
+        let charPrompt = char.imagePrompt || `Portrait of ${char.name}, ${char.description}, Korean drama style, professional photography, soft lighting`;
+        if (window.gptVisualStyle && char.imagePrompt) {
+          charPrompt = `${char.imagePrompt}, ${window.gptVisualStyle}`;
+        }
+
         const imageResponse = await fetch('/api/drama/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: char.imagePrompt || `Portrait of ${char.name}, ${char.description}, Korean drama style, professional photography, soft lighting`,
+            prompt: charPrompt,
             size: '1024x1024',
             imageProvider: step2ImageProvider
           })
@@ -740,18 +800,26 @@ async function generateAllAuto(skipConfirm = false) {
               name: c.name,
               prompt: c.imagePrompt || c.description
             })),
-            backgroundPrompt: scene.backgroundPrompt || ''
+            backgroundPrompt: scene.backgroundPrompt || '',
+            visualStyle: window.gptVisualStyle || '',
+            characterAction: scene.characterAction || ''
           })
         });
 
         const promptData = await promptResponse.json();
         if (!promptData.ok) throw new Error(promptData.error || '프롬프트 생성 실패');
 
+        // GPT 스타일이 있으면 최종 프롬프트에 추가
+        let finalPrompt = promptData.combinedPrompt;
+        if (window.gptVisualStyle && !finalPrompt.includes(window.gptVisualStyle)) {
+          finalPrompt = `${finalPrompt}, ${window.gptVisualStyle}`;
+        }
+
         const imageResponse = await fetch('/api/drama/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: promptData.combinedPrompt,
+            prompt: finalPrompt,
             size: '1792x1024',
             imageProvider: step2ImageProvider
           })
