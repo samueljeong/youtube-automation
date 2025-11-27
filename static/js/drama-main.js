@@ -5,6 +5,9 @@
  * 화면 Step 기준: Step1(대본) → Step2(이미지) → Step3(TTS) → Step4(영상) → Step5(업로드)
  */
 
+// ===== 데이터 버전 관리 =====
+const CONFIG_VERSION = 2; // 버전 업데이트 시 증가
+
 // ===== Firebase 초기화 =====
 const firebaseConfig = {
   apiKey: "AIzaSyBacmJDk-PG5FaoqnXV8Rg3P__AKOS2vu4",
@@ -62,6 +65,94 @@ let config = {
     { id: 'dialogue', name: '대사 작성' }
   ]
 };
+
+// ===== Config 검증 및 마이그레이션 =====
+function validateAndMigrateConfig(loadedConfig) {
+  console.log('[Drama Config] 검증 시작, 현재 버전:', loadedConfig?._version || '없음');
+
+  // config가 없거나 유효하지 않으면 기본값 반환
+  if (!loadedConfig || typeof loadedConfig !== 'object') {
+    console.log('[Drama Config] config가 없음 - 기본값 사용');
+    return null;
+  }
+
+  // 필수 필드 검증
+  if (!loadedConfig.categories || !Array.isArray(loadedConfig.categories)) {
+    console.log('[Drama Config] categories 없음 - 기본값 사용');
+    return null;
+  }
+
+  let needsSave = false;
+
+  // 버전 1 -> 2: processingSteps 필드 확인 및 추가
+  if (!loadedConfig._version || loadedConfig._version < 2) {
+    console.log('[Drama Config] 버전 마이그레이션: 1 -> 2');
+
+    // processingSteps가 없으면 추가
+    if (!loadedConfig.processingSteps) {
+      loadedConfig.processingSteps = [
+        { id: 'character', name: '캐릭터 설정' },
+        { id: 'storyline', name: '스토리라인' },
+        { id: 'scene', name: '씬 구성' },
+        { id: 'dialogue', name: '대사 작성' }
+      ];
+    }
+
+    loadedConfig._version = 2;
+    needsSave = true;
+  }
+
+  if (needsSave) {
+    console.log('[Drama Config] 마이그레이션 완료 - 저장 필요');
+    setTimeout(() => {
+      saveConfig();
+      console.log('[Drama Config] 마이그레이션된 설정 저장됨');
+    }, 1000);
+  }
+
+  return loadedConfig;
+}
+
+// ===== 워크플로우 세션 검증 및 마이그레이션 =====
+function validateAndMigrateSession(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+
+  let needsSave = false;
+
+  // 필수 필드 확인 및 추가
+  if (!session.step1) {
+    session.step1 = { topic: '', mainCharacter: '', benchmark: {}, script: '' };
+    needsSave = true;
+  }
+  if (!session.step2) {
+    session.step2 = { provider: 'gemini', images: [], characters: [], scenes: [] };
+    needsSave = true;
+  }
+  if (!session.step3) {
+    session.step3 = { provider: 'google', voice: '', audioUrl: '', subtitle: '' };
+    needsSave = true;
+  }
+  if (!session.step4) {
+    session.step4 = { videoUrl: '', duration: '', format: 'mp4' };
+    needsSave = true;
+  }
+  if (!session.step5) {
+    session.step5 = { status: 'draft', youtubeId: '', youtubeUrl: '', scheduledAt: '' };
+    needsSave = true;
+  }
+  if (!session.metadata) {
+    session.metadata = { title: '', description: '', tags: [], thumbnail: { prompt: '', url: '' } };
+    needsSave = true;
+  }
+
+  if (needsSave) {
+    console.log('[Drama Session] 세션 구조 마이그레이션 완료');
+  }
+
+  return session;
+}
 
 // ===== Step 네비게이션 함수 =====
 function scrollToStep(containerId) {
@@ -214,9 +305,13 @@ function loadSessionFromStorage() {
     const saved = localStorage.getItem('_drama-workflow-session');
     if (saved) {
       const parsed = JSON.parse(saved);
-      workflowSession = { ...workflowSession, ...parsed };
-      console.log('[SESSION] 로드 완료:', workflowSession.sessionId);
-      return true;
+      // 세션 검증 및 마이그레이션
+      const validated = validateAndMigrateSession(parsed);
+      if (validated) {
+        workflowSession = { ...workflowSession, ...validated };
+        console.log('[SESSION] 로드 완료:', workflowSession.sessionId);
+        return true;
+      }
     }
   } catch (e) {
     console.warn('[SESSION] 로드 실패:', e);
@@ -260,8 +355,16 @@ async function loadFromFirebase() {
     const configData = localStorage.getItem(CONFIG_KEY);
     if (configData) {
       try {
-        config = JSON.parse(configData);
-      } catch (e) { console.warn('Config 파싱 실패'); }
+        const parsed = JSON.parse(configData);
+        // Config 검증 및 마이그레이션
+        const validated = validateAndMigrateConfig(parsed);
+        if (validated) {
+          config = validated;
+        }
+        // validated가 null이면 기본 config 유지
+      } catch (e) {
+        console.warn('[Drama Config] 파싱 실패:', e);
+      }
     }
 
     console.log('[Firebase] 데이터 로드 완료');
@@ -281,6 +384,11 @@ async function saveToFirebase(key, value) {
 }
 
 async function saveConfig() {
+  // 버전 정보 추가
+  if (!config._version) {
+    config._version = CONFIG_VERSION;
+  }
+
   const configStr = JSON.stringify(config);
   localStorage.setItem(CONFIG_KEY, configStr);
   await saveToFirebase(CONFIG_KEY, configStr);
@@ -366,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ===== 전역 노출 =====
 window.DramaMain = {
   // 상수
-  USER_CODE, PAGE_NAME, GUIDE_PASSWORD, GPT_PRO_PASSWORD, CONFIG_KEY,
+  USER_CODE, PAGE_NAME, GUIDE_PASSWORD, GPT_PRO_PASSWORD, CONFIG_KEY, CONFIG_VERSION,
 
   // 전역 변수 접근
   get guideUnlocked() { return guideUnlocked; },
@@ -396,6 +504,10 @@ window.DramaMain = {
   getFullSession,
   getSessionContext,
 
+  // 마이그레이션
+  validateAndMigrateConfig,
+  validateAndMigrateSession,
+
   // Firebase
   loadFromFirebase,
   saveToFirebase,
@@ -423,6 +535,8 @@ window.getSessionContext = getSessionContext;
 window.loadFromFirebase = loadFromFirebase;
 window.saveToFirebase = saveToFirebase;
 window.updateProgressIndicator = updateProgressIndicator;
+window.validateAndMigrateConfig = validateAndMigrateConfig;
+window.validateAndMigrateSession = validateAndMigrateSession;
 
 // 전역 변수 노출
 window.db = db;
@@ -434,3 +548,4 @@ window.currentCategory = currentCategory;
 window.selectedCategory = selectedCategory;
 window.customDirective = customDirective;
 window.videoCategories = videoCategories;
+window.CONFIG_VERSION = CONFIG_VERSION;
