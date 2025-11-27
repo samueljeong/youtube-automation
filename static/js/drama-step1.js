@@ -58,6 +58,11 @@ async function executeStep1() {
   try {
     let gptPlanResult = '';
 
+    // Step1 상태 업데이트
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step1', 'working', 'GPT 기획 중 (1/3)');
+    }
+
     // 1단계: GPT-4o-mini 스토리 기획
     showLoadingOverlay('GPT 기획 중 (1/3)', 'GPT-4o-mini가 스토리 컨셉을 기획하고 있습니다...');
     showStatus('🎯 Step1-1: GPT-4o-mini 스토리 기획 중...');
@@ -78,6 +83,11 @@ async function executeStep1() {
     }
 
     console.log('[Step1-1] GPT 기획 완료');
+
+    // Step1 상태 업데이트
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step1', 'working', 'GPT 구조화 중 (2/3)');
+    }
 
     // 2단계: GPT-4o-mini 장면 구성
     showLoadingOverlay('GPT 구조화 중 (2/3)', 'GPT-4o-mini가 장면 구성을 만들고 있습니다...');
@@ -105,6 +115,11 @@ async function executeStep1() {
     gptPlanResult = `【 GPT-4o-mini 기획 결과 】\n\n`;
     gptPlanResult += `=== 스토리 컨셉 ===\n${planStep1Data.result}\n\n`;
     gptPlanResult += `=== 장면 구성 ===\n${planStep2Data.result}`;
+
+    // Step1 상태 업데이트
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step1', 'working', 'Claude 대본 작성 중 (3/3)');
+    }
 
     // 3단계: Claude로 최종 대본 작성
     showLoadingOverlay('Claude 대본 작성 중 (3/3)', 'Claude Sonnet 4.5가 대본을 작성하고 있습니다...');
@@ -187,6 +202,9 @@ async function executeStep1() {
     console.error('[Step1] 오류:', err);
     alert(`대본 생성 오류: ${err.message}`);
     showStatus('❌ Step1 실패');
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step1', 'error', err.message.substring(0, 30));
+    }
   } finally {
     hideLoadingOverlay();
   }

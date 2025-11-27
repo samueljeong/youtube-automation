@@ -629,6 +629,11 @@ async function generateAllAuto(skipConfirm = false) {
   const detailsText = document.getElementById('auto-generate-details');
   const btnGenerateAll = document.getElementById('btn-generate-all-auto');
 
+  // Step2 상태 업데이트 - 시작
+  if (typeof updateStepStatus === 'function') {
+    updateStepStatus('step2', 'working', '대본 분석 중...');
+  }
+
   if (progressContainer) progressContainer.style.display = 'block';
   if (btnGenerateAll) {
     btnGenerateAll.disabled = true;
@@ -639,6 +644,10 @@ async function generateAllAuto(skipConfirm = false) {
     if (progressBar) progressBar.style.width = `${percent}%`;
     if (statusText) statusText.textContent = status;
     if (detailsText) detailsText.textContent = details;
+    // 사이드바 상태도 업데이트
+    if (typeof updateStepStatus === 'function' && percent < 100) {
+      updateStepStatus('step2', 'working', status.substring(0, 25));
+    }
   };
 
   try {
@@ -791,6 +800,9 @@ async function generateAllAuto(skipConfirm = false) {
     console.error('전체 자동 생성 오류:', err);
     updateProgress(0, `❌ 오류 발생: ${err.message}`, '다시 시도해주세요');
     showStatus(`❌ 자동 생성 오류: ${err.message}`);
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step2', 'error', err.message.substring(0, 30));
+    }
   } finally {
     isAutoGenerating = false;
     if (btnGenerateAll) {

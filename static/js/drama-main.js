@@ -422,26 +422,85 @@ async function saveConfig() {
 // ===== 진행 상황 관리 =====
 const completedSteps = new Set();
 
+// 내부 step name을 사이드바 step으로 매핑
+const stepMap = {
+  'step1': 'step1', 'step3': 'step1',  // 대본 생성
+  'step4': 'step2',  // 이미지 생성
+  'step5': 'step3',  // TTS
+  'step6': 'step4',  // 영상 제작
+  'step7': 'step5'   // 유튜브 업로드
+};
+
+/**
+ * 단계별 상세 상태 업데이트
+ * @param {string} stepName - 스텝 이름 (step1, step2, step3, step4, step5)
+ * @param {string} status - 상태 ('idle', 'working', 'completed', 'error')
+ * @param {string} message - 상세 메시지 (예: "GPT 기획 중...", "이미지 생성 3/5")
+ */
+function updateStepStatus(stepName, status, message = '') {
+  const sidebarStep = stepMap[stepName] || stepName;
+  const sidebarItem = document.querySelector(`.progress-step-sidebar[data-step="${sidebarStep}"]`);
+
+  if (!sidebarItem) return;
+
+  const innerDiv = sidebarItem.querySelector('div > div');
+  const substatus = sidebarItem.querySelector('.step-substatus');
+  const statusIcon = sidebarItem.querySelector('.step-status-icon');
+  const indicator = sidebarItem.querySelector('.step-indicator');
+
+  // 상태에 따른 스타일 및 아이콘 설정
+  const statusStyles = {
+    idle: { icon: '○', borderColor: 'rgba(255,255,255,0.3)', bgColor: 'rgba(255,255,255,0.1)' },
+    working: { icon: '⏳', borderColor: '#fbbf24', bgColor: 'rgba(251,191,36,0.2)' },
+    completed: { icon: '✓', borderColor: '#22c55e', bgColor: 'rgba(34,197,94,0.2)' },
+    error: { icon: '✗', borderColor: '#ef4444', bgColor: 'rgba(239,68,68,0.2)' }
+  };
+
+  const style = statusStyles[status] || statusStyles.idle;
+
+  if (innerDiv) {
+    innerDiv.style.borderLeftColor = style.borderColor;
+    innerDiv.style.background = style.bgColor;
+  }
+
+  if (statusIcon) {
+    statusIcon.textContent = style.icon;
+    statusIcon.style.color = status === 'working' ? '#fbbf24' :
+                             status === 'completed' ? '#22c55e' :
+                             status === 'error' ? '#ef4444' : 'white';
+  }
+
+  if (indicator) {
+    indicator.style.background = status === 'working' ? '#fbbf24' :
+                                  status === 'completed' ? '#22c55e' :
+                                  status === 'error' ? '#ef4444' : 'rgba(255,255,255,0.3)';
+  }
+
+  // 메시지 업데이트
+  if (substatus) {
+    substatus.textContent = message || (status === 'idle' ? '대기' :
+                                        status === 'working' ? '진행 중...' :
+                                        status === 'completed' ? '완료' : '오류');
+    substatus.style.color = status === 'working' ? '#fbbf24' :
+                            status === 'completed' ? '#a5f3a0' :
+                            status === 'error' ? '#fca5a5' : 'rgba(255,255,255,0.7)';
+  }
+
+  // 완료 시 completedSteps에 추가
+  if (status === 'completed') {
+    completedSteps.add(stepName);
+  }
+
+  console.log(`[Progress] ${sidebarStep}: ${status} - ${message}`);
+}
+
 function updateProgressIndicator(stepName) {
   completedSteps.add(stepName);
 
-  // 사이드바 Step 버튼 업데이트
-  const stepMap = {
-    'step1': 'step1', 'step3': 'step1',  // 대본 생성
-    'step4': 'step2',  // 이미지 생성
-    'step5': 'step3',  // TTS
-    'step6': 'step4',  // 영상 제작
-    'step7': 'step5'   // 유튜브 업로드
-  };
-
   const sidebarStep = stepMap[stepName] || stepName;
 
-  const sidebarItem = document.querySelector(`.progress-step-sidebar[data-step="${sidebarStep}"]`);
-  if (sidebarItem) {
-    sidebarItem.classList.add('completed');
-    const icon = sidebarItem.querySelector('.progress-icon');
-    if (icon) icon.textContent = '✓';
-  }
+  // 상태를 'completed'로 업데이트
+  updateStepStatus(sidebarStep, 'completed', '완료');
 
   // Step 네비게이션 버튼 업데이트
   updateStepNavCompleted(sidebarStep, true);
@@ -592,6 +651,7 @@ window.getSessionContext = getSessionContext;
 window.loadFromFirebase = loadFromFirebase;
 window.saveToFirebase = saveToFirebase;
 window.updateProgressIndicator = updateProgressIndicator;
+window.updateStepStatus = updateStepStatus;
 window.validateAndMigrateConfig = validateAndMigrateConfig;
 window.validateAndMigrateSession = validateAndMigrateSession;
 window.syncGlobalVariables = syncGlobalVariables;

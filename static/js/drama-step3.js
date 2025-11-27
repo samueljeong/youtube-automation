@@ -238,6 +238,11 @@ async function generateTTS() {
   showStatus(`🎙️ Step3: ${providerName} TTS 음성 생성 중...`);
   showLoadingOverlay();
 
+  // Step3 상태 업데이트 - 시작
+  if (typeof updateStepStatus === 'function') {
+    updateStepStatus('step3', 'working', `${providerName} TTS 생성 중...`);
+  }
+
   try {
     const response = await fetch('/api/drama/generate-tts', {
       method: 'POST',
@@ -319,10 +324,16 @@ async function generateTTS() {
     } else {
       alert(`오류: ${data.error}`);
       showStatus('❌ TTS 생성 실패');
+      if (typeof updateStepStatus === 'function') {
+        updateStepStatus('step3', 'error', 'TTS 생성 실패');
+      }
     }
   } catch (err) {
     alert(`네트워크 오류: ${err.message}`);
     showStatus('❌ TTS 생성 오류');
+    if (typeof updateStepStatus === 'function') {
+      updateStepStatus('step3', 'error', err.message.substring(0, 30));
+    }
   } finally {
     hideLoadingOverlay();
     setTimeout(hideStatus, 3000);
