@@ -999,26 +999,28 @@
       <div class="content-section">
         <!-- 설교 콘텐츠 -->
         <div id="sermon-content">
-        <!-- 본문 선정 (추천 기능) -->
-        <div class="box">
-          <div class="label-row">
-            <label class="label">📖 본문 선정</label>
-            <span style="font-size: .8rem; color: #777;">상황을 입력하면 적합한 본문을 추천해드립니다</span>
+        <!-- 본문 선정 + 성경본문 (한 줄) -->
+        <div class="input-grid" style="grid-template-columns: 1fr 1fr; gap: .5rem;">
+          <!-- 본문 선정 (추천 기능) -->
+          <div class="box" style="padding: .6rem;">
+            <label class="label" style="font-size: .8rem;">📖 본문 선정 <span style="font-weight: 400; color: #777;">(상황을 입력하면 적합한 본문을 추천해드립니다)</span><span class="label-hint">선택</span></label>
+            <div style="display: flex; gap: .5rem;">
+              <input type="text" id="scripture-search" placeholder="예) 이사심방, 구국기도회, 송년예배" style="flex: 1; font-size: .85rem;">
+              <button id="btn-search-scripture" class="primary" style="white-space: nowrap; font-size: .85rem;">검색</button>
+            </div>
           </div>
-          <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
-            <input type="text" id="scripture-search" placeholder="예) 이사심방, 구국기도회, 송년예배" style="flex: 1;">
-            <button id="btn-search-scripture" class="primary" style="white-space: nowrap;">검색</button>
+          <!-- 성경본문 (필수) - 강조 스타일 -->
+          <div class="box" style="padding: .6rem; background: linear-gradient(135deg, #f8f9ff 0%, #e8f4fd 100%); border: 2px solid #667eea;">
+            <label class="label" style="font-size: .8rem;">📖 성경본문<span class="label-hint" style="background: #667eea; color: white;">필수</span></label>
+            <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8" style="border: 1px solid #667eea; background: white; font-size: .85rem;">
           </div>
-          <div id="scripture-recommendations" style="display: none;">
+        </div>
+        <!-- 본문 추천 결과 (검색 결과가 여기에 표시됨) -->
+        <div id="scripture-recommendations" style="display: none; margin-bottom: .5rem;">
+          <div class="box" style="padding: .6rem; background: #f8f9ff;">
             <div style="font-size: .85rem; color: #667eea; margin-bottom: .5rem; font-weight: 600;">✨ 추천 본문 (클릭하여 선택)</div>
             <div id="scripture-list" style="display: flex; flex-direction: column; gap: .4rem;"></div>
           </div>
-        </div>
-
-        <!-- 성경구절 (필수) - 강조 스타일 -->
-        <div class="box" style="background: linear-gradient(135deg, #f8f9ff 0%, #e8f4fd 100%); border: 2px solid #667eea; border-left: 4px solid #667eea;">
-          <label class="label">📖 성경구절<span class="label-hint" style="background: #667eea; color: white;">필수</span></label>
-          <input type="text" id="sermon-ref" placeholder="예) 시 78:1-8" style="border: 1px solid #667eea; background: white;">
         </div>
 
         <!-- 제목, 예배·집회 유형, 분량, 대상 (한 줄 - 4열) -->
@@ -1054,29 +1056,23 @@
           <textarea id="special-notes" placeholder="설교 작성 시 고려해야 할 특별한 상황, 요청, 주의점을 자유롭게 기입하세요.&#10;예) 현장 상황, 성도 사정, 교회 일정, 설교자의 의도 등" style="font-size: .85rem; min-height: 60px; resize: vertical; width: 100%; padding: .5rem; border: 1px solid #e0e0e0; border-radius: 6px; line-height: 1.4;"></textarea>
         </div>
 
-        <div class="dual-row">
-          <div class="box">
-            <div class="label-row">
-              <label class="label">설교 스타일<span class="label-hint">클릭하여 선택</span></label>
-              <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
-            </div>
-            <div id="styles-list"></div>
-            <!-- 설교 준비 시작 버튼 -->
-            <button id="btn-start-analysis" style="display: none; width: 100%; margin-top: .75rem; padding: .7rem; font-size: .95rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
-              ✨ 설교 준비 시작
-            </button>
+        <div class="box">
+          <div class="label-row">
+            <label class="label">설교 스타일<span class="label-hint">클릭하여 선택</span></label>
+            <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
           </div>
-          <div class="box">
-            <label class="label">진행 상태</label>
-            <!-- 진행 상태 표시 영역 -->
-            <div id="analysis-status" style="padding: .5rem; background: #f8f9ff; border-radius: 8px; min-height: 80px;">
-              <div style="color: #888; font-size: .85rem; text-align: center; padding: 1rem;">
-                📖 성경 본문을 입력하고, 설교 스타일을 선택해주세요.
-              </div>
-            </div>
-            <!-- 숨겨진 처리 단계 (내부 기능 유지) -->
-            <div id="processing-steps" style="display: none;"></div>
+          <div id="styles-list"></div>
+          <!-- 설교 준비 시작 안내문구 (버튼 비활성화시 표시) -->
+          <div id="start-analysis-guide" style="width: 100%; margin-top: .75rem; padding: .7rem; text-align: center; background: #f8f9ff; border-radius: 8px; border: 2px dashed #667eea;">
+            <span style="font-size: .95rem; font-weight: 700; color: #667eea;">📖 성경본문을 입력해주세요</span>
           </div>
+          <!-- 설교 준비 시작 버튼 -->
+          <button id="btn-start-analysis" style="display: none; width: 100%; margin-top: .75rem; padding: .7rem; font-size: .95rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
+            ✨ 설교 준비 시작
+          </button>
+          <!-- 숨겨진 진행 상태 (내부 기능 유지) -->
+          <div id="analysis-status" style="display: none;"></div>
+          <div id="processing-steps" style="display: none;"></div>
         </div>
 
           <div class="action-row">
@@ -1785,11 +1781,11 @@
 
         <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
           <strong style="color: #667eea;">1. 카테고리 선택</strong><br>
-          <span style="font-size: .8rem;">원하는 기능 선택 후 성경구절 입력 (예: 창1:1-10 또는 창세기 1장 1~10절)</span>
+          <span style="font-size: .8rem;">원하는 기능 선택 후 성경본문 입력 (예: 창1:1-10 또는 창세기 1장 1~10절)</span>
         </div>
 
         <div style="background: #f0f4ff; padding: .65rem; border-radius: 6px; margin-bottom: .6rem; border-left: 3px solid #667eea;">
-          <strong style="color: #667eea;">2. 제목 및 성경구절</strong><br>
+          <strong style="color: #667eea;">2. 제목 및 성경본문</strong><br>
           <span style="font-size: .8rem;">선택사항이므로 꼭 기입하지 않아도 됩니다</span>
         </div>
 
@@ -3005,7 +3001,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const specialNotes = document.getElementById('special-notes')?.value.trim() || '';
 
     if (!ref) {
-      return '[오류] 성경구절을 입력하세요.';
+      return '[오류] 성경본문을 입력하세요.';
     }
 
     let prompt = '';
@@ -3121,7 +3117,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     const specialNotes = document.getElementById('special-notes')?.value.trim() || '';
 
     if (!ref) {
-      return { error: '성경구절을 입력하세요.' };
+      return { error: '성경본문을 입력하세요.' };
     }
 
     if (steps.length === 0) {
@@ -3173,7 +3169,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     if (styleDescription) {
       fullText += `- 스타일 설명: ${styleDescription}\n`;
     }
-    fullText += `- 성경구절: ${ref}\n`;
+    fullText += `- 성경본문: ${ref}\n`;
     if (finalTitle) {
       fullText += `- 설교 제목: ${finalTitle}\n`;
     }
@@ -3734,11 +3730,12 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   function updateAnalysisUI() {
     const statusContainer = document.getElementById('analysis-status');
     const startBtn = document.getElementById('btn-start-analysis');
+    const guideDiv = document.getElementById('start-analysis-guide');
     const step3Box = document.getElementById('step3-box');
     const step4Box = document.getElementById('step4-box');
     const ref = document.getElementById('sermon-ref')?.value;
 
-    if (!statusContainer) return;
+    if (!startBtn) return;
 
     // Step1, Step2 완료 여부 확인
     const steps = getCurrentSteps();
@@ -3754,33 +3751,28 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       step3Box.style.pointerEvents = 'auto';
       step4Box.style.opacity = '1';
       step4Box.style.pointerEvents = 'auto';
-      statusContainer.innerHTML = `
-        <div style="text-align: center; padding: .5rem;">
-          <div style="color: #28a745; font-weight: 600; font-size: .9rem; margin-bottom: .3rem;">✅ 분석 완료!</div>
-          <div style="color: #666; font-size: .8rem;">아래 버튼으로 설교문을 완성하세요.</div>
-        </div>
-      `;
-      if (startBtn) startBtn.style.display = 'none';
+      startBtn.style.display = 'none';
+      if (guideDiv) guideDiv.style.display = 'none';
     } else if (!ref) {
-      // 성경 본문 없음
-      statusContainer.innerHTML = `
-        <div style="color: #888; font-size: .85rem; text-align: center; padding: 1rem;">
-          📖 성경 본문을 입력하고, 설교 스타일을 선택해주세요.
-        </div>
-      `;
-      if (startBtn) startBtn.style.display = 'none';
+      // 성경 본문 없음 - 안내문구 표시
+      startBtn.style.display = 'none';
+      if (guideDiv) guideDiv.style.display = 'block';
       step3Box.style.opacity = '0.5';
       step3Box.style.pointerEvents = 'none';
       step4Box.style.opacity = '0.5';
       step4Box.style.pointerEvents = 'none';
     } else if (currentStyleId && !analysisInProgress) {
       // 스타일 선택됨, 시작 버튼 표시
-      statusContainer.innerHTML = `
-        <div style="color: #667eea; font-size: .85rem; text-align: center; padding: 1rem;">
-          ✨ [설교 준비 시작] 버튼을 누르면 본문 분석이 시작됩니다.
-        </div>
-      `;
-      if (startBtn) startBtn.style.display = 'block';
+      startBtn.style.display = 'block';
+      if (guideDiv) guideDiv.style.display = 'none';
+      step3Box.style.opacity = '0.5';
+      step3Box.style.pointerEvents = 'none';
+      step4Box.style.opacity = '0.5';
+      step4Box.style.pointerEvents = 'none';
+    } else {
+      // 성경 본문은 있지만 스타일 미선택 또는 분석 중
+      startBtn.style.display = 'none';
+      if (guideDiv) guideDiv.style.display = 'none';
       step3Box.style.opacity = '0.5';
       step3Box.style.pointerEvents = 'none';
       step4Box.style.opacity = '0.5';
@@ -3813,7 +3805,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   async function startAutoAnalysis() {
     const ref = document.getElementById('sermon-ref').value;
     if (!ref) {
-      alert('성경구절을 입력하세요.');
+      alert('성경본문을 입력하세요.');
       return;
     }
     if (!currentStyleId) {
@@ -4159,7 +4151,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
   async function executeStep(stepId) {
     const ref = document.getElementById('sermon-ref').value;
     if (!ref) {
-      alert('성경구절을 입력하세요.');
+      alert('성경본문을 입력하세요.');
       return;
     }
 
@@ -4466,7 +4458,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       const template = document.getElementById('meditation-template')?.value.trim();
 
       if (!ref) {
-        alert('성경구절을 입력해주세요.');
+        alert('성경본문을 입력해주세요.');
         return;
       }
       if (!verse) {
