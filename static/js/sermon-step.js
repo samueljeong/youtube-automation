@@ -25,6 +25,12 @@ async function executeStep(stepId) {
   const guide = localStorage.getItem(guideKey) || '';
   const masterGuide = window.config.categorySettings[window.currentCategory]?.masterGuide || '';
 
+  console.log('[executeStep] 지침 로드 정보:');
+  console.log('  - guideKey:', guideKey);
+  console.log('  - guide 길이:', guide.length);
+  console.log('  - guide 시작 100자:', guide.substring(0, 100));
+  console.log('  - masterGuide 길이:', masterGuide.length);
+
   // 스타일 정보
   const style = getCurrentStyle();
   const styleName = style?.name || '';
