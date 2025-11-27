@@ -20,17 +20,45 @@ function updateStep4ImageGrid() {
   const grid = document.getElementById('step6-image-grid');
   if (!grid) return;
 
-  // Step2에서 생성된 이미지 가져오기
-  const step2Images = window.DramaStep2?.generatedImages || window.step4GeneratedImages || [];
+  // Step2에서 생성된 이미지 가져오기 (여러 소스에서 시도)
+  let step2Images = [];
+
+  // 1. DramaStep2 모듈에서 가져오기
+  if (window.DramaStep2 && typeof window.DramaStep2.generatedImages !== 'undefined') {
+    step2Images = window.DramaStep2.generatedImages;
+  }
+  // 2. 전역 변수에서 가져오기
+  else if (window.step4GeneratedImages && window.step4GeneratedImages.length > 0) {
+    step2Images = window.step4GeneratedImages;
+  }
+  // 3. localStorage에서 가져오기
+  else {
+    try {
+      const savedImages = localStorage.getItem('_drama-step4-images');
+      if (savedImages) {
+        step2Images = JSON.parse(savedImages);
+      }
+    } catch (e) {
+      console.warn('[Step4] localStorage 이미지 로드 실패:', e);
+    }
+  }
 
   if (!step2Images || step2Images.length === 0) {
     grid.innerHTML = '<div style="color: #999; text-align: center; padding: 1rem; grid-column: 1/-1;">Step2에서 이미지를 생성하면 여기에 표시됩니다</div>';
     return;
   }
 
-  grid.innerHTML = step2Images.map((img, idx) => `
+  // 유효한 이미지만 필터링
+  const validImages = step2Images.filter(img => img && img.url && img.url.trim() !== '');
+
+  if (validImages.length === 0) {
+    grid.innerHTML = '<div style="color: #999; text-align: center; padding: 1rem; grid-column: 1/-1;">Step2에서 이미지를 생성하면 여기에 표시됩니다</div>';
+    return;
+  }
+
+  grid.innerHTML = validImages.map((img, idx) => `
     <div class="step6-preview-item ${step4SelectedImages.includes(img.url) ? 'selected' : ''}" data-url="${img.url}" onclick="toggleStep4Image('${img.url}')">
-      <img src="${img.url}" alt="Scene ${idx + 1}">
+      <img src="${img.url}" alt="Scene ${idx + 1}" onerror="this.parentElement.style.display='none'">
     </div>
   `).join('');
 }
@@ -51,18 +79,40 @@ function updateStep4AudioStatus() {
   const statusDiv = document.getElementById('step6-audio-status');
   const audioPreview = document.getElementById('step6-audio-preview');
 
-  // Step3에서 생성된 오디오 가져오기
-  const audioUrl = window.DramaStep3?.audioUrl || window.step5AudioUrl;
+  if (!statusDiv) return;
+
+  // Step3에서 생성된 오디오 가져오기 (여러 소스에서 시도)
+  let audioUrl = null;
+
+  // 1. DramaStep3 모듈에서 가져오기
+  if (window.DramaStep3 && window.DramaStep3.audioUrl) {
+    audioUrl = window.DramaStep3.audioUrl;
+  }
+  // 2. 전역 변수에서 가져오기
+  else if (window.step5AudioUrl) {
+    audioUrl = window.step5AudioUrl;
+  }
+  // 3. 오디오 플레이어에서 직접 가져오기
+  else {
+    const step5AudioPlayer = document.getElementById('step5-audio-player');
+    if (step5AudioPlayer && step5AudioPlayer.src && step5AudioPlayer.src !== window.location.href) {
+      audioUrl = step5AudioPlayer.src;
+    }
+  }
 
   if (audioUrl) {
     statusDiv.innerHTML = '✅ 음성이 연결되었습니다';
     statusDiv.style.color = '#27ae60';
-    audioPreview.src = audioUrl;
-    audioPreview.style.display = 'block';
+    if (audioPreview) {
+      audioPreview.src = audioUrl;
+      audioPreview.style.display = 'block';
+    }
   } else {
     statusDiv.innerHTML = 'Step3에서 음성을 생성하면 자동으로 연결됩니다';
     statusDiv.style.color = '#666';
-    audioPreview.style.display = 'none';
+    if (audioPreview) {
+      audioPreview.style.display = 'none';
+    }
   }
 }
 
