@@ -603,3 +603,85 @@ window.selectedCategory = selectedCategory;
 window.customDirective = customDirective;
 window.videoCategories = videoCategories;
 window.CONFIG_VERSION = CONFIG_VERSION;
+window.workflowBoxes = workflowBoxes;
+window.customDurationText = customDurationText;
+window.nextBoxId = nextBoxId;
+window.nextStep1BoxNum = nextStep1BoxNum;
+window.nextStep2BoxNum = nextStep2BoxNum;
+window.guideUnlocked = guideUnlocked;
+window.gptProUnlocked = gptProUnlocked;
+
+// ===== 메타데이터 생성 함수 =====
+async function generateMetadataFromScript(script, contentType) {
+  if (!script) return;
+
+  console.log('[METADATA] 메타데이터 생성 시작...');
+  showStatus('🏷️ 메타데이터 생성 중...');
+
+  try {
+    const response = await fetch('/api/drama/generate-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script, contentType })
+    });
+
+    const data = await response.json();
+
+    if (data.ok && data.metadata) {
+      updateMetadata({
+        title: data.metadata.title,
+        description: data.metadata.description,
+        tags: data.metadata.tags
+      });
+
+      console.log('[METADATA] 생성 완료:', data.metadata);
+      showStatus('✅ 메타데이터 자동 생성 완료!');
+      showMetadataNotification(data.metadata);
+    } else {
+      console.warn('[METADATA] 생성 실패:', data.error);
+    }
+  } catch (err) {
+    console.error('[METADATA] 오류:', err);
+  }
+
+  setTimeout(hideStatus, 3000);
+}
+
+function showMetadataNotification(metadata) {
+  const titleField = document.getElementById('step7-title');
+  const descField = document.getElementById('step7-description');
+  const tagsField = document.getElementById('step7-tags');
+
+  if (titleField && metadata.title) titleField.value = metadata.title;
+  if (descField && metadata.description) descField.value = metadata.description;
+  if (tagsField && metadata.tags) tagsField.value = metadata.tags;
+
+  console.log('[METADATA] Step5 필드 자동 채움 완료:', metadata);
+
+  const notification = document.createElement('div');
+  notification.className = 'metadata-notification';
+  notification.innerHTML = `
+    <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                border: 1px solid #4CAF50; border-radius: 12px; padding: 16px;
+                position: fixed; bottom: 20px; right: 20px; z-index: 10000;
+                max-width: 400px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+      <div style="color: #4CAF50; font-weight: bold; margin-bottom: 8px;">
+        🏷️ YouTube 메타데이터 자동 생성 완료
+      </div>
+      <div style="color: #aaa; font-size: 13px; margin-bottom: 4px;">
+        <strong>제목:</strong> ${metadata.title}
+      </div>
+      <div style="color: #888; font-size: 12px;">
+        ✅ Step5 업로드 필드에 자동 입력되었습니다
+      </div>
+      <button onclick="this.parentElement.parentElement.remove()"
+              style="position: absolute; top: 8px; right: 8px; background: none;
+                     border: none; color: #666; cursor: pointer; font-size: 16px;">×</button>
+    </div>
+  `;
+  document.body.appendChild(notification);
+  setTimeout(() => notification.remove(), 5000);
+}
+
+window.generateMetadataFromScript = generateMetadataFromScript;
+window.showMetadataNotification = showMetadataNotification;
