@@ -1137,3 +1137,76 @@ window.openCategoryPromptsModal = openCategoryPromptsModal;
 window.closeCategoryPromptsModal = closeCategoryPromptsModal;
 window.showCategoryPromptStep = showCategoryPromptStep;
 window.copyCategoryPrompt = copyCategoryPrompt;
+
+// ===== 🧪 테스트 모드 관리 =====
+window.testMode = localStorage.getItem('_drama-test-mode') === 'true';
+
+// 테스트 모드 초기화
+function initTestMode() {
+  const toggle = document.getElementById('test-mode-toggle');
+  const switchEl = document.getElementById('test-mode-switch');
+  const knobEl = document.getElementById('test-mode-knob');
+  const boxEl = document.getElementById('test-mode-box');
+  const indicatorEl = document.getElementById('step3-mode-indicator');
+
+  if (!toggle || !switchEl || !knobEl) return;
+
+  // 초기 상태 설정
+  toggle.checked = window.testMode;
+  updateTestModeUI(window.testMode);
+
+  // 토글 이벤트
+  toggle.addEventListener('change', function() {
+    window.testMode = this.checked;
+    localStorage.setItem('_drama-test-mode', this.checked);
+    updateTestModeUI(this.checked);
+    console.log('[TestMode]', this.checked ? '활성화' : '비활성화');
+  });
+
+  // 스위치 클릭 이벤트 (라벨 외 직접 클릭 시)
+  switchEl.addEventListener('click', function() {
+    toggle.checked = !toggle.checked;
+    toggle.dispatchEvent(new Event('change'));
+  });
+}
+
+// 테스트 모드 UI 업데이트
+function updateTestModeUI(isTestMode) {
+  const switchEl = document.getElementById('test-mode-switch');
+  const knobEl = document.getElementById('test-mode-knob');
+  const boxEl = document.getElementById('test-mode-box');
+  const indicatorEl = document.getElementById('step3-mode-indicator');
+
+  if (switchEl && knobEl) {
+    if (isTestMode) {
+      switchEl.style.background = '#4CAF50';
+      knobEl.style.left = '26px';
+    } else {
+      switchEl.style.background = 'rgba(0,0,0,0.3)';
+      knobEl.style.left = '2px';
+    }
+  }
+
+  if (boxEl) {
+    if (isTestMode) {
+      boxEl.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+    } else {
+      boxEl.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)';
+    }
+  }
+
+  if (indicatorEl) {
+    if (isTestMode) {
+      indicatorEl.innerHTML = '<span style="color: #4CAF50; font-weight: 700;">🧪 테스트 모드 활성화</span> - 비용 최소화 (500자, 2씬, 2명)';
+    } else {
+      indicatorEl.textContent = 'OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.';
+    }
+  }
+}
+
+// DOM 로드 후 테스트 모드 초기화
+document.addEventListener('DOMContentLoaded', initTestMode);
+
+// 전역 노출
+window.initTestMode = initTestMode;
+window.updateTestModeUI = updateTestModeUI;

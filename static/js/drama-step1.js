@@ -165,7 +165,8 @@ async function executeStep1() {
       body: JSON.stringify({
         videoCategory: videoCategory,
         duration: durationLabel,
-        customDirective: window.customDirective || ''
+        customDirective: window.customDirective || '',
+        testMode: window.testMode || false
       })
     });
 
@@ -198,7 +199,8 @@ async function executeStep1() {
         videoCategory: videoCategory,
         duration: durationLabel,
         customDirective: window.customDirective || '',
-        step1Result: planStep1Data.result
+        step1Result: planStep1Data.result,
+        testMode: window.testMode || false
       })
     });
 
@@ -246,7 +248,8 @@ async function executeStep1() {
         contentTypePrompt: promptData,
         durationText: window.customDurationText || '',
         autoStoryMode: true,
-        customJsonGuide: currentJsonGuide
+        customJsonGuide: currentJsonGuide,
+        testMode: window.testMode || false
       })
     });
 

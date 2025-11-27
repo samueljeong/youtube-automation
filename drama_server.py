@@ -347,11 +347,12 @@ def get_guideline(path, default=None):
     except (KeyError, TypeError):
         return default
 
-def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
+def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20, test_mode=False):
     """
     guides/drama.json의 스타일 가이드를 기반으로 간증 대본 생성용 프롬프트 구축
     custom_guide: 클라이언트에서 보낸 커스텀 JSON 가이드 (있으면 우선 사용)
     duration_minutes: 영상 길이 (10, 20, 30분)
+    test_mode: 테스트 모드 (True일 경우 최소 분량으로 생성)
     """
     # 커스텀 가이드가 있으면 우선 사용, 없으면 서버 파일에서 로드
     guide = custom_guide if custom_guide else load_drama_guidelines()
@@ -367,6 +368,17 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20):
         'max_scenes': 6,
         'highlight_scenes': 3
     })
+
+    # 🧪 테스트 모드: 비용 최소화를 위해 최소 분량으로 설정
+    if test_mode:
+        print("[DRAMA] 🧪 테스트 모드 활성화 - 최소 분량으로 생성")
+        duration_settings = {
+            'target_length': 500,      # 500자 (기존 3000~9000자)
+            'max_characters': 2,       # 2명 (기존 2~4명)
+            'max_scenes': 2,           # 2개 씬 (기존 4~8개)
+            'highlight_scenes': 1      # 1개 하이라이트 (기존 2~3개)
+        }
+        duration_minutes = 3  # 3분 영상으로 설정
 
     character_rules = step1_guidelines.get('character_rules', {})
     highlight_rules = step1_guidelines.get('highlight_rules', {})
@@ -2141,6 +2153,7 @@ def api_drama_claude_step3():
         duration_text = (data.get("durationText") or "").strip()
         auto_story_mode = bool(data.get("autoStoryMode", False))
         custom_json_guide_str = data.get("customJsonGuide", "")  # 클라이언트에서 보낸 커스텀 JSON 지침
+        test_mode = bool(data.get("testMode", False))  # 🧪 테스트 모드 (비용 최소화)
 
         # 커스텀 JSON 지침 파싱
         custom_json_guide = None
@@ -2155,7 +2168,7 @@ def api_drama_claude_step3():
         if effective_category:
             category = effective_category
 
-        print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 시간: {category}, 영상카테고리: {video_category}, 지침: {custom_directive or '(없음)'}, 모델: {selected_model}")
+        print(f"[DRAMA-STEP3-OPENROUTER] 처리 시작 - 시간: {category}, 영상카테고리: {video_category}, 지침: {custom_directive or '(없음)'}, 모델: {selected_model}, 테스트모드: {test_mode}")
         print(f"[DRAMA-STEP3-DEBUG] step3_guide 길이: {len(step3_guide)}, 내용: {step3_guide[:100] if step3_guide else '(없음)'}...")
         print(f"[DRAMA-STEP3-DEBUG] draft_content 길이: {len(draft_content)}, 내용: {draft_content[:300] if draft_content else '(없음)'}...")
 
@@ -2347,7 +2360,7 @@ def api_drama_claude_step3():
                     duration_minutes = int(duration_match.group(1))
 
             # JSON 스타일 가이드에서 프롬프트 구축 (커스텀 가이드 우선 사용)
-            guide_system, guide_suffix = build_testimony_prompt_from_guide(custom_json_guide, duration_minutes)
+            guide_system, guide_suffix = build_testimony_prompt_from_guide(custom_json_guide, duration_minutes, test_mode)
             if guide_system:
                 system_content = guide_system
                 user_prompt_suffix = guide_suffix or ""
@@ -5691,8 +5704,14 @@ def api_gpt_plan_step1():
         video_category = data.get('videoCategory', '간증')
         duration = data.get('duration', '2분')
         custom_directive = data.get('customDirective', '')
+        test_mode = bool(data.get('testMode', False))  # 🧪 테스트 모드
 
-        print(f"[GPT-PLAN-1] 기획 시작 - 카테고리: {video_category}, 시간: {duration}, 지침: {custom_directive or '(없음)'}")
+        # 테스트 모드: 시간을 3분으로 강제 설정
+        if test_mode:
+            duration = '3분'
+            print(f"[GPT-PLAN-1] 🧪 테스트 모드 - 최소 분량으로 기획")
+
+        print(f"[GPT-PLAN-1] 기획 시작 - 카테고리: {video_category}, 시간: {duration}, 지침: {custom_directive or '(없음)'}, 테스트모드: {test_mode}")
 
         system_prompt = """당신은 영상 콘텐츠 기획 전문가입니다.
 
@@ -5770,11 +5789,17 @@ def api_gpt_plan_step2():
         duration = data.get('duration', '2분')
         custom_directive = data.get('customDirective', '')
         step1_result = data.get('step1Result', '')
+        test_mode = bool(data.get('testMode', False))  # 🧪 테스트 모드
 
         if not step1_result:
             return jsonify({'ok': False, 'error': 'Step1 결과가 필요합니다.'}), 400
 
-        print(f"[GPT-PLAN-2] 구조화 시작 - 카테고리: {video_category}")
+        # 테스트 모드: 시간을 3분으로 강제 설정
+        if test_mode:
+            duration = '3분'
+            print(f"[GPT-PLAN-2] 🧪 테스트 모드 - 최소 분량으로 구조화")
+
+        print(f"[GPT-PLAN-2] 구조화 시작 - 카테고리: {video_category}, 테스트모드: {test_mode}")
 
         system_prompt = """당신은 스토리 구조화 전문가입니다.
 

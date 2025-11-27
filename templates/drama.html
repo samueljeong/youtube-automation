@@ -511,12 +511,31 @@
         <!-- 워크플로우 박스들이 동적으로 추가되는 영역 (카테고리/시간/지침 입력) -->
         <div id="workflow-boxes-container"></div>
 
+        <!-- 🧪 테스트 모드 토글 -->
+        <div class="box" style="padding: .5rem .75rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);" id="test-mode-box">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: .5rem;">
+              <span style="font-size: 1.2rem;">🧪</span>
+              <div>
+                <div style="font-weight: 700; color: white; font-size: .9rem;">테스트 모드</div>
+                <div style="font-size: .7rem; color: rgba(255,255,255,0.8);">비용 최소화 (500자, 2씬)</div>
+              </div>
+            </div>
+            <label style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="test-mode-toggle" style="display: none;">
+              <div id="test-mode-switch" style="width: 50px; height: 26px; background: rgba(0,0,0,0.3); border-radius: 13px; position: relative; transition: background 0.3s;">
+                <div id="test-mode-knob" style="width: 22px; height: 22px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- Step3 실행: Sonnet 4.5 대본 작성 -->
         <div class="box" style="padding: .6rem .75rem;">
           <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
             🎬 Claude Sonnet 4.5로 대본 작성
           </button>
-          <div style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
+          <div id="step3-mode-indicator" style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
             OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.
           </div>
         </div>
