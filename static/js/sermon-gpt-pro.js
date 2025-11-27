@@ -118,6 +118,23 @@ async function executeGptPro() {
     return;
   }
 
+  // Step3 코드 검증
+  const step3Code = prompt('Step3(AI 설교문 완성) 사용 코드를 입력하세요:');
+  if (!step3Code) {
+    return; // 취소됨
+  }
+
+  const codeResult = await verifyCode(step3Code);
+  if (!codeResult.valid) {
+    alert(codeResult.error);
+    return;
+  }
+
+  // 코드 검증 성공 - 남은 횟수 안내
+  if (codeResult.remaining !== undefined) {
+    console.log(`[Step3] 코드 검증 성공. 남은 횟수: ${codeResult.remaining}`);
+  }
+
   // Step1, Step2 완료 확인
   const steps = getCurrentSteps();
   const step1Steps = steps.filter(s => (s.stepType || 'step1') === 'step1');
@@ -176,7 +193,7 @@ async function executeGptPro() {
       ref: ref,
       title: getSelectedTitle(),
       target: document.getElementById('sermon-target')?.value || '',
-      worshipType: document.getElementById('worship-type')?.value || '',
+      worshipType: document.getElementById('sermon-worship-type')?.value || '',
       duration: document.getElementById('sermon-duration')?.value || '',
       specialNotes: document.getElementById('special-notes')?.value || '',
       styleName: getCurrentStyle()?.name || '',
