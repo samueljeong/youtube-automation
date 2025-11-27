@@ -11,8 +11,68 @@ let generatedThumbnailUrl = null;
 
 // ===== Step4 컨테이너 업데이트 =====
 function updateStep4Visibility() {
+  updateStep4ContainerVisibility();
   updateStep4ImageGrid();
   updateStep4AudioStatus();
+  updateStep5ContainerVisibility();
+}
+
+// ===== Step4 컨테이너 표시/숨김 (Step2 이미지 또는 Step3 오디오 있을 때만 표시) =====
+function updateStep4ContainerVisibility() {
+  const step6Container = document.getElementById('step6-container');
+  if (!step6Container) return;
+
+  // Step2 이미지 확인
+  let hasImages = false;
+  const step2Images = window.DramaStep2?.generatedImages || window.step4GeneratedImages || [];
+  if (step2Images.length > 0) {
+    hasImages = step2Images.some(img => img && img.url && img.url.trim() !== '');
+  }
+  if (!hasImages) {
+    try {
+      const savedImages = localStorage.getItem('_drama-step4-images');
+      if (savedImages) {
+        const parsed = JSON.parse(savedImages);
+        hasImages = parsed.length > 0 && parsed.some(img => img && img.url);
+      }
+    } catch (e) {}
+  }
+
+  // Step3 오디오 확인
+  let hasAudio = false;
+  if (window.DramaStep3?.audioUrl || window.step5AudioUrl) {
+    hasAudio = true;
+  } else {
+    const step5AudioPlayer = document.getElementById('step5-audio-player');
+    if (step5AudioPlayer && step5AudioPlayer.src && step5AudioPlayer.src !== window.location.href) {
+      hasAudio = true;
+    }
+  }
+
+  // Step2 이미지가 있거나 Step3 오디오가 있으면 Step4 표시
+  if (hasImages || hasAudio) {
+    step6Container.style.display = 'block';
+  } else {
+    step6Container.style.display = 'none';
+  }
+}
+
+// ===== Step5 컨테이너 표시/숨김 (Step4 영상이 있을 때만 표시) =====
+function updateStep5ContainerVisibility() {
+  const step7Container = document.getElementById('step7-container');
+  if (!step7Container) return;
+
+  // Step4 영상 확인
+  const hasVideo = step4VideoUrl || step4VideoFileUrl ||
+    (window.DramaStep4?.videoUrl) ||
+    (document.getElementById('step6-video-player')?.src &&
+     document.getElementById('step6-video-player').src !== window.location.href);
+
+  if (hasVideo) {
+    step7Container.style.display = 'block';
+  } else {
+    step7Container.style.display = 'none';
+  }
 }
 
 // ===== 이미지 그리드 업데이트 =====
