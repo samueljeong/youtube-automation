@@ -4015,35 +4015,23 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         </span>
       ` : `<span id="usage-${step.id}" style="font-size: .75rem; color: #888;"></span>`;
 
-      if (step.id === 'step2' || stepType === 'step2') {
-        // Step2는 서론까지만 표시 + 더보기 표시
-        return `
-          <div class="box step2-box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
-              <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
-              ${usageHtml}
-            </div>
-            <div class="step2-content-wrapper">
-              <textarea id="result-${step.id}" class="autosize" style="min-height: 100px; max-height: 150px;" readonly placeholder="${step.name} 결과가 표시됩니다."></textarea>
-              <div class="step2-gradient-overlay"></div>
-            </div>
-            <div style="text-align: center; color: #999; font-size: .85rem; padding: .5rem; border-top: 1px dashed #ddd; margin-top: .3rem;">
-              -<br>-<br>-<br>
-              <span style="font-size: .75rem;">이하 내용 생략</span>
-            </div>
+      // Step1, Step2 모두 동일한 축약 디자인
+      return `
+        <div class="box step2-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
+            <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
+            ${usageHtml}
           </div>
-        `;
-      } else {
-        return `
-          <div class="box">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem;">
-              <label class="label" style="margin: 0;">${stepLabel}. ${step.name}</label>
-              ${usageHtml}
-            </div>
-            <textarea id="result-${step.id}" class="autosize" style="min-height: 140px;" placeholder="${step.name} 결과가 표시됩니다."></textarea>
+          <div class="step2-content-wrapper">
+            <textarea id="result-${step.id}" class="autosize" style="min-height: 100px; max-height: 150px;" readonly placeholder="${step.name} 결과가 표시됩니다."></textarea>
+            <div class="step2-gradient-overlay"></div>
           </div>
-        `;
-      }
+          <div style="text-align: center; color: #999; font-size: .85rem; padding: .5rem; border-top: 1px dashed #ddd; margin-top: .3rem;">
+            -<br>-<br>-<br>
+            <span style="font-size: .75rem;">이하 내용 생략</span>
+          </div>
+        </div>
+      `;
     }).join('');
 
     // 결과 복원 및 자동 높이 (Step1, Step2 모두 축약 표시)
