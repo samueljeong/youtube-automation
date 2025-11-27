@@ -330,7 +330,14 @@ function updateAnalysisUI() {
 // ===== 진행 상태 표시 =====
 function updateProgressStatus(statuses) {
   const guideDiv = document.getElementById('start-analysis-guide');
+  const stylesContainer = document.getElementById('styles-list');
+
   if (!guideDiv) return;
+
+  // 스타일 목록 숨기기 (로딩 중 클릭 방지)
+  if (stylesContainer) {
+    stylesContainer.style.display = 'none';
+  }
 
   const statusIcons = {
     pending: '⏸️',
@@ -363,6 +370,14 @@ function updateProgressStatus(statuses) {
 
   html += '</div>';
   guideDiv.innerHTML = html;
+}
+
+// ===== 로딩 완료 후 스타일 목록 복구 =====
+function restoreStylesAfterLoading() {
+  const stylesContainer = document.getElementById('styles-list');
+  if (stylesContainer) {
+    stylesContainer.style.display = 'flex';
+  }
 }
 
 // ===== 자동 분석 실행 =====
@@ -431,6 +446,8 @@ async function startAutoAnalysis() {
     alert('분석 중 오류가 발생했습니다.');
   } finally {
     analysisInProgress = false;
+    // 스타일 목록 복구
+    restoreStylesAfterLoading();
   }
 }
 
@@ -509,6 +526,7 @@ window.switchCategoryContent = switchCategoryContent;
 window.renderStyles = renderStyles;
 window.updateAnalysisUI = updateAnalysisUI;
 window.updateProgressStatus = updateProgressStatus;
+window.restoreStylesAfterLoading = restoreStylesAfterLoading;
 window.startAutoAnalysis = startAutoAnalysis;
 window.renderProcessingSteps = renderProcessingSteps;
 window.renderResultBoxes = renderResultBoxes;
