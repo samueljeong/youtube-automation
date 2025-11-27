@@ -43,7 +43,12 @@ let step2Collapsed = false;
 
 // 카테고리/설정
 let customDurationText = localStorage.getItem('_drama-duration-text') || '';
-const videoCategories = ['간증', '드라마', '명언', '마음', '철학', '인간관계'];
+const videoCategories = [
+  // 기존 카테고리
+  '간증', '드라마', '명언', '마음', '철학', '인간관계',
+  // 시니어 타겟 신규 카테고리
+  '옛날이야기', '마음위로', '인생명언'
+];
 let selectedCategory = localStorage.getItem('_drama-video-category') || '간증';
 let customDirective = localStorage.getItem('_drama-custom-directive') || '';
 
