@@ -1208,7 +1208,7 @@
         window.selectGuideItem = selectGuideItem;
 
         // ===== 이벤트 리스너 =====
-        document.addEventListener('DOMContentLoaded', () => {
+        function initPage() {
             // Config 로드 (가장 먼저)
             loadConfig();
 
@@ -1241,7 +1241,14 @@
             if (btnImport) btnImport.addEventListener('click', importBackup);
             const backupInput = document.getElementById('backup-file-input');
             if (backupInput) backupInput.addEventListener('change', handleBackupFile);
-        });
+        }
+
+        // DOM이 이미 로드된 경우 즉시 실행, 아니면 이벤트 리스너 등록
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPage);
+        } else {
+            initPage();
+        }
     </script>
 </body>
 </html>
