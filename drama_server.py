@@ -4262,9 +4262,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 return f"{int(hours)}:{minutes}:{seconds}.{centiseconds:02d}"
 
             ass_events = []
-            srt_blocks = srt_content.strip().split('\n\n')
 
-            for block in srt_blocks:
+            # SRT 블록 분할 개선: \r\n, \n 모두 처리하고, 빈 줄 여러 개도 대응
+            srt_normalized = srt_content.replace('\r\n', '\n').strip()
+            # 빈 줄 1개 이상으로 분할 (정규식 사용)
+            srt_blocks = re.split(r'\n\s*\n', srt_normalized)
+
+            print(f"[VIDEO-SUBTITLE] SRT 블록 수: {len(srt_blocks)}")
+
+            for idx, block in enumerate(srt_blocks):
                 lines = block.strip().split('\n')
                 if len(lines) >= 3:
                     # 타임코드 파싱 (00:00:00,000 --> 00:00:03,000)
@@ -4274,6 +4280,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         end_time = srt_to_ass_time(time_match.group(2))
                         text = '\\N'.join(lines[2:])  # ASS는 \N으로 줄바꿈
                         ass_events.append(f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{text}")
+                    else:
+                        print(f"[VIDEO-SUBTITLE] 블록 {idx+1} 타임코드 파싱 실패: {lines[1][:50] if len(lines) > 1 else 'N/A'}")
+                elif len(lines) >= 2:
+                    # 2줄인 경우 - 숫자 + 타임코드만 있고 텍스트가 없는 경우일 수 있음
+                    print(f"[VIDEO-SUBTITLE] 블록 {idx+1} 라인 부족 ({len(lines)}줄): {lines}")
+
+            print(f"[VIDEO-SUBTITLE] ASS 이벤트 생성 완료: {len(ass_events)}개")
 
             # ASS 파일 작성
             with open(ass_path, 'w', encoding='utf-8') as f:
