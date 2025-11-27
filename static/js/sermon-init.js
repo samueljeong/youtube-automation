@@ -140,15 +140,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnCreateCode.addEventListener('click', createNewCode);
   }
 
-  // 본문 추천
+  // 본문 추천 (searchScripture는 sermon-qa.js에서 정의됨)
   const btnSearchScripture = document.getElementById('btn-search-scripture');
   if (btnSearchScripture) {
-    btnSearchScripture.addEventListener('click', searchScripture);
+    btnSearchScripture.addEventListener('click', () => {
+      if (typeof window.searchScripture === 'function') {
+        window.searchScripture();
+      } else {
+        console.warn('[Init] searchScripture 함수가 아직 로드되지 않았습니다');
+      }
+    });
   }
   const scriptureSearchInput = document.getElementById('scripture-search');
   if (scriptureSearchInput) {
     scriptureSearchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') searchScripture();
+      if (e.key === 'Enter') {
+        if (typeof window.searchScripture === 'function') {
+          window.searchScripture();
+        }
+      }
     });
   }
 
