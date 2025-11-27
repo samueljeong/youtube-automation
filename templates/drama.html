@@ -1025,10 +1025,12 @@
           <span class="nav-label">🎞️ Step4 영상 제작</span>
           <span class="nav-desc">타임라인 & 컷 편집</span>
         </button>
+        <!-- Step5 업로드 비활성화됨
         <button class="nav-btn" data-panel-target="workflow-panel" data-scroll-target="step7-container">
           <span class="nav-label">🚀 Step5 업로드</span>
           <span class="nav-desc">메타데이터 & 게시</span>
         </button>
+        -->
       </div>
 
       <!-- 진행 상황 트래커 -->
@@ -1162,11 +1164,13 @@
             <span class="step-name">영상 제작</span>
             <span class="step-status">○</span>
           </button>
+          <!-- Step7 업로드 비활성화됨
           <button class="step-nav-btn" data-step="step7" onclick="scrollToStep('step7-container')">
             <span class="step-num">7</span>
             <span class="step-name">업로드</span>
             <span class="step-status">○</span>
           </button>
+          -->
         </div>
       </div>
 
@@ -1891,8 +1895,8 @@
         </div>
       </div>
 
-      <!-- Step7: 유튜브 업로드 (Step4 영상 완료 시 표시) -->
-      <div id="step7-container" class="step7-container" style="display: none;">
+      <!-- Step7: 유튜브 업로드 - 비활성화됨 -->
+      <div id="step7-container" class="step7-container" style="display: none !important;">
         <div class="step-header">
           <div class="label">📺 Step5: 유튜브 업로드</div>
           <div style="display: flex; gap: .5rem;">
@@ -2098,8 +2102,9 @@
   <script src="/static/js/drama-step3.js"></script>
   <!-- Step4: 영상 제작 -->
   <script src="/static/js/drama-step4.js"></script>
-  <!-- Step5: 유튜브 업로드 -->
+  <!-- Step5: 유튜브 업로드 - 비활성화됨
   <script src="/static/js/drama-step5.js"></script>
+  -->
 
   <script>
   // ===== 추가 초기화 및 호환성 코드 =====
