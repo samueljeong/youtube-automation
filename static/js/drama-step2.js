@@ -220,6 +220,11 @@ async function generateCharacterImage() {
       renderCharacterImages();
       renderCharactersList();
 
+      // 💰 Step2 캐릭터 이미지 비용 추가
+      if (data.cost && typeof window.addCost === 'function') {
+        window.addCost('step2', data.cost);
+      }
+
       showStatus(`✅ ${step2Characters[idx].name} 이미지 생성 완료!`);
     } else {
       alert(`오류: ${data.error}`);
@@ -521,6 +526,11 @@ async function generateStep2Image() {
       showStatus('✅ 씬 이미지 생성 완료!');
       if (typeof updateProgressIndicator === 'function') {
         updateProgressIndicator('step4');
+      }
+
+      // 💰 Step2 이미지 비용 추가
+      if (data.cost && typeof window.addCost === 'function') {
+        window.addCost('step2', data.cost);
       }
 
       // 썸네일 자동 생성

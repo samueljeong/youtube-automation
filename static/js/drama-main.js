@@ -108,6 +108,58 @@ const videoCategories = [
 let selectedCategory = localStorage.getItem('_drama-video-category') || '간증';
 let customDirective = localStorage.getItem('_drama-custom-directive') || '';
 
+// ===== 💰 비용 추적 시스템 =====
+window.dramaCosts = {
+  step1: 0,      // Claude 대본 생성
+  step1_5: 0,    // GPT 프롬프트 분석
+  step2: 0,      // 이미지 생성 (FLUX)
+  step3: 0,      // TTS (Google/Naver)
+  step4: 0       // 영상 생성 (Creatomate)
+};
+
+// 비용 추가 함수
+window.addCost = function(step, amount) {
+  if (typeof amount !== 'number' || isNaN(amount)) return;
+
+  const stepKey = step.replace('step', 'step').replace('.', '_');
+  if (window.dramaCosts.hasOwnProperty(stepKey)) {
+    window.dramaCosts[stepKey] += amount;
+  } else if (step === 'step1.5' || step === 'step1_5') {
+    window.dramaCosts.step1_5 += amount;
+  }
+
+  window.updateCostDisplay();
+  console.log(`[Cost] ${step}: +₩${amount.toLocaleString()} (총: ₩${window.getTotalCost().toLocaleString()})`);
+};
+
+// 총 비용 계산
+window.getTotalCost = function() {
+  return Object.values(window.dramaCosts).reduce((sum, cost) => sum + cost, 0);
+};
+
+// 비용 초기화
+window.resetCosts = function() {
+  window.dramaCosts = { step1: 0, step1_5: 0, step2: 0, step3: 0, step4: 0 };
+  window.updateCostDisplay();
+};
+
+// UI 업데이트
+window.updateCostDisplay = function() {
+  const totalEl = document.getElementById('total-cost-display');
+  const step1El = document.getElementById('cost-step1');
+  const step1_5El = document.getElementById('cost-step1-5');
+  const step2El = document.getElementById('cost-step2');
+  const step3El = document.getElementById('cost-step3');
+  const step4El = document.getElementById('cost-step4');
+
+  if (totalEl) totalEl.textContent = '₩' + window.getTotalCost().toLocaleString();
+  if (step1El) step1El.textContent = '₩' + window.dramaCosts.step1.toLocaleString();
+  if (step1_5El) step1_5El.textContent = '₩' + window.dramaCosts.step1_5.toLocaleString();
+  if (step2El) step2El.textContent = '₩' + window.dramaCosts.step2.toLocaleString();
+  if (step3El) step3El.textContent = '₩' + window.dramaCosts.step3.toLocaleString();
+  if (step4El) step4El.textContent = '₩' + window.dramaCosts.step4.toLocaleString();
+};
+
 // 설정 객체
 let config = {
   categories: ['10min', '20min', '30min'],

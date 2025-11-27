@@ -341,6 +341,11 @@ async function generateTTS() {
             document.getElementById('step5-tts-cost').textContent = '₩' + data.cost.toLocaleString();
             document.getElementById('step5-char-count').textContent = data.charCount?.toLocaleString() || '0';
             costInfo.style.display = 'block';
+
+            // 💰 Step3 TTS 비용 추가
+            if (typeof window.addCost === 'function') {
+              window.addCost('step3', data.cost);
+            }
           }
 
           showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');

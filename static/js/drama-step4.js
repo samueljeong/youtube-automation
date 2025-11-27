@@ -538,6 +538,12 @@ async function generateVideo() {
           }
           updateStep5Status();
 
+          // 💰 Step4 영상 생성 비용 추가 (Creatomate: ~₩50-100/영상)
+          if (typeof window.addCost === 'function') {
+            const videoCost = statusData.cost || 70;  // 기본 ₩70
+            window.addCost('step4', videoCost);
+          }
+
           // 브라우저 알림
           if (Notification.permission === 'granted') {
             new Notification('✅ 영상 생성 완료!', {
