@@ -1354,6 +1354,9 @@
       <!-- Step3 앵커 및 전체 순차실행 -->
       <div id="step3-container"></div>
 
+      <!-- 워크플로우 박스들이 동적으로 추가되는 영역 (카테고리/시간/지침 입력) -->
+      <div id="workflow-boxes-container"></div>
+
       <!-- Step3 실행: Sonnet 4.5 대본 작성 -->
       <div class="box" style="padding: .6rem .75rem;">
         <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
@@ -1366,9 +1369,6 @@
 
       <!-- 상태 표시 -->
       <div id="status-bar" class="status-bar">작업 중...</div>
-
-      <!-- 워크플로우 박스들이 동적으로 추가되는 영역 -->
-      <div id="workflow-boxes-container"></div>
 
       <!-- Step3 결과 박스 -->
       <div id="step3-result-container" class="step3-result-box" style="display: none;">
