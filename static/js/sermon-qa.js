@@ -241,25 +241,30 @@ function addSermonChatMessage(type, content) {
 function collectSermonContext() {
   const context = {};
 
-  // Step1 결과
-  const step1Result = document.getElementById('step1-result')?.value;
-  if (step1Result) context.step1Result = step1Result;
-
-  // Step2 결과
-  const step2Result = document.getElementById('step2-result')?.value;
-  if (step2Result) context.step2Result = step2Result;
-
-  // Step3 결과
-  const step3Result = document.getElementById('step3-result')?.value;
-  if (step3Result) context.step3Result = step3Result;
+  // Step 결과들 (window.stepResults에서 가져오기)
+  if (window.stepResults) {
+    const steps = typeof getCurrentSteps === 'function' ? getCurrentSteps() : [];
+    steps.forEach(step => {
+      const stepType = step.stepType || 'step1';
+      if (window.stepResults[step.id]) {
+        if (stepType === 'step1') {
+          context.step1Result = (context.step1Result || '') + window.stepResults[step.id] + '\n';
+        } else if (stepType === 'step2') {
+          context.step2Result = (context.step2Result || '') + window.stepResults[step.id] + '\n';
+        }
+      }
+    });
+  }
 
   // 성경 본문
-  const bibleVerse = document.getElementById('bible-verse')?.value;
-  if (bibleVerse) context.bibleVerse = bibleVerse;
+  const bibleRef = document.getElementById('sermon-ref')?.value;
+  if (bibleRef) context.bibleRef = bibleRef;
 
   // 설교 스타일
-  const styleSelect = document.getElementById('style-select');
-  if (styleSelect) context.sermonStyle = styleSelect.options[styleSelect.selectedIndex]?.text;
+  if (typeof getCurrentStyle === 'function') {
+    const style = getCurrentStyle();
+    if (style) context.sermonStyle = style.name;
+  }
 
   // 마지막 오류
   if (lastSermonError) context.lastError = lastSermonError;
