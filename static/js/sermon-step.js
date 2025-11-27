@@ -51,7 +51,7 @@ async function executeStep(stepId) {
     step: stepId,
     stepName: step.name,
     stepType: stepType,
-    ref: ref,
+    reference: ref,
     target: target,
     worshipType: worshipType,
     duration: duration,
