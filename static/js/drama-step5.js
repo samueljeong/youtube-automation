@@ -11,6 +11,8 @@ function updateStep5Status() {
   const statusEl = document.getElementById('step7-upload-status');
   const uploadBtn = document.getElementById('btn-upload-youtube');
   const videoSrc = getStep4Video();
+  const channelSelect = document.getElementById('step7-channel-select');
+  const selectedChannel = channelSelect?.value;
 
   if (!statusEl) return;
 
@@ -18,6 +20,11 @@ function updateStep5Status() {
     statusEl.style.background = '#fff3cd';
     statusEl.style.color = '#856404';
     statusEl.textContent = 'YouTube 인증을 먼저 진행해주세요';
+    if (uploadBtn) uploadBtn.disabled = true;
+  } else if (!selectedChannel) {
+    statusEl.style.background = '#fff3cd';
+    statusEl.style.color = '#856404';
+    statusEl.textContent = '업로드할 채널을 선택해주세요';
     if (uploadBtn) uploadBtn.disabled = true;
   } else if (!videoSrc) {
     statusEl.style.background = '#fff3cd';
@@ -27,7 +34,7 @@ function updateStep5Status() {
   } else {
     statusEl.style.background = '#d4edda';
     statusEl.style.color = '#155724';
-    statusEl.textContent = '영상이 준비되었습니다. 업로드할 수 있습니다!';
+    statusEl.textContent = '✅ 모든 준비 완료! 업로드할 수 있습니다!';
     if (uploadBtn) uploadBtn.disabled = false;
   }
 }
@@ -179,8 +186,16 @@ async function loadYouTubeChannels() {
         channelSelect.appendChild(option);
       });
 
+      // 채널 선택 시 업로드 버튼 상태 업데이트
+      channelSelect.addEventListener('change', function() {
+        console.log('[YOUTUBE] 채널 선택됨:', this.value);
+        updateStep5Status();
+      });
+
+      // 채널이 1개면 자동 선택
       if (data.channels.length === 1) {
         channelSelect.value = data.channels[0].id;
+        updateStep5Status();  // 자동 선택 후 상태 업데이트
       }
 
       channelSection.style.display = 'block';
@@ -189,6 +204,9 @@ async function loadYouTubeChannels() {
       setTimeout(() => {
         channelSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 500);
+
+      // 상태 업데이트 (채널 섹션 표시 후)
+      updateStep5Status();
     }
   } catch (error) {
     console.error('채널 목록 로드 실패:', error);
