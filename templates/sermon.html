@@ -1061,22 +1061,33 @@
               <button id="btn-manage-styles" style="font-size: .75rem; padding: .2rem .5rem;">관리</button>
             </div>
             <div id="styles-list"></div>
+            <!-- 설교 준비 시작 버튼 -->
+            <button id="btn-start-analysis" style="display: none; width: 100%; margin-top: .75rem; padding: .7rem; font-size: .95rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
+              ✨ 설교 준비 시작
+            </button>
           </div>
           <div class="box">
-            <label class="label">처리 단계<span class="label-hint">클릭 후 대기</span></label>
-            <div id="processing-steps"></div>
+            <label class="label">진행 상태</label>
+            <!-- 진행 상태 표시 영역 -->
+            <div id="analysis-status" style="padding: .5rem; background: #f8f9ff; border-radius: 8px; min-height: 80px;">
+              <div style="color: #888; font-size: .85rem; text-align: center; padding: 1rem;">
+                📖 성경 본문을 입력하고, 설교 스타일을 선택해주세요.
+              </div>
+            </div>
+            <!-- 숨겨진 처리 단계 (내부 기능 유지) -->
+            <div id="processing-steps" style="display: none;"></div>
           </div>
         </div>
 
           <div class="action-row">
-            <div class="box copy-all-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem;">
-              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">📋 개인 GPT PLUS 사용</div>
-              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭 후 사용하시는 GPT에 붙여넣기 해주세요.</div>
+            <div class="box copy-all-box" id="step4-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .85rem; opacity: 0.5; pointer-events: none;">
+              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🟣 내 GPT에 붙여넣기</div>
+              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">무료 · 분석 내용을 복사해서 개인 ChatGPT에 사용하세요.</div>
               <button id="btn-copy-all" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
-            <div class="box gpt-pro-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .85rem;">
-              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🚀 GPT 최신버전 이용</div>
-              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">아래 버튼을 클릭하시면 유료버전 GPT를 이용해서 설교문을 요청합니다.</div>
+            <div class="box gpt-pro-box" id="step3-box" style="background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .85rem; opacity: 0.5; pointer-events: none;">
+              <div class="box-title" style="font-size: .95rem; margin-bottom: .4rem; color: white; font-weight: 700;">🔴 AI 설교문 완성</div>
+              <div class="box-desc" style="font-size: .8rem; margin-bottom: .6rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
               <button id="btn-gpt-pro" style="width: 100%; padding: .6rem; font-size: .9rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
             </div>
           </div>
@@ -3704,6 +3715,7 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
         renderProcessingSteps();
         renderResultBoxes();
         renderGuideTabs();
+        updateAnalysisUI(); // 진행 상태 UI 업데이트
       });
     });
 
@@ -3712,6 +3724,159 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       currentStyleId = styles[0].id;
       renderStyles();
       renderProcessingSteps();
+    }
+  }
+
+  // ===== 자동 분석 실행 시스템 =====
+  let analysisInProgress = false;
+
+  // 진행 상태 UI 업데이트
+  function updateAnalysisUI() {
+    const statusContainer = document.getElementById('analysis-status');
+    const startBtn = document.getElementById('btn-start-analysis');
+    const step3Box = document.getElementById('step3-box');
+    const step4Box = document.getElementById('step4-box');
+    const ref = document.getElementById('sermon-ref')?.value;
+
+    if (!statusContainer) return;
+
+    // Step1, Step2 완료 여부 확인
+    const steps = getCurrentSteps();
+    const step1Steps = steps.filter(s => (s.stepType || 'step1') === 'step1');
+    const step2Steps = steps.filter(s => (s.stepType || 'step1') === 'step2');
+    const step1Completed = step1Steps.length > 0 && step1Steps.every(s => stepResults[s.id]);
+    const step2Completed = step2Steps.length > 0 && step2Steps.every(s => stepResults[s.id]);
+    const allCompleted = step1Completed && step2Completed;
+
+    // Step3/Step4 활성화 상태
+    if (allCompleted) {
+      step3Box.style.opacity = '1';
+      step3Box.style.pointerEvents = 'auto';
+      step4Box.style.opacity = '1';
+      step4Box.style.pointerEvents = 'auto';
+      statusContainer.innerHTML = `
+        <div style="text-align: center; padding: .5rem;">
+          <div style="color: #28a745; font-weight: 600; font-size: .9rem; margin-bottom: .3rem;">✅ 분석 완료!</div>
+          <div style="color: #666; font-size: .8rem;">아래 버튼으로 설교문을 완성하세요.</div>
+        </div>
+      `;
+      if (startBtn) startBtn.style.display = 'none';
+    } else if (!ref) {
+      // 성경 본문 없음
+      statusContainer.innerHTML = `
+        <div style="color: #888; font-size: .85rem; text-align: center; padding: 1rem;">
+          📖 성경 본문을 입력하고, 설교 스타일을 선택해주세요.
+        </div>
+      `;
+      if (startBtn) startBtn.style.display = 'none';
+      step3Box.style.opacity = '0.5';
+      step3Box.style.pointerEvents = 'none';
+      step4Box.style.opacity = '0.5';
+      step4Box.style.pointerEvents = 'none';
+    } else if (currentStyleId && !analysisInProgress) {
+      // 스타일 선택됨, 시작 버튼 표시
+      statusContainer.innerHTML = `
+        <div style="color: #667eea; font-size: .85rem; text-align: center; padding: 1rem;">
+          ✨ [설교 준비 시작] 버튼을 누르면 본문 분석이 시작됩니다.
+        </div>
+      `;
+      if (startBtn) startBtn.style.display = 'block';
+      step3Box.style.opacity = '0.5';
+      step3Box.style.pointerEvents = 'none';
+      step4Box.style.opacity = '0.5';
+      step4Box.style.pointerEvents = 'none';
+    }
+  }
+
+  // 진행 상태 표시 업데이트
+  function updateProgressStatus(statuses) {
+    const statusContainer = document.getElementById('analysis-status');
+    if (!statusContainer) return;
+
+    const statusIcons = { pending: '⏸️', running: '⏳', done: '✅', error: '❌' };
+
+    let html = '<div style="padding: .3rem;">';
+    html += '<div style="font-size: .8rem; color: #667eea; font-weight: 600; margin-bottom: .5rem; text-align: center;">BIBLE LAB을 이용해 주셔서 감사합니다.</div>';
+    html += '<div style="border-top: 1px dashed #ddd; padding-top: .5rem;">';
+
+    statuses.forEach(s => {
+      const icon = statusIcons[s.status] || '⏸️';
+      const color = s.status === 'done' ? '#28a745' : s.status === 'running' ? '#667eea' : '#999';
+      html += `<div style="font-size: .8rem; color: ${color}; padding: .15rem 0;">${icon} ${s.name}</div>`;
+    });
+
+    html += '</div></div>';
+    statusContainer.innerHTML = html;
+  }
+
+  // 자동 분석 실행 (Step1 병렬 → Step2 순차)
+  async function startAutoAnalysis() {
+    const ref = document.getElementById('sermon-ref').value;
+    if (!ref) {
+      alert('성경구절을 입력하세요.');
+      return;
+    }
+    if (!currentStyleId) {
+      alert('설교 스타일을 선택하세요.');
+      return;
+    }
+
+    analysisInProgress = true;
+    const startBtn = document.getElementById('btn-start-analysis');
+    if (startBtn) startBtn.style.display = 'none';
+
+    const steps = getCurrentSteps();
+    const step1Steps = steps.filter(s => (s.stepType || 'step1') === 'step1');
+    const step2Steps = steps.filter(s => (s.stepType || 'step1') === 'step2');
+
+    // 진행 상태 초기화
+    const allStatuses = [
+      ...step1Steps.map(s => ({ id: s.id, name: s.name, status: 'pending' })),
+      ...step2Steps.map(s => ({ id: s.id, name: s.name, status: 'pending' }))
+    ];
+    updateProgressStatus(allStatuses);
+
+    try {
+      // Step1 병렬 실행
+      const step1Promises = step1Steps.map(async (step) => {
+        const idx = allStatuses.findIndex(s => s.id === step.id);
+        allStatuses[idx].status = 'running';
+        updateProgressStatus(allStatuses);
+
+        try {
+          await executeStep(step.id);
+          allStatuses[idx].status = 'done';
+        } catch (e) {
+          allStatuses[idx].status = 'error';
+        }
+        updateProgressStatus(allStatuses);
+      });
+
+      await Promise.all(step1Promises);
+
+      // Step2 순차 실행 (Step1 완료 후)
+      for (const step of step2Steps) {
+        const idx = allStatuses.findIndex(s => s.id === step.id);
+        allStatuses[idx].status = 'running';
+        updateProgressStatus(allStatuses);
+
+        try {
+          await executeStep(step.id);
+          allStatuses[idx].status = 'done';
+        } catch (e) {
+          allStatuses[idx].status = 'error';
+        }
+        updateProgressStatus(allStatuses);
+      }
+
+      // 완료
+      updateAnalysisUI();
+
+    } catch (error) {
+      console.error('분석 실행 오류:', error);
+      alert('분석 중 오류가 발생했습니다.');
+    } finally {
+      analysisInProgress = false;
     }
   }
 
@@ -3754,34 +3919,60 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     });
   }
 
-  // Step2 결과를 서론까지만 표시하는 함수
-  function truncateToIntro(text) {
+  // Step1/Step2 결과를 일부만 표시하는 함수
+  function truncateResult(text, stepType = 'step2') {
     if (!text) return '';
 
-    // 서론 이후의 패턴들 (본론, 1대지, 대지1, 첫 번째, Conflict 등)
+    // JSON인 경우 처리
+    if (typeof text === 'object') {
+      const jsonStr = JSON.stringify(text, null, 2);
+      if (jsonStr.length > 500) {
+        return jsonStr.substring(0, 500) + '\n\n...\n\n─ ─ ─\n이하 내용 생략\n─ ─ ─';
+      }
+      return jsonStr;
+    }
+
+    const textStr = String(text);
+
+    if (stepType === 'step1') {
+      // Step1: 처음 500자만 표시
+      if (textStr.length > 500) {
+        return textStr.substring(0, 500).trim() + '\n\n...\n\n─ ─ ─\n이하 내용 생략\n─ ─ ─';
+      }
+      return textStr;
+    }
+
+    // Step2: 서론까지만 표시
     const cutoffPatterns = [
       /\n\s*(본론|1대지|대지\s*1|첫\s*번째|First|Conflict|본문\s*1|I\.|1\.|하나\.|첫째)/i,
       /\n\s*[-=]{3,}/,  // 구분선
     ];
 
-    let cutIndex = text.length;
+    let cutIndex = textStr.length;
 
     for (const pattern of cutoffPatterns) {
-      const match = text.match(pattern);
+      const match = textStr.match(pattern);
       if (match && match.index < cutIndex) {
         cutIndex = match.index;
       }
     }
 
-    // 서론 부분만 추출
-    let intro = text.substring(0, cutIndex).trim();
+    let intro = textStr.substring(0, cutIndex).trim();
 
-    // 최소 100자 이상은 보여주기
-    if (intro.length < 100 && text.length > 100) {
-      intro = text.substring(0, 300).trim();
+    if (intro.length < 100 && textStr.length > 100) {
+      intro = textStr.substring(0, 300).trim();
+    }
+
+    if (intro.length < textStr.length) {
+      intro += '\n\n─ ─ ─\n이하 내용 생략\n─ ─ ─';
     }
 
     return intro;
+  }
+
+  // 하위 호환성을 위한 별칭
+  function truncateToIntro(text) {
+    return truncateResult(text, 'step2');
   }
 
   // 토큰 사용량 저장
@@ -3835,18 +4026,13 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
       }
     }).join('');
 
-    // 결과 복원 및 자동 높이
+    // 결과 복원 및 자동 높이 (Step1, Step2 모두 축약 표시)
     steps.forEach(step => {
       if (stepResults[step.id]) {
         const textarea = document.getElementById(`result-${step.id}`);
         if (textarea) {
-          // Step2는 서론까지만 표시
-          if (step.id === 'step2') {
-            textarea.value = truncateToIntro(stepResults[step.id]);
-          } else {
-            textarea.value = stepResults[step.id];
-            autoResize(textarea);
-          }
+          const stepType = step.stepType || 'step1';
+          textarea.value = truncateResult(stepResults[step.id], stepType);
         }
       }
     });
@@ -4071,16 +4257,9 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
 
         const textarea = document.getElementById(`result-${stepId}`);
         if (textarea) {
-          // 표시용 텍스트 생성
+          // 표시용 텍스트 생성 (Step1, Step2 모두 축약)
           const displayText = isJsonResult ? JSON.stringify(resultData, null, 2) : data.result;
-
-          // Step2는 서론까지만 표시
-          if (stepId === 'step2' || stepType === 'step2') {
-            textarea.value = isJsonResult ? displayText : truncateToIntro(data.result);
-          } else {
-            textarea.value = displayText;
-            autoResize(textarea);
-          }
+          textarea.value = truncateResult(displayText, stepType);
         }
 
         // 토큰 사용량 표시
@@ -5954,6 +6133,21 @@ Step2의 설교 구조를 반드시 따라 작성하세요:
     renderStyles();
     renderProcessingSteps();
     bindAdminStyleSelect(); // 관리자 스타일 선택 이벤트 바인딩
+    updateAnalysisUI(); // 초기 진행 상태 UI
+
+    // 설교 준비 시작 버튼 이벤트
+    const btnStartAnalysis = document.getElementById('btn-start-analysis');
+    if (btnStartAnalysis) {
+      btnStartAnalysis.addEventListener('click', startAutoAnalysis);
+    }
+
+    // 성경 본문 입력 시 UI 업데이트
+    const sermonRefInput = document.getElementById('sermon-ref');
+    if (sermonRefInput) {
+      sermonRefInput.addEventListener('input', () => {
+        updateAnalysisUI();
+      });
+    }
 
     // 모델 선택 이벤트 리스너
     const step1Select = document.getElementById('model-step1');
