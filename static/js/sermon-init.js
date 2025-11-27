@@ -101,6 +101,8 @@ window.renderSavedList = renderSavedList;
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('🚀 Sermon 앱 초기화 시작...');
+  console.log('[Init] 초기 currentCategory:', window.currentCategory);
+  console.log('[Init] 초기 currentStyleId:', window.currentStyleId);
 
   // ===== 날짜 초기화 =====
   const dateInput = document.getElementById('sermon-date');
@@ -109,15 +111,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ===== Firebase 데이터 로드 =====
+  console.log('[Init] Firebase 데이터 로드 시작');
   showStatus('☁️ 클라우드 동기화 중...');
   await loadFromFirebase();
   hideStatus();
+  console.log('[Init] Firebase 로드 완료');
+  console.log('[Init] loadFromFirebase 후 currentCategory:', window.currentCategory);
+  console.log('[Init] loadFromFirebase 후 currentStyleId:', window.currentStyleId);
 
   // ===== 스타일 자동 선택 (중요: UI 렌더링 전에 실행) =====
+  console.log('[Init] ensureStyleSelected 호출');
   ensureStyleSelected();
+  console.log('[Init] ensureStyleSelected 후 currentStyleId:', window.currentStyleId);
 
   // ===== UI 렌더링 =====
+  console.log('[Init] UI 렌더링 시작');
   renderCategories();
+  console.log('[Init] renderCategories 후 currentCategory:', window.currentCategory);
   loadMasterGuide(window.currentCategory);
   loadModelSettings();
   loadStep3Codes();
@@ -143,15 +153,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // UI 렌더링 계속
+  console.log('[Init] renderStyles 호출 전 currentStyleId:', window.currentStyleId);
   renderStyles();
+  console.log('[Init] renderStyles 후 currentStyleId:', window.currentStyleId);
   renderProcessingSteps();
   bindAdminStyleSelect();
+  console.log('[Init] updateAnalysisUI 호출');
   updateAnalysisUI();
 
   // 설교 준비 시작 버튼
   const btnStartAnalysis = document.getElementById('btn-start-analysis');
+  console.log('[Init] btn-start-analysis 찾음:', !!btnStartAnalysis);
   if (btnStartAnalysis) {
     btnStartAnalysis.addEventListener('click', startAutoAnalysis);
+    console.log('[Init] startAutoAnalysis 이벤트 리스너 등록 완료');
+  } else {
+    console.error('[Init] btn-start-analysis 버튼을 찾을 수 없습니다!');
   }
 
   // 성경 본문 입력 시 UI 업데이트

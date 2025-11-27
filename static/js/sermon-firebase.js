@@ -4,7 +4,45 @@
  */
 
 // ===== 데이터 버전 관리 =====
-const CONFIG_VERSION = 2; // 버전 업데이트 시 증가
+const CONFIG_VERSION = 3; // 버전 업데이트 시 증가
+
+// ===== 기본 스타일 정의 (복구용) =====
+const DEFAULT_STYLES = {
+  general: [
+    {
+      id: "dawn_expository",
+      name: "새벽예배 - 강해설교",
+      description: "본론 중심",
+      steps: [
+        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
+        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
+        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+      ]
+    },
+    {
+      id: "sunday_topical",
+      name: "주일예배 - 주제설교",
+      description: "주제 중심",
+      steps: [
+        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
+        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
+        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+      ]
+    }
+  ],
+  series: [
+    {
+      id: "series_continuous",
+      name: "수요예배 - 연속강해",
+      description: "시리즈형 강해",
+      steps: [
+        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
+        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
+        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+      ]
+    }
+  ]
+};
 
 // ===== Firebase 초기화 =====
 const firebaseConfig = {
@@ -70,16 +108,58 @@ function validateAndMigrateConfig(config) {
     needsSave = true;
   }
 
+  // 버전 2 -> 3: 빈 스타일 복구 및 steps stepType 보장
+  if (config._version < 3) {
+    console.log('[Config] 버전 마이그레이션: 2 -> 3');
+
+    // general과 series 카테고리에 기본 스타일 복구
+    ['general', 'series'].forEach(catValue => {
+      const catSettings = config.categorySettings[catValue];
+      if (catSettings && (!catSettings.styles || catSettings.styles.length === 0)) {
+        if (DEFAULT_STYLES[catValue]) {
+          console.log(`[Config] ${catValue} 카테고리 기본 스타일 복구`);
+          catSettings.styles = JSON.parse(JSON.stringify(DEFAULT_STYLES[catValue]));
+          needsSave = true;
+        }
+      }
+    });
+
+    // 모든 스타일의 steps에 stepType 보장
+    Object.values(config.categorySettings).forEach(catSettings => {
+      if (catSettings?.styles) {
+        catSettings.styles.forEach(style => {
+          if (style.steps) {
+            style.steps.forEach((step, idx) => {
+              if (!step.stepType) {
+                step.stepType = idx < 2 ? 'step1' : 'step2';
+              }
+            });
+          }
+        });
+      }
+    });
+
+    config._version = 3;
+    needsSave = true;
+  }
+
   // 각 카테고리 설정 검증 및 복구
   config.categories.forEach(cat => {
     if (!config.categorySettings[cat.value]) {
       console.log('[Config] 카테고리 설정 생성:', cat.value);
       config.categorySettings[cat.value] = {
         masterGuide: '',
-        styles: []
+        styles: DEFAULT_STYLES[cat.value] ? JSON.parse(JSON.stringify(DEFAULT_STYLES[cat.value])) : []
       };
       needsSave = true;
     }
+  });
+
+  // 디버그: 현재 설정 상태 출력
+  console.log('[Config] 검증 완료 - 카테고리:', config.categories.map(c => c.value));
+  Object.keys(config.categorySettings).forEach(cat => {
+    const styles = config.categorySettings[cat]?.styles || [];
+    console.log(`[Config] ${cat}: ${styles.length}개 스타일`);
   });
 
   if (needsSave) {
@@ -98,13 +178,22 @@ function validateAndMigrateConfig(config) {
 
 // ===== 스타일 자동 선택 =====
 function ensureStyleSelected() {
+  console.log('[ensureStyleSelected] 호출됨');
+  console.log('[ensureStyleSelected] currentCategory:', window.currentCategory);
+  console.log('[ensureStyleSelected] currentStyleId:', window.currentStyleId);
+
   // currentCategory의 첫 번째 스타일 자동 선택
   const catSettings = window.config?.categorySettings?.[window.currentCategory];
   const styles = catSettings?.styles || [];
 
+  console.log('[ensureStyleSelected] 스타일 수:', styles.length);
+  if (styles.length > 0) {
+    console.log('[ensureStyleSelected] 사용 가능한 스타일:', styles.map(s => s.id).join(', '));
+  }
+
   if (styles.length > 0 && !window.currentStyleId) {
     window.currentStyleId = styles[0].id;
-    console.log('[Config] 스타일 자동 선택:', window.currentStyleId);
+    console.log('[ensureStyleSelected] 스타일 자동 선택:', window.currentStyleId);
     return true;
   }
 
@@ -113,9 +202,15 @@ function ensureStyleSelected() {
     const exists = styles.some(s => s.id === window.currentStyleId);
     if (!exists) {
       window.currentStyleId = styles[0].id;
-      console.log('[Config] 스타일 재선택 (기존 스타일 없음):', window.currentStyleId);
+      console.log('[ensureStyleSelected] 스타일 재선택 (기존 스타일 없음):', window.currentStyleId);
       return true;
     }
+    console.log('[ensureStyleSelected] 현재 스타일 유효함:', window.currentStyleId);
+  }
+
+  // 스타일이 없는 경우 경고
+  if (styles.length === 0) {
+    console.warn('[ensureStyleSelected] 경고: 카테고리에 스타일이 없습니다 -', window.currentCategory);
   }
 
   return false;
@@ -445,6 +540,7 @@ window.PAGE_NAME = PAGE_NAME;
 window.CONFIG_KEY = CONFIG_KEY;
 window.AUTO_SAVE_KEY = AUTO_SAVE_KEY;
 window.CONFIG_VERSION = CONFIG_VERSION;
+window.DEFAULT_STYLES = DEFAULT_STYLES;
 window.validateAndMigrateConfig = validateAndMigrateConfig;
 window.ensureStyleSelected = ensureStyleSelected;
 window.loadFromFirebase = loadFromFirebase;

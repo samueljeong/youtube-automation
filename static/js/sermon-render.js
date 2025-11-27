@@ -140,14 +140,27 @@ function switchCategoryContent(category) {
 
 // ===== 스타일 렌더링 =====
 function renderStyles() {
+  console.log('[renderStyles] 호출됨');
+  console.log('[renderStyles] currentCategory:', window.currentCategory);
+  console.log('[renderStyles] currentStyleId:', window.currentStyleId);
+
   const settings = window.config.categorySettings[window.currentCategory];
   const styles = (settings && settings.styles) ? settings.styles : [];
   const container = document.getElementById('styles-list');
 
-  if (!container) return;
+  console.log('[renderStyles] 스타일 수:', styles.length);
+  if (styles.length > 0) {
+    console.log('[renderStyles] 스타일 목록:', styles.map(s => s.id + '(' + s.name + ')').join(', '));
+  }
+
+  if (!container) {
+    console.warn('[renderStyles] styles-list 컨테이너를 찾을 수 없습니다');
+    return;
+  }
 
   if (styles.length === 0) {
     container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요.</p>';
+    console.log('[renderStyles] 스타일이 없어서 안내 메시지 표시');
     return;
   }
 
@@ -163,6 +176,7 @@ function renderStyles() {
 
   container.querySelectorAll('.style-item').forEach(item => {
     item.addEventListener('click', () => {
+      console.log('[renderStyles] 스타일 클릭:', item.dataset.style);
       window.currentStyleId = item.dataset.style;
       window.stepResults = {};
       window.titleOptions = [];
@@ -179,15 +193,21 @@ function renderStyles() {
     });
   });
 
+  // 스타일이 선택되어 있지 않으면 첫 번째 스타일 자동 선택
   if (!window.currentStyleId && styles.length > 0) {
     window.currentStyleId = styles[0].id;
+    console.log('[renderStyles] 첫 번째 스타일 자동 선택:', window.currentStyleId);
     renderStyles();
     renderProcessingSteps();
+  } else {
+    console.log('[renderStyles] 현재 선택된 스타일:', window.currentStyleId);
   }
 }
 
 // ===== 분석 UI 업데이트 =====
 function updateAnalysisUI() {
+  console.log('[updateAnalysisUI] 호출됨');
+
   const statusContainer = document.getElementById('analysis-status');
   const startBtn = document.getElementById('btn-start-analysis');
   const guideDiv = document.getElementById('start-analysis-guide');
@@ -195,41 +215,66 @@ function updateAnalysisUI() {
   const step4Box = document.getElementById('step4-box');
   const ref = document.getElementById('sermon-ref')?.value;
 
-  if (!startBtn) return;
+  console.log('[updateAnalysisUI] 버튼 찾음:', !!startBtn);
+  console.log('[updateAnalysisUI] ref:', ref ? '있음' : '없음');
+  console.log('[updateAnalysisUI] currentStyleId:', window.currentStyleId);
+  console.log('[updateAnalysisUI] analysisInProgress:', analysisInProgress);
+
+  if (!startBtn) {
+    console.warn('[updateAnalysisUI] btn-start-analysis 버튼을 찾을 수 없습니다');
+    return;
+  }
 
   // 스타일이 선택되어 있지 않으면 자동 선택 시도
   if (!window.currentStyleId && typeof ensureStyleSelected === 'function') {
+    console.log('[updateAnalysisUI] 스타일 자동 선택 시도');
     ensureStyleSelected();
+    console.log('[updateAnalysisUI] 자동 선택 후 currentStyleId:', window.currentStyleId);
   }
 
   const steps = getCurrentSteps();
+  console.log('[updateAnalysisUI] 처리 단계 수:', steps.length);
+
   const step1Steps = steps.filter(s => (s.stepType || 'step1') === 'step1');
   const step2Steps = steps.filter(s => (s.stepType || 'step1') === 'step2');
   const step1Completed = step1Steps.length > 0 && step1Steps.every(s => window.stepResults[s.id]);
   const step2Completed = step2Steps.length > 0 && step2Steps.every(s => window.stepResults[s.id]);
   const allCompleted = step1Completed && step2Completed;
 
+  console.log('[updateAnalysisUI] step1Steps:', step1Steps.length, 'completed:', step1Completed);
+  console.log('[updateAnalysisUI] step2Steps:', step2Steps.length, 'completed:', step2Completed);
+  console.log('[updateAnalysisUI] allCompleted:', allCompleted);
+
+  // 버튼 표시 조건 결정
+  let buttonAction = '';
+
   if (allCompleted) {
+    buttonAction = 'hide (allCompleted)';
     if (step3Box) { step3Box.style.opacity = '1'; step3Box.style.pointerEvents = 'auto'; }
     if (step4Box) { step4Box.style.opacity = '1'; step4Box.style.pointerEvents = 'auto'; }
     startBtn.style.display = 'none';
     if (guideDiv) guideDiv.style.display = 'none';
   } else if (!ref) {
+    buttonAction = 'hide (no ref)';
     startBtn.style.display = 'none';
     if (guideDiv) guideDiv.style.display = 'block';
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   } else if (window.currentStyleId && !analysisInProgress) {
+    buttonAction = 'SHOW (ref + style + not processing)';
     startBtn.style.display = 'block';
     if (guideDiv) guideDiv.style.display = 'none';
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   } else {
+    buttonAction = 'hide (else - no style or processing)';
     startBtn.style.display = 'none';
     if (guideDiv) guideDiv.style.display = 'none';
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   }
+
+  console.log('[updateAnalysisUI] 버튼 상태:', buttonAction);
 }
 
 // ===== 진행 상태 표시 =====
