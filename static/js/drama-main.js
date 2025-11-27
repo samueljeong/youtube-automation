@@ -68,7 +68,9 @@ let config = {
 
 // ===== Config 검증 및 마이그레이션 =====
 function validateAndMigrateConfig(loadedConfig) {
-  console.log('[Drama Config] 검증 시작, 현재 버전:', loadedConfig?._version || '없음');
+  console.log('[Drama Config] 검증 시작');
+  console.log('[Drama Config] 입력 버전:', loadedConfig?._version || '없음');
+  console.log('[Drama Config] 현재 CONFIG_VERSION:', CONFIG_VERSION);
 
   // config가 없거나 유효하지 않으면 기본값 반환
   if (!loadedConfig || typeof loadedConfig !== 'object') {
@@ -82,6 +84,8 @@ function validateAndMigrateConfig(loadedConfig) {
     return null;
   }
 
+  console.log('[Drama Config] 카테고리 목록:', loadedConfig.categories);
+
   let needsSave = false;
 
   // 버전 1 -> 2: processingSteps 필드 확인 및 추가
@@ -90,6 +94,7 @@ function validateAndMigrateConfig(loadedConfig) {
 
     // processingSteps가 없으면 추가
     if (!loadedConfig.processingSteps) {
+      console.log('[Drama Config] processingSteps 추가');
       loadedConfig.processingSteps = [
         { id: 'character', name: '캐릭터 설정' },
         { id: 'storyline', name: '스토리라인' },
@@ -101,6 +106,12 @@ function validateAndMigrateConfig(loadedConfig) {
     loadedConfig._version = 2;
     needsSave = true;
   }
+
+  // 디버그: 최종 config 상태 출력
+  console.log('[Drama Config] 검증 완료');
+  console.log('[Drama Config] - 카테고리:', loadedConfig.categories.length + '개');
+  console.log('[Drama Config] - processingSteps:', (loadedConfig.processingSteps || []).length + '개');
+  console.log('[Drama Config] - 버전:', loadedConfig._version);
 
   if (needsSave) {
     console.log('[Drama Config] 마이그레이션 완료 - 저장 필요');
@@ -344,29 +355,43 @@ function getSessionContext() {
 
 // ===== Firebase 함수 =====
 async function loadFromFirebase() {
+  console.log('[Firebase] 데이터 로드 시작');
+  console.log('[Firebase] 경로: users/' + USER_CODE + '/pages/' + PAGE_NAME + '/data');
+
   try {
     const docRef = db.collection('users').doc(USER_CODE).collection('pages').doc(PAGE_NAME);
     const docSnap = await docRef.collection('data').get();
 
+    console.log('[Firebase] 문서 수:', docSnap.size);
+
     docSnap.forEach(doc => {
       localStorage.setItem(doc.id, doc.data().value);
+      console.log('[Firebase] 로드됨:', doc.id);
     });
 
     const configData = localStorage.getItem(CONFIG_KEY);
+    console.log('[Firebase] CONFIG_KEY 데이터 존재:', !!configData);
+
     if (configData) {
       try {
         const parsed = JSON.parse(configData);
+        console.log('[Firebase] Config 파싱 성공');
         // Config 검증 및 마이그레이션
         const validated = validateAndMigrateConfig(parsed);
         if (validated) {
           config = validated;
+          console.log('[Firebase] Config 적용 완료');
+        } else {
+          console.log('[Firebase] Config 검증 실패 - 기본값 유지');
         }
-        // validated가 null이면 기본 config 유지
       } catch (e) {
         console.warn('[Drama Config] 파싱 실패:', e);
       }
+    } else {
+      console.log('[Firebase] 저장된 Config 없음 - 기본값 사용');
     }
 
+    console.log('[Firebase] 최종 config:', JSON.stringify(config));
     console.log('[Firebase] 데이터 로드 완료');
   } catch (err) {
     console.error('[Firebase] 로드 실패:', err);
@@ -439,14 +464,26 @@ function setActivePanel(panelId) {
 // ===== 초기화 =====
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[DramaMain] 초기화 시작...');
+  console.log('[DramaMain] 초기 currentCategory:', currentCategory);
+  console.log('[DramaMain] 초기 config:', JSON.stringify(config));
 
-  // 세션 로드
+  // Firebase에서 데이터 먼저 로드 (중요: 세션보다 먼저!)
+  console.log('[DramaMain] Firebase 로드 시작');
+  await loadFromFirebase();
+  console.log('[DramaMain] Firebase 로드 완료');
+  console.log('[DramaMain] Firebase 후 config:', JSON.stringify(config));
+
+  // 세션 로드 (Firebase 이후)
+  console.log('[DramaMain] 세션 로드 시작');
   if (!loadSessionFromStorage()) {
+    console.log('[DramaMain] 저장된 세션 없음 - 새 세션 생성');
     initWorkflowSession();
+  } else {
+    console.log('[DramaMain] 세션 로드 완료:', workflowSession.sessionId);
   }
 
-  // Firebase에서 데이터 로드
-  await loadFromFirebase();
+  // 전역 변수 동기화 (중요!)
+  syncGlobalVariables();
 
   // 스크롤 이벤트 리스너
   const contentArea = document.querySelector('.content-area');
@@ -471,18 +508,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[DramaMain] 초기화 완료');
 });
 
+// ===== 전역 변수 동기화 함수 =====
+function syncGlobalVariables() {
+  // 전역 객체에 현재 값 동기화
+  window.workflowSession = workflowSession;
+  window.config = config;
+  window.stepResults = stepResults;
+  window.completedSteps = completedSteps;
+  window.currentCategory = currentCategory;
+  window.selectedCategory = selectedCategory;
+  window.customDirective = customDirective;
+  console.log('[DramaMain] 전역 변수 동기화 완료');
+}
+
 // ===== 전역 노출 =====
 window.DramaMain = {
   // 상수
   USER_CODE, PAGE_NAME, GUIDE_PASSWORD, GPT_PRO_PASSWORD, CONFIG_KEY, CONFIG_VERSION,
 
-  // 전역 변수 접근
+  // 전역 변수 접근 (getter/setter로 항상 최신 값 반환)
   get guideUnlocked() { return guideUnlocked; },
   set guideUnlocked(v) { guideUnlocked = v; },
   get gptProUnlocked() { return gptProUnlocked; },
   set gptProUnlocked(v) { gptProUnlocked = v; },
   get currentCategory() { return currentCategory; },
-  set currentCategory(v) { currentCategory = v; },
+  set currentCategory(v) { currentCategory = v; window.currentCategory = v; },
   get stepResults() { return stepResults; },
   get config() { return config; },
   get workflowSession() { return workflowSession; },
@@ -515,7 +565,10 @@ window.DramaMain = {
 
   // 진행상황
   updateProgressIndicator,
-  completedSteps
+  completedSteps,
+
+  // 전역 동기화
+  syncGlobalVariables
 };
 
 // 전역 함수로도 노출 (기존 코드 호환)
@@ -537,8 +590,9 @@ window.saveToFirebase = saveToFirebase;
 window.updateProgressIndicator = updateProgressIndicator;
 window.validateAndMigrateConfig = validateAndMigrateConfig;
 window.validateAndMigrateSession = validateAndMigrateSession;
+window.syncGlobalVariables = syncGlobalVariables;
 
-// 전역 변수 노출
+// 전역 변수 노출 (초기값 - DOMContentLoaded 후 syncGlobalVariables로 업데이트됨)
 window.db = db;
 window.workflowSession = workflowSession;
 window.config = config;
