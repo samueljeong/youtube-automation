@@ -20,24 +20,36 @@ async function executeStep(stepId) {
   const duration = document.getElementById('sermon-duration')?.value || '';
   const specialNotes = document.getElementById('special-notes')?.value || '';
 
-  // 지침 로드
+  // 스타일 정보 (지침 로드보다 먼저 필요)
+  const style = getCurrentStyle();
+  const styleName = style?.name || '';
+  const stepType = step.stepType || 'step1';
+
+  // 지침 로드 (localStorage 먼저, 없으면 DEFAULT_GUIDES에서)
   const guideKey = getGuideKey(window.currentCategory, stepId);
-  const guide = localStorage.getItem(guideKey) || '';
+  let guide = localStorage.getItem(guideKey) || '';
+
+  // localStorage에 지침이 없으면 DEFAULT_GUIDES에서 가져옴
+  if (!guide && window.DEFAULT_GUIDES && styleName) {
+    const defaultGuide = window.DEFAULT_GUIDES[styleName]?.[stepType];
+    if (defaultGuide) {
+      guide = JSON.stringify(defaultGuide, null, 2);
+      console.log('[executeStep] DEFAULT_GUIDES에서 지침 로드:', styleName, stepType);
+    }
+  }
+
   const masterGuide = window.config.categorySettings[window.currentCategory]?.masterGuide || '';
 
   console.log('[executeStep] 지침 로드 정보:');
   console.log('  - guideKey:', guideKey);
+  console.log('  - styleName:', styleName);
+  console.log('  - stepType:', stepType);
   console.log('  - guide 길이:', guide.length);
   console.log('  - guide 시작 100자:', guide.substring(0, 100));
   console.log('  - masterGuide 길이:', masterGuide.length);
 
-  // 스타일 정보
-  const style = getCurrentStyle();
-  const styleName = style?.name || '';
-
   // 모델 설정
   const modelSettings = getModelSettings(window.currentCategory);
-  const stepType = step.stepType || 'step1';
   const modelKey = stepType === 'step1' ? 'step1' : 'step2';
   const model = modelSettings?.[modelKey] || 'gpt-4o';
 

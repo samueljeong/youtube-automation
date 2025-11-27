@@ -65,6 +65,21 @@ function loadGuide(category, stepId) {
     }
   }
 
+  // localStorage에 지침이 없으면 DEFAULT_GUIDES에서 가져옴
+  if (!stored && window.DEFAULT_GUIDES) {
+    const style = getCurrentStyle();
+    const styleName = style?.name || '';
+    // stepId에서 stepType 추출 (step1-1 → step1, step3 → step3)
+    const stepType = stepId.startsWith('step3') ? 'step3' :
+                     stepId.startsWith('step2') ? 'step2' : 'step1';
+
+    const defaultGuide = window.DEFAULT_GUIDES[styleName]?.[stepType];
+    if (defaultGuide) {
+      stored = JSON.stringify(defaultGuide, null, 2);
+      console.log('[loadGuide] DEFAULT_GUIDES에서 지침 로드:', styleName, stepType);
+    }
+  }
+
   stored = stored || '';
   const textarea = document.getElementById('guide-text');
   if (textarea) {
@@ -314,12 +329,61 @@ function bindAdminStyleSelect() {
   });
 }
 
+// ===== DEFAULT_GUIDES 동기화 =====
+async function syncDefaultGuides() {
+  if (!window.DEFAULT_GUIDES) {
+    console.log('[syncDefaultGuides] DEFAULT_GUIDES가 없습니다.');
+    return;
+  }
+
+  const catSettings = window.config.categorySettings[window.currentCategory];
+  const styles = catSettings?.styles || [];
+  let synced = 0;
+
+  for (const style of styles) {
+    const styleName = style.name;
+    const defaultGuides = window.DEFAULT_GUIDES[styleName];
+    if (!defaultGuides) continue;
+
+    for (const [stepType, guideData] of Object.entries(defaultGuides)) {
+      // stepType에 해당하는 stepId 찾기
+      let stepId;
+      if (stepType === 'step3') {
+        stepId = 'step3';
+      } else {
+        const step = style.steps?.find(s => (s.stepType || 'step1') === stepType);
+        stepId = step?.id || stepType;
+      }
+
+      const key = getGuideKey(window.currentCategory, stepId, style.id);
+      const existing = localStorage.getItem(key);
+
+      // 기존 저장값이 없을 때만 동기화
+      if (!existing) {
+        const value = JSON.stringify(guideData, null, 2);
+        localStorage.setItem(key, value);
+        await saveToFirebase(key, value);
+        synced++;
+        console.log(`[syncDefaultGuides] 동기화됨: ${styleName} - ${stepType}`);
+      }
+    }
+  }
+
+  if (synced > 0) {
+    showStatus(`✅ ${synced}개 기본 지침 동기화됨`);
+    setTimeout(hideStatus, 2000);
+  }
+
+  return synced;
+}
+
 // 전역 노출
 window.loadMasterGuide = loadMasterGuide;
 window.saveMasterGuide = saveMasterGuide;
 window.loadGuide = loadGuide;
 window.saveGuide = saveGuide;
 window.renderGuideTabs = renderGuideTabs;
+window.syncDefaultGuides = syncDefaultGuides;
 window.renderCategoryManageList = renderCategoryManageList;
 window.deleteCategory = deleteCategory;
 window.addCategory = addCategory;
