@@ -1,7 +1,15 @@
 {
   "version": "3.1",
-  "lastUpdated": "2025-11-24",
+  "lastUpdated": "2025-11-27",
   "description": "드라마/간증 대본 자동 생성을 위한 구조화된 스타일 가이드 (JSON 출력 형식 포함, TTS 숫자 표현/호칭 규칙/인트로 하이라이트 강화)",
+
+  "related_documents": {
+    "nostalgia_drama_prompts": {
+      "file": "nostalgia-drama-prompts.json",
+      "description": "옛날이야기 카테고리 전용 Step 1.1~1.4 파이프라인 프롬프트",
+      "note": "시니어 타겟 향수 콘텐츠용 상세 프롬프트 정의"
+    }
+  },
 
   "step1_script_guidelines": {
     "description": "Step1 대본 작성 시 반드시 따라야 할 지침",
