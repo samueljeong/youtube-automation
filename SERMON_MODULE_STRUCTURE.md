@@ -6,227 +6,140 @@ templates/sermon.html     (266KB, 6,819줄)
 sermon_server.py          (154KB, 3,929줄)
 ```
 
-## 목표 구조
+## 작업 완료 현황
 
 ### 1. CSS 분리 ✅ 완료
 ```
 static/css/sermon.css     - 모든 스타일 (916줄)
 ```
 
-### 2. JavaScript 모듈 분리
+### 2. JavaScript 모듈 분리 ✅ 완료
 
-#### 2.1 sermon-main.js (전역 변수, 초기화)
-- 줄 범위: 1987~2060
-- 내용:
-  - 전역 변수 (guideUnlocked, currentCategory, stepResults 등)
-  - 기본 config 설정
-  - 초기화 함수
+| 파일 | 주요 기능 | 상태 |
+|------|----------|------|
+| sermon-utils.js | 유틸리티 함수 (koreanToId, showStatus, calculateCost 등) | ✅ |
+| sermon-firebase.js | Firebase 초기화, 저장/로드, 실시간 동기화, 백업/복원 | ✅ |
+| sermon-main.js | 전역 변수, 기본 설정, 모델 설정, 스타일 토큰 관리 | ✅ |
+| sermon-render.js | UI 렌더링 (카테고리, 스타일, 처리 단계, 결과 박스) | ✅ |
+| sermon-step.js | Step1/Step2/Step3 처리, executeStep() | ✅ |
+| sermon-gpt-pro.js | GPT PRO 처리, 결과 조합, 복사 기능 | ✅ |
+| sermon-admin.js | 관리자 기능 (카테고리/스타일/지침 관리) | ✅ |
+| sermon-qa.js | Q&A, 챗봇, 본문 추천, Step3 코드 관리 | ✅ |
+| sermon-meditation.js | 묵상메시지 생성 기능 | ✅ |
+| sermon-design.js | 디자인 도우미, 배너 생성, 참조 이미지, 크롤링 | ✅ |
 
-#### 2.2 sermon-firebase.js (Firebase, 저장/로드)
-- 줄 범위: 1966~1986, 2361~2680
-- 내용:
-  - Firebase 초기화
-  - loadFromFirebase(), saveToFirebase()
-  - 자동 저장 (autoSaveStepResults)
-  - 실시간 동기화 (setupRealtimeSync)
-  - 백업/복원 (exportBackup, importBackup)
+#### 모듈 로딩 순서 (의존성 고려)
+```html
+<!-- 1. 유틸리티 (의존성 없음) -->
+<script src="sermon-utils.js"></script>
 
-#### 2.3 sermon-utils.js (유틸리티 함수)
-- 줄 범위: 2060~2360
-- 내용:
-  - koreanToId(), generateCategoryId()
-  - showStatus(), hideStatus()
-  - showGptLoading(), hideGptLoading()
-  - calculateCost()
-  - autoResize()
+<!-- 2. Firebase (Firebase SDK 필요) -->
+<script src="sermon-firebase.js"></script>
 
-#### 2.4 sermon-step.js (Step1/Step2/Step3 처리)
-- 줄 범위: 4166~4356
-- 내용:
-  - executeStep()
-  - Step 관련 헬퍼 함수
+<!-- 3. 메인 설정 (utils, firebase 필요) -->
+<script src="sermon-main.js"></script>
 
-#### 2.5 sermon-gpt-pro.js (GPT PRO 처리)
-- 줄 범위: 3137~3589
-- 내용:
-  - assembleGptProDraft()
-  - executeGptPro()
-  - 전체 복사 기능
+<!-- 4. 렌더링 (main 필요) -->
+<script src="sermon-render.js"></script>
 
-#### 2.6 sermon-render.js (UI 렌더링)
-- 줄 범위: 3589~4166
-- 내용:
-  - renderCategories()
-  - switchCategoryContent()
-  - renderStyles()
-  - renderProcessingSteps()
-  - renderResultBoxes()
-  - updateAnalysisUI()
-
-#### 2.7 sermon-admin.js (관리자 기능)
-- 줄 범위: 4793~5350
-- 내용:
-  - 카테고리 관리 (renderCategoryManageList)
-  - 스타일 관리 (renderStylesManageList)
-  - 스텝 관리 (renderStepsManageList)
-  - 지침 관리 (loadGuide, saveGuide)
-
-#### 2.8 sermon-qa.js (Q&A, 챗봇)
-- 줄 범위: 5461~6018, 5891~6018
-- 내용:
-  - Q&A 기능 (sendQAQuestion)
-  - AI 챗봇 (sendSermonChatMessage)
-  - 본문 추천 (searchScripture)
-
-#### 2.9 sermon-meditation.js (묵상메시지)
-- 줄 범위: 4356~4573
-- 내용:
-  - 묵상메시지 생성 기능
-  - initMeditationDate()
-  - saveMeditationTemplate()
-
-#### 2.10 sermon-design.js (디자인 도우미)
-- 줄 범위: 6265~6817
-- 내용:
-  - 현수막/배너 생성
-  - generateBanner()
-  - 참조 이미지 관리
-  - 크롤링 기능
-
-#### 2.11 sermon-code.js (Step3 코드 관리)
-- 줄 범위: 5602~5891
-- 내용:
-  - loadStep3Codes()
-  - validateAndUseCode()
-  - 코드 생성/삭제
-
----
-
-### 3. Python 백엔드 모듈 분리
-
-#### 3.1 sermon_server.py (메인 라우터) - 경량화
-- 라우트 등록
-- Blueprint import
-- 앱 초기화
-
-#### 3.2 sermon_db.py (DB 설정)
-- 줄 범위: 33~460
-- 내용:
-  - DB 연결 (PostgreSQL/SQLite)
-  - init_db()
-  - 테이블 생성
-
-#### 3.3 sermon_auth.py (인증/크레딧)
-- 줄 범위: 615~1240
-- 내용:
-  - login_required, admin_required
-  - signup, login, logout
-  - 크레딧 관리 API
-
-#### 3.4 sermon_step.py (Step 처리 API)
-- 줄 범위: 1706~1924
-- 내용:
-  - /api/sermon/process
-
-#### 3.5 sermon_gpt_pro.py (GPT PRO API)
-- 줄 범위: 2025~2366
-- 내용:
-  - /api/sermon/gpt-pro
-
-#### 3.6 sermon_prompt.py (프롬프트 빌더)
-- 줄 범위: 1244~1685
-- 내용:
-  - is_json_guide()
-  - parse_json_guide()
-  - build_prompt_from_json()
-  - build_step3_prompt_from_json()
-
-#### 3.7 sermon_qa.py (Q&A API)
-- 줄 범위: 2366~2534
-- 내용:
-  - /api/sermon/qa
-  - /api/sermon/recommend-scripture
-
-#### 3.8 sermon_meditation.py (묵상메시지 API)
-- 줄 범위: 1925~2025
-- 내용:
-  - /api/sermon/meditation
-
-#### 3.9 sermon_banner.py (배너 API)
-- 줄 범위: 2936~3910
-- 내용:
-  - /api/banner/* 모든 엔드포인트
-  - 이미지 생성, 텍스트 오버레이
-  - 크롤링
-
-#### 3.10 sermon_benchmark.py (벤치마크)
-- 줄 범위: 2534~2830
-- 내용:
-  - analyze_sermon_for_benchmark()
-  - save_step1_analysis()
-
-#### 3.11 sermon_chat.py (AI 챗봇 API)
-- 줄 범위: 2829~2936
-- 내용:
-  - /api/sermon/chat
-
----
-
-### 4. HTML 컴포넌트 분리 (선택사항)
-
+<!-- 5. 기능 모듈 (순서 무관) -->
+<script src="sermon-step.js"></script>
+<script src="sermon-gpt-pro.js"></script>
+<script src="sermon-admin.js"></script>
+<script src="sermon-qa.js"></script>
+<script src="sermon-meditation.js"></script>
+<script src="sermon-design.js"></script>
 ```
-templates/sermon/
-├── header.html        - Auth 헤더
-├── left-panel.html    - 왼쪽 패널 (입력, 스타일)
-├── middle-panel.html  - 중앙 패널 (결과)
-├── right-panel.html   - 오른쪽 패널 (관리자)
-├── modals.html        - 모달들
-└── design-helper.html - 디자인 도우미
+
+#### 전역 노출 패턴
+모든 모듈은 `window.함수명 = 함수명;` 패턴으로 전역에 노출하여
+기존 인라인 코드와 호환성을 유지합니다.
+
+---
+
+### 3. Python 백엔드 모듈 분리 (예정)
+
+> Flask Blueprint를 사용한 모듈 분리는 추후 작업 예정입니다.
+
+| 파일 | 주요 기능 | 상태 |
+|------|----------|------|
+| sermon_db.py | DB 연결, 테이블 생성 | 📋 |
+| sermon_auth.py | 인증, 크레딧 관리 | 📋 |
+| sermon_step.py | /api/sermon/process | 📋 |
+| sermon_gpt_pro.py | /api/sermon/gpt-pro | 📋 |
+| sermon_prompt.py | 프롬프트 빌더 | 📋 |
+| sermon_qa.py | Q&A, 본문 추천 API | 📋 |
+| sermon_meditation.py | 묵상메시지 API | 📋 |
+| sermon_banner.py | 배너/현수막 API | 📋 |
+| sermon_benchmark.py | 벤치마크 분석 | 📋 |
+| sermon_chat.py | AI 챗봇 API | 📋 |
+
+---
+
+### 4. HTML 경량화 (진행 중)
+
+현재 sermon.html에 모듈 스크립트 참조가 주석으로 추가되어 있습니다.
+점진적 마이그레이션을 위해 인라인 코드와 병행 사용 가능합니다.
+
+```html
+<!-- 현재 상태: 주석 처리 (점진적 마이그레이션 시 활성화) -->
+<!--
+<script src="{{ url_for('static', filename='js/sermon-utils.js') }}"></script>
+...
+-->
 ```
 
 ---
 
-## 마이그레이션 순서
+## 파일 위치
 
-### Phase 1: CSS 분리 ✅
-1. ✅ static/css/sermon.css 생성
-2. sermon.html에서 `<link rel="stylesheet">` 추가
-
-### Phase 2: JS 모듈 분리
-1. sermon-utils.js 생성 (의존성 없음)
-2. sermon-firebase.js 생성
-3. sermon-main.js 생성 (위 두 개 import)
-4. 나머지 모듈 순차 생성
-5. sermon.html에서 `<script src="">` 추가
-
-### Phase 3: Python 모듈 분리
-1. sermon_prompt.py 분리 (의존성 없음)
-2. sermon_db.py 분리
-3. 나머지 모듈 순차 분리
-4. sermon_server.py에서 import
-
-### Phase 4: 테스트 & 최적화
-1. 각 모듈 동작 테스트
-2. 로딩 순서 최적화
-3. 캐싱 설정
-
----
-
-## 파일 크기 예상
-
-| 파일 | 예상 크기 |
-|------|----------|
-| sermon.html (경량화 후) | ~50KB |
-| sermon.css | ~25KB |
-| sermon-*.js (총합) | ~120KB |
-| sermon_server.py (경량화 후) | ~20KB |
-| sermon_*.py (총합) | ~130KB |
+```
+my_page_v2/
+├── static/
+│   ├── css/
+│   │   └── sermon.css          ✅ 생성됨
+│   └── js/
+│       ├── sermon-utils.js     ✅ 생성됨
+│       ├── sermon-firebase.js  ✅ 생성됨
+│       ├── sermon-main.js      ✅ 생성됨
+│       ├── sermon-render.js    ✅ 생성됨
+│       ├── sermon-step.js      ✅ 생성됨
+│       ├── sermon-gpt-pro.js   ✅ 생성됨
+│       ├── sermon-admin.js     ✅ 생성됨
+│       ├── sermon-qa.js        ✅ 생성됨
+│       ├── sermon-meditation.js ✅ 생성됨
+│       └── sermon-design.js    ✅ 생성됨
+├── templates/
+│   └── sermon.html             (모듈 참조 추가됨)
+├── sermon_server.py            (변경 없음)
+└── SERMON_MODULE_STRUCTURE.md  ✅ 이 문서
+```
 
 ---
 
-## 주의사항
+## 마이그레이션 가이드
 
-1. **전역 변수 관리**: 모듈 간 공유되는 전역 변수는 sermon-main.js에서 window 객체에 할당
-2. **로딩 순서**: utils → firebase → main → 나머지
-3. **Flask Blueprint**: Python 모듈 분리 시 Blueprint 사용 권장
-4. **캐시 무효화**: 배포 시 버전 쿼리스트링 추가 (`?v=1.0`)
+### 모듈 활성화 방법
+
+1. sermon.html에서 주석 처리된 스크립트 태그 활성화
+2. 해당 모듈의 인라인 코드 제거
+3. 테스트 후 다음 모듈 진행
+
+### 주의사항
+
+1. **전역 변수**: `window.` 객체로 노출되므로 이름 충돌 주의
+2. **로딩 순서**: 의존성 순서대로 로드해야 함
+3. **캐시 무효화**: 배포 시 `?v=버전` 쿼리스트링 추가 권장
+4. **점진적 마이그레이션**: 한 번에 하나의 모듈씩 이전 권장
+
+---
+
+## 예상 파일 크기
+
+| 파일 | 현재 | 모듈화 후 |
+|------|------|----------|
+| sermon.html | 266KB | ~50KB (예상) |
+| sermon-*.js (총합) | - | ~120KB |
+| sermon.css | - | ~25KB |
+
+총 로드 크기는 비슷하지만, 캐싱 효과로 재방문 시 로딩 속도 향상
