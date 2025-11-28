@@ -216,7 +216,29 @@ function extractNarrationForTTS() {
     const data = JSON.parse(jsonStr);
     const ttsTexts = [];
 
-    // 다양한 JSON 구조 지원
+    // ⭐ 1순위: script가 문자열인 경우 (간단한 구조) - 가장 일반적인 케이스
+    if (data.script && typeof data.script === 'string') {
+      ttsTexts.push(data.script.trim());
+      console.log('[extractNarrationForTTS] script 문자열 사용');
+    }
+
+    // ⭐ closing 필드도 추가 (있는 경우)
+    if (data.closing && typeof data.closing === 'string') {
+      ttsTexts.push(data.closing.trim());
+      console.log('[extractNarrationForTTS] closing 추가');
+    }
+
+    // 문자열 script에서 추출 성공하면 바로 반환
+    if (ttsTexts.length > 0 && typeof data.script === 'string') {
+      const finalText = ttsTexts.join('\n\n');
+      document.getElementById('step5-script-text').value = finalText;
+      showStatus(`📝 TTS용 텍스트 추출 완료`);
+      setTimeout(hideStatus, 2000);
+      console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공 (script 문자열)');
+      return;
+    }
+
+    // 다양한 JSON 구조 지원 (scenes 배열 구조)
     let scenes = null;
     if (data.script && data.script.scenes && Array.isArray(data.script.scenes)) {
       scenes = data.script.scenes;
@@ -224,7 +246,17 @@ function extractNarrationForTTS() {
       scenes = data.scenes;
     }
 
-    // 하이라이트 씬도 추가 (있는 경우)
+    // 하이라이트가 문자열 배열인 경우도 처리
+    if (data.highlight && Array.isArray(data.highlight)) {
+      data.highlight.forEach(h => {
+        if (typeof h === 'string' && h.trim().length > 5) {
+          // 이미 script에 포함되어 있을 수 있으므로 별도 추가하지 않음
+          console.log('[extractNarrationForTTS] highlight 문자열 배열 감지 (script에 포함됨)');
+        }
+      });
+    }
+
+    // 하이라이트 씬 객체 배열인 경우
     if (data.highlight && data.highlight.scenes && Array.isArray(data.highlight.scenes)) {
       const highlightTexts = data.highlight.scenes
         .map(s => s.preview_text || s.narration || '')
@@ -237,27 +269,20 @@ function extractNarrationForTTS() {
     if (scenes && scenes.length > 0) {
       scenes.forEach((scene, idx) => {
         // ⭐ TTS가 읽을 텍스트만 추출 (메타데이터 제외)
-        // 읽을 것: narration, tts_text, dialogue (대사만)
-        // 제외할 것: scene_title, scene_description, emotion, visual, stage_direction 등
 
-        // 1. tts_text 필드가 있으면 우선 사용 (가장 정확)
+        // 1. tts_text 필드가 있으면 우선 사용
         if (scene.tts_text && typeof scene.tts_text === 'string') {
           ttsTexts.push(scene.tts_text.trim());
           return;
         }
 
-        // 2. narration 필드 (나레이션) - JSON 키값만 있고 실제 텍스트가 없을 수 있음
+        // 2. narration 필드
         if (scene.narration && typeof scene.narration === 'string' && scene.narration.length > 5) {
-          // 메타데이터 패턴 제외
           let text = scene.narration;
-          // "장면 1:", "Scene 1:" 등 제거
           text = text.replace(/^(장면|씬|Scene)\s*\d+\s*[:：]?\s*/gi, '');
-          // "[장소]", "(시간)" 등 제거 - 첫 줄만
           text = text.replace(/^\[.*?\]\s*/g, '');
           text = text.replace(/^\(.*?\)\s*/g, '');
-          // JSON 키 형식 제거 (예: "title":, "emotion": 등)
           text = text.replace(/"[a-zA-Z_]+"\s*:/g, '');
-          // 중괄호, 대괄호 제거
           text = text.replace(/[\{\}\[\]]/g, '');
           if (text.trim().length > 5) {
             ttsTexts.push(text.trim());
@@ -274,15 +299,12 @@ function extractNarrationForTTS() {
           }
         }
 
-        // 4. dialogues 배열에서 대사만 추출 (화자 이름 제외)
+        // 4. dialogues 배열
         if (scene.dialogues && Array.isArray(scene.dialogues)) {
           scene.dialogues.forEach(d => {
-            // 대사 텍스트만 (감정 표현 등 제거)
             if (d.text || d.dialogue || d.line) {
               let dialogue = d.text || d.dialogue || d.line;
-              // "(감정)" 패턴 제거
               dialogue = dialogue.replace(/\([^)]+\)/g, '').trim();
-              // JSON 형식 제거
               dialogue = dialogue.replace(/[\{\}\[\]]/g, '');
               if (dialogue && dialogue.length > 2) {
                 ttsTexts.push(dialogue);
@@ -291,26 +313,24 @@ function extractNarrationForTTS() {
           });
         }
       });
-
-      if (ttsTexts.length > 0) {
-        // 중복 제거 및 정리
-        const cleanedTexts = [...new Set(ttsTexts)].filter(t => t && t.length > 5);
-        document.getElementById('step5-script-text').value = cleanedTexts.join('\n\n');
-        showStatus(`📝 TTS용 텍스트 ${cleanedTexts.length}개 추출 완료`);
-        setTimeout(hideStatus, 2000);
-        console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공:', cleanedTexts.length + '개');
-        return;
-      }
     }
 
-    // JSON에서 추출 실패시 에러 표시 (전체 텍스트를 사용하지 않음!)
+    if (ttsTexts.length > 0) {
+      const cleanedTexts = [...new Set(ttsTexts)].filter(t => t && t.length > 5);
+      document.getElementById('step5-script-text').value = cleanedTexts.join('\n\n');
+      showStatus(`📝 TTS용 텍스트 ${cleanedTexts.length}개 추출 완료`);
+      setTimeout(hideStatus, 2000);
+      console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공:', cleanedTexts.length + '개');
+      return;
+    }
+
+    // JSON에서 추출 실패시 에러 표시
     console.warn('[extractNarrationForTTS] JSON에서 TTS 텍스트 없음');
     showStatus('⚠️ 대본에서 나레이션을 찾을 수 없습니다. 대본 형식을 확인해주세요.');
     document.getElementById('step5-script-text').value = '';
 
   } catch (e) {
     console.error('[extractNarrationForTTS] JSON 파싱 실패:', e.message);
-    // 파싱 실패시에도 전체 텍스트를 사용하지 않고 에러 표시
     showStatus('⚠️ 대본 JSON 형식 오류. 대본을 다시 생성해주세요.');
     document.getElementById('step5-script-text').value = '';
   }
@@ -411,9 +431,9 @@ async function generateTTS() {
   showStatus(`🎙️ Step3: ${providerName} TTS 음성 생성 중...`);
   showLoadingOverlay();
 
-  // Step3 상태 업데이트 - 시작
+  // Step3 (음성+자막) 상태 업데이트 - 시작 (stepMap: step5 -> step3)
   if (typeof updateStepStatus === 'function') {
-    updateStepStatus('step3', 'working', `${providerName} TTS 생성 중...`);
+    updateStepStatus('step5', 'working', `${providerName} TTS 생성 중...`);
   }
 
   try {
@@ -482,6 +502,19 @@ async function generateTTS() {
         if (audioPlayer.readyState >= 1) {
           audioPlayer.onloadedmetadata();
         }
+
+        // ⭐ 타임아웃 fallback: 5초 후에도 메타데이터가 로드되지 않으면 강제로 진행
+        setTimeout(() => {
+          if (!audioPlayer.duration || isNaN(audioPlayer.duration)) {
+            console.log('[TTS] 메타데이터 타임아웃 - 강제 진행');
+            showStatus('✅ TTS 음성 생성 완료! SRT 자막 생성 중...');
+            if (typeof updateProgressIndicator === 'function') {
+              updateProgressIndicator('step5');
+            }
+            updateStep4Visibility();
+            generateSubtitleAuto(0);
+          }
+        }, 5000);
       } else {
         // 비용 정보 표시
         if (costInfo && data.cost) {
@@ -503,14 +536,14 @@ async function generateTTS() {
       alert(`오류: ${data.error}`);
       showStatus('❌ TTS 생성 실패');
       if (typeof updateStepStatus === 'function') {
-        updateStepStatus('step3', 'error', 'TTS 생성 실패');
+        updateStepStatus('step5', 'error', 'TTS 생성 실패');
       }
     }
   } catch (err) {
     alert(`네트워크 오류: ${err.message}`);
     showStatus('❌ TTS 생성 오류');
     if (typeof updateStepStatus === 'function') {
-      updateStepStatus('step3', 'error', err.message.substring(0, 30));
+      updateStepStatus('step5', 'error', err.message.substring(0, 30));
     }
   } finally {
     hideLoadingOverlay();
