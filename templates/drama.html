@@ -1,35 +1,45 @@
-{% extends "base.html" %}
-{% block title %}Drama Lab{% endblock %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>Drama Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23667eea' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>D</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}">
+</head>
+<body>
+  <!-- Auth Header -->
+  <div class="auth-header">
+    <h1>Drama Lab</h1>
+    <div class="auth-links">
+      <a href="/" class="btn-home">홈</a>
+    </div>
+  </div>
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}">
-{% endblock %}
+  <div id="drama-app">
+    <!-- 여기에 새로운 UI 구조가 들어갑니다 -->
+    <h1>Drama Lab</h1>
+    <p>페이지 재구축 중...</p>
+  </div>
 
-{% block content %}
-<div id="drama-app">
-  <!-- 여기에 새로운 UI 구조가 들어갑니다 -->
-  <h1>Drama Lab</h1>
-  <p>페이지 재구축 중...</p>
-</div>
+  <!-- 로딩 오버레이 -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">로딩 중...</div>
+    <div class="loading-subtext"></div>
+  </div>
 
-<!-- 로딩 오버레이 -->
-<div id="loading-overlay" class="loading-overlay">
-  <div class="loading-spinner"></div>
-  <div class="loading-text">로딩 중...</div>
-  <div class="loading-subtext"></div>
-</div>
+  <!-- 상태바 -->
+  <div id="status-bar" class="status-bar"></div>
 
-<!-- 상태바 -->
-<div id="status-bar" class="status-bar"></div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="{{ url_for('static', filename='js/drama-utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-session.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-main.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-step1.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-step2.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-step3.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-step4.js') }}"></script>
-<script src="{{ url_for('static', filename='js/drama-step5.js') }}"></script>
-{% endblock %}
+  <!-- JavaScript -->
+  <script src="{{ url_for('static', filename='js/drama-utils.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-session.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-step1.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-step2.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-step3.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-step4.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/drama-step5.js') }}"></script>
+</body>
+</html>
