@@ -621,7 +621,8 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20, te
             }}
           }}
         }},
-        "narration": "실제 나레이션 텍스트 (TTS가 읽을 내용)"
+        "narration": "실제 나레이션 텍스트 (TTS가 읽을 내용)",
+        "tts_text": "TTS가 읽을 순수 텍스트만 (장면 제목, 인물 소개, 지문 제외)"
       }}
     ]
   }}
@@ -643,6 +644,21 @@ def build_testimony_prompt_from_guide(custom_guide=None, duration_minutes=20, te
 6. ✅ scene_meta에 모든 시각 정보가 있는가?
 7. ✅ 각 인물의 외모가 상세히 기술되었는가?
 8. ✅ 1인칭 시점으로 작성했는가?
+
+═══════════════════════════════════════════════════
+🎙️ TTS 텍스트 작성 규칙 (매우 중요!)
+═══════════════════════════════════════════════════
+각 씬의 tts_text 필드에는 TTS가 읽을 순수 대사/나레이션만 작성하세요.
+
+❌ tts_text에 포함하면 안 되는 것:
+- 장면 번호나 제목 ("장면 1:", "Scene 1:", "[병원]" 등)
+- 인물 소개 ("김영희(45세, 교사)" 등)
+- 지문이나 연출 ("(슬픈 표정으로)", "[눈물을 흘리며]" 등)
+- 화자 표시 ("영희:", "나레이션:" 등)
+
+✅ tts_text에 포함할 것:
+- 주인공이 직접 말하는 대사와 독백만
+- "안녕하세요. 저는..." 형식의 순수 텍스트
 
 반드시 유효한 JSON 형식으로 출력하세요!
 """
@@ -2484,8 +2500,12 @@ def api_drama_claude_step3():
         # 대본 작성 요청 - 콘텐츠 유형 및 카테고리 기반 분량 지시
         content_type_name = "간증" if content_type == "testimony" else "드라마"
 
-        # 간증 콘텐츠는 무조건 15,000자 이상
-        if content_type == "testimony":
+        # 🧪 테스트 모드: 최소 분량으로 작성
+        if test_mode:
+            length_guide = "약 500자 내외 (테스트용 최소 분량)"
+            print(f"[DRAMA-STEP3] 🧪 테스트 모드: 분량 제한 500자")
+        elif content_type == "testimony":
+            # 간증 콘텐츠는 무조건 15,000자 이상
             length_guide = "최소 15,000자 이상 (필수!)"
         else:
             minutes_match = re.search(r"(\d+)\s*분", category) or re.search(r"(\d+)", category)
@@ -2535,8 +2555,12 @@ def api_drama_claude_step3():
 {user_prompt_suffix}"""
 
         # OpenRouter API 호출 (OpenAI 호환)
+        # 🧪 테스트 모드: max_tokens 1500 (비용 절감)
         # 간증 콘텐츠는 15,000자 필요 → max_tokens 16000
-        max_output_tokens = 16000 if content_type == "testimony" else 8000
+        if test_mode:
+            max_output_tokens = 1500
+        else:
+            max_output_tokens = 16000 if content_type == "testimony" else 8000
         response = openrouter_client.chat.completions.create(
             model=selected_model,
             max_tokens=max_output_tokens,
@@ -2576,11 +2600,18 @@ def api_drama_claude_step3():
         input_tokens = response.usage.prompt_tokens if response.usage else 0
         output_tokens = response.usage.completion_tokens if response.usage else 0
 
-        print(f"[DRAMA-STEP3-OPENROUTER] 완료 - 토큰: {input_tokens} / {output_tokens}")
+        # Claude Sonnet 4.5 비용 계산 (원화): input $3/1M, output $15/1M → 환율 1400원
+        # input: 3 * 1400 / 1000000 = 0.0042원/token
+        # output: 15 * 1400 / 1000000 = 0.021원/token
+        cost = max(1, round(input_tokens * 0.0042 + output_tokens * 0.021))
+
+        print(f"[DRAMA-STEP3-OPENROUTER] 완료 - 토큰: {input_tokens}/{output_tokens}, 비용: ₩{cost}")
 
         return jsonify({
             "ok": True,
             "result": final_result,
+            "cost": cost,
+            "tokens": input_tokens + output_tokens,
             "usage": {
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens
@@ -5774,14 +5805,21 @@ def api_gpt_plan_step1():
         )
 
         result = completion.choices[0].message.content.strip()
-        tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+        input_tokens = completion.usage.prompt_tokens if hasattr(completion, 'usage') and completion.usage else 0
+        output_tokens = completion.usage.completion_tokens if hasattr(completion, 'usage') and completion.usage else 0
 
-        print(f"[GPT-PLAN-1] 기획 완료 - 토큰: {tokens}")
+        # GPT-4o-mini 비용 계산 (원화): input $0.15/1M, output $0.6/1M → 환율 1400원
+        # input: 0.15 * 1400 / 1000000 = 0.00021원/token
+        # output: 0.6 * 1400 / 1000000 = 0.00084원/token
+        cost = max(1, round(input_tokens * 0.00021 + output_tokens * 0.00084))
+
+        print(f"[GPT-PLAN-1] 기획 완료 - 토큰: {input_tokens}/{output_tokens}, 비용: ₩{cost}")
 
         return jsonify({
             'ok': True,
             'result': result,
-            'tokens': tokens,
+            'tokens': input_tokens + output_tokens,
+            'cost': cost,
             'step': 1
         })
 
@@ -5874,14 +5912,19 @@ def api_gpt_plan_step2():
         )
 
         result = completion.choices[0].message.content.strip()
-        tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+        input_tokens = completion.usage.prompt_tokens if hasattr(completion, 'usage') and completion.usage else 0
+        output_tokens = completion.usage.completion_tokens if hasattr(completion, 'usage') and completion.usage else 0
 
-        print(f"[GPT-PLAN-2] 구조화 완료 - 토큰: {tokens}")
+        # GPT-4o-mini 비용 계산 (원화)
+        cost = max(1, round(input_tokens * 0.00021 + output_tokens * 0.00084))
+
+        print(f"[GPT-PLAN-2] 구조화 완료 - 토큰: {input_tokens}/{output_tokens}, 비용: ₩{cost}")
 
         return jsonify({
             'ok': True,
             'result': result,
-            'tokens': tokens,
+            'tokens': input_tokens + output_tokens,
+            'cost': cost,
             'step': 2
         })
 
@@ -6020,7 +6063,11 @@ def api_gpt_analyze_prompts():
         )
 
         result = completion.choices[0].message.content.strip()
-        tokens = completion.usage.total_tokens if hasattr(completion, 'usage') else 0
+        input_tokens = completion.usage.prompt_tokens if hasattr(completion, 'usage') and completion.usage else 0
+        output_tokens = completion.usage.completion_tokens if hasattr(completion, 'usage') and completion.usage else 0
+
+        # GPT-4o-mini 비용 계산 (원화)
+        cost = max(1, round(input_tokens * 0.00021 + output_tokens * 0.00084))
 
         # JSON 파싱 시도
         import re
@@ -6037,13 +6084,14 @@ def api_gpt_analyze_prompts():
             # JSON 파싱 실패시 원본 반환
             parsed_result = None
 
-        print(f"[GPT-ANALYZE-PROMPTS] 완료 - 토큰: {tokens}, JSON 파싱: {'성공' if parsed_result else '실패'}")
+        print(f"[GPT-ANALYZE-PROMPTS] 완료 - 토큰: {input_tokens}/{output_tokens}, 비용: ₩{cost}, JSON 파싱: {'성공' if parsed_result else '실패'}")
 
         return jsonify({
             'ok': True,
             'result': parsed_result if parsed_result else result,
             'rawResult': result,
-            'tokens': tokens,
+            'tokens': input_tokens + output_tokens,
+            'cost': cost,
             'parsed': parsed_result is not None
         })
 

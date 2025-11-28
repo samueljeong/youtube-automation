@@ -198,6 +198,104 @@ async function previewVoice(voice, provider) {
   }
 }
 
+// ===== TTS용 텍스트 추출 함수 (메타데이터 제외) =====
+function extractNarrationForTTS() {
+  const step1Result = document.getElementById('step3-result')?.value || '';
+  if (!step1Result.trim()) {
+    console.warn('[extractNarrationForTTS] 대본이 비어있음');
+    return;
+  }
+
+  try {
+    let jsonStr = step1Result;
+    const jsonMatch = step1Result.match(/```json\s*([\s\S]*?)\s*```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+
+    const data = JSON.parse(jsonStr);
+    const ttsTexts = [];
+
+    // 다양한 JSON 구조 지원
+    let scenes = null;
+    if (data.script && data.script.scenes && Array.isArray(data.script.scenes)) {
+      scenes = data.script.scenes;
+    } else if (data.scenes && Array.isArray(data.scenes)) {
+      scenes = data.scenes;
+    }
+
+    if (scenes && scenes.length > 0) {
+      scenes.forEach((scene, idx) => {
+        // ⭐ TTS가 읽을 텍스트만 추출 (메타데이터 제외)
+        // 읽을 것: narration, tts_text, dialogue (대사만)
+        // 제외할 것: scene_title, scene_description, emotion, visual, stage_direction 등
+
+        // 1. tts_text 필드가 있으면 우선 사용 (가장 정확)
+        if (scene.tts_text) {
+          ttsTexts.push(scene.tts_text);
+          return;
+        }
+
+        // 2. narration 필드 (나레이션)
+        if (scene.narration && typeof scene.narration === 'string') {
+          // 메타데이터 패턴 제외
+          let text = scene.narration;
+          // "장면 1:", "Scene 1:" 등 제거
+          text = text.replace(/^(장면|씬|Scene)\s*\d+\s*[:：]?\s*/gi, '');
+          // "[장소]", "(시간)" 등 제거
+          text = text.replace(/^\[.*?\]\s*/g, '');
+          text = text.replace(/^\(.*?\)\s*/g, '');
+          if (text.trim()) {
+            ttsTexts.push(text.trim());
+          }
+        }
+
+        // 3. scene_narration 필드
+        if (scene.scene_narration && typeof scene.scene_narration === 'string') {
+          let text = scene.scene_narration;
+          text = text.replace(/^(장면|씬|Scene)\s*\d+\s*[:：]?\s*/gi, '');
+          if (text.trim()) {
+            ttsTexts.push(text.trim());
+          }
+        }
+
+        // 4. dialogues 배열에서 대사만 추출 (화자 이름 제외)
+        if (scene.dialogues && Array.isArray(scene.dialogues)) {
+          scene.dialogues.forEach(d => {
+            // 대사 텍스트만 (감정 표현 등 제거)
+            if (d.text || d.dialogue || d.line) {
+              let dialogue = d.text || d.dialogue || d.line;
+              // "(감정)" 패턴 제거
+              dialogue = dialogue.replace(/\([^)]+\)/g, '').trim();
+              if (dialogue) {
+                ttsTexts.push(dialogue);
+              }
+            }
+          });
+        }
+      });
+
+      if (ttsTexts.length > 0) {
+        document.getElementById('step5-script-text').value = ttsTexts.join('\n\n');
+        showStatus(`📝 TTS용 텍스트 ${ttsTexts.length}개 추출 완료`);
+        setTimeout(hideStatus, 2000);
+        console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공:', ttsTexts.length + '개');
+        return;
+      }
+    }
+
+    // JSON에서 추출 실패시 기존 함수 사용
+    console.log('[extractNarrationForTTS] JSON에서 TTS 텍스트 없음, 기존 방식 사용');
+    extractNarration();
+
+  } catch (e) {
+    console.log('[extractNarrationForTTS] JSON 파싱 실패, 기존 방식 사용:', e.message);
+    extractNarration();
+  }
+}
+
+window.extractNarrationForTTS = extractNarrationForTTS;
+
 // ===== 지문 추출 함수 (JSON 파싱 지원) =====
 function extractNarration() {
   const step1Result = document.getElementById('step3-result')?.value || '';

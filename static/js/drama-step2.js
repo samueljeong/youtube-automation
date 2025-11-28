@@ -779,6 +779,11 @@ async function generateAllAuto(skipConfirm = false) {
           };
           localStorage.setItem('_drama-step4-character-images', JSON.stringify(step2CharacterImages));
           renderCharacterImages();
+
+          // 💰 Step2 인물 이미지 비용 추가
+          if (imageData.cost && typeof window.addCost === 'function') {
+            window.addCost('step2', imageData.cost);
+          }
         }
       } catch (imgErr) {
         console.error(`인물 이미지 생성 실패 (${char.name}):`, imgErr);
@@ -842,6 +847,11 @@ async function generateAllAuto(skipConfirm = false) {
           // 첫 번째 씬 이미지를 썸네일로 표시
           if (i === 0 && typeof updateThumbnailPreview === 'function') {
             updateThumbnailPreview(imageData.imageUrl);
+          }
+
+          // 💰 Step2 씬 이미지 비용 추가
+          if (imageData.cost && typeof window.addCost === 'function') {
+            window.addCost('step2', imageData.cost);
           }
         }
       } catch (sceneErr) {
