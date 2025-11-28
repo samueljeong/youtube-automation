@@ -562,31 +562,56 @@ def create_meditation():
         print(f"[Meditation] 묵상메시지 생성 시작 - 구절: {reference}, 템플릿 사용: {'예' if template else '아니오'}")
 
         if template:
-            system_content = """당신은 묵상메시지 양식을 정확히 복제하는 전문가입니다.
+            # 템플릿에 placeholder가 있는지 확인
+            has_placeholder = "{{" in template and "}}" in template
+
+            if has_placeholder:
+                # placeholder 방식: GPT는 묵상, 제목, 인용구만 생성
+                system_content = """당신은 묵상메시지를 작성하는 전문가입니다.
+사용자가 제공한 샘플 템플릿의 스타일(어조, 문단 구조, 길이)을 참고하여 묵상 내용을 작성합니다.
+
+반드시 JSON 형식으로만 응답하세요:
+{
+  "제목": "말씀의 핵심을 담은 짧은 제목 (10자 이내)",
+  "인용구": "본문에서 핵심 메시지를 요약한 짧은 문장",
+  "묵상": "샘플과 비슷한 스타일의 묵상 내용"
+}
+
+주의사항:
+- 샘플의 묵상 부분 스타일(문단 수, 문장 길이, 어조)을 따라하세요
+- 마크다운 기호 사용 금지
+- JSON 외의 다른 텍스트 출력 금지"""
+
+                user_content = f"""[참고할 샘플]
+{template}
+
+[새 말씀 정보]
+성경구절: {reference}
+본문말씀: {verse}
+
+위 샘플의 스타일을 참고하여 JSON으로 응답하세요."""
+            else:
+                # 기존 방식: GPT가 전체 메시지 생성
+                system_content = """당신은 묵상메시지 양식을 정확히 복제하는 전문가입니다.
 
 매우 중요: 사용자가 제공한 샘플 템플릿의 "전체 형식"을 완벽히 모방해야 합니다.
 사용자가 제공하는 날짜, 성경구절, 본문말씀 값을 샘플 템플릿의 형식에 맞춰 대체하세요.
 
 필수 준수 사항:
 1. 샘플의 전체 구조(제목, 날짜 형식, 성경구절 표기 방식, 본문, 묵상 내용, 해시태그 등)를 동일하게 유지
-2. 샘플에서 날짜가 "11월 26일 (수)"로 표기되어 있으면 새 날짜도 같은 형식으로
-3. 샘플에서 성경구절이 "민수기 7장 89절"로 표기되어 있으면 새 구절도 "민수기 8장 14절" 형식으로 변환
-4. 샘플에서 성경구절이 "민수기 7:89"로 표기되어 있으면 새 구절도 같은 형식 유지
-5. 샘플의 문단 수, 문장 길이, 어조를 동일하게 유지
-6. 샘플에 이모지, 해시태그, 특수 기호가 있으면 동일한 위치에 동일하게 사용
-7. 샘플의 전체 글자 수와 비슷하게 작성 (±20% 이내)
+2. 샘플의 문단 수, 문장 길이, 어조를 동일하게 유지
+3. 샘플에 이모지, 해시태그, 특수 기호가 있으면 동일한 위치에 동일하게 사용
+4. 샘플의 전체 글자 수와 비슷하게 작성 (±20% 이내)
 
 절대 하지 말 것:
 - 샘플과 다른 구조로 작성
-- 샘플의 형식을 무시하고 임의로 변경
 - 마크다운 기호(#, *, - 등) 사용 (해시태그 제외)
 
-전체 메시지를 작성하세요 (날짜, 성경구절, 본문말씀, 묵상 내용 모두 포함)."""
+전체 메시지를 작성하세요."""
 
-            # 보내는 사람 정보 추가
-            sender_info = f"\n보내는 사람: {sender}" if sender else ""
+                sender_info = f"\n보내는 사람: {sender}" if sender else ""
 
-            user_content = f"""[복제할 샘플 양식]
+                user_content = f"""[복제할 샘플 양식]
 {template}
 
 ---
@@ -596,12 +621,7 @@ def create_meditation():
 성경구절: {reference}
 본문말씀: {verse}{sender_info}
 
-위 샘플의 "전체 형식"을 완벽히 따라서 새 묵상메시지를 작성하세요.
-- 샘플의 날짜 위치와 형식을 따라 새 날짜({date_str})를 넣으세요
-- 샘플의 성경구절 표기 형식을 따라 새 구절({reference})을 변환해서 넣으세요
-- 샘플의 본문말씀 위치에 새 본문말씀을 넣으세요
-- 샘플의 묵상 내용 스타일로 새 말씀에 맞는 묵상을 작성하세요
-- 샘플에 보내는 사람이 있고 새 보내는 사람이 제공되면 같은 형식으로 포함하세요"""
+위 샘플의 "전체 형식"을 완벽히 따라서 새 묵상메시지를 작성하세요."""
         else:
             system_content = """당신은 따뜻하고 은혜로운 묵상메시지를 작성하는 전문가입니다.
 주어진 성경구절과 본문말씀을 바탕으로 깊이 있는 묵상메시지를 작성합니다.
@@ -634,14 +654,42 @@ def create_meditation():
         result = completion.choices[0].message.content.strip()
         print(f"[Meditation] 생성 완료 - 길이: {len(result)}자")
 
-        return jsonify({
+        # placeholder 모드일 때 JSON 파싱
+        response_data = {
             "ok": True,
-            "result": result,
             "usage": {
                 "input_tokens": completion.usage.prompt_tokens if hasattr(completion, 'usage') else 0,
                 "output_tokens": completion.usage.completion_tokens if hasattr(completion, 'usage') else 0
             }
-        })
+        }
+
+        if template and "{{" in template and "}}" in template:
+            # placeholder 모드: JSON 파싱 시도
+            try:
+                import json
+                # JSON 블록 추출 (```json ... ``` 형식 처리)
+                json_str = result
+                if "```json" in result:
+                    json_str = result.split("```json")[1].split("```")[0].strip()
+                elif "```" in result:
+                    json_str = result.split("```")[1].split("```")[0].strip()
+
+                parsed = json.loads(json_str)
+                response_data["mode"] = "placeholder"
+                response_data["제목"] = parsed.get("제목", "")
+                response_data["인용구"] = parsed.get("인용구", "")
+                response_data["묵상"] = parsed.get("묵상", "")
+                response_data["result"] = parsed.get("묵상", result)  # fallback
+                print(f"[Meditation] placeholder 모드 - JSON 파싱 성공")
+            except Exception as parse_err:
+                print(f"[Meditation] JSON 파싱 실패, 원본 사용: {parse_err}")
+                response_data["mode"] = "legacy"
+                response_data["result"] = result
+        else:
+            response_data["mode"] = "legacy" if template else "default"
+            response_data["result"] = result
+
+        return jsonify(response_data)
 
     except Exception as e:
         print(f"[Meditation] 오류: {str(e)}")
