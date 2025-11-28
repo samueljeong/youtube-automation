@@ -21,8 +21,7 @@ from step2_image_generation import image_prompt_builder, call_gpt_mini
 from step3_tts_and_subtitles import tts_script_builder, call_tts_engine
 from step4_thumbnail_generation import call_image_model as thumbnail_generator
 from step4_video_assembly import video_builder
-from step5_youtube_upload import schedule_upload
-from step5_youtube_upload.build_metadata import generate_metadata_with_gpt
+from step5_youtube_upload.run_step5 import run_step5
 
 
 # 경로 설정
@@ -338,50 +337,33 @@ Examples:
         # ============================================================
         # Step 5: YouTube Metadata Generation & Upload
         # ============================================================
-        step5_metadata_path = os.path.join(OUTPUTS_DIR, "step5_metadata.json")
         step5_output_path = os.path.join(OUTPUTS_DIR, "step5_output.json")
 
-        # Step 5a: GPT 메타데이터 생성
         print(f"\n{'='*60}")
-        print("🏷️  Generating YouTube Metadata with GPT...")
+        print("🚀 Starting Step 5: YouTube Metadata & Upload...")
         print(f"{'='*60}")
 
-        metadata = generate_metadata_with_gpt(
-            step1_output,
-            thumbnail_data=thumbnail_output
+        # 영상 파일 경로 (Step4에서 생성된 경로 또는 placeholder)
+        video_file_path = step4_output.get("video_filename", "outputs/video_mock.mp4")
+
+        # Step4 썸네일 정보 준비
+        step4_for_step5 = {
+            "thumbnail_image_url": thumbnail_output.get("image_generation", {}).get("image_url", ""),
+            "thumbnail_text": thumbnail_output.get("thumbnail_text",
+                step1_output.get("titles", {}).get("main_title", ""))
+        }
+
+        # run_step5 실행 (mode에 따라 test/prod 분기)
+        step5_mode = "prod" if args.upload != "skip" else "test"
+
+        step5_output = run_step5(
+            step1_output=step1_output,
+            step4_output=step4_for_step5,
+            video_file_path=video_file_path,
+            mode=step5_mode,
         )
-        save_json(step5_metadata_path, metadata)
-        print(f"✅ Metadata generated: {metadata.get('title', 'N/A')}")
-
-        if args.upload == "skip":
-            print("\n⏭️  Skipping YouTube Upload (metadata saved)")
-            step5_output = {
-                "step": "step5_youtube_upload_result",
-                "status": "skipped",
-                "metadata": metadata
-            }
-        else:
-            # Step 5b: YouTube 업로드
-            step5_input_path = os.path.join(OUTPUTS_DIR, "step5_input.json")
-
-            step5_input = create_step5_input(
-                step1_output,
-                step4_output,
-                upload_mode=args.upload
-            )
-            # GPT 생성 메타데이터로 덮어쓰기
-            step5_input["title"] = metadata.get("title", step5_input["title"])
-            step5_input["description"] = metadata.get("description", "")
-            step5_input["tags"] = metadata.get("tags", [])
-            save_json(step5_input_path, step5_input)
-
-            step5_output = run_step(
-                "Step 5: YouTube Upload",
-                schedule_upload.schedule_or_upload,
-                step5_input,
-                step5_output_path
-            )
-            step5_output["metadata"] = metadata
+        save_json(step5_output_path, step5_output)
+        print(f"✅ Step 5 completed successfully")
 
         # ============================================================
         # 완료
@@ -390,12 +372,24 @@ Examples:
         print("🎉 Pipeline completed successfully!")
         print("="*60)
 
-        if step5_output.get("url"):
-            print(f"📺 Uploaded video URL: {step5_output['url']}")
-        elif step5_output.get("status") == "scheduled":
-            print(f"📅 Video scheduled for: {step5_output.get('scheduled_time')}")
-        elif step5_output.get("status") == "skipped":
-            print(f"📁 Video file: {step4_output.get('video_filename')}")
+        # Step5 메타데이터 미리보기
+        meta = step5_output.get("metadata", {})
+        youtube_result = step5_output.get("youtube_result", {})
+
+        print("\n=== Step5 Metadata Preview ===")
+        print(f"  Title: {meta.get('title', 'N/A')}")
+        print(f"  Tags: {', '.join(meta.get('tags', [])[:5])}...")
+        print(f"  Description: {meta.get('description', '')[:80]}...")
+
+        print("\n=== YouTube Upload Status ===")
+        status = youtube_result.get("status", "unknown")
+        message = youtube_result.get("message", youtube_result.get("reason", ""))
+        print(f"  Status: {status}")
+        if message:
+            print(f"  Message: {message}")
+
+        if youtube_result.get("api_response"):
+            print(f"  Video URL: {youtube_result['api_response'].get('url', 'N/A')}")
 
         print(f"\n📂 All outputs saved to: {OUTPUTS_DIR}")
 
