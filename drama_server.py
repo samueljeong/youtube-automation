@@ -3095,14 +3095,22 @@ def api_generate_image():
             if not openrouter_api_key:
                 return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."}), 200
 
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작")
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작 - 요청 사이즈: {size}")
+
+            # 사이즈에 따른 비율 결정
+            if size == "1792x1024" or "16:9" in size:
+                aspect_instruction = "IMPORTANT: Generate image in 16:9 widescreen landscape aspect ratio (width significantly larger than height)."
+            elif size == "1024x1792" or "9:16" in size:
+                aspect_instruction = "IMPORTANT: Generate image in 9:16 vertical portrait aspect ratio (height significantly larger than width)."
+            else:
+                aspect_instruction = "IMPORTANT: Generate image in 16:9 widescreen landscape aspect ratio for YouTube video."
 
             # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
             # 한국인 캐릭터인 경우 인종적 특징을 더욱 강조
             if "Korean" in prompt or "korean" in prompt:
-                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. IMPORTANT: Ensure the person has authentic Korean/East Asian facial features, Korean ethnicity. Style: cinematic lighting, professional photography, 8k resolution, detailed"
+                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. {aspect_instruction} IMPORTANT: Ensure the person has authentic Korean/East Asian facial features, Korean ethnicity. Style: cinematic lighting, professional photography, 8k resolution, detailed, wide shot composition"
             else:
-                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. Style: cinematic lighting, professional photography, 8k resolution, detailed"
+                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. {aspect_instruction} Style: cinematic lighting, professional photography, 8k resolution, detailed, wide shot composition"
 
             # OpenRouter API 호출 (Chat Completions 형식)
             headers = {
@@ -5992,11 +6000,20 @@ def api_gpt_analyze_prompts():
         script = data.get('script', '')
         video_category = data.get('videoCategory', '간증')
         style_guide = data.get('styleGuide', '')
+        narrator_metadata = data.get('narratorMetadata', {})
 
         if not script:
             return jsonify({'ok': False, 'error': '대본이 필요합니다.'}), 400
 
+        # 화자 메타데이터 추출
+        narrator_name = narrator_metadata.get('narrator_name', '')
+        narrator_age = narrator_metadata.get('narrator_age')
+        era = narrator_metadata.get('era', '')
+        region = narrator_metadata.get('region', '')
+
         print(f"[GPT-ANALYZE-PROMPTS] 시작 - 카테고리: {video_category}, 대본 길이: {len(script)}자")
+        if narrator_age:
+            print(f"[GPT-ANALYZE-PROMPTS] 화자 정보: {narrator_name}, 현재 {narrator_age}세, 시대: {era}")
 
         system_prompt = """당신은 영상 제작을 위한 이미지 프롬프트 전문가입니다.
 
@@ -6060,15 +6077,17 @@ def api_gpt_analyze_prompts():
    - 예: "cozy Korean apartment living room, warm evening light through window, wooden furniture, family photos on wall"
 
 3. 🎯 회상 씬의 나이 처리 (매우 중요!):
-   - 현재 노인(70대)이 과거를 회상하면, 회상 씬에서는 그 시절 나이로!
+   - 화자가 과거를 회상하면, 회상 씬에서는 그 시절 나이로 이미지를 생성해야 함!
+   - 대본에서 언급된 시대(예: 1970년대)와 현재 화자 나이를 기준으로 회상 시점의 나이를 계산
+   - 예: 현재 68세 화자가 1970년대(약 50년 전)를 회상 → 회상 씬에서는 15-18세로 표현
    - flashback_childhood: 어린이 (8-12세)
    - flashback_youth: 청소년/청년 (15-25세)
    - flashback_30s: 중년 (30-40세)
    - 예시:
-     * 현재(present): "elderly Korean man, 75 years old, gray hair, wrinkled face"
-     * 회상(flashback_childhood): "young Korean boy, 10 years old, short black hair, bright eyes"
-     * 회상(flashback_youth): "young Korean man, 20 years old, black hair, youthful face"
+     * 현재(present): "elderly Korean man, 68 years old, gray hair, wrinkled face"
+     * 회상(flashback_youth, 1970년대): "young Korean man, 15 years old, short black hair, youthful face, wearing 1970s Korean clothing"
    - characterPrompt는 반드시 해당 장면의 나이에 맞게 작성!
+   - 시대 배경도 반영: 1970년대면 그 시대 의상/배경으로
 
 4. 일관성 유지:
    - 같은 시점의 캐릭터는 동일한 외모 유지
@@ -6112,6 +6131,36 @@ def api_gpt_analyze_prompts():
 【 분석할 대본 】
 {script}
 """
+        # 화자 메타데이터가 있으면 추가
+        if narrator_age:
+            current_year = 2025
+            if era and "년대" in str(era):
+                # "1970s" 또는 "1970년대" 형식 파싱
+                import re
+                era_match = re.search(r'(\d{4})', str(era))
+                if era_match:
+                    era_year = int(era_match.group(1))
+                    years_ago = current_year - era_year
+                    flashback_age = narrator_age - years_ago
+                    if flashback_age < 0:
+                        flashback_age = 10  # 기본값
+                else:
+                    flashback_age = 15  # 기본값
+            else:
+                flashback_age = 15  # 기본값
+
+            user_prompt += f"""
+【 🎯 화자 정보 (매우 중요!) 】
+- 화자 이름: {narrator_name or '주인공'}
+- 화자 현재 나이: {narrator_age}세
+- 회상 시대: {era or '과거'}
+- 회상 시점 추정 나이: 약 {flashback_age}세
+- 지역: {region or '한국'}
+
+⚠️ 중요: 회상 씬에서는 화자를 {flashback_age}세 전후의 젊은 모습으로 표현해야 합니다!
+현재 씬에서만 {narrator_age}세의 노인으로 표현하세요.
+"""
+
         if style_guide:
             user_prompt += f"""
 【 스타일 가이드 】
@@ -6120,7 +6169,8 @@ def api_gpt_analyze_prompts():
 
         user_prompt += """
 위 대본을 분석하여 각 캐릭터와 장면에 대한 이미지 프롬프트를 JSON 형식으로 생성해주세요.
-반드시 위에서 지정한 JSON 형식을 정확히 따라주세요."""
+반드시 위에서 지정한 JSON 형식을 정확히 따라주세요.
+회상 씬에서는 반드시 화자의 과거 나이에 맞는 젊은 외모로 프롬프트를 작성하세요!"""
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",

@@ -41,12 +41,30 @@ async function analyzePromptsWithGPT(script, videoCategory) {
       updateStepStatus('step1_5', 'working', 'GPT 분석 중...');
     }
 
+    // 대본에서 메타데이터 추출 (narrator_age, era 등)
+    let narratorMetadata = {};
+    try {
+      const scriptData = JSON.parse(script);
+      if (scriptData.metadata) {
+        narratorMetadata = {
+          narrator_name: scriptData.metadata.narrator_name || '',
+          narrator_age: scriptData.metadata.narrator_age || null,
+          era: scriptData.metadata.era || '',
+          region: scriptData.metadata.region || ''
+        };
+        console.log('[Step1.5] 화자 메타데이터 추출:', narratorMetadata);
+      }
+    } catch (parseErr) {
+      console.warn('[Step1.5] 대본 메타데이터 파싱 실패:', parseErr);
+    }
+
     const response = await fetch('/api/drama/gpt-analyze-prompts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         script: script,
-        videoCategory: videoCategory
+        videoCategory: videoCategory,
+        narratorMetadata: narratorMetadata
       })
     });
 
