@@ -1003,3 +1003,26 @@ textarea.autosize { overflow: hidden; }
 .qa-input-container button:hover {
   opacity: 0.9;
 }
+
+/* 콘텐츠 카테고리 버튼 스타일 */
+.content-category-btn {
+  padding: .4rem .75rem;
+  border: 2px solid #ddd;
+  background: white;
+  color: #666;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.content-category-btn:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+.content-category-btn.active {
+  border-color: #667eea;
+  background: #667eea;
+  color: white;
+}
+

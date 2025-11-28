@@ -5,6 +5,110 @@
  * 화면 Step 기준: Step1(대본) → Step2(이미지) → Step3(TTS) → Step4(영상) → Step5(업로드)
  */
 
+// ===== 🧪 테스트 모드 관리 =====
+window.testMode = localStorage.getItem('_drama-test-mode') === 'true';
+
+// 테스트 모드 토글 함수
+function toggleTestMode() {
+  window.testMode = !window.testMode;
+  localStorage.setItem('_drama-test-mode', window.testMode);
+  updateTestModeUI(window.testMode);
+  console.log('[TestMode]', window.testMode ? '🧪 활성화' : '⚡ 비활성화');
+}
+
+// 테스트 모드 UI 업데이트
+function updateTestModeUI(isTestMode) {
+  const switchEl = document.getElementById('test-mode-switch');
+  const knobEl = document.getElementById('test-mode-knob');
+  const boxEl = document.getElementById('test-mode-box');
+  const indicatorEl = document.getElementById('step3-mode-indicator');
+
+  if (switchEl && knobEl) {
+    if (isTestMode) {
+      switchEl.style.background = '#4CAF50';
+      knobEl.style.left = '26px';
+    } else {
+      switchEl.style.background = 'rgba(0,0,0,0.3)';
+      knobEl.style.left = '2px';
+    }
+  }
+
+  if (boxEl) {
+    if (isTestMode) {
+      boxEl.style.background = 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)';
+    } else {
+      boxEl.style.background = 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)';
+    }
+  }
+
+  if (indicatorEl) {
+    if (isTestMode) {
+      indicatorEl.innerHTML = '<span style="color: #4CAF50; font-weight: 700;">🧪 테스트 모드</span> - 비용 최소화 (500자, 2씬, 2명)';
+    } else {
+      indicatorEl.textContent = 'Claude Sonnet 4.5로 최종 대본을 생성합니다.';
+    }
+  }
+}
+
+// 테스트 모드 초기화
+function initTestMode() {
+  updateTestModeUI(window.testMode);
+}
+
+// ===== 💰 비용 추적 시스템 =====
+window.dramaCosts = {
+  step1: 0,      // Claude 대본 생성
+  step1_5: 0,    // GPT 프롬프트 분석
+  step2: 0,      // 이미지 생성 (FLUX)
+  step3: 0,      // TTS (Google/Naver)
+  step4: 0       // 영상 생성 (Creatomate)
+};
+
+// 비용 추가 함수
+window.addCost = function(step, amount) {
+  if (typeof amount !== 'number' || isNaN(amount)) return;
+
+  const stepKey = step.replace('step', 'step').replace('.', '_');
+  if (window.dramaCosts.hasOwnProperty(stepKey)) {
+    window.dramaCosts[stepKey] += amount;
+  } else if (step === 'step1.5' || step === 'step1_5') {
+    window.dramaCosts.step1_5 += amount;
+  }
+
+  window.updateCostDisplay();
+  console.log(`[Cost] ${step}: +₩${amount.toFixed(1)} (총: ₩${window.getTotalCost().toFixed(1)})`);
+};
+
+// 총 비용 계산
+window.getTotalCost = function() {
+  return Object.values(window.dramaCosts).reduce((sum, cost) => sum + cost, 0);
+};
+
+// 비용 초기화
+window.resetCosts = function() {
+  window.dramaCosts = { step1: 0, step1_5: 0, step2: 0, step3: 0, step4: 0 };
+  window.updateCostDisplay();
+};
+
+// UI 업데이트
+window.updateCostDisplay = function() {
+  const totalEl = document.getElementById('total-cost-display');
+  const step1El = document.getElementById('cost-step1');
+  const step1_5El = document.getElementById('cost-step1-5');
+  const step2El = document.getElementById('cost-step2');
+  const step3El = document.getElementById('cost-step3');
+  const step4El = document.getElementById('cost-step4');
+
+  const formatCost = (cost) => '₩' + cost.toFixed(1);
+
+  if (totalEl) totalEl.textContent = formatCost(window.getTotalCost());
+  if (step1El) step1El.textContent = formatCost(window.dramaCosts.step1);
+  if (step1_5El) step1_5El.textContent = formatCost(window.dramaCosts.step1_5);
+  if (step2El) step2El.textContent = formatCost(window.dramaCosts.step2);
+  if (step3El) step3El.textContent = formatCost(window.dramaCosts.step3);
+  if (step4El) step4El.textContent = formatCost(window.dramaCosts.step4);
+};
+
 // ===== Firebase 초기화 =====
 const firebaseConfig = {
   apiKey: "AIzaSyBacmJDk-PG5FaoqnXV8Rg3P__AKOS2vu4",
@@ -46,6 +150,109 @@ let customDurationText = localStorage.getItem('_drama-duration-text') || '';
 const videoCategories = ['간증', '드라마', '명언', '마음', '철학', '인간관계'];
 let selectedCategory = localStorage.getItem('_drama-video-category') || '간증';
 let customDirective = localStorage.getItem('_drama-custom-directive') || '';
+
+// ===== 콘텐츠 카테고리 시스템 =====
+// 카테고리 목록 (nostalgia-drama-prompts.json과 연동)
+const contentCategories = {
+  '옛날이야기': {
+    id: 'nostalgia_drama',
+    name: '옛날이야기',
+    displayName: '옛날 이야기 / 향수',
+    description: '1960-1980년대 한국의 추억과 향수를 자극하는 콘텐츠',
+    promptsFile: 'nostalgia-drama-prompts.json'
+  },
+  '마음위로': {
+    id: 'comfort_story',
+    name: '마음위로',
+    displayName: '마음 위로 / 잠들기 전',
+    description: '지친 마음을 위로하고 편안하게 해주는 콘텐츠',
+    promptsFile: 'nostalgia-drama-prompts.json'
+  },
+  '인생명언': {
+    id: 'life_quote',
+    name: '인생명언',
+    displayName: '인생 명언 / 어르신 지혜',
+    description: '삶의 지혜와 깨달음을 전하는 명언 콘텐츠',
+    promptsFile: 'nostalgia-drama-prompts.json'
+  }
+};
+
+// 현재 선택된 콘텐츠 카테고리
+let selectedContentCategory = localStorage.getItem('_drama-content-category') || '옛날이야기';
+
+// 카테고리별 프롬프트 캐시
+let categoryPromptsCache = {};
+
+// 카테고리 변경 함수
+function setContentCategory(categoryName) {
+  if (contentCategories[categoryName]) {
+    selectedContentCategory = categoryName;
+    localStorage.setItem('_drama-content-category', categoryName);
+    updateCategoryUI();
+    console.log(`[Category] 변경: ${categoryName}`);
+    return true;
+  }
+  return false;
+}
+
+// 현재 카테고리 정보 가져오기
+function getCurrentCategory() {
+  return contentCategories[selectedContentCategory] || contentCategories['옛날이야기'];
+}
+
+// 카테고리 프롬프트 로드
+async function loadCategoryPrompts(categoryName) {
+  if (categoryPromptsCache[categoryName]) {
+    return categoryPromptsCache[categoryName];
+  }
+
+  try {
+    const response = await fetch('/guides/nostalgia-drama-prompts.json');
+    const data = await response.json();
+
+    if (data.categories && data.categories[categoryName]) {
+      categoryPromptsCache[categoryName] = data.categories[categoryName];
+      return data.categories[categoryName];
+    }
+  } catch (err) {
+    console.error('[Category] 프롬프트 로드 실패:', err);
+  }
+  return null;
+}
+
+// 카테고리별 Step 프롬프트 가져오기
+async function getCategoryStepPrompt(stepName) {
+  const prompts = await loadCategoryPrompts(selectedContentCategory);
+  if (prompts && prompts.prompts && prompts.prompts[stepName]) {
+    return prompts.prompts[stepName];
+  }
+  return null;
+}
+
+// 카테고리 UI 업데이트
+function updateCategoryUI() {
+  const categoryBtns = document.querySelectorAll('.content-category-btn');
+  categoryBtns.forEach(btn => {
+    const isActive = btn.dataset.category === selectedContentCategory;
+    btn.classList.toggle('active', isActive);
+    // inline 스타일 업데이트
+    if (isActive) {
+      btn.style.borderColor = '#667eea';
+      btn.style.background = '#667eea';
+      btn.style.color = 'white';
+    } else {
+      btn.style.borderColor = '#ddd';
+      btn.style.background = 'white';
+      btn.style.color = '#666';
+    }
+  });
+
+  const categoryInfo = document.getElementById('category-info');
+  if (categoryInfo) {
+    const cat = getCurrentCategory();
+    categoryInfo.textContent = cat.description;
+  }
+}
 
 // 설정 객체
 let config = {
@@ -327,6 +534,12 @@ function setActivePanel(panelId) {
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('[DramaMain] 초기화 시작...');
 
+  // 테스트 모드 초기화
+  initTestMode();
+
+  // 카테고리 UI 초기화
+  updateCategoryUI();
+
   // 세션 로드
   if (!loadSessionFromStorage()) {
     initWorkflowSession();
@@ -398,7 +611,20 @@ window.DramaMain = {
 
   // 진행상황
   updateProgressIndicator,
-  completedSteps
+  completedSteps,
+
+  // 테스트 모드
+  toggleTestMode,
+  updateTestModeUI,
+  initTestMode,
+
+  // 카테고리 시스템
+  contentCategories,
+  setContentCategory,
+  getCurrentCategory,
+  loadCategoryPrompts,
+  getCategoryStepPrompt,
+  updateCategoryUI
 };
 
 // 전역 함수로도 노출 (기존 코드 호환)
@@ -418,6 +644,20 @@ window.getSessionContext = getSessionContext;
 window.loadFromFirebase = loadFromFirebase;
 window.saveToFirebase = saveToFirebase;
 window.updateProgressIndicator = updateProgressIndicator;
+
+// 테스트 모드 함수 노출
+window.toggleTestMode = toggleTestMode;
+window.updateTestModeUI = updateTestModeUI;
+window.initTestMode = initTestMode;
+
+// 카테고리 시스템 함수 노출
+window.contentCategories = contentCategories;
+window.setContentCategory = setContentCategory;
+window.getCurrentCategory = getCurrentCategory;
+window.loadCategoryPrompts = loadCategoryPrompts;
+window.getCategoryStepPrompt = getCategoryStepPrompt;
+window.updateCategoryUI = updateCategoryUI;
+window.selectedContentCategory = selectedContentCategory;
 
 // 전역 변수 노출
 window.db = db;

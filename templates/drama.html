@@ -1347,6 +1347,71 @@
       <!-- Step1 앵커 및 컨트롤 -->
       <div id="step1-container"></div>
 
+      <!-- 테스트 모드 + 비용 추적 + 카테고리 선택 -->
+      <div class="box" style="padding: .75rem; margin-bottom: .5rem;">
+        <!-- 상단: 테스트 모드 토글 + 비용 표시 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
+          <!-- 테스트 모드 토글 -->
+          <div id="test-mode-box" style="display: flex; align-items: center; gap: .5rem; padding: .4rem .75rem; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); border-radius: 8px; cursor: pointer;" onclick="toggleTestMode()">
+            <span style="color: white; font-size: .8rem; font-weight: 600;">테스트</span>
+            <div id="test-mode-switch" style="width: 44px; height: 22px; background: rgba(0,0,0,0.3); border-radius: 11px; position: relative; transition: background 0.3s;">
+              <div id="test-mode-knob" style="width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);"></div>
+            </div>
+          </div>
+
+          <!-- 비용 표시 -->
+          <div style="display: flex; align-items: center; gap: .75rem; background: linear-gradient(135deg, #667eea, #764ba2); padding: .4rem .75rem; border-radius: 8px;">
+            <span style="color: white; font-size: .8rem; font-weight: 600;">총 비용:</span>
+            <span id="total-cost-display" style="color: #ffd700; font-size: .9rem; font-weight: 700;">₩0.0</span>
+            <button onclick="resetCosts()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: .2rem .4rem; border-radius: 4px; font-size: .7rem; cursor: pointer;">초기화</button>
+          </div>
+        </div>
+
+        <!-- 비용 상세 (접을 수 있음) -->
+        <details style="margin-bottom: .75rem;">
+          <summary style="font-size: .75rem; color: #666; cursor: pointer; user-select: none;">비용 상세 보기</summary>
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; margin-top: .5rem; padding: .5rem; background: #f8fafc; border-radius: 6px;">
+            <div style="text-align: center;">
+              <div style="font-size: .65rem; color: #888;">Step1 대본</div>
+              <div id="cost-step1" style="font-size: .75rem; font-weight: 600; color: #667eea;">₩0.0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: .65rem; color: #888;">GPT 분석</div>
+              <div id="cost-step1-5" style="font-size: .75rem; font-weight: 600; color: #667eea;">₩0.0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: .65rem; color: #888;">Step2 이미지</div>
+              <div id="cost-step2" style="font-size: .75rem; font-weight: 600; color: #667eea;">₩0.0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: .65rem; color: #888;">Step3 TTS</div>
+              <div id="cost-step3" style="font-size: .75rem; font-weight: 600; color: #667eea;">₩0.0</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: .65rem; color: #888;">Step4 영상</div>
+              <div id="cost-step4" style="font-size: .75rem; font-weight: 600; color: #667eea;">₩0.0</div>
+            </div>
+          </div>
+        </details>
+
+        <!-- 카테고리 선택 -->
+        <div>
+          <div style="font-size: .8rem; font-weight: 600; color: #333; margin-bottom: .5rem;">콘텐츠 카테고리</div>
+          <div style="display: flex; gap: .5rem; flex-wrap: wrap;">
+            <button class="content-category-btn active" data-category="옛날이야기" onclick="setContentCategory('옛날이야기')" style="padding: .4rem .75rem; border: 2px solid #667eea; background: #667eea; color: white; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+              옛날이야기
+            </button>
+            <button class="content-category-btn" data-category="마음위로" onclick="setContentCategory('마음위로')" style="padding: .4rem .75rem; border: 2px solid #ddd; background: white; color: #666; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+              마음위로
+            </button>
+            <button class="content-category-btn" data-category="인생명언" onclick="setContentCategory('인생명언')" style="padding: .4rem .75rem; border: 2px solid #ddd; background: white; color: #666; border-radius: 6px; font-size: .8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+              인생명언
+            </button>
+          </div>
+          <div id="category-info" style="font-size: .7rem; color: #888; margin-top: .4rem;">1960-1980년대 한국의 추억과 향수를 자극하는 콘텐츠</div>
+        </div>
+      </div>
+
       <!-- Step2 앵커 및 컨트롤 -->
       <div id="step2-container"></div>
 
@@ -1358,8 +1423,8 @@
         <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
           🎬 Claude Sonnet 4.5로 대본 작성
         </button>
-        <div style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
-          OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.
+        <div id="step3-mode-indicator" style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
+          Claude Sonnet 4.5로 최종 대본을 생성합니다.
         </div>
       </div>
 
