@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["title", "description", "tags"]
+    },
+    "youtube_result": {
+      "description": "YouTube 업로드 API의 응답을 그대로 넣는 필드",
+      "type": ["object", "null"]
+    }
+  },
+  "required": ["metadata"]
+}
