@@ -1596,7 +1596,7 @@ def api_get_suggestions():
 위 초안을 분석하고, 시청자 반응을 극대화할 수 있는 구체적인 개선 제안을 해주세요."""
 
         completion = client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -1605,7 +1605,7 @@ def api_get_suggestions():
 
         suggestions = completion.choices[0].message.content.strip()
 
-        print(f"[DRAMA-SUGGEST] 제안 생성 완료 (모델: gpt-5)")
+        print(f"[DRAMA-SUGGEST] 제안 생성 완료 (모델: gpt-4o-mini)")
 
         return jsonify({"ok": True, "suggestions": suggestions})
 
@@ -1638,7 +1638,7 @@ def api_workflow_execute():
             model_name = selected_model
             use_temperature = True  # 사용자가 모델을 선택한 경우 temperature 사용
         elif step_type == "step1":
-            model_name = "gpt-5"
+            model_name = "gpt-4o-mini"
             use_temperature = False
         else:  # step2
             model_name = "gpt-4o-mini"
@@ -1871,7 +1871,7 @@ def api_get_accumulated_guide():
             user_content += f"\n\n특히 '{category}' 길이의 드라마에 적합한 가이드를 포함해주세요."
 
         completion = client.chat.completions.create(
-            model="gpt-5",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_content},
                 {"role": "user", "content": user_content}
@@ -1880,7 +1880,7 @@ def api_get_accumulated_guide():
 
         guide = completion.choices[0].message.content.strip()
 
-        print(f"[DRAMA-GUIDE] GPT 일반 가이드 생성 완료 (모델: gpt-5)")
+        print(f"[DRAMA-GUIDE] GPT 가이드 생성 완료 (모델: gpt-4o-mini)")
 
         return jsonify({"ok": True, "guide": guide, "source": "gpt"})
 
@@ -2683,8 +2683,8 @@ def api_drama_chat():
         context = data.get("context", {})  # 현재 작업 상태
         selected_model = data.get("model", "gpt-4o-mini")  # 선택된 모델
 
-        # 허용된 모델 목록
-        allowed_models = ["gpt-4o-mini", "gpt-4o", "gpt-5"]
+        # 허용된 모델 목록 (비용 절감을 위해 gpt-4o-mini 권장)
+        allowed_models = ["gpt-4o-mini", "gpt-4o"]
         if selected_model not in allowed_models:
             selected_model = "gpt-4o-mini"
 
