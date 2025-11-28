@@ -315,23 +315,132 @@ def burn_subtitles(input_video: str, srt_path: str, output_video: str) -> Option
         return input_video
 
 
+# ========== BGM 자동 믹싱 ==========
+
+def select_random_bgm(folder: str) -> Optional[str]:
+    """
+    BGM 폴더에서 랜덤하게 BGM 파일 선택
+
+    Args:
+        folder: BGM 파일들이 있는 폴더 경로
+
+    Returns:
+        선택된 BGM 파일 경로 또는 None
+    """
+    import random
+
+    if not os.path.exists(folder):
+        print(f"[BGM] Folder not found: {folder}")
+        return None
+
+    files = [f for f in os.listdir(folder) if f.lower().endswith((".mp3", ".wav", ".m4a"))]
+    if not files:
+        print(f"[BGM] No audio files in: {folder}")
+        return None
+
+    selected = random.choice(files)
+    bgm_path = os.path.join(folder, selected)
+    print(f"[BGM] Selected: {selected}")
+    return bgm_path
+
+
+def add_bgm_to_video(
+    video_in: str,
+    bgm_path: str,
+    video_out: str,
+    bgm_volume: float = 0.15
+) -> Optional[str]:
+    """
+    영상에 BGM을 자동 믹싱 (나레이션보다 낮은 볼륨으로)
+
+    Args:
+        video_in: 입력 영상 경로 (concat 후 영상)
+        bgm_path: BGM 파일 경로
+        video_out: 출력 영상 경로
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.15 = 약 -16dB)
+
+    Returns:
+        생성된 파일 경로 또는 None
+
+    Note:
+        - BGM은 자동으로 영상 길이에 맞춰 루프됨
+        - 나레이션(TTS)이 BGM보다 항상 크게 들리도록 설정
+        - dropout_transition으로 자연스러운 믹싱
+    """
+    if not os.path.exists(video_in):
+        print(f"[BGM] Input video not found: {video_in}")
+        return None
+
+    if not bgm_path or not os.path.exists(bgm_path):
+        print(f"[BGM] BGM file not found: {bgm_path}, skipping BGM")
+        return video_in  # BGM 없이 원본 반환
+
+    # 출력 디렉토리 생성
+    os.makedirs(os.path.dirname(video_out), exist_ok=True)
+
+    print(f"[BGM] Mixing BGM into video...")
+    print(f"[BGM] Volume: {bgm_volume} ({20 * __import__('math').log10(bgm_volume):.1f} dB)")
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", video_in,
+        "-stream_loop", "-1",  # BGM 무한 반복
+        "-i", bgm_path,
+        "-filter_complex",
+        (
+            # BGM 볼륨 조절
+            f"[1:a]volume={bgm_volume}[bga];"
+            # 메인 오디오 + BGM 믹스 (dropout_transition으로 자연스럽게)
+            "[0:a][bga]amix=inputs=2:duration=first:dropout_transition=3[outa]"
+        ),
+        "-map", "0:v",
+        "-map", "[outa]",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        video_out,
+    ]
+
+    try:
+        run_ffmpeg(cmd)
+        print(f"[BGM] Video with BGM: {video_out}")
+        return video_out
+    except RuntimeError:
+        print("[WARNING] BGM mixing failed, returning original video")
+        return video_in
+
+
 # ========== 메인 빌드 함수 ==========
 
 def build_video_ffmpeg(
     step4_input: Dict[str, Any],
     step3_output: Optional[Dict[str, Any]] = None,
-    burn_subs: bool = True
+    burn_subs: bool = True,
+    bgm_path: Optional[str] = None,
+    bgm_folder: Optional[str] = None,
+    bgm_volume: float = 0.15
 ) -> Dict[str, Any]:
     """
-    FFmpeg 기반 영상 제작 + 자막 번인
+    FFmpeg 기반 영상 제작 + BGM 믹싱 + 자막 번인
 
     Args:
         step4_input: Step4 입력 JSON (cuts 배열 포함)
         step3_output: Step3 출력 (자막 생성용, 선택적)
         burn_subs: 자막 번인 여부
+        bgm_path: BGM 파일 경로 (직접 지정)
+        bgm_folder: BGM 폴더 경로 (랜덤 선택용)
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.15)
 
     Returns:
         Step4 출력 JSON
+
+    Flow:
+        1) 씬별 클립 생성 (Ken Burns + 페이드)
+        2) 클립들 concat
+        3) BGM 자동 믹싱 (옵션)
+        4) 자막 번인 (옵션)
+        5) 최종 영상 저장
     """
     # FFmpeg 설치 확인
     if not check_ffmpeg_installed():
@@ -416,20 +525,46 @@ def build_video_ffmpeg(
     print(f"\n[FFmpeg] Concatenating {len(part_files)} clips...")
     concat_videos(part_files, raw_video_path)
 
-    # 3) 자막 생성 및 번인
-    final_video = raw_video_path
+    # 3) BGM 자동 믹싱
+    current_video = raw_video_path
+    bgm_video_path = os.path.join(output_dir, f"{sanitized_title}_bgm.mp4")
+    bgm_added = False
+
+    # BGM 경로 결정: 직접 지정 > 폴더에서 랜덤 선택 > step4_input에서
+    actual_bgm = bgm_path
+    if not actual_bgm and bgm_folder:
+        actual_bgm = select_random_bgm(bgm_folder)
+    if not actual_bgm:
+        actual_bgm = step4_input.get("background_music_path")
+
+    if actual_bgm and os.path.exists(actual_bgm):
+        print(f"\n[FFmpeg] Adding BGM: {actual_bgm}")
+        bgm_result = add_bgm_to_video(
+            video_in=current_video,
+            bgm_path=actual_bgm,
+            video_out=bgm_video_path,
+            bgm_volume=bgm_volume
+        )
+        if bgm_result and bgm_result != current_video:
+            current_video = bgm_result
+            bgm_added = True
+    else:
+        print("\n[FFmpeg] No BGM specified, skipping BGM mixing")
+
+    # 4) 자막 생성 및 번인
+    final_video = current_video
 
     if burn_subs and step3_output:
         print("\n[FFmpeg] Generating subtitles...")
         generate_srt_from_step3(step3_output, srt_path)
 
         print("[FFmpeg] Burning subtitles into video...")
-        final_video = burn_subtitles(raw_video_path, srt_path, final_video_path)
+        final_video = burn_subtitles(current_video, srt_path, final_video_path)
     else:
-        # 자막 없이 raw를 final로 복사/이동
-        if raw_video_path != final_video_path:
+        # 자막 없이 현재 영상을 final로 복사/이동
+        if current_video != final_video_path:
             import shutil
-            shutil.move(raw_video_path, final_video_path)
+            shutil.copy2(current_video, final_video_path)
             final_video = final_video_path
 
     print(f"\n[FFmpeg] Final video saved: {final_video}")
@@ -441,6 +576,8 @@ def build_video_ffmpeg(
         "duration_seconds": round(total_duration, 1),
         "clips_count": len(part_files),
         "resolution": resolution,
+        "bgm_added": bgm_added,
+        "bgm_path": actual_bgm if bgm_added else None,
         "subtitles_burned": burn_subs and step3_output is not None,
         "srt_path": srt_path if burn_subs else None
     }

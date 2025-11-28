@@ -17,7 +17,10 @@ VIDEO_ENGINE = os.getenv("VIDEO_ENGINE", "ffmpeg")
 def build_video(
     step4_input: Dict[str, Any],
     step3_output: Optional[Dict[str, Any]] = None,
-    burn_subs: bool = True
+    burn_subs: bool = True,
+    bgm_path: Optional[str] = None,
+    bgm_folder: Optional[str] = None,
+    bgm_volume: float = 0.15
 ) -> Dict[str, Any]:
     """
     Step4 입력을 받아 영상을 조립하고 결과를 반환
@@ -26,13 +29,19 @@ def build_video(
         step4_input: Step4 입력 JSON (step4_video 포맷)
         step3_output: Step3 출력 (자막 생성용, 선택적)
         burn_subs: 자막 번인 여부 (FFmpeg 엔진에서만 지원)
+        bgm_path: BGM 파일 경로 (직접 지정)
+        bgm_folder: BGM 폴더 경로 (랜덤 선택용)
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.15)
 
     Returns:
         Step4 출력 JSON (step4_video_result 포맷)
     """
     # 엔진 선택에 따라 분기
     if VIDEO_ENGINE == "ffmpeg":
-        return _build_video_ffmpeg(step4_input, step3_output, burn_subs)
+        return _build_video_ffmpeg(
+            step4_input, step3_output, burn_subs,
+            bgm_path, bgm_folder, bgm_volume
+        )
     else:
         return _build_video_creatomate(step4_input)
 
@@ -40,11 +49,21 @@ def build_video(
 def _build_video_ffmpeg(
     step4_input: Dict[str, Any],
     step3_output: Optional[Dict[str, Any]] = None,
-    burn_subs: bool = True
+    burn_subs: bool = True,
+    bgm_path: Optional[str] = None,
+    bgm_folder: Optional[str] = None,
+    bgm_volume: float = 0.15
 ) -> Dict[str, Any]:
-    """FFmpeg 기반 영상 제작 (무료) + 자막 번인"""
+    """FFmpeg 기반 영상 제작 (무료) + BGM 믹싱 + 자막 번인"""
     from .build_video_ffmpeg import build_video_ffmpeg
-    return build_video_ffmpeg(step4_input, step3_output=step3_output, burn_subs=burn_subs)
+    return build_video_ffmpeg(
+        step4_input,
+        step3_output=step3_output,
+        burn_subs=burn_subs,
+        bgm_path=bgm_path,
+        bgm_folder=bgm_folder,
+        bgm_volume=bgm_volume
+    )
 
 
 def _build_video_creatomate(step4_input: Dict[str, Any]) -> Dict[str, Any]:
