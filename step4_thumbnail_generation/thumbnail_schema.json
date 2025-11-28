@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "thumbnail_prompt": {
+      "type": "string",
+      "description": "이미지 생성에 사용된 영문 프롬프트"
+    },
+    "thumbnail_text": {
+      "type": "string",
+      "description": "썸네일에 들어갈 한국어 짧은 문구"
+    },
+    "candidates": {
+      "type": "array",
+      "description": "생성된 썸네일 후보들",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": { "type": "integer" },
+          "url": { "type": "string" }
+        },
+        "required": ["index", "url"]
+      }
+    },
+    "selected": {
+      "type": "object",
+      "description": "자동으로 선택된 최종 썸네일",
+      "properties": {
+        "index": { "type": "integer" },
+        "url": { "type": "string" }
+      },
+      "required": ["index", "url"]
+    }
+  },
+  "required": ["thumbnail_prompt", "thumbnail_text", "candidates", "selected"]
+}

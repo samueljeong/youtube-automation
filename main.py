@@ -19,7 +19,7 @@ from typing import Dict, Any, Optional
 from step1_script_generation import run_step1
 from step2_image_generation import image_prompt_builder, call_gpt_mini
 from step3_tts_and_subtitles import tts_script_builder, call_tts_engine
-from step4_thumbnail_generation import call_image_model as thumbnail_generator
+from step4_thumbnail_generation import run_step4 as run_thumbnail_step
 from step4_video_assembly import video_builder
 from step5_youtube_upload.run_step5 import run_step5
 
@@ -300,16 +300,23 @@ Examples:
             )
 
         # ============================================================
-        # Step 3.5: Thumbnail Generation
+        # Step 3.5: Thumbnail Generation (3종 생성 + 자동 선택)
         # ============================================================
         thumbnail_output_path = os.path.join(OUTPUTS_DIR, "thumbnail_output.json")
 
-        thumbnail_output = run_step(
-            "Step 3.5: Thumbnail Generation",
-            thumbnail_generator.run_thumbnail_generation,
-            step1_output,
-            thumbnail_output_path
-        )
+        print(f"\n{'='*60}")
+        print("🎨 Starting Step 3.5: Thumbnail Generation (3 candidates)...")
+        print(f"{'='*60}")
+
+        thumbnail_output = run_thumbnail_step(step1_output, count=3)
+        save_json(thumbnail_output_path, thumbnail_output)
+
+        # 썸네일 결과 미리보기
+        candidates = thumbnail_output.get("candidates", [])
+        selected = thumbnail_output.get("selected", {})
+        print(f"✅ Generated {len(candidates)} thumbnail candidates")
+        print(f"   Selected: index {selected.get('index', 'N/A')}")
+        print(f"   URL: {selected.get('url', 'N/A')[:60]}..." if selected.get('url') else "   URL: N/A")
 
         # ============================================================
         # Step 4: Video Assembly
@@ -346,11 +353,14 @@ Examples:
         # 영상 파일 경로 (Step4에서 생성된 경로 또는 placeholder)
         video_file_path = step4_output.get("video_filename", "outputs/video_mock.mp4")
 
-        # Step4 썸네일 정보 준비
+        # Step4 썸네일 정보 준비 (selected 사용)
+        selected_thumbnail = thumbnail_output.get("selected", {})
         step4_for_step5 = {
-            "thumbnail_image_url": thumbnail_output.get("image_generation", {}).get("image_url", ""),
+            "thumbnail_image_url": selected_thumbnail.get("url", ""),
             "thumbnail_text": thumbnail_output.get("thumbnail_text",
-                step1_output.get("titles", {}).get("main_title", ""))
+                step1_output.get("titles", {}).get("main_title", "")),
+            "candidates": thumbnail_output.get("candidates", []),
+            "selected_index": selected_thumbnail.get("index", 0)
         }
 
         # run_step5 실행 (mode에 따라 test/prod 분기)
