@@ -596,6 +596,12 @@ async function generateVideo() {
           if (typeof updateProgressIndicator === 'function') {
             updateProgressIndicator('step6');
           }
+          // ⭐ 사이드바 Step 4 상태를 '완료'로 업데이트
+          if (typeof updateSidebarStepProgress === 'function') {
+            updateSidebarStepProgress('step6', 'completed');
+          }
+          // ⭐ Step 5 (유튜브 업로드) 컨테이너 표시
+          updateStep5ContainerVisibility();
           updateStep5Status();
 
           // 💰 Step4 영상 생성 비용 추가 (Creatomate: ~₩50-100/영상)

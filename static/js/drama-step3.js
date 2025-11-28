@@ -437,12 +437,16 @@ async function generateTTS() {
   }
 
   try {
+    // ⭐ 주인공 성별 기반 음성 선택 (window.step3SelectedVoice가 있으면 우선 사용)
+    const voiceToUse = window.step3SelectedVoice || step3SelectedVoice;
+    console.log(`[TTS] 사용 음성: ${voiceToUse} (window: ${window.step3SelectedVoice}, local: ${step3SelectedVoice})`);
+
     const response = await fetch('/api/drama/generate-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text: scriptText,
-        speaker: step3SelectedVoice,
+        speaker: voiceToUse,
         speed: parseInt(speed),
         pitch: parseInt(pitch),
         volume: parseInt(volume),
