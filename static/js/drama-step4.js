@@ -9,6 +9,40 @@ let step4VideoUrl = localStorage.getItem('_drama-step4-video-url') || null;
 let step4VideoFileUrl = localStorage.getItem('_drama-step4-video-file-url') || null;
 let generatedThumbnailUrl = null;
 
+// ===== 이미지 로드 에러 처리 (404 이미지 자동 제거) =====
+function handleImageLoadError(imgElement, failedUrl) {
+  console.warn('[Step4] 이미지 로드 실패, localStorage에서 제거:', failedUrl);
+
+  // UI에서 숨김
+  if (imgElement && imgElement.parentElement) {
+    imgElement.parentElement.style.display = 'none';
+  }
+
+  // localStorage에서 해당 이미지 제거
+  try {
+    const savedImages = localStorage.getItem('_drama-step4-images');
+    if (savedImages) {
+      const images = JSON.parse(savedImages);
+      const filtered = images.filter(img => img && img.url !== failedUrl);
+      if (filtered.length !== images.length) {
+        localStorage.setItem('_drama-step4-images', JSON.stringify(filtered));
+        console.log('[Step4] localStorage에서 무효한 이미지 제거됨');
+      }
+    }
+  } catch (e) {
+    console.warn('[Step4] localStorage 정리 실패:', e);
+  }
+
+  // 전역 변수에서도 제거
+  if (window.DramaStep2 && window.DramaStep2.generatedImages) {
+    window.DramaStep2.generatedImages = window.DramaStep2.generatedImages.filter(img => img && img.url !== failedUrl);
+  }
+  if (window.step4GeneratedImages) {
+    window.step4GeneratedImages = window.step4GeneratedImages.filter(img => img && img.url !== failedUrl);
+  }
+}
+window.handleImageLoadError = handleImageLoadError;
+
 // ===== Step4 컨테이너 업데이트 =====
 function updateStep4Visibility() {
   updateStep4ContainerVisibility();
@@ -118,7 +152,7 @@ function updateStep4ImageGrid() {
 
   grid.innerHTML = validImages.map((img, idx) => `
     <div class="step6-preview-item ${step4SelectedImages.includes(img.url) ? 'selected' : ''}" data-url="${img.url}" onclick="toggleStep4Image('${img.url}')">
-      <img src="${img.url}" alt="Scene ${idx + 1}" onerror="this.parentElement.style.display='none'">
+      <img src="${img.url}" alt="Scene ${idx + 1}" onerror="handleImageLoadError(this, '${img.url}')">
     </div>
   `).join('');
 }
