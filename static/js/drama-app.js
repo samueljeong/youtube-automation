@@ -2881,6 +2881,13 @@ S#1. 장소 / 시간
             updateProgressIndicator('step6');
             updateStep7Status();
 
+            // Step5 (유튜브 업로드) 섹션 표시
+            const step7Container = document.getElementById('step7-container');
+            if (step7Container) {
+              step7Container.style.display = 'block';
+              step7Container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
             // 브라우저 알림
             if (Notification.permission === 'granted') {
               new Notification('🎉 자동화 완료!', {
@@ -3886,6 +3893,13 @@ S#1. 장소 / 시간
             showStatus('✅ 영상 생성 완료! Step5에서 YouTube 업로드가 가능합니다.');
             updateProgressIndicator('step6');
             updateStep7Status();
+
+            // Step5 (유튜브 업로드) 섹션 표시
+            const step7Container = document.getElementById('step7-container');
+            if (step7Container) {
+              step7Container.style.display = 'block';
+              step7Container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
 
             // 브라우저 알림
             if (Notification.permission === 'granted') {
