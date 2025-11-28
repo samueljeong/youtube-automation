@@ -73,12 +73,15 @@ window.DramaStep2 = {
         throw new Error(data.error || '대본 분석에 실패했습니다.');
       }
 
-      // 결과 저장
-      this.analysisResult = data.result;
+      // 결과 저장 (API가 characters, scenes를 직접 반환)
+      this.analysisResult = {
+        characters: data.characters || [],
+        scenes: data.scenes || []
+      };
       DramaSession.setStepData('step2_analysis', this.analysisResult);
 
       // 결과 표시
-      this.displayAnalysisResult(data.result);
+      this.displayAnalysisResult(this.analysisResult);
 
       DramaUtils.showStatus('대본 분석 완료! 이미지를 생성할 준비가 되었습니다.', 'success');
 
