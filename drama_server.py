@@ -2804,7 +2804,8 @@ def api_generate_image_prompts():
 1. 인물 프롬프트 (Character Prompt)
    - 주인공의 외모, 표정, 의상, 자세를 묘사
    - 나이, 성별, 분위기를 포함
-   - 예: "A Korean woman in her late 20s, gentle and warm expression, wearing a soft beige cardigan over a white blouse, sitting gracefully"
+   - 🚨 반드시 프롬프트 맨 앞에 한국인 특징을 배치: "Korean person from South Korea with authentic Korean/East Asian ethnicity, Korean facial bone structure, Korean skin tone"
+   - 예: "Korean woman from South Korea with authentic Korean ethnicity, Korean facial features, Korean skin tone, in her late 20s, gentle and warm expression, wearing a soft beige cardigan"
 
 2. 배경 프롬프트 (Background Prompt)
    - 장면의 배경, 장소, 시간대, 분위기를 묘사
@@ -2814,18 +2815,19 @@ def api_generate_image_prompts():
 3. 통합 장면 프롬프트 (Combined Scene Prompt)
    - 인물이 배경에 자연스럽게 어울리는 완전한 장면 묘사
    - 영화적이고 시각적으로 매력적인 구도
-   - 예: "A Korean woman in her late 20s sitting by the window in a cozy cafe, warm afternoon sunlight illuminating her gentle smile, holding a cup of coffee, cinematic composition, soft bokeh background"
+   - 🚨 반드시 프롬프트 맨 앞에 한국인 특징을 배치
+   - 예: "Korean woman from South Korea with authentic Korean ethnicity and Korean facial features, in her late 20s, sitting by the window in a cozy cafe, warm afternoon sunlight illuminating her gentle smile"
 
 응답 형식:
 CHARACTER_PROMPT: [인물 프롬프트]
 BACKGROUND_PROMPT: [배경 프롬프트]
 COMBINED_PROMPT: [통합 프롬프트]
 
-중요:
-- 모든 프롬프트는 영어로 작성
+🚨 매우 중요 - 한국인 외모 필수:
+- 모든 인물 프롬프트는 반드시 맨 앞에 "Korean person from South Korea with authentic Korean/East Asian ethnicity, Korean facial bone structure, Korean skin tone"를 포함
+- 절대로 "Asian" 단독 사용 금지 - 반드시 "Korean"을 명시
 - DALL-E 3에 최적화된 상세하고 시각적인 묘사
-- 부정적이거나 폭력적인 내용 제외
-- 사실적이고 고품질의 이미지를 생성할 수 있도록 작성"""
+- 부정적이거나 폭력적인 내용 제외"""
 
         user_content = f"""다음 드라마 대본을 분석하여 이미지 프롬프트를 생성해주세요.
 
@@ -2939,8 +2941,15 @@ def api_analyze_characters():
 - 프롬프트는 DALL-E 3에 최적화되도록 상세하게 작성
 - 인물 프롬프트는 portrait 스타일에 적합하게 작성
 - 한국 드라마 스타일의 시각적 요소 반영
-- ⚠️ CRITICAL: 모든 인물의 imagePrompt는 반드시 "Korean" 또는 "Korean ethnicity", "East Asian features"를 명시적으로 포함해야 합니다
-- 한국인 할머니/할아버지는 "elderly Korean woman/man with East Asian features" 등으로 명확히 표현"""
+
+🚨 매우 중요 - 한국인 외모 필수 요구사항:
+- ⚠️ 모든 인물의 imagePrompt는 반드시 프롬프트 시작 부분에 다음을 포함:
+  "Korean person from South Korea with authentic Korean/East Asian ethnicity, Korean facial bone structure, Korean skin tone"
+- 한국인 할머니: "elderly Korean grandmother from South Korea, Korean ethnicity, aged Korean facial features, Korean skin tone, traditional Korean elderly appearance"
+- 한국인 할아버지: "elderly Korean grandfather from South Korea, Korean ethnicity, aged Korean facial features, Korean skin tone, traditional Korean elderly appearance"
+- 젊은 한국인: "young Korean person from South Korea, Korean ethnicity, Korean facial features, Korean skin tone"
+- ⚠️ 절대로 "Asian" 단독 사용 금지 - 반드시 "Korean"을 명시해야 합니다
+- ⚠️ 프롬프트 맨 앞에 한국인 특징을 배치해야 AI 모델이 제대로 인식합니다"""
 
         user_content = f"""다음 드라마 대본을 분석해주세요:
 
@@ -3019,9 +3028,14 @@ def api_generate_scene_prompt():
 - 예: "white hair, wrinkled face" → 반드시 "white hair, wrinkled face"로 유지
 - 추가할 수 있는 것: 위치, 표정, 행동, 자세 (외모는 변경 금지!)
 
+🚨 한국인 외모 필수 - 프롬프트 맨 앞에 배치:
+- COMBINED_PROMPT의 맨 앞에 반드시 다음을 포함: "Korean person(s) from South Korea with authentic Korean/East Asian ethnicity, Korean facial features, Korean skin tone"
+- 한국인 할머니/할아버지: "elderly Korean grandmother/grandfather from South Korea with Korean ethnicity"
+- 절대로 "Asian" 단독 사용 금지 - 반드시 "Korean"을 명시
+
 응답 형식:
 BACKGROUND_PROMPT: [배경 프롬프트 - 영어]
-COMBINED_PROMPT: [통합 장면 프롬프트 - 영어, 등장인물 외모는 정확히 유지]"""
+COMBINED_PROMPT: [통합 장면 프롬프트 - 영어, 맨 앞에 한국인 특징 포함, 등장인물 외모는 정확히 유지]"""
 
         scene_info = f"""
 씬 정보:
@@ -3119,9 +3133,11 @@ def api_generate_image():
                 aspect_instruction = "IMPORTANT: Generate image in 16:9 widescreen landscape aspect ratio for YouTube video."
 
             # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
-            # 한국인 캐릭터인 경우 인종적 특징을 더욱 강조
+            # 한국인 캐릭터인 경우 인종적 특징을 프롬프트 맨 앞에 배치하여 강조
             if "Korean" in prompt or "korean" in prompt:
-                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. {aspect_instruction} IMPORTANT: Ensure the person has authentic Korean/East Asian facial features, Korean ethnicity. Style: cinematic lighting, professional photography, 8k resolution, detailed, wide shot composition"
+                # 한국인 외모 특징을 프롬프트 시작 부분에 최우선 배치
+                korean_features = "CRITICAL REQUIREMENT: The person MUST have authentic Korean/East Asian ethnicity with Korean facial bone structure, Korean skin tone, natural Korean facial features. This is a Korean person from South Korea."
+                enhanced_prompt = f"{korean_features} {prompt}. {aspect_instruction} Style: cinematic Korean drama photography, professional lighting, 8k resolution, detailed, wide shot composition"
             else:
                 enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. {aspect_instruction} Style: cinematic lighting, professional photography, 8k resolution, detailed, wide shot composition"
 
@@ -3365,7 +3381,9 @@ def api_generate_image():
 
             # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
             if "Korean" in prompt or "korean" in prompt:
-                enhanced_prompt = f"{prompt}, IMPORTANT: authentic Korean/East Asian facial features and ethnicity, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution, detailed"
+                # 한국인 외모 특징을 프롬프트 시작 부분에 최우선 배치
+                korean_features = "CRITICAL: authentic Korean person from South Korea with Korean/East Asian ethnicity, Korean facial bone structure, Korean skin tone."
+                enhanced_prompt = f"{korean_features} {prompt}, cinematic Korean drama style, professional photography, 8k resolution, detailed"
             else:
                 enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution, detailed"
 
@@ -3460,7 +3478,9 @@ def api_generate_image():
 
             # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
             if "Korean" in prompt or "korean" in prompt:
-                enhanced_prompt = f"{prompt}, IMPORTANT: authentic Korean/East Asian facial features and ethnicity, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
+                # 한국인 외모 특징을 프롬프트 시작 부분에 최우선 배치
+                korean_features = "CRITICAL: authentic Korean person from South Korea with Korean/East Asian ethnicity, Korean facial bone structure, Korean skin tone."
+                enhanced_prompt = f"{korean_features} {prompt}, cinematic Korean drama style, professional photography, 8k resolution"
             else:
                 enhanced_prompt = f"{prompt}, high quality, photorealistic, cinematic lighting, professional photography, 8k resolution"
 
@@ -3599,9 +3619,13 @@ def api_generate_tts():
                     return text_chunk, False
 
             # Google Cloud TTS는 최대 5000바이트 제한
-            # 한글은 UTF-8에서 3바이트이므로 안전하게 3500바이트(약 1166자) 이하로 유지
-            # SSML 태그 오버헤드(최대 1500바이트)를 고려하여 여유있게 설정
-            max_bytes = 3500
+            # SSML 태그 오버헤드를 고려하여 보수적으로 설정:
+            # - SSML 기본 태그: <speak></speak> = 15바이트
+            # - 감정 문장당 SSML 태그: <break time="300ms"/><prosody rate="0.90">...</prosody><break time="200ms"/> = 약 75바이트
+            # - 최대 10개 감정 문장 가정 시 약 750바이트 추가
+            # 안전 마진을 위해 2500바이트로 설정 (최악의 경우에도 5000 미만 보장)
+            GOOGLE_TTS_MAX_BYTES = 5000
+            max_bytes_for_plain_text = 2500  # SSML 오버헤드 고려하여 보수적 설정
             text_chunks = []
 
             def get_byte_length(s):
@@ -3659,10 +3683,10 @@ def api_generate_tts():
                 if current_chunk:
                     chunks.append(current_chunk.strip())
 
-                return chunks if chunks else [text[:1500]]  # 최소 하나의 청크 보장
+                return chunks if chunks else [text[:1000]]  # 최소 하나의 청크 보장 (더 보수적)
 
-            text_chunks = split_text_by_bytes(text, max_bytes)
-            print(f"[DRAMA-STEP5-TTS] 텍스트를 {len(text_chunks)}개 청크로 분할 (바이트 제한: {max_bytes})")
+            text_chunks = split_text_by_bytes(text, max_bytes_for_plain_text)
+            print(f"[DRAMA-STEP5-TTS] 텍스트를 {len(text_chunks)}개 청크로 분할 (바이트 제한: {max_bytes_for_plain_text})")
 
             audio_data_list = []
             url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
@@ -3681,12 +3705,24 @@ def api_generate_tts():
             google_pitch = pitch * 4 if isinstance(pitch, (int, float)) else 0
 
             emotion_chunk_count = 0
+            ssml_fallback_count = 0  # SSML이 너무 커서 plain text로 폴백한 횟수
+
             for chunk in text_chunks:
                 # 감정 표현 SSML 적용
                 processed_chunk, is_ssml = apply_emotion_ssml(chunk, google_speed)
 
+                # SSML 적용 후 바이트 체크 - 5000바이트 초과시 plain text로 폴백
                 if is_ssml:
-                    emotion_chunk_count += 1
+                    ssml_byte_length = get_byte_length(processed_chunk)
+                    if ssml_byte_length >= GOOGLE_TTS_MAX_BYTES:
+                        # SSML이 너무 큼 - plain text로 폴백
+                        print(f"[DRAMA-STEP5-TTS][WARN] SSML 바이트 초과 ({ssml_byte_length}), plain text로 폴백")
+                        is_ssml = False
+                        ssml_fallback_count += 1
+                    else:
+                        emotion_chunk_count += 1
+
+                if is_ssml:
                     payload = {
                         "input": {"ssml": processed_chunk},
                         "voice": {
@@ -3700,6 +3736,13 @@ def api_generate_tts():
                         }
                     }
                 else:
+                    # plain text도 5000바이트 제한 체크
+                    chunk_byte_length = get_byte_length(chunk)
+                    if chunk_byte_length >= GOOGLE_TTS_MAX_BYTES:
+                        # 청크 자체가 너무 큼 - 강제 분할 (이 경우는 거의 없어야 함)
+                        print(f"[DRAMA-STEP5-TTS][WARN] 청크가 너무 큼 ({chunk_byte_length}), 강제 절단")
+                        chunk = chunk[:1500]  # 약 4500바이트 (한글 3바이트)
+
                     payload = {
                         "input": {"text": chunk},
                         "voice": {
@@ -3740,7 +3783,7 @@ def api_generate_tts():
             cost_per_char = 0.0054 if "Wavenet" in speaker else 0.0216
             cost_krw = int(char_count * cost_per_char)
 
-            print(f"[DRAMA-STEP5-TTS] Google TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}, 감정 SSML 적용: {emotion_chunk_count}/{len(text_chunks)}청크")
+            print(f"[DRAMA-STEP5-TTS] Google TTS 완료 - 글자 수: {char_count}, 비용: ₩{cost_krw}, 감정 SSML 적용: {emotion_chunk_count}/{len(text_chunks)}청크, 폴백: {ssml_fallback_count}회")
 
             return jsonify({
                 "ok": True,
