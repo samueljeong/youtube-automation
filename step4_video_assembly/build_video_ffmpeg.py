@@ -60,26 +60,25 @@ def generate_scene_clip(
     resolution: str = "1080p"
 ) -> Optional[str]:
     """
-    하나의 씬(part 영상)을 제작
+    하나의 씬(part 영상)을 제작 - Ken Burns 스타일 줌 + 페이드 효과
+
+    효과:
+        - 1080p 고정 (1920x1080)
+        - 30fps
+        - 이미지에 느린 줌인 (켄번즈 느낌)
+        - 영상: 1초 페이드 인 + 마지막 1초 페이드 아웃
+        - 오디오: 0.5초 페이드 인 + 마지막 0.5초 페이드 아웃
 
     Args:
         image_path: 장면 이미지 경로
         audio_path: 장면 오디오 경로
         duration: 클립 길이 (초)
         output_path: 출력 파일 경로
-        resolution: 해상도 (720p, 1080p)
+        resolution: 해상도 (현재 무시됨, 1080p 고정)
 
     Returns:
         생성된 파일 경로 또는 None
     """
-    # 해상도 설정
-    scale_map = {
-        "720p": "1280:720",
-        "1080p": "1920:1080",
-        "4k": "3840:2160"
-    }
-    scale = scale_map.get(resolution, "1920:1080")
-
     # 파일 존재 확인
     if not os.path.exists(image_path):
         print(f"[WARNING] Image not found: {image_path}")
@@ -91,25 +90,57 @@ def generate_scene_clip(
     # 출력 디렉토리 생성
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+    # 설정값
+    fps = 30
+    frame_count = int(duration * fps)
+
+    # 페이드 설정
+    fade_in_d = 1.0      # 영상 페이드 인 1초
+    fade_out_d = 1.0     # 영상 페이드 아웃 1초
+    fade_out_start = max(0, duration - fade_out_d)
+
+    audio_fade_in_d = 0.5   # 오디오 페이드 인 0.5초
+    audio_fade_out_d = 0.5  # 오디오 페이드 아웃 0.5초
+    audio_fade_out_start = max(0, duration - audio_fade_out_d)
+
+    # 비디오 필터: 스케일 → 줌팬(Ken Burns) → 페이드 인/아웃
+    # zoompan: z='1.0+0.001*on' → 프레임마다 0.1% 줌, 느린 줌인 효과
+    vf_filter = (
+        f"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+        f"crop=1920:1080,"
+        f"zoompan=z='1.0+0.001*on':d={frame_count}:s=1920x1080:fps={fps},"
+        f"fade=t=in:st=0:d={fade_in_d},"
+        f"fade=t=out:st={fade_out_start}:d={fade_out_d}[v]"
+    )
+
+    # 오디오 필터: 페이드 인/아웃
+    af_filter = (
+        f"[1:a]afade=t=in:st=0:d={audio_fade_in_d},"
+        f"afade=t=out:st={audio_fade_out_start}:d={audio_fade_out_d}[a]"
+    )
+
     cmd = [
         "ffmpeg",
-        "-y",  # 덮어쓰기
-        "-loop", "1",  # 이미지 반복
+        "-y",
+        "-loop", "1",
         "-i", image_path,
         "-i", audio_path,
+        "-filter_complex", f"{vf_filter};{af_filter}",
+        "-map", "[v]",
+        "-map", "[a]",
         "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "23",
         "-t", str(duration),
         "-pix_fmt", "yuv420p",
-        "-vf", f"scale={scale}:force_original_aspect_ratio=decrease,pad={scale}:(ow-iw)/2:(oh-ih)/2",
         "-c:a", "aac",
         "-b:a", "192k",
-        "-shortest",
         output_path
     ]
 
     try:
         run_ffmpeg(cmd)
-        print(f"[FFMPEG] Created clip: {output_path}")
+        print(f"[FFMPEG] Created clip with Ken Burns effect: {output_path}")
         return output_path
     except RuntimeError:
         return None
