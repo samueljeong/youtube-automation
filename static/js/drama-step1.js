@@ -121,10 +121,81 @@ async function analyzePromptsWithGPT(script, videoCategory) {
 window.gptAnalyzedPrompts = gptAnalyzedPrompts;
 window.analyzePromptsWithGPT = analyzePromptsWithGPT;
 
+// ===== 새 대본 생성 시 기존 데이터 초기화 =====
+function clearPreviousSessionData() {
+  console.log('[Step1] 새 대본 생성 - 기존 이미지/데이터 초기화');
+
+  // 이미지 관련 localStorage 삭제
+  const keysToRemove = [
+    '_drama-step4-characters',
+    '_drama-step4-character-images',
+    '_drama-step4-scenes',
+    '_drama-step4-images',
+    '_drama-gpt-prompts',
+    '_drama-thumbnail',
+    '_drama-thumbnail-prompt',
+    '_drama-step3-audio-url',
+    '_drama-step3-subtitle',
+    '_drama-step4-video-url',
+    '_drama-step4-video-file-url'
+  ];
+
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+  });
+
+  // 전역 변수 초기화
+  if (typeof window.gptAnalyzedPrompts !== 'undefined') {
+    window.gptAnalyzedPrompts = null;
+  }
+
+  // UI 이미지 그리드 초기화
+  const imageGrid = document.getElementById('step4-image-grid');
+  if (imageGrid) {
+    imageGrid.innerHTML = '';
+  }
+
+  // 캐릭터 이미지 컨테이너 초기화
+  const charContainer = document.getElementById('step4-character-container');
+  if (charContainer) {
+    charContainer.innerHTML = '<p style="color: #666; font-size: 0.9rem;">Step1.5 분석 후 인물 목록이 표시됩니다</p>';
+  }
+
+  // 썸네일 미리보기 초기화
+  const thumbnailPreview = document.getElementById('step4-thumbnail-preview');
+  if (thumbnailPreview) {
+    thumbnailPreview.style.display = 'none';
+  }
+  const thumbnailImage = document.getElementById('step4-thumbnail-image');
+  if (thumbnailImage) {
+    thumbnailImage.src = '';
+  }
+
+  // Step2 전역 변수도 초기화 (있다면)
+  if (typeof window.DramaStep2 !== 'undefined') {
+    if (window.DramaStep2.characters) window.DramaStep2.characters = [];
+    if (window.DramaStep2.scenes) window.DramaStep2.scenes = [];
+    if (window.DramaStep2.characterImages) window.DramaStep2.characterImages = {};
+    if (window.DramaStep2.generatedImages) window.DramaStep2.generatedImages = [];
+  }
+
+  // 비용 초기화
+  if (typeof window.resetCosts === 'function') {
+    window.resetCosts();
+  }
+
+  console.log('[Step1] 기존 데이터 초기화 완료');
+}
+
+window.clearPreviousSessionData = clearPreviousSessionData;
+
 // ===== 대본 생성 메인 함수 =====
 async function executeStep1() {
   // 화면에서 Step1 버튼을 누르면 실행되는 함수
   // 실제로는 executeStep3() 함수가 대본 생성을 담당
+
+  // ⭐ 새 대본 생성 시 기존 이미지/데이터 초기화
+  clearPreviousSessionData();
 
   // 기본 정보 수집
   const categorySelect = document.getElementById('drama-category');

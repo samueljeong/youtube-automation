@@ -191,7 +191,9 @@ function restoreThumbnail() {
     if (thumbnailImage && thumbnailData.url) {
       generatedThumbnailUrl = thumbnailData.url;
       thumbnailImage.src = thumbnailData.url;
-      thumbnailTextOverlay.textContent = thumbnailData.text || '드라마';
+      // \n을 <br>로 변환하여 줄바꿈 렌더링
+      const textWithBreaks = (thumbnailData.text || '드라마').replace(/\\n/g, '\n').replace(/\n/g, '<br>');
+      thumbnailTextOverlay.innerHTML = textWithBreaks;
       thumbnailPrompt.textContent = thumbnailData.prompt || '-';
       thumbnailPreview.style.display = 'block';
       console.log('[THUMBNAIL] 저장된 썸네일 복원:', thumbnailData.url);
@@ -251,7 +253,9 @@ async function generateYouTubeThumbnail() {
     if (data.ok && data.thumbnailUrl) {
       generatedThumbnailUrl = data.thumbnailUrl;
       thumbnailImage.src = data.thumbnailUrl;
-      thumbnailTextOverlay.textContent = data.thumbnailText || title || '드라마';
+      // \n을 <br>로 변환하여 줄바꿈 렌더링
+      const textWithBreaks = (data.thumbnailText || title || '드라마').replace(/\\n/g, '\n').replace(/\n/g, '<br>');
+      thumbnailTextOverlay.innerHTML = textWithBreaks;
       thumbnailPrompt.textContent = data.imagePrompt || '-';
       thumbnailPreview.style.display = 'block';
 
