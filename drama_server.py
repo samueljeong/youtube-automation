@@ -1994,6 +1994,147 @@ def api_drama_qa():
 
 
 # ===== Step3: OpenRouter를 통한 Claude 대본 완성 =====
+def _generate_senior_nostalgia_metadata(script_preview):
+    """시니어 향수 채널 전용 메타데이터 생성 - CTR/Watch Time/구독률 최적화"""
+    system_prompt = """당신은 시니어 향수 YouTube 채널의 메타데이터 전문가입니다.
+60-80대 시니어 시청자를 위한 따뜻하고 공감되는 메타데이터를 생성하세요.
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{
+  "title": "제목 (4~12자, 조용하지만 마음 건드리는)",
+  "thumbnailTitle": "썸네일 문구 (4~6단어, 줄바꿈 구분)",
+  "description": "설명문 (3~7줄, 짧은 문장)",
+  "tags": ["태그1", "태그2", ...] (15-20개)
+}
+
+【 제목 규칙 - 시니어 향수 채널 최적화 】
+★ 전체 톤: 과장 NO, 숫자 과다 NO, 유행어 NO
+★ 조용하지만 강하게 마음 건드리는 제목
+★ 시니어의 기억, 공감, 감정, 잔향 자극
+
+■ 제목 패턴 10가지 중 1개 선택:
+
+① '그 시절' 회상형
+- "그 시절, 겨울이면 들리던 그 소리"
+- "그때 우리 동네에는 항상 이런 풍경이 있었죠"
+
+② '한 장면' 포착형
+- "밤마다 골목을 비추던 노란 가로등 아래에서"
+- "연탄 재 날리던 부엌 한켠의 따뜻함"
+
+③ '보자마자 공감되는 물건/장소'
+- "요즘 아이들은 모르는 그 구멍가게의 냄새"
+- "시장 입구에서 들리던 이 소리, 기억하시나요"
+
+④ '우리 세대만 아는 은근한 표현'
+- "참 소박했던 그 시절, 우리의 하루"
+- "마음이 괜히 따뜻해지는 옛날 동네 풍경"
+
+⑤ '감정 자극형'
+- "들으면 가만히 눈물이 나는 그 이야기"
+- "오래 묵혀둔 기억이 새어 나오는 밤"
+
+⑥ '상황 회상형'
+- "겨울만 되면 이렇게 모여 있었죠"
+- "비 오던 날, 마루 끝에 앉아 바라보던 그 풍경"
+
+⑦ '사라져버린 것들'
+- "이제는 어디에서도 볼 수 없는 풍경"
+- "사라진 줄도 몰랐던 그 시절의 하루"
+
+⑧ '그때와 지금을 자연 비교'
+- "그때는 당연했던 것들, 이제는 추억이 되었습니다"
+- "아무렇지 않던 평범한 날들이 더 그리운 요즘"
+
+⑨ '한 문장 감성형'
+- "그날, 바람 냄새까지 기억납니다"
+- "어쩌면 가장 따뜻했던 시간들"
+
+⑩ '사람 중심형'
+- "엄마가 내 손 잡고 다니던 그 시장 길"
+- "아버지가 늘 앉아 계시던 골목 입구"
+
+【 썸네일 문구 규칙 】
+★ 4~6단어 한국어만
+★ 노란색/갈색 감성에 어울리는 문구
+★ scene의 핵심 요소 + 감정 결합
+
+예시:
+- "그 시절 그 골목"
+- "따뜻했던 하루"
+- "기억나시나요?"
+- "그때의 풍경들"
+- "그 겨울, 우리 골목"
+- "엄마와 시장길"
+
+【 설명문 규칙 】
+★ 짧고 따뜻하게 (3~7줄)
+★ 시니어가 읽기 편한 짧은 문장
+★ 광고 문구, 외부링크 절대 금지
+★ 구조: 영상 분위기 소개 → 감정 회상 → 감사 인사
+
+템플릿 예시:
+"오늘은 그 시절 우리가 함께 지나왔던 풍경을 이야기합니다.
+따뜻했던 날들, 사소해서 잊고 지냈던 순간들…
+다시 떠올려보면 참 소중했던 기억들입니다.
+
+편안한 마음으로 천천히 들어주세요.
+혹시 영상 속 장면이 마음에 닿으셨다면
+댓글로 그 시절의 이야기도 들려주세요.
+
+시청해 주셔서 감사합니다."
+
+【 태그 규칙 】
+★ 필수 기본 태그:
+옛날이야기, 그시절, 향수, 시니어유튜브, 감성사운드, 회상, 추억, 70년대, 80년대, 옛풍경, 편안한영상, 라디오같은영상
+
+★ 시니어 검색 패턴 태그:
+그때그시절, 옛날이야기듣기, 시니어힐링영상, 옛날감성
+
+★ 대본 내용 기반 맞춤 태그 3~5개 추가"""
+
+    user_prompt = f"다음 시니어 향수 콘텐츠 대본의 메타데이터를 생성하세요:\n\n{script_preview}"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=600
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', result_text)
+        if json_match:
+            metadata = json.loads(json_match.group())
+            # 필수 태그 보장
+            required_tags = ["옛날이야기", "그시절", "향수", "시니어유튜브", "추억", "회상", "70년대", "80년대", "옛풍경", "편안한영상"]
+            existing_tags = set(metadata.get("tags", []))
+            for tag in required_tags:
+                if tag not in existing_tags:
+                    metadata["tags"].append(tag)
+
+            return jsonify({
+                "ok": True,
+                "metadata": metadata,
+                "channelType": "senior-nostalgia",
+                "usage": {
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens
+                }
+            })
+        else:
+            return jsonify({"ok": False, "error": "메타데이터 파싱 실패", "raw": result_text})
+    except Exception as e:
+        print(f"[METADATA-NOSTALGIA] 오류: {e}")
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route('/api/drama/generate-metadata', methods=['POST'])
 def api_generate_metadata():
     """대본에서 YouTube 메타데이터 자동 생성 (제목, 설명, 태그)"""
@@ -2001,12 +2142,17 @@ def api_generate_metadata():
         data = request.get_json()
         script = data.get('script', '')
         content_type = data.get('contentType', 'testimony')
+        channel_type = data.get('channelType', 'default')  # 'default', 'senior-nostalgia'
 
         if not script:
             return jsonify({"ok": False, "error": "대본이 없습니다"}), 400
 
         # 대본 앞부분만 사용 (토큰 절약)
         script_preview = script[:2000] if len(script) > 2000 else script
+
+        # ⭐ 시니어 향수 채널 전용 메타데이터 생성
+        if channel_type == "senior-nostalgia" or content_type == "nostalgia":
+            return _generate_senior_nostalgia_metadata(script_preview)
 
         content_type_name = "간증" if content_type == "testimony" else "드라마"
 

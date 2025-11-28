@@ -61,8 +61,17 @@
           <div class="config-panel">
             <div class="config-row">
               <div class="config-item">
+                <label>채널 타입</label>
+                <select id="channel-type">
+                  <option value="senior-nostalgia" selected>시니어 향수 채널 (A채널)</option>
+                  <option value="testimony">신앙 간증 채널</option>
+                  <option value="default">일반 드라마 채널</option>
+                </select>
+              </div>
+              <div class="config-item">
                 <label>콘텐츠 유형</label>
                 <select id="content-type">
+                  <option value="nostalgia" selected>향수 드라마 (시니어용)</option>
                   <option value="testimony">간증 (1인칭 고백)</option>
                   <option value="drama">드라마 (3인칭 서사)</option>
                 </select>
@@ -77,6 +86,8 @@
                   <option value="30min">30분</option>
                 </select>
               </div>
+            </div>
+            <div class="config-row">
               <div class="config-item">
                 <label>AI 모델</label>
                 <select id="ai-model">
