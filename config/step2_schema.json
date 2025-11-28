@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step2 Image Generation Schema",
+  "description": "Step2 tøÀ Ý1 - …%/œ% µi ¤¤È",
+  "version": "1.0.0",
+
+  "input": {
+    "description": "Step1 °üÐ ”œ\ tøÀ Ý1© …%",
+    "type": "object",
+    "required": ["step", "category", "category_key", "title", "thumbnail", "core_emotion", "scenes_for_image", "max_cuts"],
+    "properties": {
+      "step": {"type": "string", "const": "step2_images"},
+      "category": {"type": "string"},
+      "category_key": {"type": "string"},
+      "title": {"type": "string"},
+      "thumbnail": {
+        "type": "object",
+        "properties": {
+          "selected_text": {"type": "string"},
+          "mood_keywords": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "core_emotion": {"type": "array", "items": {"type": "string"}},
+      "scenes_for_image": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "scene_id": {"type": "string"},
+            "title": {"type": "string"},
+            "time_period_detail": {"type": "string"},
+            "location": {"type": "string"},
+            "emotional_tone": {"type": "string"},
+            "image_prompt_hint": {"type": ["string", "null"]},
+            "is_key_scene": {"type": "boolean"}
+          }
+        }
+      },
+      "max_cuts": {"type": "integer", "minimum": 1, "maximum": 4}
+    }
+  },
+
+  "output": {
+    "description": "tøÀ l¸ Ý1 °ü",
+    "type": "object",
+    "required": ["step", "category", "title", "thumbnail", "cuts"],
+    "properties": {
+      "step": {"type": "string", "const": "step2_images_result"},
+      "category": {"type": "string"},
+      "title": {"type": "string"},
+      "thumbnail": {
+        "type": "object",
+        "properties": {
+          "prompt": {"type": "string"},
+          "text": {"type": "string"},
+          "image_path": {"type": ["string", "null"]}
+        }
+      },
+      "cuts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "cut_id": {"type": "integer"},
+            "scene_id": {"type": "string"},
+            "prompt": {"type": "string"},
+            "image_path": {"type": ["string", "null"]}
+          }
+        }
+      }
+    }
+  }
+}

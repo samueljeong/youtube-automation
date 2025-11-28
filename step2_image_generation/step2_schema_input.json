@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step2 Image Generation Input Schema",
+  "description": "Step1 결과에서 이미지 생성에 필요한 정보만 추출한 입력",
+  "type": "object",
+  "required": ["step", "category", "category_key", "title", "thumbnail", "core_emotion", "scenes_for_image", "max_cuts"],
+  "properties": {
+    "step": {
+      "type": "string",
+      "const": "step2_images",
+      "description": "단계 식별자"
+    },
+    "category": {
+      "type": "string",
+      "description": "카테고리 (예: category1)"
+    },
+    "category_key": {
+      "type": "string",
+      "description": "카테고리 키 (예: nostalgia_story)"
+    },
+    "title": {
+      "type": "string",
+      "description": "에피소드 제목"
+    },
+    "thumbnail": {
+      "type": "object",
+      "required": ["selected_text", "mood_keywords"],
+      "properties": {
+        "selected_text": {
+          "type": "string",
+          "description": "썸네일에 들어갈 텍스트"
+        },
+        "mood_keywords": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "분위기 키워드 (예: warm, vintage, soft_light)"
+        }
+      }
+    },
+    "core_emotion": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "핵심 감정 (예: nostalgia, warmth)"
+    },
+    "scenes_for_image": {
+      "type": "array",
+      "description": "이미지 생성 대상 씬 목록 (최대 4개)",
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "title", "time_period_detail", "location", "emotional_tone", "is_key_scene"],
+        "properties": {
+          "scene_id": {
+            "type": "string",
+            "description": "씬 ID (예: scene1)"
+          },
+          "title": {
+            "type": "string",
+            "description": "씬 제목"
+          },
+          "time_period_detail": {
+            "type": "string",
+            "description": "시대/시간 배경 (예: 1970년대 겨울, 서울 변두리)"
+          },
+          "location": {
+            "type": "string",
+            "description": "장소"
+          },
+          "emotional_tone": {
+            "type": "string",
+            "description": "감정 톤"
+          },
+          "image_prompt_hint": {
+            "type": ["string", "null"],
+            "description": "Step1에서 제공한 이미지 프롬프트 힌트 (없으면 null)"
+          },
+          "is_key_scene": {
+            "type": "boolean",
+            "description": "핵심 씬 여부"
+          }
+        }
+      }
+    },
+    "max_cuts": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 4,
+      "description": "생성할 최대 이미지 컷 수"
+    }
+  }
+}
