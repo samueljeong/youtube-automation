@@ -820,33 +820,32 @@ textarea.autosize { overflow: hidden; }
   border-radius: 6px;
 }
 
-/* Step7 유튜브 업로드 박스 스타일 - 비활성화됨 */
-.step3-container {
-  display: none !important;
+/* Step5 유튜브 업로드 박스 스타일 */
+.step5-container {
   background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
   border: none;
   padding: 1rem;
   border-radius: 12px;
   margin-top: .75rem;
 }
-.step3-container .label {
+.step5-container .label {
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
 }
-.step3-section {
+.step5-section {
   background: white;
   border-radius: 8px;
   padding: .75rem;
   margin-bottom: .75rem;
 }
-.step3-section .section-label {
+.step5-section .section-label {
   font-weight: 600;
   font-size: .9rem;
   margin-bottom: .4rem;
   color: #333;
 }
-.step3-btn {
+.step5-btn {
   background: white;
   color: #ff0000;
   border: none;
@@ -857,15 +856,15 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   transition: all 0.2s;
 }
-.step3-btn:hover {
+.step5-btn:hover {
   background: #f0f0f0;
   transform: translateY(-1px);
 }
-.step3-btn.uploading {
+.step5-btn.uploading {
   opacity: 0.7;
   cursor: not-allowed;
 }
-.step3-input {
+.step5-input {
   width: 100%;
   padding: .5rem;
   border: 1px solid #ddd;
@@ -873,11 +872,11 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   margin-bottom: .5rem;
 }
-.step3-input:focus {
+.step5-input:focus {
   outline: none;
   border-color: #ff0000;
 }
-.step3-privacy-option {
+.step5-privacy-option {
   display: inline-flex;
   align-items: center;
   gap: .3rem;
@@ -889,10 +888,10 @@ textarea.autosize { overflow: hidden; }
   transition: all 0.2s;
   margin-right: .5rem;
 }
-.step3-privacy-option:hover {
+.step5-privacy-option:hover {
   border-color: #ff0000;
 }
-.step3-privacy-option.selected {
+.step5-privacy-option.selected {
   border-color: #ff0000;
   background: #ff0000;
   color: white;
@@ -932,7 +931,7 @@ textarea.autosize { overflow: hidden; }
 .step2-container .step-header {
   background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
 }
-.step3-container .step-header {
+.step5-container .step-header {
   background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
 }
 
