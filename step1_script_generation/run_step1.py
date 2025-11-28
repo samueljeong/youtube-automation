@@ -5,7 +5,7 @@ Step 1 Runner
 
 from typing import Dict, Any
 from .call_sonnet import generate_script
-from .validate_step1 import validate_output
+# from .validate_step1 import validate_output  # TODO: 검증 함수 구현 필요
 
 
 def run(step1_input: Dict[str, Any]) -> Dict[str, Any]:
