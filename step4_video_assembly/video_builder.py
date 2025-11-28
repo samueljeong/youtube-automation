@@ -14,27 +14,37 @@ from typing import Dict, Any, List, Optional
 VIDEO_ENGINE = os.getenv("VIDEO_ENGINE", "ffmpeg")
 
 
-def build_video(step4_input: Dict[str, Any]) -> Dict[str, Any]:
+def build_video(
+    step4_input: Dict[str, Any],
+    step3_output: Optional[Dict[str, Any]] = None,
+    burn_subs: bool = True
+) -> Dict[str, Any]:
     """
     Step4 입력을 받아 영상을 조립하고 결과를 반환
 
     Args:
         step4_input: Step4 입력 JSON (step4_video 포맷)
+        step3_output: Step3 출력 (자막 생성용, 선택적)
+        burn_subs: 자막 번인 여부 (FFmpeg 엔진에서만 지원)
 
     Returns:
         Step4 출력 JSON (step4_video_result 포맷)
     """
     # 엔진 선택에 따라 분기
     if VIDEO_ENGINE == "ffmpeg":
-        return _build_video_ffmpeg(step4_input)
+        return _build_video_ffmpeg(step4_input, step3_output, burn_subs)
     else:
         return _build_video_creatomate(step4_input)
 
 
-def _build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
-    """FFmpeg 기반 영상 제작 (무료)"""
+def _build_video_ffmpeg(
+    step4_input: Dict[str, Any],
+    step3_output: Optional[Dict[str, Any]] = None,
+    burn_subs: bool = True
+) -> Dict[str, Any]:
+    """FFmpeg 기반 영상 제작 (무료) + 자막 번인"""
     from .build_video_ffmpeg import build_video_ffmpeg
-    return build_video_ffmpeg(step4_input)
+    return build_video_ffmpeg(step4_input, step3_output=step3_output, burn_subs=burn_subs)
 
 
 def _build_video_creatomate(step4_input: Dict[str, Any]) -> Dict[str, Any]:

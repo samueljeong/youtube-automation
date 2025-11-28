@@ -1,9 +1,10 @@
 """
 FFmpeg-based Video Builder for Step 4
-Creatomate 대신 FFmpeg를 사용한 무료 영상 조립
+Creatomate 대신 FFmpeg를 사용한 무료 영상 조립 + 자막 번인
 
 Requirements:
     - FFmpeg 설치 필요 (apt-get install ffmpeg 또는 brew install ffmpeg)
+    - FFmpeg가 libass로 빌드되어야 subtitles 필터 사용 가능
     - 실제 이미지 파일 (outputs/images/scene1.png 등)
     - 실제 오디오 파일 (outputs/audio/scene1.mp3 등)
 """
@@ -132,7 +133,7 @@ def concat_videos(parts: List[str], output_path: str) -> Optional[str]:
     # concat 리스트 파일 생성
     list_path = str(Path(output_path).parent / f"concat_{uuid.uuid4().hex}.txt")
 
-    with open(list_path, "w") as f:
+    with open(list_path, "w", encoding="utf-8") as f:
         for p in parts:
             # 절대 경로로 변환
             abs_path = os.path.abspath(p)
@@ -151,7 +152,7 @@ def concat_videos(parts: List[str], output_path: str) -> Optional[str]:
     try:
         run_ffmpeg(cmd)
         os.remove(list_path)  # 임시 파일 삭제
-        print(f"[FFMPEG] Final video saved: {output_path}")
+        print(f"[FFMPEG] Concatenated video: {output_path}")
         return output_path
     except RuntimeError:
         if os.path.exists(list_path):
@@ -159,12 +160,144 @@ def concat_videos(parts: List[str], output_path: str) -> Optional[str]:
         return None
 
 
-def build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
+# ========== 자막(SRT) 관련 유틸 ==========
+
+def _format_timestamp(sec: float) -> str:
+    """초(float)를 SRT용 HH:MM:SS,mmm 문자열로 변환."""
+    millis = int(round(sec * 1000))
+    hours = millis // (1000 * 60 * 60)
+    millis %= (1000 * 60 * 60)
+    minutes = millis // (1000 * 60)
+    millis %= (1000 * 60)
+    seconds = millis // 1000
+    millis %= 1000
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{millis:03d}"
+
+
+def generate_srt_from_step3(step3: Dict[str, Any], srt_path: str) -> str:
     """
-    FFmpeg 기반 영상 제작 (기존 video_builder.build_video 대체)
+    step3_output.json을 기반으로 전체 영상용 subtitles.srt 생성.
+
+    Args:
+        step3: Step3 출력 딕셔너리
+        srt_path: SRT 파일 저장 경로
+
+    Returns:
+        생성된 SRT 파일 경로
+    """
+    timeline = step3.get("timeline", [])
+    subtitle_lines = step3.get("subtitle_lines", [])  # 세분화된 자막이 있으면 사용
+
+    lines = []
+    index = 1
+
+    if subtitle_lines:
+        # 세부 자막 리스트가 있으면 그걸 사용
+        # 형식: [{"start":0.0,"end":3.5,"text":"..."}, ...]
+        for sub in subtitle_lines:
+            start = _format_timestamp(sub.get("start", 0))
+            end = _format_timestamp(sub.get("end", 0))
+            text = sub.get("text", "").replace("\n", " ").strip()
+            if not text:
+                continue
+            lines.append(f"{index}")
+            lines.append(f"{start} --> {end}")
+            lines.append(text)
+            lines.append("")  # 빈 줄
+            index += 1
+    else:
+        # fallback: 씬 단위 자막
+        for scene in timeline:
+            start = float(scene.get("start", 0))
+            end = float(scene.get("end", start + 5.0))
+
+            # 텍스트 후보들 중 있는 것 사용
+            text = (
+                scene.get("subtitle_text")
+                or scene.get("narration")
+                or scene.get("summary")
+                or ""
+            )
+            text = str(text).strip()
+            if not text:
+                continue
+
+            # 줄바꿈 정리
+            text = text.replace("\\n", " ").replace("\n", " ")
+
+            start_s = _format_timestamp(start)
+            end_s = _format_timestamp(end)
+
+            lines.append(f"{index}")
+            lines.append(f"{start_s} --> {end_s}")
+            lines.append(text)
+            lines.append("")
+            index += 1
+
+    # 디렉토리 생성
+    os.makedirs(os.path.dirname(srt_path), exist_ok=True)
+
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    print(f"[Subtitles] SRT generated: {srt_path} ({index - 1} entries)")
+    return srt_path
+
+
+def burn_subtitles(input_video: str, srt_path: str, output_video: str) -> Optional[str]:
+    """
+    최종 영상에 SRT 자막을 번인(burn-in)하여 새 영상 생성.
+
+    Args:
+        input_video: 입력 영상 경로
+        srt_path: SRT 자막 파일 경로
+        output_video: 출력 영상 경로
+
+    Returns:
+        생성된 파일 경로 또는 None
+
+    Note:
+        FFmpeg가 libass로 빌드되어 있어야 subtitles 필터 사용 가능
+    """
+    if not os.path.exists(srt_path):
+        print(f"[WARNING] SRT file not found: {srt_path}")
+        return input_video  # 자막 없이 원본 반환
+
+    # SRT 경로에 특수문자가 있으면 이스케이프 처리
+    srt_escaped = srt_path.replace("\\", "/").replace(":", "\\:")
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", input_video,
+        "-vf", f"subtitles={srt_escaped}:force_style='FontSize=24,FontName=Arial,PrimaryColour=&Hffffff,OutlineColour=&H000000,Outline=2'",
+        "-c:a", "copy",
+        output_video
+    ]
+
+    try:
+        run_ffmpeg(cmd)
+        print(f"[Subtitles] Video with subtitles: {output_video}")
+        return output_video
+    except RuntimeError:
+        print("[WARNING] Subtitle burn-in failed, returning raw video")
+        return input_video
+
+
+# ========== 메인 빌드 함수 ==========
+
+def build_video_ffmpeg(
+    step4_input: Dict[str, Any],
+    step3_output: Optional[Dict[str, Any]] = None,
+    burn_subs: bool = True
+) -> Dict[str, Any]:
+    """
+    FFmpeg 기반 영상 제작 + 자막 번인
 
     Args:
         step4_input: Step4 입력 JSON (cuts 배열 포함)
+        step3_output: Step3 출력 (자막 생성용, 선택적)
+        burn_subs: 자막 번인 여부
 
     Returns:
         Step4 출력 JSON
@@ -186,7 +319,7 @@ def build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
     resolution = step4_input.get("output_resolution", "1080p")
 
     print(f"\n=== [FFmpeg] Building video: {title} ===")
-    print(f"[FFmpeg] Cuts: {len(cuts)}, Resolution: {resolution}")
+    print(f"[FFmpeg] Cuts: {len(cuts)}, Resolution: {resolution}, Subtitles: {burn_subs}")
 
     if not cuts:
         print("[ERROR] No cuts provided")
@@ -202,7 +335,12 @@ def build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "outputs")
     os.makedirs(output_dir, exist_ok=True)
 
-    # 각 씬별 클립 생성
+    sanitized_title = _sanitize_filename(title)
+    raw_video_path = os.path.join(output_dir, f"{sanitized_title}_raw.mp4")
+    srt_path = os.path.join(output_dir, "subtitles.srt")
+    final_video_path = os.path.join(output_dir, f"{sanitized_title}.mp4")
+
+    # 1) 각 씬별 클립 생성
     part_files = []
     total_duration = 0.0
 
@@ -243,17 +381,27 @@ def build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
             "error": "No clips generated - check image/audio files"
         }
 
-    # 최종 영상 concat
-    sanitized_title = _sanitize_filename(title)
-    final_output = os.path.join(output_dir, f"{sanitized_title}.mp4")
-
+    # 2) part들 concat → raw 영상
     print(f"\n[FFmpeg] Concatenating {len(part_files)} clips...")
-    final_video = concat_videos(part_files, final_output)
+    concat_videos(part_files, raw_video_path)
 
-    # 임시 파트 파일 정리 (선택적)
-    # for part in part_files:
-    #     if os.path.exists(part):
-    #         os.remove(part)
+    # 3) 자막 생성 및 번인
+    final_video = raw_video_path
+
+    if burn_subs and step3_output:
+        print("\n[FFmpeg] Generating subtitles...")
+        generate_srt_from_step3(step3_output, srt_path)
+
+        print("[FFmpeg] Burning subtitles into video...")
+        final_video = burn_subtitles(raw_video_path, srt_path, final_video_path)
+    else:
+        # 자막 없이 raw를 final로 복사/이동
+        if raw_video_path != final_video_path:
+            import shutil
+            shutil.move(raw_video_path, final_video_path)
+            final_video = final_video_path
+
+    print(f"\n[FFmpeg] Final video saved: {final_video}")
 
     return {
         "step": "step4_video_result",
@@ -261,7 +409,9 @@ def build_video_ffmpeg(step4_input: Dict[str, Any]) -> Dict[str, Any]:
         "video_filename": final_video,
         "duration_seconds": round(total_duration, 1),
         "clips_count": len(part_files),
-        "resolution": resolution
+        "resolution": resolution,
+        "subtitles_burned": burn_subs and step3_output is not None,
+        "srt_path": srt_path if burn_subs else None
     }
 
 
@@ -270,11 +420,11 @@ def build_video_from_outputs(
     step3_output_path: str,
     output_video_path: str,
     images_dir: str = "outputs/images",
-    audio_dir: str = "outputs/audio"
+    audio_dir: str = "outputs/audio",
+    burn_subs: bool = True
 ) -> Dict[str, Any]:
     """
-    Step2/Step3 output 파일을 직접 읽어서 영상 생성
-    (main.py 외부에서 독립적으로 호출 가능)
+    Step2/Step3 output 파일을 직접 읽어서 영상 생성 + 자막 번인
 
     Args:
         step2_output_path: step2_output.json 경로
@@ -282,6 +432,7 @@ def build_video_from_outputs(
         output_video_path: 최종 영상 출력 경로
         images_dir: 이미지 파일 디렉토리
         audio_dir: 오디오 파일 디렉토리
+        burn_subs: 자막 번인 여부
 
     Returns:
         결과 딕셔너리
@@ -311,12 +462,14 @@ def build_video_from_outputs(
         )
 
         # 이미지 경로 (실제 파일이 있어야 함)
-        image_path = os.path.join(images_dir, f"{scene_id}.png")
-        if not os.path.exists(image_path):
-            image_path = os.path.join(images_dir, f"{scene_id}.jpg")
+        image_path = scene.get("image_path")
+        if not image_path or not os.path.exists(image_path):
+            image_path = os.path.join(images_dir, f"{scene_id}.png")
+            if not os.path.exists(image_path):
+                image_path = os.path.join(images_dir, f"{scene_id}.jpg")
 
         # 오디오 경로
-        audio_path = audio_info.get("audio_filename", "")
+        audio_path = audio_info.get("audio_path") or audio_info.get("audio_filename", "")
         if audio_path and not os.path.isabs(audio_path):
             audio_path = os.path.join(os.path.dirname(step3_output_path), "..", audio_path)
 
@@ -335,7 +488,7 @@ def build_video_from_outputs(
         "fps": 30
     }
 
-    return build_video_ffmpeg(step4_input)
+    return build_video_ffmpeg(step4_input, step3_output=step3, burn_subs=burn_subs)
 
 
 def _sanitize_filename(title: str) -> str:
@@ -343,13 +496,14 @@ def _sanitize_filename(title: str) -> str:
     import re
     sanitized = re.sub(r'[<>:"/\\|?*]', '', title)
     sanitized = sanitized.replace(' ', '_')
+    sanitized = sanitized.replace(',', '_')
     return sanitized[:50]
 
 
 if __name__ == "__main__":
     # FFmpeg 설치 확인
     if check_ffmpeg_installed():
-        print("FFmpeg is installed")
+        print("FFmpeg is installed ✓")
     else:
         print("FFmpeg is NOT installed")
         print("Install with:")
@@ -360,6 +514,7 @@ if __name__ == "__main__":
     # result = build_video_from_outputs(
     #     step2_output_path="outputs/step2_output.json",
     #     step3_output_path="outputs/step3_output.json",
-    #     output_video_path="outputs/final_video.mp4"
+    #     output_video_path="outputs/final_video.mp4",
+    #     burn_subs=True
     # )
     # print(json.dumps(result, ensure_ascii=False, indent=2))
