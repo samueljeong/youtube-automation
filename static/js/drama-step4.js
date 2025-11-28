@@ -111,22 +111,10 @@ function updateStep4ContainerVisibility() {
   }
 }
 
-// ===== Step5 컨테이너 표시/숨김 (Step4 영상이 있을 때만 표시) =====
+// ===== Step5 컨테이너 - 항상 표시 =====
 function updateStep5ContainerVisibility() {
-  const step7Container = document.getElementById('step7-container');
-  if (!step7Container) return;
-
-  // Step4 영상 확인
-  const hasVideo = step4VideoUrl || step4VideoFileUrl ||
-    (window.DramaStep4?.videoUrl) ||
-    (document.getElementById('step6-video-player')?.src &&
-     document.getElementById('step6-video-player').src !== window.location.href);
-
-  if (hasVideo) {
-    step7Container.style.display = 'block';
-  } else {
-    step7Container.style.display = 'none';
-  }
+  // Step5는 항상 표시되므로 별도 처리 불필요
+  // 이 함수는 호환성을 위해 유지
 }
 
 // ===== 이미지 그리드 업데이트 =====
