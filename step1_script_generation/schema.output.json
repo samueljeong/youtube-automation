@@ -1,0 +1,263 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step1 Output Schema",
+  "description": "Step1 대본 생성 결과 출력 스키마 - 에피소드 기획 + 구조 + 실제 대본",
+  "type": "object",
+  "required": ["step", "category", "category_key", "meta", "titles", "thumbnail", "hook", "episode", "narrator", "scenes", "checks"],
+  "properties": {
+    "step": {
+      "type": "string",
+      "const": "step1_script",
+      "description": "단계 식별자"
+    },
+    "category": {
+      "type": "string",
+      "description": "입력에서 받은 카테고리"
+    },
+    "category_key": {
+      "type": "string",
+      "description": "카테고리 내부 키 (예: nostalgia_story)"
+    },
+    "meta": {
+      "type": "object",
+      "description": "에피소드 메타 정보",
+      "required": ["channel_concept", "episode_theme", "one_line_concept", "core_emotion", "target_audience_profile", "length_plan_minutes", "style_keywords"],
+      "properties": {
+        "channel_concept": {
+          "type": "string",
+          "description": "채널 컨셉 설명"
+        },
+        "episode_theme": {
+          "type": "string",
+          "description": "이번 에피소드 테마"
+        },
+        "one_line_concept": {
+          "type": "string",
+          "description": "한 줄 컨셉"
+        },
+        "core_emotion": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "핵심 감정 키워드 (예: nostalgia, warmth)"
+        },
+        "target_audience_profile": {
+          "type": "object",
+          "properties": {
+            "age_range": {"type": "string", "description": "타겟 연령대 (예: 60-70)"},
+            "description": {"type": "string", "description": "타겟 설명"},
+            "viewing_situation": {"type": "string", "description": "시청 상황"}
+          }
+        },
+        "length_plan_minutes": {
+          "type": "integer",
+          "description": "계획된 영상 길이(분)"
+        },
+        "style_keywords": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "스타일 키워드 (예: slow_pace, gentle_narration)"
+        }
+      }
+    },
+    "titles": {
+      "type": "object",
+      "description": "제목 정보 - Step5(유튜브)에서 사용",
+      "required": ["main_title", "alternatives"],
+      "properties": {
+        "main_title": {
+          "type": "string",
+          "description": "최종 선택된 제목"
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "후보 제목들"
+        }
+      }
+    },
+    "thumbnail": {
+      "type": "object",
+      "description": "썸네일 정보 - Step2(이미지)에서 사용",
+      "required": ["text_candidates", "selected_text", "mood_keywords"],
+      "properties": {
+        "text_candidates": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "썸네일 문구 후보들"
+        },
+        "selected_text": {
+          "type": "string",
+          "description": "실제 썸네일에 들어갈 문구"
+        },
+        "mood_keywords": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "분위기 키워드 (예: warm, vintage, soft_light)"
+        }
+      }
+    },
+    "hook": {
+      "type": "object",
+      "description": "후킹 요소",
+      "required": ["opening_hook", "emotional_promise"],
+      "properties": {
+        "opening_hook": {
+          "type": "string",
+          "description": "시니어 시청자 관심을 끌 첫 문장"
+        },
+        "emotional_promise": {
+          "type": "string",
+          "description": "끝까지 들으면 얻게 될 감정에 대한 약속"
+        }
+      }
+    },
+    "episode": {
+      "type": "object",
+      "description": "에피소드 구조",
+      "required": ["logline", "structure"],
+      "properties": {
+        "logline": {
+          "type": "string",
+          "description": "에피소드 한 문장 요약"
+        },
+        "structure": {
+          "type": "object",
+          "properties": {
+            "target_length_minutes": {"type": "integer"},
+            "act1": {"type": "string", "description": "도입에서 무엇을 보여줄지"},
+            "act2": {"type": "string", "description": "본론에서 어떤 장면들이 이어질지"},
+            "act3": {"type": "string", "description": "마무리에서 어떤 정서로 끝낼지"},
+            "intro_goal": {"type": "string", "description": "인트로에서 시청자에게 무엇을 약속할지"},
+            "outro_goal": {"type": "string", "description": "마무리에서 시청자가 어떤 느낌을 가지고 끝날지"},
+            "emotion_curve": {"type": "string", "description": "감정 곡선 (예: 공감→추억→위로)"}
+          }
+        }
+      }
+    },
+    "narrator": {
+      "type": "object",
+      "description": "화자 정보 - Step3(TTS)에서 사용",
+      "required": ["name", "age_description", "gender", "voice_profile"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "화자 이름 또는 호칭"
+        },
+        "age_description": {
+          "type": "string",
+          "description": "나이 설명 (예: 일흔두 살)"
+        },
+        "gender": {
+          "type": "string",
+          "enum": ["male", "female"]
+        },
+        "voice_profile": {
+          "type": "string",
+          "description": "TTS 음성 프로필 (예: male_senior_soft)"
+        }
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "description": "씬 목록 - Step2/3/4 모두에서 사용",
+      "items": {
+        "type": "object",
+        "required": ["id", "order", "title", "narrative_role", "approx_duration_minutes", "narration"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "씬 ID (예: scene1)"
+          },
+          "order": {
+            "type": "integer",
+            "description": "씬 순서"
+          },
+          "title": {
+            "type": "string",
+            "description": "짧은 장면 제목"
+          },
+          "narrative_role": {
+            "type": "string",
+            "enum": ["intro", "development", "climax", "outro"],
+            "description": "서사적 역할"
+          },
+          "approx_duration_minutes": {
+            "type": "number",
+            "description": "예상 길이(분) - Step4에서 사용"
+          },
+          "time_period_detail": {
+            "type": "string",
+            "description": "시대/시간 배경 (예: 1970년대 겨울, 서울 변두리)"
+          },
+          "location": {
+            "type": "string",
+            "description": "장소 (예: 서울 OO동 골목)"
+          },
+          "core_emotion": {
+            "type": "string",
+            "description": "핵심 감정"
+          },
+          "emotional_tone": {
+            "type": "string",
+            "description": "감정 톤"
+          },
+          "relatability_reason": {
+            "type": "string",
+            "description": "60~70대가 공감할 수 있는 포인트"
+          },
+          "image_prompt_hint": {
+            "type": "string",
+            "description": "AI 이미지 생성용 영어 키워드 - Step2에서 사용"
+          },
+          "sound_mood_hint": {
+            "type": "string",
+            "description": "배경음 힌트 (예: soft piano, tape noise)"
+          },
+          "transition_hint": {
+            "type": "string",
+            "description": "이전/다음 씬과 연결 방식"
+          },
+          "narration": {
+            "type": "string",
+            "description": "TTS가 읽을 실제 대본 전문 - Step3에서 사용"
+          },
+          "tts_notes": {
+            "type": "string",
+            "description": "TTS 읽기 지시사항 (예: 천천히, 숨 넣어서)"
+          }
+        }
+      }
+    },
+    "highlight_preview": {
+      "type": "object",
+      "description": "하이라이트/티저용 미리보기",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "하이라이트 사용 여부"
+        },
+        "related_scene_id": {
+          "type": "string",
+          "description": "관련 씬 ID"
+        },
+        "narration": {
+          "type": "string",
+          "description": "클라이맥스 3~5문장 요약 (쇼츠/티저용)"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "description": "품질 체크리스트",
+      "properties": {
+        "has_clear_intro": {"type": "boolean"},
+        "has_clear_outro": {"type": "boolean"},
+        "for_senior_audience": {"type": "string", "description": "시니어에게 적합한지"},
+        "tone": {"type": "string", "description": "말투 (부드럽고 존중하는)"},
+        "no_young_protagonist": {"type": "boolean"},
+        "no_emoji": {"type": "boolean"},
+        "no_markdown": {"type": "boolean"}
+      }
+    }
+  }
+}
