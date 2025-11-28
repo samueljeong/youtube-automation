@@ -216,3 +216,7 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .env
+
+# Pipeline outputs (generated files)
+outputs/*.json
+output/
