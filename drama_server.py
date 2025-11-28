@@ -2599,12 +2599,27 @@ def api_drama_claude_step3():
             temperature=0.8
         )
 
-        # 응답 추출
+        # 응답 추출 (상세 로깅 추가)
+        print(f"[DRAMA-STEP3] OpenRouter 응답 수신")
+        print(f"[DRAMA-STEP3] choices 개수: {len(response.choices) if response.choices else 0}")
+
+        if not response.choices:
+            print(f"[DRAMA-STEP3] 전체 응답: {response}")
+            raise RuntimeError("OpenRouter API 응답에 choices가 없습니다. API 키나 모델 설정을 확인하세요.")
+
+        # finish_reason 확인
+        finish_reason = response.choices[0].finish_reason if response.choices else None
+        print(f"[DRAMA-STEP3] finish_reason: {finish_reason}")
+
+        if finish_reason == "content_filter":
+            raise RuntimeError("OpenRouter 콘텐츠 필터에 의해 차단되었습니다. 주제를 변경해보세요.")
+
         result = response.choices[0].message.content if response.choices else ""
-        result = result.strip()
+        result = result.strip() if result else ""
 
         if not result:
-            raise RuntimeError("OpenRouter API로부터 결과를 받지 못했습니다.")
+            print(f"[DRAMA-STEP3] 빈 응답, finish_reason: {finish_reason}")
+            raise RuntimeError(f"OpenRouter API로부터 빈 응답. finish_reason: {finish_reason}")
 
         # JSON 응답에서 불필요한 마크다운 코드블록 제거 (```json ... ``` 형식)
         import re as re_temp
