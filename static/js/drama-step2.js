@@ -746,13 +746,22 @@ async function generateAllAuto(skipConfirm = false) {
     const gptStatus = gptPrompts ? ' (GPT 프롬프트 적용)' : '';
     updateProgress(15, `✅ 분석 완료: ${step2Characters.length}명의 인물, ${step2Scenes.length}개의 씬${gptStatus}`, '인물 이미지 생성을 시작합니다');
 
+    // ⭐ 테스트 모드 확인 (이미지 1개만 생성)
+    const isTestMode = document.getElementById('test-mode-checkbox')?.checked || false;
+    if (isTestMode) {
+      console.log('[TEST MODE] 테스트 모드 활성화 - 이미지 1개씩만 생성');
+      showStatus('⚠️ 테스트 모드: 인물 1명, 씬 1개만 생성합니다');
+    }
+
     // 2단계: 인물 이미지 생성
-    const totalCharacters = step2Characters.length;
-    const totalScenes = step2Scenes.length;
+    const maxCharacters = isTestMode ? 1 : step2Characters.length;
+    const maxScenes = isTestMode ? 1 : step2Scenes.length;
+    const totalCharacters = maxCharacters;
+    const totalScenes = maxScenes;
     const totalSteps = totalCharacters + totalScenes;
     let completedSteps = 0;
 
-    for (let i = 0; i < step2Characters.length; i++) {
+    for (let i = 0; i < maxCharacters; i++) {
       const char = step2Characters[i];
       completedSteps++;
       const percent = 15 + (completedSteps / totalSteps) * 80;
@@ -800,7 +809,7 @@ async function generateAllAuto(skipConfirm = false) {
     }
 
     // 3단계: 씬 배경 이미지 생성
-    for (let i = 0; i < step2Scenes.length; i++) {
+    for (let i = 0; i < maxScenes; i++) {
       const scene = step2Scenes[i];
       completedSteps++;
       const percent = 15 + (completedSteps / totalSteps) * 80;

@@ -309,9 +309,10 @@ async function generateYouTubeThumbnail() {
     if (data.ok && data.thumbnailUrl) {
       generatedThumbnailUrl = data.thumbnailUrl;
       thumbnailImage.src = data.thumbnailUrl;
-      // \n을 <br>로 변환하여 줄바꿈 렌더링
-      const textWithBreaks = (data.thumbnailText || title || '드라마').replace(/\\n/g, '\n').replace(/\n/g, '<br>');
-      thumbnailTextOverlay.innerHTML = textWithBreaks;
+      // ⭐ 서버에서 이미지에 직접 텍스트를 렌더링하므로 HTML 오버레이는 숨김
+      if (thumbnailTextOverlay) {
+        thumbnailTextOverlay.style.display = 'none';
+      }
       thumbnailPrompt.textContent = data.imagePrompt || '-';
       thumbnailPreview.style.display = 'block';
 
@@ -596,6 +597,12 @@ async function generateVideo() {
           if (typeof updateProgressIndicator === 'function') {
             updateProgressIndicator('step6');
           }
+          // ⭐ 사이드바 Step 4 상태를 '완료'로 업데이트
+          if (typeof updateSidebarStepProgress === 'function') {
+            updateSidebarStepProgress('step6', 'completed');
+          }
+          // ⭐ Step 5 (유튜브 업로드) 컨테이너 표시
+          updateStep5ContainerVisibility();
           updateStep5Status();
 
           // 💰 Step4 영상 생성 비용 추가 (Creatomate: ~₩50-100/영상)
