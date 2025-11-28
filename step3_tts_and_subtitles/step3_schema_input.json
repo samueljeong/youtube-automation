@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step3 TTS Input Schema",
+  "description": "Step1 결과에서 TTS 생성에 필요한 정보를 추출한 입력",
+  "type": "object",
+  "required": ["step", "category", "title", "scenes"],
+  "properties": {
+    "step": {
+      "type": "string",
+      "const": "step3_tts",
+      "description": "단계 식별자"
+    },
+    "category": {
+      "type": "string",
+      "description": "카테고리 (예: category1)"
+    },
+    "title": {
+      "type": "string",
+      "description": "에피소드 제목"
+    },
+    "scenes": {
+      "type": "array",
+      "description": "TTS 생성 대상 씬 목록",
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "order", "narration", "tts_gender", "approx_duration_minutes"],
+        "properties": {
+          "scene_id": {
+            "type": "string",
+            "description": "씬 ID (예: scene1)"
+          },
+          "order": {
+            "type": "integer",
+            "description": "씬 순서"
+          },
+          "narration": {
+            "type": "string",
+            "description": "TTS가 읽을 나레이션 텍스트"
+          },
+          "tts_gender": {
+            "type": "string",
+            "enum": ["male", "female"],
+            "description": "TTS 화자 성별"
+          },
+          "approx_duration_minutes": {
+            "type": "number",
+            "description": "예상 길이(분)"
+          }
+        }
+      }
+    }
+  }
+}

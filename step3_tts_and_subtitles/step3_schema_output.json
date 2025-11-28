@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step3 TTS Output Schema",
+  "description": "TTS 및 자막 생성 결과 - Step4 영상 조립에 사용",
+  "type": "object",
+  "required": ["step", "title", "audio_files", "timeline"],
+  "properties": {
+    "step": {
+      "type": "string",
+      "const": "step3_tts_result",
+      "description": "단계 식별자"
+    },
+    "title": {
+      "type": "string",
+      "description": "에피소드 제목"
+    },
+    "audio_files": {
+      "type": "array",
+      "description": "생성된 오디오/자막 파일 목록",
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "order", "audio_filename", "subtitle_filename", "duration_seconds"],
+        "properties": {
+          "scene_id": {
+            "type": "string",
+            "description": "씬 ID"
+          },
+          "order": {
+            "type": "integer",
+            "description": "씬 순서"
+          },
+          "audio_filename": {
+            "type": "string",
+            "description": "오디오 파일명 (예: audio_scene1.mp3)"
+          },
+          "subtitle_filename": {
+            "type": "string",
+            "description": "자막 파일명 (예: scene1.srt)"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "description": "오디오 길이(초)"
+          }
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "description": "타임라인 정보 - Step4에서 영상 편집에 사용",
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "order", "start_time", "end_time"],
+        "properties": {
+          "scene_id": {
+            "type": "string",
+            "description": "씬 ID"
+          },
+          "order": {
+            "type": "integer",
+            "description": "씬 순서"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "시작 시간(초)"
+          },
+          "end_time": {
+            "type": "number",
+            "description": "종료 시간(초)"
+          }
+        }
+      }
+    }
+  }
+}

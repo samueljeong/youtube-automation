@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Step3 TTS & Subtitles Schema",
+  "description": "Step3 TTS  ê… ›1 - Ö%/ú% µi §§»",
+  "version": "1.0.0",
+
+  "input": {
+    "description": "Step1 ∞¸– TTS ›1– Dî\ Ù| îú\ Ö%",
+    "type": "object",
+    "required": ["step", "category", "title", "scenes"],
+    "properties": {
+      "step": {"type": "string", "const": "step3_tts"},
+      "category": {"type": "string"},
+      "title": {"type": "string"},
+      "scenes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "scene_id": {"type": "string"},
+            "order": {"type": "integer"},
+            "narration": {"type": "string"},
+            "tts_gender": {"type": "string", "enum": ["male", "female"]},
+            "approx_duration_minutes": {"type": "number"}
+          }
+        }
+      }
+    }
+  },
+
+  "output": {
+    "description": "TTS  ê… ›1 ∞¸",
+    "type": "object",
+    "required": ["step", "title", "audio_files", "timeline"],
+    "properties": {
+      "step": {"type": "string", "const": "step3_tts_result"},
+      "title": {"type": "string"},
+      "audio_files": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "scene_id": {"type": "string"},
+            "order": {"type": "integer"},
+            "audio_filename": {"type": "string"},
+            "subtitle_filename": {"type": "string"},
+            "duration_seconds": {"type": "number"}
+          }
+        }
+      },
+      "timeline": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "scene_id": {"type": "string"},
+            "order": {"type": "integer"},
+            "start_time": {"type": "number"},
+            "end_time": {"type": "number"}
+          }
+        }
+      }
+    }
+  }
+}
