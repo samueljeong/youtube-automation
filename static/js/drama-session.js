@@ -187,6 +187,45 @@ function clearQAHistory() {
 }
 
 
+// ===== Step 데이터 저장 시스템 =====
+const STEP_STORAGE_KEY = '_drama-step-data';
+
+function getStepData(stepId) {
+  try {
+    const data = localStorage.getItem(STEP_STORAGE_KEY);
+    if (!data) return null;
+    const parsed = JSON.parse(data);
+    return parsed[stepId] || null;
+  } catch (e) {
+    console.error('[Session] Step 데이터 로드 실패:', e);
+    return null;
+  }
+}
+
+function setStepData(stepId, data) {
+  try {
+    const existing = localStorage.getItem(STEP_STORAGE_KEY);
+    const parsed = existing ? JSON.parse(existing) : {};
+    parsed[stepId] = data;
+    localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(parsed));
+  } catch (e) {
+    console.error('[Session] Step 데이터 저장 실패:', e);
+  }
+}
+
+function clearStepData() {
+  localStorage.removeItem(STEP_STORAGE_KEY);
+}
+
+function getAllStepData() {
+  try {
+    const data = localStorage.getItem(STEP_STORAGE_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
 // ===== 내보내기 (전역 접근용) =====
 window.DramaSession = {
   // Q&A 대화 기록
@@ -194,7 +233,13 @@ window.DramaSession = {
   saveHistory: saveQAHistory,
   renderHistory: renderQAHistory,
   sendQuestion: sendQAQuestion,
-  clearHistory: clearQAHistory
+  clearHistory: clearQAHistory,
+
+  // Step 데이터 저장
+  getStepData,
+  setStepData,
+  clearStepData,
+  getAllStepData
 };
 
 // 페이지 로드 시 히스토리 렌더링

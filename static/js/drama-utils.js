@@ -4,11 +4,17 @@
  */
 
 // ===== UI 유틸리티 =====
-function showStatus(msg) {
+function showStatus(msg, type = 'info') {
   const bar = document.getElementById('status-bar');
   if (bar) {
     bar.textContent = msg;
+    bar.className = 'status-bar show';
+    if (type) bar.classList.add(`status-${type}`);
     bar.style.display = 'block';
+
+    // 자동 숨김 (성공/정보는 3초, 에러/경고는 5초)
+    const timeout = (type === 'error' || type === 'warning') ? 5000 : 3000;
+    setTimeout(() => hideStatus(), timeout);
   }
 }
 
@@ -157,6 +163,8 @@ function copyTextFromElement(element) {
 window.DramaUtils = {
   showStatus,
   hideStatus,
+  showLoading: showLoadingOverlay,
+  hideLoading: hideLoadingOverlay,
   showLoadingOverlay,
   hideLoadingOverlay,
   autoResize,
