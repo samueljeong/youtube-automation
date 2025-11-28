@@ -2587,7 +2587,7 @@ def api_drama_claude_step3():
         # OpenRouter API 호출 (OpenAI 호환)
         # max_tokens는 목표 글자수 기반으로 계산 (한글 1자 ≈ 2~3토큰, JSON 오버헤드 고려)
         if test_mode:
-            max_output_tokens = 4000  # 테스트 모드: 넉넉하게
+            max_output_tokens = 8000  # 테스트 모드: JSON 대본 생성에 충분하게
         else:
             # 목표 글자수 * 4 (JSON 메타데이터 + 한글 토큰 오버헤드) + 여유분
             max_output_tokens = min(32000, max(8000, int(target_chars * 4)))
