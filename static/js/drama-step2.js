@@ -746,8 +746,8 @@ async function generateAllAuto(skipConfirm = false) {
     const gptStatus = gptPrompts ? ' (GPT 프롬프트 적용)' : '';
     updateProgress(15, `✅ 분석 완료: ${step2Characters.length}명의 인물, ${step2Scenes.length}개의 씬${gptStatus}`, '인물 이미지 생성을 시작합니다');
 
-    // ⭐ 테스트 모드 확인 (이미지 1개만 생성)
-    const isTestMode = document.getElementById('test-mode-checkbox')?.checked || false;
+    // ⭐ 테스트 모드 확인 (이미지 1개만 생성) - window.testMode 사용
+    const isTestMode = window.testMode || false;
     if (isTestMode) {
       console.log('[TEST MODE] 테스트 모드 활성화 - 이미지 1개씩만 생성');
       showStatus('⚠️ 테스트 모드: 인물 1명, 씬 1개만 생성합니다');
