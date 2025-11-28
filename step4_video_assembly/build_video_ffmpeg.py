@@ -162,6 +162,93 @@ def generate_scene_clip(
         return None
 
 
+def create_thumbnail_intro(
+    thumbnail_path: str,
+    output_path: str,
+    duration: float = 1.5,
+    audio_path: Optional[str] = None
+) -> Optional[str]:
+    """
+    썸네일 이미지로 인트로 영상 생성 (영상 맨 앞에 삽입용)
+
+    Args:
+        thumbnail_path: 썸네일 이미지 경로
+        output_path: 출력 영상 경로
+        duration: 인트로 길이 (초, 기본 1.5초 - 시니어용)
+        audio_path: 배경 오디오 경로 (선택, BGM 일부 등)
+
+    Returns:
+        생성된 파일 경로 또는 None
+
+    Note:
+        - 썸네일과 영상 첫 화면 일치 → 시청자 신뢰도 증가
+        - 페이드 인 효과로 부드러운 시작
+        - 시니어 타겟은 1.5~2초 권장
+    """
+    if not os.path.exists(thumbnail_path):
+        print(f"[Thumbnail] Image not found: {thumbnail_path}")
+        return None
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    fps = 30
+
+    # 비디오 필터: 스케일 + 페이드 인 + 약간의 줌
+    vf_filter = (
+        "[0:v]"
+        "scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,"
+        "fade=t=in:st=0:d=0.8,"  # 0.8초 페이드 인
+        "format=yuv420p"
+        "[v]"
+    )
+
+    if audio_path and os.path.exists(audio_path):
+        # 오디오가 있으면 함께 포함
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loop", "1",
+            "-i", thumbnail_path,
+            "-i", audio_path,
+            "-filter_complex", vf_filter,
+            "-t", str(duration),
+            "-map", "[v]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-shortest",
+            output_path
+        ]
+    else:
+        # 무음 인트로 (나중에 BGM이 전체에 깔림)
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loop", "1",
+            "-i", thumbnail_path,
+            "-f", "lavfi",
+            "-i", f"anullsrc=r=44100:cl=stereo",  # 무음 오디오
+            "-filter_complex", vf_filter,
+            "-t", str(duration),
+            "-map", "[v]",
+            "-map", "1:a",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-shortest",
+            output_path
+        ]
+
+    try:
+        run_ffmpeg(cmd)
+        print(f"[Thumbnail] Created intro: {output_path} ({duration}s)")
+        return output_path
+    except RuntimeError:
+        return None
+
+
 def concat_videos(parts: List[str], output_path: str) -> Optional[str]:
     """
     여러 part 영상을 concat하여 최종 영상 생성
@@ -435,10 +522,12 @@ def build_video_ffmpeg(
     burn_subs: bool = True,
     bgm_path: Optional[str] = None,
     bgm_folder: Optional[str] = None,
-    bgm_volume: float = 0.15
+    bgm_volume: float = 0.15,
+    thumbnail_path: Optional[str] = None,
+    intro_duration: float = 1.5
 ) -> Dict[str, Any]:
     """
-    FFmpeg 기반 영상 제작 + BGM 믹싱 + 자막 번인
+    FFmpeg 기반 영상 제작 + 썸네일 인트로 + BGM 믹싱 + 자막 번인
 
     Args:
         step4_input: Step4 입력 JSON (cuts 배열 포함)
@@ -447,16 +536,19 @@ def build_video_ffmpeg(
         bgm_path: BGM 파일 경로 (직접 지정)
         bgm_folder: BGM 폴더 경로 (랜덤 선택용)
         bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.15)
+        thumbnail_path: 썸네일 이미지 경로 (인트로 생성용)
+        intro_duration: 썸네일 인트로 길이 (초, 기본 1.5초)
 
     Returns:
         Step4 출력 JSON
 
     Flow:
-        1) 씬별 클립 생성 (Ken Burns + 페이드)
-        2) 클립들 concat
-        3) BGM 자동 믹싱 (옵션)
-        4) 자막 번인 (옵션)
-        5) 최종 영상 저장
+        1) 씬별 클립 생성 (애니메이션 스타일)
+        2) 썸네일 인트로 생성 (옵션)
+        3) 클립들 concat (인트로 + 씬들)
+        4) BGM 자동 믹싱 (옵션)
+        5) 자막 번인 (옵션)
+        6) 최종 영상 저장
     """
     # FFmpeg 설치 확인
     if not check_ffmpeg_installed():
@@ -537,11 +629,33 @@ def build_video_ffmpeg(
             "error": "No clips generated - check image/audio files"
         }
 
-    # 2) part들 concat → raw 영상
+    # 2) 썸네일 인트로 생성 (옵션)
+    intro_added = False
+    intro_path = os.path.join(output_dir, f"{sanitized_title}_intro.mp4")
+
+    # 썸네일 경로: 파라미터 > step4_input에서
+    actual_thumbnail = thumbnail_path or step4_input.get("thumbnail_path")
+
+    if actual_thumbnail and os.path.exists(actual_thumbnail):
+        print(f"\n[FFmpeg] Creating thumbnail intro: {actual_thumbnail}")
+        intro_result = create_thumbnail_intro(
+            thumbnail_path=actual_thumbnail,
+            output_path=intro_path,
+            duration=intro_duration
+        )
+        if intro_result:
+            part_files.insert(0, intro_result)  # 맨 앞에 인트로 추가
+            total_duration += intro_duration
+            intro_added = True
+            print(f"[FFmpeg] Thumbnail intro added ({intro_duration}s)")
+    else:
+        print("\n[FFmpeg] No thumbnail specified, skipping intro")
+
+    # 3) part들 concat → raw 영상
     print(f"\n[FFmpeg] Concatenating {len(part_files)} clips...")
     concat_videos(part_files, raw_video_path)
 
-    # 3) BGM 자동 믹싱
+    # 4) BGM 자동 믹싱
     current_video = raw_video_path
     bgm_video_path = os.path.join(output_dir, f"{sanitized_title}_bgm.mp4")
     bgm_added = False
@@ -567,7 +681,7 @@ def build_video_ffmpeg(
     else:
         print("\n[FFmpeg] No BGM specified, skipping BGM mixing")
 
-    # 4) 자막 생성 및 번인
+    # 5) 자막 생성 및 번인
     final_video = current_video
 
     if burn_subs and step3_output:
@@ -592,6 +706,8 @@ def build_video_ffmpeg(
         "duration_seconds": round(total_duration, 1),
         "clips_count": len(part_files),
         "resolution": resolution,
+        "intro_added": intro_added,
+        "thumbnail_path": actual_thumbnail if intro_added else None,
         "bgm_added": bgm_added,
         "bgm_path": actual_bgm if bgm_added else None,
         "subtitles_burned": burn_subs and step3_output is not None,
