@@ -1,9 +1,21 @@
 """
 Build Metadata for Step 5
-YouTube 업로드용 메타데이터 생성
+YouTube 업로드용 메타데이터 생성 (GPT-4o-mini 지원)
 """
 
+import os
+import json
+from pathlib import Path
 from typing import Dict, Any, List
+
+
+def load_system_prompt() -> str:
+    """Load system prompt from metadata_prompt_rules.txt"""
+    prompt_path = Path(__file__).parent / "metadata_prompt_rules.txt"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+    else:
+        return ""  # 프롬프트 없으면 규칙 기반 사용
 
 
 # 카테고리별 기본 태그
@@ -14,6 +26,125 @@ DEFAULT_TAGS_BY_CATEGORY = {
 
 # YouTube 카테고리 ID (Entertainment = 24)
 DEFAULT_YOUTUBE_CATEGORY_ID = "24"
+
+
+def generate_metadata_with_gpt(step1_output: Dict[str, Any], thumbnail_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    GPT-4o-mini를 사용하여 YouTube 메타데이터 생성
+
+    Args:
+        step1_output: Step1 대본 생성 결과
+        thumbnail_data: 썸네일 생성 결과 (선택)
+
+    Returns:
+        YouTube 메타데이터 (title, description, tags)
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    titles = step1_output.get("titles", {})
+    title = titles.get("main_title", "Untitled")
+    category = step1_output.get("category", "category1")
+    scenes = step1_output.get("scenes", [])
+
+    print(f"[Step5-Metadata] Generating metadata for: {title}")
+
+    if not api_key:
+        print("[WARNING] OPENAI_API_KEY not set. Using rule-based generation.")
+        return _generate_rule_based_metadata(step1_output, thumbnail_data)
+
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=api_key)
+        system_prompt = load_system_prompt()
+
+        if not system_prompt:
+            print("[WARNING] metadata_prompt_rules.txt not found. Using rule-based generation.")
+            return _generate_rule_based_metadata(step1_output, thumbnail_data)
+
+        print("[GPT-MINI] Calling GPT-4o-mini for metadata generation...")
+
+        input_for_gpt = {
+            "title": title,
+            "category": category,
+            "scenes": [
+                {
+                    "id": scene.get("id"),
+                    "narration": scene.get("narration", "")[:100],  # 처음 100자만
+                    "emotion": scene.get("emotion", "nostalgic")
+                }
+                for scene in scenes[:2]  # 처음 2개 씬만
+            ],
+            "thumbnail_text": thumbnail_data.get("thumbnail_text", "") if thumbnail_data else ""
+        }
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(input_for_gpt, ensure_ascii=False)}
+            ],
+            max_tokens=1024,
+            temperature=0.7
+        )
+
+        response_text = response.choices[0].message.content
+        print(f"[GPT-MINI] Response received ({len(response_text)} chars)")
+
+        result = _parse_json_response(response_text)
+        result["categoryId"] = DEFAULT_YOUTUBE_CATEGORY_ID
+        return result
+
+    except ImportError:
+        print("[ERROR] openai package not installed. Using rule-based generation.")
+        return _generate_rule_based_metadata(step1_output, thumbnail_data)
+    except Exception as e:
+        print(f"[ERROR] API call failed: {e}")
+        print("[FALLBACK] Using rule-based generation.")
+        return _generate_rule_based_metadata(step1_output, thumbnail_data)
+
+
+def _parse_json_response(response_text: str) -> Dict[str, Any]:
+    """Extract and parse JSON from response text"""
+    text = response_text.strip()
+
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+
+    if text.endswith("```"):
+        text = text[:-3]
+
+    text = text.strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        print(f"[ERROR] JSON parsing failed: {e}")
+        raise
+
+
+def _generate_rule_based_metadata(step1_output: Dict[str, Any], thumbnail_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    """규칙 기반 메타데이터 생성 (fallback)"""
+    titles = step1_output.get("titles", {})
+    title = titles.get("main_title", "Untitled")
+    category = step1_output.get("category", "category1")
+    scenes = step1_output.get("scenes", [])
+
+    # 설명 생성
+    first_narration = scenes[0].get("narration", "")[:100] if scenes else ""
+    description = f"{title}\n\n{first_narration}\n\n오늘도 함께해 주셔서 감사합니다.\n구독과 좋아요 부탁드립니다."
+
+    # 태그 생성
+    default_tags = DEFAULT_TAGS_BY_CATEGORY.get(category, ["시니어", "감성"])
+    tags = ["추억", "그시절", "옛날이야기"] + default_tags
+
+    return {
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "categoryId": DEFAULT_YOUTUBE_CATEGORY_ID
+    }
 
 
 def build_metadata(step5_input: Dict[str, Any]) -> Dict[str, Any]:

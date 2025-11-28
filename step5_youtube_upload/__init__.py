@@ -5,7 +5,7 @@ YouTube Data API v3를 사용한 영상 업로드 자동화 모듈
 
 from .schedule_upload import schedule_or_upload
 from .channel_router import get_channel_id, get_channel_name, list_available_channels
-from .build_metadata import build_metadata
+from .build_metadata import build_metadata, generate_metadata_with_gpt
 from .youtube_auth import get_youtube_client, validate_credentials
 
 __all__ = [
@@ -14,6 +14,7 @@ __all__ = [
     "get_channel_name",
     "list_available_channels",
     "build_metadata",
+    "generate_metadata_with_gpt",
     "get_youtube_client",
     "validate_credentials"
 ]
