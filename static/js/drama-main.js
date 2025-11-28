@@ -167,6 +167,102 @@ window.updateCostDisplay = function() {
   if (step4El) step4El.textContent = formatCost(window.dramaCosts.step4);
 };
 
+// ===== 🤖 모델 설정 및 상태 추적 =====
+window.dramaModels = {
+  step1: {
+    plan: { name: 'GPT-4o-mini', status: 'pending' },
+    struct: { name: 'GPT-4o-mini', status: 'pending' },
+    write: { name: 'Claude 4.5', status: 'pending' }
+  },
+  step1_5: { name: 'GPT-4o-mini', status: 'pending' },
+  step2: { name: 'Gemini 2.5 Flash', status: 'pending' },
+  step3: { name: 'Google TTS', status: 'pending' },
+  step4: { name: 'Creatomate', status: 'pending' },
+  step5: { name: 'YouTube API', status: 'pending' }
+};
+
+// 모델 상태 업데이트 함수
+window.updateModelStatus = function(step, subStep, status) {
+  // status: 'pending', 'running', 'completed', 'error'
+  const statusIcons = {
+    pending: '',
+    running: '⏳',
+    completed: '✓',
+    error: '✗'
+  };
+
+  if (subStep && window.dramaModels[step] && window.dramaModels[step][subStep]) {
+    window.dramaModels[step][subStep].status = status;
+    const el = document.getElementById(`model-${step}-${subStep}`);
+    if (el) {
+      const model = window.dramaModels[step][subStep];
+      el.innerHTML = `${model.name} ${statusIcons[status]}`;
+      el.style.color = status === 'completed' ? '#4ade80' :
+                       status === 'running' ? '#fbbf24' :
+                       status === 'error' ? '#f87171' : 'rgba(255,255,255,0.5)';
+    }
+  } else if (window.dramaModels[step]) {
+    if (window.dramaModels[step].name) {
+      window.dramaModels[step].status = status;
+    }
+    const el = document.getElementById(`model-${step}`);
+    if (el) {
+      const model = window.dramaModels[step];
+      el.innerHTML = `${model.name} ${statusIcons[status]}`;
+      el.style.color = status === 'completed' ? '#4ade80' :
+                       status === 'running' ? '#fbbf24' :
+                       status === 'error' ? '#f87171' : 'rgba(255,255,255,0.5)';
+    }
+  }
+};
+
+// 모델 이름 변경 함수 (설정 변경 시 동기화)
+window.setModelName = function(step, subStep, newName) {
+  if (subStep && window.dramaModels[step] && window.dramaModels[step][subStep]) {
+    window.dramaModels[step][subStep].name = newName;
+  } else if (window.dramaModels[step] && window.dramaModels[step].name) {
+    window.dramaModels[step].name = newName;
+  }
+  window.refreshModelDisplay();
+};
+
+// 모델 표시 새로고침
+window.refreshModelDisplay = function() {
+  const statusIcons = { pending: '', running: '⏳', completed: '✓', error: '✗' };
+
+  // Step1 하위 모델들
+  ['plan', 'struct', 'write'].forEach(sub => {
+    const el = document.getElementById(`model-step1-${sub}`);
+    if (el && window.dramaModels.step1[sub]) {
+      const m = window.dramaModels.step1[sub];
+      el.innerHTML = `${m.name} ${statusIcons[m.status]}`;
+    }
+  });
+
+  // 나머지 단계
+  ['step1_5', 'step2', 'step3', 'step4', 'step5'].forEach(step => {
+    const el = document.getElementById(`model-${step}`);
+    if (el && window.dramaModels[step]) {
+      const m = window.dramaModels[step];
+      el.innerHTML = `${m.name} ${statusIcons[m.status]}`;
+    }
+  });
+};
+
+// 모든 모델 상태 초기화
+window.resetModelStatus = function() {
+  Object.keys(window.dramaModels).forEach(step => {
+    if (window.dramaModels[step].name) {
+      window.dramaModels[step].status = 'pending';
+    } else {
+      Object.keys(window.dramaModels[step]).forEach(sub => {
+        window.dramaModels[step][sub].status = 'pending';
+      });
+    }
+  });
+  window.refreshModelDisplay();
+};
+
 // 설정 객체
 let config = {
   categories: ['10min', '20min', '30min'],

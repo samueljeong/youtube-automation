@@ -146,6 +146,11 @@
               <div style="flex: 1;">
                 <div style="font-size: .75rem; font-weight: 600; color: white;">대본 생성</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span>기획: <span id="model-step1-plan">GPT-4o-mini</span></span><br>
+                  <span>구조: <span id="model-step1-struct">GPT-4o-mini</span></span><br>
+                  <span>작성: <span id="model-step1-write">Claude 4.5</span></span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>
@@ -158,78 +163,69 @@
               <div style="flex: 1;">
                 <div style="font-size: .75rem; font-weight: 600; color: white;">프롬프트 분석</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span id="model-step1_5">GPT-4o-mini</span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>
           </div>
 
-          <!-- Step 2 -->
+          <!-- Step 2 - 이미지 생성 -->
           <div class="progress-step-sidebar" data-step="step2">
             <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
               <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">2</div>
               <div style="flex: 1;">
-                <div style="font-size: .75rem; font-weight: 600; color: white;">대사+지문</div>
+                <div style="font-size: .75rem; font-weight: 600; color: white;">이미지 생성</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span id="model-step2">Gemini 2.5 Flash</span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>
           </div>
 
-          <!-- Step 3 -->
+          <!-- Step 3 - 음성 생성 -->
           <div class="progress-step-sidebar" data-step="step3">
             <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
               <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">3</div>
               <div style="flex: 1;">
-                <div style="font-size: .75rem; font-weight: 600; color: white;">대본 완성</div>
+                <div style="font-size: .75rem; font-weight: 600; color: white;">음성+자막</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span id="model-step3">Google TTS</span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>
           </div>
 
-          <!-- Step 4 -->
+          <!-- Step 4 - 영상 제작 -->
           <div class="progress-step-sidebar" data-step="step4">
             <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
               <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">4</div>
               <div style="flex: 1;">
-                <div style="font-size: .75rem; font-weight: 600; color: white;">이미지 생성</div>
+                <div style="font-size: .75rem; font-weight: 600; color: white;">영상 제작</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span id="model-step4">Creatomate</span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>
           </div>
 
-          <!-- Step 5 -->
+          <!-- Step 5 - YouTube 업로드 -->
           <div class="progress-step-sidebar" data-step="step5">
             <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
               <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">5</div>
               <div style="flex: 1;">
-                <div style="font-size: .75rem; font-weight: 600; color: white;">음성+자막</div>
-                <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
-              </div>
-              <div class="step-status-icon" style="font-size: .8rem;">○</div>
-            </div>
-          </div>
-
-          <!-- Step 6 -->
-          <div class="progress-step-sidebar" data-step="step6">
-            <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
-              <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">6</div>
-              <div style="flex: 1;">
-                <div style="font-size: .75rem; font-weight: 600; color: white;">영상 제작</div>
-                <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
-              </div>
-              <div class="step-status-icon" style="font-size: .8rem;">○</div>
-            </div>
-          </div>
-
-          <!-- Step 7 -->
-          <div class="progress-step-sidebar" data-step="step7">
-            <div style="display: flex; align-items: center; gap: .4rem; padding: .4rem .5rem; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid rgba(255,255,255,0.3);">
-              <div class="step-indicator" style="min-width: 20px; height: 20px; background: rgba(255,255,255,0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .7rem; font-weight: 700; color: white;">7</div>
-              <div style="flex: 1;">
                 <div style="font-size: .75rem; font-weight: 600; color: white;">YouTube 업로드</div>
                 <div class="step-substatus" style="font-size: .65rem; color: rgba(255,255,255,0.7);">대기</div>
+                <div class="step-models" style="font-size: .55rem; color: rgba(255,255,255,0.5); margin-top: 2px;">
+                  <span id="model-step5">YouTube API</span>
+                </div>
               </div>
               <div class="step-status-icon" style="font-size: .8rem;">○</div>
             </div>

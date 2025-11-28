@@ -709,6 +709,11 @@ function clearStep3() {
 // ===== 자동화 모드용 TTS 및 영상 생성 =====
 async function runAutoTTSAndVideo() {
   try {
+    // 🤖 모델 상태 업데이트 - 시작
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step3', null, 'running');
+    }
+
     // 1. 지문 추출 (자동)
     console.log('[AUTO] 지문 추출 중...');
     extractNarration();
@@ -767,6 +772,11 @@ async function runAutoTTSAndVideo() {
       updateProgressIndicator('step5');
     }
 
+    // 🤖 모델 상태 업데이트 - 완료
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step3', null, 'completed');
+    }
+
     // 4. 영상 생성을 위한 이미지 자동 선택
     console.log('[AUTO] 영상 생성용 이미지 자동 선택...');
     if (typeof window.DramaStep4 !== 'undefined' && typeof window.DramaStep4.autoSelectImages === 'function') {
@@ -792,6 +802,10 @@ async function runAutoTTSAndVideo() {
     console.error('[AUTO] 자동화 오류:', err);
     showStatus(`❌ 자동화 오류: ${err.message}`);
     hideLoadingOverlay();
+    // 🤖 모델 상태 업데이트 - 에러
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step3', null, 'error');
+    }
   } finally {
     if (typeof window.DramaStep2 !== 'undefined') {
       window.DramaStep2.isFullAutoMode = false;

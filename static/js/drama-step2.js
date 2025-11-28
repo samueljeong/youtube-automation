@@ -633,6 +633,12 @@ async function generateAllAuto(skipConfirm = false) {
   }
 
   isAutoGenerating = true;
+
+  // 🤖 모델 상태 업데이트 - 시작
+  if (typeof window.updateModelStatus === 'function') {
+    window.updateModelStatus('step2', null, 'running');
+  }
+
   const progressContainer = document.getElementById('auto-generate-progress');
   const progressBar = document.getElementById('auto-generate-progress-bar');
   const statusText = document.getElementById('auto-generate-status');
@@ -884,12 +890,21 @@ async function generateAllAuto(skipConfirm = false) {
     // runAutoTTSAndVideo는 runStep2AndStep3InParallel에서 별도로 처리됨
     console.log('[AUTO] Step2 이미지 생성 완료 (TTS는 병렬로 처리 중)');
 
+    // 🤖 모델 상태 업데이트 - 완료
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step2', null, 'completed');
+    }
+
   } catch (err) {
     console.error('전체 자동 생성 오류:', err);
     updateProgress(0, `❌ 오류 발생: ${err.message}`, '다시 시도해주세요');
     showStatus(`❌ 자동 생성 오류: ${err.message}`);
     if (typeof updateStepStatus === 'function') {
       updateStepStatus('step2', 'error', err.message.substring(0, 30));
+    }
+    // 🤖 모델 상태 업데이트 - 에러
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step2', null, 'error');
     }
   } finally {
     isAutoGenerating = false;

@@ -40,6 +40,9 @@ async function analyzePromptsWithGPT(script, videoCategory) {
     if (typeof updateStepStatus === 'function') {
       updateStepStatus('step1_5', 'working', 'GPT 분석 중...');
     }
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1_5', null, 'running');
+    }
 
     const response = await fetch('/api/drama/gpt-analyze-prompts', {
       method: 'POST',
@@ -75,6 +78,9 @@ async function analyzePromptsWithGPT(script, videoCategory) {
       // 💰 Step 1.5 비용 추가
       if (data.cost && typeof window.addCost === 'function') {
         window.addCost('step1_5', data.cost);
+      }
+      if (typeof window.updateModelStatus === 'function') {
+        window.updateModelStatus('step1_5', null, 'completed');
       }
 
       // 썸네일 프롬프트 별도 저장
@@ -228,6 +234,9 @@ async function executeStep1() {
     // 1단계: GPT-4o-mini 스토리 기획
     showLoadingOverlay('GPT 기획 중 (1/3)', 'GPT-4o-mini가 스토리 컨셉을 기획하고 있습니다...');
     showStatus('🎯 Step1-1: GPT-4o-mini 스토리 기획 중...');
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1', 'plan', 'running');
+    }
 
     const planStep1Response = await fetch('/api/drama/gpt-plan-step1', {
       method: 'POST',
@@ -249,6 +258,9 @@ async function executeStep1() {
     if (planStep1Data.cost && typeof window.addCost === 'function') {
       window.addCost('step1', planStep1Data.cost);
     }
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1', 'plan', 'completed');
+    }
 
     console.log('[Step1-1] GPT 기획 완료');
 
@@ -260,6 +272,9 @@ async function executeStep1() {
     // 2단계: GPT-4o-mini 장면 구성
     showLoadingOverlay('GPT 구조화 중 (2/3)', 'GPT-4o-mini가 장면 구성을 만들고 있습니다...');
     showStatus('📐 Step1-2: GPT-4o-mini 장면 구조화 중...');
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1', 'struct', 'running');
+    }
 
     const planStep2Response = await fetch('/api/drama/gpt-plan-step2', {
       method: 'POST',
@@ -282,6 +297,9 @@ async function executeStep1() {
     if (planStep2Data.cost && typeof window.addCost === 'function') {
       window.addCost('step1', planStep2Data.cost);
     }
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1', 'struct', 'completed');
+    }
 
     console.log('[Step1-2] 장면 구성 완료');
 
@@ -298,6 +316,9 @@ async function executeStep1() {
     // 3단계: Claude로 최종 대본 작성
     showLoadingOverlay('Claude 대본 작성 중 (3/3)', 'Claude Sonnet 4.5가 대본을 작성하고 있습니다...');
     showStatus('🎬 Step1-3: Claude 대본 완성 중... (약 30-60초 소요)');
+    if (typeof window.updateModelStatus === 'function') {
+      window.updateModelStatus('step1', 'write', 'running');
+    }
 
     const response = await fetch('/api/drama/claude-step3', {
       method: 'POST',
@@ -341,6 +362,9 @@ async function executeStep1() {
       // 💰 Step1 비용 추가 (Claude Sonnet)
       if (data.cost && typeof window.addCost === 'function') {
         window.addCost('step1', data.cost);
+      }
+      if (typeof window.updateModelStatus === 'function') {
+        window.updateModelStatus('step1', 'write', 'completed');
       }
 
       const resultTextarea = document.getElementById('step1-result') || document.getElementById('step3-result');
