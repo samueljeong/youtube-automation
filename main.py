@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 from step1_script_generation import run_step1
 from step2_image_generation import image_prompt_builder, call_gpt_mini
 from step3_tts_and_subtitles import tts_script_builder, call_tts_engine
+from step4_thumbnail_generation import call_image_model as thumbnail_generator
 from step4_video_assembly import video_builder
 from step5_youtube_upload import schedule_upload
 
@@ -297,6 +298,18 @@ Examples:
                 step1_output,
                 step3_output_path
             )
+
+        # ============================================================
+        # Step 3.5: Thumbnail Generation
+        # ============================================================
+        thumbnail_output_path = os.path.join(OUTPUTS_DIR, "thumbnail_output.json")
+
+        thumbnail_output = run_step(
+            "Step 3.5: Thumbnail Generation",
+            thumbnail_generator.run_thumbnail_generation,
+            step1_output,
+            thumbnail_output_path
+        )
 
         # ============================================================
         # Step 4: Video Assembly
