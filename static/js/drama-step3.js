@@ -224,6 +224,16 @@ function extractNarrationForTTS() {
       scenes = data.scenes;
     }
 
+    // 하이라이트 씬도 추가 (있는 경우)
+    if (data.highlight && data.highlight.scenes && Array.isArray(data.highlight.scenes)) {
+      const highlightTexts = data.highlight.scenes
+        .map(s => s.preview_text || s.narration || '')
+        .filter(t => t.trim());
+      if (highlightTexts.length > 0) {
+        ttsTexts.push(highlightTexts.join('\n'));
+      }
+    }
+
     if (scenes && scenes.length > 0) {
       scenes.forEach((scene, idx) => {
         // ⭐ TTS가 읽을 텍스트만 추출 (메타데이터 제외)
@@ -231,30 +241,35 @@ function extractNarrationForTTS() {
         // 제외할 것: scene_title, scene_description, emotion, visual, stage_direction 등
 
         // 1. tts_text 필드가 있으면 우선 사용 (가장 정확)
-        if (scene.tts_text) {
-          ttsTexts.push(scene.tts_text);
+        if (scene.tts_text && typeof scene.tts_text === 'string') {
+          ttsTexts.push(scene.tts_text.trim());
           return;
         }
 
-        // 2. narration 필드 (나레이션)
-        if (scene.narration && typeof scene.narration === 'string') {
+        // 2. narration 필드 (나레이션) - JSON 키값만 있고 실제 텍스트가 없을 수 있음
+        if (scene.narration && typeof scene.narration === 'string' && scene.narration.length > 5) {
           // 메타데이터 패턴 제외
           let text = scene.narration;
           // "장면 1:", "Scene 1:" 등 제거
           text = text.replace(/^(장면|씬|Scene)\s*\d+\s*[:：]?\s*/gi, '');
-          // "[장소]", "(시간)" 등 제거
+          // "[장소]", "(시간)" 등 제거 - 첫 줄만
           text = text.replace(/^\[.*?\]\s*/g, '');
           text = text.replace(/^\(.*?\)\s*/g, '');
-          if (text.trim()) {
+          // JSON 키 형식 제거 (예: "title":, "emotion": 등)
+          text = text.replace(/"[a-zA-Z_]+"\s*:/g, '');
+          // 중괄호, 대괄호 제거
+          text = text.replace(/[\{\}\[\]]/g, '');
+          if (text.trim().length > 5) {
             ttsTexts.push(text.trim());
           }
         }
 
         // 3. scene_narration 필드
-        if (scene.scene_narration && typeof scene.scene_narration === 'string') {
+        if (scene.scene_narration && typeof scene.scene_narration === 'string' && scene.scene_narration.length > 5) {
           let text = scene.scene_narration;
           text = text.replace(/^(장면|씬|Scene)\s*\d+\s*[:：]?\s*/gi, '');
-          if (text.trim()) {
+          text = text.replace(/[\{\}\[\]]/g, '');
+          if (text.trim().length > 5) {
             ttsTexts.push(text.trim());
           }
         }
@@ -267,7 +282,9 @@ function extractNarrationForTTS() {
               let dialogue = d.text || d.dialogue || d.line;
               // "(감정)" 패턴 제거
               dialogue = dialogue.replace(/\([^)]+\)/g, '').trim();
-              if (dialogue) {
+              // JSON 형식 제거
+              dialogue = dialogue.replace(/[\{\}\[\]]/g, '');
+              if (dialogue && dialogue.length > 2) {
                 ttsTexts.push(dialogue);
               }
             }
@@ -276,21 +293,26 @@ function extractNarrationForTTS() {
       });
 
       if (ttsTexts.length > 0) {
-        document.getElementById('step5-script-text').value = ttsTexts.join('\n\n');
-        showStatus(`📝 TTS용 텍스트 ${ttsTexts.length}개 추출 완료`);
+        // 중복 제거 및 정리
+        const cleanedTexts = [...new Set(ttsTexts)].filter(t => t && t.length > 5);
+        document.getElementById('step5-script-text').value = cleanedTexts.join('\n\n');
+        showStatus(`📝 TTS용 텍스트 ${cleanedTexts.length}개 추출 완료`);
         setTimeout(hideStatus, 2000);
-        console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공:', ttsTexts.length + '개');
+        console.log('[extractNarrationForTTS] TTS 텍스트 추출 성공:', cleanedTexts.length + '개');
         return;
       }
     }
 
-    // JSON에서 추출 실패시 기존 함수 사용
-    console.log('[extractNarrationForTTS] JSON에서 TTS 텍스트 없음, 기존 방식 사용');
-    extractNarration();
+    // JSON에서 추출 실패시 에러 표시 (전체 텍스트를 사용하지 않음!)
+    console.warn('[extractNarrationForTTS] JSON에서 TTS 텍스트 없음');
+    showStatus('⚠️ 대본에서 나레이션을 찾을 수 없습니다. 대본 형식을 확인해주세요.');
+    document.getElementById('step5-script-text').value = '';
 
   } catch (e) {
-    console.log('[extractNarrationForTTS] JSON 파싱 실패, 기존 방식 사용:', e.message);
-    extractNarration();
+    console.error('[extractNarrationForTTS] JSON 파싱 실패:', e.message);
+    // 파싱 실패시에도 전체 텍스트를 사용하지 않고 에러 표시
+    showStatus('⚠️ 대본 JSON 형식 오류. 대본을 다시 생성해주세요.');
+    document.getElementById('step5-script-text').value = '';
   }
 }
 

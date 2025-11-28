@@ -73,9 +73,26 @@ async function generateAutoMetadata() {
 
   btn.disabled = true;
   btn.textContent = '생성 중...';
-  showStatus('대본을 분석하여 제목, 설명, 태그를 생성 중...');
 
   try {
+    // 1. Step1.5에서 이미 생성된 youtubeMetadata가 있는지 확인
+    const gptPrompts = window.gptAnalyzedPrompts || JSON.parse(localStorage.getItem('_drama-gpt-prompts') || 'null');
+
+    if (gptPrompts && gptPrompts.youtubeMetadata) {
+      const metadata = gptPrompts.youtubeMetadata;
+      document.getElementById('step7-title').value = metadata.title || '';
+      document.getElementById('step7-description').value = metadata.description || '';
+      document.getElementById('step7-tags').value = metadata.tags || '';
+      showStatus('✅ Step1.5에서 생성된 메타데이터를 적용했습니다!');
+      console.log('[YouTube-Metadata] Step1.5 메타데이터 사용:', metadata);
+      btn.disabled = false;
+      btn.textContent = '대본 기반 자동 입력';
+      return;
+    }
+
+    // 2. 없으면 API 호출하여 새로 생성
+    showStatus('대본을 분석하여 제목, 설명, 태그를 생성 중...');
+
     const response = await fetch('/api/drama/generate-metadata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -100,6 +117,28 @@ async function generateAutoMetadata() {
     btn.textContent = '대본 기반 자동 입력';
   }
 }
+
+// ===== Step5 유튜브 메타데이터 자동 로드 (Step1.5 완료 후 호출) =====
+function loadYoutubeMetadataFromStep1_5() {
+  try {
+    const gptPrompts = window.gptAnalyzedPrompts || JSON.parse(localStorage.getItem('_drama-gpt-prompts') || 'null');
+
+    if (gptPrompts && gptPrompts.youtubeMetadata) {
+      const metadata = gptPrompts.youtubeMetadata;
+      document.getElementById('step7-title').value = metadata.title || '';
+      document.getElementById('step7-description').value = metadata.description || '';
+      document.getElementById('step7-tags').value = metadata.tags || '';
+      console.log('[YouTube-Metadata] Step1.5에서 자동 로드됨');
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.warn('[YouTube-Metadata] 자동 로드 실패:', e);
+    return false;
+  }
+}
+
+window.loadYoutubeMetadataFromStep1_5 = loadYoutubeMetadataFromStep1_5;
 
 // ===== 유튜브 인증 =====
 async function authenticateYouTube() {

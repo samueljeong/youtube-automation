@@ -97,7 +97,14 @@ async function analyzePromptsWithGPT(script, videoCategory) {
       }
 
       const thumbnailInfo = gptAnalyzedPrompts.thumbnail ? ', 썸네일 프롬프트 생성' : '';
-      showStatus(`✅ Step 1.5 완료: ${gptAnalyzedPrompts.characters?.length || 0}명의 인물, ${gptAnalyzedPrompts.scenes?.length || 0}개의 씬 프롬프트${thumbnailInfo}`);
+      const youtubeInfo = gptAnalyzedPrompts.youtubeMetadata ? ', 유튜브 메타데이터 생성' : '';
+      showStatus(`✅ Step 1.5 완료: ${gptAnalyzedPrompts.characters?.length || 0}명의 인물, ${gptAnalyzedPrompts.scenes?.length || 0}개의 씬 프롬프트${thumbnailInfo}${youtubeInfo}`);
+
+      // 유튜브 메타데이터 자동 로드
+      if (gptAnalyzedPrompts.youtubeMetadata && typeof loadYoutubeMetadataFromStep1_5 === 'function') {
+        loadYoutubeMetadataFromStep1_5();
+        console.log('[GPT-Analyze] 유튜브 메타데이터 자동 적용:', gptAnalyzedPrompts.youtubeMetadata.title);
+      }
 
       // 완료 상태 표시
       if (typeof updateStepStatus === 'function') {
@@ -561,31 +568,72 @@ function autoSelectTTSVoiceByGender() {
 
     // 첫 번째 캐릭터(주인공)의 성별 확인
     const mainCharacter = prompts.characters[0];
-    const gender = (mainCharacter.gender || mainCharacter.sex || '').toLowerCase();
+    const gender = (mainCharacter.gender || '').toLowerCase();
     const name = mainCharacter.name || mainCharacter.nameKo || '';
+    const description = (mainCharacter.description || mainCharacter.imagePrompt || '').toLowerCase();
 
-    // 성별 판단 (이름이나 설명에서도 추측)
+    // 성별 판단 - 우선순위: gender 필드 > description 분석 > 이름 추측
     let isFemale = false;
-    if (gender.includes('female') || gender.includes('여') || gender.includes('woman') || gender.includes('girl')) {
+    let genderSource = 'unknown';
+
+    // 1. gender 필드 확인 (GPT 분석에서 반드시 포함됨)
+    if (gender === 'female' || gender === '여성' || gender === 'woman') {
       isFemale = true;
-    } else if (gender.includes('male') || gender.includes('남') || gender.includes('man') || gender.includes('boy')) {
+      genderSource = 'gender field';
+    } else if (gender === 'male' || gender === '남성' || gender === 'man') {
       isFemale = false;
-    } else {
-      // 이름에서 추측 (한국 이름)
-      const femaleNameEndings = ['아', '이', '진', '미', '희', '영', '정', '숙', '자', '선'];
+      genderSource = 'gender field';
+    }
+    // 2. description/imagePrompt에서 추출
+    else if (description.includes('woman') || description.includes('female') || description.includes('girl') ||
+             description.includes('여성') || description.includes('할머니') || description.includes('어머니') ||
+             description.includes('grandmother') || description.includes('mother')) {
+      isFemale = true;
+      genderSource = 'description';
+    } else if (description.includes('man') || description.includes('male') || description.includes('boy') ||
+               description.includes('남성') || description.includes('할아버지') || description.includes('아버지') ||
+               description.includes('grandfather') || description.includes('father')) {
+      isFemale = false;
+      genderSource = 'description';
+    }
+    // 3. 이름에서 추측 (한국 이름) - 마지막 수단
+    else {
+      const femaleNameEndings = ['아', '이', '진', '미', '희', '영', '정', '숙', '자', '선', '은', '현', '연'];
+      const maleNameEndings = ['수', '준', '호', '석', '철', '민', '우', '현', '진', '혁'];
       const lastName = name.slice(-1);
-      isFemale = femaleNameEndings.includes(lastName);
+
+      if (femaleNameEndings.includes(lastName)) {
+        isFemale = true;
+        genderSource = 'name guess (female)';
+      } else if (maleNameEndings.includes(lastName)) {
+        isFemale = false;
+        genderSource = 'name guess (male)';
+      } else {
+        // 기본값: 남성
+        isFemale = false;
+        genderSource = 'default (male)';
+      }
     }
 
-    // 음성 선택: 여성 → 여성B (ko-KR-Wavenet-B), 남성 → 남성A (ko-KR-Wavenet-C)
+    // 음성 선택: 여성 → 여성 음성, 남성 → 남성 음성
+    // Google Cloud TTS 한국어 음성:
+    // - ko-KR-Wavenet-A: 여성 (높은 톤)
+    // - ko-KR-Wavenet-B: 여성 (부드러운 톤)
+    // - ko-KR-Wavenet-C: 남성 (낮은 톤)
+    // - ko-KR-Wavenet-D: 남성 (중간 톤)
     const selectedVoice = isFemale ? 'ko-KR-Wavenet-B' : 'ko-KR-Wavenet-C';
 
-    console.log(`[TTS-Voice] 주인공: ${name}, 성별: ${isFemale ? '여성' : '남성'} → 음성: ${selectedVoice}`);
+    console.log(`[TTS-Voice] 주인공: ${name}, 성별: ${isFemale ? '여성' : '남성'} (${genderSource}) → 음성: ${selectedVoice}`);
 
-    // TTS 음성 설정 업데이트
-    if (typeof window.step3SelectedVoice !== 'undefined') {
-      window.step3SelectedVoice = selectedVoice;
+    // TTS 음성 설정 업데이트 (DramaStep3 모듈)
+    if (typeof window.DramaStep3 !== 'undefined') {
+      // step3SelectedVoice는 모듈 내부 변수이므로 직접 접근 불가
+      // 대신 전역 변수 사용
     }
+
+    // 전역 변수 업데이트 (drama-step3.js에서 참조)
+    window.step3SelectedVoice = selectedVoice;
+    window.step5SelectedVoice = selectedVoice;
 
     // UI 업데이트 (음성 선택 버튼)
     const voiceOptions = document.querySelectorAll('.step5-voice-option[data-provider="google"]');
@@ -593,11 +641,16 @@ function autoSelectTTSVoiceByGender() {
       opt.classList.remove('selected');
       if (opt.dataset.voice === selectedVoice) {
         opt.classList.add('selected');
+        console.log(`[TTS-Voice] UI 업데이트: ${selectedVoice} 선택됨`);
       }
     });
 
-    // 전역 변수 업데이트
+    // localStorage에 저장 (세션 유지)
     localStorage.setItem('_drama-tts-voice', selectedVoice);
+
+    // 상태 표시
+    showStatus(`🎤 TTS 음성 자동 선택: ${isFemale ? '여성' : '남성'} 음성`);
+    setTimeout(hideStatus, 2000);
 
   } catch (err) {
     console.warn('[TTS-Voice] 자동 선택 실패:', err);

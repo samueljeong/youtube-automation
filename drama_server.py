@@ -6009,7 +6009,10 @@ def api_gpt_analyze_prompts():
   "visualStyle": "전체 영상의 시각적 스타일 설명 (예: cinematic, warm lighting, soft focus)",
   "characters": [
     {
-      "name": "캐릭터명",
+      "name": "캐릭터명 (한국어)",
+      "nameEn": "캐릭터명 (영문)",
+      "gender": "male 또는 female",
+      "currentAge": 현재 나이 (숫자),
       "description": "캐릭터 설명 (한국어)",
       "imagePrompt": "영문 이미지 프롬프트 - 나이, 성별, 외모, 표정, 의상 등 상세히"
     }
@@ -6017,8 +6020,11 @@ def api_gpt_analyze_prompts():
   "scenes": [
     {
       "sceneNumber": 1,
+      "timeContext": "현재 또는 회상 (예: 'present', 'flashback_childhood', 'flashback_youth', 'flashback_30s')",
+      "characterAge": "이 장면에서 캐릭터의 나이 (회상이면 과거 나이)",
       "description": "장면 설명 (한국어)",
       "backgroundPrompt": "영문 배경 프롬프트 - 장소, 조명, 분위기, 시간대 등",
+      "characterPrompt": "이 장면에서 캐릭터의 나이에 맞는 영문 외모 프롬프트 (회상 씬이면 젊은 외모로!)",
       "characterAction": "이 장면에서 캐릭터의 동작/표정"
     }
   ],
@@ -6030,6 +6036,11 @@ def api_gpt_analyze_prompts():
     "textLines": ["1줄: 숫자/시간 + 충격적 상황", "2줄: 구체적 인물/사건", "3줄: 감정적 핵심 (강조색)", "4줄: 결말 암시/여운"],
     "highlightLine": 3,
     "colorScheme": "추천 색상 조합 (예: 따뜻한 금색 vs 차가운 파랑)"
+  },
+  "youtubeMetadata": {
+    "title": "유튜브 제목 (50자 이내, 호기심 유발)",
+    "description": "유튜브 설명 (200자 이내, 줄거리 요약 + 해시태그)",
+    "tags": "쉼표로 구분된 10개 태그"
   }
 }
 ```
@@ -6039,6 +6050,7 @@ def api_gpt_analyze_prompts():
    - 일관된 외모 묘사 (같은 캐릭터는 항상 동일하게)
    - 구체적인 나이, 헤어스타일, 의상 색상
    - 표정과 포즈 기본값 포함
+   - gender 필드는 반드시 "male" 또는 "female"로 명시
    - 예: "Korean woman, 35 years old, shoulder-length black hair, gentle smile, wearing navy cardigan over white blouse"
 
 2. 배경 프롬프트:
@@ -6047,8 +6059,19 @@ def api_gpt_analyze_prompts():
    - 시간대와 날씨 정보
    - 예: "cozy Korean apartment living room, warm evening light through window, wooden furniture, family photos on wall"
 
-3. 일관성 유지:
-   - 동일 캐릭터는 모든 장면에서 같은 외모
+3. 🎯 회상 씬의 나이 처리 (매우 중요!):
+   - 현재 노인(70대)이 과거를 회상하면, 회상 씬에서는 그 시절 나이로!
+   - flashback_childhood: 어린이 (8-12세)
+   - flashback_youth: 청소년/청년 (15-25세)
+   - flashback_30s: 중년 (30-40세)
+   - 예시:
+     * 현재(present): "elderly Korean man, 75 years old, gray hair, wrinkled face"
+     * 회상(flashback_childhood): "young Korean boy, 10 years old, short black hair, bright eyes"
+     * 회상(flashback_youth): "young Korean man, 20 years old, black hair, youthful face"
+   - characterPrompt는 반드시 해당 장면의 나이에 맞게 작성!
+
+4. 일관성 유지:
+   - 같은 시점의 캐릭터는 동일한 외모 유지
    - 전체적인 색감과 분위기 통일
    - 한 영상 내에서 스타일 일관성
 

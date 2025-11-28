@@ -190,8 +190,8 @@ async function generateCharacterImage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        prompt: characterPrompt + ', portrait style, high quality, detailed face, professional lighting',
-        size: '1024x1024',
+        prompt: characterPrompt + ', medium shot, upper body portrait, high quality, detailed face, professional lighting, 16:9 aspect ratio',
+        size: '1792x1024',  // YouTube 16:9 비율
         imageProvider: step2ImageProvider
       })
     });
@@ -770,8 +770,8 @@ async function generateAllAuto(skipConfirm = false) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: charPrompt,
-            size: '1024x1024',
+            prompt: charPrompt + ', medium shot, upper body portrait, 16:9 aspect ratio',
+            size: '1792x1024',  // YouTube 16:9 비율
             imageProvider: step2ImageProvider
           })
         });
