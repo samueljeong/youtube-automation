@@ -630,14 +630,14 @@ async function saveConfig() {
 // ===== 진행 상황 관리 =====
 const completedSteps = new Set();
 
-// 내부 step name을 사이드바 step으로 매핑
+// 내부 step name을 사이드바 step으로 매핑 (이제 1:1 매핑)
 const stepMap = {
-  'step1': 'step1', 'step3': 'step1',  // 대본 생성
+  'step1': 'step1',      // 대본 생성
   'step1_5': 'step1_5',  // GPT 프롬프트 분석
-  'step4': 'step2',  // 이미지 생성
-  'step5': 'step3',  // TTS
-  'step6': 'step4',  // 영상 제작
-  'step7': 'step5'   // 유튜브 업로드
+  'step2': 'step2',      // 이미지 생성
+  'step3': 'step3',      // TTS
+  'step4': 'step4',      // 영상 제작
+  'step5': 'step5'       // 유튜브 업로드
 };
 
 /**
@@ -921,9 +921,9 @@ async function generateMetadataFromScript(script, contentType) {
 }
 
 function showMetadataNotification(metadata) {
-  const titleField = document.getElementById('step7-title');
-  const descField = document.getElementById('step7-description');
-  const tagsField = document.getElementById('step7-tags');
+  const titleField = document.getElementById('step5-title');
+  const descField = document.getElementById('step5-description');
+  const tagsField = document.getElementById('step5-tags');
 
   if (titleField && metadata.title) titleField.value = metadata.title;
   if (descField && metadata.description) descField.value = metadata.description;
@@ -1257,7 +1257,7 @@ function updateTestModeUI(isTestMode) {
   const switchEl = document.getElementById('test-mode-switch');
   const knobEl = document.getElementById('test-mode-knob');
   const boxEl = document.getElementById('test-mode-box');
-  const indicatorEl = document.getElementById('step3-mode-indicator');
+  const indicatorEl = document.getElementById('step1-mode-indicator');
 
   if (switchEl && knobEl) {
     if (isTestMode) {

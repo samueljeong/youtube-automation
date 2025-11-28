@@ -557,31 +557,31 @@ textarea.autosize { overflow: hidden; }
 }
 
 /* Step4 이미지 생성 박스 스타일 */
-.step4-container {
+.step2-container {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
   border: none;
   padding: 1rem;
   border-radius: 12px;
   margin-top: .75rem;
 }
-.step4-container .label {
+.step2-container .label {
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
 }
-.step4-prompt-section {
+.step2-prompt-section {
   background: white;
   border-radius: 8px;
   padding: .75rem;
   margin-bottom: .75rem;
 }
-.step4-prompt-section .prompt-label {
+.step2-prompt-section .prompt-label {
   font-weight: 600;
   font-size: .9rem;
   margin-bottom: .4rem;
   color: #333;
 }
-.step4-prompt-section textarea {
+.step2-prompt-section textarea {
   width: 100%;
   min-height: 80px;
   border: 1px solid #ddd;
@@ -590,30 +590,30 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   resize: vertical;
 }
-.step4-image-grid {
+.step2-image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 1rem;
   margin-top: .75rem;
 }
-.step4-image-item {
+.step2-image-item {
   background: white;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,.1);
 }
-.step4-image-item img {
+.step2-image-item img {
   width: 100%;
   height: auto;
   display: block;
 }
-.step4-image-item .image-caption {
+.step2-image-item .image-caption {
   padding: .5rem;
   font-size: .75rem;
   color: #666;
   text-align: center;
 }
-.step4-btn {
+.step2-btn {
   background: white;
   color: #11998e;
   border: none;
@@ -624,41 +624,41 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   transition: all 0.2s;
 }
-.step4-btn:hover {
+.step2-btn:hover {
   background: #f0f0f0;
   transform: translateY(-1px);
 }
-.step4-btn.generating {
+.step2-btn.generating {
   opacity: 0.7;
   cursor: not-allowed;
 }
 
 /* Step5 TTS 박스 스타일 */
-.step5-container {
+.step3-container {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
   padding: 1rem;
   border-radius: 12px;
   margin-top: .75rem;
 }
-.step5-container .label {
+.step3-container .label {
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
 }
-.step5-section {
+.step3-section {
   background: white;
   border-radius: 8px;
   padding: .75rem;
   margin-bottom: .75rem;
 }
-.step5-section .section-label {
+.step3-section .section-label {
   font-weight: 600;
   font-size: .9rem;
   margin-bottom: .4rem;
   color: #333;
 }
-.step5-btn {
+.step3-btn {
   background: white;
   color: #667eea;
   border: none;
@@ -669,19 +669,19 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   transition: all 0.2s;
 }
-.step5-btn:hover {
+.step3-btn:hover {
   background: #f0f0f0;
   transform: translateY(-1px);
 }
-.step5-btn.generating {
+.step3-btn.generating {
   opacity: 0.7;
   cursor: not-allowed;
 }
-.step5-audio-player {
+.step3-audio-player {
   width: 100%;
   margin-top: .5rem;
 }
-.step5-subtitle-preview {
+.step3-subtitle-preview {
   background: #1a1a2e;
   color: #fff;
   padding: 1rem;
@@ -692,12 +692,12 @@ textarea.autosize { overflow: hidden; }
   overflow-y: auto;
   white-space: pre-wrap;
 }
-.step5-voice-select {
+.step3-voice-select {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: .5rem;
 }
-.step5-voice-option {
+.step3-voice-option {
   padding: .5rem;
   border: 2px solid #ddd;
   border-radius: 8px;
@@ -706,16 +706,16 @@ textarea.autosize { overflow: hidden; }
   transition: all 0.2s;
   font-size: .8rem;
 }
-.step5-voice-option:hover {
+.step3-voice-option:hover {
   border-color: #667eea;
   background: #f8f5ff;
 }
-.step5-voice-option.selected {
+.step3-voice-option.selected {
   border-color: #667eea;
   background: #667eea;
   color: white;
 }
-.step5-voice-option.selected .voice-preview-btn {
+.step3-voice-option.selected .voice-preview-btn {
   background: rgba(255,255,255,0.3);
   color: white;
 }
@@ -739,31 +739,31 @@ textarea.autosize { overflow: hidden; }
 }
 
 /* Step6 영상 제작 박스 스타일 */
-.step6-container {
+.step2-container {
   background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
   border: none;
   padding: 1rem;
   border-radius: 12px;
   margin-top: .75rem;
 }
-.step6-container .label {
+.step2-container .label {
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
 }
-.step6-section {
+.step2-section {
   background: white;
   border-radius: 8px;
   padding: .75rem;
   margin-bottom: .75rem;
 }
-.step6-section .section-label {
+.step2-section .section-label {
   font-weight: 600;
   font-size: .9rem;
   margin-bottom: .4rem;
   color: #333;
 }
-.step6-btn {
+.step2-btn {
   background: white;
   color: #e74c3c;
   border: none;
@@ -774,21 +774,21 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   transition: all 0.2s;
 }
-.step6-btn:hover {
+.step2-btn:hover {
   background: #f0f0f0;
   transform: translateY(-1px);
 }
-.step6-btn.generating {
+.step2-btn.generating {
   opacity: 0.7;
   cursor: not-allowed;
 }
-.step6-preview-grid {
+.step2-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: .5rem;
   margin-top: .5rem;
 }
-.step6-preview-item {
+.step2-preview-item {
   position: relative;
   border-radius: 6px;
   overflow: hidden;
@@ -796,32 +796,32 @@ textarea.autosize { overflow: hidden; }
   border: 2px solid transparent;
   transition: all 0.2s;
 }
-.step6-preview-item:hover {
+.step2-preview-item:hover {
   border-color: #e74c3c;
 }
-.step6-preview-item.selected {
+.step2-preview-item.selected {
   border-color: #e74c3c;
   box-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
 }
-.step6-preview-item img {
+.step2-preview-item img {
   width: 100%;
   height: 80px;
   object-fit: cover;
 }
-.step6-video-preview {
+.step2-video-preview {
   background: #1a1a2e;
   border-radius: 8px;
   padding: 1rem;
   text-align: center;
 }
-.step6-video-preview video {
+.step2-video-preview video {
   max-width: 100%;
   max-height: 400px;
   border-radius: 6px;
 }
 
 /* Step7 유튜브 업로드 박스 스타일 - 비활성화됨 */
-.step7-container {
+.step3-container {
   display: none !important;
   background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
   border: none;
@@ -829,24 +829,24 @@ textarea.autosize { overflow: hidden; }
   border-radius: 12px;
   margin-top: .75rem;
 }
-.step7-container .label {
+.step3-container .label {
   color: white;
   font-size: 1.1rem;
   font-weight: 700;
 }
-.step7-section {
+.step3-section {
   background: white;
   border-radius: 8px;
   padding: .75rem;
   margin-bottom: .75rem;
 }
-.step7-section .section-label {
+.step3-section .section-label {
   font-weight: 600;
   font-size: .9rem;
   margin-bottom: .4rem;
   color: #333;
 }
-.step7-btn {
+.step3-btn {
   background: white;
   color: #ff0000;
   border: none;
@@ -857,15 +857,15 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   transition: all 0.2s;
 }
-.step7-btn:hover {
+.step3-btn:hover {
   background: #f0f0f0;
   transform: translateY(-1px);
 }
-.step7-btn.uploading {
+.step3-btn.uploading {
   opacity: 0.7;
   cursor: not-allowed;
 }
-.step7-input {
+.step3-input {
   width: 100%;
   padding: .5rem;
   border: 1px solid #ddd;
@@ -873,11 +873,11 @@ textarea.autosize { overflow: hidden; }
   font-size: .85rem;
   margin-bottom: .5rem;
 }
-.step7-input:focus {
+.step3-input:focus {
   outline: none;
   border-color: #ff0000;
 }
-.step7-privacy-option {
+.step3-privacy-option {
   display: inline-flex;
   align-items: center;
   gap: .3rem;
@@ -889,10 +889,10 @@ textarea.autosize { overflow: hidden; }
   transition: all 0.2s;
   margin-right: .5rem;
 }
-.step7-privacy-option:hover {
+.step3-privacy-option:hover {
   border-color: #ff0000;
 }
-.step7-privacy-option.selected {
+.step3-privacy-option.selected {
   border-color: #ff0000;
   background: #ff0000;
   color: white;
@@ -923,16 +923,16 @@ textarea.autosize { overflow: hidden; }
 .step3-result-box .step-header {
   background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
 }
-.step4-container .step-header {
+.step2-container .step-header {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
-.step5-container .step-header {
+.step3-container .step-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
-.step6-container .step-header {
+.step2-container .step-header {
   background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
 }
-.step7-container .step-header {
+.step3-container .step-header {
   background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
 }
 

@@ -261,36 +261,26 @@
         <div class="step-nav-items" style="display: flex; flex-direction: column; gap: .4rem;">
           <button class="step-nav-btn active" data-step="step1" onclick="scrollToStep('step1-container')">
             <span class="step-num">1</span>
-            <span class="step-name">주제 선정</span>
+            <span class="step-name">대본 작성</span>
             <span class="step-status">●</span>
           </button>
           <button class="step-nav-btn" data-step="step2" onclick="scrollToStep('step2-container')">
             <span class="step-num">2</span>
-            <span class="step-name">자료 조사</span>
+            <span class="step-name">이미지 생성</span>
             <span class="step-status">○</span>
           </button>
           <button class="step-nav-btn" data-step="step3" onclick="scrollToStep('step3-container')">
             <span class="step-num">3</span>
-            <span class="step-name">대본 작성</span>
-            <span class="step-status">○</span>
-          </button>
-          <button class="step-nav-btn" data-step="step4" onclick="scrollToStep('step4-container')">
-            <span class="step-num">4</span>
-            <span class="step-name">이미지 생성</span>
-            <span class="step-status">○</span>
-          </button>
-          <button class="step-nav-btn" data-step="step5" onclick="scrollToStep('step5-container')">
-            <span class="step-num">5</span>
             <span class="step-name">음성 합성</span>
             <span class="step-status">○</span>
           </button>
-          <button class="step-nav-btn" data-step="step6" onclick="scrollToStep('step6-container')">
-            <span class="step-num">6</span>
+          <button class="step-nav-btn" data-step="step4" onclick="scrollToStep('step2-container')">
+            <span class="step-num">4</span>
             <span class="step-name">영상 제작</span>
             <span class="step-status">○</span>
           </button>
-          <button class="step-nav-btn" data-step="step7" onclick="scrollToStep('step7-container')">
-            <span class="step-num">7</span>
+          <button class="step-nav-btn" data-step="step5" onclick="scrollToStep('step3-container')">
+            <span class="step-num">5</span>
             <span class="step-name">업로드</span>
             <span class="step-status">○</span>
           </button>
@@ -491,14 +481,8 @@
     <!-- 가운데 - 워크플로우 영역 -->
     <div id="workflow-panel" class="panel workflow-panel active">
     <div class="content-area">
-      <!-- Step1 앵커 및 컨트롤 -->
+      <!-- Step1 앵커 (대본 작성) -->
       <div id="step1-container"></div>
-
-      <!-- Step2 앵커 및 컨트롤 -->
-      <div id="step2-container"></div>
-
-      <!-- Step3 앵커 및 전체 순차실행 -->
-      <div id="step3-container"></div>
 
       <!-- Step1 상단 고정 헤더 (카테고리/시간/지침 + 대본 작성 버튼) -->
       <div class="step1-sticky-header">
@@ -523,10 +507,10 @@
 
         <!-- Step3 실행: Sonnet 4.5 대본 작성 -->
         <div class="box" style="padding: .6rem .75rem;">
-          <button id="btn-execute-step3" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
+          <button id="btn-execute-step1" class="primary" style="width: 100%; font-size: .9rem; padding: .65rem;">
             🎬 Claude Sonnet 4.5로 대본 작성
           </button>
-          <div id="step3-mode-indicator" style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
+          <div id="step1-mode-indicator" style="font-size: .75rem; color: #555; margin-top: .35rem; text-align: center;">
             OpenRouter의 Claude Sonnet 4.5 기본 프롬프트로 최종 대본을 생성합니다.
           </div>
         </div>
@@ -536,33 +520,33 @@
       <div id="status-bar" class="status-bar">작업 중...</div>
 
       <!-- Step3 결과 박스 -->
-      <div id="step3-result-container" class="step3-result-box" style="display: none;">
+      <div id="step1-result-container" class="step1-result-box" style="display: none;">
         <div class="step-header">
-          <div class="label">🎬 Step3: 대본 작성 결과</div>
+          <div class="label">🎬 Step1: 대본 작성</div>
           <div style="display: flex; gap: .5rem;">
             <button id="btn-toggle-script-view" style="padding: .4rem .8rem; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📖 대본 보기</button>
-            <button id="btn-copy-step3-result" style="padding: .4rem .8rem; background: white; color: #f39c12; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📋 복사</button>
-            <button id="btn-clear-step3-result" style="padding: .4rem .8rem; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">🗑️ 지우기</button>
+            <button id="btn-copy-step1-result" style="padding: .4rem .8rem; background: white; color: #f39c12; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">📋 복사</button>
+            <button id="btn-clear-step1-result" style="padding: .4rem .8rem; background: rgba(255,255,255,0.3); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .85rem;">🗑️ 지우기</button>
           </div>
         </div>
-        <div id="step3-token-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-bottom: .5rem; display: none;">
-          📥 <span id="step3-input-tokens">0</span> (입력) / 📤 <span id="step3-output-tokens">0</span> (출력) | 💰 <span id="step3-cost">₩0</span>
+        <div id="step1-token-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-bottom: .5rem; display: none;">
+          📥 <span id="step1-input-tokens">0</span> (입력) / 📤 <span id="step1-output-tokens">0</span> (출력) | 💰 <span id="step1-cost">₩0</span>
         </div>
         <!-- JSON 원본 뷰 -->
-        <textarea id="step3-result" readonly style="width: 100%; font-size: .9rem; line-height: 1.6; resize: vertical;" placeholder="Step3 결과가 여기에 표시됩니다..."></textarea>
+        <textarea id="step1-result" readonly style="width: 100%; font-size: .9rem; line-height: 1.6; resize: vertical;" placeholder="Step3 결과가 여기에 표시됩니다..."></textarea>
         <!-- 대본 텍스트 뷰 -->
-        <div id="step3-script-viewer" style="display: none; background: white; border-radius: 8px; padding: 1rem; max-height: 600px; overflow-y: auto;">
-          <div id="step3-script-content" style="font-size: .95rem; line-height: 1.8; color: #333;"></div>
+        <div id="step1-script-viewer" style="display: none; background: white; border-radius: 8px; padding: 1rem; max-height: 600px; overflow-y: auto;">
+          <div id="step1-script-content" style="font-size: .95rem; line-height: 1.8; color: #333;"></div>
         </div>
       </div>
 
       <!-- Step4: 이미지 생성 -->
-      <div id="step4-container" class="step4-container" style="display: none;">
+      <div id="step2-container" class="step2-container" style="display: none;">
         <div class="step-header">
-          <div class="label">🎨 Step4: 이미지 생성</div>
+          <div class="label">🎨 Step2: 이미지 생성</div>
           <div style="display: flex; gap: .5rem;">
-            <button id="btn-generate-all-auto" class="step4-btn" style="background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: white; font-weight: 700; padding: .5rem 1rem;">🚀 전체 생성</button>
-            <button id="btn-clear-step4" class="step4-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
+            <button id="btn-generate-all-auto" class="step2-btn" style="background: linear-gradient(135deg, #ff6b6b, #ee5a6f); color: white; font-weight: 700; padding: .5rem 1rem;">🚀 전체 생성</button>
+            <button id="btn-clear-step2" class="step2-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
           </div>
         </div>
 
@@ -577,81 +561,81 @@
         </div>
 
         <!-- 1단계: 인물 분석 -->
-        <div class="step4-prompt-section">
+        <div class="step2-prompt-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
             <div class="prompt-label">👥 1단계: 등장인물 분석</div>
-            <button id="btn-analyze-characters" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">🔍 대본에서 인물 추출</button>
+            <button id="btn-analyze-characters" class="step2-btn" style="padding: .4rem .8rem; font-size: .85rem;">🔍 대본에서 인물 추출</button>
           </div>
-          <div id="step4-characters-list" style="background: rgba(255,255,255,0.95); border-radius: 8px; padding: .75rem; min-height: 60px;">
+          <div id="step2-characters-list" style="background: rgba(255,255,255,0.95); border-radius: 8px; padding: .75rem; min-height: 60px;">
             <div style="color: #999; text-align: center; font-size: .85rem;">대본을 분석하면 등장인물이 여기에 표시됩니다</div>
           </div>
         </div>
 
         <!-- 2단계: 인물 이미지 생성 -->
-        <div class="step4-prompt-section">
+        <div class="step2-prompt-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
             <div class="prompt-label">👤 2단계: 인물 이미지 생성</div>
             <div style="display: flex; gap: .5rem; align-items: center;">
-              <select id="step4-character-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
+              <select id="step2-character-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
                 <option value="">-- 인물 선택 --</option>
               </select>
-              <button id="btn-generate-character-image" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">🖼️ 인물 이미지 생성</button>
+              <button id="btn-generate-character-image" class="step2-btn" style="padding: .4rem .8rem; font-size: .85rem;">🖼️ 인물 이미지 생성</button>
             </div>
           </div>
-          <textarea id="step4-character-prompt" placeholder="선택한 인물의 이미지 프롬프트가 여기에 표시됩니다. 직접 수정도 가능합니다."></textarea>
-          <div id="step4-character-images" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin-top: .5rem;"></div>
+          <textarea id="step2-character-prompt" placeholder="선택한 인물의 이미지 프롬프트가 여기에 표시됩니다. 직접 수정도 가능합니다."></textarea>
+          <div id="step2-character-images" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin-top: .5rem;"></div>
         </div>
 
         <!-- 3단계: 씬 이미지 생성 -->
-        <div class="step4-prompt-section">
+        <div class="step2-prompt-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
             <div class="prompt-label">🎬 3단계: 씬 이미지 생성</div>
             <div style="display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;">
-              <select id="step4-scene-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
+              <select id="step2-scene-select" style="padding: .4rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem; min-width: 120px;">
                 <option value="">-- 씬 선택 --</option>
               </select>
-              <button id="btn-generate-scene-prompt" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem;">📝 프롬프트만</button>
-              <button id="btn-generate-scene-all" class="step4-btn" style="padding: .4rem .8rem; font-size: .85rem; background: linear-gradient(135deg, #10b981, #059669); font-weight: 700;">🎬 프롬프트+이미지</button>
+              <button id="btn-generate-scene-prompt" class="step2-btn" style="padding: .4rem .8rem; font-size: .85rem;">📝 프롬프트만</button>
+              <button id="btn-generate-scene-all" class="step2-btn" style="padding: .4rem .8rem; font-size: .85rem; background: linear-gradient(135deg, #10b981, #059669); font-weight: 700;">🎬 프롬프트+이미지</button>
             </div>
           </div>
 
           <div style="margin-bottom: .5rem;">
             <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">🏞️ 배경 프롬프트</div>
-            <textarea id="step4-background-prompt" placeholder="씬의 배경 프롬프트가 여기에 표시됩니다."></textarea>
+            <textarea id="step2-background-prompt" placeholder="씬의 배경 프롬프트가 여기에 표시됩니다."></textarea>
           </div>
 
           <div style="margin-bottom: .5rem;">
             <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">👥 등장 인물 (씬에 포함될 인물 선택)</div>
-            <div id="step4-scene-characters" style="display: flex; flex-wrap: wrap; gap: .5rem; background: rgba(255,255,255,0.1); padding: .5rem; border-radius: 6px; min-height: 40px;">
+            <div id="step2-scene-characters" style="display: flex; flex-wrap: wrap; gap: .5rem; background: rgba(255,255,255,0.1); padding: .5rem; border-radius: 6px; min-height: 40px;">
               <span style="color: rgba(255,255,255,0.6); font-size: .85rem;">인물 분석 후 선택 가능</span>
             </div>
           </div>
 
           <div>
             <div style="font-size: .8rem; color: rgba(255,255,255,0.9); margin-bottom: .25rem;">🎭 통합 씬 프롬프트 (인물 + 배경)</div>
-            <textarea id="step4-combined-prompt" placeholder="인물들이 배경에 자연스럽게 어울리는 통합 장면 프롬프트입니다."></textarea>
+            <textarea id="step2-combined-prompt" placeholder="인물들이 배경에 자연스럽게 어울리는 통합 장면 프롬프트입니다."></textarea>
           </div>
         </div>
 
         <!-- 이미지 모델 선택 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap;">
-          <button class="step4-image-provider selected" data-provider="gemini" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600; font-size: .85rem;">
+          <button class="step2-image-provider selected" data-provider="gemini" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600; font-size: .85rem;">
             ✨ Gemini<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.039/장 (빠름)</span>
           </button>
-          <button class="step4-image-provider" data-provider="flux" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
+          <button class="step2-image-provider" data-provider="flux" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
             ⚡ FLUX.1 Pro<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.055/장 (고품질)</span>
           </button>
-          <button class="step4-image-provider" data-provider="dalle" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
+          <button class="step2-image-provider" data-provider="dalle" style="flex: 1; min-width: 100px; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600; font-size: .85rem;">
             🎨 DALL-E 3<br><span style="font-size: .7rem; font-weight: normal; color: #666;">$0.08/장 (창의적)</span>
           </button>
         </div>
 
         <!-- 이미지 생성 버튼 영역 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-          <button id="btn-generate-image" class="step4-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+          <button id="btn-generate-image" class="step2-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
             🖼️ 씬 이미지 생성 (Gemini)
           </button>
-          <select id="step4-image-size" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem;">
+          <select id="step2-image-size" style="padding: .5rem; border-radius: 6px; border: 1px solid #ddd; font-size: .85rem;">
             <option value="1024x1024">1024x1024 (정사각형)</option>
             <option value="1792x1024" selected>1792x1024 (가로형)</option>
             <option value="1024x1792">1024x1792 (세로형)</option>
@@ -665,16 +649,16 @@
               <div style="font-weight: 700; font-size: .95rem; color: #333;">🎬 유튜브 썸네일 (자동 생성)</div>
               <div style="font-size: .75rem; color: #666; margin-top: .25rem;">AI가 대본을 분석하여 클릭을 유도하는 썸네일을 만듭니다</div>
             </div>
-            <button id="btn-generate-thumbnail" class="step4-btn" style="padding: .5rem 1rem; font-size: .85rem; background: linear-gradient(135deg, #ff6b6b, #ee5a6f);">
+            <button id="btn-generate-thumbnail" class="step2-btn" style="padding: .5rem 1rem; font-size: .85rem; background: linear-gradient(135deg, #ff6b6b, #ee5a6f);">
               📸 썸네일 생성
             </button>
           </div>
 
-          <div id="step4-thumbnail-preview" style="display: none; margin-top: .75rem;">
+          <div id="step2-thumbnail-preview" style="display: none; margin-top: .75rem;">
             <div style="display: flex; gap: .75rem; align-items: flex-start; padding: .75rem; background: #f8f9fa; border-radius: 6px;">
               <div style="position: relative;">
-                <img id="step4-thumbnail-image" style="width: 240px; height: 135px; border-radius: 6px; border: 2px solid #ff6b6b; object-fit: cover;" />
-                <div id="step4-thumbnail-text-overlay" style="position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: .5rem; border-radius: 4px; font-weight: 700; font-size: .9rem; text-align: center;">
+                <img id="step2-thumbnail-image" style="width: 240px; height: 135px; border-radius: 6px; border: 2px solid #ff6b6b; object-fit: cover;" />
+                <div id="step2-thumbnail-text-overlay" style="position: absolute; bottom: 10px; left: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: .5rem; border-radius: 4px; font-weight: 700; font-size: .9rem; text-align: center;">
                   썸네일 텍스트
                 </div>
               </div>
@@ -683,7 +667,7 @@
                   <p style="margin: 0 0 .5rem 0; font-weight: 600; color: #ff6b6b;">✅ 유튜브 썸네일</p>
                   <p style="margin: 0 0 .5rem 0; font-size: .8rem; color: #666;">이 이미지가 유튜브 업로드 시 썸네일로 사용됩니다</p>
                   <div style="margin-top: .75rem; padding: .5rem; background: white; border-radius: 4px; font-size: .75rem; color: #666;">
-                    <strong>프롬프트:</strong> <span id="step4-thumbnail-prompt">-</span>
+                    <strong>프롬프트:</strong> <span id="step2-thumbnail-prompt">-</span>
                   </div>
                   <button id="btn-regenerate-thumbnail" style="margin-top: .5rem; padding: .4rem .8rem; font-size: .8rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">
                     🔄 다시 생성
@@ -700,44 +684,44 @@
             <div style="font-size: 2rem; margin-bottom: .5rem;">🖼️</div>
             <p>이미지를 생성하면 여기에 표시됩니다</p>
           </div>
-          <div id="step4-image-grid" class="step4-image-grid" style="display: none;"></div>
+          <div id="step2-image-grid" class="step2-image-grid" style="display: none;"></div>
         </div>
 
         <!-- 토큰/비용 정보 -->
-        <div id="step4-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
-          🖼️ 이미지 생성 비용: <span id="step4-image-cost">₩0</span>
+        <div id="step2-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
+          🖼️ 이미지 생성 비용: <span id="step2-image-cost">₩0</span>
         </div>
       </div>
 
       <!-- Step5: TTS 음성 합성 및 자막 생성 -->
-      <div id="step5-container" class="step5-container">
+      <div id="step3-container" class="step3-container">
         <div class="step-header">
-          <div class="label">🎙️ Step5: 음성 합성 (TTS)</div>
+          <div class="label">🎙️ Step3: 음성 합성</div>
           <div style="display: flex; gap: .5rem;">
-            <button id="btn-clear-step5" class="step5-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
+            <button id="btn-clear-step3" class="step3-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
           </div>
         </div>
 
         <!-- TTS 제공자 선택 -->
-        <div class="step5-section">
+        <div class="step3-section">
           <div class="section-label">🔊 TTS 제공자</div>
           <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-            <button class="step5-tts-provider selected" data-provider="google" style="flex: 1; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600;">
+            <button class="step3-tts-provider selected" data-provider="google" style="flex: 1; padding: .5rem; border: 2px solid #10b981; border-radius: 8px; background: rgba(16,185,129,0.2); cursor: pointer; font-weight: 600;">
               🌐 Google Cloud<br><span style="font-size: .7rem; font-weight: normal; color: #666;">₩16/3000자 (저렴)</span>
             </button>
-            <button class="step5-tts-provider" data-provider="naver" style="flex: 1; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
+            <button class="step3-tts-provider" data-provider="naver" style="flex: 1; padding: .5rem; border: 2px solid #ddd; border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">
               🇰🇷 네이버 클로바<br><span style="font-size: .7rem; font-weight: normal; color: #666;">₩12,000/3000자 (고품질)</span>
             </button>
           </div>
         </div>
 
         <!-- 음성 선택 영역 -->
-        <div class="step5-section">
-          <div class="section-label" id="step5-voice-label">🎤 음성 선택 (Google Cloud) <span style="font-size: .75rem; font-weight: normal; color: rgba(255,255,255,0.7);">- 클릭하여 미리듣기</span></div>
+        <div class="step3-section">
+          <div class="section-label" id="step3-voice-label">🎤 음성 선택 (Google Cloud) <span style="font-size: .75rem; font-weight: normal; color: rgba(255,255,255,0.7);">- 클릭하여 미리듣기</span></div>
 
           <!-- Google TTS 음성 -->
-          <div id="step5-voice-google" class="step5-voice-select">
-            <div class="step5-voice-option selected" data-voice="ko-KR-Wavenet-A" data-provider="google">
+          <div id="step3-voice-google" class="step3-voice-select">
+            <div class="step3-voice-option selected" data-voice="ko-KR-Wavenet-A" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">여성 A</div>
@@ -746,7 +730,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('ko-KR-Wavenet-A', 'google')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-B" data-provider="google">
+            <div class="step3-voice-option" data-voice="ko-KR-Wavenet-B" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">여성 B</div>
@@ -755,7 +739,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('ko-KR-Wavenet-B', 'google')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-C" data-provider="google">
+            <div class="step3-voice-option" data-voice="ko-KR-Wavenet-C" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">남성 A</div>
@@ -764,7 +748,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('ko-KR-Wavenet-C', 'google')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="ko-KR-Wavenet-D" data-provider="google">
+            <div class="step3-voice-option" data-voice="ko-KR-Wavenet-D" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">남성 B</div>
@@ -773,7 +757,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('ko-KR-Wavenet-D', 'google')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="ko-KR-Neural2-A" data-provider="google">
+            <div class="step3-voice-option" data-voice="ko-KR-Neural2-A" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">여성 (Neural)</div>
@@ -782,7 +766,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('ko-KR-Neural2-A', 'google')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="ko-KR-Neural2-C" data-provider="google">
+            <div class="step3-voice-option" data-voice="ko-KR-Neural2-C" data-provider="google">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">남성 (Neural)</div>
@@ -794,8 +778,8 @@
           </div>
 
           <!-- 네이버 TTS 음성 (숨김) -->
-          <div id="step5-voice-naver" class="step5-voice-select" style="display: none;">
-            <div class="step5-voice-option" data-voice="nara" data-provider="naver">
+          <div id="step3-voice-naver" class="step3-voice-select" style="display: none;">
+            <div class="step3-voice-option" data-voice="nara" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">나라</div>
@@ -804,7 +788,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('nara', 'naver')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="nara_call" data-provider="naver">
+            <div class="step3-voice-option" data-voice="nara_call" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">나라 (밝음)</div>
@@ -813,7 +797,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('nara_call', 'naver')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="nminsang" data-provider="naver">
+            <div class="step3-voice-option" data-voice="nminsang" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">민상</div>
@@ -822,7 +806,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('nminsang', 'naver')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="njiyun" data-provider="naver">
+            <div class="step3-voice-option" data-voice="njiyun" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">지윤</div>
@@ -831,7 +815,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('njiyun', 'naver')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="nsujin" data-provider="naver">
+            <div class="step3-voice-option" data-voice="nsujin" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">수진</div>
@@ -840,7 +824,7 @@
                 <button class="voice-preview-btn" onclick="event.stopPropagation(); previewVoice('nsujin', 'naver')">▶️</button>
               </div>
             </div>
-            <div class="step5-voice-option" data-voice="jinho" data-provider="naver">
+            <div class="step3-voice-option" data-voice="jinho" data-provider="naver">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div style="font-weight: 600;">진호</div>
@@ -853,19 +837,19 @@
         </div>
 
         <!-- TTS 설정 -->
-        <div class="step5-section">
+        <div class="step3-section">
           <div class="section-label">⚙️ 음성 설정</div>
           <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 100px;">
               <label style="font-size: .8rem; color: #666;">속도</label>
-              <input type="range" id="step5-speed" min="-5" max="5" value="-1" style="width: 100%;">
+              <input type="range" id="step3-speed" min="-5" max="5" value="-1" style="width: 100%;">
               <div style="display: flex; justify-content: space-between; font-size: .7rem; color: #999;">
                 <span>느림</span><span>보통</span><span>빠름</span>
               </div>
             </div>
             <div style="flex: 1; min-width: 100px;">
               <label style="font-size: .8rem; color: #666;">음높이</label>
-              <input type="range" id="step5-pitch" min="-5" max="5" value="0" style="width: 100%;">
+              <input type="range" id="step3-pitch" min="-5" max="5" value="0" style="width: 100%;">
               <div style="display: flex; justify-content: space-between; font-size: .7rem; color: #999;">
                 <span>낮음</span><span>보통</span><span>높음</span>
               </div>
@@ -881,59 +865,59 @@
         </div>
 
         <!-- 대본 텍스트 (TTS용) -->
-        <div class="step5-section">
+        <div class="step3-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;">
             <div class="section-label">📜 TTS용 대본 텍스트</div>
-            <button id="btn-extract-narration" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">📝 지문만 추출</button>
+            <button id="btn-extract-narration" class="step3-btn" style="padding: .3rem .6rem; font-size: .75rem;">📝 지문만 추출</button>
           </div>
           <textarea id="step5-script-text" style="width: 100%; min-height: 120px; border: 1px solid #ddd; border-radius: 6px; padding: .5rem; font-size: .85rem; resize: vertical;" placeholder="Step3 대본에서 TTS로 읽을 텍스트를 입력하세요. '지문만 추출' 버튼으로 나레이션 부분만 추출할 수 있습니다."></textarea>
         </div>
 
         <!-- TTS 생성 버튼 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-          <button id="btn-generate-tts" class="step5-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+          <button id="btn-generate-tts" class="step3-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
             🎙️ 음성 생성 (TTS)
           </button>
-          <button id="btn-generate-subtitle" class="step5-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+          <button id="btn-generate-subtitle" class="step3-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
             📝 자막 생성 (SRT)
           </button>
         </div>
 
         <!-- 오디오 플레이어 -->
-        <div class="step5-section" id="step5-audio-section" style="display: none;">
+        <div class="step3-section" id="step3-audio-section" style="display: none;">
           <div class="section-label">🔊 생성된 음성</div>
-          <audio id="step5-audio-player" class="step5-audio-player" controls></audio>
+          <audio id="step3-audio-player" class="step3-audio-player" controls></audio>
           <div style="display: flex; gap: .5rem; margin-top: .5rem;">
-            <button id="btn-download-audio" class="step5-btn" style="flex: 1; padding: .4rem;">💾 음성 다운로드 (MP3)</button>
+            <button id="btn-download-audio" class="step3-btn" style="flex: 1; padding: .4rem;">💾 음성 다운로드 (MP3)</button>
           </div>
         </div>
 
         <!-- 자막 미리보기 -->
-        <div class="step5-section" id="step5-subtitle-section" style="display: none;">
+        <div class="step3-section" id="step3-subtitle-section" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;">
             <div class="section-label">📝 자막 미리보기</div>
             <div style="display: flex; gap: .5rem;">
-              <button id="btn-download-srt" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 SRT 다운로드</button>
-              <button id="btn-download-vtt" class="step5-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 VTT 다운로드</button>
+              <button id="btn-download-srt" class="step3-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 SRT 다운로드</button>
+              <button id="btn-download-vtt" class="step3-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 VTT 다운로드</button>
             </div>
           </div>
-          <div id="step5-subtitle-preview" class="step5-subtitle-preview">
+          <div id="step3-subtitle-preview" class="step3-subtitle-preview">
             자막이 여기에 표시됩니다...
           </div>
         </div>
 
         <!-- 비용 정보 -->
-        <div id="step5-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
+        <div id="step3-cost-info" style="font-size: .75rem; color: rgba(255,255,255,0.9); margin-top: .5rem; display: none;">
           🎙️ TTS 생성 비용: <span id="step5-tts-cost">₩0</span> | 글자 수: <span id="step5-char-count">0</span>자
         </div>
       </div>
 
       <!-- Step6: 영상 제작 -->
-      <div id="step6-container" class="step6-container">
+      <div id="step4-container" class="step4-container">
         <div class="step-header">
-          <div class="label">🎬 Step6: 영상 제작</div>
+          <div class="label">🎬 Step4: 영상 제작</div>
           <div style="display: flex; gap: .5rem;">
-            <button id="btn-clear-step6" class="step6-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
+            <button id="btn-clear-step4" class="step4-btn" style="background: rgba(255,255,255,0.3); color: white;">🗑️ 초기화</button>
           </div>
         </div>
 
@@ -1005,55 +989,55 @@
 
         <!-- 영상 생성 버튼 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .75rem;">
-          <button id="btn-generate-video" class="step6-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
+          <button id="btn-generate-video" class="step4-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;">
             🎬 영상 생성
           </button>
         </div>
 
         <!-- 영상 미리보기 -->
-        <div class="step6-section" id="step6-video-section" style="display: none;">
+        <div class="step6-section" id="step4-video-section" style="display: none;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .4rem;">
             <div class="section-label">🎥 생성된 영상</div>
-            <button id="btn-download-video" class="step6-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 다운로드 (MP4)</button>
+            <button id="btn-download-video" class="step4-btn" style="padding: .3rem .6rem; font-size: .75rem;">💾 다운로드 (MP4)</button>
           </div>
-          <div class="step6-video-preview">
-            <video id="step6-video-player" controls></video>
+          <div class="step4-video-preview">
+            <video id="step4-video-player" controls></video>
           </div>
         </div>
 
         <!-- 진행 상태 -->
-        <div id="step6-progress" style="display: none;">
+        <div id="step4-progress" style="display: none;">
           <div style="background: white; border-radius: 8px; padding: .75rem;">
             <div style="font-size: .85rem; color: #333; margin-bottom: .5rem;">
-              <span id="step6-progress-text">영상 생성 중...</span>
+              <span id="step4-progress-text">영상 생성 중...</span>
             </div>
             <div style="background: #e0e0e0; border-radius: 4px; height: 8px; overflow: hidden;">
-              <div id="step6-progress-bar" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); height: 100%; width: 0%; transition: width 0.3s;"></div>
+              <div id="step4-progress-bar" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); height: 100%; width: 0%; transition: width 0.3s;"></div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Step5: 유튜브 업로드 (항상 표시) -->
-      <div id="step7-container" class="step7-container">
+      <div id="step5-container" class="step5-container">
         <div class="step-header">
-          <div class="label">📺 Step7: 유튜브 업로드</div>
+          <div class="label">📺 Step5: 유튜브 업로드</div>
           <div style="display: flex; gap: .5rem;">
-            <button id="btn-youtube-auth" class="step7-btn">🔑 YouTube 연결</button>
+            <button id="btn-youtube-auth" class="step5-btn">🔑 YouTube 연결</button>
           </div>
         </div>
 
         <!-- 인증 상태 -->
-        <div class="step7-section">
+        <div class="step5-section">
           <div id="youtube-auth-status" style="padding: .5rem; background: #fff3cd; border-radius: 6px; font-size: .85rem; color: #856404;">
             ⚠️ YouTube 계정을 연결해주세요
           </div>
         </div>
 
         <!-- 채널 선택 -->
-        <div class="step7-section" id="youtube-channel-section" style="display: none; background: linear-gradient(135deg, #e8f5e9, #fff); border: 2px solid #4caf50; box-shadow: 0 0 10px rgba(76,175,80,0.3);">
+        <div class="step5-section" id="youtube-channel-section" style="display: none; background: linear-gradient(135deg, #e8f5e9, #fff); border: 2px solid #4caf50; box-shadow: 0 0 10px rgba(76,175,80,0.3);">
           <div class="section-label" style="color: #2e7d32;">📺 업로드 채널 선택 (필수)</div>
-          <select id="step7-channel-select" class="step7-input" style="cursor: pointer; border: 2px solid #4caf50;">
+          <select id="step5-channel-select" class="step7-input" style="cursor: pointer; border: 2px solid #4caf50;">
             <option value="">채널을 선택하세요</option>
           </select>
           <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #2e7d32;">
@@ -1062,43 +1046,43 @@
         </div>
 
         <!-- 영상 정보 입력 -->
-        <div class="step7-section">
+        <div class="step5-section">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
             <div class="section-label" style="margin-bottom: 0;">📝 영상 정보</div>
-            <button id="btn-auto-metadata" class="step7-btn" style="padding: .4rem .8rem; font-size: .8rem;">🤖 대본 기반 자동 입력</button>
+            <button id="btn-auto-metadata" class="step5-btn" style="padding: .4rem .8rem; font-size: .8rem;">🤖 대본 기반 자동 입력</button>
           </div>
-          <input type="text" id="step7-title" class="step7-input" placeholder="영상 제목" maxlength="100">
-          <textarea id="step7-description" class="step7-input" style="min-height: 80px; resize: vertical;" placeholder="영상 설명&#10;&#10;해시태그, 링크 등을 포함할 수 있습니다." maxlength="5000"></textarea>
-          <input type="text" id="step7-tags" class="step7-input" placeholder="태그 (쉼표로 구분: 드라마, 단편영화, 감동)" maxlength="500">
+          <input type="text" id="step5-title" class="step7-input" placeholder="영상 제목" maxlength="100">
+          <textarea id="step5-description" class="step7-input" style="min-height: 80px; resize: vertical;" placeholder="영상 설명&#10;&#10;해시태그, 링크 등을 포함할 수 있습니다." maxlength="5000"></textarea>
+          <input type="text" id="step5-tags" class="step7-input" placeholder="태그 (쉼표로 구분: 드라마, 단편영화, 감동)" maxlength="500">
         </div>
 
         <!-- 공개 설정 -->
-        <div class="step7-section">
+        <div class="step5-section">
           <div class="section-label">🔒 공개 설정</div>
-          <div id="step7-privacy-options">
-            <label class="step7-privacy-option" data-privacy="private">
-              <input type="radio" name="step7-privacy" value="private" style="display: none;">
+          <div id="step5-privacy-options">
+            <label class="step5-privacy-option" data-privacy="private">
+              <input type="radio" name="step5-privacy" value="private" style="display: none;">
               🔒 비공개
             </label>
-            <label class="step7-privacy-option" data-privacy="unlisted">
-              <input type="radio" name="step7-privacy" value="unlisted" style="display: none;">
+            <label class="step5-privacy-option" data-privacy="unlisted">
+              <input type="radio" name="step5-privacy" value="unlisted" style="display: none;">
               🔗 일부공개
             </label>
-            <label class="step7-privacy-option" data-privacy="public">
-              <input type="radio" name="step7-privacy" value="public" style="display: none;">
+            <label class="step5-privacy-option" data-privacy="public">
+              <input type="radio" name="step5-privacy" value="public" style="display: none;">
               🌍 공개
             </label>
-            <label class="step7-privacy-option selected" data-privacy="scheduled">
-              <input type="radio" name="step7-privacy" value="scheduled" checked style="display: none;">
+            <label class="step5-privacy-option selected" data-privacy="scheduled">
+              <input type="radio" name="step5-privacy" value="scheduled" checked style="display: none;">
               📅 예약 (30분 후 공개)
             </label>
           </div>
         </div>
 
         <!-- 카테고리 -->
-        <div class="step7-section">
+        <div class="step5-section">
           <div class="section-label">📁 카테고리</div>
-          <select id="step7-category" class="step7-input" style="margin-bottom: 0;">
+          <select id="step5-category" class="step7-input" style="margin-bottom: 0;">
             <option value="22">사람 및 블로그</option>
             <option value="24">엔터테인먼트</option>
             <option value="1">영화 및 애니메이션</option>
@@ -1112,33 +1096,33 @@
 
         <!-- 업로드 버튼 -->
         <div style="display: flex; gap: .5rem; margin-bottom: .5rem;">
-          <button id="btn-upload-youtube" class="step7-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;" disabled>
+          <button id="btn-upload-youtube" class="step5-btn" style="flex: 1; padding: .75rem; font-size: .95rem; font-weight: 700;" disabled>
             📺 YouTube에 업로드
           </button>
         </div>
 
         <!-- 업로드 상태 메시지 -->
-        <div id="step7-upload-status" style="padding: .4rem .6rem; background: #fff3cd; border-radius: 6px; font-size: .8rem; color: #856404; margin-bottom: .75rem;">
+        <div id="step5-upload-status" style="padding: .4rem .6rem; background: #fff3cd; border-radius: 6px; font-size: .8rem; color: #856404; margin-bottom: .75rem;">
           Step4에서 영상을 먼저 생성해주세요
         </div>
 
         <!-- 업로드 진행 상태 -->
-        <div id="step7-progress" style="display: none;">
+        <div id="step5-progress" style="display: none;">
           <div style="background: white; border-radius: 8px; padding: .75rem;">
             <div style="font-size: .85rem; color: #333; margin-bottom: .5rem;">
-              <span id="step7-progress-text">업로드 준비 중...</span>
+              <span id="step5-progress-text">업로드 준비 중...</span>
             </div>
             <div style="background: #e0e0e0; border-radius: 4px; height: 8px; overflow: hidden;">
-              <div id="step7-progress-bar" style="background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); height: 100%; width: 0%; transition: width 0.3s;"></div>
+              <div id="step5-progress-bar" style="background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); height: 100%; width: 0%; transition: width 0.3s;"></div>
             </div>
           </div>
         </div>
 
         <!-- 업로드 결과 -->
-        <div class="step7-section" id="step7-result" style="display: none;">
+        <div class="step5-section" id="step5-result" style="display: none;">
           <div class="section-label">✅ 업로드 완료</div>
           <div style="padding: .5rem; background: #d4edda; border-radius: 6px;">
-            <a id="step7-video-link" href="#" target="_blank" style="color: #155724; font-weight: 600; text-decoration: none;">
+            <a id="step5-video-link" href="#" target="_blank" style="color: #155724; font-weight: 600; text-decoration: none;">
               🎬 업로드된 영상 보기
             </a>
           </div>
