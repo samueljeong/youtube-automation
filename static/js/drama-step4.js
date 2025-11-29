@@ -33,9 +33,31 @@ window.DramaStep4 = {
     console.log('[Step4] step2_images 데이터:', step2ImagesData);
     console.log('[Step4] step3 데이터:', step3Data);
 
+    const images = step2ImagesData?.images || [];
+    const audios = step3Data?.audios || [];
+
+    // 각 씬별 이미지-오디오 매칭하여 cuts 배열 생성
+    const cuts = [];
+    const maxCuts = Math.max(images.length, audios.length);
+
+    for (let i = 0; i < maxCuts; i++) {
+      const imageUrl = images[i] || images[images.length - 1] || ''; // 이미지 없으면 마지막 이미지 사용
+      const audio = audios[i] || audios[0] || {}; // 오디오 없으면 첫 번째 오디오 사용
+
+      cuts.push({
+        cutId: i + 1,
+        imageUrl: imageUrl,
+        audioUrl: audio.audioUrl || '',
+        duration: audio.duration || 10
+      });
+    }
+
+    console.log('[Step4] 생성된 cuts:', cuts.length, '개');
+
     return {
-      images: step2ImagesData?.images || [],
-      audios: step3Data?.audios || []
+      images: images,
+      audios: audios,
+      cuts: cuts
     };
   },
 
@@ -46,7 +68,7 @@ window.DramaStep4 = {
       return;
     }
 
-    const { images, audios } = this.getPreviousStepData();
+    const { images, audios, cuts } = this.getPreviousStepData();
 
     // 이미지와 오디오 확인
     if (images.length === 0) {
@@ -87,15 +109,16 @@ window.DramaStep4 = {
         '4k': '3840x2160'
       };
 
-      console.log('[Step4] 영상 제작 요청');
+      console.log('[Step4] 영상 제작 요청 - cuts:', cuts.length, '개');
 
-      // 영상 생성 API 호출
+      // 영상 생성 API 호출 (cuts 배열 전송 - 각 씬별 이미지+오디오 매칭)
       const response = await fetch('/api/drama/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           images: images,
-          audioUrl: audios[0]?.audioUrl || '', // 첫 번째 오디오 사용
+          cuts: cuts,  // 씬별 이미지-오디오 매칭 배열
+          audioUrl: audios[0]?.audioUrl || '', // fallback: 첫 번째 오디오
           subtitleData: null, // 추후 구현
           burnSubtitle: config.subtitleStyle !== 'none',
           resolution: resolutionMap[config.resolution] || '1920x1080',

@@ -52,7 +52,46 @@ Step2는 이것을 실제 이미지 생성 엔진이 이해할 수 있는
 - seed_hint: 씬별 일관성을 위해 간단한 힌트 (예: "warm nostalgic korea 1970s scene1")
 
 
-이미지 프롬프트 작성 규칙 (필수)
+이미지 프롬프트 작성 규칙 (필수 - 절대 규칙)
+------------------------------------------------
+
+⚠️ 핵심 강제 규칙 (HARD RULES) - 모든 프롬프트에 반드시 적용 ⚠️
+
+**A. 필수 포함 요소 (반드시 프롬프트에 포함)**
+
+1. 지역/민족 식별자 (프롬프트 맨 앞에 배치):
+   - "in South Korea"
+   - "Korean elderly people" (시니어 채널)
+   - "1970s or 1980s Korea"
+
+2. 필수 끝맺음 문구 (프롬프트 마지막에 항상 추가):
+   "photograph of Korean seniors, avoid Western faces, authentic Korean interior"
+
+3. 스타일 서픽스:
+   "vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture"
+
+
+**B. 장소 한국화 규칙** (모든 장소는 한국 맥락으로 변환)
+   - 마을 → "Korean rural village"
+   - 시장 → "Korean traditional market (sijang)"
+   - 경로당 → "Korean community center for seniors"
+   - 골목 → "narrow Korean alley (golmok)"
+   - 아파트 → "Korean apartment living room"
+   - 방 → "Korean ondol-heated room"
+   - 부엌 → "Korean kitchen with traditional onggi jars"
+   - 버스정류장 → "Korean countryside bus stop"
+   - 논밭 → "Korean rice paddies"
+
+
+**C. 인물 프롬프트 프리픽스** (인물 포함 시 맨 앞에 배치)
+
+할머니:
+"Authentic Korean grandmother (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: round face shape, single eyelids typical of Korean elderly, Korean skin tone, permed short gray/white hair"
+
+할아버지:
+"Authentic Korean grandfather (harabeoji) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: angular Korean face shape, single eyelids or hooded eyes, Korean skin tone, balding or short gray hair"
+
+
 ------------------------------------------------
 
 1) **반드시 영어로 작성한다.**
@@ -62,8 +101,10 @@ Step2는 이것을 실제 이미지 생성 엔진이 이해할 수 있는
    - 1970s Korean marketplace
    - retro Korean school uniforms
    - warm 1980s Seoul neighborhood
-   - coal briquettes, old vinyls, wooden houses, narrow alleys
+   - coal briquettes (yeontan), old vinyls, wooden houses, narrow alleys
    - hanok mixed with early brick houses
+   - traditional onggi jars, ondol-heated floors
+   - hanji paper doors, wooden furniture
 
 3) **캐릭터 중심이 아닌 "배경 묘사" 중심으로 작성**
    - 얼굴 클로즈업 금지
@@ -91,6 +132,10 @@ Step2는 이것을 실제 이미지 생성 엔진이 이해할 수 있는
    - 텍스트, 로고
    - 광고 느낌의 스튜디오 촬영
    - 지나치게 현대적인 건물/차량
+   - 서양인 얼굴/외국인
+   - "Asian" 단독 사용 (반드시 "Korean" 명시)
+   - 네온 조명, 사이버펑크 스타일
+   - 스마트폰, 현대 TV 등 현대적 기기
 
 7) **한국 시니어 시청자에게 익숙한 디테일 포함**
    - 70–90년대 골목
@@ -98,8 +143,18 @@ Step2는 이것을 실제 이미지 생성 엔진이 이해할 수 있는
    - 간판 없는 시골 상점
    - 고무신, 기와지붕, 전봇대
    - 공중전화, 구멍가게, 이층 슬레이트집
+   - 한지 문, 낮은 밥상, 옹기 항아리
 
 8) **문장 길이는 1–2문단 정도, 불필요하게 길게 만들지 않는다.**
+
+9) **프롬프트 조립 순서**
+   ① [한국인 특징 프리픽스] (인물 포함 시)
+   ② [씬 설명 - 한국화된 장소]
+   ③ [행동/감정 묘사]
+   ④ [조명 설명]
+   ⑤ "in South Korea, 1970s or 1980s Korea"
+   ⑥ "photograph of Korean seniors, avoid Western faces, authentic Korean interior"
+   ⑦ "vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture"
 
 
 스타일 태그 규칙 (자동 선택)
@@ -139,13 +194,28 @@ visual_description이 다음과 같다면:
 변환 예시:
 
 image_prompt:
-"A quiet Korean alley in the early winter dawn, soft warm lights glowing from small windows, rows of old brick and wooden houses, stacks of coal briquettes near doorsteps, visible breath in the cold air, subtle film grain, cinematic composition with a gentle nostalgic mood."
+"Authentic Korean elderly people waiting in a quiet narrow Korean alley (golmok) in the early winter dawn, soft warm lights glowing from small windows, rows of old brick and wooden houses typical of 1970s Korea, stacks of coal briquettes (yeontan) near doorsteps, visible breath in the cold air, in South Korea, 1970s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean interior, vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture, cinematic composition with a gentle nostalgic mood."
 
 style:
 "warm retro color palette"
 
 seed_hint:
 "scene1 nostalgia korea 1970s dawn light"
+
+
+추가 변환 예시들
+------------------------------------------------
+
+visual_description: "경로당에서 화투 치는 할머니들"
+
+image_prompt:
+"Authentic Korean grandmothers (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features with round faces and single eyelids, permed short gray hair, playing Hwatu (Korean flower cards) together in a Korean community center for seniors, warm indoor lighting, low wooden table, floor cushions, traditional Korean interior with paper sliding doors, in South Korea, 1980s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean interior, vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture."
+
+
+visual_description: "시골 버스정류장에서 대화하는 노부부"
+
+image_prompt:
+"Authentic Korean elderly couple from South Korea, pure Korean ethnicity - grandfather (harabeoji) with angular Korean face and single eyelids, grandmother (halmeoni) with round face and permed gray hair, having a warm conversation at a Korean countryside bus stop, rustic wooden shelter, rice paddies in background, soft golden afternoon light, in South Korea, 1970s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean rural atmosphere, vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture, nostalgic composition."
 
 
 마지막 확인
