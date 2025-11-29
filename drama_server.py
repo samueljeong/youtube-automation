@@ -6700,7 +6700,7 @@ def api_gpt_analyze_prompts():
 # ===== Step5: YouTube API (테스트 모드) =====
 
 @app.route('/api/youtube/auth-status', methods=['GET'])
-def youtube_auth_status():
+def api_youtube_auth_status_test():
     """
     YouTube 인증 상태 확인.
     현재는 테스트 모드 - OAuth 미구현
@@ -6717,7 +6717,7 @@ def youtube_auth_status():
 
 
 @app.route('/api/youtube/auth', methods=['GET'])
-def youtube_auth():
+def api_youtube_auth_page():
     """
     YouTube OAuth 인증 페이지.
     현재는 테스트 모드 - 안내 메시지만 표시
