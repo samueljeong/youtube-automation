@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>교육 설계 도우미 | BIBLE LAB</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: .3rem; }
+    .header p { font-size: .85rem; opacity: 0.9; }
+
+    /* Container */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    /* Section */
+    .section {
+      background: white;
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 1rem;
+      padding-bottom: .5rem;
+      border-bottom: 2px solid #667eea;
+    }
+
+    /* Form Elements */
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+    label {
+      font-size: .85rem;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: .4rem;
+    }
+    label .hint {
+      font-weight: 400;
+      color: #999;
+      font-size: .75rem;
+    }
+    input, select, textarea {
+      padding: .6rem .8rem;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: inherit;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    /* Sub Goals */
+    .sub-goals-list {
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+    .sub-goal-item {
+      display: flex;
+      gap: .5rem;
+    }
+    .sub-goal-item input {
+      flex: 1;
+    }
+    .btn-remove-goal {
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0 .8rem;
+      cursor: pointer;
+      font-size: .85rem;
+    }
+    .btn-add-goal {
+      background: #e8f0fe;
+      color: #667eea;
+      border: 1px dashed #667eea;
+      border-radius: 6px;
+      padding: .5rem;
+      cursor: pointer;
+      font-size: .85rem;
+      margin-top: .5rem;
+    }
+
+    /* Equipment Tags */
+    .equipment-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-bottom: .5rem;
+    }
+    .equipment-tag {
+      background: #e8f0fe;
+      color: #667eea;
+      padding: .3rem .6rem;
+      border-radius: 20px;
+      font-size: .8rem;
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+    }
+    .equipment-tag .remove {
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .equipment-input-row {
+      display: flex;
+      gap: .5rem;
+    }
+    .equipment-input-row input {
+      flex: 1;
+    }
+    .btn-add-equipment {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: .5rem 1rem;
+      cursor: pointer;
+      font-size: .85rem;
+    }
+
+    /* Checkboxes */
+    .checkbox-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .5rem;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #667eea;
+    }
+    .checkbox-item label {
+      margin: 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    /* Action Buttons */
+    .actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
+    .btn {
+      padding: .8rem 2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #666;
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Loading */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+    .loading-overlay.show {
+      display: flex;
+    }
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #e0e0e0;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .loading-text {
+      margin-top: 1rem;
+      font-size: 1rem;
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    /* Result Section */
+    #result-section {
+      display: none;
+    }
+    #result-section.show {
+      display: block;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid #e0e0e0;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+    }
+    .tab {
+      padding: .8rem 1.2rem;
+      background: none;
+      border: none;
+      font-size: .9rem;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+    }
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Result Cards */
+    .result-card {
+      background: #f8f9ff;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .result-card h3 {
+      font-size: .95rem;
+      color: #667eea;
+      margin-bottom: .5rem;
+    }
+    .result-card p, .result-card li {
+      font-size: .9rem;
+      color: #444;
+    }
+    .result-card ul {
+      padding-left: 1.2rem;
+    }
+
+    /* Session Card */
+    .session-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .session-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .8rem;
+    }
+    .session-number {
+      background: #667eea;
+      color: white;
+      padding: .3rem .8rem;
+      border-radius: 20px;
+      font-size: .8rem;
+      font-weight: 600;
+    }
+    .session-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #333;
+    }
+    .session-body {
+      font-size: .85rem;
+      color: #555;
+    }
+    .session-body .label {
+      font-weight: 600;
+      color: #667eea;
+      margin-top: .8rem;
+      margin-bottom: .3rem;
+    }
+
+    /* Time Plan */
+    .time-plan {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin: .5rem 0;
+    }
+    .time-segment {
+      background: #e8f0fe;
+      padding: .3rem .6rem;
+      border-radius: 6px;
+      font-size: .8rem;
+    }
+    .time-segment .minutes {
+      color: #667eea;
+      font-weight: 600;
+    }
+
+    /* Copy Button */
+    .btn-copy {
+      background: #4ecdc4;
+      color: white;
+      border: none;
+      padding: .5rem 1rem;
+      border-radius: 6px;
+      font-size: .85rem;
+      cursor: pointer;
+      margin-top: .5rem;
+    }
+
+    /* Announcement Box */
+    .announcement-box {
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .announcement-box h4 {
+      color: #b45309;
+      font-size: .9rem;
+      margin-bottom: .5rem;
+    }
+    .announcement-box pre {
+      white-space: pre-wrap;
+      font-family: inherit;
+      font-size: .85rem;
+      color: #444;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+      .actions {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <h1>교육 설계 도우미</h1>
+    <p>성가대, 제자훈련, 교사교육 등 교육 프로그램을 AI가 설계합니다</p>
+  </header>
+
+  <div class="container">
+
+    <!-- 1. 프로그램 기본 정보 -->
+    <div class="section">
+      <div class="section-title">1. 프로그램 기본 정보</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>교육명 <span class="hint">*필수</span></label>
+          <input type="text" id="edu-title" placeholder="예: 성가대 신입대원 기초교육">
+        </div>
+        <div class="form-group">
+          <label>프로그램 유형</label>
+          <select id="edu-program-type">
+            <option value="choir_training">성가대 교육</option>
+            <option value="discipleship">제자훈련</option>
+            <option value="teacher_training">교사교육</option>
+            <option value="newcomer">새가족 교육</option>
+            <option value="leadership">임원/리더 교육</option>
+            <option value="custom">기타 (직접 입력)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row" id="custom-type-row" style="display: none;">
+        <div class="form-group full-width">
+          <label>프로그램 유형 설명</label>
+          <input type="text" id="edu-program-type-label" placeholder="기타 선택 시 직접 입력">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>대상 그룹 <span class="hint">*필수</span></label>
+          <input type="text" id="edu-target-group" placeholder="예: 주일 2부 예배 성가대 신입대원">
+        </div>
+        <div class="form-group">
+          <label>예상 인원</label>
+          <input type="number" id="edu-participants" placeholder="예: 15">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>연령대</label>
+          <input type="text" id="edu-age-range" placeholder="예: 20-50대">
+        </div>
+        <div class="form-group">
+          <label>사역 맥락</label>
+          <input type="text" id="edu-ministry-context" placeholder="예: 주일 2부 예배 성가대">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 일정 -->
+    <div class="section">
+      <div class="section-title">2. 일정</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>전체 회차 <span class="hint">*필수</span></label>
+          <input type="number" id="edu-total-sessions" placeholder="예: 4" min="1" max="52">
+        </div>
+        <div class="form-group">
+          <label>전체 주 수</label>
+          <input type="number" id="edu-total-weeks" placeholder="예: 4">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>회당 시간 (분) <span class="hint">*필수</span></label>
+          <input type="number" id="edu-session-duration" placeholder="예: 90" min="30" max="480">
+        </div>
+        <div class="form-group">
+          <label>진행 빈도</label>
+          <select id="edu-frequency">
+            <option value="weekly">매주</option>
+            <option value="biweekly">격주</option>
+            <option value="monthly">월 1회</option>
+            <option value="one_time">일회성</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>시작 시기</label>
+          <input type="text" id="edu-start-hint" placeholder="예: 2025년 3월 첫째 주 시작">
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 목표 -->
+    <div class="section">
+      <div class="section-title">3. 교육 목표</div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>핵심 목표 <span class="hint">*필수 (가장 중요한 목표 1줄)</span></label>
+          <input type="text" id="edu-main-goal" placeholder="예: 신입 성가대원이 예배자로서 정체성을 가지고 기쁨으로 섬기도록 돕는다.">
+        </div>
+      </div>
+      <div class="form-group full-width">
+        <label>부목표</label>
+        <div class="sub-goals-list" id="sub-goals-list">
+          <div class="sub-goal-item">
+            <input type="text" placeholder="부목표 1">
+            <button type="button" class="btn-remove-goal" onclick="removeSubGoal(this)">×</button>
+          </div>
+        </div>
+        <button type="button" class="btn-add-goal" onclick="addSubGoal()">+ 부목표 추가</button>
+      </div>
+    </div>
+
+    <!-- 4. 현재 상황 -->
+    <div class="section">
+      <div class="section-title">4. 현재 상황</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>참가자 수준</label>
+          <select id="edu-level">
+            <option value="beginner">초급</option>
+            <option value="mid">중급</option>
+            <option value="advanced">고급</option>
+            <option value="mixed" selected>혼합</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>강점</label>
+          <input type="text" id="edu-strengths" placeholder="예: 찬양에 대한 열심이 크다">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>해결하고 싶은 문제/고민</label>
+          <textarea id="edu-problems" placeholder="예: 지각, 복장 편차, 연습 집중도 문제"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>특별 상황</label>
+          <textarea id="edu-special-context" placeholder="예: 최근 새로운 대원이 많이 들어와 재정비가 필요한 시기"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 제약 조건 -->
+    <div class="section">
+      <div class="section-title">5. 제약 조건</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>가능한 시간대</label>
+          <input type="text" id="edu-time-slot" placeholder="예: 토요일 오후 4시~6시">
+        </div>
+        <div class="form-group">
+          <label>장소</label>
+          <input type="text" id="edu-space" placeholder="예: 본당, 소예배실">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>사용 가능 장비</label>
+          <div class="equipment-tags" id="equipment-tags"></div>
+          <div class="equipment-input-row">
+            <input type="text" id="equipment-input" placeholder="장비 입력 후 추가 버튼 클릭">
+            <button type="button" class="btn-add-equipment" onclick="addEquipment()">추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>예산 수준</label>
+          <select id="edu-budget">
+            <option value="low">낮음 (다과 정도)</option>
+            <option value="mid" selected>중간</option>
+            <option value="high">높음 (식사/재료비 가능)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>기타 제약</label>
+          <input type="text" id="edu-other-limitations" placeholder="예: 식사 제공 불가">
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 출력 옵션 -->
+    <div class="section">
+      <div class="section-title">6. 출력 옵션</div>
+      <div class="checkbox-group">
+        <div class="checkbox-item">
+          <input type="checkbox" id="opt-curriculum" checked>
+          <label for="opt-curriculum">커리큘럼 개요</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="opt-detailed" checked>
+          <label for="opt-detailed">회차별 상세 교안</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="opt-announcement" checked>
+          <label for="opt-announcement">공지문/안내문</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="opt-homework" checked>
+          <label for="opt-homework">숙제/적용 아이디어</label>
+        </div>
+        <div class="checkbox-item">
+          <input type="checkbox" id="opt-evaluation">
+          <label for="opt-evaluation">평가/피드백 문항</label>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top: 1rem;">
+        <div class="form-group">
+          <label>톤/어조</label>
+          <select id="edu-tone">
+            <option value="청년">청년</option>
+            <option value="장년" selected>장년</option>
+            <option value="교사">교사</option>
+            <option value="리더">리더</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>상세 수준</label>
+          <select id="edu-detail-level">
+            <option value="simple">간단히</option>
+            <option value="normal" selected>보통</option>
+            <option value="deep">상세히</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. 추가 메모 -->
+    <div class="section">
+      <div class="section-title">7. 추가 메모 (선택)</div>
+      <div class="form-group">
+        <textarea id="edu-extra-notes" placeholder="AI에게 전달하고 싶은 특이사항이나 요청사항을 자유롭게 적어주세요.&#10;예: 마지막 회차에는 전체 특송으로 마무리하면 좋겠다."></textarea>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
+      <button class="btn btn-primary" id="btn-generate" onclick="generateCurriculum()">✨ 교육 설계 생성</button>
+    </div>
+
+    <!-- Result Section -->
+    <div id="result-section">
+      <div class="section">
+        <div class="section-title">생성 결과</div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="summary">개요</button>
+          <button class="tab" data-tab="curriculum">커리큘럼</button>
+          <button class="tab" data-tab="sessions">회차별 상세</button>
+          <button class="tab" data-tab="announcements">공지문</button>
+          <button class="tab" data-tab="evaluation">평가</button>
+        </div>
+
+        <!-- Summary Tab -->
+        <div class="tab-content active" id="tab-summary">
+          <div id="summary-content"></div>
+        </div>
+
+        <!-- Curriculum Tab -->
+        <div class="tab-content" id="tab-curriculum">
+          <div id="curriculum-content"></div>
+        </div>
+
+        <!-- Sessions Tab -->
+        <div class="tab-content" id="tab-sessions">
+          <div id="sessions-content"></div>
+        </div>
+
+        <!-- Announcements Tab -->
+        <div class="tab-content" id="tab-announcements">
+          <div id="announcements-content"></div>
+        </div>
+
+        <!-- Evaluation Tab -->
+        <div class="tab-content" id="tab-evaluation">
+          <div id="evaluation-content"></div>
+        </div>
+
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-secondary" onclick="saveResult()">💾 결과 저장</button>
+        <button class="btn btn-primary" onclick="copyAllResult()">📋 전체 복사</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">AI가 교육 커리큘럼을 설계하고 있습니다...</div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/education-main.js') }}"></script>
+</body>
+</html>

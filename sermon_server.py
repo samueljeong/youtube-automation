@@ -21,6 +21,9 @@ from openai import OpenAI
 # ===== API Blueprint (sermon_modules.api_sermon) =====
 from sermon_modules.api_sermon import api_sermon_bp, init_sermon_api
 
+# ===== Education Blueprint =====
+from education_server import education_bp, init_education_api
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))
 
@@ -44,6 +47,10 @@ client = get_client()
 # ===== API Blueprint 초기화 및 등록 =====
 init_sermon_api(client)
 app.register_blueprint(api_sermon_bp)
+
+# ===== Education Blueprint 초기화 및 등록 =====
+init_education_api(client)
+app.register_blueprint(education_bp)
 
 # Database setup
 DATABASE_URL = os.getenv('DATABASE_URL')
