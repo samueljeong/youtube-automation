@@ -203,23 +203,46 @@ function getStepData(stepId) {
 }
 
 // 저장 시 제외할 대용량 필드 목록
-const EXCLUDED_FIELDS = ['fullScript', 'rawJson', 'debug', 'audioBase64', 'imageBase64', 'base64Data', 'raw_response'];
+const EXCLUDED_FIELDS = ['fullScript', 'rawJson', 'debug', 'audioBase64', 'imageBase64', 'base64Data', 'raw_response', 'rawContent', 'originalContent'];
 
 // 대용량 필드를 제거하고 데이터 경량화
-// ⚠️ 예외: 'images', 'imageUrl', 'audioUrl' 등 필수 URL 필드는 보존
-const PRESERVE_URL_FIELDS = ['images', 'imageUrl', 'audioUrl', 'videoUrl', 'audios'];
+// ⚠️ 예외: 'imageUrl', 'audioUrl' 등 필수 URL 필드는 보존 (단, 실제 URL만)
+const PRESERVE_URL_FIELDS = ['imageUrl', 'audioUrl', 'videoUrl'];
 
-function sanitizeForStorage(data, fieldName = '') {
+// 최대 저장 가능 크기 (500KB per step)
+const MAX_STEP_SIZE_KB = 500;
+
+function sanitizeForStorage(data, fieldName = '', depth = 0) {
   if (!data || typeof data !== 'object') return data;
 
   // 배열인 경우
   if (Array.isArray(data)) {
-    // 'images', 'audios' 등 URL 배열은 sanitize하지 않고 그대로 반환
-    if (PRESERVE_URL_FIELDS.includes(fieldName)) {
-      console.log(`[Session] URL 배열 보존: ${fieldName} (${data.length}개)`);
-      return data;
+    // images, audios 배열은 URL만 추출하여 경량화
+    if (fieldName === 'images' || fieldName === 'audios') {
+      return data.map(item => {
+        if (typeof item === 'string') {
+          // Base64 제외, URL만 보존
+          if (item.startsWith('data:') || item.length > 1000) {
+            console.log(`[Session] ${fieldName} 배열에서 Base64 제외`);
+            return null;
+          }
+          return item;
+        }
+        if (typeof item === 'object' && item !== null) {
+          // 객체에서 URL만 추출
+          const urlItem = {};
+          if (item.id) urlItem.id = item.id;
+          if (item.audioUrl && !item.audioUrl.startsWith('data:')) urlItem.audioUrl = item.audioUrl;
+          if (item.imageUrl && !item.imageUrl.startsWith('data:')) urlItem.imageUrl = item.imageUrl;
+          if (item.url && !item.url.startsWith('data:')) urlItem.url = item.url;
+          if (item.duration) urlItem.duration = item.duration;
+          if (item.text) urlItem.text = item.text.substring(0, 100);
+          return Object.keys(urlItem).length > 0 ? urlItem : null;
+        }
+        return item;
+      }).filter(Boolean);
     }
-    return data.map(item => sanitizeForStorage(item, fieldName));
+    return data.map(item => sanitizeForStorage(item, fieldName, depth + 1));
   }
 
   // 객체인 경우 대용량 필드 제거
@@ -233,76 +256,169 @@ function sanitizeForStorage(data, fieldName = '') {
 
     const value = data[key];
 
-    // URL 보존 필드는 그대로 유지
+    // null/undefined 스킵
+    if (value === null || value === undefined) continue;
+
+    // URL 보존 필드는 URL만 유지 (Base64 제외)
     if (PRESERVE_URL_FIELDS.includes(key)) {
-      sanitized[key] = value;
-      if (Array.isArray(value)) {
-        console.log(`[Session] URL 배열 보존: ${key} (${value.length}개)`);
+      if (typeof value === 'string' && !value.startsWith('data:') && value.length < 500) {
+        sanitized[key] = value;
       }
       continue;
     }
 
-    // 문자열이 너무 긴 경우 잘라내기 (10KB 초과)
-    if (typeof value === 'string' && value.length > 10000) {
-      // Base64 데이터인 경우 완전 제외 (images 제외)
-      if (value.startsWith('data:') || value.match(/^[A-Za-z0-9+/=]{1000,}$/)) {
+    // 문자열 처리
+    if (typeof value === 'string') {
+      // Base64 데이터는 완전 제외
+      if (value.startsWith('data:') || (value.length > 1000 && value.match(/^[A-Za-z0-9+/=]{1000,}$/))) {
         console.log(`[Session] Base64 데이터 제외: ${key} (${(value.length/1024).toFixed(1)}KB)`);
         continue;
       }
-      // 일반 텍스트는 잘라내기
-      sanitized[key] = value.substring(0, 10000) + '... (truncated)';
-      console.log(`[Session] 텍스트 잘라냄: ${key} (${(value.length/1024).toFixed(1)}KB -> 10KB)`);
-    } else if (typeof value === 'object' && value !== null) {
-      // 중첩 객체 재귀 처리 (key 이름 전달)
-      sanitized[key] = sanitizeForStorage(value, key);
+      // content 필드는 5KB로 제한 (대본 내용)
+      if (key === 'content' && value.length > 5000) {
+        sanitized[key] = value.substring(0, 5000) + '... (truncated for storage)';
+        console.log(`[Session] content 필드 축소: ${(value.length/1024).toFixed(1)}KB -> 5KB`);
+        continue;
+      }
+      // 일반 문자열은 2KB로 제한
+      if (value.length > 2000) {
+        sanitized[key] = value.substring(0, 2000) + '...';
+        continue;
+      }
+      sanitized[key] = value;
+    } else if (typeof value === 'object') {
+      // 깊이 제한 (5단계까지만)
+      if (depth > 5) {
+        console.log(`[Session] 깊이 제한 초과: ${key}`);
+        continue;
+      }
+      // 중첩 객체 재귀 처리
+      sanitized[key] = sanitizeForStorage(value, key, depth + 1);
     } else {
+      // 숫자, 불린 등
       sanitized[key] = value;
     }
   }
   return sanitized;
 }
 
+// 데이터 크기 측정 (KB)
+function getDataSizeKB(data) {
+  try {
+    return JSON.stringify(data).length / 1024;
+  } catch (e) {
+    return 0;
+  }
+}
+
 function setStepData(stepId, data) {
   try {
+    // 1. 데이터 경량화
+    const sanitizedData = sanitizeForStorage(data);
+    const stepSizeKB = getDataSizeKB(sanitizedData);
+    console.log(`[Session] ${stepId} 경량화 후 크기: ${stepSizeKB.toFixed(1)}KB`);
+
+    // 2. 크기 제한 초과 시 추가 축소
+    let finalData = sanitizedData;
+    if (stepSizeKB > MAX_STEP_SIZE_KB) {
+      console.warn(`[Session] ${stepId} 크기 초과 (${stepSizeKB.toFixed(1)}KB > ${MAX_STEP_SIZE_KB}KB), 추가 축소`);
+      finalData = aggressiveSanitize(sanitizedData);
+      console.log(`[Session] 추가 축소 후: ${getDataSizeKB(finalData).toFixed(1)}KB`);
+    }
+
+    // 3. 기존 데이터 로드
     const existing = localStorage.getItem(STEP_STORAGE_KEY);
     const parsed = existing ? JSON.parse(existing) : {};
-
-    // 데이터 경량화
-    const sanitizedData = sanitizeForStorage(data);
-    parsed[stepId] = sanitizedData;
+    parsed[stepId] = finalData;
 
     const jsonString = JSON.stringify(parsed);
-    const sizeKB = (jsonString.length / 1024).toFixed(1);
-    console.log(`[Session] 저장 시도: ${stepId} (전체 ${sizeKB}KB)`);
+    const totalSizeKB = jsonString.length / 1024;
+    console.log(`[Session] 저장 시도: ${stepId} (전체 ${totalSizeKB.toFixed(1)}KB)`);
 
-    localStorage.setItem(STEP_STORAGE_KEY, jsonString);
+    // 4. 전체 크기가 너무 크면 오래된 step 제거
+    if (totalSizeKB > 2000) {
+      console.warn('[Session] 전체 크기 초과, 오래된 스텝 제거');
+      // 현재 스텝 번호 추출 (step1, step2, ...)
+      const currentStepNum = parseInt(stepId.replace('step', '')) || 0;
+      // 2단계 이전 데이터 삭제
+      for (let i = 1; i < currentStepNum - 1; i++) {
+        delete parsed[`step${i}`];
+        console.log(`[Session] step${i} 제거`);
+      }
+    }
+
+    localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(parsed));
     console.log(`[Session] 저장 성공: ${stepId}`);
   } catch (e) {
     // QuotaExceededError 처리
     if (e.name === 'QuotaExceededError' || e.message.includes('quota')) {
-      console.warn('[Session] localStorage 용량 초과, 이전 데이터 정리 시도...');
+      console.warn('[Session] localStorage 용량 초과, 최소 데이터만 저장...');
 
       try {
-        // 기존 데이터 삭제 후 현재 스텝만 저장
+        // localStorage 전체 정리
         localStorage.removeItem(STEP_STORAGE_KEY);
-        const newData = {};
-        newData[stepId] = sanitizeForStorage(data);
+        localStorage.removeItem(QA_STORAGE_KEY);
+
+        // 최소 필수 데이터만 저장
+        const minimalData = aggressiveSanitize(data);
+        const newData = { [stepId]: minimalData };
         localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(newData));
-        console.log('[Session] 데이터 정리 후 저장 성공');
+        console.log('[Session] 최소 데이터로 저장 성공');
       } catch (e2) {
-        console.error('[Session] 정리 후에도 저장 실패:', e2);
-        // 마지막 시도: 최소 데이터만 저장
-        try {
-          const minimalData = { [stepId]: { saved: true, timestamp: Date.now() } };
-          localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(minimalData));
-        } catch (e3) {
-          console.error('[Session] 최소 데이터도 저장 실패:', e3);
-        }
+        console.error('[Session] 저장 완전 실패, 메모리에만 유지:', e2);
+        // 메모리에만 저장 (페이지 리로드 시 손실)
+        window._dramaStepData = window._dramaStepData || {};
+        window._dramaStepData[stepId] = data;
       }
     } else {
       console.error('[Session] Step 데이터 저장 실패:', e);
     }
   }
+}
+
+// 극단적 축소 (최소 필수 정보만)
+function aggressiveSanitize(data) {
+  if (!data || typeof data !== 'object') return data;
+
+  const minimal = {};
+
+  // 필수 필드만 보존
+  const essentialFields = ['id', 'title', 'audioUrl', 'imageUrl', 'videoUrl', 'duration', 'status', 'config'];
+
+  for (const key of Object.keys(data)) {
+    const value = data[key];
+
+    if (essentialFields.includes(key)) {
+      if (typeof value === 'string' && value.length < 500) {
+        minimal[key] = value;
+      } else if (typeof value === 'number' || typeof value === 'boolean') {
+        minimal[key] = value;
+      } else if (typeof value === 'object' && !Array.isArray(value)) {
+        minimal[key] = value;
+      }
+    }
+
+    // audios 배열은 URL만 추출
+    if (key === 'audios' && Array.isArray(value)) {
+      minimal.audios = value.map(a => ({
+        id: a.id,
+        audioUrl: a.audioUrl,
+        duration: a.duration
+      })).filter(a => a.audioUrl);
+    }
+
+    // images 배열은 URL만 추출
+    if (key === 'images' && Array.isArray(value)) {
+      minimal.images = value.map(img => {
+        if (typeof img === 'string' && !img.startsWith('data:')) return img;
+        if (img.imageUrl && !img.imageUrl.startsWith('data:')) return img.imageUrl;
+        if (img.url && !img.url.startsWith('data:')) return img.url;
+        return null;
+      }).filter(Boolean);
+    }
+  }
+
+  return minimal;
 }
 
 function clearStepData() {

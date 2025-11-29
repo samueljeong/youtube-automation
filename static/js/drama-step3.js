@@ -250,6 +250,8 @@ window.DramaStep3 = {
 
     // 4. script 필드가 있는 경우
     if (narrations.length === 0 && jsonData.script) {
+      console.log('[Step3] script 필드 처리, 타입:', typeof jsonData.script);
+
       if (typeof jsonData.script === 'string') {
         narrations.push(jsonData.script);
       } else if (jsonData.script.tts_text) {
@@ -258,6 +260,58 @@ window.DramaStep3 = {
         narrations.push(jsonData.script.full_text);
       } else if (jsonData.script.narration) {
         narrations.push(jsonData.script.narration);
+      } else if (typeof jsonData.script === 'object') {
+        // script가 객체인 경우: opening, development, climax, resolution 등의 필드 처리
+        console.log('[Step3] script 객체의 키들:', Object.keys(jsonData.script));
+
+        const storyParts = ['opening', 'intro', 'development', 'turning_point', 'climax', 'resolution', 'ending', 'closing'];
+        const extractedParts = [];
+
+        storyParts.forEach(part => {
+          if (jsonData.script[part]) {
+            const partData = jsonData.script[part];
+            if (typeof partData === 'string' && partData.length > 10) {
+              console.log(`[Step3] script.${part} 추출 (${partData.length}자)`);
+              extractedParts.push(partData);
+            } else if (typeof partData === 'object') {
+              // 객체인 경우 텍스트 추출
+              const text = this.extractTextFromSceneObject(partData);
+              if (text && text.length > 10) {
+                console.log(`[Step3] script.${part} 객체에서 추출 (${text.length}자)`);
+                extractedParts.push(text);
+              }
+            }
+          }
+        });
+
+        // 정의된 키가 없으면 모든 문자열 값 수집
+        if (extractedParts.length === 0) {
+          console.log('[Step3] 정의된 story parts 없음, 모든 문자열 필드 수집');
+          for (const key of Object.keys(jsonData.script)) {
+            // scenes 배열은 이미 위에서 처리했으므로 스킵
+            if (key === 'scenes') continue;
+            const value = jsonData.script[key];
+            if (typeof value === 'string' && value.length > 30) {
+              console.log(`[Step3] script.${key} 문자열 수집 (${value.length}자)`);
+              extractedParts.push(value);
+            }
+          }
+        }
+
+        if (extractedParts.length > 0) {
+          // 모든 파트를 하나의 나레이션으로 합치거나, 개별 씬으로 분리
+          // 짧으면 합치고, 길면 개별 처리
+          const totalLength = extractedParts.reduce((sum, p) => sum + p.length, 0);
+          if (totalLength < 3000 && extractedParts.length <= 4) {
+            // 짧으면 하나로 합침
+            narrations.push(extractedParts.join('\n\n'));
+            console.log('[Step3] script 파트들을 하나로 합침');
+          } else {
+            // 길면 개별 씬으로
+            extractedParts.forEach(part => narrations.push(part));
+            console.log(`[Step3] script 파트들을 개별 씬으로 분리: ${extractedParts.length}개`);
+          }
+        }
       }
     }
 
