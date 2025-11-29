@@ -747,12 +747,17 @@ def gpt_pro():
         duration = data.get("duration", "20분")
         special_notes = data.get("specialNotes", "")
 
+        # 문단/줄바꿈 스타일 및 성경구절 인용 규칙 (프론트엔드에서 전달)
+        writing_style = data.get("writingStyle")
+        scripture_citation = data.get("scriptureCitation")
+
         # JSON 모드 여부 확인
         is_json_mode = (isinstance(step1_result, dict) and len(step1_result) > 0) or \
                        (isinstance(step2_result, dict) and len(step2_result) > 0)
 
         print(f"[GPT-PRO/Step3] JSON 모드: {is_json_mode}, step1_result 타입: {type(step1_result)}, step2_result 타입: {type(step2_result)}")
         print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
+        print(f"[GPT-PRO/Step3] writing_style: {'있음' if writing_style else '없음'}, scripture_citation: {'있음' if scripture_citation else '없음'}")
 
         has_title = bool(title and title.strip())
 
@@ -776,6 +781,66 @@ def gpt_pro():
             system_content += f"\n   {special_notes}"
             system_content += f"\n   - 위 내용을 설교문 작성 시 반드시 고려하세요."
         system_content += "\n" + "=" * 50
+
+        # 문단/줄바꿈 스타일 규칙 추가
+        if writing_style and isinstance(writing_style, dict):
+            system_content += "\n\n" + "=" * 50
+            system_content += f"\n【 ★★★ {writing_style.get('label', '문단/줄바꿈 스타일')} ★★★ 】"
+            system_content += "\n" + "=" * 50
+
+            if writing_style.get('core_principle'):
+                system_content += f"\n\n핵심 원칙: {writing_style['core_principle']}"
+
+            if writing_style.get('must_do'):
+                system_content += "\n\n✅ 반드시 해야 할 것:"
+                for item in writing_style['must_do']:
+                    system_content += f"\n  - {item}"
+
+            if writing_style.get('must_not'):
+                system_content += "\n\n❌ 절대 하지 말아야 할 것:"
+                for item in writing_style['must_not']:
+                    system_content += f"\n  - {item}"
+
+            if writing_style.get('good_example'):
+                system_content += f"\n\n✅ 올바른 예시:\n{writing_style['good_example']}"
+
+            if writing_style.get('bad_example'):
+                system_content += f"\n\n❌ 잘못된 예시 (이렇게 쓰지 마세요):\n{writing_style['bad_example']}"
+
+            if writing_style.get('critical_warning'):
+                system_content += f"\n\n⚠️ 경고: {writing_style['critical_warning']}"
+
+        # 성경구절 인용 규칙 추가
+        if scripture_citation and isinstance(scripture_citation, dict):
+            system_content += "\n\n" + "=" * 50
+            system_content += f"\n【 ★★★ {scripture_citation.get('label', '성경구절 인용 방식')} ★★★ 】"
+            system_content += "\n" + "=" * 50
+
+            if scripture_citation.get('core_principle'):
+                system_content += f"\n\n핵심 원칙: {scripture_citation['core_principle']}"
+
+            if scripture_citation.get('must_do'):
+                system_content += "\n\n✅ 반드시 해야 할 것:"
+                for item in scripture_citation['must_do']:
+                    system_content += f"\n  - {item}"
+
+            if scripture_citation.get('must_not'):
+                system_content += "\n\n❌ 절대 하지 말아야 할 것:"
+                for item in scripture_citation['must_not']:
+                    system_content += f"\n  - {item}"
+
+            if scripture_citation.get('good_examples'):
+                system_content += "\n\n✅ 올바른 예시:"
+                for example in scripture_citation['good_examples']:
+                    system_content += f"\n  {example}"
+
+            if scripture_citation.get('bad_examples'):
+                system_content += "\n\n❌ 잘못된 예시 (이렇게 쓰지 마세요):"
+                for example in scripture_citation['bad_examples']:
+                    system_content += f"\n  {example}"
+
+            if scripture_citation.get('usage_guide'):
+                system_content += f"\n\n📌 {scripture_citation['usage_guide']}"
 
         if not has_title:
             system_content += (
