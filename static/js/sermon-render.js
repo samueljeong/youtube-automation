@@ -66,6 +66,8 @@ function renderCategories() {
         if (titleBox) titleBox.style.display = 'none';
         const gptProContainer = document.getElementById('gpt-pro-result-container');
         if (gptProContainer) gptProContainer.style.display = 'none';
+        const step12Area = document.getElementById('step12-result-area');
+        if (step12Area) step12Area.style.display = 'block';
 
         // 버튼 활성화 상태 업데이트
         buttonsContainer.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
@@ -474,7 +476,7 @@ function renderResultBoxes() {
     const usage = stepUsage[step.id];
     const usageHtml = usage ? `
       <span id="usage-${step.id}" style="font-size: .75rem; color: #888;">
-        in(${usage.inputTokens?.toLocaleString() || 0}), out(${usage.outputTokens?.toLocaleString() || 0}), ${usage.costKRW || '0.0'}
+        in(${usage.inputTokens?.toLocaleString() || 0}), out(${usage.outputTokens?.toLocaleString() || 0}), ${usage.costKRW || '0'}
       </span>
     ` : `<span id="usage-${step.id}" style="font-size: .75rem; color: #888;"></span>`;
 

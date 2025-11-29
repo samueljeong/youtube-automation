@@ -172,29 +172,33 @@
               <button id="btn-copy-all" style="width: 100%; padding: .45rem; font-size: .8rem; background: white; color: #667eea; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">전체 복사</button>
             </div>
             <div class="box gpt-pro-box" id="step3-box" style="flex: 1; background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%); border: none; padding: .6rem; opacity: 0.5; pointer-events: none; text-align: center; display: flex; flex-direction: column; justify-content: center;">
-              <div class="box-title" style="font-size: .85rem; margin-bottom: .25rem; color: white; font-weight: 700;">🔴 AI 설교문 완성</div>
-              <div class="box-desc" style="font-size: .7rem; margin-bottom: .4rem; color: rgba(255,255,255,0.95);">PRO 기능 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
+              <div class="box-title" style="font-size: .85rem; margin-bottom: .25rem; color: white; font-weight: 700;">🔴 설교문 완성</div>
+              <div class="box-desc" style="font-size: .7rem; margin-bottom: .4rem; color: rgba(255,255,255,0.95);">프리미엄 · BIBLE LAB이 설교문을 작성합니다 (크레딧 1회 차감)</div>
               <button id="btn-gpt-pro" style="width: 100%; padding: .45rem; font-size: .8rem; background: white; color: #f5576c; font-weight: 700; border: none; border-radius: 6px; cursor: pointer;">설교문 작성</button>
             </div>
           </div>
         </div>
 
-          <div class="box" style="display: flex; flex-direction: column; gap: .75rem;">
-            <div class="label-row">
-              <div class="label">처리 단계 결과</div>
-              <span style="font-size: .8rem; color: #777;">선택한 단계의 결과가 여기에 순서대로 표시됩니다.</span>
-            </div>
-            <div id="result-boxes"></div>
-          </div>
-
-          <div id="gpt-pro-result-container" style="display: none;">
-            <div class="gpt-pro-result-box">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
-                <div class="label" style="margin: 0;">🎯 Step3. 설교문 완성</div>
-                <span id="usage-step3" style="font-size: .75rem; color: rgba(255,255,255,0.9);"></span>
+          <div class="box" id="result-section-box" style="display: flex; flex-direction: column; gap: .75rem;">
+            <!-- Step1/2 결과 영역 -->
+            <div id="step12-result-area">
+              <div class="label-row">
+                <div class="label">처리 단계 결과</div>
+                <span style="font-size: .8rem; color: #777;">선택한 단계의 결과가 여기에 순서대로 표시됩니다.</span>
               </div>
-              <button id="btn-copy-gpt-pro" style="margin: .25rem 0 .75rem 0; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 설교문 전체 복사</button>
-              <textarea id="gpt-pro-result" class="autosize" readonly placeholder="Step3 처리 결과가 여기에 표시됩니다."></textarea>
+              <div id="result-boxes"></div>
+            </div>
+
+            <!-- Step3 결과 영역 (같은 자리에 표시) -->
+            <div id="gpt-pro-result-container" style="display: none;">
+              <div class="gpt-pro-result-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem;">
+                  <div class="label" style="margin: 0;">🎯 Step3. 설교문 완성</div>
+                  <span id="usage-step3" style="font-size: .75rem; color: rgba(255,255,255,0.9);"></span>
+                </div>
+                <button id="btn-copy-gpt-pro" style="margin: .25rem 0 .75rem 0; width: 100%; background: white; color: #f5576c; font-weight: 600;">📋 설교문 전체 복사</button>
+                <textarea id="gpt-pro-result" class="autosize" readonly placeholder="Step3 처리 결과가 여기에 표시됩니다."></textarea>
+              </div>
             </div>
           </div>
         </div>
