@@ -4,18 +4,18 @@ YouTube Data API v3 OAuth2 인증
 """
 
 import os
-from typing import Any, Optional
-
-# TODO: 실제 사용 시 아래 패키지 설치 필요
-# pip install google-auth google-auth-oauthlib google-api-python-client
+import json
+from typing import Any, Optional, Dict
 
 # OAuth2 관련 상수
-# TODO: 실제 경로로 수정 필요
 CLIENT_SECRET_FILE = os.getenv("YOUTUBE_CLIENT_SECRET_PATH", "config/client_secret.json")
 TOKEN_FILE = os.getenv("YOUTUBE_TOKEN_PATH", "config/youtube_token.json")
 
 # YouTube API 스코프
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly"
+]
 
 
 def get_youtube_client() -> Any:
@@ -33,93 +33,214 @@ def get_youtube_client() -> Any:
         FileNotFoundError: client_secret 파일이 없는 경우
         Exception: 인증 실패 시
     """
-    # TODO: 실제 구현 시 아래 주석 해제
+    try:
+        from google.oauth2.credentials import Credentials
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+    except ImportError:
+        print("[YOUTUBE-AUTH] google-auth 패키지가 설치되지 않았습니다.")
+        print("[YOUTUBE-AUTH] 설치: pip install google-auth google-auth-oauthlib google-api-python-client")
+        return None
 
-    # from google.oauth2.credentials import Credentials
-    # from google_auth_oauthlib.flow import InstalledAppFlow
-    # from google.auth.transport.requests import Request
-    # from googleapiclient.discovery import build
-    # import json
-    #
-    # creds = None
-    #
-    # # 기존 토큰 파일 확인
-    # if os.path.exists(TOKEN_FILE):
-    #     with open(TOKEN_FILE, 'r') as token:
-    #         token_data = json.load(token)
-    #         creds = Credentials.from_authorized_user_info(token_data, SCOPES)
-    #
-    # # 토큰이 없거나 만료된 경우
-    # if not creds or not creds.valid:
-    #     if creds and creds.expired and creds.refresh_token:
-    #         # 토큰 갱신
-    #         creds.refresh(Request())
-    #     else:
-    #         # 새 OAuth 플로우 시작
-    #         if not os.path.exists(CLIENT_SECRET_FILE):
-    #             raise FileNotFoundError(
-    #                 f"Client secret file not found: {CLIENT_SECRET_FILE}\n"
-    #                 "Please download from Google Cloud Console."
-    #             )
-    #         flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
-    #         creds = flow.run_local_server(port=0)
-    #
-    #     # 토큰 저장
-    #     with open(TOKEN_FILE, 'w') as token:
-    #         token.write(creds.to_json())
-    #
-    # # YouTube API 서비스 빌드
-    # youtube = build('youtube', 'v3', credentials=creds)
-    # return youtube
+    creds = None
 
-    # 임시: 더미 객체 반환
-    print("[AUTH] YouTube client requested (mock mode)")
-    print(f"[AUTH] Client secret: {CLIENT_SECRET_FILE}")
-    print(f"[AUTH] Token file: {TOKEN_FILE}")
-    return _MockYouTubeClient()
+    # 기존 토큰 파일 확인
+    if os.path.exists(TOKEN_FILE):
+        try:
+            with open(TOKEN_FILE, 'r') as token:
+                token_data = json.load(token)
+                creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+            print(f"[YOUTUBE-AUTH] 기존 토큰 로드: {TOKEN_FILE}")
+        except Exception as e:
+            print(f"[YOUTUBE-AUTH] 토큰 로드 오류: {e}")
+            creds = None
 
+    # 토큰이 없거나 만료된 경우
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            # 토큰 갱신
+            try:
+                creds.refresh(Request())
+                print("[YOUTUBE-AUTH] 토큰 갱신 완료")
+            except Exception as e:
+                print(f"[YOUTUBE-AUTH] 토큰 갱신 실패: {e}")
+                creds = None
 
-class _MockYouTubeClient:
-    """테스트용 Mock YouTube 클라이언트"""
+        if not creds:
+            # 새 OAuth 플로우 시작
+            if not os.path.exists(CLIENT_SECRET_FILE):
+                print(f"[YOUTUBE-AUTH] Client secret 파일 없음: {CLIENT_SECRET_FILE}")
+                raise FileNotFoundError(
+                    f"Client secret file not found: {CLIENT_SECRET_FILE}\n"
+                    "Please download from Google Cloud Console."
+                )
 
-    def videos(self):
-        return _MockVideosResource()
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
+            creds = flow.run_local_server(port=0)
+            print("[YOUTUBE-AUTH] 새 OAuth 인증 완료")
 
+        # 토큰 저장
+        if creds:
+            os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+            print(f"[YOUTUBE-AUTH] 토큰 저장: {TOKEN_FILE}")
 
-class _MockVideosResource:
-    """테스트용 Mock Videos Resource"""
-
-    def insert(self, part: str, body: dict, media_body: Any = None):
-        return _MockRequest(body)
-
-
-class _MockRequest:
-    """테스트용 Mock Request"""
-
-    def __init__(self, body: dict):
-        self.body = body
-
-    def execute(self) -> dict:
-        print(f"[MOCK] Would upload video: {self.body.get('snippet', {}).get('title', 'Unknown')}")
-        return {
-            "id": "MOCK_VIDEO_ID_12345",
-            "snippet": self.body.get("snippet", {}),
-            "status": self.body.get("status", {})
-        }
+    # YouTube API 서비스 빌드
+    youtube = build('youtube', 'v3', credentials=creds)
+    print("[YOUTUBE-AUTH] YouTube 클라이언트 생성 완료")
+    return youtube
 
 
-def validate_credentials() -> bool:
+def get_channel_info() -> Optional[Dict[str, Any]]:
+    """
+    현재 인증된 채널 정보 조회
+
+    Returns:
+        채널 정보 딕셔너리 또는 None
+    """
+    try:
+        youtube = get_youtube_client()
+        if not youtube:
+            return None
+
+        request = youtube.channels().list(
+            part="snippet,contentDetails,statistics",
+            mine=True
+        )
+        response = request.execute()
+
+        items = response.get("items", [])
+        if items:
+            channel = items[0]
+            return {
+                "id": channel.get("id"),
+                "title": channel.get("snippet", {}).get("title"),
+                "description": channel.get("snippet", {}).get("description", "")[:100],
+                "thumbnailUrl": channel.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url"),
+                "subscriberCount": channel.get("statistics", {}).get("subscriberCount"),
+                "videoCount": channel.get("statistics", {}).get("videoCount")
+            }
+        return None
+    except Exception as e:
+        print(f"[YOUTUBE-AUTH] 채널 정보 조회 오류: {e}")
+        return None
+
+
+def validate_credentials() -> Dict[str, Any]:
     """
     인증 정보 유효성 검사
 
     Returns:
-        True if credentials are valid
+        {'valid': bool, 'mode': str, 'message': str, 'channel': dict|None}
     """
-    # TODO: 실제 구현
+    # 1. 필요한 패키지 확인
+    try:
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+    except ImportError:
+        return {
+            "valid": False,
+            "mode": "test",
+            "message": "google-auth 패키지가 설치되지 않았습니다. pip install google-auth google-auth-oauthlib google-api-python-client",
+            "channel": None
+        }
+
+    # 2. client_secret 파일 확인
     if not os.path.exists(CLIENT_SECRET_FILE):
-        print(f"[AUTH] Warning: Client secret not found at {CLIENT_SECRET_FILE}")
-        return False
-    return True
+        return {
+            "valid": False,
+            "mode": "test",
+            "message": f"Client secret 파일이 없습니다: {CLIENT_SECRET_FILE}",
+            "channel": None
+        }
+
+    # 3. 토큰 파일 확인
+    if not os.path.exists(TOKEN_FILE):
+        return {
+            "valid": False,
+            "mode": "setup",
+            "message": "OAuth 인증이 필요합니다. /api/youtube/auth로 인증을 진행해주세요.",
+            "channel": None
+        }
+
+    # 4. 토큰 유효성 검사
+    try:
+        with open(TOKEN_FILE, 'r') as f:
+            token_data = json.load(f)
+
+        creds = Credentials.from_authorized_user_info(token_data, SCOPES)
+
+        if not creds.valid:
+            if creds.expired and creds.refresh_token:
+                from google.auth.transport.requests import Request
+                creds.refresh(Request())
+                # 갱신된 토큰 저장
+                with open(TOKEN_FILE, 'w') as f:
+                    f.write(creds.to_json())
+            else:
+                return {
+                    "valid": False,
+                    "mode": "setup",
+                    "message": "토큰이 만료되었습니다. 다시 인증해주세요.",
+                    "channel": None
+                }
+
+        # 5. 실제 API 호출 테스트
+        youtube = build('youtube', 'v3', credentials=creds)
+        request = youtube.channels().list(part="snippet", mine=True)
+        response = request.execute()
+
+        items = response.get("items", [])
+        if items:
+            channel = items[0]
+            return {
+                "valid": True,
+                "mode": "live",
+                "message": "YouTube 연결됨",
+                "channel": {
+                    "id": channel.get("id"),
+                    "title": channel.get("snippet", {}).get("title"),
+                    "thumbnailUrl": channel.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url")
+                }
+            }
+        else:
+            return {
+                "valid": False,
+                "mode": "test",
+                "message": "연결된 채널이 없습니다.",
+                "channel": None
+            }
+
+    except Exception as e:
+        return {
+            "valid": False,
+            "mode": "test",
+            "message": f"인증 오류: {str(e)}",
+            "channel": None
+        }
+
+
+def check_auth_status() -> Dict[str, Any]:
+    """
+    간단한 인증 상태 확인 (API 엔드포인트용)
+
+    Returns:
+        인증 상태 정보
+    """
+    result = validate_credentials()
+
+    return {
+        "ok": True,
+        "authenticated": result["valid"],
+        "connected": result["valid"],
+        "mode": result["mode"],
+        "channelName": result["channel"]["title"] if result["channel"] else None,
+        "channelId": result["channel"]["id"] if result["channel"] else None,
+        "channelThumbnail": result["channel"].get("thumbnailUrl") if result["channel"] else None,
+        "message": result["message"]
+    }
 
 
 if __name__ == "__main__":
@@ -127,7 +248,12 @@ if __name__ == "__main__":
     print("=== YouTube Auth Test ===")
     print(f"Client secret path: {CLIENT_SECRET_FILE}")
     print(f"Token path: {TOKEN_FILE}")
-    print(f"Credentials valid: {validate_credentials()}")
 
-    client = get_youtube_client()
-    print(f"Client type: {type(client)}")
+    status = check_auth_status()
+    print(f"\nAuth status: {json.dumps(status, indent=2, ensure_ascii=False)}")
+
+    if status["authenticated"]:
+        channel = get_channel_info()
+        if channel:
+            print(f"\nChannel: {channel['title']}")
+            print(f"Subscribers: {channel.get('subscriberCount', 'N/A')}")

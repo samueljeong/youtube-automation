@@ -4458,12 +4458,271 @@ def api_upload_image():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Step6: 씬별 클립 생성 후 concat 방식 영상 제작 =====
+def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fps, update_progress):
+    """
+    cuts 배열을 사용하여 각 씬별로 클립을 생성하고 concat하여 최종 영상 생성.
+    이 방식은 각 씬의 이미지와 오디오가 정확히 매칭됨.
+
+    Args:
+        cuts: [{'cutId': 1, 'imageUrl': '...', 'audioUrl': '...', 'duration': 10}, ...]
+        subtitle_data: 자막 데이터
+        burn_subtitle: 자막 하드코딩 여부
+        resolution: 해상도 (예: '1920x1080')
+        fps: 프레임 레이트
+        update_progress: 진행률 업데이트 함수
+    """
+    import requests
+    import base64
+    import tempfile
+    import subprocess
+    import shutil
+    import gc
+
+    print(f"[DRAMA-CUTS-VIDEO] 씬별 영상 생성 시작 - {len(cuts)}개 씬")
+
+    # 해상도 파싱 및 최적화 (512MB 환경)
+    width, height = resolution.split('x')
+    width, height = int(width), int(height)
+
+    MAX_WIDTH = 1280
+    MAX_HEIGHT = 720
+    if width > MAX_WIDTH or height > MAX_HEIGHT:
+        aspect_ratio = width / height
+        if aspect_ratio > 16/9:
+            width = MAX_WIDTH
+            height = int(MAX_WIDTH / aspect_ratio)
+        else:
+            height = MAX_HEIGHT
+            width = int(MAX_HEIGHT * aspect_ratio)
+        resolution = f"{width}x{height}"
+        print(f"[DRAMA-CUTS-VIDEO] 해상도 조정: {resolution}")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        update_progress(10, "씬별 영상 생성 준비 중...")
+
+        segment_files = []
+        total_duration = 0.0
+
+        for idx, cut in enumerate(cuts):
+            cut_id = cut.get('cutId', idx + 1)
+            img_url = cut.get('imageUrl', '')
+            audio_url = cut.get('audioUrl', '')
+            cut_duration = cut.get('duration', 10)
+
+            progress_pct = 10 + int((idx / len(cuts)) * 60)
+            update_progress(progress_pct, f"씬 {cut_id} 처리 중... ({idx + 1}/{len(cuts)})")
+
+            print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 처리 - 이미지: {img_url[:50] if img_url else 'N/A'}..., 오디오: {audio_url[:50] if audio_url else 'N/A'}...")
+
+            # 이미지 다운로드/처리
+            img_path = os.path.join(temp_dir, f"image_{idx:03d}.png")
+            if img_url:
+                try:
+                    if img_url.startswith('data:'):
+                        header, encoded = img_url.split(',', 1)
+                        img_data = base64.b64decode(encoded)
+                        with open(img_path, 'wb') as f:
+                            f.write(img_data)
+                    elif img_url.startswith('/static/'):
+                        local_path = os.path.join(os.path.dirname(__file__), img_url.lstrip('/'))
+                        if os.path.exists(local_path):
+                            shutil.copy2(local_path, img_path)
+                        else:
+                            print(f"[DRAMA-CUTS-VIDEO] 로컬 이미지 없음: {local_path}")
+                            continue
+                    else:
+                        response = requests.get(img_url, timeout=60)
+                        if response.status_code == 200:
+                            with open(img_path, 'wb') as f:
+                                f.write(response.content)
+                        else:
+                            print(f"[DRAMA-CUTS-VIDEO] 이미지 다운로드 실패: {img_url}")
+                            continue
+                except Exception as e:
+                    print(f"[DRAMA-CUTS-VIDEO] 이미지 처리 오류: {e}")
+                    continue
+            else:
+                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 이미지 URL 없음")
+                continue
+
+            # 오디오 다운로드/처리
+            audio_path = os.path.join(temp_dir, f"audio_{idx:03d}.mp3")
+            actual_duration = cut_duration
+            has_audio = False
+
+            if audio_url:
+                try:
+                    if audio_url.startswith('data:'):
+                        header, encoded = audio_url.split(',', 1)
+                        audio_data = base64.b64decode(encoded)
+                        with open(audio_path, 'wb') as f:
+                            f.write(audio_data)
+                        has_audio = True
+                    elif audio_url.startswith('/static/'):
+                        local_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
+                        if os.path.exists(local_path):
+                            shutil.copy2(local_path, audio_path)
+                            has_audio = True
+                    else:
+                        response = requests.get(audio_url, timeout=60)
+                        if response.status_code == 200:
+                            with open(audio_path, 'wb') as f:
+                                f.write(response.content)
+                            has_audio = True
+                except Exception as e:
+                    print(f"[DRAMA-CUTS-VIDEO] 오디오 처리 오류: {e}")
+
+            # 오디오가 있으면 실제 길이 확인
+            if has_audio and os.path.exists(audio_path):
+                try:
+                    probe_cmd = [
+                        'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                        '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+                    ]
+                    result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                    if result.stdout.strip():
+                        actual_duration = float(result.stdout.strip())
+                except Exception as e:
+                    print(f"[DRAMA-CUTS-VIDEO] 오디오 길이 확인 오류: {e}")
+
+            print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id}: 오디오={has_audio}, 길이={actual_duration:.1f}초")
+
+            # 씬별 클립 생성
+            segment_path = os.path.join(temp_dir, f"segment_{idx:03d}.mp4")
+
+            if has_audio:
+                # 이미지 + 오디오로 클립 생성
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',
+                    '-loop', '1',
+                    '-i', img_path,
+                    '-i', audio_path,
+                    '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                    '-c:a', 'aac', '-b:a', '128k',
+                    '-r', str(fps),
+                    '-t', str(actual_duration),
+                    '-shortest',
+                    '-pix_fmt', 'yuv420p',
+                    segment_path
+                ]
+            else:
+                # 오디오 없이 이미지만으로 클립 생성 (무음)
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',
+                    '-loop', '1',
+                    '-i', img_path,
+                    '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                    '-vf', f'scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                    '-c:a', 'aac',
+                    '-r', str(fps),
+                    '-t', str(actual_duration),
+                    '-shortest',
+                    '-pix_fmt', 'yuv420p',
+                    segment_path
+                ]
+
+            try:
+                process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=300)
+                if process.returncode == 0 and os.path.exists(segment_path):
+                    segment_files.append(segment_path)
+                    total_duration += actual_duration
+                    print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 클립 생성 완료: {segment_path}")
+                else:
+                    print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} FFmpeg 오류: {process.stderr[:500]}")
+            except subprocess.TimeoutExpired:
+                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 타임아웃")
+            except Exception as e:
+                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 클립 생성 오류: {e}")
+
+            # 메모리 정리
+            gc.collect()
+
+        if not segment_files:
+            raise Exception("클립을 생성하지 못했습니다. 이미지와 오디오 파일을 확인해주세요.")
+
+        # 모든 세그먼트 concat
+        update_progress(75, f"영상 병합 중... ({len(segment_files)}개 클립)")
+
+        concat_list_path = os.path.join(temp_dir, "concat.txt")
+        with open(concat_list_path, 'w', encoding='utf-8') as f:
+            for seg in segment_files:
+                f.write(f"file '{seg}'\n")
+
+        output_path = os.path.join(temp_dir, "output.mp4")
+        concat_cmd = [
+            'ffmpeg', '-y',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', concat_list_path,
+            '-c', 'copy',
+            output_path
+        ]
+
+        try:
+            process = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=600)
+            if process.returncode != 0:
+                print(f"[DRAMA-CUTS-VIDEO] Concat 오류: {process.stderr[:500]}")
+                raise Exception(f"영상 병합 실패: {process.stderr[:200]}")
+        except subprocess.TimeoutExpired:
+            raise Exception("영상 병합 타임아웃 (10분)")
+
+        update_progress(90, "영상 저장 중...")
+
+        # 최종 영상을 static 폴더에 저장
+        static_video_dir = os.path.join(os.path.dirname(__file__), 'static', 'videos')
+        os.makedirs(static_video_dir, exist_ok=True)
+
+        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+        video_filename = f"drama_{timestamp}.mp4"
+        final_video_path = os.path.join(static_video_dir, video_filename)
+
+        shutil.copy2(output_path, final_video_path)
+
+        # 파일 크기 확인
+        file_size = os.path.getsize(final_video_path)
+        file_size_mb = file_size / (1024 * 1024)
+
+        video_url = f"/static/videos/{video_filename}"
+
+        # Base64 인코딩 (20MB 이하만)
+        if file_size_mb <= 20:
+            with open(final_video_path, 'rb') as f:
+                video_data = f.read()
+            video_base64 = base64.b64encode(video_data).decode('utf-8')
+            video_url_base64 = f"data:video/mp4;base64,{video_base64}"
+            del video_data
+            del video_base64
+            gc.collect()
+        else:
+            video_url_base64 = None
+
+        print(f"[DRAMA-CUTS-VIDEO] 영상 생성 완료 - {len(segment_files)}개 씬, 총 {total_duration:.1f}초, {file_size_mb:.2f}MB")
+
+        update_progress(100, "완료!")
+
+        return {
+            "videoUrl": video_url_base64 or video_url,
+            "videoFileUrl": video_url,
+            "duration": total_duration,
+            "fileSize": file_size,
+            "fileSizeMB": round(file_size_mb, 2),
+            "cutsCount": len(segment_files)
+        }
+
+
 # ===== Step6: 영상 제작 (동기 함수) =====
-def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolution, fps, transition, job_id=None):
+def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolution, fps, transition, job_id=None, cuts=None):
     """
     실제 영상 생성 로직 (동기)
     백그라운드 워커에서 호출됨
     메모리 최적화: 512MB 제한 환경에서 작동
+
+    Args:
+        cuts: 씬별 이미지-오디오 매칭 배열 (선택적)
+              [{'cutId': 1, 'imageUrl': '...', 'audioUrl': '...', 'duration': 10}, ...]
     """
     import requests
     import base64
@@ -4509,6 +4768,11 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
     ffmpeg_path = shutil.which('ffmpeg')
     if not ffmpeg_path:
         raise Exception("FFmpeg가 설치되어 있지 않습니다. 서버에 FFmpeg를 설치해주세요.")
+
+    # ===== cuts 배열이 있으면 씬별 클립 생성 후 concat 방식 사용 =====
+    if cuts and len(cuts) > 0:
+        print(f"[DRAMA-STEP6-VIDEO] cuts 기반 영상 생성 ({len(cuts)}개 씬)")
+        return _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fps, update_progress)
 
     # 임시 디렉토리 생성
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -4877,6 +5141,7 @@ def api_generate_video():
             return jsonify({"ok": False, "error": "No data received"}), 400
 
         images = data.get("images", [])
+        cuts = data.get("cuts", [])  # 씬별 이미지-오디오 매칭 배열
         audio_url = data.get("audioUrl", "")
         subtitle_data = data.get("subtitleData")
         burn_subtitle = data.get("burnSubtitle", False)
@@ -4884,16 +5149,25 @@ def api_generate_video():
         fps = data.get("fps", 30)
         transition = data.get("transition", "fade")
 
+        # cuts 배열이 있으면 그것을 사용, 없으면 기존 방식
+        if cuts and len(cuts) > 0:
+            print(f"[DRAMA-STEP6-VIDEO] cuts 배열 사용: {len(cuts)}개 씬")
+            # cuts에서 이미지와 오디오 추출
+            images = [cut.get('imageUrl', '') for cut in cuts]
+            # 오디오가 없으면 첫 번째 cut의 오디오 사용
+            if not audio_url:
+                audio_url = cuts[0].get('audioUrl', '')
+
         if not images:
             return jsonify({"ok": False, "error": "이미지가 없습니다."}), 400
 
-        if not audio_url:
+        if not audio_url and not cuts:
             return jsonify({"ok": False, "error": "오디오가 없습니다."}), 400
 
         # Job ID 생성
         job_id = str(uuid.uuid4())
 
-        print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 시작: {job_id}")
+        print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 시작: {job_id}, 이미지: {len(images)}개, cuts: {len(cuts)}개")
 
         # Job 상태 초기화 - processing으로 바로 시작
         with video_jobs_lock:
@@ -4912,6 +5186,7 @@ def api_generate_video():
             result = _generate_video_sync(
                 images=images,
                 audio_url=audio_url,
+                cuts=cuts,  # cuts 배열 전달
                 subtitle_data=subtitle_data,
                 burn_subtitle=burn_subtitle,
                 resolution=resolution,
@@ -6697,23 +6972,48 @@ def api_gpt_analyze_prompts():
         return jsonify({'ok': False, 'error': str(e)}), 200
 
 
-# ===== Step5: YouTube API (테스트 모드) =====
+# ===== Step5: YouTube API =====
 
 @app.route('/api/youtube/auth-status', methods=['GET'])
 def api_youtube_auth_status_test():
     """
     YouTube 인증 상태 확인.
-    현재는 테스트 모드 - OAuth 미구현
+    실제 OAuth 연결 상태를 반환합니다.
     """
-    return jsonify({
-        "ok": True,
-        "authenticated": False,  # 아직 OAuth 미구현
-        "connected": False,
-        "mode": "test",
-        "channelName": None,
-        "channelId": None,
-        "message": "YouTube OAuth가 아직 설정되지 않았습니다. 테스트 모드로 실행 중입니다."
-    })
+    try:
+        # step5_youtube_upload 모듈에서 인증 상태 확인
+        import sys
+        sys.path.insert(0, os.path.dirname(__file__))
+
+        from step5_youtube_upload.youtube_auth import check_auth_status
+
+        status = check_auth_status()
+        print(f"[YOUTUBE-AUTH-STATUS] {status.get('mode')}: {status.get('message')}")
+
+        return jsonify(status)
+
+    except ImportError as e:
+        print(f"[YOUTUBE-AUTH-STATUS] 모듈 임포트 오류: {e}")
+        return jsonify({
+            "ok": True,
+            "authenticated": False,
+            "connected": False,
+            "mode": "test",
+            "channelName": None,
+            "channelId": None,
+            "message": "YouTube 모듈을 로드할 수 없습니다. 테스트 모드로 실행 중입니다."
+        })
+    except Exception as e:
+        print(f"[YOUTUBE-AUTH-STATUS] 오류: {e}")
+        return jsonify({
+            "ok": True,
+            "authenticated": False,
+            "connected": False,
+            "mode": "test",
+            "channelName": None,
+            "channelId": None,
+            "message": f"인증 확인 오류: {str(e)}"
+        })
 
 
 @app.route('/api/youtube/auth', methods=['GET'])
@@ -6750,7 +7050,7 @@ def api_youtube_auth_page():
 def youtube_upload():
     """
     YouTube 업로드 API.
-    현재는 테스트 모드 - 실제 업로드 없이 성공 응답만 반환
+    OAuth가 설정되어 있으면 실제 업로드, 아니면 테스트 모드로 동작
     """
     try:
         data = request.get_json() or {}
@@ -6759,20 +7059,80 @@ def youtube_upload():
         title = data.get('title', '제목 없음')
         description = data.get('description', '')
         tags = data.get('tags', [])
-        category_id = data.get('categoryId', '27')
+        category_id = data.get('categoryId', '22')  # People & Blogs
         privacy_status = data.get('privacyStatus', 'private')
         thumbnail_path = data.get('thumbnailPath')
 
-        print(f"[YOUTUBE-UPLOAD][TEST] 업로드 요청 수신")
+        print(f"[YOUTUBE-UPLOAD] 업로드 요청 수신")
         print(f"  - 영상: {video_path}")
         print(f"  - 제목: {title}")
         print(f"  - 공개 설정: {privacy_status}")
 
-        # 영상 파일 존재 확인
+        # 영상 파일 경로 처리
         if video_path and not video_path.startswith('http'):
-            full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
+            # 상대 경로를 절대 경로로 변환
+            if video_path.startswith('/static/'):
+                full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
+            else:
+                full_path = os.path.join(os.path.dirname(__file__), video_path)
+
             if not os.path.exists(full_path):
                 print(f"[YOUTUBE-UPLOAD][WARN] 영상 파일 없음: {full_path}")
+                return jsonify({
+                    "ok": False,
+                    "error": f"영상 파일을 찾을 수 없습니다: {video_path}"
+                }), 200
+        else:
+            full_path = video_path
+
+        # 썸네일 경로 처리
+        full_thumbnail_path = None
+        if thumbnail_path:
+            if thumbnail_path.startswith('/static/'):
+                full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path.lstrip('/'))
+            elif not thumbnail_path.startswith('http'):
+                full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path)
+            else:
+                full_thumbnail_path = thumbnail_path
+
+        # 실제 업로드 시도
+        try:
+            import sys
+            sys.path.insert(0, os.path.dirname(__file__))
+
+            from step5_youtube_upload.youtube_auth import check_auth_status
+            from step5_youtube_upload.upload_video import upload_video_to_youtube
+
+            # 인증 상태 확인
+            auth_status = check_auth_status()
+
+            if auth_status.get('connected'):
+                # 실제 업로드 실행
+                print(f"[YOUTUBE-UPLOAD] 실제 업로드 시작 - 채널: {auth_status.get('channelName')}")
+
+                result = upload_video_to_youtube(
+                    video_path=full_path,
+                    title=title,
+                    description=description,
+                    tags=tags,
+                    category_id=category_id,
+                    privacy_status=privacy_status,
+                    thumbnail_path=full_thumbnail_path
+                )
+
+                if result.get('ok'):
+                    print(f"[YOUTUBE-UPLOAD] 업로드 성공: {result.get('videoUrl')}")
+                    return jsonify(result)
+                else:
+                    print(f"[YOUTUBE-UPLOAD] 업로드 실패: {result.get('error')}")
+                    return jsonify(result)
+
+            else:
+                # 테스트 모드로 폴백
+                print(f"[YOUTUBE-UPLOAD] 테스트 모드 - 이유: {auth_status.get('message')}")
+
+        except ImportError as e:
+            print(f"[YOUTUBE-UPLOAD] 모듈 임포트 오류: {e}")
 
         # 테스트 모드: 가상의 videoId 생성
         import random
@@ -6797,6 +7157,8 @@ def youtube_upload():
 
     except Exception as e:
         print(f"[YOUTUBE-UPLOAD][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
