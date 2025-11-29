@@ -234,6 +234,10 @@ window.DramaStep2 = {
           placeholder.classList.add('has-image');
         }
         this.generatedImages[`scene_${idx}`] = data.imageUrl;
+
+        // 세션에도 저장
+        this.saveGeneratedImagesToSession();
+
         DramaUtils.showStatus(`씬 ${idx + 1} 이미지 생성 완료!`, 'success');
       } else {
         throw new Error(data.error || '이미지 생성 실패');
@@ -242,6 +246,26 @@ window.DramaStep2 = {
       console.error('[Step2] 씬 이미지 생성 오류:', error);
       DramaUtils.showStatus(`오류: ${error.message}`, 'error');
     }
+  },
+
+  // 생성된 이미지를 세션에 저장
+  saveGeneratedImagesToSession() {
+    const imageUrls = [];
+    // scene_0, scene_1, ... 순서대로 추출
+    const keys = Object.keys(this.generatedImages)
+      .filter(k => k.startsWith('scene_'))
+      .sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]));
+
+    for (const key of keys) {
+      imageUrls.push(this.generatedImages[key]);
+    }
+
+    DramaSession.setStepData('step2_images', {
+      images: imageUrls,
+      generatedAt: new Date().toISOString()
+    });
+
+    console.log('[Step2] 이미지 세션 저장:', imageUrls.length, '개');
   },
 
   // 모든 이미지 생성

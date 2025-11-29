@@ -26,11 +26,15 @@ window.DramaStep4 = {
 
   // 이전 단계 데이터 가져오기
   getPreviousStepData() {
-    const step2Data = DramaSession.getStepData('step2_analysis');
+    // step2_images: 생성된 씬 이미지 URL 배열
+    const step2ImagesData = DramaSession.getStepData('step2_images');
     const step3Data = DramaSession.getStepData('step3');
 
+    console.log('[Step4] step2_images 데이터:', step2ImagesData);
+    console.log('[Step4] step3 데이터:', step3Data);
+
     return {
-      images: step2Data?.scenes?.map(s => s.imageUrl).filter(Boolean) || [],
+      images: step2ImagesData?.images || [],
       audios: step3Data?.audios || []
     };
   },
