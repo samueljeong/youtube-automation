@@ -212,6 +212,8 @@ window.DramaStep3 = {
 
   // 개별 재생
   playAudio(idx) {
+    console.log('[Step3] playAudio 호출:', idx);
+
     // 기존 재생 중지
     if (this.currentAudioPlayer) {
       this.currentAudioPlayer.pause();
@@ -219,9 +221,22 @@ window.DramaStep3 = {
     }
 
     const audio = document.getElementById(`audio-${idx}`);
+    console.log('[Step3] audio 요소:', audio);
+
     if (audio) {
-      audio.play();
+      console.log('[Step3] audio.src:', audio.src?.substring(0, 100));
+
+      audio.play().then(() => {
+        console.log('[Step3] 재생 시작됨');
+      }).catch(err => {
+        console.error('[Step3] 재생 오류:', err);
+        DramaUtils.showStatus(`재생 오류: ${err.message}`, 'error');
+      });
+
       this.currentAudioPlayer = audio;
+    } else {
+      console.error('[Step3] audio 요소를 찾을 수 없음:', `audio-${idx}`);
+      DramaUtils.showStatus('오디오 요소를 찾을 수 없습니다.', 'error');
     }
   },
 

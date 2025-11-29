@@ -301,6 +301,23 @@ def video_worker():
 # 서버 시작 시 저장된 jobs 로드
 load_video_jobs()
 
+# 서버 재시작 시 pending/processing 작업 정리
+# (큐가 비어있으므로 이 작업들은 처리되지 않음 → 실패 처리)
+def cleanup_stale_jobs():
+    """서버 재시작 시 처리되지 않은 작업들을 실패 처리"""
+    with video_jobs_lock:
+        stale_count = 0
+        for job_id, job in video_jobs.items():
+            if job['status'] in ['pending', 'processing']:
+                job['status'] = 'failed'
+                job['error'] = '서버 재시작으로 인해 작업이 중단되었습니다. 다시 시도해주세요.'
+                stale_count += 1
+        if stale_count > 0:
+            save_video_jobs()
+            print(f"[VIDEO-JOBS] 서버 재시작: {stale_count}개 미완료 작업 실패 처리됨")
+
+cleanup_stale_jobs()
+
 # 워커 스레드 시작
 video_worker_thread = threading.Thread(target=video_worker, daemon=True)
 video_worker_thread.start()
