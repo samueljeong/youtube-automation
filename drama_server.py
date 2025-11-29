@@ -3668,6 +3668,74 @@ def api_generate_image():
         return jsonify({"ok": False, "error": error_msg}), 200
 
 
+# ===== MP3 청크 병합 (FFmpeg 기반) =====
+def merge_audio_chunks_ffmpeg(audio_data_list):
+    """여러 MP3 바이트 데이터를 FFmpeg로 병합"""
+    import tempfile
+    import subprocess
+    import shutil
+
+    if not audio_data_list:
+        return b''
+
+    if len(audio_data_list) == 1:
+        return audio_data_list[0]
+
+    ffmpeg_path = shutil.which('ffmpeg')
+    if not ffmpeg_path:
+        # FFmpeg 없으면 단순 결합 (폴백)
+        print("[TTS-MERGE][WARN] FFmpeg 없음, 단순 바이트 결합 사용")
+        return b''.join(audio_data_list)
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # 각 청크를 임시 파일로 저장
+            chunk_files = []
+            for i, chunk_data in enumerate(audio_data_list):
+                chunk_path = os.path.join(tmpdir, f"chunk_{i:03d}.mp3")
+                with open(chunk_path, 'wb') as f:
+                    f.write(chunk_data)
+                chunk_files.append(chunk_path)
+
+            # FFmpeg concat 리스트 파일 생성
+            list_path = os.path.join(tmpdir, "concat_list.txt")
+            with open(list_path, 'w') as f:
+                for chunk_path in chunk_files:
+                    f.write(f"file '{chunk_path}'\n")
+
+            # 출력 파일
+            output_path = os.path.join(tmpdir, "merged.mp3")
+
+            # FFmpeg concat 실행
+            cmd = [
+                'ffmpeg', '-y',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', list_path,
+                '-c', 'copy',  # 재인코딩 없이 병합
+                output_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
+
+            if result.returncode != 0:
+                print(f"[TTS-MERGE][ERROR] FFmpeg 실패: {result.stderr.decode()[:200]}")
+                # 폴백: 단순 바이트 결합
+                return b''.join(audio_data_list)
+
+            # 병합된 파일 읽기
+            with open(output_path, 'rb') as f:
+                merged_audio = f.read()
+
+            print(f"[TTS-MERGE] FFmpeg 병합 완료: {len(audio_data_list)}개 청크 → {len(merged_audio)} bytes")
+            return merged_audio
+
+    except Exception as e:
+        print(f"[TTS-MERGE][ERROR] 병합 실패: {e}")
+        # 폴백: 단순 바이트 결합
+        return b''.join(audio_data_list)
+
+
 # ===== Step5: TTS API (Google Cloud / 네이버 클로바 선택) =====
 @app.route('/api/drama/generate-tts', methods=['POST'])
 def api_generate_tts():
@@ -3921,7 +3989,14 @@ def api_generate_tts():
 
                     return jsonify({"ok": False, "error": f"Google TTS API 오류 ({response.status_code}): {error_text}"}), 200
 
-            combined_audio = b''.join(audio_data_list)
+            # FFmpeg로 MP3 청크 병합 (단순 바이트 결합 대신 - 헤더 중복 방지)
+            if len(audio_data_list) == 1:
+                # 청크가 하나면 그대로 사용
+                combined_audio = audio_data_list[0]
+            else:
+                # 여러 청크면 FFmpeg로 병합
+                combined_audio = merge_audio_chunks_ffmpeg(audio_data_list)
+
             audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
             audio_url = f"data:audio/mp3;base64,{audio_base64}"
 
@@ -4005,7 +4080,12 @@ def api_generate_tts():
 
                     return jsonify({"ok": False, "error": f"네이버 TTS API 오류 ({response.status_code}): {error_text}"}), 200
 
-            combined_audio = b''.join(audio_data_list)
+            # FFmpeg로 MP3 청크 병합 (네이버 TTS)
+            if len(audio_data_list) == 1:
+                combined_audio = audio_data_list[0]
+            else:
+                combined_audio = merge_audio_chunks_ffmpeg(audio_data_list)
+
             audio_base64 = base64.b64encode(combined_audio).decode('utf-8')
             audio_url = f"data:audio/mp3;base64,{audio_base64}"
 
