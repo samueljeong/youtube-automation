@@ -390,6 +390,84 @@ body {
   white-space: pre-wrap;
 }
 
+/* JSON 대본 스타일 */
+.script-opening {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.opening-hook {
+  font-size: 1.05rem;
+  font-style: italic;
+  color: #333;
+  margin: 0;
+}
+
+.script-storyline {
+  margin: 16px 0;
+}
+
+.script-section {
+  margin-bottom: 20px;
+}
+
+.section-label {
+  font-size: 0.85rem;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.scene-block {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #eee;
+}
+
+.scene-num {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: #fff;
+  background: #667eea;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.scene-block p {
+  margin: 0;
+  color: #444;
+}
+
+.script-closing {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.key-message {
+  margin: 0;
+  color: #333;
+}
+
+.json-fallback {
+  font-size: 0.85rem;
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
 .script-editor {
   width: 100%;
   min-height: 300px;

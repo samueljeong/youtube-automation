@@ -196,13 +196,14 @@ window.DramaStep1 = {
     const metadata = document.getElementById('script-metadata');
 
     if (resultArea && preview) {
-      // 마크다운 형식으로 표시
-      preview.innerHTML = this.formatContent(content);
+      // JSON이면 읽기 좋은 형태로 변환, 아니면 마크다운 형식으로 표시
+      const formattedContent = this.formatContent(content);
+      preview.innerHTML = formattedContent.html;
       editor.value = content;
 
-      // 메타데이터 표시
+      // JSON 메타데이터가 있으면 표시
       if (metadata && this.currentScript) {
-        metadata.innerHTML = `
+        let metaHtml = `
           <div class="metadata-item">
             <span class="label">생성 시간:</span>
             <span class="value">${new Date(this.currentScript.createdAt).toLocaleString('ko-KR')}</span>
@@ -216,6 +217,28 @@ window.DramaStep1 = {
             <span class="value">₩${this.currentScript.cost}</span>
           </div>
         `;
+
+        // JSON에서 추출한 메타데이터 추가
+        if (formattedContent.jsonMeta) {
+          const jm = formattedContent.jsonMeta;
+          if (jm.title) {
+            metaHtml += `
+              <div class="metadata-item">
+                <span class="label">제목:</span>
+                <span class="value">${jm.title}</span>
+              </div>
+            `;
+          }
+          if (jm.duration) {
+            metaHtml += `
+              <div class="metadata-item">
+                <span class="label">영상 길이:</span>
+                <span class="value">${jm.duration}</span>
+              </div>
+            `;
+          }
+        }
+        metadata.innerHTML = metaHtml;
       }
 
       // 결과 영역 표시
@@ -226,11 +249,28 @@ window.DramaStep1 = {
     }
   },
 
-  // 콘텐츠 포맷팅 (간단한 마크다운 변환)
+  // 콘텐츠 포맷팅 (JSON이면 나레이션만 추출, 아니면 마크다운 변환)
   formatContent(content) {
-    if (!content) return '';
+    if (!content) return { html: '', jsonMeta: null };
 
-    return content
+    // JSON 형식인지 확인
+    let jsonData = null;
+    try {
+      if (content.trim().startsWith('{')) {
+        jsonData = JSON.parse(content);
+        console.log('[Step1] JSON 대본 감지됨 - 읽기 좋은 형태로 변환');
+      }
+    } catch (e) {
+      // JSON 파싱 실패 - 텍스트로 처리
+    }
+
+    // JSON이면 나레이션 중심으로 표시
+    if (jsonData) {
+      return this.formatJsonContent(jsonData);
+    }
+
+    // 텍스트면 기존 마크다운 변환
+    const html = content
       // 제목 (### → h3)
       .replace(/^### (.+)$/gm, '<h4>$1</h4>')
       // 소제목 (## → h3)
@@ -250,6 +290,140 @@ window.DramaStep1 = {
       // li 그룹화 (간단한 처리)
       .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
       .replace(/<\/ul>\s*<ul>/g, '');
+
+    return { html, jsonMeta: null };
+  },
+
+  // JSON 대본을 읽기 좋은 HTML로 변환 (메타데이터는 별도로, 나레이션만 본문에)
+  formatJsonContent(jsonData) {
+    let html = '';
+    const jsonMeta = {};
+
+    // 메타데이터 추출 (UI 상단에 별도 표시용)
+    if (jsonData.metadata) {
+      jsonMeta.title = jsonData.metadata.title;
+      jsonMeta.duration = jsonData.metadata.duration;
+      jsonMeta.target_age = jsonData.metadata.target_age;
+    }
+
+    // 하이라이트가 있으면 opening_hook으로 시작
+    if (jsonData.highlight?.opening_hook) {
+      html += `<div class="script-opening">
+        <p class="opening-hook">${this.escapeHtml(jsonData.highlight.opening_hook)}</p>
+      </div>`;
+    }
+
+    // storyline 표시
+    if (jsonData.storyline) {
+      html += '<div class="script-storyline">';
+
+      // 배열 형태
+      if (Array.isArray(jsonData.storyline)) {
+        jsonData.storyline.forEach((scene, idx) => {
+          html += this.formatSceneHtml(scene, idx + 1);
+        });
+      }
+      // 객체 형태 (opening, development, climax, resolution)
+      else if (typeof jsonData.storyline === 'object') {
+        const parts = [
+          { key: 'opening', label: '도입' },
+          { key: 'development', label: '전개' },
+          { key: 'climax', label: '절정' },
+          { key: 'resolution', label: '결말' },
+          { key: 'ending', label: '마무리' }
+        ];
+        parts.forEach(({ key, label }) => {
+          if (jsonData.storyline[key]) {
+            html += `<div class="script-section">
+              <h4 class="section-label">${label}</h4>
+              ${this.formatSceneHtml(jsonData.storyline[key], null)}
+            </div>`;
+          }
+        });
+      }
+
+      html += '</div>';
+    }
+
+    // scenes 배열이 있는 경우
+    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+      html += '<div class="script-scenes">';
+      jsonData.scenes.forEach((scene, idx) => {
+        html += this.formatSceneHtml(scene, idx + 1);
+      });
+      html += '</div>';
+    }
+
+    // script 필드가 있는 경우
+    if (jsonData.script) {
+      html += '<div class="script-content">';
+      if (typeof jsonData.script === 'string') {
+        html += `<p>${this.escapeHtml(jsonData.script).replace(/\n/g, '<br>')}</p>`;
+      } else if (jsonData.script.full_text) {
+        html += `<p>${this.escapeHtml(jsonData.script.full_text).replace(/\n/g, '<br>')}</p>`;
+      }
+      html += '</div>';
+    }
+
+    // 하이라이트 key_message로 마무리
+    if (jsonData.highlight?.key_message) {
+      html += `<div class="script-closing">
+        <p class="key-message"><strong>핵심 메시지:</strong> ${this.escapeHtml(jsonData.highlight.key_message)}</p>
+      </div>`;
+    }
+
+    // 내용이 없으면 원본 JSON 표시 (폴백)
+    if (!html) {
+      html = `<pre class="json-fallback">${this.escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>`;
+    }
+
+    return { html, jsonMeta };
+  },
+
+  // 씬 객체를 HTML로 변환
+  formatSceneHtml(scene, sceneNum) {
+    if (!scene) return '';
+
+    // 문자열이면 바로 표시
+    if (typeof scene === 'string') {
+      return `<div class="scene-block">
+        ${sceneNum ? `<span class="scene-num">장면 ${sceneNum}</span>` : ''}
+        <p>${this.escapeHtml(scene).replace(/\n/g, '<br>')}</p>
+      </div>`;
+    }
+
+    // 객체면 나레이션/텍스트 필드 찾기
+    let content = '';
+    const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script', 'description'];
+    for (const field of narrationFields) {
+      if (scene[field]) {
+        if (typeof scene[field] === 'string') {
+          content = scene[field];
+          break;
+        } else if (Array.isArray(scene[field])) {
+          content = scene[field].join('\n');
+          break;
+        }
+      }
+    }
+
+    if (!content) return '';
+
+    return `<div class="scene-block">
+      ${sceneNum ? `<span class="scene-num">장면 ${sceneNum}</span>` : ''}
+      <p>${this.escapeHtml(content).replace(/\n/g, '<br>')}</p>
+    </div>`;
+  },
+
+  // HTML 이스케이프
+  escapeHtml(text) {
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   },
 
   // 대본 복사

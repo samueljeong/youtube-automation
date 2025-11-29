@@ -23,7 +23,7 @@ window.DramaStep3 = {
     };
   },
 
-  // Step1 대본에서 순수 나레이션 텍스트만 가져오기 (설명문 제외)
+  // Step1 대본에서 순수 나레이션 텍스트만 가져오기 (JSON 메타데이터 제외)
   getScriptTexts() {
     const step1Data = DramaSession.getStepData('step1');
     if (!step1Data?.content) return null;
@@ -31,7 +31,35 @@ window.DramaStep3 = {
     const content = step1Data.content;
     const scenes = [];
 
-    // 1. 메타 설명 패턴 필터링 (TTS에서 읽으면 안 되는 부분)
+    // 1. JSON 형식인지 확인하고 파싱 시도
+    let jsonData = null;
+    try {
+      // JSON 문자열이면 파싱
+      if (content.trim().startsWith('{')) {
+        jsonData = JSON.parse(content);
+        console.log('[Step3] JSON 대본 감지됨');
+      }
+    } catch (e) {
+      console.log('[Step3] JSON 파싱 실패, 텍스트로 처리:', e.message);
+    }
+
+    // 2. JSON 형식이면 storyline/scenes에서 나레이션만 추출
+    if (jsonData) {
+      const narrationTexts = this.extractNarrationFromJson(jsonData);
+      if (narrationTexts && narrationTexts.length > 0) {
+        narrationTexts.forEach((text, idx) => {
+          scenes.push({
+            id: `scene_${idx + 1}`,
+            text: text
+          });
+        });
+        console.log('[Step3] JSON에서 추출된 나레이션 씬:', scenes.length, '개');
+        return scenes;
+      }
+    }
+
+    // 3. 텍스트 형식 처리 (기존 로직)
+    // 메타 설명 패턴 필터링 (TTS에서 읽으면 안 되는 부분)
     const metaPatterns = [
       /^#+\s*주인공\s*설정.*/gm,
       /^#+\s*스토리\s*컨셉.*/gm,
@@ -51,6 +79,13 @@ window.DramaStep3 = {
       /^\d+\.\s*배경.*/gm,
       /^【.*】$/gm,
       /^\[.*\]$/gm,
+      // JSON 키 패턴 추가
+      /^"metadata":.*/gm,
+      /^"title":.*/gm,
+      /^"duration":.*/gm,
+      /^"target_age":.*/gm,
+      /^"highlight":.*/gm,
+      /^"storyline":.*/gm,
     ];
 
     // 메타 설명 제거
@@ -59,7 +94,7 @@ window.DramaStep3 = {
       cleanedContent = cleanedContent.replace(pattern, '');
     }
 
-    // 2. 씬/장면 단위로 분할
+    // 4. 씬/장면 단위로 분할
     const scenePatterns = /(?=씬\s*\d|Scene\s*\d|장면\s*\d|###\s*장면)/i;
     const parts = cleanedContent.split(scenePatterns);
 
@@ -89,6 +124,103 @@ window.DramaStep3 = {
 
     console.log('[Step3] 추출된 나레이션 씬:', scenes.length, '개');
     return scenes;
+  },
+
+  // JSON 대본에서 순수 나레이션만 추출 (메타데이터, 타이틀 제외)
+  extractNarrationFromJson(jsonData) {
+    const narrations = [];
+
+    // 1. highlight.opening_hook으로 시작
+    if (jsonData.highlight?.opening_hook) {
+      // opening_hook은 나레이션의 시작으로 사용
+      console.log('[Step3] opening_hook 발견:', jsonData.highlight.opening_hook.substring(0, 50));
+    }
+
+    // 2. storyline에서 나레이션 추출
+    if (jsonData.storyline) {
+      // storyline이 배열인 경우
+      if (Array.isArray(jsonData.storyline)) {
+        jsonData.storyline.forEach((scene, idx) => {
+          const text = this.extractTextFromSceneObject(scene);
+          if (text && text.length > 30) {
+            narrations.push(text);
+          }
+        });
+      }
+      // storyline이 객체인 경우 (opening, development, climax, resolution 등)
+      else if (typeof jsonData.storyline === 'object') {
+        const storyParts = ['opening', 'development', 'climax', 'resolution', 'ending'];
+        storyParts.forEach(part => {
+          if (jsonData.storyline[part]) {
+            const partData = jsonData.storyline[part];
+            const text = this.extractTextFromSceneObject(partData);
+            if (text && text.length > 30) {
+              narrations.push(text);
+            }
+          }
+        });
+      }
+    }
+
+    // 3. scenes 배열이 있는 경우
+    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+      jsonData.scenes.forEach(scene => {
+        const text = this.extractTextFromSceneObject(scene);
+        if (text && text.length > 30) {
+          narrations.push(text);
+        }
+      });
+    }
+
+    // 4. script 필드가 있는 경우
+    if (jsonData.script) {
+      if (typeof jsonData.script === 'string') {
+        narrations.push(jsonData.script);
+      } else if (jsonData.script.full_text) {
+        narrations.push(jsonData.script.full_text);
+      } else if (jsonData.script.narration) {
+        narrations.push(jsonData.script.narration);
+      }
+    }
+
+    // 5. narrations가 비어있으면 opening_hook + key_message 조합
+    if (narrations.length === 0 && jsonData.highlight) {
+      let combinedText = '';
+      if (jsonData.highlight.opening_hook) {
+        combinedText += jsonData.highlight.opening_hook + '\n\n';
+      }
+      if (jsonData.highlight.key_message) {
+        combinedText += jsonData.highlight.key_message;
+      }
+      if (combinedText.length > 30) {
+        narrations.push(combinedText.trim());
+      }
+    }
+
+    return narrations;
+  },
+
+  // 씬 객체에서 나레이션 텍스트 추출
+  extractTextFromSceneObject(scene) {
+    if (!scene) return '';
+
+    // 문자열이면 그대로 반환
+    if (typeof scene === 'string') return scene;
+
+    // 객체면 나레이션 관련 필드 찾기
+    const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script', 'description'];
+    for (const field of narrationFields) {
+      if (scene[field] && typeof scene[field] === 'string') {
+        return scene[field];
+      }
+    }
+
+    // 배열인 경우 join
+    if (scene.narration && Array.isArray(scene.narration)) {
+      return scene.narration.join('\n');
+    }
+
+    return '';
   },
 
   // 씬 텍스트에서 순수 나레이션만 추출 (설명, 지시문 제외)
