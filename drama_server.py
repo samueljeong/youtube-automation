@@ -4867,10 +4867,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         }
 
 
-# ===== Step6: 영상 제작 API (비동기) =====
+# ===== Step6: 영상 제작 API (동기식) =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():
-    """이미지와 오디오를 합쳐서 영상 생성 (비동기)"""
+    """이미지와 오디오를 합쳐서 영상 생성 (동기식 - 로컬 환경용)"""
     try:
         data = request.get_json()
         if not data:
@@ -4893,38 +4893,87 @@ def api_generate_video():
         # Job ID 생성
         job_id = str(uuid.uuid4())
 
-        # Job 상태 초기화
+        print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 시작: {job_id}")
+
+        # Job 상태 초기화 - processing으로 바로 시작
         with video_jobs_lock:
             video_jobs[job_id] = {
-                'status': 'pending',
+                'status': 'processing',
                 'progress': 0,
-                'message': '작업 대기 중...',
+                'message': '영상 생성 중...',
                 'result': None,
                 'error': None,
                 'created_at': dt.now().isoformat()
             }
-            save_video_jobs()  # 파일에 저장
+            save_video_jobs()
 
-        # 작업을 큐에 추가
-        video_job_queue.put({
-            'job_id': job_id,
-            'images': images,
-            'audio_url': audio_url,
-            'subtitle_data': subtitle_data,
-            'burn_subtitle': burn_subtitle,
-            'resolution': resolution,
-            'fps': fps,
-            'transition': transition
-        })
+        try:
+            # 동기식으로 바로 영상 생성 (워커 없이)
+            result = _generate_video_sync(
+                images=images,
+                audio_url=audio_url,
+                subtitle_data=subtitle_data,
+                burn_subtitle=burn_subtitle,
+                resolution=resolution,
+                fps=fps,
+                transition=transition,
+                job_id=job_id
+            )
 
-        print(f"[DRAMA-STEP6-VIDEO] 작업 큐에 추가됨: {job_id}")
+            # 성공
+            with video_jobs_lock:
+                video_jobs[job_id] = {
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': '영상 생성 완료',
+                    'result': result,
+                    'error': None,
+                    'created_at': video_jobs[job_id]['created_at'],
+                    'completed_at': dt.now().isoformat()
+                }
+                save_video_jobs()
 
-        # 즉시 job_id 반환
-        return jsonify({
-            "ok": True,
-            "jobId": job_id,
-            "message": "영상 생성 작업이 시작되었습니다."
-        })
+            print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 완료: {job_id}")
+
+            # 완료 결과 바로 반환
+            return jsonify({
+                "ok": True,
+                "jobId": job_id,
+                "status": "completed",
+                "progress": 100,
+                "workerAlive": True,
+                "videoUrl": result.get('videoUrl'),
+                "videoFileUrl": result.get('videoFileUrl'),
+                "duration": result.get('duration'),
+                "fileSize": result.get('fileSize'),
+                "fileSizeMB": result.get('fileSizeMB'),
+                "message": "영상 생성이 완료되었습니다."
+            })
+
+        except Exception as e:
+            # 실패
+            error_msg = str(e)
+            print(f"[DRAMA-STEP6-VIDEO][ERROR] 동기식 영상 생성 실패: {job_id} - {error_msg}")
+
+            with video_jobs_lock:
+                video_jobs[job_id] = {
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': f'영상 생성 실패: {error_msg}',
+                    'result': None,
+                    'error': error_msg,
+                    'created_at': video_jobs[job_id]['created_at']
+                }
+                save_video_jobs()
+
+            return jsonify({
+                "ok": False,
+                "jobId": job_id,
+                "status": "failed",
+                "progress": 0,
+                "workerAlive": True,
+                "error": error_msg
+            }), 200
 
     except Exception as e:
         print(f"[DRAMA-STEP6-VIDEO][ERROR] {str(e)}")
@@ -4957,7 +5006,7 @@ def api_video_status(job_id):
             "status": job['status'],  # pending, processing, completed, failed
             "progress": job['progress'],
             "message": job.get('message', ''),
-            "workerAlive": video_worker_thread.is_alive() if video_worker_thread else False
+            "workerAlive": True  # 동기식으로 변경됨 - 항상 True
         }
 
         if job['status'] == 'completed':
@@ -4979,15 +5028,16 @@ def api_video_status(job_id):
 # ===== 워커 상태 디버깅 API =====
 @app.route('/api/drama/worker-status', methods=['GET'])
 def api_worker_status():
-    """영상 워커 상태 확인 (디버깅용)"""
+    """영상 워커 상태 확인 (디버깅용) - 동기식 모드"""
     with video_jobs_lock:
         pending_jobs = [jid for jid, j in video_jobs.items() if j['status'] == 'pending']
         processing_jobs = [jid for jid, j in video_jobs.items() if j['status'] == 'processing']
 
     return jsonify({
         "ok": True,
-        "workerAlive": video_worker_thread.is_alive() if video_worker_thread else False,
-        "queueSize": video_job_queue.qsize(),
+        "workerAlive": True,  # 동기식 모드 - 항상 True
+        "mode": "synchronous",  # 동기식 모드 표시
+        "queueSize": 0,  # 동기식이므로 큐 없음
         "pendingJobs": pending_jobs,
         "processingJobs": processing_jobs,
         "totalJobs": len(video_jobs)

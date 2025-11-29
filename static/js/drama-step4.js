@@ -107,13 +107,28 @@ window.DramaStep4 = {
       const data = await response.json();
       console.log('[Step4] 영상 제작 응답:', data);
 
-      if (!data.ok) {
+      if (!data.ok && !data.jobId) {
         throw new Error(data.error || '영상 제작 요청 실패');
       }
 
       this.currentJobId = data.jobId;
 
-      // 작업 상태 폴링 시작
+      // 동기식 응답: 이미 완료된 경우 바로 처리
+      if (data.status === 'completed') {
+        console.log('[Step4] 동기식 영상 생성 완료');
+        this.videoUrl = data.videoUrl;
+        this.onVideoComplete(data);
+        return;
+      }
+
+      // 동기식 응답: 실패한 경우 바로 처리
+      if (data.status === 'failed') {
+        console.log('[Step4] 동기식 영상 생성 실패');
+        this.onVideoFailed(data.error || '영상 제작 실패');
+        return;
+      }
+
+      // 비동기 응답: 작업 상태 폴링 시작
       if (progressText) progressText.textContent = '영상 렌더링 중...';
       this.startPolling();
 
