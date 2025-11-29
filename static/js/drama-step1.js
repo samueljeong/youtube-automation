@@ -49,21 +49,20 @@ window.DramaStep1 = {
     this.isGenerating = true;
     const btn = document.getElementById('btn-generate-script');
     const originalText = btn.innerHTML;
+    let totalTokens = 0;
+    let totalCost = 0;
 
     try {
       // 버튼 상태 변경
       btn.innerHTML = '<span class="btn-icon">⏳</span> 생성 중...';
       btn.disabled = true;
 
-      // 로딩 표시
-      DramaUtils.showLoading('대본을 생성하고 있습니다...', '잠시만 기다려주세요 (약 30초~1분 소요)');
+      // === Step 1: GPT-4o-mini로 기획 생성 ===
+      DramaUtils.showLoading('1/3 단계: 스토리 기획 중...', 'GPT-4o-mini가 기획을 작성합니다');
 
-      // API 호출
-      const response = await fetch('/api/drama/gpt-plan-step1', {
+      const step1Response = await fetch('/api/drama/gpt-plan-step1', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoCategory: this.getVideoCategory(config.contentType),
           duration: this.durationToMinutes(config.duration),
@@ -72,30 +71,83 @@ window.DramaStep1 = {
         })
       });
 
-      const data = await response.json();
-      console.log('[Step1] API 응답:', data);
+      const step1Data = await step1Response.json();
+      console.log('[Step1] 기획 완료:', step1Data);
 
-      if (!data.ok) {
-        throw new Error(data.error || '대본 생성에 실패했습니다.');
+      if (!step1Data.ok) {
+        throw new Error(step1Data.error || '기획 생성에 실패했습니다.');
       }
+      totalTokens += step1Data.tokens || 0;
+      totalCost += step1Data.cost || 0;
+
+      // === Step 2: GPT-4o-mini로 구조화 ===
+      DramaUtils.showLoading('2/3 단계: 장면 구조화 중...', 'GPT-4o-mini가 장면을 구성합니다');
+
+      const step2Response = await fetch('/api/drama/gpt-plan-step2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoCategory: this.getVideoCategory(config.contentType),
+          duration: this.durationToMinutes(config.duration),
+          customDirective: config.topic,
+          step1Result: step1Data.result
+        })
+      });
+
+      const step2Data = await step2Response.json();
+      console.log('[Step1] 구조화 완료:', step2Data);
+
+      if (!step2Data.ok) {
+        throw new Error(step2Data.error || '구조화에 실패했습니다.');
+      }
+      totalTokens += step2Data.tokens || 0;
+      totalCost += step2Data.cost || 0;
+
+      // === Step 3: Claude Sonnet 4.5로 대본 작성 ===
+      DramaUtils.showLoading('3/3 단계: 대본 작성 중...', 'Claude Sonnet 4.5가 대본을 작성합니다 (약 1-2분 소요)');
+
+      const step3Response = await fetch('/api/drama/claude-step3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: config.duration,  // "10min" 등
+          durationText: this.durationToMinutes(config.duration),
+          videoCategory: this.getVideoCategory(config.contentType),
+          customDirective: config.topic,
+          draftContent: step1Data.result + '\n\n' + step2Data.result,
+          selectedModel: config.aiModel
+        })
+      });
+
+      const step3Data = await step3Response.json();
+      console.log('[Step1] 대본 작성 완료:', step3Data);
+
+      if (!step3Data.ok) {
+        throw new Error(step3Data.error || '대본 작성에 실패했습니다.');
+      }
+      totalTokens += step3Data.tokens || 0;
+      totalCost += step3Data.cost || 0;
 
       // 결과 저장
       this.currentScript = {
-        content: data.result,
+        content: step3Data.result,
         config: config,
-        tokens: data.tokens || 0,
-        cost: data.cost || 0,
-        createdAt: new Date().toISOString()
+        tokens: totalTokens,
+        cost: totalCost,
+        createdAt: new Date().toISOString(),
+        // 중간 결과도 저장
+        planning: step1Data.result,
+        structure: step2Data.result
       };
 
       // 세션에 저장
       DramaSession.setStepData('step1', this.currentScript);
 
       // 결과 표시
-      this.displayResult(data.result);
+      this.displayResult(step3Data.result);
 
       // 성공 메시지
-      DramaUtils.showStatus(`대본 생성 완료! (토큰: ${data.tokens || 0}, 비용: ₩${data.cost || 0})`, 'success');
+      DramaUtils.showStatus(`대본 생성 완료! (토큰: ${totalTokens}, 비용: ₩${totalCost})`, 'success');
 
     } catch (error) {
       console.error('[Step1] 오류:', error);
