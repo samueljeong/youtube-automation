@@ -26,18 +26,31 @@ window.DramaStep3 = {
   // Step1 대본에서 순수 나레이션 텍스트만 가져오기 (JSON 메타데이터 제외)
   getScriptTexts() {
     const step1Data = DramaSession.getStepData('step1');
-    if (!step1Data?.content) return null;
+    console.log('[Step3] step1Data 전체:', step1Data);
+
+    if (!step1Data?.content) {
+      console.log('[Step3] step1Data.content가 없음');
+      return null;
+    }
 
     const content = step1Data.content;
+    console.log('[Step3] content 타입:', typeof content);
+    console.log('[Step3] content 길이:', content.length);
+    console.log('[Step3] content 시작 100자:', content.substring(0, 100));
+
     const scenes = [];
 
     // 1. JSON 형식인지 확인하고 파싱 시도
     let jsonData = null;
     try {
       // JSON 문자열이면 파싱
-      if (content.trim().startsWith('{')) {
+      if (typeof content === 'string' && content.trim().startsWith('{')) {
         jsonData = JSON.parse(content);
-        console.log('[Step3] JSON 대본 감지됨');
+        console.log('[Step3] JSON 대본 감지됨, 최상위 키들:', Object.keys(jsonData));
+      } else if (typeof content === 'object') {
+        // 이미 객체인 경우
+        jsonData = content;
+        console.log('[Step3] content가 이미 객체임, 키들:', Object.keys(jsonData));
       }
     } catch (e) {
       console.log('[Step3] JSON 파싱 실패, 텍스트로 처리:', e.message);
@@ -132,15 +145,9 @@ window.DramaStep3 = {
     const narrations = [];
 
     console.log('[Step3] JSON 파싱 시작, 키들:', Object.keys(jsonData));
+    console.log('[Step3] JSON 전체 구조 (간략):', JSON.stringify(jsonData).substring(0, 500));
 
-    // 1. highlight.opening_hook 또는 highlight_preview.narration을 첫 나레이션으로 추가
-    const openingHook = jsonData.highlight?.opening_hook || jsonData.highlight_preview?.narration;
-    if (openingHook) {
-      console.log('[Step3] opening_hook 발견:', openingHook.substring(0, 50));
-      narrations.push(openingHook);
-    }
-
-    // 2. scenes 배열 찾기 (여러 경로 지원)
+    // 1. scenes 배열 찾기 (여러 경로 지원) - 먼저 씬 추출
     // 백엔드 JSON 구조: jsonData.script.scenes 또는 jsonData.scenes
     let scenesArray = null;
     if (jsonData.script?.scenes && Array.isArray(jsonData.script.scenes)) {
@@ -149,30 +156,59 @@ window.DramaStep3 = {
     } else if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
       scenesArray = jsonData.scenes;
       console.log('[Step3] scenes 배열 발견:', scenesArray.length, '개');
+    } else if (jsonData.drama?.scenes && Array.isArray(jsonData.drama.scenes)) {
+      scenesArray = jsonData.drama.scenes;
+      console.log('[Step3] drama.scenes 배열 발견:', scenesArray.length, '개');
+    } else if (jsonData.content?.scenes && Array.isArray(jsonData.content.scenes)) {
+      scenesArray = jsonData.content.scenes;
+      console.log('[Step3] content.scenes 배열 발견:', scenesArray.length, '개');
     }
 
-    // 3. scenes 배열에서 tts_text 또는 narration 추출
+    // 2. scenes 배열에서 tts_text 또는 narration 추출
     if (scenesArray && scenesArray.length > 0) {
+      console.log('[Step3] 씬 배열 처리 시작, 총', scenesArray.length, '개');
       scenesArray.forEach((scene, idx) => {
+        console.log(`[Step3] scene[${idx}] 키들:`, Object.keys(scene || {}));
+
         // tts_text 필드 우선 (백엔드에서 TTS용으로 정제한 텍스트)
         if (scene.tts_text && typeof scene.tts_text === 'string' && scene.tts_text.length > 10) {
-          console.log(`[Step3] scene[${idx}] tts_text 사용:`, scene.tts_text.substring(0, 50));
+          console.log(`[Step3] scene[${idx}] tts_text 사용 (${scene.tts_text.length}자):`, scene.tts_text.substring(0, 50));
           narrations.push(scene.tts_text);
         }
         // tts_text가 없으면 narration 사용
         else if (scene.narration && typeof scene.narration === 'string' && scene.narration.length > 10) {
-          console.log(`[Step3] scene[${idx}] narration 사용:`, scene.narration.substring(0, 50));
+          console.log(`[Step3] scene[${idx}] narration 사용 (${scene.narration.length}자):`, scene.narration.substring(0, 50));
           narrations.push(scene.narration);
+        }
+        // narration이 배열인 경우
+        else if (scene.narration && Array.isArray(scene.narration)) {
+          const joined = scene.narration.join('\n\n');
+          console.log(`[Step3] scene[${idx}] narration 배열 사용 (${joined.length}자)`);
+          narrations.push(joined);
         }
         // 그래도 없으면 일반 추출
         else {
           const text = this.extractTextFromSceneObject(scene);
           if (text && text.length > 30) {
-            console.log(`[Step3] scene[${idx}] 일반 추출:`, text.substring(0, 50));
+            console.log(`[Step3] scene[${idx}] 일반 추출 (${text.length}자):`, text.substring(0, 50));
             narrations.push(text);
+          } else {
+            console.log(`[Step3] scene[${idx}] 추출 실패 - 텍스트 없거나 너무 짧음`);
           }
         }
       });
+      console.log('[Step3] 씬 배열 처리 완료, 추출된 나레이션:', narrations.length, '개');
+    } else {
+      console.log('[Step3] scenes 배열을 찾지 못함');
+    }
+
+    // 3. highlight.opening_hook은 씬이 없을 때만 추가 (씬에 이미 opening이 포함되어 있을 수 있음)
+    if (narrations.length === 0) {
+      const openingHook = jsonData.highlight?.opening_hook || jsonData.highlight_preview?.narration;
+      if (openingHook) {
+        console.log('[Step3] opening_hook 발견 (씬 없음, 폴백):', openingHook.substring(0, 50));
+        narrations.push(openingHook);
+      }
     }
 
     // 4. storyline에서 나레이션 추출 (scenes가 비어있을 때)
