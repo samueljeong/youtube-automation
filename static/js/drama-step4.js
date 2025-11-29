@@ -10,6 +10,8 @@ window.DramaStep4 = {
   videoUrl: null,
   isCreating: false,
   pollInterval: null,
+  notFoundRetryCount: 0, // 404 응답 재시도 카운터
+  maxNotFoundRetries: 5, // 최대 재시도 횟수 (Render 동기화 대기)
 
   init() {
     console.log('[Step4] 영상 제작 모듈 초기화');
@@ -167,6 +169,7 @@ window.DramaStep4 = {
       }
 
       this.currentJobId = data.jobId;
+      this.notFoundRetryCount = 0; // 재시도 카운터 초기화
 
       // 동기식 응답: 이미 완료된 경우 바로 처리
       if (data.status === 'completed') {
@@ -249,8 +252,23 @@ window.DramaStep4 = {
       } else {
         // API 오류 (예: 404)
         console.error('[Step4] 상태 확인 API 오류:', data.error);
+
+        // 404 응답 시 재시도 (Render 환경에서 job 동기화 지연 대응)
+        this.notFoundRetryCount++;
+        console.log(`[Step4] 404 재시도 ${this.notFoundRetryCount}/${this.maxNotFoundRetries}`);
+
+        if (this.notFoundRetryCount < this.maxNotFoundRetries) {
+          // 아직 재시도 가능 - 폴링 계속
+          const progressText = document.getElementById('video-progress-text');
+          if (progressText) {
+            progressText.textContent = `작업 동기화 대기 중... (${this.notFoundRetryCount}/${this.maxNotFoundRetries})`;
+          }
+          return; // 폴링 계속
+        }
+
+        // 최대 재시도 횟수 초과
         this.stopPolling();
-        this.onVideoFailed(data.error || '작업을 찾을 수 없습니다.');
+        this.onVideoFailed(data.error || '작업을 찾을 수 없습니다. 서버를 확인해주세요.');
       }
     } catch (error) {
       console.error('[Step4] 상태 확인 오류:', error);
