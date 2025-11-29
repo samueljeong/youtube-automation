@@ -193,6 +193,37 @@ async function executeGptPro() {
     const step3GuideKey = getGuideKey(window.currentCategory, 'step3');
     const step3Guide = localStorage.getItem(step3GuideKey) || '';
 
+    // DEFAULT_GUIDES에서 현재 스타일의 writing_style, scripture_citation 가져오기
+    const styleName = getCurrentStyle()?.name || '';
+    let writingStyleRules = null;
+    let scriptureCitationRules = null;
+
+    if (window.DEFAULT_GUIDES && styleName) {
+      // 스타일 이름으로 직접 매칭 시도
+      let styleGuide = window.DEFAULT_GUIDES[styleName];
+
+      // 직접 매칭이 안 되면, 스타일 이름에 키워드가 포함되어 있는지 확인
+      if (!styleGuide) {
+        const guideKeys = Object.keys(window.DEFAULT_GUIDES);
+        for (const key of guideKeys) {
+          if (styleName.includes(key) || key.includes(styleName)) {
+            styleGuide = window.DEFAULT_GUIDES[key];
+            console.log(`[Step3] 스타일 '${styleName}'을 '${key}' 가이드에 매칭`);
+            break;
+          }
+        }
+      }
+
+      if (styleGuide?.step3) {
+        writingStyleRules = styleGuide.step3.writing_style || null;
+        scriptureCitationRules = styleGuide.step3.scripture_citation || null;
+      }
+    }
+
+    console.log('[Step3] 스타일:', styleName);
+    console.log('[Step3] writing_style 규칙:', writingStyleRules ? '있음' : '없음');
+    console.log('[Step3] scripture_citation 규칙:', scriptureCitationRules ? '있음' : '없음');
+
     const requestBody = {
       reference: ref,
       title: getSelectedTitle(),
@@ -200,13 +231,15 @@ async function executeGptPro() {
       worshipType: document.getElementById('sermon-worship-type')?.value || '',
       duration: document.getElementById('sermon-duration')?.value || '',
       specialNotes: document.getElementById('special-notes')?.value || '',
-      styleName: getCurrentStyle()?.name || '',
+      styleName: styleName,
       category: window.currentCategory,
       model: model,
       maxTokens: maxTokens,
       customPrompt: window.DEFAULT_STEP3_PROMPT,
       step1Result: step1Result,
-      step2Result: step2Result
+      step2Result: step2Result,
+      writingStyle: writingStyleRules,
+      scriptureCitation: scriptureCitationRules
     };
 
     // Step3 지침이 있으면 추가
