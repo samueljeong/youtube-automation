@@ -15,6 +15,23 @@ window.DramaStep4 = {
     console.log('[Step4] 영상 제작 모듈 초기화');
   },
 
+  // JSON 응답 안전하게 파싱 (HTML 에러 페이지 방어)
+  async safeJsonParse(response, stepName) {
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error(`[${stepName}] JSON 파싱 실패:`, parseError);
+      console.error(`[${stepName}] 응답 내용 (처음 500자):`, text.substring(0, 500));
+
+      // HTML 에러 페이지인지 확인
+      if (text.trim().startsWith('<')) {
+        throw new Error(`서버에서 HTML 에러 페이지를 반환했습니다 (status: ${response.status}). 서버 로그를 확인해주세요.`);
+      }
+      throw new Error(`서버 응답을 파싱할 수 없습니다: ${parseError.message}`);
+    }
+  },
+
   // 설정값 가져오기
   getConfig() {
     return {
@@ -127,7 +144,7 @@ window.DramaStep4 = {
         })
       });
 
-      const data = await response.json();
+      const data = await this.safeJsonParse(response, 'Step4-영상제작');
       console.log('[Step4] 영상 제작 응답:', data);
 
       if (!data.ok && !data.jobId) {
@@ -184,7 +201,7 @@ window.DramaStep4 = {
 
     try {
       const response = await fetch(`/api/drama/video-status/${this.currentJobId}`);
-      const data = await response.json();
+      const data = await this.safeJsonParse(response, 'Step4-상태확인');
 
       const progressBar = document.getElementById('video-progress-bar');
       const progressText = document.getElementById('video-progress-text');
