@@ -294,37 +294,39 @@ window.DramaStep1 = {
     return { html, jsonMeta: null };
   },
 
-  // JSON 대본을 읽기 좋은 HTML로 변환 (메타데이터는 별도로, 나레이션만 본문에)
+  // JSON 대본을 읽기 좋은 HTML로 변환 (나레이션만 표시, 메타데이터는 내부 보관)
   formatJsonContent(jsonData) {
     let html = '';
     const jsonMeta = {};
 
-    // 메타데이터 추출 (UI 상단에 별도 표시용)
+    // 메타데이터 추출 (UI 상단 메타데이터 패널에만 표시)
     if (jsonData.metadata) {
       jsonMeta.title = jsonData.metadata.title;
       jsonMeta.duration = jsonData.metadata.duration;
       jsonMeta.target_age = jsonData.metadata.target_age;
     }
+    if (jsonData.meta) {
+      jsonMeta.title = jsonMeta.title || jsonData.meta.one_line_concept;
+      jsonMeta.duration = jsonMeta.duration || `${jsonData.meta.target_length_minutes}분`;
+    }
 
-    // 하이라이트가 있으면 opening_hook으로 시작
-    if (jsonData.highlight?.opening_hook) {
+    // 하이라이트 프리뷰 (opening_hook 또는 highlight_preview)
+    const openingHook = jsonData.highlight?.opening_hook || jsonData.highlight_preview?.narration;
+    if (openingHook) {
       html += `<div class="script-opening">
-        <p class="opening-hook">${this.escapeHtml(jsonData.highlight.opening_hook)}</p>
+        <p class="opening-hook">${this.escapeHtml(openingHook)}</p>
       </div>`;
     }
 
-    // storyline 표시
+    // storyline 표시 (나레이션만)
     if (jsonData.storyline) {
       html += '<div class="script-storyline">';
 
-      // 배열 형태
       if (Array.isArray(jsonData.storyline)) {
         jsonData.storyline.forEach((scene, idx) => {
-          html += this.formatSceneHtml(scene, idx + 1);
+          html += this.formatSceneNarrationOnly(scene, idx + 1);
         });
-      }
-      // 객체 형태 (opening, development, climax, resolution)
-      else if (typeof jsonData.storyline === 'object') {
+      } else if (typeof jsonData.storyline === 'object') {
         const parts = [
           { key: 'opening', label: '도입' },
           { key: 'development', label: '전개' },
@@ -336,7 +338,7 @@ window.DramaStep1 = {
           if (jsonData.storyline[key]) {
             html += `<div class="script-section">
               <h4 class="section-label">${label}</h4>
-              ${this.formatSceneHtml(jsonData.storyline[key], null)}
+              ${this.formatSceneNarrationOnly(jsonData.storyline[key], null)}
             </div>`;
           }
         });
@@ -345,11 +347,11 @@ window.DramaStep1 = {
       html += '</div>';
     }
 
-    // scenes 배열이 있는 경우
+    // scenes 배열 (나레이션만 추출)
     if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
       html += '<div class="script-scenes">';
       jsonData.scenes.forEach((scene, idx) => {
-        html += this.formatSceneHtml(scene, idx + 1);
+        html += this.formatSceneNarrationOnly(scene, idx + 1);
       });
       html += '</div>';
     }
@@ -365,23 +367,28 @@ window.DramaStep1 = {
       html += '</div>';
     }
 
-    // 하이라이트 key_message로 마무리
+    // 하이라이트 key_message (있으면 마지막에)
     if (jsonData.highlight?.key_message) {
       html += `<div class="script-closing">
         <p class="key-message"><strong>핵심 메시지:</strong> ${this.escapeHtml(jsonData.highlight.key_message)}</p>
       </div>`;
     }
 
-    // 내용이 없으면 원본 JSON 표시 (폴백)
+    // 내용이 없으면 JSON에서 텍스트만 추출 시도
     if (!html) {
-      html = `<pre class="json-fallback">${this.escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>`;
+      const extracted = this.extractAllNarrations(jsonData);
+      if (extracted) {
+        html = `<div class="script-content"><p>${this.escapeHtml(extracted).replace(/\n/g, '<br>')}</p></div>`;
+      } else {
+        html = `<pre class="json-fallback">${this.escapeHtml(JSON.stringify(jsonData, null, 2))}</pre>`;
+      }
     }
 
     return { html, jsonMeta };
   },
 
-  // 씬 객체를 HTML로 변환
-  formatSceneHtml(scene, sceneNum) {
+  // 씬에서 나레이션만 추출 (메타데이터 제외)
+  formatSceneNarrationOnly(scene, sceneNum) {
     if (!scene) return '';
 
     // 문자열이면 바로 표시
@@ -392,27 +399,64 @@ window.DramaStep1 = {
       </div>`;
     }
 
-    // 객체면 나레이션/텍스트 필드 찾기
+    // 객체면 나레이션 필드만 추출 (메타데이터 필드는 무시)
     let content = '';
-    const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script', 'description'];
+
+    // 나레이션 필드 우선순위
+    const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script'];
     for (const field of narrationFields) {
       if (scene[field]) {
         if (typeof scene[field] === 'string') {
           content = scene[field];
           break;
         } else if (Array.isArray(scene[field])) {
-          content = scene[field].join('\n');
+          content = scene[field].join('\n\n');
           break;
         }
       }
     }
 
+    // 나레이션이 없으면 빈 문자열 반환 (메타데이터만 있는 씬은 표시 안함)
     if (!content) return '';
 
     return `<div class="scene-block">
       ${sceneNum ? `<span class="scene-num">장면 ${sceneNum}</span>` : ''}
       <p>${this.escapeHtml(content).replace(/\n/g, '<br>')}</p>
     </div>`;
+  },
+
+  // JSON에서 모든 나레이션 텍스트 추출 (폴백용)
+  extractAllNarrations(obj, depth = 0) {
+    if (depth > 10) return ''; // 무한 재귀 방지
+    if (!obj || typeof obj !== 'object') return '';
+
+    let texts = [];
+
+    // 배열이면 각 요소에서 추출
+    if (Array.isArray(obj)) {
+      obj.forEach(item => {
+        const extracted = this.extractAllNarrations(item, depth + 1);
+        if (extracted) texts.push(extracted);
+      });
+    } else {
+      // 객체면 나레이션 필드 찾기
+      const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script', 'full_text'];
+      for (const field of narrationFields) {
+        if (obj[field] && typeof obj[field] === 'string') {
+          texts.push(obj[field]);
+        }
+      }
+      // 중첩 객체 탐색 (메타데이터 필드 제외)
+      const skipFields = ['metadata', 'meta', 'checks', 'characters_in_scene', 'tts_notes', 'links_to_next_scene'];
+      for (const key of Object.keys(obj)) {
+        if (!skipFields.includes(key) && typeof obj[key] === 'object') {
+          const extracted = this.extractAllNarrations(obj[key], depth + 1);
+          if (extracted) texts.push(extracted);
+        }
+      }
+    }
+
+    return texts.join('\n\n');
   },
 
   // HTML 이스케이프
