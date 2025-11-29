@@ -4106,6 +4106,67 @@ def api_generate_tts():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Step3 TTS 새 파이프라인 (5000바이트 제한 해결 + SRT 자막) =====
+@app.route('/api/drama/step3/tts', methods=['POST'])
+def api_step3_tts_pipeline():
+    """
+    새로운 Step3 TTS 파이프라인
+    - 5000바이트 제한 자동 해결 (청킹)
+    - FFmpeg로 오디오 병합
+    - SRT 자막 자동 생성
+
+    Input:
+    {
+        "episode_id": "xxx",
+        "language": "ko-KR",
+        "voice": { "gender": "MALE", "name": "ko-KR-Neural2-B", "speaking_rate": 0.9 },
+        "scenes": [{ "id": "scene1", "narration": "..." }, ...]
+    }
+
+    Output:
+    {
+        "ok": true,
+        "episode_id": "xxx",
+        "audio_file": "outputs/audio/xxx_full.mp3",
+        "audio_url": "/outputs/audio/xxx_full.mp3",
+        "srt_file": "outputs/subtitles/xxx.srt",
+        "timeline": [...],
+        "stats": {...}
+    }
+    """
+    try:
+        from step3_tts_and_subtitles import run_tts_pipeline
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        scenes = data.get("scenes", [])
+        if not scenes:
+            return jsonify({"ok": False, "error": "씬 데이터가 없습니다."}), 400
+
+        print(f"[STEP3-TTS] 새 파이프라인 시작: {len(scenes)}개 씬")
+
+        result = run_tts_pipeline(data)
+
+        # 파일 경로를 URL로 변환
+        if result.get("ok") and result.get("audio_file"):
+            audio_file = result["audio_file"]
+            result["audio_url"] = "/" + audio_file
+
+        if result.get("ok") and result.get("srt_file"):
+            srt_file = result["srt_file"]
+            result["srt_url"] = "/" + srt_file
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[STEP3-TTS][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Step5: 자막 생성 API =====
 @app.route('/api/drama/generate-subtitle', methods=['POST'])
 def api_generate_subtitle():
