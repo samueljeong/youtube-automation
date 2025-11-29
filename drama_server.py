@@ -264,11 +264,17 @@ def load_video_jobs():
         video_jobs = {}
 
 def video_worker():
-    """백그라운드 워커: 영상 생성 작업 처리"""
+    """백그라운드 워커: 영상 생성 작업 처리
+
+    큐에서 작업을 가져와 비동기적으로 영상 생성.
+    Render 등 타임아웃 환경에서도 안정적으로 동작.
+    """
+    print(f"[VIDEO-WORKER] 워커 루프 시작")
     while True:
         try:
             job = video_job_queue.get()
             if job is None:  # 종료 신호
+                print(f"[VIDEO-WORKER] 종료 신호 수신")
                 break
 
             job_id = job['job_id']
@@ -279,18 +285,20 @@ def video_worker():
                 if job_id in video_jobs:
                     video_jobs[job_id]['status'] = 'processing'
                     video_jobs[job_id]['progress'] = 0
-                    save_video_jobs()  # 파일에 저장
+                    video_jobs[job_id]['message'] = '영상 생성 시작...'
+                    save_video_jobs()
 
             try:
-                # 실제 영상 생성 로직 실행
+                # 실제 영상 생성 로직 실행 (cuts 지원)
                 result = _generate_video_sync(
-                    images=job['images'],
-                    audio_url=job['audio_url'],
-                    subtitle_data=job['subtitle_data'],
-                    burn_subtitle=job['burn_subtitle'],
-                    resolution=job['resolution'],
-                    fps=job['fps'],
-                    transition=job['transition'],
+                    images=job.get('images', []),
+                    audio_url=job.get('audio_url', ''),
+                    cuts=job.get('cuts', []),  # cuts 배열 전달
+                    subtitle_data=job.get('subtitle_data'),
+                    burn_subtitle=job.get('burn_subtitle', False),
+                    resolution=job.get('resolution', '1920x1080'),
+                    fps=job.get('fps', 30),
+                    transition=job.get('transition', 'fade'),
                     job_id=job_id
                 )
 
@@ -299,25 +307,33 @@ def video_worker():
                     if job_id in video_jobs:
                         video_jobs[job_id]['status'] = 'completed'
                         video_jobs[job_id]['progress'] = 100
+                        video_jobs[job_id]['message'] = '영상 생성 완료'
                         video_jobs[job_id]['result'] = result
                         video_jobs[job_id]['completed_at'] = dt.now().isoformat()
-                        save_video_jobs()  # 파일에 저장
+                        save_video_jobs()
 
                 print(f"[VIDEO-WORKER] 작업 완료: {job_id}")
 
             except Exception as e:
                 # 실패
-                print(f"[VIDEO-WORKER] 작업 실패: {job_id} - {str(e)}")
+                import traceback
+                error_msg = str(e)
+                print(f"[VIDEO-WORKER] 작업 실패: {job_id} - {error_msg}")
+                traceback.print_exc()
+
                 with video_jobs_lock:
                     if job_id in video_jobs:
                         video_jobs[job_id]['status'] = 'failed'
-                        video_jobs[job_id]['error'] = str(e)
-                        save_video_jobs()  # 파일에 저장
+                        video_jobs[job_id]['error'] = error_msg
+                        video_jobs[job_id]['message'] = f'실패: {error_msg}'
+                        save_video_jobs()
 
             video_job_queue.task_done()
 
         except Exception as e:
-            print(f"[VIDEO-WORKER] 워커 오류: {str(e)}")
+            import traceback
+            print(f"[VIDEO-WORKER] 워커 루프 오류: {str(e)}")
+            traceback.print_exc()
 
 # 서버 시작 시 저장된 jobs 로드
 load_video_jobs()
@@ -5165,11 +5181,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         }
 
 
-# ===== Step6: 영상 제작 API (동기식) =====
+# ===== Step6: 영상 제작 API (비동기 큐 방식) =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():
-    """이미지와 오디오를 합쳐서 영상 생성 (동기식 - 로컬 환경용)"""
-    print(f"[DRAMA-STEP6-VIDEO] === API 호출 시작 ===")
+    """이미지와 오디오를 합쳐서 영상 생성 (비동기 - 백그라운드 워커 사용)
+
+    Render 등 타임아웃이 있는 환경에서도 안정적으로 동작.
+    요청 즉시 job_id 반환 → 프론트엔드에서 폴링으로 상태 확인
+    """
+    print(f"[DRAMA-STEP6-VIDEO] === API 호출 시작 (비동기 모드) ===")
     try:
         data = request.get_json()
         if not data:
@@ -5217,88 +5237,45 @@ def api_generate_video():
         # Job ID 생성
         job_id = str(uuid.uuid4())
 
-        print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 시작: {job_id}, 이미지: {len(images)}개, cuts: {len(cuts)}개")
+        print(f"[DRAMA-STEP6-VIDEO] 비동기 영상 생성 작업 등록: {job_id}, 이미지: {len(images)}개, cuts: {len(cuts)}개")
 
-        # Job 상태 초기화 - processing으로 바로 시작
+        # Job 상태 초기화 - pending 상태로 시작
         with video_jobs_lock:
             video_jobs[job_id] = {
-                'status': 'processing',
+                'status': 'pending',
                 'progress': 0,
-                'message': '영상 생성 중...',
+                'message': '작업 대기 중...',
                 'result': None,
                 'error': None,
                 'created_at': dt.now().isoformat()
             }
             save_video_jobs()
 
-        try:
-            # 동기식으로 바로 영상 생성 (워커 없이)
-            result = _generate_video_sync(
-                images=images,
-                audio_url=audio_url,
-                cuts=cuts,  # cuts 배열 전달
-                subtitle_data=subtitle_data,
-                burn_subtitle=burn_subtitle,
-                resolution=resolution,
-                fps=fps,
-                transition=transition,
-                job_id=job_id
-            )
+        # 작업을 큐에 추가 (백그라운드 워커가 처리)
+        job_data = {
+            'job_id': job_id,
+            'images': images,
+            'audio_url': audio_url,
+            'cuts': cuts,
+            'subtitle_data': subtitle_data,
+            'burn_subtitle': burn_subtitle,
+            'resolution': resolution,
+            'fps': fps,
+            'transition': transition
+        }
+        video_job_queue.put(job_data)
 
-            # 성공
-            with video_jobs_lock:
-                video_jobs[job_id] = {
-                    'status': 'completed',
-                    'progress': 100,
-                    'message': '영상 생성 완료',
-                    'result': result,
-                    'error': None,
-                    'created_at': video_jobs[job_id]['created_at'],
-                    'completed_at': dt.now().isoformat()
-                }
-                save_video_jobs()
+        print(f"[DRAMA-STEP6-VIDEO] 작업 큐에 추가됨: {job_id}, 큐 크기: {video_job_queue.qsize()}")
 
-            print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 완료: {job_id}")
-
-            # 완료 결과 바로 반환
-            return jsonify({
-                "ok": True,
-                "jobId": job_id,
-                "status": "completed",
-                "progress": 100,
-                "workerAlive": True,
-                "videoUrl": result.get('videoUrl'),
-                "videoFileUrl": result.get('videoFileUrl'),
-                "duration": result.get('duration'),
-                "fileSize": result.get('fileSize'),
-                "fileSizeMB": result.get('fileSizeMB'),
-                "message": "영상 생성이 완료되었습니다."
-            })
-
-        except Exception as e:
-            # 실패
-            error_msg = str(e)
-            print(f"[DRAMA-STEP6-VIDEO][ERROR] 동기식 영상 생성 실패: {job_id} - {error_msg}")
-
-            with video_jobs_lock:
-                video_jobs[job_id] = {
-                    'status': 'failed',
-                    'progress': 0,
-                    'message': f'영상 생성 실패: {error_msg}',
-                    'result': None,
-                    'error': error_msg,
-                    'created_at': video_jobs[job_id]['created_at']
-                }
-                save_video_jobs()
-
-            return jsonify({
-                "ok": False,
-                "jobId": job_id,
-                "status": "failed",
-                "progress": 0,
-                "workerAlive": True,
-                "error": error_msg
-            }), 200
+        # 즉시 응답 반환 (프론트엔드에서 폴링으로 상태 확인)
+        return jsonify({
+            "ok": True,
+            "jobId": job_id,
+            "status": "pending",
+            "progress": 0,
+            "workerAlive": video_worker_thread.is_alive(),
+            "message": "영상 생성 작업이 시작되었습니다. 상태를 확인해주세요."
+        })
 
     except Exception as e:
         import traceback
