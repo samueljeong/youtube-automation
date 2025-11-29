@@ -465,7 +465,8 @@ const DEFAULT_GUIDES = {
             "meaning": "문장이 말하는 객관적 의미",
             "connection": "앞뒤 절과 연결되는 논리적 흐름"
           },
-          "purpose": "강해설교의 핵심인 절-by-절 해석의 기초 자료"
+          "purpose": "강해설교의 핵심인 절-by-절 해석의 기초 자료",
+          "long_text_rule": "본문 길이가 15절을 초과할 경우, 모든 절을 개별 분석하지 말고 핵심 절(3-7개)에만 per_verse 구조를 적용하고 나머지는 단락 단위로 요약합니다."
         },
         "section_grouping": {
           "label": "대지 단위 절 그룹핑",
@@ -495,7 +496,8 @@ const DEFAULT_GUIDES = {
             "reference": "성경구절 (예: 롬 8:15)",
             "connection_reason": "본문과 연결되는 이유 한 문장"
           },
-          "purpose": "성경이 성경을 해석하게 하는 원칙 적용"
+          "purpose": "성경이 성경을 해석하게 하는 원칙 적용",
+          "connection_note": "각 구절마다 '본문과의 연결 포인트'를 1문장으로 메모합니다. (예: 롬8:28 – 고난을 하나님의 선한 계획과 연결해서 이해하게 해주는 구절)"
         },
         "author_intent": {
           "label": "저자 의도",
@@ -519,7 +521,7 @@ const DEFAULT_GUIDES = {
       "step": "step2",
       "style": "강해설교",
       "role": "설교 구조 설계자",
-      "principle": "Step1의 분석 자료를 바탕으로 설교 구조만을 설계한다. 새로운 해석이나 신학적 주장을 추가하지 않는다.",
+      "principle": "Step1의 분석 자료(특히 section_grouping과 literary_structure)를 바탕으로 설교 구조만을 설계한다. 새로운 해석이나 신학적 주장을 추가하지 않고, Step1에서 제시한 섹션 절 범위와 주제를 벗어나지 않는다.",
       "required_input": [
         "step1.section_grouping",
         "step1.literary_structure",
@@ -614,7 +616,8 @@ const DEFAULT_GUIDES = {
       "constraints": {
         "no_new_interpretation": "Step1에 없는 새로운 신학·해석 추가 금지",
         "balanced_points": "세 대지는 분량과 논리 비중이 균형 있게",
-        "verse_coverage": "본문의 모든 절이 대지 안에 포함되어야 함"
+        "verse_coverage": "본문의 모든 절이 대지 안에 포함되어야 함",
+        "must_use_sections": "세 대지의 절 범위와 주제는 반드시 step1.section_grouping의 section1/2/3을 그대로 사용하거나, 표현만 약간 변형한 수준이어야 한다. 새로운 절 범위 구분이나 주제를 임의로 만들지 않는다."
       }
     },
     "step3": {
@@ -730,8 +733,11 @@ const DEFAULT_GUIDES = {
           "rules": [
             "각 대지 끝에 신앙 적용 또는 일상 적용 1개",
             "추상적 권면이 아닌 구체적 행동 제시",
-            "결론에서 전체 적용 요약"
-          ]
+            "결론에서 전체 적용 요약",
+            "각 대지의 적용은 '구체적 행동 한 가지' 수준으로 작성하며, 막연한 위로 문장만 반복하지 않습니다."
+          ],
+          "bad_example": "그러므로 우리는 하나님을 신뢰해야 합니다.",
+          "good_example": "이번 한 주, 중요한 결정을 앞두고 있다면 최소 하루를 정해 금식 혹은 조용한 기도 시간으로 구별하십시오."
         },
         "tone": {
           "label": "어조",
