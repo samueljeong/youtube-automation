@@ -206,12 +206,20 @@ function getStepData(stepId) {
 const EXCLUDED_FIELDS = ['fullScript', 'rawJson', 'debug', 'audioBase64', 'imageBase64', 'base64Data', 'raw_response'];
 
 // 대용량 필드를 제거하고 데이터 경량화
-function sanitizeForStorage(data) {
+// ⚠️ 예외: 'images', 'imageUrl', 'audioUrl' 등 필수 URL 필드는 보존
+const PRESERVE_URL_FIELDS = ['images', 'imageUrl', 'audioUrl', 'videoUrl', 'audios'];
+
+function sanitizeForStorage(data, fieldName = '') {
   if (!data || typeof data !== 'object') return data;
 
-  // 배열인 경우 각 요소 처리
+  // 배열인 경우
   if (Array.isArray(data)) {
-    return data.map(item => sanitizeForStorage(item));
+    // 'images', 'audios' 등 URL 배열은 sanitize하지 않고 그대로 반환
+    if (PRESERVE_URL_FIELDS.includes(fieldName)) {
+      console.log(`[Session] URL 배열 보존: ${fieldName} (${data.length}개)`);
+      return data;
+    }
+    return data.map(item => sanitizeForStorage(item, fieldName));
   }
 
   // 객체인 경우 대용량 필드 제거
@@ -225,9 +233,18 @@ function sanitizeForStorage(data) {
 
     const value = data[key];
 
+    // URL 보존 필드는 그대로 유지
+    if (PRESERVE_URL_FIELDS.includes(key)) {
+      sanitized[key] = value;
+      if (Array.isArray(value)) {
+        console.log(`[Session] URL 배열 보존: ${key} (${value.length}개)`);
+      }
+      continue;
+    }
+
     // 문자열이 너무 긴 경우 잘라내기 (10KB 초과)
     if (typeof value === 'string' && value.length > 10000) {
-      // Base64 데이터인 경우 완전 제외
+      // Base64 데이터인 경우 완전 제외 (images 제외)
       if (value.startsWith('data:') || value.match(/^[A-Za-z0-9+/=]{1000,}$/)) {
         console.log(`[Session] Base64 데이터 제외: ${key} (${(value.length/1024).toFixed(1)}KB)`);
         continue;
@@ -236,8 +253,8 @@ function sanitizeForStorage(data) {
       sanitized[key] = value.substring(0, 10000) + '... (truncated)';
       console.log(`[Session] 텍스트 잘라냄: ${key} (${(value.length/1024).toFixed(1)}KB -> 10KB)`);
     } else if (typeof value === 'object' && value !== null) {
-      // 중첩 객체 재귀 처리
-      sanitized[key] = sanitizeForStorage(value);
+      // 중첩 객체 재귀 처리 (key 이름 전달)
+      sanitized[key] = sanitizeForStorage(value, key);
     } else {
       sanitized[key] = value;
     }

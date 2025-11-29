@@ -127,23 +127,58 @@ window.DramaStep3 = {
   },
 
   // JSON 대본에서 순수 나레이션만 추출 (메타데이터, 타이틀 제외)
+  // ⚠️ 우선순위: tts_text > narration > text > content
   extractNarrationFromJson(jsonData) {
     const narrations = [];
 
-    // 1. highlight.opening_hook으로 시작
+    console.log('[Step3] JSON 파싱 시작, 키들:', Object.keys(jsonData));
+
+    // 1. highlight.opening_hook을 첫 나레이션으로 추가 (후킹 역할)
     if (jsonData.highlight?.opening_hook) {
-      // opening_hook은 나레이션의 시작으로 사용
-      console.log('[Step3] opening_hook 발견:', jsonData.highlight.opening_hook.substring(0, 50));
+      const hook = jsonData.highlight.opening_hook;
+      console.log('[Step3] opening_hook 발견:', hook.substring(0, 50));
+      narrations.push(hook);
     }
 
-    // 2. storyline에서 나레이션 추출
-    if (jsonData.storyline) {
+    // 2. scenes 배열에서 tts_text 또는 narration 추출 (최우선!)
+    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+      console.log('[Step3] scenes 배열 발견:', jsonData.scenes.length, '개');
+      jsonData.scenes.forEach((scene, idx) => {
+        // tts_text 필드 우선 (백엔드에서 TTS용으로 정제한 텍스트)
+        if (scene.tts_text && typeof scene.tts_text === 'string' && scene.tts_text.length > 10) {
+          console.log(`[Step3] scene[${idx}] tts_text 사용:`, scene.tts_text.substring(0, 50));
+          narrations.push(scene.tts_text);
+        }
+        // tts_text가 없으면 narration 사용
+        else if (scene.narration && typeof scene.narration === 'string' && scene.narration.length > 10) {
+          console.log(`[Step3] scene[${idx}] narration 사용:`, scene.narration.substring(0, 50));
+          narrations.push(scene.narration);
+        }
+        // 그래도 없으면 일반 추출
+        else {
+          const text = this.extractTextFromSceneObject(scene);
+          if (text && text.length > 30) {
+            console.log(`[Step3] scene[${idx}] 일반 추출:`, text.substring(0, 50));
+            narrations.push(text);
+          }
+        }
+      });
+    }
+
+    // 3. storyline에서 나레이션 추출 (scenes가 비어있을 때)
+    if (narrations.length <= 1 && jsonData.storyline) {
+      console.log('[Step3] storyline에서 추출 시도');
       // storyline이 배열인 경우
       if (Array.isArray(jsonData.storyline)) {
         jsonData.storyline.forEach((scene, idx) => {
-          const text = this.extractTextFromSceneObject(scene);
-          if (text && text.length > 30) {
-            narrations.push(text);
+          // tts_text 우선
+          if (scene.tts_text && scene.tts_text.length > 10) {
+            narrations.push(scene.tts_text);
+          } else {
+            const text = this.extractTextFromSceneObject(scene);
+            if (text && text.length > 30) {
+              narrations.push(text);
+            }
           }
         });
       }
@@ -153,29 +188,26 @@ window.DramaStep3 = {
         storyParts.forEach(part => {
           if (jsonData.storyline[part]) {
             const partData = jsonData.storyline[part];
-            const text = this.extractTextFromSceneObject(partData);
-            if (text && text.length > 30) {
-              narrations.push(text);
+            // tts_text 우선
+            if (partData.tts_text && partData.tts_text.length > 10) {
+              narrations.push(partData.tts_text);
+            } else {
+              const text = this.extractTextFromSceneObject(partData);
+              if (text && text.length > 30) {
+                narrations.push(text);
+              }
             }
           }
         });
       }
     }
 
-    // 3. scenes 배열이 있는 경우
-    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
-      jsonData.scenes.forEach(scene => {
-        const text = this.extractTextFromSceneObject(scene);
-        if (text && text.length > 30) {
-          narrations.push(text);
-        }
-      });
-    }
-
     // 4. script 필드가 있는 경우
-    if (jsonData.script) {
+    if (narrations.length === 0 && jsonData.script) {
       if (typeof jsonData.script === 'string') {
         narrations.push(jsonData.script);
+      } else if (jsonData.script.tts_text) {
+        narrations.push(jsonData.script.tts_text);
       } else if (jsonData.script.full_text) {
         narrations.push(jsonData.script.full_text);
       } else if (jsonData.script.narration) {
@@ -197,17 +229,24 @@ window.DramaStep3 = {
       }
     }
 
+    console.log('[Step3] 최종 추출된 나레이션:', narrations.length, '개');
     return narrations;
   },
 
   // 씬 객체에서 나레이션 텍스트 추출
+  // ⚠️ 우선순위: tts_text > narration > text > content
   extractTextFromSceneObject(scene) {
     if (!scene) return '';
 
     // 문자열이면 그대로 반환
     if (typeof scene === 'string') return scene;
 
-    // 객체면 나레이션 관련 필드 찾기
+    // tts_text 필드 최우선 (백엔드에서 TTS용으로 정제한 텍스트)
+    if (scene.tts_text && typeof scene.tts_text === 'string') {
+      return scene.tts_text;
+    }
+
+    // 객체면 나레이션 관련 필드 찾기 (우선순위 순)
     const narrationFields = ['narration', 'text', 'content', 'dialogue', 'script', 'description'];
     for (const field of narrationFields) {
       if (scene[field] && typeof scene[field] === 'string') {
@@ -218,6 +257,9 @@ window.DramaStep3 = {
     // 배열인 경우 join
     if (scene.narration && Array.isArray(scene.narration)) {
       return scene.narration.join('\n');
+    }
+    if (scene.tts_text && Array.isArray(scene.tts_text)) {
+      return scene.tts_text.join('\n');
     }
 
     return '';

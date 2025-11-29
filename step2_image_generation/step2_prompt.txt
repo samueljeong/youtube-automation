@@ -56,40 +56,45 @@ Step2는 이것을 실제 이미지 생성 엔진이 이해할 수 있는
 ------------------------------------------------
 
 ⚠️ 핵심 강제 규칙 (HARD RULES) - 모든 프롬프트에 반드시 적용 ⚠️
+⚠️ Gemini 정책 준수: 인종/민족/나이를 직접 명시하지 않음!
 
 **A. 필수 포함 요소 (반드시 프롬프트에 포함)**
 
-1. 지역/민족 식별자 (프롬프트 맨 앞에 배치):
-   - "in South Korea"
-   - "Korean elderly people" (시니어 채널)
-   - "1970s or 1980s Korea"
+1. 장소 식별자 (프롬프트 맨 앞에 배치):
+   - "in a traditional village"
+   - "1970s-1980s nostalgic atmosphere"
+   - 한국 분위기는 환경/배경 디테일로만 표현 (ondol, onggi jars, hanji doors 등)
 
 2. 필수 끝맺음 문구 (프롬프트 마지막에 항상 추가):
-   "photograph of Korean seniors, avoid Western faces, authentic Korean interior"
+   "warm nostalgic atmosphere, authentic setting, vintage film photography aesthetic"
 
 3. 스타일 서픽스:
-   "vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture"
+   "slightly faded warm colors, subtle film grain texture, soft focus edges"
 
 
-**B. 장소 한국화 규칙** (모든 장소는 한국 맥락으로 변환)
-   - 마을 → "Korean rural village"
-   - 시장 → "Korean traditional market (sijang)"
-   - 경로당 → "Korean community center for seniors"
-   - 골목 → "narrow Korean alley (golmok)"
-   - 아파트 → "Korean apartment living room"
-   - 방 → "Korean ondol-heated room"
-   - 부엌 → "Korean kitchen with traditional onggi jars"
-   - 버스정류장 → "Korean countryside bus stop"
-   - 논밭 → "Korean rice paddies"
+**B. 장소 한국화 규칙** (인종 언급 없이 환경으로 분위기 표현)
+   - 마을 → "small rural village with traditional architecture, tiled roofs"
+   - 시장 → "traditional market with handwritten signs, narrow aisles"
+   - 경로당 → "cozy community center with low tables and floor cushions"
+   - 골목 → "narrow alley with old brick houses, traditional wooden doors"
+   - 아파트 → "modest apartment living room with low wooden table"
+   - 방 → "ondol-heated room with paper sliding doors (hanji)"
+   - 부엌 → "small kitchen with large earthen jars (onggi)"
+   - 버스정류장 → "countryside bus stop with wooden bench"
+   - 논밭 → "rice paddies at golden hour"
 
 
 **C. 인물 프롬프트 프리픽스** (인물 포함 시 맨 앞에 배치)
+⚠️ 절대 금지: 인종, 민족, 구체적 나이 숫자 표현!
 
-할머니:
-"Authentic Korean grandmother (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: round face shape, single eyelids typical of Korean elderly, Korean skin tone, permed short gray/white hair"
+할머니 (안전한 표현):
+"An elderly woman with gentle expression, graying hair in a soft perm, wearing simple traditional clothing, warm kind face"
 
-할아버지:
-"Authentic Korean grandfather (harabeoji) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: angular Korean face shape, single eyelids or hooded eyes, Korean skin tone, balding or short gray hair"
+할아버지 (안전한 표현):
+"An elderly man with weathered kind face, wearing comfortable traditional attire, peaceful expression, graying or balding hair"
+
+노부부:
+"An elderly couple, warm and comfortable atmosphere, simple traditional home setting"
 
 
 ------------------------------------------------
