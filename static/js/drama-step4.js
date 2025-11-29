@@ -151,12 +151,22 @@ window.DramaStep4 = {
       const progressBar = document.getElementById('video-progress-bar');
       const progressText = document.getElementById('video-progress-text');
 
+      console.log('[Step4] 상태 확인:', data.status, 'workerAlive:', data.workerAlive, 'progress:', data.progress);
+
       if (data.ok) {
         // 진행률 업데이트
         if (progressBar) progressBar.style.width = `${data.progress}%`;
-        if (progressText) progressText.textContent = data.message || `진행 중... ${data.progress}%`;
 
-        if (data.status === 'completed') {
+        // 상태별 메시지 표시
+        if (data.status === 'pending') {
+          if (progressText) progressText.textContent = data.message || '작업 대기 중...';
+          // 워커가 죽어있으면 경고 표시
+          if (data.workerAlive === false) {
+            if (progressText) progressText.textContent = '⚠️ 워커 비활성 - 서버 재시작 필요';
+          }
+        } else if (data.status === 'processing') {
+          if (progressText) progressText.textContent = data.message || `영상 인코딩 중... ${data.progress}%`;
+        } else if (data.status === 'completed') {
           // 완료
           this.stopPolling();
           this.videoUrl = data.videoUrl;
@@ -166,9 +176,15 @@ window.DramaStep4 = {
           this.stopPolling();
           this.onVideoFailed(data.error || '영상 제작 실패');
         }
+      } else {
+        // API 오류 (예: 404)
+        console.error('[Step4] 상태 확인 API 오류:', data.error);
+        this.stopPolling();
+        this.onVideoFailed(data.error || '작업을 찾을 수 없습니다.');
       }
     } catch (error) {
       console.error('[Step4] 상태 확인 오류:', error);
+      // 네트워크 오류 시 폴링 중지하지 않음 (재시도)
     }
   },
 

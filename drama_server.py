@@ -304,6 +304,7 @@ load_video_jobs()
 # 워커 스레드 시작
 video_worker_thread = threading.Thread(target=video_worker, daemon=True)
 video_worker_thread.start()
+print(f"[VIDEO-WORKER] 워커 스레드 시작됨 (alive: {video_worker_thread.is_alive()})")
 
 # ===== JSON 지침 파일 로드 =====
 GUIDES_DIR = os.path.join(os.path.dirname(__file__), 'guides')
@@ -4922,20 +4923,58 @@ def api_video_status(job_id):
             return jsonify({"ok": False, "error": "작업을 찾을 수 없습니다."}), 404
 
         job = video_jobs[job_id]
+
+        # pending 상태가 5분 이상 지속되면 실패 처리
+        if job['status'] == 'pending':
+            created_at = dt.fromisoformat(job['created_at'])
+            elapsed = (dt.now() - created_at).total_seconds()
+            if elapsed > 300:  # 5분 = 300초
+                job['status'] = 'failed'
+                job['error'] = f'작업 처리 시간 초과 (워커 상태 확인 필요). 경과 시간: {int(elapsed)}초'
+                save_video_jobs()
+                print(f"[VIDEO-STATUS] 작업 {job_id} pending 타임아웃으로 실패 처리")
+
         response = {
             "ok": True,
             "jobId": job_id,
             "status": job['status'],  # pending, processing, completed, failed
             "progress": job['progress'],
-            "message": job.get('message', '')
+            "message": job.get('message', ''),
+            "workerAlive": video_worker_thread.is_alive() if video_worker_thread else False
         }
 
         if job['status'] == 'completed':
-            response['result'] = job['result']
+            result = job['result']
+            # 프론트엔드 호환성을 위해 result 내용을 최상위로 펼침
+            if result:
+                response['videoUrl'] = result.get('videoUrl')
+                response['videoFileUrl'] = result.get('videoFileUrl')
+                response['duration'] = result.get('duration')
+                response['fileSize'] = result.get('fileSize')
+                response['fileSizeMB'] = result.get('fileSizeMB')
+            response['result'] = result  # 기존 호환성 유지
         elif job['status'] == 'failed':
             response['error'] = job['error']
 
         return jsonify(response)
+
+
+# ===== 워커 상태 디버깅 API =====
+@app.route('/api/drama/worker-status', methods=['GET'])
+def api_worker_status():
+    """영상 워커 상태 확인 (디버깅용)"""
+    with video_jobs_lock:
+        pending_jobs = [jid for jid, j in video_jobs.items() if j['status'] == 'pending']
+        processing_jobs = [jid for jid, j in video_jobs.items() if j['status'] == 'processing']
+
+    return jsonify({
+        "ok": True,
+        "workerAlive": video_worker_thread.is_alive() if video_worker_thread else False,
+        "queueSize": video_job_queue.qsize(),
+        "pendingJobs": pending_jobs,
+        "processingJobs": processing_jobs,
+        "totalJobs": len(video_jobs)
+    })
 
 
 # ===== Step7: 유튜브 업로드 API =====
