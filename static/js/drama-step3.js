@@ -223,6 +223,47 @@ window.DramaStep3 = {
     return '';
   },
 
+  // JSON 객체에서 UI 표시용 텍스트 추출 (메타데이터 제외)
+  extractDisplayText(jsonData) {
+    if (!jsonData) return '';
+    if (typeof jsonData === 'string') return jsonData;
+
+    // 1. narration 필드 우선
+    if (jsonData.narration) {
+      if (typeof jsonData.narration === 'string') return jsonData.narration;
+      if (Array.isArray(jsonData.narration)) return jsonData.narration.join(' ');
+    }
+
+    // 2. text / content 필드
+    if (jsonData.text) return jsonData.text;
+    if (jsonData.content) return jsonData.content;
+
+    // 3. storyline에서 추출
+    if (jsonData.storyline) {
+      const narrations = this.extractNarrationFromJson(jsonData);
+      if (narrations && narrations.length > 0) {
+        return narrations.join('\n\n');
+      }
+    }
+
+    // 4. scenes 배열에서 추출
+    if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
+      const texts = jsonData.scenes.map(s => this.extractTextFromSceneObject(s)).filter(t => t);
+      if (texts.length > 0) return texts.join('\n\n');
+    }
+
+    // 5. 기타: 첫 번째 문자열 값 사용
+    for (const key of Object.keys(jsonData)) {
+      if (typeof jsonData[key] === 'string' && jsonData[key].length > 50) {
+        // 메타데이터 키 제외
+        if (['title', 'duration', 'target_age', 'category', 'style'].includes(key)) continue;
+        return jsonData[key];
+      }
+    }
+
+    return JSON.stringify(jsonData).substring(0, 200);
+  },
+
   // 씬 텍스트에서 순수 나레이션만 추출 (설명, 지시문 제외)
   extractNarrationFromScene(sceneText) {
     if (!sceneText) return '';
@@ -362,10 +403,12 @@ window.DramaStep3 = {
       if (progressBar) progressBar.style.width = '100%';
       if (progressText) progressText.textContent = '완료!';
 
-      // 결과 저장
+      // 결과 저장 (TTS에 전달한 텍스트도 함께 저장)
+      const finalScripts = scenes.map(s => s.text);
       DramaSession.setStepData('step3', {
         audios: this.generatedAudios,
-        config: config
+        config: config,
+        finalScripts: finalScripts  // TTS에 전달한 순수 나레이션 텍스트
       });
 
       // 결과 표시
@@ -398,7 +441,27 @@ window.DramaStep3 = {
     if (resultArea) resultArea.classList.remove('hidden');
 
     if (audioList) {
-      audioList.innerHTML = this.generatedAudios.map((audio, idx) => `
+      audioList.innerHTML = this.generatedAudios.map((audio, idx) => {
+        // 나레이션 텍스트 정리 (JSON이 아닌 순수 텍스트만 표시)
+        let displayText = audio.text || '';
+
+        // JSON 문자열인 경우 파싱 시도
+        if (displayText.trim().startsWith('{') || displayText.trim().startsWith('[')) {
+          try {
+            const parsed = JSON.parse(displayText);
+            // JSON에서 나레이션 추출
+            displayText = this.extractDisplayText(parsed);
+          } catch (e) {
+            // 파싱 실패 시 그대로 사용
+          }
+        }
+
+        // 200자로 제한하여 미리보기 표시
+        const previewText = displayText.length > 200
+          ? displayText.substring(0, 200) + '...'
+          : displayText;
+
+        return `
         <div class="tts-audio-item" data-idx="${idx}">
           <div class="audio-info">
             <span class="audio-title">${audio.id}</span>
@@ -409,9 +472,9 @@ window.DramaStep3 = {
             <button class="btn-small" onclick="DramaStep3.playAudio(${idx})">▶️ 재생</button>
             <button class="btn-small" onclick="DramaStep3.downloadAudio(${idx})">💾 저장</button>
           </div>
-          <p class="audio-preview">${DramaUtils.escapeHtml(audio.text)}</p>
-        </div>
-      `).join('');
+          <p class="audio-preview">${DramaUtils.escapeHtml(previewText)}</p>
+        </div>`;
+      }).join('');
     }
 
     // 총 재생시간 계산

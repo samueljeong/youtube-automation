@@ -202,14 +202,89 @@ function getStepData(stepId) {
   }
 }
 
+// 저장 시 제외할 대용량 필드 목록
+const EXCLUDED_FIELDS = ['fullScript', 'rawJson', 'debug', 'audioBase64', 'imageBase64', 'base64Data', 'raw_response'];
+
+// 대용량 필드를 제거하고 데이터 경량화
+function sanitizeForStorage(data) {
+  if (!data || typeof data !== 'object') return data;
+
+  // 배열인 경우 각 요소 처리
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForStorage(item));
+  }
+
+  // 객체인 경우 대용량 필드 제거
+  const sanitized = {};
+  for (const key of Object.keys(data)) {
+    // 제외 필드 스킵
+    if (EXCLUDED_FIELDS.includes(key)) {
+      console.log(`[Session] 대용량 필드 제외: ${key}`);
+      continue;
+    }
+
+    const value = data[key];
+
+    // 문자열이 너무 긴 경우 잘라내기 (10KB 초과)
+    if (typeof value === 'string' && value.length > 10000) {
+      // Base64 데이터인 경우 완전 제외
+      if (value.startsWith('data:') || value.match(/^[A-Za-z0-9+/=]{1000,}$/)) {
+        console.log(`[Session] Base64 데이터 제외: ${key} (${(value.length/1024).toFixed(1)}KB)`);
+        continue;
+      }
+      // 일반 텍스트는 잘라내기
+      sanitized[key] = value.substring(0, 10000) + '... (truncated)';
+      console.log(`[Session] 텍스트 잘라냄: ${key} (${(value.length/1024).toFixed(1)}KB -> 10KB)`);
+    } else if (typeof value === 'object' && value !== null) {
+      // 중첩 객체 재귀 처리
+      sanitized[key] = sanitizeForStorage(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
 function setStepData(stepId, data) {
   try {
     const existing = localStorage.getItem(STEP_STORAGE_KEY);
     const parsed = existing ? JSON.parse(existing) : {};
-    parsed[stepId] = data;
-    localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(parsed));
+
+    // 데이터 경량화
+    const sanitizedData = sanitizeForStorage(data);
+    parsed[stepId] = sanitizedData;
+
+    const jsonString = JSON.stringify(parsed);
+    const sizeKB = (jsonString.length / 1024).toFixed(1);
+    console.log(`[Session] 저장 시도: ${stepId} (전체 ${sizeKB}KB)`);
+
+    localStorage.setItem(STEP_STORAGE_KEY, jsonString);
+    console.log(`[Session] 저장 성공: ${stepId}`);
   } catch (e) {
-    console.error('[Session] Step 데이터 저장 실패:', e);
+    // QuotaExceededError 처리
+    if (e.name === 'QuotaExceededError' || e.message.includes('quota')) {
+      console.warn('[Session] localStorage 용량 초과, 이전 데이터 정리 시도...');
+
+      try {
+        // 기존 데이터 삭제 후 현재 스텝만 저장
+        localStorage.removeItem(STEP_STORAGE_KEY);
+        const newData = {};
+        newData[stepId] = sanitizeForStorage(data);
+        localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(newData));
+        console.log('[Session] 데이터 정리 후 저장 성공');
+      } catch (e2) {
+        console.error('[Session] 정리 후에도 저장 실패:', e2);
+        // 마지막 시도: 최소 데이터만 저장
+        try {
+          const minimalData = { [stepId]: { saved: true, timestamp: Date.now() } };
+          localStorage.setItem(STEP_STORAGE_KEY, JSON.stringify(minimalData));
+        } catch (e3) {
+          console.error('[Session] 최소 데이터도 저장 실패:', e3);
+        }
+      }
+    } else {
+      console.error('[Session] Step 데이터 저장 실패:', e);
+    }
   }
 }
 

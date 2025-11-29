@@ -1,111 +1,129 @@
 # Step2 이미지 프롬프트 강제 규칙 (Hard Rules)
 # 모든 이미지 프롬프트에 반드시 적용되어야 하는 필수 요소
+# 수정일: 2025-11-29 - Gemini 정책 준수를 위해 인종/나이 직접 표현 제거
 
 ## 1. 필수 포함 요소 (반드시 프롬프트에 포함)
 
-### 지역/민족 식별자 (프롬프트 맨 앞에 배치)
-- "in South Korea"
-- "Korean elderly people" (시니어 채널이므로)
-- "1970s or 1980s Korea"
-
-### 장소 한국화 규칙
+### 장소 한국화 규칙 (한국 분위기는 환경/배경으로만 표현)
 모든 장소는 한국 맥락으로 표현:
-- 마을 → "Korean rural village"
-- 시장 → "Korean traditional market (sijang)"
-- 경로당/노인회관 → "Korean community center for seniors"
-- 골목 → "narrow Korean alley (golmok)"
-- 아파트 → "Korean apartment living room"
-- 방 → "Korean ondol-heated room"
-- 부엌 → "Korean kitchen with traditional onggi jars"
-- 버스정류장 → "Korean countryside bus stop"
-- 논밭 → "Korean rice paddies"
+- 마을 → "small rural village with traditional Korean architecture"
+- 시장 → "traditional market with handwritten signs"
+- 경로당/노인회관 → "cozy community center"
+- 골목 → "narrow alley with old brick houses"
+- 아파트 → "modest apartment living room with low table"
+- 방 → "ondol-heated room with paper sliding doors"
+- 부엌 → "small kitchen with large earthen jars (onggi)"
+- 버스정류장 → "countryside bus stop with wooden bench"
+- 논밭 → "rice paddies at golden hour"
 
 ### 필수 끝맺음 문구 (프롬프트 마지막에 항상 추가)
-"photograph of Korean seniors, avoid Western faces, authentic Korean interior"
+"warm nostalgic atmosphere, authentic setting"
 
 ### 스타일 키워드 (시대 감성)
-- "warm light"
+- "warm soft lighting"
 - "soft tones"
-- "1970s Korean film style"
-- "vintage film grain"
-- "faded warm colors"
+- "vintage film style"
+- "subtle film grain"
+- "muted warm colors"
 - "nostalgic atmosphere"
+- "gentle golden hour light"
 
 
-## 2. 절대 금지 요소 (네거티브 프롬프트)
+## 2. 절대 금지 요소 (Gemini 정책 준수)
 
-- 서양인 얼굴/외국인 비율을 암시하는 표현
-- "Asian" 단독 사용 (반드시 "Korean" 명시)
+### 인물 묘사 시 금지 (반드시 피해야 함!)
+- 숫자 나이 표현 ("in her 30s", "60-70대", "aged 65" 등)
+- 인종/민족 직접 표현 ("Korean", "East Asian", "Asian features" 등)
+- 신체적 특징 ("single eyelids", "flat nose", "Korean skin tone" 등)
+- 국적 + 사람 조합 ("Korean woman", "Korean grandmother" 등)
+
+### 대신 사용할 표현
+- "an elderly woman" / "an elderly man"
+- "a grandmother figure" / "a grandfather figure"
+- "an older couple"
+- 나이는 환경과 옷차림으로 암시 (예: "with graying hair", "wearing traditional clothing")
+
+### 기타 금지
 - 현대적 기기 (스마트폰, 태블릿, 현대 TV 등)
 - 네온 조명, 사이버펑크 스타일
-- 미래적 장식
 - 과도한 색채 (saturated colors)
 - 애니메이션/만화 스타일
-- 얼굴 클로즈업 (군중은 실루엣/뒷모습 중심)
+- 얼굴 클로즈업
 
 
-## 3. 인물별 한국인 특징 프리픽스
+## 3. 인물 묘사 가이드 (정책 준수 버전)
 
-### 한국인 할머니 (halmeoni)
+### 할머니 (안전한 묘사)
 ```
-Authentic Korean grandmother (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: round face shape, single eyelids (monolid) or narrow double eyelids typical of Korean elderly, flat nose bridge, Korean skin tone (light to medium beige with warm undertones), natural Korean aging patterns with laugh lines, permed short gray/white hair typical of Korean grandmothers
+An elderly woman with graying hair, gentle expression, wearing simple traditional clothing, in a cozy home setting
 ```
 
-### 한국인 할아버지 (harabeoji)
+### 할아버지 (안전한 묘사)
 ```
-Authentic Korean grandfather (harabeoji) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: angular Korean face shape, single eyelids or hooded eyes typical of Korean elderly men, Korean skin tone, weathered face with Korean aging characteristics, balding or short gray hair typical of Korean grandfathers
+An elderly man with weathered kind face, wearing simple comfortable clothing, peaceful expression
+```
+
+### 노부부 (안전한 묘사)
+```
+An elderly couple sitting together, warm and comfortable atmosphere, simple traditional home interior
 ```
 
 
 ## 4. 시대별 스타일 가이드
 
-### 1970~80년대 한국 시대 감성
+### 1970~80년대 감성 (환경으로만 표현)
 ```
-vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture, soft focus edges, nostalgic color grading similar to 1970s-1980s Korean cinema
+vintage film photography aesthetic, slightly faded warm colors, film grain texture, soft focus edges, nostalgic color grading, traditional home interior with wooden furniture and paper doors
 ```
 
 ### 조명 규칙 (감정에 따라 선택)
-- nostalgia → soft warm lighting, sunset glow, film-like grain
+- nostalgia → soft warm lighting, sunset glow, subtle film grain
 - warmth → golden-hour light, diffused soft shadows
 - bittersweet → cool ambient light mixed with warm highlights
 - comfort → warm indoor lighting, gentle shadows
 
 
-## 5. 예시 프롬프트 템플릿
+## 5. 예시 프롬프트 템플릿 (정책 준수 버전)
 
 ### 템플릿 A: 실내 씬
 ```
-A cozy 1970s Korean living room in Seoul, with Korean elderly couple drinking tea and listening to radio, warm morning light through hanji-style windows, nostalgic atmosphere, in South Korea, 1970s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean interior, vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture.
+An elderly woman sitting at a low wooden table in a cozy traditional living room, drinking tea, warm morning light through paper-paneled windows, vintage home interior with earthen jars visible, nostalgic atmosphere, warm soft lighting, subtle film grain, muted warm colors.
 ```
 
 ### 템플릿 B: 시골 씬
 ```
-A quiet Korean rural village in the early winter dawn, authentic Korean grandparents walking together on a narrow dirt road, traditional thatched-roof houses in background, soft golden morning light, in South Korea, 1970s Korea, photograph of Korean seniors, avoid Western faces, vintage Korean film photography aesthetic, film grain texture, nostalgic color grading.
+An elderly couple walking together on a narrow path in a quiet rural village, traditional thatched-roof houses in background, soft golden morning light, peaceful countryside atmosphere, vintage film photography aesthetic, film grain texture, nostalgic color grading.
 ```
 
 ### 템플릿 C: 시장/마을 씬
 ```
-A bustling 1980s Korean traditional market (sijang), Korean elderly vendors selling vegetables and dried fish, crowded narrow aisles, hand-painted shop signs, warm afternoon light, in South Korea, 1980s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean market atmosphere, vintage Korean film photography aesthetic, faded warm colors.
+A bustling traditional market scene, elderly vendors selling vegetables and dried goods, crowded narrow aisles, hand-painted shop signs, warm afternoon light, authentic market atmosphere, vintage film photography aesthetic, muted warm tones.
 ```
 
 
 ## 6. 프롬프트 조립 순서
 
-1. [한국인 특징 프리픽스] (인물 포함 시)
-2. [씬 설명 - 한국화된 장소]
-3. [행동/감정 묘사]
-4. [조명 설명]
-5. [시대 식별자: "in South Korea, 1970s or 1980s Korea"]
-6. [필수 끝맺음: "photograph of Korean seniors, avoid Western faces, authentic Korean interior"]
-7. [스타일 서픽스: "vintage Korean film photography aesthetic, slightly faded warm colors, film grain texture"]
+1. [인물 설명 - 나이/인종 직접 언급 없이] (예: "An elderly woman")
+2. [행동/포즈 묘사] (예: "sitting at a low table")
+3. [장소 - 한국 환경으로 분위기 표현] (예: "in a cozy traditional living room")
+4. [감정/분위기] (예: "peaceful expression, nostalgic atmosphere")
+5. [조명] (예: "warm soft lighting, golden hour glow")
+6. [스타일] (예: "vintage film aesthetic, subtle film grain, muted warm colors")
 
 
 ## 7. 변환 예시
 
 ### 입력 (visual_description - 한글)
-"겨울 새벽에 연탄 배달을 기다리는 골목"
+"겨울 새벽에 연탄 배달을 기다리는 할머니"
 
-### 출력 (image_prompt - 영어)
+### 출력 (image_prompt - 영어, 정책 준수)
 ```
-A quiet narrow Korean alley (golmok) in the early winter dawn, authentic Korean elderly people waiting for coal briquette (yeontan) delivery near their homes, soft warm lights glowing from small windows, rows of old brick and wooden houses, stacks of coal briquettes near doorsteps, visible breath in the cold air, in South Korea, 1970s Korea, photograph of Korean seniors, avoid Western faces, authentic Korean interior, vintage Korean film photography aesthetic, subtle film grain, nostalgic warm tones, cinematic composition with a gentle nostalgic mood.
+An elderly woman waiting near the doorstep of an old brick house in a narrow alley at early winter dawn, soft warm lights glowing from small windows, stacks of coal briquettes visible, visible breath in cold air, traditional neighborhood with old houses, vintage film photography aesthetic, subtle film grain, nostalgic warm tones, cinematic composition with gentle nostalgic mood.
+```
+
+### 잘못된 예시 (사용 금지!)
+```
+❌ Korean grandmother in her 70s with East Asian features waiting for coal delivery
+❌ Authentic Korean elderly woman from South Korea with single eyelids
+❌ 70-year-old Korean halmeoni with typical Korean facial features
 ```
