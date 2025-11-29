@@ -6577,12 +6577,32 @@ def api_gpt_plan_step1():
             duration = '3분'
             print(f"[GPT-PLAN-1] 🧪 테스트 모드 - 최소 분량으로 기획")
 
-        print(f"[GPT-PLAN-1] 기획 시작 - 카테고리: {video_category}, 시간: {duration}, 지침: {custom_directive or '(없음)'}, 테스트모드: {test_mode}")
+        # duration에서 분 숫자 추출 (예: "2분" -> 2, "10분" -> 10)
+        duration_match = re.search(r'(\d+)', duration)
+        duration_minutes = int(duration_match.group(1)) if duration_match else 10
 
-        system_prompt = """당신은 영상 콘텐츠 기획 전문가입니다.
+        # guides/drama.json에서 duration_settings 로드
+        duration_settings = {
+            2: {"target_length": 600, "max_characters": 1, "max_scenes": 2},
+            5: {"target_length": 1500, "max_characters": 2, "max_scenes": 3},
+            10: {"target_length": 3000, "max_characters": 2, "max_scenes": 4},
+            20: {"target_length": 6000, "max_characters": 3, "max_scenes": 6},
+            30: {"target_length": 9000, "max_characters": 4, "max_scenes": 8}
+        }
+        settings = duration_settings.get(duration_minutes, duration_settings[10])
+
+        print(f"[GPT-PLAN-1] 기획 시작 - 카테고리: {video_category}, 시간: {duration}, 목표글자수: {settings['target_length']}, 테스트모드: {test_mode}")
+
+        system_prompt = f"""당신은 영상 콘텐츠 기획 전문가입니다.
 
 【 역할 】
 주어진 카테고리와 시간에 맞는 스토리 컨셉을 기획합니다.
+
+【 ⚠️ 분량 규칙 - 반드시 준수 】
+- 영상 길이: {duration_minutes}분
+- 목표 대본 글자수: {settings['target_length']}자 (TTS 기준 1분당 약 300자)
+- 최대 등장인물: {settings['max_characters']}명
+- 최대 씬 개수: {settings['max_scenes']}개
 
 【 출력 형식 】
 1. 주인공 설정
@@ -6599,14 +6619,20 @@ def api_gpt_plan_step1():
    - 시대/장소
    - 분위기
 
+4. 씬 구성 (최대 {settings['max_scenes']}개)
+   - 각 씬별 핵심 내용 1줄 요약
+
 【 주의사항 】
 - 구체적인 이름, 숫자, 장소 사용
 - 공감할 수 있는 보편적 상황 선택
-- 간결하게 작성 (500자 이내)"""
+- {duration_minutes}분 영상에 맞는 간결한 스토리 (너무 복잡하면 안됨)"""
 
         user_prompt = f"""【 영상 정보 】
 - 카테고리: {video_category}
-- 영상 길이: {duration}
+- 영상 길이: {duration_minutes}분
+- 목표 대본 분량: 약 {settings['target_length']}자
+- 최대 등장인물: {settings['max_characters']}명
+- 최대 씬 개수: {settings['max_scenes']}개
 """
         if custom_directive:
             user_prompt += f"""
@@ -6672,46 +6698,64 @@ def api_gpt_plan_step2():
             duration = '3분'
             print(f"[GPT-PLAN-2] 🧪 테스트 모드 - 최소 분량으로 구조화")
 
-        print(f"[GPT-PLAN-2] 구조화 시작 - 카테고리: {video_category}, 테스트모드: {test_mode}")
+        # duration에서 분 숫자 추출
+        duration_match = re.search(r'(\d+)', duration)
+        duration_minutes = int(duration_match.group(1)) if duration_match else 10
 
-        system_prompt = """당신은 스토리 구조화 전문가입니다.
+        # duration_settings 로드
+        duration_settings = {
+            2: {"target_length": 600, "max_characters": 1, "max_scenes": 2},
+            5: {"target_length": 1500, "max_characters": 2, "max_scenes": 3},
+            10: {"target_length": 3000, "max_characters": 2, "max_scenes": 4},
+            20: {"target_length": 6000, "max_characters": 3, "max_scenes": 6},
+            30: {"target_length": 9000, "max_characters": 4, "max_scenes": 8}
+        }
+        settings = duration_settings.get(duration_minutes, duration_settings[10])
+
+        print(f"[GPT-PLAN-2] 구조화 시작 - 카테고리: {video_category}, 시간: {duration_minutes}분, 씬: {settings['max_scenes']}개, 테스트모드: {test_mode}")
+
+        system_prompt = f"""당신은 스토리 구조화 전문가입니다.
 
 【 역할 】
 기획된 컨셉을 바탕으로 상세한 장면 구성을 만듭니다.
 
-【 출력 형식 】
+【 ⚠️ 분량 규칙 - 반드시 준수 】
+- 영상 길이: {duration_minutes}분
+- 목표 대본 글자수: {settings['target_length']}자
+- 최대 등장인물: {settings['max_characters']}명
+- 장면 개수: 정확히 {settings['max_scenes']}개 (초과/미달 금지!)
+
+【 출력 형식 - {settings['max_scenes']}개 장면만 작성 】
 ## 장면 구성
 
-### 장면 1: 도입부 (약 20%)
-- 상황 설명
-- 등장인물 소개
-- 핵심 대사 1-2개
+"""
+        # 씬 개수에 따라 동적으로 장면 구성 안내
+        scene_structure = {
+            2: [("도입", 50), ("결말", 50)],
+            3: [("도입", 30), ("전개/전환", 40), ("결말", 30)],
+            4: [("도입", 20), ("전개", 30), ("전환점", 30), ("결말", 20)],
+            6: [("도입", 15), ("전개1", 20), ("전개2", 20), ("전환점", 20), ("절정", 15), ("결말", 10)],
+            8: [("도입", 10), ("전개1", 15), ("전개2", 15), ("갈등심화", 15), ("전환점", 15), ("절정1", 10), ("절정2", 10), ("결말", 10)]
+        }
+        scenes = scene_structure.get(settings['max_scenes'], scene_structure[4])
+        for i, (name, ratio) in enumerate(scenes, 1):
+            system_prompt += f"""### 장면 {i}: {name} (약 {ratio}%)
+- 핵심 내용
+- 대사 1-2개
 
-### 장면 2: 전개 (약 30%)
-- 갈등/문제 발생
-- 감정 고조
-- 핵심 대사 2-3개
+"""
 
-### 장면 3: 전환점 (약 20%)
-- 깨달음/변화의 계기
-- 핵심 대사 1-2개
-
-### 장면 4: 절정 (약 20%)
-- 감정 폭발/결정적 순간
-- 핵심 대사 2-3개
-
-### 장면 5: 결말 (약 10%)
-- 메시지 전달
-- 여운 남기기
-
-【 주의사항 】
+        system_prompt += """【 주의사항 】
 - 각 장면의 목적 명확히
 - 대사는 실제 사용할 수 있는 형태로
-- 감정 흐름이 자연스럽게 연결되도록"""
+- 감정 흐름이 자연스럽게 연결되도록
+- 장면 개수를 정확히 지킬 것!"""
 
         user_prompt = f"""【 영상 정보 】
 - 카테고리: {video_category}
-- 영상 길이: {duration}
+- 영상 길이: {duration_minutes}분
+- 목표 분량: 약 {settings['target_length']}자
+- 장면 개수: 정확히 {settings['max_scenes']}개
 
 【 Step1 기획 결과 】
 {step1_result}
