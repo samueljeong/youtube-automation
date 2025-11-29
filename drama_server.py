@@ -4646,17 +4646,24 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
                 ]
 
             try:
+                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} FFmpeg 명령: {' '.join(ffmpeg_cmd[:10])}...")
                 process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=300)
                 if process.returncode == 0 and os.path.exists(segment_path):
                     segment_files.append(segment_path)
                     total_duration += actual_duration
                     print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 클립 생성 완료: {segment_path}")
                 else:
-                    print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} FFmpeg 오류: {process.stderr[:500]}")
+                    stderr_msg = process.stderr[:500] if process.stderr else '(stderr 없음)'
+                    print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} FFmpeg 오류 (returncode={process.returncode}): {stderr_msg}")
+                    # FFmpeg 오류 상세 로그
+                    if process.stdout:
+                        print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} FFmpeg stdout: {process.stdout[:300]}")
             except subprocess.TimeoutExpired:
-                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 타임아웃")
+                print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 타임아웃 (300초 초과)")
             except Exception as e:
+                import traceback
                 print(f"[DRAMA-CUTS-VIDEO] 씬 {cut_id} 클립 생성 오류: {e}")
+                traceback.print_exc()
 
             # 메모리 정리
             gc.collect()
@@ -4683,10 +4690,16 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
         ]
 
         try:
+            print(f"[DRAMA-CUTS-VIDEO] Concat 명령: {' '.join(concat_cmd)}")
+            print(f"[DRAMA-CUTS-VIDEO] concat.txt 내용:")
+            with open(concat_list_path, 'r') as f:
+                print(f.read())
             process = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=600)
             if process.returncode != 0:
-                print(f"[DRAMA-CUTS-VIDEO] Concat 오류: {process.stderr[:500]}")
-                raise Exception(f"영상 병합 실패: {process.stderr[:200]}")
+                stderr_msg = process.stderr[:500] if process.stderr else '(stderr 없음)'
+                print(f"[DRAMA-CUTS-VIDEO] Concat 오류 (returncode={process.returncode}): {stderr_msg}")
+                raise Exception(f"영상 병합 실패: {stderr_msg[:200]}")
+            print(f"[DRAMA-CUTS-VIDEO] Concat 완료, 파일 존재: {os.path.exists(output_path)}")
         except subprocess.TimeoutExpired:
             raise Exception("영상 병합 타임아웃 (10분)")
 
@@ -5156,9 +5169,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():
     """이미지와 오디오를 합쳐서 영상 생성 (동기식 - 로컬 환경용)"""
+    print(f"[DRAMA-STEP6-VIDEO] === API 호출 시작 ===")
     try:
         data = request.get_json()
         if not data:
+            print(f"[DRAMA-STEP6-VIDEO] 요청 데이터 없음")
             return jsonify({"ok": False, "error": "No data received"}), 400
 
         # 디버깅: 요청 데이터 출력
