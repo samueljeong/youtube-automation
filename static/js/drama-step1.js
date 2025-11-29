@@ -164,7 +164,7 @@ window.DramaStep1 = {
   // 콘텐츠 유형을 비디오 카테고리로 변환
   getVideoCategory(contentType) {
     const map = {
-      'nostalgia': '시니어 향수 드라마',
+      'nostalgia': '옛날이야기',  // 백엔드 video_category_prompts와 일치
       'testimony': '간증',
       'drama': '드라마'
     };
