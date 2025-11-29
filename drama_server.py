@@ -5290,7 +5290,20 @@ def api_generate_video():
 def api_video_status(job_id):
     """영상 생성 작업 상태 조회"""
     with video_jobs_lock:
+        # 메모리에 없으면 파일에서 다시 로드 시도 (다중 인스턴스/재시작 대응)
         if job_id not in video_jobs:
+            print(f"[VIDEO-STATUS] job_id {job_id} 메모리에 없음, 파일에서 로드 시도...")
+            try:
+                if os.path.exists(VIDEO_JOBS_FILE):
+                    with open(VIDEO_JOBS_FILE, 'r', encoding='utf-8') as f:
+                        loaded_jobs = json.load(f)
+                        video_jobs.update(loaded_jobs)
+                        print(f"[VIDEO-STATUS] 파일에서 {len(loaded_jobs)}개 작업 로드됨")
+            except Exception as e:
+                print(f"[VIDEO-STATUS] 파일 로드 실패: {e}")
+
+        if job_id not in video_jobs:
+            print(f"[VIDEO-STATUS] job_id {job_id} 여전히 찾을 수 없음")
             return jsonify({"ok": False, "error": "작업을 찾을 수 없습니다."}), 404
 
         job = video_jobs[job_id]
