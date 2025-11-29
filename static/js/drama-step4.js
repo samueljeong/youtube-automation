@@ -128,20 +128,35 @@ window.DramaStep4 = {
 
       console.log('[Step4] 영상 제작 요청 - cuts:', cuts.length, '개');
 
+      // 요청 데이터 준비
+      const requestData = {
+        images: images,
+        cuts: cuts,  // 씬별 이미지-오디오 매칭 배열
+        audioUrl: audios[0]?.audioUrl || '', // fallback: 첫 번째 오디오
+        subtitleData: null, // 추후 구현
+        burnSubtitle: config.subtitleStyle !== 'none',
+        resolution: resolutionMap[config.resolution] || '1920x1080',
+        fps: 30,
+        transition: 'fade'
+      };
+
+      // 요청 크기 확인 (디버깅)
+      const requestBody = JSON.stringify(requestData);
+      const requestSizeKB = (requestBody.length / 1024).toFixed(1);
+      console.log(`[Step4] 요청 데이터 크기: ${requestSizeKB} KB`);
+
+      // 이미지 URL 타입 확인
+      if (images.length > 0) {
+        const firstImg = images[0] || '';
+        const imgType = firstImg.startsWith('data:') ? 'Base64' : (firstImg.startsWith('http') ? 'HTTP URL' : 'Unknown');
+        console.log(`[Step4] 이미지 타입: ${imgType}, 첫 이미지 길이: ${firstImg.length}`);
+      }
+
       // 영상 생성 API 호출 (cuts 배열 전송 - 각 씬별 이미지+오디오 매칭)
       const response = await fetch('/api/drama/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: images,
-          cuts: cuts,  // 씬별 이미지-오디오 매칭 배열
-          audioUrl: audios[0]?.audioUrl || '', // fallback: 첫 번째 오디오
-          subtitleData: null, // 추후 구현
-          burnSubtitle: config.subtitleStyle !== 'none',
-          resolution: resolutionMap[config.resolution] || '1920x1080',
-          fps: 30,
-          transition: 'fade'
-        })
+        body: requestBody
       });
 
       const data = await this.safeJsonParse(response, 'Step4-영상제작');
