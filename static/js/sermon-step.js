@@ -108,7 +108,7 @@ async function executeStep(stepId) {
       window.stepUsage[stepId] = {
         inputTokens: data.usage.prompt_tokens,
         outputTokens: data.usage.completion_tokens,
-        costKRW: data.costKRW || '0.0'
+        costKRW: data.costKRW || '0'
       };
     }
 

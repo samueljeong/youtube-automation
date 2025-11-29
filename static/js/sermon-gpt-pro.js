@@ -245,22 +245,31 @@ async function executeGptPro() {
     console.log('[Step3] 결과 표시 시작');
     const resultTextarea = document.getElementById('gpt-pro-result');
     const resultContainer = document.getElementById('gpt-pro-result-container');
+    const step12Area = document.getElementById('step12-result-area');
     console.log('[Step3] resultTextarea:', !!resultTextarea, 'resultContainer:', !!resultContainer);
 
     if (resultTextarea) {
       resultTextarea.value = data.result;
       autoResize(resultTextarea);
     }
+
+    // Step1/2 결과 숨기고 Step3 결과 표시 (같은 자리)
+    if (step12Area) {
+      step12Area.style.display = 'none';
+    }
     if (resultContainer) {
       resultContainer.style.display = 'block';
       console.log('[Step3] 결과 컨테이너 표시됨');
     }
 
-    // 토큰 사용량 표시
+    // 토큰 사용량 표시 (숫자만)
     if (data.usage) {
       const usageEl = document.getElementById('usage-step3');
       if (usageEl) {
-        usageEl.textContent = `in(${data.usage.prompt_tokens?.toLocaleString() || 0}), out(${data.usage.completion_tokens?.toLocaleString() || 0}), ${data.costKRW || '0.0'}원`;
+        const inTokens = data.usage.prompt_tokens || 0;
+        const outTokens = data.usage.completion_tokens || 0;
+        const cost = data.costKRW || '0';
+        usageEl.textContent = `in(${inTokens.toLocaleString()}), out(${outTokens.toLocaleString()}), ${cost}`;
       }
     }
 
