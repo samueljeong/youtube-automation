@@ -447,10 +447,14 @@ def education_generate_lesson_plan():
         model = data.get("model", "gpt-4o")
         quality = data.get("quality", "detailed")  # "basic" or "detailed"
 
-        # 지원 모델 검증 - 더 많은 모델 지원
-        supported_models = ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o1", "o1-mini", "o3-mini"]
+        # 지원 모델 검증 - GPT-5.1 시리즈 포함
+        supported_models = [
+            "gpt-5.1", "gpt-5.1-mini",  # 최신 GPT-5.1 시리즈
+            "gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini",  # GPT-4 시리즈
+            "o1", "o1-mini", "o3-mini"  # 추론 모델
+        ]
         if model not in supported_models:
-            model = "gpt-4o"
+            model = "gpt-5.1"  # 기본값을 최신 모델로
 
         # 회당 시간 가져오기
         session_duration = program_info.get('schedule', {}).get('session_duration_min', 90)

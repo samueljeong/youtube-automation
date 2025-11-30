@@ -351,7 +351,7 @@ async function generateLessonPlan(sessionNumber) {
         program_info: generatedResult.input,
         curriculum_summary: generatedResult.output.program_summary,
         session_info: session,
-        model: 'gpt-4.1',  // 최신 모델 고정
+        model: 'gpt-5.1',  // 최신 모델 고정
         quality: 'detailed'  // 상세 강의안 모드
       })
     });
