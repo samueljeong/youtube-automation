@@ -122,11 +122,10 @@ function collectFormData() {
       special_context: document.getElementById('edu-special-context').value.trim() || null
     },
     constraints: {
-      available_time_slot: document.getElementById('edu-time-slot').value.trim() || null,
-      available_space: document.getElementById('edu-space').value.trim() || null,
+      budget: document.getElementById('edu-budget').value.trim() || null,
+      location: document.getElementById('edu-location').value.trim() || null,
       available_equipment: equipmentList,
-      budget_level: document.getElementById('edu-budget').value,
-      other_limitations: document.getElementById('edu-other-limitations').value.trim() || null
+      other_limitations: document.getElementById('edu-constraints').value.trim() || null
     },
     output_preferences: {
       need_curriculum_outline: document.getElementById('opt-curriculum').checked,
@@ -506,7 +505,6 @@ function resetForm() {
   document.getElementById('edu-program-type').value = 'choir_training';
   document.getElementById('edu-frequency').value = 'weekly';
   document.getElementById('edu-level').value = 'mixed';
-  document.getElementById('edu-budget').value = 'mid';
   document.getElementById('edu-tone').value = '장년';
   document.getElementById('edu-detail-level').value = 'normal';
 

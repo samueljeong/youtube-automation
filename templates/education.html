@@ -34,26 +34,41 @@
     /* Section */
     .section {
       background: white;
-      border-radius: 12px;
-      padding: 1.25rem;
-      margin-bottom: 1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-radius: 10px;
+      padding: .8rem 1rem;
+      margin-bottom: .6rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .section.required {
+      background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+      border: 1px solid #fde047;
+    }
+    .section.optional {
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
     }
     .section-title {
-      font-size: 1rem;
+      font-size: .9rem;
       font-weight: 700;
       color: #667eea;
-      margin-bottom: 1rem;
-      padding-bottom: .5rem;
+      margin-bottom: .6rem;
+      padding-bottom: .3rem;
       border-bottom: 2px solid #667eea;
+    }
+    .section.optional .section-title {
+      color: #888;
+      border-bottom-color: #ccc;
     }
 
     /* Form Elements */
     .form-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .6rem;
+      margin-bottom: .5rem;
+    }
+    .form-row:last-child {
+      margin-bottom: 0;
     }
     .form-group {
       display: flex;
@@ -63,31 +78,31 @@
       grid-column: 1 / -1;
     }
     label {
-      font-size: .85rem;
+      font-size: .8rem;
       font-weight: 600;
       color: #555;
-      margin-bottom: .4rem;
+      margin-bottom: .25rem;
     }
     label .hint {
       font-weight: 400;
-      color: #999;
-      font-size: .75rem;
+      color: #e11d48;
+      font-size: .7rem;
     }
     input, select, textarea {
-      padding: .6rem .8rem;
+      padding: .45rem .6rem;
       border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: .9rem;
+      border-radius: 6px;
+      font-size: .85rem;
       font-family: inherit;
       transition: border-color .2s, box-shadow .2s;
     }
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
     }
     textarea {
-      min-height: 80px;
+      min-height: 50px;
       resize: vertical;
     }
 
@@ -495,8 +510,8 @@
 
   <div class="container">
 
-    <!-- 1. 프로그램 기본 정보 -->
-    <div class="section">
+    <!-- 1. 프로그램 기본 정보 (필수) -->
+    <div class="section required">
       <div class="section-title">1. 프로그램 기본 정보</div>
       <div class="form-row">
         <div class="form-group">
@@ -522,69 +537,8 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label>대상 그룹 <span class="hint">*필수</span></label>
-          <input type="text" id="edu-target-group" placeholder="예: 주일 2부 예배 성가대 신입대원">
-        </div>
-        <div class="form-group">
-          <label>예상 인원</label>
-          <input type="number" id="edu-participants" placeholder="예: 15">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>연령대</label>
-          <input type="text" id="edu-age-range" placeholder="예: 20-50대">
-        </div>
-        <div class="form-group">
-          <label>사역 맥락</label>
-          <input type="text" id="edu-ministry-context" placeholder="예: 주일 2부 예배 성가대">
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. 일정 -->
-    <div class="section">
-      <div class="section-title">2. 일정</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>전체 회차 <span class="hint">*필수</span></label>
-          <input type="number" id="edu-total-sessions" placeholder="예: 4" min="1" max="52">
-        </div>
-        <div class="form-group">
-          <label>전체 주 수</label>
-          <input type="number" id="edu-total-weeks" placeholder="예: 4">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>회당 시간 (분) <span class="hint">*필수</span></label>
-          <input type="number" id="edu-session-duration" placeholder="예: 90" min="30" max="480">
-        </div>
-        <div class="form-group">
-          <label>진행 빈도</label>
-          <select id="edu-frequency">
-            <option value="weekly">매주</option>
-            <option value="biweekly">격주</option>
-            <option value="monthly">월 1회</option>
-            <option value="one_time">일회성</option>
-          </select>
-        </div>
-      </div>
-      <div class="form-row">
         <div class="form-group full-width">
-          <label>시작 시기</label>
-          <input type="text" id="edu-start-hint" placeholder="예: 2025년 3월 첫째 주 시작">
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. 목표 -->
-    <div class="section">
-      <div class="section-title">3. 교육 목표</div>
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label>핵심 목표 <span class="hint">*필수 (가장 중요한 목표 1줄)</span></label>
+          <label>핵심 목표 <span class="hint">*필수</span></label>
           <input type="text" id="edu-main-goal" placeholder="예: 신입 성가대원이 예배자로서 정체성을 가지고 기쁨으로 섬기도록 돕는다.">
         </div>
       </div>
@@ -600,10 +554,28 @@
       </div>
     </div>
 
-    <!-- 4. 현재 상황 -->
-    <div class="section">
-      <div class="section-title">4. 현재 상황</div>
+    <!-- 2. 대상 (필수) -->
+    <div class="section required">
+      <div class="section-title">2. 대상</div>
       <div class="form-row">
+        <div class="form-group">
+          <label>대상 그룹 <span class="hint">*필수</span></label>
+          <input type="text" id="edu-target-group" placeholder="예: 주일 2부 예배 성가대 신입대원">
+        </div>
+        <div class="form-group">
+          <label>예상 인원</label>
+          <input type="number" id="edu-participants" placeholder="예: 15">
+        </div>
+        <div class="form-group">
+          <label>연령대</label>
+          <input type="text" id="edu-age-range" placeholder="예: 20-50대">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>사역 맥락</label>
+          <input type="text" id="edu-ministry-context" placeholder="예: 주일 2부 예배 성가대">
+        </div>
         <div class="form-group">
           <label>참가자 수준</label>
           <select id="edu-level">
@@ -619,61 +591,54 @@
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group full-width">
+        <div class="form-group">
           <label>해결하고 싶은 문제/고민</label>
-          <textarea id="edu-problems" placeholder="예: 지각, 복장 편차, 연습 집중도 문제"></textarea>
+          <input type="text" id="edu-problems" placeholder="예: 지각, 복장 편차, 연습 집중도 문제">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full-width">
+        <div class="form-group">
           <label>특별 상황</label>
-          <textarea id="edu-special-context" placeholder="예: 최근 새로운 대원이 많이 들어와 재정비가 필요한 시기"></textarea>
+          <input type="text" id="edu-special-context" placeholder="예: 최근 새로운 대원이 많이 들어와 재정비가 필요한 시기">
         </div>
       </div>
     </div>
 
-    <!-- 5. 제약 조건 -->
-    <div class="section">
-      <div class="section-title">5. 제약 조건</div>
+    <!-- 3. 일정 (필수) -->
+    <div class="section required">
+      <div class="section-title">3. 일정</div>
       <div class="form-row">
         <div class="form-group">
-          <label>가능한 시간대</label>
-          <input type="text" id="edu-time-slot" placeholder="예: 토요일 오후 4시~6시">
+          <label>전체 회차 <span class="hint">*필수</span></label>
+          <input type="number" id="edu-total-sessions" placeholder="예: 4" min="1" max="52">
         </div>
         <div class="form-group">
-          <label>장소</label>
-          <input type="text" id="edu-space" placeholder="예: 본당, 소예배실">
+          <label>회당 시간 (분) <span class="hint">*필수</span></label>
+          <input type="number" id="edu-session-duration" placeholder="예: 90" min="1" max="480">
         </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group full-width">
-          <label>사용 가능 장비</label>
-          <div class="equipment-tags" id="equipment-tags"></div>
-          <div class="equipment-input-row">
-            <input type="text" id="equipment-input" placeholder="장비 입력 후 추가 버튼 클릭">
-            <button type="button" class="btn-add-equipment" onclick="addEquipment()">추가</button>
-          </div>
-        </div>
-      </div>
-      <div class="form-row">
         <div class="form-group">
-          <label>예산 수준</label>
-          <select id="edu-budget">
-            <option value="low">낮음 (다과 정도)</option>
-            <option value="mid" selected>중간</option>
-            <option value="high">높음 (식사/재료비 가능)</option>
+          <label>진행 빈도</label>
+          <select id="edu-frequency">
+            <option value="weekly">매주</option>
+            <option value="biweekly">격주</option>
+            <option value="monthly">월 1회</option>
+            <option value="one_time">일회성</option>
           </select>
         </div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
-          <label>기타 제약</label>
-          <input type="text" id="edu-other-limitations" placeholder="예: 식사 제공 불가">
+          <label>전체 주 수</label>
+          <input type="number" id="edu-total-weeks" placeholder="예: 4">
+        </div>
+        <div class="form-group">
+          <label>시작 시기</label>
+          <input type="text" id="edu-start-hint" placeholder="예: 2025년 3월 첫째 주 시작">
         </div>
       </div>
     </div>
 
-    <!-- 6. 출력 옵션 -->
-    <div class="section">
-      <div class="section-title">6. 출력 옵션</div>
+    <!-- 4. 출력 옵션 (필수) -->
+    <div class="section required">
+      <div class="section-title">4. 출력 옵션</div>
       <div class="checkbox-group">
         <div class="checkbox-item">
           <input type="checkbox" id="opt-curriculum" checked>
@@ -717,9 +682,38 @@
       </div>
     </div>
 
-    <!-- 7. 추가 메모 -->
-    <div class="section">
-      <div class="section-title">7. 추가 메모 (선택)</div>
+    <!-- 5. 제약 조건 (선택) -->
+    <div class="section optional">
+      <div class="section-title">5. 제약 조건 (선택)</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>예산 범위</label>
+          <input type="text" id="edu-budget" placeholder="예: 회당 5만원 이내">
+        </div>
+        <div class="form-group">
+          <label>장소 제약</label>
+          <input type="text" id="edu-location" placeholder="예: 소예배실 (15인 수용)">
+        </div>
+      </div>
+      <div class="form-group full-width">
+        <label>사용 가능한 장비</label>
+        <div class="equipment-tags" id="equipment-tags"></div>
+        <div class="equipment-input-row">
+          <input type="text" id="equipment-input" placeholder="예: 빔프로젝터, 피아노, 화이트보드">
+          <button type="button" class="btn-add-equipment" onclick="addEquipment()">추가</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label>기타 제약 사항</label>
+          <input type="text" id="edu-constraints" placeholder="예: 주차 문제로 30분 이상 지연 불가, 간식 제공 어려움">
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 추가 메모 (선택) -->
+    <div class="section optional">
+      <div class="section-title">6. 추가 메모 (선택)</div>
       <div class="form-group">
         <textarea id="edu-extra-notes" placeholder="AI에게 전달하고 싶은 특이사항이나 요청사항을 자유롭게 적어주세요.&#10;예: 마지막 회차에는 전체 특송으로 마무리하면 좋겠다."></textarea>
       </div>
