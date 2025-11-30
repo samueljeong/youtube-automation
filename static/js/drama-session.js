@@ -190,7 +190,18 @@ function clearQAHistory() {
 // ===== Step 데이터 저장 시스템 =====
 const STEP_STORAGE_KEY = '_drama-step-data';
 
+// ★ 메모리 기반 저장소 (B 방식) - Base64 데이터 손실 방지
+// localStorage는 메타데이터만, 실제 데이터는 메모리에
+window._dramaMemoryStore = window._dramaMemoryStore || {};
+
 function getStepData(stepId) {
+  // 1. 메모리에서 먼저 찾기 (Base64 포함 완전한 데이터)
+  if (window._dramaMemoryStore[stepId]) {
+    console.log(`[Session] ${stepId} 메모리에서 로드`);
+    return window._dramaMemoryStore[stepId];
+  }
+
+  // 2. 메모리에 없으면 localStorage에서 (새로고침 후 복구용)
   try {
     const data = localStorage.getItem(STEP_STORAGE_KEY);
     if (!data) return null;
@@ -312,11 +323,16 @@ function getDataSizeKB(data) {
 }
 
 function setStepData(stepId, data) {
+  // ★ 1. 메모리에 원본 데이터 저장 (Base64 포함 - 손실 없음)
+  window._dramaMemoryStore[stepId] = data;
+  console.log(`[Session] ${stepId} 메모리에 저장 완료`);
+
+  // 2. localStorage에는 경량화 버전 저장 (새로고침 복구용)
   try {
-    // 1. 데이터 경량화
+    // 데이터 경량화
     const sanitizedData = sanitizeForStorage(data);
     const stepSizeKB = getDataSizeKB(sanitizedData);
-    console.log(`[Session] ${stepId} 경량화 후 크기: ${stepSizeKB.toFixed(1)}KB`);
+    console.log(`[Session] ${stepId} localStorage용 경량화: ${stepSizeKB.toFixed(1)}KB`);
 
     // 2. 크기 제한 초과 시 추가 축소
     let finalData = sanitizedData;
