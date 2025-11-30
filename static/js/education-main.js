@@ -283,7 +283,7 @@ function renderSessions(sessions) {
     const materials = s.materials?.join(', ') || '-';
 
     return `
-      <div class="session-card">
+      <div class="session-card" id="session-card-${s.session_number}">
         <div class="session-header">
           <span class="session-number">${s.session_number}회차</span>
           <span class="session-title">${s.title}</span>
@@ -304,9 +304,82 @@ function renderSessions(sessions) {
 
           ${s.notes_for_leader ? `<div class="label">리더 메모</div><p style="color: #667eea; font-style: italic;">${s.notes_for_leader}</p>` : ''}
         </div>
+
+        <!-- 강의안 제작 버튼 -->
+        <button class="btn-lesson-plan" onclick="generateLessonPlan(${s.session_number})" id="btn-lesson-${s.session_number}">
+          📝 ${s.session_number}회차 강의안 제작
+        </button>
+
+        <!-- 강의안 결과 영역 -->
+        <div class="lesson-plan-result" id="lesson-result-${s.session_number}">
+          <h4>
+            <span>📄 ${s.session_number}회차 상세 강의안</span>
+            <button class="btn-copy" onclick="copyLessonPlan(${s.session_number})" style="font-size: .75rem; padding: .3rem .6rem;">복사</button>
+          </h4>
+          <div class="lesson-plan-content" id="lesson-content-${s.session_number}"></div>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+// ===== 강의안 생성 =====
+async function generateLessonPlan(sessionNumber) {
+  if (!generatedResult || !generatedResult.output) {
+    alert('먼저 커리큘럼을 생성해주세요.');
+    return;
+  }
+
+  const session = generatedResult.output.sessions_detail?.find(s => s.session_number === sessionNumber);
+  if (!session) {
+    alert('해당 회차 정보를 찾을 수 없습니다.');
+    return;
+  }
+
+  const model = document.getElementById('lesson-model').value;
+  const btn = document.getElementById(`btn-lesson-${sessionNumber}`);
+  const resultDiv = document.getElementById(`lesson-result-${sessionNumber}`);
+  const contentDiv = document.getElementById(`lesson-content-${sessionNumber}`);
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 강의안 생성 중...';
+
+  try {
+    const res = await fetch('/api/education/generate-lesson-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        program_info: generatedResult.input,
+        curriculum_summary: generatedResult.output.program_summary,
+        session_info: session,
+        model: model
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      contentDiv.textContent = data.lesson_plan;
+      resultDiv.classList.add('show');
+      resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      alert('오류: ' + (data.message || '알 수 없는 오류'));
+    }
+  } catch (err) {
+    console.error(err);
+    alert('네트워크 오류가 발생했습니다.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = `📝 ${sessionNumber}회차 강의안 제작`;
+  }
+}
+
+// ===== 강의안 복사 =====
+function copyLessonPlan(sessionNumber) {
+  const content = document.getElementById(`lesson-content-${sessionNumber}`).textContent;
+  navigator.clipboard.writeText(content).then(() => {
+    alert('강의안이 복사되었습니다!');
+  });
 }
 
 function renderAnnouncements(announcements) {
