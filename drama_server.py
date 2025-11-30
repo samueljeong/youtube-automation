@@ -4495,6 +4495,85 @@ def api_upload_image():
         return jsonify({"ok": False, "error": str(e)}), 200
 
 
+# ===== Step6: 이미지 존재 여부 확인 API =====
+@app.route('/api/drama/check-images', methods=['POST'])
+def api_check_images():
+    """영상 생성 전 이미지 파일 존재 여부 확인
+
+    프론트엔드에서 영상 생성 요청 전에 이미지가 서버에 존재하는지 확인.
+    /static/ 경로의 로컬 파일만 확인 (HTTP URL은 항상 valid로 처리).
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        image_urls = data.get("imageUrls", [])
+        if not image_urls:
+            return jsonify({"ok": False, "error": "이미지 URL 목록이 없습니다."}), 400
+
+        results = []
+        valid_count = 0
+        missing_files = []
+
+        for idx, img_url in enumerate(image_urls):
+            result = {
+                "index": idx,
+                "url": img_url[:100] if img_url else "(empty)",
+                "type": "unknown",
+                "exists": False
+            }
+
+            if not img_url:
+                result["type"] = "empty"
+                result["error"] = "URL이 비어있습니다"
+            elif img_url.startswith('data:'):
+                result["type"] = "base64"
+                result["exists"] = True  # Base64는 항상 유효
+                valid_count += 1
+            elif img_url.startswith('http://') or img_url.startswith('https://'):
+                result["type"] = "http_url"
+                result["exists"] = True  # HTTP URL은 사전 검증 불가, 유효로 처리
+                valid_count += 1
+            elif img_url.startswith('/static/'):
+                result["type"] = "local_path"
+                local_path = os.path.join(os.path.dirname(__file__), img_url.lstrip('/'))
+                if os.path.exists(local_path):
+                    result["exists"] = True
+                    result["local_path"] = local_path
+                    valid_count += 1
+                else:
+                    result["exists"] = False
+                    result["error"] = f"파일이 존재하지 않습니다: {local_path}"
+                    missing_files.append(img_url)
+            else:
+                result["type"] = "unknown"
+                result["error"] = f"알 수 없는 URL 형식: {img_url[:50]}..."
+
+            results.append(result)
+
+        all_valid = valid_count == len(image_urls)
+
+        print(f"[DRAMA-CHECK-IMAGES] 이미지 검증 완료: {valid_count}/{len(image_urls)} 유효")
+        if missing_files:
+            print(f"[DRAMA-CHECK-IMAGES] 누락된 파일: {missing_files}")
+
+        return jsonify({
+            "ok": True,
+            "allValid": all_valid,
+            "totalCount": len(image_urls),
+            "validCount": valid_count,
+            "missingFiles": missing_files,
+            "results": results
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[DRAMA-CHECK-IMAGES][ERROR] {str(e)}")
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
 # ===== Step6: 씬별 클립 생성 후 concat 방식 영상 제작 =====
 def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fps, update_progress):
     """

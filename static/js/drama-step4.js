@@ -130,6 +130,31 @@ window.DramaStep4 = {
 
       console.log('[Step4] 영상 제작 요청 - cuts:', cuts.length, '개');
 
+      // 이미지 존재 여부 사전 검증
+      if (progressText) progressText.textContent = '이미지 파일 확인 중...';
+      console.log('[Step4] 이미지 존재 여부 확인 시작');
+
+      try {
+        const checkResponse = await fetch('/api/drama/check-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrls: images })
+        });
+        const checkResult = await checkResponse.json();
+        console.log('[Step4] 이미지 검증 결과:', checkResult);
+
+        if (checkResult.ok && !checkResult.allValid) {
+          const missingCount = checkResult.totalCount - checkResult.validCount;
+          console.error('[Step4] 누락된 이미지 파일:', checkResult.missingFiles);
+          throw new Error(`${missingCount}개의 이미지 파일이 서버에 존재하지 않습니다. Step 2에서 이미지를 다시 생성해주세요.`);
+        }
+      } catch (checkError) {
+        if (checkError.message.includes('이미지 파일이 서버에 존재하지 않습니다')) {
+          throw checkError;
+        }
+        console.warn('[Step4] 이미지 검증 API 오류 (무시하고 진행):', checkError);
+      }
+
       // 요청 데이터 준비
       const requestData = {
         images: images,
@@ -147,11 +172,30 @@ window.DramaStep4 = {
       const requestSizeKB = (requestBody.length / 1024).toFixed(1);
       console.log(`[Step4] 요청 데이터 크기: ${requestSizeKB} KB`);
 
-      // 이미지 URL 타입 확인
+      // 이미지 URL 타입 확인 및 상세 로깅
       if (images.length > 0) {
         const firstImg = images[0] || '';
-        const imgType = firstImg.startsWith('data:') ? 'Base64' : (firstImg.startsWith('http') ? 'HTTP URL' : 'Unknown');
+        let imgType = 'Unknown';
+        if (firstImg.startsWith('data:')) {
+          imgType = 'Base64';
+        } else if (firstImg.startsWith('http')) {
+          imgType = 'HTTP URL';
+        } else if (firstImg.startsWith('/static/')) {
+          imgType = 'Local Path';
+        } else if (firstImg.startsWith('/')) {
+          imgType = 'Relative Path';
+        }
         console.log(`[Step4] 이미지 타입: ${imgType}, 첫 이미지 길이: ${firstImg.length}`);
+        console.log(`[Step4] 첫 이미지 URL: ${firstImg}`);
+
+        // 모든 이미지 URL 상태 확인
+        images.forEach((img, idx) => {
+          const len = img?.length || 0;
+          const preview = img ? (img.length > 60 ? img.substring(0, 60) + '...' : img) : '(empty)';
+          console.log(`[Step4] cuts[${idx}] 이미지: ${preview} (${len}자)`);
+        });
+      } else {
+        console.warn('[Step4] 이미지 배열이 비어있음!');
       }
 
       // 영상 생성 API 호출 (cuts 배열 전송 - 각 씬별 이미지+오디오 매칭)
