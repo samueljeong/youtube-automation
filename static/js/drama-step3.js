@@ -150,16 +150,55 @@ window.DramaStep3 = {
     // 1. scenes 배열 찾기 (여러 경로 지원) - 먼저 씬 추출
     // 백엔드 JSON 구조: jsonData.script.scenes 또는 jsonData.scenes
     let scenesArray = null;
-    if (jsonData.script?.scenes && Array.isArray(jsonData.script.scenes)) {
-      scenesArray = jsonData.script.scenes;
-      console.log('[Step3] script.scenes 배열 발견:', scenesArray.length, '개');
-    } else if (jsonData.scenes && Array.isArray(jsonData.scenes)) {
-      scenesArray = jsonData.scenes;
-      console.log('[Step3] scenes 배열 발견:', scenesArray.length, '개');
-    } else if (jsonData.drama?.scenes && Array.isArray(jsonData.drama.scenes)) {
+
+    // script.scenes 배열 확인
+    if (jsonData.script?.scenes) {
+      if (Array.isArray(jsonData.script.scenes)) {
+        scenesArray = jsonData.script.scenes;
+        console.log('[Step3] script.scenes 배열 발견:', scenesArray.length, '개');
+      } else if (typeof jsonData.script.scenes === 'object') {
+        // scenes가 객체인 경우 배열로 변환 (scene_1, scene_2 형태)
+        scenesArray = Object.values(jsonData.script.scenes);
+        console.log('[Step3] script.scenes 객체를 배열로 변환:', scenesArray.length, '개');
+      }
+    }
+    // script 자체가 배열인 경우 (씬 배열로 직접 반환)
+    else if (Array.isArray(jsonData.script)) {
+      scenesArray = jsonData.script;
+      console.log('[Step3] script 자체가 배열:', scenesArray.length, '개');
+    }
+    // script가 객체이고 opening/development 등 스토리 파트가 있는 경우
+    else if (jsonData.script && typeof jsonData.script === 'object') {
+      const storyParts = ['opening', 'development', 'climax', 'resolution', 'ending', 'turning_point', 'intro', 'closing'];
+      const extractedScenes = [];
+      storyParts.forEach(part => {
+        if (jsonData.script[part]) {
+          extractedScenes.push(jsonData.script[part]);
+        }
+      });
+      if (extractedScenes.length > 0) {
+        scenesArray = extractedScenes;
+        console.log('[Step3] script 객체에서 스토리 파트 추출:', scenesArray.length, '개');
+      }
+    }
+
+    // scenes 필드 직접 확인
+    if (!scenesArray && jsonData.scenes) {
+      if (Array.isArray(jsonData.scenes)) {
+        scenesArray = jsonData.scenes;
+        console.log('[Step3] scenes 배열 발견:', scenesArray.length, '개');
+      } else if (typeof jsonData.scenes === 'object') {
+        scenesArray = Object.values(jsonData.scenes);
+        console.log('[Step3] scenes 객체를 배열로 변환:', scenesArray.length, '개');
+      }
+    }
+
+    // 기타 경로
+    if (!scenesArray && jsonData.drama?.scenes && Array.isArray(jsonData.drama.scenes)) {
       scenesArray = jsonData.drama.scenes;
       console.log('[Step3] drama.scenes 배열 발견:', scenesArray.length, '개');
-    } else if (jsonData.content?.scenes && Array.isArray(jsonData.content.scenes)) {
+    }
+    if (!scenesArray && jsonData.content?.scenes && Array.isArray(jsonData.content.scenes)) {
       scenesArray = jsonData.content.scenes;
       console.log('[Step3] content.scenes 배열 발견:', scenesArray.length, '개');
     }
@@ -466,7 +505,7 @@ window.DramaStep3 = {
     return voiceMap[style] || voiceMap['warm'];
   },
 
-  // TTS 생성
+  // TTS 생성 (병렬 처리 지원)
   async generateTTS() {
     if (this.isGenerating) {
       DramaUtils.showStatus('이미 생성 중입니다...', 'warning');
@@ -503,12 +542,13 @@ window.DramaStep3 = {
       const total = scenes.length;
       let completed = 0;
 
-      for (const scene of scenes) {
-        if (progressBar) progressBar.style.width = `${(completed / total) * 100}%`;
-        if (progressText) progressText.textContent = `${completed + 1} / ${total} 씬 생성 중...`;
+      // 🚀 병렬 처리: 동시 요청 제한 (API rate limit 대응)
+      const CONCURRENT_LIMIT = 3;
+      console.log(`[Step3] 🚀 병렬 TTS 생성 시작: ${total}개 씬, 동시 ${CONCURRENT_LIMIT}개`);
 
-        console.log(`[Step3] TTS 생성: ${scene.id}`);
-
+      // 단일 TTS 생성 함수
+      const generateSingleTTS = async (scene, index) => {
+        console.log(`[Step3] TTS 생성 시작: ${scene.id}`);
         try {
           const response = await fetch('/api/drama/generate-tts', {
             method: 'POST',
@@ -526,22 +566,54 @@ window.DramaStep3 = {
           const data = await response.json();
 
           if (data.ok && data.audioUrl) {
-            this.generatedAudios.push({
-              id: scene.id,
-              audioUrl: data.audioUrl,
-              duration: data.duration || 0,
-              text: scene.text.substring(0, 100) + '...'
-            });
+            return {
+              success: true,
+              index: index,
+              result: {
+                id: scene.id,
+                audioUrl: data.audioUrl,
+                duration: data.duration || 0,
+                text: scene.text.substring(0, 100) + '...'
+              }
+            };
           } else {
             console.error(`[Step3] ${scene.id} TTS 실패:`, data.error);
+            return { success: false, index: index, error: data.error };
           }
         } catch (err) {
           console.error(`[Step3] ${scene.id} TTS 오류:`, err);
+          return { success: false, index: index, error: err.message };
         }
+      };
 
-        completed++;
-        await new Promise(r => setTimeout(r, 500)); // API 간격
+      // 배치 처리 (동시 실행 제한)
+      const results = [];
+      for (let i = 0; i < total; i += CONCURRENT_LIMIT) {
+        const batch = scenes.slice(i, i + CONCURRENT_LIMIT);
+        const batchPromises = batch.map((scene, batchIdx) =>
+          generateSingleTTS(scene, i + batchIdx)
+        );
+
+        if (progressText) progressText.textContent = `${Math.min(i + CONCURRENT_LIMIT, total)} / ${total} 씬 생성 중... (병렬 처리)`;
+        if (progressBar) progressBar.style.width = `${(Math.min(i + CONCURRENT_LIMIT, total) / total) * 100}%`;
+
+        // 배치 병렬 실행
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        completed += batch.length;
+
+        // 배치 간 짧은 대기 (rate limit 방지)
+        if (i + CONCURRENT_LIMIT < total) {
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
+
+      // 결과 정렬 및 저장 (원래 순서대로)
+      results.sort((a, b) => a.index - b.index);
+      this.generatedAudios = results
+        .filter(r => r.success)
+        .map(r => r.result);
 
       if (progressBar) progressBar.style.width = '100%';
       if (progressText) progressText.textContent = '완료!';
@@ -561,7 +633,12 @@ window.DramaStep3 = {
         if (progressPanel) progressPanel.classList.add('hidden');
       }, 1000);
 
-      DramaUtils.showStatus(`TTS 생성 완료! (${this.generatedAudios.length}개 음성)`, 'success');
+      const failedCount = results.filter(r => !r.success).length;
+      if (failedCount > 0) {
+        DramaUtils.showStatus(`TTS 생성 완료! (${this.generatedAudios.length}개 성공, ${failedCount}개 실패)`, 'warning');
+      } else {
+        DramaUtils.showStatus(`TTS 생성 완료! (${this.generatedAudios.length}개 음성) 🚀 병렬 처리`, 'success');
+      }
 
     } catch (error) {
       console.error('[Step3] TTS 오류:', error);

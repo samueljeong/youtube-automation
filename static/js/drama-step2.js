@@ -282,7 +282,7 @@ window.DramaStep2 = {
     console.log('[Step2] 이미지 세션 저장:', imageUrls.length, '개');
   },
 
-  // 모든 이미지 생성
+  // 모든 이미지 생성 (병렬 처리 지원)
   async generateAllImages() {
     if (!this.analysisResult?.scenes?.length) {
       DramaUtils.showStatus('먼저 대본을 분석해주세요.', 'error');
@@ -296,19 +296,98 @@ window.DramaStep2 = {
 
     this.isGenerating = true;
     const total = this.analysisResult.scenes.length;
+    const config = this.getConfig();
+    const characters = this.analysisResult.characters || [];
+    const mainCharacter = characters[0];
 
-    DramaUtils.showLoading('모든 씬 이미지 생성 중...', `0 / ${total} 완료`);
+    // 🚀 병렬 처리: 동시 요청 제한 (이미지 API rate limit 대응)
+    const CONCURRENT_LIMIT = 2; // 이미지 생성은 무거우므로 2개씩
+    console.log(`[Step2] 🚀 병렬 이미지 생성 시작: ${total}개 씬, 동시 ${CONCURRENT_LIMIT}개`);
+
+    DramaUtils.showLoading('모든 씬 이미지 생성 중...', `0 / ${total} 완료 (병렬 처리)`);
+
+    // 단일 이미지 생성 함수
+    const generateSingleImage = async (sceneIdx) => {
+      const scene = this.analysisResult.scenes[sceneIdx];
+      if (!scene) return { success: false, index: sceneIdx, error: '씬 정보 없음' };
+
+      // 씬 프롬프트에 주인공 정보를 강제로 결합
+      let enhancedPrompt = scene.backgroundPrompt || '';
+      if (mainCharacter) {
+        const characterConsistencyPrefix = this.buildCharacterConsistencyPrompt(mainCharacter);
+        enhancedPrompt = `${characterConsistencyPrefix} Scene: ${enhancedPrompt}`;
+      }
+
+      try {
+        const response = await fetch('/api/drama/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: enhancedPrompt,
+            size: config.imageRatio === '16:9' ? '1792x1024' : (config.imageRatio === '9:16' ? '1024x1792' : '1024x1024'),
+            imageProvider: config.imageModel
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.ok && data.imageUrl) {
+          return { success: true, index: sceneIdx, imageUrl: data.imageUrl };
+        } else {
+          return { success: false, index: sceneIdx, error: data.error || '이미지 생성 실패' };
+        }
+      } catch (err) {
+        console.error(`[Step2] 씬 ${sceneIdx + 1} 이미지 생성 오류:`, err);
+        return { success: false, index: sceneIdx, error: err.message };
+      }
+    };
 
     try {
-      for (let i = 0; i < total; i++) {
-        DramaUtils.showLoading('모든 씬 이미지 생성 중...', `${i} / ${total} 완료`);
-        await this.generateSceneImage(i);
-        // API 호출 간격
-        if (i < total - 1) {
-          await new Promise(r => setTimeout(r, 2000));
+      const results = [];
+
+      // 배치 처리 (동시 실행 제한)
+      for (let i = 0; i < total; i += CONCURRENT_LIMIT) {
+        const batchIndices = [];
+        for (let j = i; j < Math.min(i + CONCURRENT_LIMIT, total); j++) {
+          batchIndices.push(j);
+        }
+
+        DramaUtils.showLoading('모든 씬 이미지 생성 중...', `${Math.min(i + CONCURRENT_LIMIT, total)} / ${total} 완료 (병렬 처리)`);
+
+        // 배치 병렬 실행
+        const batchPromises = batchIndices.map(idx => generateSingleImage(idx));
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+
+        // 성공한 이미지 바로 UI에 반영
+        for (const result of batchResults) {
+          if (result.success) {
+            const placeholder = document.getElementById(`scene-image-${result.index}`);
+            if (placeholder) {
+              placeholder.innerHTML = `<img src="${result.imageUrl}" alt="씬 ${result.index + 1}" class="scene-image">`;
+              placeholder.classList.add('has-image');
+            }
+            this.generatedImages[`scene_${result.index}`] = result.imageUrl;
+          }
+        }
+
+        // 배치 간 대기 (rate limit 방지)
+        if (i + CONCURRENT_LIMIT < total) {
+          await new Promise(r => setTimeout(r, 1000));
         }
       }
-      DramaUtils.showStatus(`모든 씬 이미지 생성 완료! (${total}개)`, 'success');
+
+      // 세션에 저장
+      this.saveGeneratedImagesToSession();
+
+      const successCount = results.filter(r => r.success).length;
+      const failedCount = results.filter(r => !r.success).length;
+
+      if (failedCount > 0) {
+        DramaUtils.showStatus(`이미지 생성 완료! (${successCount}개 성공, ${failedCount}개 실패)`, 'warning');
+      } else {
+        DramaUtils.showStatus(`모든 씬 이미지 생성 완료! (${total}개) 🚀 병렬 처리`, 'success');
+      }
     } catch (error) {
       console.error('[Step2] 전체 이미지 생성 오류:', error);
       DramaUtils.showStatus(`오류: ${error.message}`, 'error');
