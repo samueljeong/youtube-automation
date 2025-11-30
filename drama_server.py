@@ -4876,7 +4876,17 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
     import subprocess
     import shutil
     import gc
-    from PIL import Image
+
+    # 의존성 체크: Pillow
+    try:
+        from PIL import Image
+    except ImportError:
+        raise Exception("Pillow 라이브러리가 설치되어 있지 않습니다. 'pip install Pillow' 명령으로 설치해주세요.")
+
+    # 의존성 체크: FFmpeg
+    ffmpeg_path = shutil.which('ffmpeg')
+    if not ffmpeg_path:
+        raise Exception("FFmpeg가 설치되어 있지 않습니다. 'apt-get install ffmpeg' 명령으로 설치해주세요.")
 
     # 메모리 최적화: 해상도 자동 제한 (512MB 환경)
     width, height = resolution.split('x')
@@ -4908,12 +4918,7 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
                         video_jobs[job_id]['message'] = message
                     save_video_jobs()  # 파일에 저장
 
-    update_progress(5, "FFmpeg 확인 중...")
-
-    # FFmpeg 설치 확인
-    ffmpeg_path = shutil.which('ffmpeg')
-    if not ffmpeg_path:
-        raise Exception("FFmpeg가 설치되어 있지 않습니다. 서버에 FFmpeg를 설치해주세요.")
+    update_progress(5, "의존성 확인 완료, 영상 생성 준비 중...")
 
     # ===== cuts 배열이 있으면 씬별 클립 생성 후 concat 방식 사용 =====
     if cuts and len(cuts) > 0:
