@@ -14,8 +14,44 @@ window.DramaStep5 = {
    */
   init() {
     console.log('[Step5] 유튜브 업로드 모듈 초기화');
+
+    // 이전 스텝 데이터 로드 (localStorage → 메모리)
+    this.loadPreviousStepData();
+
     this.checkYouTubeAuth();
     this.loadMetadataFromSession();
+  },
+
+  /**
+   * 이전 스텝 데이터 로드 (Step1, Step4)
+   */
+  loadPreviousStepData() {
+    // Step1 대본 데이터 로드
+    const step1Data = DramaSession.getStepData('step1');
+    if (step1Data?.content && !dramaApp.session.script) {
+      dramaApp.session.script = step1Data.content;
+      console.log('[Step5] Step1 대본 데이터 로드 완료');
+    }
+
+    // Step4 영상 데이터 로드
+    const step4Data = DramaSession.getStepData('step4');
+    if (step4Data) {
+      if (step4Data.videoPath && !dramaApp.session.videoPath) {
+        dramaApp.session.videoPath = step4Data.videoPath;
+        console.log('[Step5] Step4 videoPath 로드 완료:', step4Data.videoPath);
+      }
+      if (step4Data.videoUrl && !dramaApp.session.videoUrl) {
+        dramaApp.session.videoUrl = step4Data.videoUrl;
+        console.log('[Step5] Step4 videoUrl 로드 완료:', step4Data.videoUrl);
+      }
+    }
+
+    // Step2 이미지 데이터 로드
+    const step2Data = DramaSession.getStepData('step2_images');
+    if (step2Data?.images && !dramaApp.session.images) {
+      dramaApp.session.images = step2Data.images.map((url, idx) => ({ url, id: idx }));
+      console.log('[Step5] Step2 이미지 데이터 로드 완료:', step2Data.images.length, '개');
+    }
   },
 
   /**
@@ -94,10 +130,19 @@ window.DramaStep5 = {
    * 메타데이터 자동 생성 (시니어 향수 채널 최적화)
    */
   async generateMetadata() {
-    const script = dramaApp.session.script;
+    // 대본 데이터 가져오기 (메모리 → localStorage fallback)
+    let script = dramaApp.session.script;
     if (!script) {
-      showStatus('대본이 없습니다. Step1에서 대본을 생성해주세요.');
-      setTimeout(hideStatus, 3000);
+      const step1Data = DramaSession.getStepData('step1');
+      script = step1Data?.content;
+      if (script) {
+        dramaApp.session.script = script; // 메모리에도 저장
+        console.log('[Step5] fallback으로 Step1 대본 로드 완료');
+      }
+    }
+
+    if (!script) {
+      DramaUtils.showStatus('대본이 없습니다. Step1에서 대본을 생성해주세요.', 'error');
       return;
     }
 
@@ -239,15 +284,23 @@ window.DramaStep5 = {
    */
   async uploadToYouTube() {
     if (!this.youtubeConnected) {
-      showStatus('YouTube 계정을 먼저 연결해주세요.');
-      setTimeout(hideStatus, 2000);
+      DramaUtils.showStatus('YouTube 계정을 먼저 연결해주세요.', 'warning');
       return;
     }
 
-    const videoPath = dramaApp.session.videoPath;
+    // 영상 경로 가져오기 (메모리 → localStorage fallback)
+    let videoPath = dramaApp.session.videoPath;
     if (!videoPath) {
-      showStatus('업로드할 영상이 없습니다. Step4에서 영상을 제작해주세요.');
-      setTimeout(hideStatus, 3000);
+      const step4Data = DramaSession.getStepData('step4');
+      videoPath = step4Data?.videoPath;
+      if (videoPath) {
+        dramaApp.session.videoPath = videoPath; // 메모리에도 저장
+        console.log('[Step5] fallback으로 Step4 videoPath 로드 완료');
+      }
+    }
+
+    if (!videoPath) {
+      DramaUtils.showStatus('업로드할 영상이 없습니다. Step4에서 영상을 제작해주세요.', 'error');
       return;
     }
 

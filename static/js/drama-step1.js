@@ -160,6 +160,10 @@ window.DramaStep1 = {
       // 세션에 저장
       DramaSession.setStepData('step1', this.currentScript);
 
+      // 메모리에도 저장 (Step5에서 사용 가능하게)
+      dramaApp.session.script = step3Data.result;
+      DramaMain.saveSessionToStorage();
+
       // 결과 표시
       this.displayResult(step3Data.result);
 

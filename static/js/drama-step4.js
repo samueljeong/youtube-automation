@@ -363,6 +363,11 @@ window.DramaStep4 = {
       duration: data.duration
     });
 
+    // 메모리에도 저장 (Step5에서 사용 가능하게)
+    dramaApp.session.videoPath = data.videoPath;
+    dramaApp.session.videoUrl = data.videoUrl;
+    DramaMain.saveSessionToStorage();
+
     // 다음 단계 버튼 표시
     const nextButtons = document.getElementById('step4-next');
     if (nextButtons) nextButtons.classList.remove('hidden');
