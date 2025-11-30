@@ -266,3 +266,112 @@ def education_delete(filename):
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ===== 강의안 생성 시스템 프롬프트 =====
+LESSON_PLAN_SYSTEM_PROMPT = """역할: 너는 '교회 교육 강의안 작성 전문가'다.
+입력: 교육 프로그램 정보, 커리큘럼 요약, 특정 회차 정보를 받는다.
+출력: 해당 회차의 상세 강의안을 작성한다.
+
+[강의안 작성 규칙]
+
+1. 구성 요소
+- 도입 (5-10분): 아이스브레이크, 지난 시간 복습, 오늘 주제 소개
+- 본론 (주요 시간): 핵심 내용을 단계별로 전개, 성경 본문 연결, 실제 사례 포함
+- 활동 (10-15분): 그룹 토론, 나눔, 실습 활동
+- 적용 (5-10분): 삶에 적용할 포인트, 기도 제목
+- 마무리: 다음 시간 예고, 과제 안내
+
+2. 작성 스타일
+- 강사가 바로 읽고 사용할 수 있도록 구체적으로 작성
+- "~합니다", "~하세요" 등 실제 강의체로 작성
+- 질문 예시, 대답 유도 방법 포함
+- 시간 배분을 명시적으로 표기
+
+3. 형식
+- 마크다운 없이 순수 텍스트로 작성
+- 번호와 들여쓰기로 구조화
+- 중요 포인트는 【】로 강조
+
+4. 분량
+- 실제 강의 시간에 맞게 충분히 상세하게 작성
+- 너무 짧거나 개조식으로만 쓰지 말고, 강의 스크립트처럼 풍성하게 작성"""
+
+
+@education_bp.route("/api/education/generate-lesson-plan", methods=["POST"])
+def education_generate_lesson_plan():
+    """특정 회차 강의안 생성 API"""
+    global _client
+
+    if not _client:
+        return jsonify({"status": "error", "message": "OpenAI 클라이언트가 초기화되지 않았습니다."}), 500
+
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"status": "error", "message": "입력 데이터가 없습니다."}), 400
+
+        program_info = data.get("program_info", {})
+        curriculum_summary = data.get("curriculum_summary", {})
+        session_info = data.get("session_info", {})
+        model = data.get("model", "gpt-4o")
+
+        # 지원 모델 검증
+        if model not in ["gpt-4o", "gpt-4o-mini", "o3-mini"]:
+            model = "gpt-4o"
+
+        # 사용자 메시지 구성
+        user_message = f"""다음 정보를 바탕으로 {session_info.get('session_number', 1)}회차 상세 강의안을 작성해주세요.
+
+【프로그램 정보】
+- 교육명: {program_info.get('program_basic', {}).get('title', '교육 프로그램')}
+- 대상: {program_info.get('program_basic', {}).get('target_group', '')}
+- 회당 시간: {program_info.get('schedule', {}).get('session_duration_min', 90)}분
+- 핵심 목표: {program_info.get('goals', {}).get('main_goal', '')}
+
+【프로그램 요약】
+- 목적: {curriculum_summary.get('purpose_statement', '')}
+- 기대 성과: {', '.join(curriculum_summary.get('key_outcomes', []))}
+
+【{session_info.get('session_number', 1)}회차 정보】
+- 제목: {session_info.get('title', '')}
+- 목표: {session_info.get('objective', '')}
+- 시간 배분: {json.dumps(session_info.get('time_plan', []), ensure_ascii=False)}
+- 핵심 내용: {', '.join(session_info.get('key_contents', []))}
+- 활동: {', '.join(session_info.get('activities', []))}
+- 준비물: {', '.join(session_info.get('materials', []))}
+- 숙제/적용: {session_info.get('homework', '')}
+- 리더 메모: {session_info.get('notes_for_leader', '')}
+
+위 정보를 바탕으로, 강사가 바로 사용할 수 있는 상세 강의안을 작성해주세요.
+도입부터 마무리까지 시간 흐름에 따라 구체적으로 작성합니다."""
+
+        # OpenAI API 호출
+        response = _client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": LESSON_PLAN_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,
+            max_tokens=4000
+        )
+
+        lesson_plan = response.choices[0].message.content
+
+        # 토큰 사용량
+        usage = {
+            "input_tokens": response.usage.prompt_tokens,
+            "output_tokens": response.usage.completion_tokens,
+            "total_tokens": response.usage.total_tokens,
+            "model": model
+        }
+
+        return jsonify({
+            "status": "ok",
+            "lesson_plan": lesson_plan,
+            "usage": usage
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500

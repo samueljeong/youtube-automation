@@ -399,6 +399,79 @@
       color: #444;
     }
 
+    /* 강의안 제작 버튼 */
+    .btn-lesson-plan {
+      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      color: white;
+      border: none;
+      padding: .6rem 1.2rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: .8rem;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn-lesson-plan:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+    }
+    .btn-lesson-plan:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* 강의안 결과 영역 */
+    .lesson-plan-result {
+      background: linear-gradient(135deg, #f0fff4 0%, #e6fffa 100%);
+      border: 2px solid #38ef7d;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-top: 1rem;
+      display: none;
+    }
+    .lesson-plan-result.show {
+      display: block;
+    }
+    .lesson-plan-result h4 {
+      color: #11998e;
+      font-size: .95rem;
+      margin-bottom: .8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .lesson-plan-content {
+      font-size: .9rem;
+      line-height: 1.7;
+      color: #333;
+      white-space: pre-wrap;
+    }
+
+    /* 모델 선택 */
+    .model-selector {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .8rem;
+    }
+    .model-selector select {
+      padding: .3rem .5rem;
+      border-radius: 6px;
+      font-size: .8rem;
+    }
+    .model-badge {
+      font-size: .7rem;
+      padding: .2rem .4rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .model-badge.recommended {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
     /* Responsive */
     @media (max-width: 600px) {
       .form-row {
@@ -683,6 +756,14 @@
 
         <!-- Sessions Tab -->
         <div class="tab-content" id="tab-sessions">
+          <!-- 안내 문구 -->
+          <div style="background: #f8f9ff; padding: .8rem; border-radius: 8px; margin-bottom: 1rem;">
+            <div style="font-size: .85rem; color: #555;">
+              📝 각 회차별 <strong>강의안 제작</strong> 버튼을 클릭하면 상세 강의안을 생성합니다.
+            </div>
+          </div>
+          <!-- 모델 고정 (hidden) -->
+          <input type="hidden" id="lesson-model" value="gpt-4o">
           <div id="sessions-content"></div>
         </div>
 
