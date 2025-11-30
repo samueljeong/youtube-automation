@@ -177,7 +177,7 @@ function renderGuideTabs() {
 
 // ===== 카테고리 관리 =====
 function renderCategoryManageList() {
-  const container = document.getElementById('category-manage-list');
+  const container = document.getElementById('categories-list');
   if (!container) return;
 
   container.innerHTML = window.config.categories.map((cat, idx) => `
