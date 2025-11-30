@@ -37,7 +37,8 @@ window.DramaStep1 = {
       contentType: document.getElementById('content-type')?.value || 'nostalgia',
       duration: document.getElementById('duration')?.value || '10min',
       aiModel: document.getElementById('ai-model')?.value || 'anthropic/claude-sonnet-4.5',
-      topic: document.getElementById('topic-input')?.value?.trim() || ''
+      topic: document.getElementById('topic-input')?.value?.trim() || '',
+      testMode: document.getElementById('test-mode')?.checked || false
     };
   },
 
@@ -121,7 +122,10 @@ window.DramaStep1 = {
       totalCost += step2Data.cost || 0;
 
       // === Step 3: Claude Sonnet 4.5로 대본 작성 ===
-      DramaUtils.showLoading('3/3 단계: 대본 작성 중...', 'Claude Sonnet 4.5가 대본을 작성합니다 (약 1-2분 소요)');
+      const loadingMsg = config.testMode
+        ? 'Claude Sonnet 4.5가 테스트 대본을 작성합니다 (약 10-20초 소요)'
+        : 'Claude Sonnet 4.5가 대본을 작성합니다 (약 1-2분 소요)';
+      DramaUtils.showLoading('3/3 단계: 대본 작성 중...', loadingMsg);
 
       const step3Response = await fetch('/api/drama/claude-step3', {
         method: 'POST',
@@ -132,7 +136,8 @@ window.DramaStep1 = {
           videoCategory: this.getVideoCategory(config.contentType),
           customDirective: config.topic,
           draftContent: step1Data.result + '\n\n' + step2Data.result,
-          model: config.aiModel  // 백엔드는 'model' 파라미터를 기대함
+          model: config.aiModel,  // 백엔드는 'model' 파라미터를 기대함
+          testMode: config.testMode  // 테스트 모드 (500자 제한, 빠른 응답)
         })
       });
 

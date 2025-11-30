@@ -2795,21 +2795,38 @@ def api_drama_claude_step3():
             max_output_tokens = min(32000, max(8000, int(target_chars * 4)))
 
         print(f"[DRAMA-STEP3] max_output_tokens: {max_output_tokens}")
-        response = openrouter_client.chat.completions.create(
-            model=selected_model,
-            max_tokens=max_output_tokens,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_content
-                },
-                {
-                    "role": "user",
-                    "content": user_content
-                }
-            ],
-            temperature=0.8
-        )
+
+        # 타임아웃 설정 (Render 무료 티어 30초 제한 대응)
+        # 테스트 모드: 25초 / 일반 모드: 120초 (유료 티어 필요)
+        api_timeout = 25 if test_mode else 120
+        print(f"[DRAMA-STEP3] API 타임아웃: {api_timeout}초")
+
+        try:
+            response = openrouter_client.chat.completions.create(
+                model=selected_model,
+                max_tokens=max_output_tokens,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_content
+                    },
+                    {
+                        "role": "user",
+                        "content": user_content
+                    }
+                ],
+                temperature=0.8,
+                timeout=api_timeout
+            )
+        except Exception as api_error:
+            error_str = str(api_error).lower()
+            if 'timeout' in error_str or 'timed out' in error_str:
+                print(f"[DRAMA-STEP3] API 타임아웃 발생: {api_error}")
+                raise RuntimeError(
+                    f"대본 생성 시간이 {api_timeout}초를 초과했습니다. "
+                    "영상 시간을 줄이거나(2분/5분) 테스트 모드를 사용해주세요."
+                )
+            raise
 
         # 응답 추출 (상세 로깅 추가)
         print(f"[DRAMA-STEP3] OpenRouter 응답 수신")
