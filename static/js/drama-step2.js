@@ -27,6 +27,13 @@ window.DramaStep2 = {
   // Step1 대본 데이터 가져오기
   getStep1Script() {
     const step1Data = DramaSession.getStepData('step1');
+
+    // 수동 입력 모드인 경우
+    if (step1Data?.type === 'manual') {
+      return step1Data;
+    }
+
+    // 기존 자동 생성 모드
     if (step1Data?.content) {
       return step1Data.content;
     }
@@ -40,9 +47,19 @@ window.DramaStep2 = {
       return;
     }
 
+    const step1Data = DramaSession.getStepData('step1');
+
+    // 수동 입력 모드 처리
+    if (step1Data?.type === 'manual') {
+      console.log('[Step2] 수동 입력 모드 - 이미지 프롬프트 사용');
+      this.prepareManualMode(step1Data);
+      return;
+    }
+
+    // 기존 자동 생성 모드
     const script = this.getStep1Script();
     if (!script) {
-      DramaUtils.showStatus('먼저 Step 1에서 대본을 생성해주세요.', 'error');
+      DramaUtils.showStatus('먼저 Step 1에서 대본을 입력해주세요.', 'error');
       return;
     }
 
@@ -59,7 +76,6 @@ window.DramaStep2 = {
       DramaUtils.showLoading('대본을 분석하고 있습니다...', '등장인물과 씬 정보를 추출 중 (약 30초 소요)');
 
       // Step1에서 저장된 duration 가져오기
-      const step1Data = DramaSession.getStepData('step1');
       const duration = step1Data?.config?.duration || '10min';
 
       console.log('[Step2] 대본 분석 시작 (duration:', duration, ')');
@@ -100,6 +116,61 @@ window.DramaStep2 = {
       this.isAnalyzing = false;
       DramaUtils.hideLoading();
     }
+  },
+
+  // 수동 입력 모드 처리 (Step1에서 이미지 프롬프트가 제공된 경우)
+  prepareManualMode(step1Data) {
+    console.log('[Step2] 수동 입력 모드 준비');
+
+    const imagePrompts = step1Data.imagePrompts || [];
+    const scenes = step1Data.scenes || [];
+    const protagonistInfo = step1Data.protagonistInfo || '';
+
+    // 주인공 정보에서 이름 추출 시도
+    let protagonistName = '주인공';
+    const nameMatch = protagonistInfo.match(/이름[:\s]*([^\n,]+)/);
+    if (nameMatch) {
+      protagonistName = nameMatch[1].trim();
+    }
+
+    // 씬 데이터 생성
+    const analysisScenes = scenes.map((scene, idx) => {
+      // 이미지 프롬프트가 있으면 사용, 없으면 기본 프롬프트 생성
+      let prompt = imagePrompts[idx] || '';
+
+      if (!prompt) {
+        // 기본 프롬프트 생성 (주인공 정보 기반)
+        const gender = step1Data.config?.protagonistGender || 'female';
+        const koreanDesc = gender === 'female'
+          ? 'Korean elderly grandmother, 70s, warm smile, traditional Korean hanok setting'
+          : 'Korean elderly grandfather, 70s, wise expression, traditional Korean setting';
+        prompt = `${koreanDesc}, scene ${idx + 1}, cinematic lighting, nostalgic 1980s film style`;
+      }
+
+      return {
+        sceneId: scene.id || `scene_${idx + 1}`,
+        sceneNumber: idx + 1,
+        description: scene.narration?.substring(0, 100) || `씬 ${idx + 1}`,
+        imagePrompt: prompt
+      };
+    });
+
+    // 결과 저장
+    this.analysisResult = {
+      characters: [{
+        name: protagonistName,
+        description: protagonistInfo.substring(0, 200),
+        imagePrompt: imagePrompts[0] || ''
+      }],
+      scenes: analysisScenes
+    };
+
+    DramaSession.setStepData('step2_analysis', this.analysisResult);
+
+    // UI 표시
+    this.displayAnalysisResult(this.analysisResult);
+
+    DramaUtils.showStatus(`수동 입력 모드: ${analysisScenes.length}개 씬 준비 완료`, 'success');
   },
 
   // 분석 결과 표시

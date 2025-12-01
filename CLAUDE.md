@@ -121,6 +121,20 @@ Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
 - 전체 5스텝 파이프라인 정상 동작 확인
 - Step1(대본) → Step2(이미지) → Step3(TTS) → Step4(영상) → Step5(YouTube 업로드) 완주
 
+## 🆕 수동 대본 입력 모드 (2024-12-01)
+- Step1 UI 변경: 자동 생성 → 수동 입력 5개 박스
+  - 박스1: 주인공 소개 + 이미지 프롬프트
+  - 박스2-5: 씬1-4 나레이션
+- YouTube 인증을 Step1 상단으로 이동
+- 주인공 성별 선택 → TTS 음성 자동 매칭
+  - 여성: ko-KR-Wavenet-A / Neural2-A
+  - 남성: ko-KR-Wavenet-C / Neural2-B
+- TTS 음성 품질 선택 (Standard/Wavenet/Neural2)
+
+## 알려진 이슈 (진행 중)
+- 영상에 소리/자막 누락 문제 - 서버 로그 확인 필요
+  - `[DRAMA-PARALLEL] 씬 X: 오디오=True/False` 로그 확인
+
 ## 참고 사항
 - 이미지 생성: Gemini (기본) / FLUX.1 Pro / DALL-E 3 지원
 - TTS: Google Cloud TTS (기본) / 네이버 클로바 지원

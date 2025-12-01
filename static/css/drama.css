@@ -1313,3 +1313,133 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== Step1 수동 입력 UI (2024-12-01) ===== */
+
+/* YouTube 연결 패널 */
+.youtube-auth-panel {
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.auth-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+
+.auth-icon {
+  font-size: 1.2rem;
+}
+
+.btn-youtube {
+  background: #fff;
+  color: #cc0000;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.btn-youtube:hover {
+  background: #f0f0f0;
+}
+
+/* 대본 입력 섹션 */
+.script-input-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.section-hint {
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.script-textarea {
+  width: 100%;
+  padding: 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.script-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.script-textarea::placeholder {
+  color: #aaa;
+}
+
+/* 저장 완료 알림 */
+.saved-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 14px 20px;
+  border-radius: 10px;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.notice-icon {
+  font-size: 1.3rem;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .youtube-auth-panel {
+    padding: 10px 12px;
+  }
+
+  .auth-status-row {
+    flex-wrap: wrap;
+  }
+
+  .btn-youtube {
+    margin-left: 0;
+    margin-top: 8px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .script-input-section {
+    padding: 14px;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
