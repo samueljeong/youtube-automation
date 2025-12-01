@@ -45,6 +45,12 @@ window.DramaMain = {
 
     // URL 파라미터 처리 (YouTube OAuth 콜백 등)
     this.handleUrlParams();
+
+    // Step1 초기화 (페이지 로드 시 기본 스텝)
+    if (typeof DramaStep1 !== 'undefined' && DramaStep1.init) {
+      console.log('[DramaMain] Step1 초기화 호출');
+      DramaStep1.init();
+    }
   },
 
   /**
