@@ -112,45 +112,36 @@ window.DramaStep1 = {
   },
 
   /**
-   * 5개 박스에서 데이터 수집
+   * 모든 입력 필드에서 데이터 수집
    */
   collectBoxData() {
-    const box1 = document.getElementById('box1-protagonist')?.value?.trim() || '';
-    const box2 = document.getElementById('box2-scene1')?.value?.trim() || '';
-    const box3 = document.getElementById('box3-scene2')?.value?.trim() || '';
-    const box4 = document.getElementById('box4-scene3')?.value?.trim() || '';
-    const box5 = document.getElementById('box5-scene4')?.value?.trim() || '';
+    // 주인공/캐릭터 정보
+    const characterInfo = document.getElementById('character-info')?.value?.trim() || '';
 
-    return {
-      protagonistAndPrompts: box1,
-      scenes: [
-        { id: 'scene_1', narration: box2 },
-        { id: 'scene_2', narration: box3 },
-        { id: 'scene_3', narration: box4 },
-        { id: 'scene_4', narration: box5 }
-      ].filter(s => s.narration.length > 0)
-    };
-  },
+    // 씬별 이미지 프롬프트와 나레이션 수집
+    const scenes = [];
+    const imagePrompts = [];
 
-  /**
-   * 이미지 프롬프트 파싱 (박스1에서 추출)
-   */
-  parseImagePrompts(text) {
-    const prompts = [];
+    for (let i = 1; i <= 4; i++) {
+      const imagePrompt = document.getElementById(`scene${i}-image-prompt`)?.value?.trim() || '';
+      const narration = document.getElementById(`scene${i}-narration`)?.value?.trim() || '';
 
-    // 씬1:, 씬2:, Scene1:, Scene2: 등의 패턴으로 분리
-    const scenePattern = /(?:씬|Scene|장면)\s*(\d+)\s*[:\-]\s*(.+?)(?=(?:씬|Scene|장면)\s*\d+|$)/gis;
-    let match;
-
-    while ((match = scenePattern.exec(text)) !== null) {
-      const sceneNum = parseInt(match[1]);
-      const prompt = match[2].trim();
-      if (prompt) {
-        prompts[sceneNum - 1] = prompt;
+      if (narration || imagePrompt) {
+        scenes.push({
+          id: `scene_${i}`,
+          narration: narration,
+          imagePrompt: imagePrompt
+        });
+        imagePrompts.push(imagePrompt);
+        console.log(`[Step1] 씬 ${i}: 프롬프트=${imagePrompt.length}자, 나레이션=${narration.length}자`);
       }
     }
 
-    return prompts;
+    return {
+      characterInfo: characterInfo,
+      scenes: scenes,
+      imagePrompts: imagePrompts.filter(Boolean)
+    };
   },
 
   /**
@@ -161,32 +152,36 @@ window.DramaStep1 = {
     const boxData = this.collectBoxData();
 
     // 유효성 검사
-    if (!boxData.protagonistAndPrompts) {
-      DramaUtils.showStatus('박스 1 (주인공 & 이미지 프롬프트)을 입력해주세요.', 'error');
+    if (!boxData.characterInfo) {
+      DramaUtils.showStatus('주인공 정보를 입력해주세요.', 'error');
       return;
     }
 
     if (boxData.scenes.length === 0) {
-      DramaUtils.showStatus('최소 1개 이상의 씬 나레이션을 입력해주세요.', 'error');
+      DramaUtils.showStatus('최소 1개 이상의 씬을 입력해주세요.', 'error');
       return;
     }
 
-    // 이미지 프롬프트 파싱
-    const imagePrompts = this.parseImagePrompts(boxData.protagonistAndPrompts);
+    // 이미지 프롬프트 검사 (씬에서 직접 가져옴)
+    const scenesWithPrompts = boxData.scenes.filter(s => s.imagePrompt);
+    if (scenesWithPrompts.length === 0) {
+      DramaUtils.showStatus('최소 1개 이상의 이미지 프롬프트를 입력해주세요.', 'error');
+      return;
+    }
 
     console.log('[Step1] 저장 데이터:', {
       config,
+      characterInfo: boxData.characterInfo.substring(0, 50) + '...',
       sceneCount: boxData.scenes.length,
-      imagePromptsCount: imagePrompts.length
+      imagePromptsCount: boxData.imagePrompts.length
     });
 
-    // 데이터 구조화
+    // 데이터 구조화 - 씬에 이미지 프롬프트가 직접 포함됨
     this.currentScript = {
       type: 'manual',
       config: config,
-      protagonistInfo: boxData.protagonistAndPrompts,
-      imagePrompts: imagePrompts,
-      scenes: boxData.scenes,
+      characterInfo: boxData.characterInfo,
+      scenes: boxData.scenes,  // 각 씬에 imagePrompt 필드 포함
       createdAt: new Date().toISOString()
     };
 
@@ -225,19 +220,24 @@ window.DramaStep1 = {
 
     console.log('[Step1] 세션에서 데이터 복원');
 
-    // 박스 데이터 복원
-    const box1 = document.getElementById('box1-protagonist');
-    if (box1 && data.protagonistInfo) {
-      box1.value = data.protagonistInfo;
+    // 캐릭터 정보 복원
+    const charInfo = document.getElementById('character-info');
+    if (charInfo && data.characterInfo) {
+      charInfo.value = data.characterInfo;
     }
 
-    // 씬 나레이션 복원
+    // 씬별 이미지 프롬프트와 나레이션 복원
     if (data.scenes) {
       data.scenes.forEach((scene, idx) => {
-        const boxId = `box${idx + 2}-scene${idx + 1}`;
-        const box = document.getElementById(boxId);
-        if (box && scene.narration) {
-          box.value = scene.narration;
+        const sceneNum = idx + 1;
+        const promptEl = document.getElementById(`scene${sceneNum}-image-prompt`);
+        const narrationEl = document.getElementById(`scene${sceneNum}-narration`);
+
+        if (promptEl && scene.imagePrompt) {
+          promptEl.value = scene.imagePrompt;
+        }
+        if (narrationEl && scene.narration) {
+          narrationEl.value = scene.narration;
         }
       });
     }
@@ -263,15 +263,22 @@ window.DramaStep1 = {
   },
 
   /**
-   * 박스 데이터 클리어
+   * 모든 입력 데이터 클리어
    */
   clearAll() {
     if (!confirm('모든 입력 내용을 지우시겠습니까?')) return;
 
-    ['box1-protagonist', 'box2-scene1', 'box3-scene2', 'box4-scene3', 'box5-scene4'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
+    // 캐릭터 정보 초기화
+    const charInfo = document.getElementById('character-info');
+    if (charInfo) charInfo.value = '';
+
+    // 씬별 필드 초기화
+    for (let i = 1; i <= 4; i++) {
+      const promptEl = document.getElementById(`scene${i}-image-prompt`);
+      const narrationEl = document.getElementById(`scene${i}-narration`);
+      if (promptEl) promptEl.value = '';
+      if (narrationEl) narrationEl.value = '';
+    }
 
     this.currentScript = null;
     DramaSession.setStepData('step1', null);

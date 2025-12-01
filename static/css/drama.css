@@ -1400,6 +1400,48 @@ body {
   color: #aaa;
 }
 
+/* 씬 입력 그룹 (이미지 프롬프트 + 나레이션) */
+.scene-input-group {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-left: 4px solid #667eea;
+}
+
+.scene-header {
+  margin-bottom: 16px;
+}
+
+.scene-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.scene-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scene-inputs .input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scene-inputs .input-row label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.scene-inputs .script-textarea {
+  min-height: 80px;
+}
+
 /* 저장 완료 알림 */
 .saved-notice {
   display: flex;

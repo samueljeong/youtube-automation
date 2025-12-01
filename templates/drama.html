@@ -95,61 +95,81 @@
             </div>
           </div>
 
-          <!-- 박스 1: 주인공 & 이미지 프롬프트 -->
+          <!-- 주인공/캐릭터 정보 -->
           <div class="script-input-section">
             <div class="section-header">
-              <h3>📋 박스 1: 주인공 & 이미지 프롬프트</h3>
-              <span class="section-hint">주인공 소개와 각 씬의 이미지 프롬프트를 입력하세요</span>
+              <h3>👤 주인공 정보</h3>
+              <span class="section-hint">주인공의 이름, 나이, 외모 특징 등</span>
             </div>
-            <textarea id="box1-protagonist" class="script-textarea" rows="12" placeholder="예시:
-## 주인공 소개
-- 이름: 이순자
-- 나이: 75세
-- 특징: 인자한 미소, 흰 머리카락
-
-## 씬별 이미지 프롬프트
-씬1: Korean elderly grandmother, 75 years old, warm smile, sitting in traditional hanok...
-씬2: Same grandmother cooking in old kitchen, 1980s Korean rural home...
-씬3: Grandmother looking at old photo album, tears in eyes...
-씬4: Grandmother hugging grandchildren, warm sunset light..."></textarea>
+            <textarea id="character-info" class="script-textarea" rows="4" placeholder="예: 박봉수, 70세, 작은 한식당 주인, 앞치마 차림, 경계하는 표정, 한국인 할아버지"></textarea>
           </div>
 
-          <!-- 박스 2: 씬 1 나레이션 -->
-          <div class="script-input-section">
-            <div class="section-header">
-              <h3>🎬 박스 2: 씬 1 나레이션</h3>
-              <span class="section-hint">첫 번째 씬의 나레이션 텍스트 (TTS로 읽힐 내용)</span>
+          <!-- 씬 1 -->
+          <div class="scene-input-group">
+            <div class="scene-header">
+              <h3>🎬 씬 1</h3>
             </div>
-            <textarea id="box2-scene1" class="script-textarea" rows="8" placeholder="씬 1 나레이션을 입력하세요...
-
-예: 1975년, 충청남도 작은 시골 마을. 스물다섯 살의 순자는 새벽 4시면 어김없이 눈을 떴습니다..."></textarea>
+            <div class="scene-inputs">
+              <div class="input-row">
+                <label>이미지 프롬프트 (영문)</label>
+                <textarea id="scene1-image-prompt" class="script-textarea" rows="4" placeholder="Night, small Korean restaurant interior. Three men at wooden table. Cooling soybean stew in center..."></textarea>
+              </div>
+              <div class="input-row">
+                <label>나레이션 (한글 TTS)</label>
+                <textarea id="scene1-narration" class="script-textarea" rows="4" placeholder="그날 밤이었습니다. 저는 46년 만에 처음으로 그 이름을 들었습니다..."></textarea>
+              </div>
+            </div>
           </div>
 
-          <!-- 박스 3: 씬 2 나레이션 -->
-          <div class="script-input-section">
-            <div class="section-header">
-              <h3>🎬 박스 3: 씬 2 나레이션</h3>
-              <span class="section-hint">두 번째 씬의 나레이션 텍스트</span>
+          <!-- 씬 2 -->
+          <div class="scene-input-group">
+            <div class="scene-header">
+              <h3>🎬 씬 2</h3>
             </div>
-            <textarea id="box3-scene2" class="script-textarea" rows="8" placeholder="씬 2 나레이션을 입력하세요..."></textarea>
+            <div class="scene-inputs">
+              <div class="input-row">
+                <label>이미지 프롬프트 (영문)</label>
+                <textarea id="scene2-image-prompt" class="script-textarea" rows="4" placeholder="Same restaurant. Old black-and-white photograph on table showing young security guard..."></textarea>
+              </div>
+              <div class="input-row">
+                <label>나레이션 (한글 TTS)</label>
+                <textarea id="scene2-narration" class="script-textarea" rows="4" placeholder="젊은 남자가 드디어 입을 열었습니다..."></textarea>
+              </div>
+            </div>
           </div>
 
-          <!-- 박스 4: 씬 3 나레이션 -->
-          <div class="script-input-section">
-            <div class="section-header">
-              <h3>🎬 박스 4: 씬 3 나레이션</h3>
-              <span class="section-hint">세 번째 씬의 나레이션 텍스트</span>
+          <!-- 씬 3 -->
+          <div class="scene-input-group">
+            <div class="scene-header">
+              <h3>🎬 씬 3</h3>
             </div>
-            <textarea id="box4-scene3" class="script-textarea" rows="8" placeholder="씬 3 나레이션을 입력하세요..."></textarea>
+            <div class="scene-inputs">
+              <div class="input-row">
+                <label>이미지 프롬프트 (영문)</label>
+                <textarea id="scene3-image-prompt" class="script-textarea" rows="4" placeholder="Emotional confrontation. Lee Chang-su crying at table..."></textarea>
+              </div>
+              <div class="input-row">
+                <label>나레이션 (한글 TTS)</label>
+                <textarea id="scene3-narration" class="script-textarea" rows="4" placeholder="이창수 씨가 사진을 집어 들었습니다..."></textarea>
+              </div>
+            </div>
           </div>
 
-          <!-- 박스 5: 씬 4 나레이션 -->
-          <div class="script-input-section">
-            <div class="section-header">
-              <h3>🎬 박스 5: 씬 4 나레이션</h3>
-              <span class="section-hint">네 번째 씬의 나레이션 텍스트</span>
+          <!-- 씬 4 -->
+          <div class="scene-input-group">
+            <div class="scene-header">
+              <h3>🎬 씬 4</h3>
             </div>
-            <textarea id="box5-scene4" class="script-textarea" rows="8" placeholder="씬 4 나레이션을 입력하세요..."></textarea>
+            <div class="scene-inputs">
+              <div class="input-row">
+                <label>이미지 프롬프트 (영문)</label>
+                <textarea id="scene4-image-prompt" class="script-textarea" rows="4" placeholder="Late night restaurant. Park Bong-su holding young man's hand..."></textarea>
+              </div>
+              <div class="input-row">
+                <label>나레이션 (한글 TTS)</label>
+                <textarea id="scene4-narration" class="script-textarea" rows="4" placeholder="밤이 깊어진 식당에서..."></textarea>
+              </div>
+            </div>
           </div>
 
           <!-- 액션 버튼 -->
