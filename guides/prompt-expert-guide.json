@@ -1,0 +1,68 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2024-12-01",
+  "description": "AI 이미지/영상용 프롬프트 전문 작성 가이드",
+
+  "basicPrinciples": {
+    "language": "출력 프롬프트는 항상 영어로 작성",
+    "format": "짧지만 정보 밀도가 높은 한 문단으로 작성 (너무 장황하게 쓰지 말 것)",
+    "elements": {
+      "subject": "피사체 / 장면",
+      "environment": "배경, 장소",
+      "lighting": "조명 방향·세기·분위기",
+      "color": "색감·톤(따뜻한/차가운, 파스텔, 높은 대비 등)",
+      "camera": "샷 종류(와이드/클로즈업 등), 렌즈(mm), depth of field, angle",
+      "style": "사진/일러스트/3D/수채화/시네마틱 등 스타일",
+      "mood": "감정·분위기(peaceful, dramatic, nostalgic 등)"
+    },
+    "approach": "무엇을 어떻게 보여줄지를 설계한다는 느낌으로, 촬영감 있게 작성",
+    "avoid": "저작권 이슈가 있는 특정 작가 이름, 브랜드, 실제 인물 이름은 피할 것"
+  },
+
+  "promptWritingTips": {
+    "avoidDuplication": "highly detailed, ultra detailed, 8k, 32k 등을 과하게 반복하지 말고 1~2개만 사용",
+    "subjectFirst": "프롬프트 문장 초반에 'A / An / The ...'로 무엇을 보여줄지부터 명확히",
+    "oneScenePerPrompt": "여러 장면을 섞지 말고, 한 화면에 들어갈 장면만 설계",
+    "adjectiveNounCombo": "형용사 + 명사 조합 선호 (예: soft golden sunlight, dramatic side lighting, misty forest background)",
+    "respectUserIntent": "사용자가 심플하게/미니멀하게/잔잔하게 요청하면 그 방향 유지"
+  },
+
+  "cameraTerms": {
+    "shotTypes": ["extreme wide shot", "wide shot", "medium shot", "medium close-up", "close-up", "extreme close-up"],
+    "lensTypes": ["24mm wide angle", "35mm", "50mm prime", "85mm portrait", "135mm telephoto"],
+    "depthOfField": ["shallow depth of field", "deep focus", "bokeh background", "subject isolation"],
+    "angles": ["eye level", "low angle", "high angle", "bird's eye view", "dutch angle", "over the shoulder"],
+    "movements": ["static shot", "tracking shot", "pan", "tilt", "dolly", "handheld"]
+  },
+
+  "lightingTerms": {
+    "types": ["natural light", "soft diffused light", "hard light", "backlighting", "rim lighting", "side lighting"],
+    "sources": ["window light", "golden hour sunlight", "overcast sky", "candlelight", "neon lights", "studio lighting"],
+    "qualities": ["soft shadows", "harsh shadows", "high contrast", "low contrast", "dramatic lighting", "flat lighting"]
+  },
+
+  "colorTerms": {
+    "tones": ["warm tones", "cool tones", "neutral tones", "muted colors", "vibrant colors", "pastel colors"],
+    "grading": ["cinematic color grading", "film look", "vintage color palette", "desaturated", "high saturation"],
+    "specific": ["golden hour warmth", "blue hour coolness", "sepia undertones", "teal and orange"]
+  },
+
+  "styleTerms": {
+    "photography": ["photorealistic", "documentary style", "editorial", "fashion photography", "street photography"],
+    "cinematic": ["cinematic", "movie still", "film noir", "blockbuster", "indie film aesthetic"],
+    "artistic": ["oil painting", "watercolor", "illustration", "concept art", "digital art"],
+    "quality": ["highly detailed", "ultra realistic", "4k", "8k", "sharp focus"]
+  },
+
+  "examplePrompts": {
+    "portrait": "A serene young woman standing by a large window, soft natural light streaming in from the side, gentle shadows on her face, 50mm lens, shallow depth of field, background softly blurred, warm pastel color grading, calm and contemplative mood, highly detailed, cinematic portrait.",
+
+    "actionScene": "In a dim underground parking lot, a man sprints between parked cars, breathing heavily as three men in black suits chase him, dynamic handheld tracking shot following from behind, red emergency lights flickering and reflecting off car surfaces, harsh contrasting shadows, cold blue and red color palette, high tension, cinematic action scene, slight motion blur for speed.",
+
+    "landscape": "A peaceful cozy church interior at dusk, soft warm light filtering through stained glass windows, empty wooden pews, gentle rays of light catching floating dust particles, cinematic wide shot, 24mm lens, subtle depth of field, tranquil and hopeful atmosphere, ultra detailed, 4k.",
+
+    "koreanElderly": "Authentic Korean grandmother (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features with round face shape, single eyelids typical of Korean elderly, Korean skin tone with natural aging, permed short gray hair, wearing simple cotton hanbok with apron, cooking in traditional Korean kitchen with earthen jars in background, warm natural lighting, 1970s Korean film photography aesthetic with film grain and muted warm colors, nostalgic atmosphere."
+  },
+
+  "systemPromptTemplate": "당신의 역할은 AI 이미지·영상용 프롬프트를 전문적으로 작성해 주는 비서입니다.\n\n프롬프트 작성 원칙:\n1. 출력 프롬프트는 항상 영어로 작성합니다.\n2. 프롬프트는 짧지만 정보 밀도가 높은 한 문단으로 작성합니다.\n3. 다음 요소를 최대한 포함합니다:\n   - [subject] 피사체/장면\n   - [environment] 배경, 장소\n   - [lighting] 조명 방향·세기·분위기\n   - [color] 색감·톤\n   - [camera] 샷 종류, 렌즈(mm), depth of field, angle\n   - [style] 사진/일러스트/시네마틱 등\n   - [mood] 감정·분위기\n4. 촬영감 있게 작성합니다.\n5. 핵심 피사체를 프롬프트 앞부분에 배치합니다.\n6. 형용사+명사 조합을 선호합니다 (예: soft golden sunlight, dramatic side lighting)\n7. 중복 표현을 줄입니다 (highly detailed, 8k 등은 1-2개만 사용)"
+}
