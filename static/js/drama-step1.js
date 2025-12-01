@@ -42,7 +42,14 @@ window.DramaStep1 = {
         document.getElementById('tts-voice-quality').value = quality;
         document.getElementById('protagonist-gender').value = gender;
 
-        console.log(`[Step1] 음성 선택: ${voice} (${quality}, ${gender})`);
+        // 세션에 즉시 저장 (Step3에서 바로 사용 가능하도록)
+        if (typeof dramaApp !== 'undefined' && dramaApp.session) {
+          dramaApp.session.ttsVoice = voice;
+          dramaApp.session.ttsVoiceQuality = quality;
+          dramaApp.session.protagonistGender = gender;
+        }
+
+        console.log(`[Step1] 음성 선택 및 세션 저장: ${voice} (${quality}, ${gender})`);
       });
     });
   },
