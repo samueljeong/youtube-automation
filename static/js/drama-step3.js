@@ -167,18 +167,48 @@ window.DramaStep3 = {
       scenesArray = jsonData.script;
       console.log('[Step3] script 자체가 배열:', scenesArray.length, '개');
     }
-    // script가 객체이고 opening/development 등 스토리 파트가 있는 경우
+    // script가 객체이고 opening/development/scene_N 등 스토리 파트가 있는 경우
     else if (jsonData.script && typeof jsonData.script === 'object') {
-      const storyParts = ['opening', 'development', 'climax', 'resolution', 'ending', 'turning_point', 'intro', 'closing'];
       const extractedScenes = [];
-      storyParts.forEach(part => {
-        if (jsonData.script[part]) {
+      const scriptKeys = Object.keys(jsonData.script);
+      console.log('[Step3] script 객체 키들:', scriptKeys);
+
+      // 1. opening 먼저 추가
+      if (jsonData.script.opening) {
+        extractedScenes.push(jsonData.script.opening);
+      }
+
+      // 2. scene_1, scene_2, scene_N 패턴 키 추출 (순서대로)
+      const sceneKeys = scriptKeys
+        .filter(key => /^scene_\d+$/i.test(key))
+        .sort((a, b) => {
+          const numA = parseInt(a.replace(/\D/g, ''));
+          const numB = parseInt(b.replace(/\D/g, ''));
+          return numA - numB;
+        });
+
+      sceneKeys.forEach(key => {
+        extractedScenes.push(jsonData.script[key]);
+      });
+
+      // 3. 기타 스토리 파트 추가 (development, climax 등)
+      const otherParts = ['development', 'climax', 'resolution', 'turning_point'];
+      otherParts.forEach(part => {
+        if (jsonData.script[part] && !extractedScenes.includes(jsonData.script[part])) {
           extractedScenes.push(jsonData.script[part]);
         }
       });
+
+      // 4. closing/ending은 마지막에
+      if (jsonData.script.closing) {
+        extractedScenes.push(jsonData.script.closing);
+      } else if (jsonData.script.ending) {
+        extractedScenes.push(jsonData.script.ending);
+      }
+
       if (extractedScenes.length > 0) {
         scenesArray = extractedScenes;
-        console.log('[Step3] script 객체에서 스토리 파트 추출:', scenesArray.length, '개');
+        console.log('[Step3] script 객체에서 스토리 파트 추출:', scenesArray.length, '개 (scene_N 포함)');
       }
     }
 
