@@ -1636,3 +1636,159 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* ===== Step4: 씬별 클립 다운로드 ===== */
+.info-panel {
+  display: flex;
+  gap: 16px;
+  background: #e8f4ff;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-left: 4px solid #2196f3;
+}
+
+.info-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.info-text {
+  flex: 1;
+}
+
+.info-text strong {
+  color: #1565c0;
+}
+
+.info-text ul {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #555;
+}
+
+.info-text li {
+  margin: 4px 0;
+}
+
+.scene-clips-list {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.scene-clips-list h3 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.scene-clips-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scene-clip-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.scene-clip-item:hover {
+  background: #f0f4ff;
+}
+
+.clip-thumbnail {
+  width: 80px;
+  height: 45px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #ddd;
+}
+
+.clip-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.clip-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clip-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.clip-duration {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.clip-status {
+  font-size: 0.9rem;
+  color: #666;
+  min-width: 70px;
+  text-align: right;
+}
+
+.empty-message {
+  text-align: center;
+  color: #888;
+  padding: 30px;
+}
+
+.download-area {
+  background: #e8f5e9;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.download-area h3 {
+  margin: 0 0 12px 0;
+  color: #2e7d32;
+}
+
+.download-info {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 16px;
+  color: #555;
+}
+
+/* 반응형 - Step4 */
+@media (max-width: 768px) {
+  .info-panel {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .scene-clip-item {
+    flex-wrap: wrap;
+  }
+
+  .clip-thumbnail {
+    width: 60px;
+    height: 34px;
+  }
+
+  .download-info {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

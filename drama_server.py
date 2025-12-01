@@ -5377,6 +5377,249 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         }
 
 
+# ===== Step4: 씬별 MP4 클립 생성 (개별 다운로드용) =====
+@app.route('/api/drama/generate-scene-clip', methods=['POST'])
+def api_generate_scene_clip():
+    """단일 씬 클립 생성 (이미지 + 오디오 → MP4)
+
+    가벼운 작업이므로 CPU 부하가 낮습니다.
+    """
+    import base64
+    import tempfile
+    import subprocess
+    import shutil
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        scene_id = data.get("sceneId", "scene_1")
+        image_url = data.get("imageUrl", "")
+        audio_url = data.get("audioUrl", "")
+
+        print(f"[SCENE-CLIP] 씬 클립 생성 시작: {scene_id}")
+
+        if not image_url:
+            return jsonify({"ok": False, "error": "이미지가 없습니다."}), 400
+        if not audio_url:
+            return jsonify({"ok": False, "error": "오디오가 없습니다."}), 400
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 1. 이미지 저장
+            img_path = os.path.join(temp_dir, "image.png")
+            if image_url.startswith('data:'):
+                header, encoded = image_url.split(',', 1)
+                img_data = base64.b64decode(encoded)
+                with open(img_path, 'wb') as f:
+                    f.write(img_data)
+            else:
+                response = requests.get(image_url, timeout=60)
+                with open(img_path, 'wb') as f:
+                    f.write(response.content)
+
+            # 2. 오디오 저장
+            audio_path = os.path.join(temp_dir, "audio.mp3")
+            if audio_url.startswith('data:'):
+                header, encoded = audio_url.split(',', 1)
+                audio_data = base64.b64decode(encoded)
+                with open(audio_path, 'wb') as f:
+                    f.write(audio_data)
+            else:
+                response = requests.get(audio_url, timeout=60)
+                with open(audio_path, 'wb') as f:
+                    f.write(response.content)
+
+            # 3. 오디오 길이 확인
+            probe_cmd = [
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+            ]
+            result = subprocess.run(probe_cmd, capture_output=True, text=True)
+            duration = float(result.stdout.strip()) if result.stdout.strip() else 10.0
+
+            print(f"[SCENE-CLIP] {scene_id}: 오디오 길이 {duration:.1f}초")
+
+            # 4. MP4 생성 (720p, 가벼운 설정)
+            output_path = os.path.join(temp_dir, f"{scene_id}.mp4")
+            ffmpeg_cmd = [
+                'ffmpeg', '-y',
+                '-threads', '1',
+                '-loop', '1',
+                '-i', img_path,
+                '-i', audio_path,
+                '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-threads', '1',
+                '-c:a', 'aac', '-b:a', '128k',
+                '-r', '24',
+                '-t', str(duration),
+                '-shortest',
+                '-pix_fmt', 'yuv420p',
+                output_path
+            ]
+
+            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+
+            if process.returncode != 0 or not os.path.exists(output_path):
+                print(f"[SCENE-CLIP] FFmpeg 오류: {process.stderr[:300]}")
+                return jsonify({"ok": False, "error": "클립 생성 실패"}), 500
+
+            # 5. 결과 반환 (Base64)
+            with open(output_path, 'rb') as f:
+                video_data = f.read()
+
+            video_base64 = base64.b64encode(video_data).decode('utf-8')
+            file_size = len(video_data)
+
+            print(f"[SCENE-CLIP] {scene_id} 완료: {duration:.1f}초, {file_size/(1024*1024):.2f}MB")
+
+            return jsonify({
+                "ok": True,
+                "sceneId": scene_id,
+                "videoUrl": f"data:video/mp4;base64,{video_base64}",
+                "duration": duration,
+                "fileSize": file_size,
+                "fileSizeMB": round(file_size / (1024 * 1024), 2)
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/drama/generate-scene-clips-zip', methods=['POST'])
+def api_generate_scene_clips_zip():
+    """모든 씬 클립을 생성하고 ZIP으로 반환
+
+    씬별로 순차 처리하여 메모리/CPU 부하 최소화
+    """
+    import base64
+    import tempfile
+    import subprocess
+    import shutil
+    import zipfile
+    import gc
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        cuts = data.get("cuts", [])
+        if not cuts:
+            return jsonify({"ok": False, "error": "씬 데이터가 없습니다."}), 400
+
+        print(f"[SCENE-ZIP] 씬 클립 ZIP 생성 시작: {len(cuts)}개 씬")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_paths = []
+
+            for idx, cut in enumerate(cuts):
+                scene_id = cut.get("sceneId", f"scene_{idx+1}")
+                image_url = cut.get("imageUrl", "")
+                audio_url = cut.get("audioUrl", "")
+
+                if not image_url or not audio_url:
+                    print(f"[SCENE-ZIP] {scene_id} 스킵 (이미지/오디오 없음)")
+                    continue
+
+                print(f"[SCENE-ZIP] {scene_id} 처리 중...")
+
+                # 이미지 저장
+                img_path = os.path.join(temp_dir, f"img_{idx}.png")
+                if image_url.startswith('data:'):
+                    header, encoded = image_url.split(',', 1)
+                    img_data = base64.b64decode(encoded)
+                    with open(img_path, 'wb') as f:
+                        f.write(img_data)
+                    del img_data
+                else:
+                    response = requests.get(image_url, timeout=60)
+                    with open(img_path, 'wb') as f:
+                        f.write(response.content)
+
+                # 오디오 저장
+                audio_path = os.path.join(temp_dir, f"audio_{idx}.mp3")
+                if audio_url.startswith('data:'):
+                    header, encoded = audio_url.split(',', 1)
+                    audio_data = base64.b64decode(encoded)
+                    with open(audio_path, 'wb') as f:
+                        f.write(audio_data)
+                    del audio_data
+                else:
+                    response = requests.get(audio_url, timeout=60)
+                    with open(audio_path, 'wb') as f:
+                        f.write(response.content)
+
+                # 오디오 길이
+                probe_cmd = [
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+                ]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                duration = float(result.stdout.strip()) if result.stdout.strip() else 10.0
+
+                # MP4 생성
+                clip_path = os.path.join(temp_dir, f"{scene_id}.mp4")
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',
+                    '-threads', '1',
+                    '-loop', '1',
+                    '-i', img_path,
+                    '-i', audio_path,
+                    '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-threads', '1',
+                    '-c:a', 'aac', '-b:a', '128k',
+                    '-r', '24',
+                    '-t', str(duration),
+                    '-shortest',
+                    '-pix_fmt', 'yuv420p',
+                    clip_path
+                ]
+
+                process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=180)
+
+                if process.returncode == 0 and os.path.exists(clip_path):
+                    clip_paths.append((scene_id, clip_path))
+                    print(f"[SCENE-ZIP] {scene_id} 완료: {duration:.1f}초")
+                else:
+                    print(f"[SCENE-ZIP] {scene_id} 실패: {process.stderr[:200]}")
+
+                # 메모리 정리
+                gc.collect()
+
+            if not clip_paths:
+                return jsonify({"ok": False, "error": "생성된 클립이 없습니다."}), 500
+
+            # ZIP 생성
+            zip_path = os.path.join(temp_dir, "drama_scenes.zip")
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for scene_id, clip_path in clip_paths:
+                    zf.write(clip_path, f"{scene_id}.mp4")
+
+            # ZIP 파일 읽기
+            with open(zip_path, 'rb') as f:
+                zip_data = f.read()
+
+            zip_base64 = base64.b64encode(zip_data).decode('utf-8')
+
+            print(f"[SCENE-ZIP] ZIP 생성 완료: {len(clip_paths)}개 클립, {len(zip_data)/(1024*1024):.2f}MB")
+
+            return jsonify({
+                "ok": True,
+                "clipCount": len(clip_paths),
+                "zipUrl": f"data:application/zip;base64,{zip_base64}",
+                "fileSize": len(zip_data),
+                "fileSizeMB": round(len(zip_data) / (1024 * 1024), 2)
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Step6: 영상 제작 API (비동기 큐 방식) =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():

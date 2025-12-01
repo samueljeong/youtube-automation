@@ -1,51 +1,22 @@
 /**
- * Drama Lab - Step 4: 영상 제작
- * 초기화됨: 2024-11-28
+ * Drama Lab - Step 4: 씬별 클립 다운로드
+ * 업데이트: 2024-12-01
+ * - 전체 영상 생성 → 씬별 MP4 클립 다운로드로 변경
+ * - CapCut 등에서 자유롭게 편집 가능
  */
 
-// Step4 모듈
 window.DramaStep4 = {
   // 상태
-  currentJobId: null,
-  videoUrl: null,
   isCreating: false,
-  pollInterval: null,
-  notFoundRetryCount: 0, // 404 응답 재시도 카운터
-  maxNotFoundRetries: 5, // 최대 재시도 횟수 (Render 동기화 대기)
+  zipData: null,
 
   init() {
-    console.log('[Step4] 영상 제작 모듈 초기화');
-  },
-
-  // JSON 응답 안전하게 파싱 (HTML 에러 페이지 방어)
-  async safeJsonParse(response, stepName) {
-    const text = await response.text();
-    try {
-      return JSON.parse(text);
-    } catch (parseError) {
-      console.error(`[${stepName}] JSON 파싱 실패:`, parseError);
-      console.error(`[${stepName}] 응답 내용 (처음 500자):`, text.substring(0, 500));
-
-      // HTML 에러 페이지인지 확인
-      if (text.trim().startsWith('<')) {
-        throw new Error(`서버에서 HTML 에러 페이지를 반환했습니다 (status: ${response.status}). 서버 로그를 확인해주세요.`);
-      }
-      throw new Error(`서버 응답을 파싱할 수 없습니다: ${parseError.message}`);
-    }
-  },
-
-  // 설정값 가져오기
-  getConfig() {
-    return {
-      resolution: document.getElementById('video-resolution')?.value || '1080p',
-      subtitleStyle: document.getElementById('subtitle-style')?.value || 'bottom',
-      bgmStyle: document.getElementById('bgm-style')?.value || 'calm'
-    };
+    console.log('[Step4] 씬별 클립 다운로드 모듈 초기화');
+    this.renderClipsList();
   },
 
   // 이전 단계 데이터 가져오기
   getPreviousStepData() {
-    // step2_images: 생성된 씬 이미지 URL 배열
     const step2ImagesData = DramaSession.getStepData('step2_images');
     const step3Data = DramaSession.getStepData('step3');
 
@@ -55,461 +26,203 @@ window.DramaStep4 = {
     const images = step2ImagesData?.images || [];
     const audios = step3Data?.audios || [];
 
-    // 각 씬별 이미지-오디오 매칭하여 cuts 배열 생성
+    // 씬별 이미지-오디오 매칭
     const cuts = [];
     const maxCuts = Math.max(images.length, audios.length);
 
     for (let i = 0; i < maxCuts; i++) {
-      const imageUrl = images[i] || images[images.length - 1] || ''; // 이미지 없으면 마지막 이미지 사용
-      const audio = audios[i] || audios[0] || {}; // 오디오 없으면 첫 번째 오디오 사용
+      const imageUrl = images[i] || '';
+      const audio = audios[i] || {};
 
       cuts.push({
-        cutId: i + 1,
+        sceneId: `scene_${i + 1}`,
         imageUrl: imageUrl,
         audioUrl: audio.audioUrl || '',
-        duration: audio.duration || 10
+        duration: audio.duration || 0,
+        text: audio.text || `씬 ${i + 1}`
       });
     }
 
     console.log('[Step4] 생성된 cuts:', cuts.length, '개');
-
-    // 상세 디버깅: 각 cut의 audio 상태 확인
-    cuts.forEach((cut, idx) => {
-      const hasAudio = cut.audioUrl && cut.audioUrl.length > 0;
-      console.log(`[Step4] cut[${idx}] - image: ${cut.imageUrl ? '✓' : '✗'}, audio: ${hasAudio ? '✓' : '✗ (없음!)'}${hasAudio ? `, audioUrl: ${cut.audioUrl.substring(0, 50)}...` : ''}, duration: ${cut.duration}s`);
-    });
-
-    return {
-      images: images,
-      audios: audios,
-      cuts: cuts
-    };
+    return { images, audios, cuts };
   },
 
-  // 영상 제작
-  async createVideo() {
+  // 클립 목록 렌더링
+  renderClipsList() {
+    const container = document.getElementById('scene-clips-items');
+    if (!container) return;
+
+    const { cuts } = this.getPreviousStepData();
+
+    if (cuts.length === 0 || !cuts[0].imageUrl) {
+      container.innerHTML = '<div class="empty-message">Step 2, 3을 먼저 완료해주세요.</div>';
+      return;
+    }
+
+    const validCuts = cuts.filter(c => c.imageUrl && c.audioUrl);
+
+    if (validCuts.length === 0) {
+      container.innerHTML = '<div class="empty-message">이미지와 오디오가 모두 있는 씬이 없습니다.</div>';
+      return;
+    }
+
+    container.innerHTML = validCuts.map((cut, idx) => `
+      <div class="scene-clip-item">
+        <div class="clip-thumbnail">
+          <img src="${cut.imageUrl.startsWith('data:') ? cut.imageUrl : cut.imageUrl}"
+               alt="${cut.sceneId}"
+               onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23ccc%22 width=%22100%22 height=%22100%22/></svg>'">
+        </div>
+        <div class="clip-info">
+          <span class="clip-name">${cut.sceneId}.mp4</span>
+          <span class="clip-duration">${cut.duration ? cut.duration.toFixed(1) + '초' : '-'}</span>
+        </div>
+        <div class="clip-status" id="clip-status-${idx}">⏳ 대기</div>
+      </div>
+    `).join('');
+  },
+
+  // 씬별 클립 생성 (ZIP)
+  async createSceneClips() {
     if (this.isCreating) {
-      DramaUtils.showStatus('이미 제작 중입니다...', 'warning');
+      DramaUtils.showStatus('이미 생성 중입니다...', 'warning');
       return;
     }
 
-    const { images, audios, cuts } = this.getPreviousStepData();
+    const { cuts } = this.getPreviousStepData();
+    const validCuts = cuts.filter(c => c.imageUrl && c.audioUrl);
 
-    // 이미지와 오디오 확인
-    if (images.length === 0) {
-      DramaUtils.showStatus('먼저 Step 2에서 이미지를 생성해주세요.', 'error');
-      return;
-    }
-
-    if (audios.length === 0) {
-      DramaUtils.showStatus('먼저 Step 3에서 음성을 생성해주세요.', 'error');
+    if (validCuts.length === 0) {
+      DramaUtils.showStatus('이미지와 오디오가 모두 있는 씬이 없습니다.', 'error');
       return;
     }
 
     this.isCreating = true;
-
-    const btn = document.getElementById('btn-create-video');
+    const btn = document.getElementById('btn-create-clips');
     const originalText = btn?.innerHTML;
-    const config = this.getConfig();
 
     try {
       if (btn) {
-        btn.innerHTML = '<span class="btn-icon">⏳</span> 제작 중...';
+        btn.innerHTML = '<span class="btn-icon">⏳</span> 생성 중...';
         btn.disabled = true;
       }
 
       // 진행 상황 표시
-      const progressPanel = document.getElementById('video-progress');
-      const progressBar = document.getElementById('video-progress-bar');
-      const progressText = document.getElementById('video-progress-text');
+      const progressPanel = document.getElementById('clip-progress');
+      const progressBar = document.getElementById('clip-progress-bar');
+      const progressText = document.getElementById('clip-progress-text');
 
       if (progressPanel) progressPanel.classList.remove('hidden');
-      if (progressBar) progressBar.style.width = '0%';
-      if (progressText) progressText.textContent = '영상 제작 요청 중...';
+      if (progressBar) progressBar.style.width = '10%';
+      if (progressText) progressText.textContent = `${validCuts.length}개 씬 클립 생성 요청 중...`;
 
-      // 해상도 변환
-      const resolutionMap = {
-        '1080p': '1920x1080',
-        '720p': '1280x720',
-        '4k': '3840x2160'
-      };
-
-      console.log('[Step4] 영상 제작 요청 - cuts:', cuts.length, '개');
-
-      // 이미지 존재 여부 사전 검증
-      if (progressText) progressText.textContent = '이미지 파일 확인 중...';
-      console.log('[Step4] 이미지 존재 여부 확인 시작');
-
-      try {
-        const checkResponse = await fetch('/api/drama/check-images', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrls: images })
-        });
-        const checkResult = await checkResponse.json();
-        console.log('[Step4] 이미지 검증 결과:', checkResult);
-
-        if (checkResult.ok && !checkResult.allValid) {
-          const missingCount = checkResult.totalCount - checkResult.validCount;
-          console.error('[Step4] 누락된 이미지 파일:', checkResult.missingFiles);
-          throw new Error(`${missingCount}개의 이미지 파일이 서버에 존재하지 않습니다. Step 2에서 이미지를 다시 생성해주세요.`);
-        }
-      } catch (checkError) {
-        if (checkError.message.includes('이미지 파일이 서버에 존재하지 않습니다')) {
-          throw checkError;
-        }
-        console.warn('[Step4] 이미지 검증 API 오류 (무시하고 진행):', checkError);
-      }
-
-      // 요청 데이터 준비 (동기 모드 사용 - Render 워커 문제 우회)
-      const requestData = {
-        images: images,
-        cuts: cuts,  // 씬별 이미지-오디오 매칭 배열
-        audioUrl: audios[0]?.audioUrl || '', // fallback: 첫 번째 오디오
-        subtitleData: null, // 추후 구현
-        burnSubtitle: config.subtitleStyle !== 'none',
-        resolution: resolutionMap[config.resolution] || '1920x1080',
-        fps: 30,
-        transition: 'fade',
-        syncMode: true  // 동기 모드: 서버에서 직접 처리 후 응답
-      };
-
-      // 요청 크기 확인 (디버깅)
-      const requestBody = JSON.stringify(requestData);
-      const requestSizeKB = (requestBody.length / 1024).toFixed(1);
-      console.log(`[Step4] 요청 데이터 크기: ${requestSizeKB} KB`);
-
-      // 이미지 URL 타입 확인 및 상세 로깅
-      if (images.length > 0) {
-        const firstImg = images[0] || '';
-        let imgType = 'Unknown';
-        if (firstImg.startsWith('data:')) {
-          imgType = 'Base64';
-        } else if (firstImg.startsWith('http')) {
-          imgType = 'HTTP URL';
-        } else if (firstImg.startsWith('/static/')) {
-          imgType = 'Local Path';
-        } else if (firstImg.startsWith('/')) {
-          imgType = 'Relative Path';
-        }
-        console.log(`[Step4] 이미지 타입: ${imgType}, 첫 이미지 길이: ${firstImg.length}`);
-        console.log(`[Step4] 첫 이미지 URL: ${firstImg}`);
-
-        // 모든 이미지 URL 상태 확인
-        images.forEach((img, idx) => {
-          const len = img?.length || 0;
-          const preview = img ? (img.length > 60 ? img.substring(0, 60) + '...' : img) : '(empty)';
-          console.log(`[Step4] cuts[${idx}] 이미지: ${preview} (${len}자)`);
-        });
-      } else {
-        console.warn('[Step4] 이미지 배열이 비어있음!');
-      }
-
-      // SSE 스트리밍 방식으로 영상 생성 (Render 타임아웃 우회)
-      console.log('[Step4] SSE 스트리밍 영상 생성 시작');
-      if (progressText) progressText.textContent = '영상 생성 연결 중...';
-
-      await this.createVideoWithSSE(requestBody, progressBar, progressText, btn, originalText)
-
-    } catch (error) {
-      console.error('[Step4] 영상 제작 오류:', error);
-      DramaUtils.showStatus(`오류: ${error.message}`, 'error');
-
-      if (btn) {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-      }
-      this.isCreating = false;
-    }
-  },
-
-  // SSE 스트리밍으로 영상 생성
-  async createVideoWithSSE(requestBody, progressBar, progressText, btn, originalText) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10분
-
-    try {
-      const response = await fetch('/api/drama/generate-video-stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody,
-        signal: controller.signal
+      // 각 클립 상태 업데이트
+      validCuts.forEach((_, idx) => {
+        const statusEl = document.getElementById(`clip-status-${idx}`);
+        if (statusEl) statusEl.textContent = '⏳ 대기';
       });
 
-      clearTimeout(timeoutId);
+      console.log('[Step4] 씬별 클립 ZIP 생성 요청:', validCuts.length, '개');
+
+      // API 호출
+      const response = await fetch('/api/drama/generate-scene-clips-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cuts: validCuts })
+      });
 
       if (!response.ok) {
         throw new Error(`서버 오류: ${response.status}`);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      console.log('[Step4] SSE 스트리밍 시작');
-
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          console.log('[Step4] SSE 스트림 종료');
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // 마지막 불완전한 라인은 버퍼에 유지
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6);
-            try {
-              const data = JSON.parse(jsonStr);
-              console.log('[Step4] SSE 이벤트:', data);
-
-              // 이벤트 타입별 처리
-              if (data.event === 'start') {
-                this.currentJobId = data.jobId;
-                if (progressText) progressText.textContent = data.message || '영상 생성 시작...';
-              } else if (data.event === 'progress') {
-                if (progressBar) progressBar.style.width = `${data.progress}%`;
-                if (progressText) progressText.textContent = data.message || `영상 생성 중... ${data.progress}%`;
-              } else if (data.event === 'complete') {
-                console.log('[Step4] SSE 완료:', data);
-                this.videoUrl = data.videoUrl;
-                this.onVideoComplete({
-                  videoUrl: data.videoUrl,
-                  videoPath: data.videoPath,
-                  duration: data.duration,
-                  fileSize: data.fileSize
-                });
-                return; // 성공적으로 완료
-              } else if (data.event === 'error') {
-                console.error('[Step4] SSE 에러:', data.error);
-                this.onVideoFailed(data.error || '영상 생성 실패');
-                return; // 에러로 종료
-              }
-            } catch (parseErr) {
-              // heartbeat 등 JSON이 아닌 라인은 무시
-              if (!line.startsWith(':')) {
-                console.warn('[Step4] SSE 파싱 실패:', line);
-              }
-            }
-          }
-        }
-      }
-
-      // 스트림 종료됐는데 완료/에러 이벤트 없으면 실패 처리
-      if (!this.videoUrl) {
-        this.onVideoFailed('영상 생성 중 연결이 끊어졌습니다.');
-      }
-
-    } catch (error) {
-      clearTimeout(timeoutId);
-
-      if (error.name === 'AbortError') {
-        this.onVideoFailed('영상 생성 시간 초과 (10분). 다시 시도해주세요.');
-      } else {
-        console.error('[Step4] SSE 오류:', error);
-        this.onVideoFailed(error.message || '영상 생성 실패');
-      }
-    }
-  },
-
-  // 작업 상태 폴링
-  startPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-    }
-
-    this.pollInterval = setInterval(async () => {
-      await this.checkJobStatus();
-    }, 3000); // 3초마다 확인
-  },
-
-  // 작업 상태 확인
-  async checkJobStatus() {
-    if (!this.currentJobId) return;
-
-    try {
-      const response = await fetch(`/api/drama/video-status/${this.currentJobId}`);
-      const data = await this.safeJsonParse(response, 'Step4-상태확인');
-
-      const progressBar = document.getElementById('video-progress-bar');
-      const progressText = document.getElementById('video-progress-text');
-
-      console.log('[Step4] 상태 확인:', data.status, 'workerAlive:', data.workerAlive, 'progress:', data.progress);
-
-      // 에러 정보가 있으면 명확하게 출력
-      if (data.error) {
-        console.error('[Step4] ❌ 서버 에러 메시지:', data.error);
-      }
-      if (data.message) {
-        console.log('[Step4] 서버 메시지:', data.message);
-      }
+      const data = await response.json();
 
       if (data.ok) {
-        // 진행률 업데이트
-        if (progressBar) progressBar.style.width = `${data.progress}%`;
+        // 성공
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressText) progressText.textContent = '완료!';
 
-        // 상태별 메시지 표시
-        if (data.status === 'pending') {
-          if (progressText) progressText.textContent = data.message || '작업 대기 중...';
-          // 워커가 죽어있으면 경고 표시
-          if (data.workerAlive === false) {
-            if (progressText) progressText.textContent = '⚠️ 워커 비활성 - 서버 재시작 필요';
-          }
-        } else if (data.status === 'processing') {
-          if (progressText) progressText.textContent = data.message || `영상 인코딩 중... ${data.progress}%`;
-        } else if (data.status === 'completed') {
-          // 완료
-          this.stopPolling();
-          this.videoUrl = data.videoUrl;
-          this.onVideoComplete(data);
-        } else if (data.status === 'failed') {
-          // 실패
-          this.stopPolling();
-          this.onVideoFailed(data.error || '영상 제작 실패');
-        }
+        // 클립 상태 업데이트
+        validCuts.forEach((_, idx) => {
+          const statusEl = document.getElementById(`clip-status-${idx}`);
+          if (statusEl) statusEl.textContent = '✅ 완료';
+        });
+
+        // ZIP 데이터 저장
+        this.zipData = data.zipUrl;
+
+        // 다운로드 영역 표시
+        const downloadArea = document.getElementById('clip-download-area');
+        const clipCount = document.getElementById('clip-count');
+        const zipSize = document.getElementById('zip-size');
+
+        if (downloadArea) downloadArea.classList.remove('hidden');
+        if (clipCount) clipCount.textContent = `클립 수: ${data.clipCount}개`;
+        if (zipSize) zipSize.textContent = `파일 크기: ${data.fileSizeMB}MB`;
+
+        DramaUtils.showStatus(`${data.clipCount}개 씬 클립 생성 완료! ZIP 다운로드 가능`, 'success');
+
       } else {
-        // API 오류 (예: 404)
-        console.error('[Step4] 상태 확인 API 오류:', data.error);
-
-        // 404 응답 시 재시도 (Render 환경에서 job 동기화 지연 대응)
-        this.notFoundRetryCount++;
-        console.log(`[Step4] 404 재시도 ${this.notFoundRetryCount}/${this.maxNotFoundRetries}`);
-
-        if (this.notFoundRetryCount < this.maxNotFoundRetries) {
-          // 아직 재시도 가능 - 폴링 계속
-          const progressText = document.getElementById('video-progress-text');
-          if (progressText) {
-            progressText.textContent = `작업 동기화 대기 중... (${this.notFoundRetryCount}/${this.maxNotFoundRetries})`;
-          }
-          return; // 폴링 계속
-        }
-
-        // 최대 재시도 횟수 초과
-        this.stopPolling();
-        this.onVideoFailed(data.error || '작업을 찾을 수 없습니다. 서버를 확인해주세요.');
+        throw new Error(data.error || '클립 생성 실패');
       }
+
     } catch (error) {
-      console.error('[Step4] 상태 확인 오류:', error);
-      // 네트워크 오류 시 폴링 중지하지 않음 (재시도)
+      console.error('[Step4] 클립 생성 오류:', error);
+      DramaUtils.showStatus(`클립 생성 실패: ${error.message}`, 'error');
+
+      const progressText = document.getElementById('clip-progress-text');
+      if (progressText) progressText.textContent = `오류: ${error.message}`;
+
+    } finally {
+      this.isCreating = false;
+      if (btn) {
+        btn.innerHTML = originalText || '<span class="btn-icon">🎬</span> 씬별 클립 생성하기';
+        btn.disabled = false;
+      }
     }
   },
 
-  // 폴링 중지
-  stopPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
-  },
-
-  // 영상 제작 완료
-  onVideoComplete(data) {
-    const btn = document.getElementById('btn-create-video');
-    const progressPanel = document.getElementById('video-progress');
-    const previewArea = document.getElementById('video-preview-area');
-    const videoPlayer = document.getElementById('video-player');
-    const videoDuration = document.getElementById('video-duration');
-    const videoSize = document.getElementById('video-size');
-
-    if (btn) {
-      btn.innerHTML = '<span class="btn-icon">🎬</span> 영상 제작하기';
-      btn.disabled = false;
-    }
-
-    if (progressPanel) progressPanel.classList.add('hidden');
-
-    // 영상 미리보기 표시
-    if (previewArea) previewArea.classList.remove('hidden');
-    if (videoPlayer && data.videoUrl) {
-      videoPlayer.src = data.videoUrl;
-    }
-    if (videoDuration && data.duration) {
-      videoDuration.textContent = `영상 길이: ${Math.floor(data.duration / 60)}분 ${Math.floor(data.duration % 60)}초`;
-    }
-    if (videoSize && data.fileSize) {
-      videoSize.textContent = `파일 크기: ${(data.fileSize / (1024 * 1024)).toFixed(1)}MB`;
-    }
-
-    // 세션에 저장
-    DramaSession.setStepData('step4', {
-      videoUrl: data.videoUrl,
-      videoPath: data.videoPath,
-      duration: data.duration
-    });
-
-    // 메모리에도 저장 (Step5에서 사용 가능하게)
-    dramaApp.session.videoPath = data.videoPath;
-    dramaApp.session.videoUrl = data.videoUrl;
-    DramaMain.saveSessionToStorage();
-
-    // 다음 단계 버튼 표시
-    const nextButtons = document.getElementById('step4-next');
-    if (nextButtons) nextButtons.classList.remove('hidden');
-
-    this.isCreating = false;
-    DramaUtils.showStatus('영상 제작 완료!', 'success');
-  },
-
-  // 영상 제작 실패
-  onVideoFailed(error) {
-    console.error('[Step4] ❌ 영상 제작 실패:', error);
-
-    const btn = document.getElementById('btn-create-video');
-    const progressPanel = document.getElementById('video-progress');
-    const progressText = document.getElementById('video-progress-text');
-
-    if (btn) {
-      btn.innerHTML = '<span class="btn-icon">🎬</span> 영상 제작하기';
-      btn.disabled = false;
-    }
-
-    // 에러 메시지를 진행 상태 영역에도 표시
-    if (progressText) {
-      progressText.textContent = `❌ 실패: ${error}`;
-      progressText.style.color = '#e74c3c';
-    }
-
-    // 진행 패널은 유지 (에러 메시지 표시용)
-    // if (progressPanel) progressPanel.classList.add('hidden');
-
-    this.isCreating = false;
-    DramaUtils.showStatus(`영상 제작 실패: ${error}`, 'error');
-  },
-
-  // 영상 다운로드
-  downloadVideo() {
-    if (!this.videoUrl) {
-      DramaUtils.showStatus('다운로드할 영상이 없습니다.', 'warning');
+  // ZIP 다운로드 트리거
+  triggerDownload() {
+    if (!this.zipData) {
+      DramaUtils.showStatus('먼저 클립을 생성해주세요.', 'error');
       return;
     }
 
-    const a = document.createElement('a');
-    a.href = this.videoUrl;
-    a.download = `drama_video_${Date.now()}.mp4`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      // Base64 데이터 URL → Blob
+      const base64Data = this.zipData.split(',')[1];
+      const binaryData = atob(base64Data);
+      const bytes = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        bytes[i] = binaryData.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/zip' });
 
-    DramaUtils.showStatus('영상 다운로드 시작', 'success');
+      // 다운로드 링크 생성
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `drama_scenes_${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      DramaUtils.showStatus('ZIP 다운로드 시작!', 'success');
+
+    } catch (error) {
+      console.error('[Step4] 다운로드 오류:', error);
+      DramaUtils.showStatus('다운로드 실패: ' + error.message, 'error');
+    }
   },
 
-  // 세션에서 데이터 복원
-  restore(data) {
-    if (data?.videoUrl) {
-      this.videoUrl = data.videoUrl;
-
-      const previewArea = document.getElementById('video-preview-area');
-      const videoPlayer = document.getElementById('video-player');
-
-      if (previewArea) previewArea.classList.remove('hidden');
-      if (videoPlayer) videoPlayer.src = data.videoUrl;
-
-      const nextButtons = document.getElementById('step4-next');
-      if (nextButtons) nextButtons.classList.remove('hidden');
-    }
+  // 세션에서 복원
+  restoreFromSession() {
+    console.log('[Step4] 세션 복원 시도');
+    this.renderClipsList();
   }
 };
+
+// 전역 등록
+window.DramaStep4 = DramaStep4;

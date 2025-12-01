@@ -407,84 +407,67 @@
         </div>
       </div>
 
-      <!-- Step 4: 영상 제작 -->
+      <!-- Step 4: 씬별 클립 다운로드 -->
       <div id="step4-container" class="step-container">
         <div class="step-header">
-          <h2>Step 4. 영상 제작</h2>
-          <p class="step-desc">이미지와 음성을 합쳐 영상을 만듭니다.</p>
+          <h2>Step 4. 씬별 클립 다운로드</h2>
+          <p class="step-desc">각 씬의 이미지+오디오를 MP4로 변환하여 다운로드합니다.<br>다운로드 후 CapCut 등에서 자유롭게 편집하세요!</p>
         </div>
 
         <div class="step-content">
-          <!-- 영상 설정 -->
-          <div class="config-panel">
-            <div class="config-row">
-              <div class="config-item">
-                <label>영상 해상도</label>
-                <select id="video-resolution">
-                  <option value="1080p" selected>1080p (Full HD)</option>
-                  <option value="720p">720p (HD)</option>
-                  <option value="4k">4K (Ultra HD)</option>
-                </select>
-              </div>
-              <div class="config-item">
-                <label>자막 스타일</label>
-                <select id="subtitle-style">
-                  <option value="bottom" selected>하단 자막</option>
-                  <option value="center">중앙 자막</option>
-                  <option value="dynamic">다이나믹 자막</option>
-                </select>
-              </div>
-              <div class="config-item">
-                <label>배경음악</label>
-                <select id="bgm-style">
-                  <option value="none">없음</option>
-                  <option value="calm" selected>잔잔한</option>
-                  <option value="emotional">감동적인</option>
-                  <option value="hopeful">희망적인</option>
-                </select>
-              </div>
+          <!-- 안내 메시지 -->
+          <div class="info-panel">
+            <div class="info-icon">💡</div>
+            <div class="info-text">
+              <strong>씬별 MP4 클립</strong>을 다운로드하여 CapCut, Premiere 등에서 편집하세요.
+              <ul>
+                <li>각 씬: 이미지 + TTS 오디오 → MP4 변환</li>
+                <li>추가 이미지나 효과를 자유롭게 삽입 가능</li>
+                <li>720p 해상도, H.264 코덱</li>
+              </ul>
             </div>
           </div>
 
-          <!-- 타임라인 미리보기 -->
-          <div id="timeline-preview" class="timeline-preview hidden">
-            <h3>타임라인</h3>
-            <div id="timeline-track" class="timeline-track"></div>
+          <!-- 씬 클립 목록 -->
+          <div id="scene-clips-list" class="scene-clips-list">
+            <h3>📁 생성할 클립 목록</h3>
+            <div id="scene-clips-items" class="scene-clips-items">
+              <!-- JS로 동적 생성 -->
+              <div class="empty-message">Step 2, 3을 먼저 완료해주세요.</div>
+            </div>
           </div>
 
-          <!-- 영상 제작 진행 상황 -->
-          <div id="video-progress" class="progress-panel hidden">
-            <h3>영상 제작 진행</h3>
+          <!-- 진행 상황 -->
+          <div id="clip-progress" class="progress-panel hidden">
+            <h3>클립 생성 진행</h3>
             <div class="progress-bar-container">
-              <div id="video-progress-bar" class="progress-bar"></div>
+              <div id="clip-progress-bar" class="progress-bar"></div>
             </div>
-            <div id="video-progress-text" class="progress-text">준비 중...</div>
+            <div id="clip-progress-text" class="progress-text">준비 중...</div>
           </div>
 
-          <!-- 영상 미리보기 -->
-          <div id="video-preview-area" class="video-preview-area hidden">
-            <h3>완성된 영상</h3>
-            <video id="video-player" controls class="video-player"></video>
-            <div class="video-info">
-              <span id="video-duration">영상 길이: -</span>
-              <span id="video-size">파일 크기: -</span>
+          <!-- 다운로드 결과 -->
+          <div id="clip-download-area" class="download-area hidden">
+            <h3>✅ 다운로드 준비 완료</h3>
+            <div class="download-info">
+              <span id="clip-count">클립 수: -</span>
+              <span id="zip-size">파일 크기: -</span>
             </div>
-            <div class="video-actions">
-              <button class="btn-primary" onclick="DramaStep4.downloadVideo()">영상 다운로드</button>
-            </div>
+            <button class="btn-primary btn-large" id="btn-download-zip" onclick="DramaStep4.triggerDownload()">
+              <span class="btn-icon">📦</span> ZIP 다운로드
+            </button>
           </div>
 
           <!-- 액션 버튼 -->
           <div class="action-buttons">
-            <button id="btn-create-video" class="btn-primary btn-large" onclick="DramaStep4.createVideo()">
-              <span class="btn-icon">🎬</span> 영상 제작하기
+            <button id="btn-create-clips" class="btn-primary btn-large" onclick="DramaStep4.createSceneClips()">
+              <span class="btn-icon">🎬</span> 씬별 클립 생성하기
             </button>
           </div>
 
           <!-- 다음 단계 버튼 -->
-          <div id="step4-next" class="next-step-buttons hidden">
+          <div id="step4-next" class="next-step-buttons">
             <button class="btn-secondary" onclick="DramaMain.goToStep(3)">← Step 3: TTS</button>
-            <button class="btn-primary" onclick="DramaMain.goToStep(5)">Step 5: 업로드 →</button>
           </div>
         </div>
       </div>
