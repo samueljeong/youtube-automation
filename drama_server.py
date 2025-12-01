@@ -4830,11 +4830,12 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
         # 병렬 처리를 위한 작업 목록 생성
         tasks = [(idx, cut, temp_dir, width, height, fps) for idx, cut in enumerate(cuts)]
 
-        # 워커 수 결정 (Standard 2GB - 2개 병렬 처리)
-        max_workers = min(2, len(cuts), os.cpu_count() or 2)
-        print(f"[DRAMA-PARALLEL] 병렬 처리 시작 - {len(cuts)}개 씬, {max_workers}개 워커 (Standard 2GB)")
+        # 워커 수 결정 (Standard 2GB - 순차 처리로 메모리 절약)
+        # 병렬 처리 시 OOM 발생하므로 1개 워커로 순차 처리
+        max_workers = 1
+        print(f"[DRAMA-PARALLEL] 순차 처리 시작 - {len(cuts)}개 씬, {max_workers}개 워커 (메모리 절약 모드)")
 
-        update_progress(15, f"씬 {len(cuts)}개 병렬 처리 중... (워커 {max_workers}개)")
+        update_progress(15, f"씬 {len(cuts)}개 순차 처리 중...")
 
         # ThreadPoolExecutor로 병렬 처리
         results = []
