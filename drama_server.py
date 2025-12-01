@@ -8535,6 +8535,9 @@ def generate_thumbnails():
 def api_product_analyze_script():
     """상품 대본 분석 - AI가 씬과 이미지 프롬프트를 자동 생성"""
     try:
+        from openai import OpenAI
+        client = OpenAI()
+
         data = request.get_json()
         product_name = data.get('product_name', '상품')
         category = data.get('category', 'etc')
@@ -8573,7 +8576,7 @@ def api_product_analyze_script():
 위 대본을 3~6개의 씬으로 분리하고, 각 씬에 맞는 이미지 프롬프트를 생성해주세요.
 나레이션은 원본 대본의 문장을 그대로 사용하거나 약간 다듬어서 사용하세요."""
 
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -8605,6 +8608,9 @@ def api_product_analyze_script():
 def api_image_analyze_script():
     """이미지 제작용 대본 분석 - 씬 분리 + 썸네일/이미지 프롬프트 생성"""
     try:
+        from openai import OpenAI
+        client = OpenAI()
+
         data = request.get_json()
         script = data.get('script', '')
         content_type = data.get('content_type', 'drama')
@@ -8670,7 +8676,7 @@ def api_image_analyze_script():
 
 위 대본을 4~8개 씬으로 분리하고, 썸네일과 각 씬에 맞는 이미지 프롬프트를 생성해주세요."""
 
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
