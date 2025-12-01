@@ -161,7 +161,7 @@ window.DramaStep4 = {
         console.warn('[Step4] 이미지 검증 API 오류 (무시하고 진행):', checkError);
       }
 
-      // 요청 데이터 준비
+      // 요청 데이터 준비 (동기 모드 사용 - Render 워커 문제 우회)
       const requestData = {
         images: images,
         cuts: cuts,  // 씬별 이미지-오디오 매칭 배열
@@ -170,7 +170,8 @@ window.DramaStep4 = {
         burnSubtitle: config.subtitleStyle !== 'none',
         resolution: resolutionMap[config.resolution] || '1920x1080',
         fps: 30,
-        transition: 'fade'
+        transition: 'fade',
+        syncMode: true  // 동기 모드: 서버에서 직접 처리 후 응답
       };
 
       // 요청 크기 확인 (디버깅)
@@ -204,41 +205,93 @@ window.DramaStep4 = {
         console.warn('[Step4] 이미지 배열이 비어있음!');
       }
 
-      // 영상 생성 API 호출 (cuts 배열 전송 - 각 씬별 이미지+오디오 매칭)
-      const response = await fetch('/api/drama/generate-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: requestBody
-      });
+      // 영상 생성 API 호출 (동기 모드: 10분 타임아웃)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10분
 
-      const data = await this.safeJsonParse(response, 'Step4-영상제작');
-      console.log('[Step4] 영상 제작 응답:', data);
+      console.log('[Step4] 동기 모드 영상 생성 시작 (최대 10분 대기)');
+      if (progressText) progressText.textContent = '영상 생성 중... (최대 10분 소요)';
 
-      if (!data.ok && !data.jobId) {
-        throw new Error(data.error || '영상 제작 요청 실패');
+      // 동기 모드에서도 진행률 폴링 시작 (별도 스레드)
+      let progressPollId = null;
+      const pollProgress = async () => {
+        try {
+          // 아직 jobId가 없으면 대기
+          if (!this.currentJobId) {
+            progressPollId = setTimeout(pollProgress, 2000);
+            return;
+          }
+
+          const statusResp = await fetch(`/api/drama/video-status/${this.currentJobId}`);
+          const statusData = await statusResp.json();
+
+          if (statusData.ok && statusData.progress > 0) {
+            if (progressBar) progressBar.style.width = `${statusData.progress}%`;
+            if (progressText) progressText.textContent = statusData.message || `영상 생성 중... ${statusData.progress}%`;
+          }
+
+          // 아직 진행 중이면 계속 폴링
+          if (statusData.status === 'processing' || statusData.status === 'pending') {
+            progressPollId = setTimeout(pollProgress, 2000);
+          }
+        } catch (e) {
+          // 폴링 오류 무시 (메인 요청이 결과 반환)
+          progressPollId = setTimeout(pollProgress, 3000);
+        }
+      };
+
+      // 짧은 지연 후 진행률 폴링 시작
+      setTimeout(() => pollProgress(), 1000);
+
+      try {
+        const response = await fetch('/api/drama/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        if (progressPollId) clearTimeout(progressPollId);
+
+        const data = await this.safeJsonParse(response, 'Step4-영상제작');
+        console.log('[Step4] 영상 제작 응답:', data);
+
+        if (!data.ok && !data.jobId) {
+          throw new Error(data.error || '영상 제작 요청 실패');
+        }
+
+        this.currentJobId = data.jobId;
+        this.notFoundRetryCount = 0; // 재시도 카운터 초기화
+
+        // 동기식 응답: 이미 완료된 경우 바로 처리
+        if (data.status === 'completed') {
+          console.log('[Step4] 동기식 영상 생성 완료');
+          this.videoUrl = data.videoUrl;
+          this.onVideoComplete(data);
+          return;
+        }
+
+        // 동기식 응답: 실패한 경우 바로 처리
+        if (data.status === 'failed') {
+          console.log('[Step4] 동기식 영상 생성 실패');
+          this.onVideoFailed(data.error || '영상 제작 실패');
+          return;
+        }
+
+        // 비동기 응답: 작업 상태 폴링 시작 (fallback)
+        if (progressText) progressText.textContent = '영상 렌더링 중...';
+        this.startPolling();
+
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (progressPollId) clearTimeout(progressPollId);
+
+        if (fetchError.name === 'AbortError') {
+          throw new Error('영상 생성 시간 초과 (10분). 다시 시도해주세요.');
+        }
+        throw fetchError;
       }
-
-      this.currentJobId = data.jobId;
-      this.notFoundRetryCount = 0; // 재시도 카운터 초기화
-
-      // 동기식 응답: 이미 완료된 경우 바로 처리
-      if (data.status === 'completed') {
-        console.log('[Step4] 동기식 영상 생성 완료');
-        this.videoUrl = data.videoUrl;
-        this.onVideoComplete(data);
-        return;
-      }
-
-      // 동기식 응답: 실패한 경우 바로 처리
-      if (data.status === 'failed') {
-        console.log('[Step4] 동기식 영상 생성 실패');
-        this.onVideoFailed(data.error || '영상 제작 실패');
-        return;
-      }
-
-      // 비동기 응답: 작업 상태 폴링 시작
-      if (progressText) progressText.textContent = '영상 렌더링 중...';
-      this.startPolling();
 
     } catch (error) {
       console.error('[Step4] 영상 제작 오류:', error);

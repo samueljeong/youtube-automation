@@ -5364,17 +5364,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 # ===== Step6: 영상 제작 API (비동기 큐 방식) =====
 @app.route('/api/drama/generate-video', methods=['POST'])
 def api_generate_video():
-    """이미지와 오디오를 합쳐서 영상 생성 (비동기 - 백그라운드 워커 사용)
+    """이미지와 오디오를 합쳐서 영상 생성 (동기/비동기 모드 지원)
 
-    Render 등 타임아웃이 있는 환경에서도 안정적으로 동작.
-    요청 즉시 job_id 반환 → 프론트엔드에서 폴링으로 상태 확인
+    - syncMode=true: 동기식 처리 (Render 백그라운드 워커 문제 우회)
+    - syncMode=false (기본): 비동기 워커 큐 사용
     """
-    print(f"[DRAMA-STEP6-VIDEO] === API 호출 시작 (비동기 모드) ===")
     try:
         data = request.get_json()
         if not data:
             print(f"[DRAMA-STEP6-VIDEO] 요청 데이터 없음")
             return jsonify({"ok": False, "error": "No data received"}), 400
+
+        # 동기 모드 여부 확인
+        sync_mode = data.get("syncMode", False)
+        print(f"[DRAMA-STEP6-VIDEO] === API 호출 시작 ({'동기 모드' if sync_mode else '비동기 모드'}) ===")
 
         # 디버깅: 요청 데이터 출력
         print(f"[DRAMA-STEP6-VIDEO] === DEBUG: 요청 데이터 ===")
@@ -5417,6 +5420,77 @@ def api_generate_video():
         # Job ID 생성
         job_id = str(uuid.uuid4())
 
+        # ===== 동기 모드: 직접 처리하고 결과 반환 =====
+        if sync_mode:
+            print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 시작: {job_id}")
+
+            # Job 상태 초기화
+            with video_jobs_lock:
+                video_jobs[job_id] = {
+                    'status': 'processing',
+                    'progress': 0,
+                    'message': '영상 생성 시작...',
+                    'result': None,
+                    'error': None,
+                    'created_at': dt.now().isoformat()
+                }
+                save_video_jobs()
+
+            try:
+                # 직접 영상 생성 실행
+                result = _generate_video_sync(
+                    images=images,
+                    audio_url=audio_url,
+                    cuts=cuts,
+                    subtitle_data=subtitle_data,
+                    burn_subtitle=burn_subtitle,
+                    resolution=resolution,
+                    fps=fps,
+                    transition=transition,
+                    job_id=job_id
+                )
+
+                # 성공
+                with video_jobs_lock:
+                    if job_id in video_jobs:
+                        video_jobs[job_id]['status'] = 'completed'
+                        video_jobs[job_id]['progress'] = 100
+                        video_jobs[job_id]['result'] = result
+                        save_video_jobs()
+
+                print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 완료: {job_id}")
+                return jsonify({
+                    "ok": True,
+                    "jobId": job_id,
+                    "status": "completed",
+                    "progress": 100,
+                    "videoUrl": result.get('video_url'),
+                    "videoPath": result.get('video_path'),
+                    "duration": result.get('duration'),
+                    "fileSize": result.get('file_size'),
+                    "message": "영상 생성 완료"
+                })
+
+            except Exception as e:
+                import traceback
+                error_msg = str(e)
+                print(f"[DRAMA-STEP6-VIDEO] 동기식 영상 생성 실패: {error_msg}")
+                traceback.print_exc()
+
+                with video_jobs_lock:
+                    if job_id in video_jobs:
+                        video_jobs[job_id]['status'] = 'failed'
+                        video_jobs[job_id]['error'] = error_msg
+                        save_video_jobs()
+
+                return jsonify({
+                    "ok": False,
+                    "jobId": job_id,
+                    "status": "failed",
+                    "error": error_msg
+                })
+
+        # ===== 비동기 모드: 워커 큐 사용 =====
         print(f"[DRAMA-STEP6-VIDEO] 비동기 영상 생성 작업 등록: {job_id}, 이미지: {len(images)}개, cuts: {len(cuts)}개")
 
         # Job 상태 초기화 - pending 상태로 시작
