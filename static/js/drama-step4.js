@@ -73,6 +73,12 @@ window.DramaStep4 = {
 
     console.log('[Step4] 생성된 cuts:', cuts.length, '개');
 
+    // 상세 디버깅: 각 cut의 audio 상태 확인
+    cuts.forEach((cut, idx) => {
+      const hasAudio = cut.audioUrl && cut.audioUrl.length > 0;
+      console.log(`[Step4] cut[${idx}] - image: ${cut.imageUrl ? '✓' : '✗'}, audio: ${hasAudio ? '✓' : '✗ (없음!)'}${hasAudio ? `, audioUrl: ${cut.audioUrl.substring(0, 50)}...` : ''}, duration: ${cut.duration}s`);
+    });
+
     return {
       images: images,
       audios: audios,
@@ -270,6 +276,14 @@ window.DramaStep4 = {
 
       console.log('[Step4] 상태 확인:', data.status, 'workerAlive:', data.workerAlive, 'progress:', data.progress);
 
+      // 에러 정보가 있으면 명확하게 출력
+      if (data.error) {
+        console.error('[Step4] ❌ 서버 에러 메시지:', data.error);
+      }
+      if (data.message) {
+        console.log('[Step4] 서버 메시지:', data.message);
+      }
+
       if (data.ok) {
         // 진행률 업데이트
         if (progressBar) progressBar.style.width = `${data.progress}%`;
@@ -378,15 +392,25 @@ window.DramaStep4 = {
 
   // 영상 제작 실패
   onVideoFailed(error) {
+    console.error('[Step4] ❌ 영상 제작 실패:', error);
+
     const btn = document.getElementById('btn-create-video');
     const progressPanel = document.getElementById('video-progress');
+    const progressText = document.getElementById('video-progress-text');
 
     if (btn) {
       btn.innerHTML = '<span class="btn-icon">🎬</span> 영상 제작하기';
       btn.disabled = false;
     }
 
-    if (progressPanel) progressPanel.classList.add('hidden');
+    // 에러 메시지를 진행 상태 영역에도 표시
+    if (progressText) {
+      progressText.textContent = `❌ 실패: ${error}`;
+      progressText.style.color = '#e74c3c';
+    }
+
+    // 진행 패널은 유지 (에러 메시지 표시용)
+    // if (progressPanel) progressPanel.classList.add('hidden');
 
     this.isCreating = false;
     DramaUtils.showStatus(`영상 제작 실패: ${error}`, 'error');

@@ -280,6 +280,14 @@ def video_worker():
             job_id = job['job_id']
             print(f"[VIDEO-WORKER] 작업 시작: {job_id}")
 
+            # 디버깅: 작업 데이터 상세 출력
+            print(f"[VIDEO-WORKER] 작업 데이터:")
+            print(f"  - images: {len(job.get('images', []))}개")
+            print(f"  - cuts: {len(job.get('cuts', []))}개")
+            print(f"  - audio_url: {'있음' if job.get('audio_url') else '없음'}")
+            print(f"  - resolution: {job.get('resolution', 'N/A')}")
+            print(f"  - fps: {job.get('fps', 'N/A')}")
+
             # 상태 업데이트: processing
             with video_jobs_lock:
                 if job_id in video_jobs:
@@ -4613,10 +4621,21 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
     import gc
 
     print(f"[DRAMA-CUTS-VIDEO] 씬별 영상 생성 시작 - {len(cuts)}개 씬")
+    print(f"[DRAMA-CUTS-VIDEO] 입력 데이터 - resolution: {resolution}, fps: {fps}, burn_subtitle: {burn_subtitle}")
+
+    # 상세 디버깅: 각 cut의 audio URL 상태 확인
+    for i, cut in enumerate(cuts):
+        audio_url = cut.get('audioUrl', '')
+        has_audio = bool(audio_url and len(audio_url) > 0)
+        print(f"[DRAMA-CUTS-VIDEO] cut[{i}] - imageUrl: {'있음' if cut.get('imageUrl') else '없음'}, audioUrl: {'있음' if has_audio else '없음 ⚠️'}, duration: {cut.get('duration', 'N/A')}")
 
     # 해상도 파싱 및 최적화 (512MB 환경)
-    width, height = resolution.split('x')
-    width, height = int(width), int(height)
+    try:
+        width, height = resolution.split('x')
+        width, height = int(width), int(height)
+    except Exception as e:
+        print(f"[DRAMA-CUTS-VIDEO] ❌ 해상도 파싱 오류: resolution='{resolution}', error={e}")
+        raise Exception(f"해상도 형식 오류: '{resolution}' (예상 형식: '1920x1080')")
 
     MAX_WIDTH = 1280
     MAX_HEIGHT = 720
@@ -4889,8 +4908,12 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
         raise Exception("FFmpeg가 설치되어 있지 않습니다. 'apt-get install ffmpeg' 명령으로 설치해주세요.")
 
     # 메모리 최적화: 해상도 자동 제한 (512MB 환경)
-    width, height = resolution.split('x')
-    width, height = int(width), int(height)
+    try:
+        width, height = resolution.split('x')
+        width, height = int(width), int(height)
+    except Exception as e:
+        print(f"[DRAMA-STEP6-VIDEO] ❌ 해상도 파싱 오류: resolution='{resolution}', error={e}")
+        raise Exception(f"해상도 형식 오류: '{resolution}' (예상 형식: '1920x1080')")
 
     # 1280x720 초과 시 자동으로 다운스케일
     MAX_WIDTH = 1280
