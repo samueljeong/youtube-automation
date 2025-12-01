@@ -4028,15 +4028,21 @@ def api_generate_tts():
             audio_data_list = []
             url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
 
-            # 속도 변환: 네이버(-5~5) -> Google(0.25~4.0), 기본값 1.0
+            # 속도 변환: 배율(0.85~1.1) 또는 네이버(-5~5) -> Google(0.25~4.0)
             if isinstance(speed, (int, float)):
-                if speed == 0:
+                if 0.1 <= speed <= 2.0:
+                    # 배율 형식 (0.85x, 0.95x, 1.0x, 1.1x 등) - 그대로 사용
+                    google_speed = speed
+                elif speed == 0:
                     google_speed = 1.0
                 else:
+                    # 네이버 형식 (-5~5)
                     google_speed = 1.0 + (speed * 0.1)  # -5->0.5, 0->1.0, 5->1.5
-                    google_speed = max(0.25, min(4.0, google_speed))
+                google_speed = max(0.25, min(4.0, google_speed))
             else:
                 google_speed = 1.0
+
+            print(f"[DRAMA-STEP5-TTS] 속도 설정: 입력={speed}, Google TTS={google_speed}")
 
             # 피치 변환: 네이버(-5~5) -> Google(-20~20)
             google_pitch = pitch * 4 if isinstance(pitch, (int, float)) else 0
