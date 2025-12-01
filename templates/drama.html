@@ -49,15 +49,24 @@
 
     <!-- Step Containers -->
     <div class="step-containers">
-      <!-- Step 1: 대본 생성 -->
+      <!-- Step 1: 대본 입력 -->
       <div id="step1-container" class="step-container active">
         <div class="step-header">
-          <h2>Step 1. 대본 생성</h2>
-          <p class="step-desc">AI가 드라마/간증 대본을 자동으로 작성합니다.</p>
+          <h2>Step 1. 대본 입력</h2>
+          <p class="step-desc">대본과 이미지 프롬프트를 입력해주세요. (4개 씬 구성)</p>
         </div>
 
         <div class="step-content">
-          <!-- 설정 패널 -->
+          <!-- YouTube 연결 상태 (상단 배치) -->
+          <div id="youtube-auth-panel" class="youtube-auth-panel">
+            <div class="auth-status-row">
+              <span id="yt-status-icon" class="auth-icon">🔗</span>
+              <span id="yt-status-text">YouTube 연결 확인 중...</span>
+              <button id="btn-yt-connect" class="btn-small btn-youtube hidden" onclick="DramaStep1.connectYouTube()">YouTube 연결</button>
+            </div>
+          </div>
+
+          <!-- 기본 설정 패널 -->
           <div class="config-panel">
             <div class="config-row">
               <div class="config-item">
@@ -69,77 +78,91 @@
                 </select>
               </div>
               <div class="config-item">
-                <label>콘텐츠 유형</label>
-                <select id="content-type">
-                  <option value="nostalgia" selected>향수 드라마 (시니어용)</option>
-                  <option value="testimony">간증 (1인칭 고백)</option>
-                  <option value="drama">드라마 (3인칭 서사)</option>
+                <label>주인공 성별</label>
+                <select id="protagonist-gender">
+                  <option value="female" selected>여성 (할머니)</option>
+                  <option value="male">남성 (할아버지)</option>
                 </select>
               </div>
               <div class="config-item">
-                <label>영상 길이</label>
-                <select id="duration">
-                  <option value="2min">2분 (짧은 쇼츠)</option>
-                  <option value="5min">5분</option>
-                  <option value="10min" selected>10분</option>
-                  <option value="20min">20분</option>
-                  <option value="30min">30분</option>
+                <label>TTS 음성 품질</label>
+                <select id="tts-voice-quality">
+                  <option value="standard">Standard (저렴)</option>
+                  <option value="wavenet" selected>Wavenet (고품질)</option>
+                  <option value="neural2">Neural2 (최고품질)</option>
                 </select>
-              </div>
-            </div>
-            <div class="config-row">
-              <div class="config-item">
-                <label>AI 모델</label>
-                <select id="ai-model">
-                  <option value="anthropic/claude-sonnet-4.5" selected>Claude Sonnet 4.5</option>
-                  <option value="openai/gpt-4o">GPT-4o</option>
-                  <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
-                </select>
-              </div>
-              <div class="config-item">
-                <label style="display: flex; align-items: center; gap: 8px;">
-                  <input type="checkbox" id="test-mode" style="width: auto;">
-                  <span>테스트 모드 (500자 제한)</span>
-                </label>
-                <small style="color: #888; font-size: 11px;">Render 무료 티어 타임아웃 방지용</small>
               </div>
             </div>
           </div>
 
-          <!-- 주제 입력 -->
-          <div class="input-section">
-            <label>주제/아이디어 (선택사항)</label>
-            <textarea id="topic-input" placeholder="예: 40년간 시골 교회를 지킨 목사의 이야기, 암 선고 후 기적적으로 회복한 할머니...&#10;비워두면 AI가 자동으로 주제를 선정합니다." rows="3"></textarea>
+          <!-- 박스 1: 주인공 & 이미지 프롬프트 -->
+          <div class="script-input-section">
+            <div class="section-header">
+              <h3>📋 박스 1: 주인공 & 이미지 프롬프트</h3>
+              <span class="section-hint">주인공 소개와 각 씬의 이미지 프롬프트를 입력하세요</span>
+            </div>
+            <textarea id="box1-protagonist" class="script-textarea" rows="12" placeholder="예시:
+## 주인공 소개
+- 이름: 이순자
+- 나이: 75세
+- 특징: 인자한 미소, 흰 머리카락
+
+## 씬별 이미지 프롬프트
+씬1: Korean elderly grandmother, 75 years old, warm smile, sitting in traditional hanok...
+씬2: Same grandmother cooking in old kitchen, 1980s Korean rural home...
+씬3: Grandmother looking at old photo album, tears in eyes...
+씬4: Grandmother hugging grandchildren, warm sunset light..."></textarea>
+          </div>
+
+          <!-- 박스 2: 씬 1 나레이션 -->
+          <div class="script-input-section">
+            <div class="section-header">
+              <h3>🎬 박스 2: 씬 1 나레이션</h3>
+              <span class="section-hint">첫 번째 씬의 나레이션 텍스트 (TTS로 읽힐 내용)</span>
+            </div>
+            <textarea id="box2-scene1" class="script-textarea" rows="8" placeholder="씬 1 나레이션을 입력하세요...
+
+예: 1975년, 충청남도 작은 시골 마을. 스물다섯 살의 순자는 새벽 4시면 어김없이 눈을 떴습니다..."></textarea>
+          </div>
+
+          <!-- 박스 3: 씬 2 나레이션 -->
+          <div class="script-input-section">
+            <div class="section-header">
+              <h3>🎬 박스 3: 씬 2 나레이션</h3>
+              <span class="section-hint">두 번째 씬의 나레이션 텍스트</span>
+            </div>
+            <textarea id="box3-scene2" class="script-textarea" rows="8" placeholder="씬 2 나레이션을 입력하세요..."></textarea>
+          </div>
+
+          <!-- 박스 4: 씬 3 나레이션 -->
+          <div class="script-input-section">
+            <div class="section-header">
+              <h3>🎬 박스 4: 씬 3 나레이션</h3>
+              <span class="section-hint">세 번째 씬의 나레이션 텍스트</span>
+            </div>
+            <textarea id="box4-scene3" class="script-textarea" rows="8" placeholder="씬 3 나레이션을 입력하세요..."></textarea>
+          </div>
+
+          <!-- 박스 5: 씬 4 나레이션 -->
+          <div class="script-input-section">
+            <div class="section-header">
+              <h3>🎬 박스 5: 씬 4 나레이션</h3>
+              <span class="section-hint">네 번째 씬의 나레이션 텍스트</span>
+            </div>
+            <textarea id="box5-scene4" class="script-textarea" rows="8" placeholder="씬 4 나레이션을 입력하세요..."></textarea>
           </div>
 
           <!-- 액션 버튼 -->
           <div class="action-buttons">
-            <button id="btn-generate-script" class="btn-primary btn-large" onclick="DramaStep1.generateScript()">
-              <span class="btn-icon">✨</span> 대본 생성하기
+            <button id="btn-save-script" class="btn-primary btn-large" onclick="DramaStep1.saveManualScript()">
+              <span class="btn-icon">💾</span> 대본 저장 및 다음 단계
             </button>
           </div>
 
-          <!-- 결과 영역 -->
-          <div id="step1-result-area" class="result-area hidden">
-            <div class="result-header">
-              <h3>생성된 대본</h3>
-              <div class="result-actions">
-                <button class="btn-small" onclick="DramaStep1.copyScript()">복사</button>
-                <button class="btn-small" onclick="DramaStep1.downloadScript()">다운로드</button>
-                <button class="btn-small btn-edit" onclick="DramaStep1.toggleEdit()">편집</button>
-              </div>
-            </div>
-            <div id="script-preview" class="script-preview"></div>
-            <textarea id="script-editor" class="script-editor hidden"></textarea>
-
-            <!-- 메타데이터 표시 -->
-            <div id="script-metadata" class="metadata-panel"></div>
-
-            <!-- 다음 단계 버튼 -->
-            <div class="next-step-buttons">
-              <button class="btn-secondary" onclick="DramaStep1.regenerate()">다시 생성</button>
-              <button class="btn-primary" onclick="DramaMain.goToStep(2)">Step 2: 이미지 생성 →</button>
-            </div>
+          <!-- 저장 완료 메시지 -->
+          <div id="step1-saved-notice" class="saved-notice hidden">
+            <span class="notice-icon">✅</span>
+            <span>대본이 저장되었습니다. 다음 단계로 진행하세요.</span>
           </div>
         </div>
       </div>
@@ -484,14 +507,14 @@
   <!-- 상태바 -->
   <div id="status-bar" class="status-bar"></div>
 
-  <!-- JavaScript (v=20241129a) -->
-  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241129a"></script>
-  <script src="{{ url_for('static', filename='js/drama-session.js') }}?v=20241129a"></script>
-  <script src="{{ url_for('static', filename='js/drama-main.js') }}?v=20251201a"></script>
-  <script src="{{ url_for('static', filename='js/drama-step1.js') }}?v=20251201a"></script>
-  <script src="{{ url_for('static', filename='js/drama-step2.js') }}?v=20251201c"></script>
-  <script src="{{ url_for('static', filename='js/drama-step3.js') }}?v=20251201b"></script>
-  <script src="{{ url_for('static', filename='js/drama-step4.js') }}?v=20251201b"></script>
-  <script src="{{ url_for('static', filename='js/drama-step5.js') }}?v=20251201a"></script>
+  <!-- JavaScript (v=20241201-manual) -->
+  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-session.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-main.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-step1.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-step2.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-step3.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-step4.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/drama-step5.js') }}?v=20241201m"></script>
 </body>
 </html>

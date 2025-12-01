@@ -1,7 +1,7 @@
 # Drama Page 재구축 프로젝트
 
 ## 현재 브랜치
-`claude/continue-drama-project-01KQQZxkRrNckrCe4XoD7WCQ`
+`claude/continue-drama-session-01UA73Rm8DTaYNdoLjaZGFiA`
 
 ## 프로젝트 개요
 Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
@@ -114,8 +114,26 @@ Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
 2. ~~각 step별 JS 모듈 구현~~ ✅ 완료
 3. ~~TTS 5000바이트 제한 해결~~ ✅ 완료
 4. ~~이미지 프롬프트 튜닝 - 한국인/70-80년대 감도~~ ✅ 완료
-5. 실제 동작 테스트 (API 키 설정 필요) - 1분 테스트 완주
-6. 전체 파이프라인 통합 테스트
+5. ~~실제 동작 테스트~~ ✅ 완료 (2024-12-01)
+6. ~~전체 파이프라인 통합 테스트~~ ✅ 완료 - YouTube 업로드 성공!
+
+## 🎉 프로젝트 완료 (2024-12-01)
+- 전체 5스텝 파이프라인 정상 동작 확인
+- Step1(대본) → Step2(이미지) → Step3(TTS) → Step4(영상) → Step5(YouTube 업로드) 완주
+
+## 🆕 수동 대본 입력 모드 (2024-12-01)
+- Step1 UI 변경: 자동 생성 → 수동 입력 5개 박스
+  - 박스1: 주인공 소개 + 이미지 프롬프트
+  - 박스2-5: 씬1-4 나레이션
+- YouTube 인증을 Step1 상단으로 이동
+- 주인공 성별 선택 → TTS 음성 자동 매칭
+  - 여성: ko-KR-Wavenet-A / Neural2-A
+  - 남성: ko-KR-Wavenet-C / Neural2-B
+- TTS 음성 품질 선택 (Standard/Wavenet/Neural2)
+
+## 알려진 이슈 (진행 중)
+- 영상에 소리/자막 누락 문제 - 서버 로그 확인 필요
+  - `[DRAMA-PARALLEL] 씬 X: 오디오=True/False` 로그 확인
 
 ## 참고 사항
 - 이미지 생성: Gemini (기본) / FLUX.1 Pro / DALL-E 3 지원

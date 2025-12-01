@@ -28,6 +28,16 @@ window.DramaStep3 = {
     const step1Data = DramaSession.getStepData('step1');
     console.log('[Step3] step1Data 전체:', step1Data);
 
+    // 수동 입력 모드 처리 (type: 'manual')
+    if (step1Data?.type === 'manual' && step1Data.scenes) {
+      console.log('[Step3] 수동 입력 모드 - scenes 배열 사용');
+      return step1Data.scenes.map(scene => ({
+        id: scene.id,
+        text: scene.narration
+      })).filter(s => s.text && s.text.length > 0);
+    }
+
+    // 기존 자동 생성 모드 처리
     if (!step1Data?.content) {
       console.log('[Step3] step1Data.content가 없음');
       return null;
@@ -524,15 +534,52 @@ window.DramaStep3 = {
     return result;
   },
 
-  // 음성 스타일에 따른 음성 선택
+  // 음성 스타일에 따른 음성 선택 (성별 + 품질 연동)
   getVoiceSettings(style) {
     const config = this.getConfig();
+
+    // Step1에서 저장한 성별/품질 정보 가져오기
+    const gender = dramaApp.session.protagonistGender || 'female';
+    const quality = dramaApp.session.ttsVoiceQuality || 'wavenet';
+
+    console.log('[Step3] TTS 설정 - 성별:', gender, ', 품질:', quality);
+
+    // 품질별 음성 매핑
     const voiceMap = {
-      'warm': { speaker: 'ko-KR-Wavenet-A', pitch: -2, volume: 0 },
-      'neutral': { speaker: 'ko-KR-Wavenet-B', pitch: 0, volume: 0 },
-      'dramatic': { speaker: 'ko-KR-Wavenet-C', pitch: 2, volume: 2 }
+      // Standard (저렴)
+      standard: {
+        female: 'ko-KR-Standard-A',
+        male: 'ko-KR-Standard-C'
+      },
+      // Wavenet (고품질)
+      wavenet: {
+        female: 'ko-KR-Wavenet-A',
+        male: 'ko-KR-Wavenet-C'
+      },
+      // Neural2 (최고품질)
+      neural2: {
+        female: 'ko-KR-Neural2-A',
+        male: 'ko-KR-Neural2-B'
+      }
     };
-    return voiceMap[style] || voiceMap['warm'];
+
+    // 스타일별 pitch/volume 조정
+    const styleSettings = {
+      'warm': { pitch: -2, volume: 0 },
+      'neutral': { pitch: 0, volume: 0 },
+      'dramatic': { pitch: 2, volume: 2 }
+    };
+
+    const speaker = voiceMap[quality]?.[gender] || voiceMap.wavenet.female;
+    const settings = styleSettings[style] || styleSettings['warm'];
+
+    console.log('[Step3] 선택된 음성:', speaker);
+
+    return {
+      speaker: speaker,
+      pitch: settings.pitch,
+      volume: settings.volume
+    };
   },
 
   // TTS 생성 (병렬 처리 지원)
