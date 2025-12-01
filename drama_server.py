@@ -8592,6 +8592,27 @@ def api_product_analyze_script():
 
 
 # ===== Image Lab API =====
+def load_prompt_guides():
+    """프롬프트 가이드 파일들 로드"""
+    guides = {}
+
+    # 전문가 프롬프트 가이드
+    try:
+        with open('guides/prompt-expert-guide.json', 'r', encoding='utf-8') as f:
+            guides['expert'] = json.load(f)
+    except:
+        guides['expert'] = None
+
+    # 한국인 시니어 이미지 가이드
+    try:
+        with open('guides/korean-senior-image-prompts.json', 'r', encoding='utf-8') as f:
+            guides['korean_senior'] = json.load(f)
+    except:
+        guides['korean_senior'] = None
+
+    return guides
+
+
 @app.route('/api/image/analyze-script', methods=['POST'])
 def api_image_analyze_script():
     """이미지 제작용 대본 분석 - 씬 분리 + 썸네일/이미지 프롬프트 생성"""
@@ -8608,61 +8629,85 @@ def api_image_analyze_script():
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
 
-        # 주인공 타입별 프롬프트 가이드
+        # 가이드 파일 로드
+        guides = load_prompt_guides()
+        korean_senior = guides.get('korean_senior', {})
+        expert_guide = guides.get('expert', {})
+
+        # 한국인 시니어 가이드에서 주인공 설명 가져오기
+        ethnicity_prefix = korean_senior.get('koreanEthnicityPrefix', {}) if korean_senior else {}
         protagonist_guides = {
-            'grandmother': 'Korean grandmother (halmeoni), elderly Korean woman in her 70s, round face, single eyelids typical of Korean elderly, warm wrinkled smile, permed short gray hair',
-            'grandfather': 'Korean grandfather (harabeoji), elderly Korean man in his 70s, angular Korean face, weathered kind face, balding or short gray hair',
-            'young-woman': 'Young Korean woman in her 20s-30s, modern Korean beauty features',
-            'young-man': 'Young Korean man in his 20s-30s, clean-cut Korean features',
+            'grandmother': ethnicity_prefix.get('elderly_grandmother', 'Korean grandmother (halmeoni), elderly Korean woman in her 70s'),
+            'grandfather': ethnicity_prefix.get('elderly_grandfather', 'Korean grandfather (harabeoji), elderly Korean man in his 70s'),
+            'young-woman': ethnicity_prefix.get('middle_aged_woman', 'Young Korean woman in her 20s-30s'),
+            'young-man': ethnicity_prefix.get('middle_aged_man', 'Young Korean man in his 20s-30s'),
             'none': ''
         }
 
-        # 스타일별 프롬프트 가이드
+        # 시대 감성 스타일 가이드
+        era_guide = korean_senior.get('era_1970s_1980s', {}).get('visual_style', {}) if korean_senior else {}
         style_guides = {
-            'nostalgic': '1970s-1980s South Korea nostalgic atmosphere, vintage Korean film photography, slightly faded warm colors, film grain texture',
-            'realistic': 'photorealistic, high quality photography, natural lighting',
-            'cinematic': 'cinematic lighting, dramatic composition, movie still quality',
-            'warm': 'warm color tones, soft lighting, cozy atmosphere'
+            'nostalgic': era_guide.get('film_look', '1970s-1980s South Korea nostalgic atmosphere, vintage Korean film photography, slightly faded warm colors, film grain texture'),
+            'realistic': 'photorealistic, high quality photography, natural lighting, sharp focus',
+            'cinematic': 'cinematic lighting, dramatic composition, movie still quality, shallow depth of field',
+            'warm': 'warm color tones, soft diffused lighting, cozy atmosphere, golden hour warmth'
         }
 
         protagonist_desc = protagonist_guides.get(protagonist_type, '')
         style_desc = style_guides.get(image_style, '')
 
-        system_prompt = f"""당신은 유튜브 콘텐츠용 이미지 제작 전문가입니다.
-사용자가 제공한 대본을 분석하여:
-1. 유튜브 썸네일용 제목과 이미지 프롬프트
-2. 각 씬별 나레이션과 이미지 프롬프트
+        # 전문가 가이드에서 시스템 프롬프트 템플릿 가져오기
+        expert_system_template = expert_guide.get('systemPromptTemplate', '') if expert_guide else ''
 
-를 생성합니다.
+        # 예시 프롬프트
+        example_prompts = expert_guide.get('examplePrompts', {}) if expert_guide else {}
+        example_prompt = example_prompts.get('koreanElderly', '') if protagonist_type in ['grandmother', 'grandfather'] else example_prompts.get('portrait', '')
 
-주인공 스타일: {protagonist_desc}
-이미지 스타일: {style_desc}
+        system_prompt = f"""당신의 역할은 AI 이미지용 프롬프트를 전문적으로 작성해 주는 비서입니다.
 
-응답은 반드시 다음 JSON 형식으로:
+## 프롬프트 작성 원칙
+1. 출력 프롬프트는 항상 영어로 작성합니다.
+2. 프롬프트는 짧지만 정보 밀도가 높은 한 문단으로 작성합니다.
+3. 다음 요소를 최대한 포함합니다:
+   - [subject] 피사체/장면 - 프롬프트 맨 앞에 배치
+   - [environment] 배경, 장소
+   - [lighting] 조명 방향·세기·분위기 (예: soft natural light, warm golden hour, dramatic side lighting)
+   - [color] 색감·톤 (예: warm tones, muted colors, film color grading)
+   - [camera] 샷 종류(wide/medium/close-up), 렌즈(24mm/50mm/85mm), depth of field
+   - [style] 사진/시네마틱 등 스타일
+   - [mood] 감정·분위기 (예: nostalgic, peaceful, dramatic)
+4. 형용사+명사 조합을 선호합니다 (예: soft golden sunlight, weathered wooden door)
+5. 중복 표현을 줄입니다 (highly detailed, 8k 등은 1-2개만 사용)
+
+## 주인공 스타일 (반드시 프롬프트에 포함)
+{protagonist_desc}
+
+## 이미지 스타일
+{style_desc}
+
+## 예시 프롬프트
+{example_prompt}
+
+## 출력 형식 (반드시 JSON)
 {{
   "thumbnail": {{
-    "title": "유튜브 썸네일에 들어갈 한글 제목 (짧고 임팩트 있게)",
-    "prompt": "English thumbnail image prompt"
+    "title": "유튜브 썸네일용 한글 제목 (짧고 임팩트 있게, 6자 이내 권장)",
+    "prompt": "English thumbnail image prompt with all elements above"
   }},
   "scenes": [
     {{
       "scene_number": 1,
-      "narration": "한국어 나레이션",
-      "image_prompt": "English image prompt for this scene"
+      "narration": "한국어 나레이션 (원본 대본 기반)",
+      "image_prompt": "English image prompt with subject, environment, lighting, color, camera, style, mood"
     }}
   ]
-}}
-
-이미지 프롬프트 규칙:
-1. 반드시 영문으로 작성
-2. 주인공이 있으면 주인공 설명을 포함
-3. 설정된 이미지 스타일 적용
-4. 감정과 분위기를 잘 표현"""
+}}"""
 
         user_prompt = f"""대본:
 {script}
 
-위 대본을 4~8개 씬으로 분리하고, 썸네일과 각 씬에 맞는 이미지 프롬프트를 생성해주세요."""
+위 대본을 4~8개 씬으로 분리하고, 각 씬에 맞는 전문가급 이미지 프롬프트를 생성해주세요.
+프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
