@@ -1,6 +1,8 @@
 """
 YouTube Auth for Step 5
 YouTube Data API v3 OAuth2 인증
+- 환경변수 지원 (YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET)
+- 파일 지원 (config/client_secret.json)
 """
 
 import os
@@ -11,11 +13,26 @@ from typing import Any, Optional, Dict
 CLIENT_SECRET_FILE = os.getenv("YOUTUBE_CLIENT_SECRET_PATH", "config/client_secret.json")
 TOKEN_FILE = os.getenv("YOUTUBE_TOKEN_PATH", "config/youtube_token.json")
 
+# 환경변수에서 OAuth 정보 가져오기
+YOUTUBE_CLIENT_ID = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
+YOUTUBE_CLIENT_SECRET = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+YOUTUBE_REDIRECT_URI = os.getenv('YOUTUBE_REDIRECT_URI', 'https://drama-s2ns.onrender.com/api/youtube/callback')
+
 # YouTube API 스코프
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly"
 ]
+
+
+def has_env_credentials() -> bool:
+    """환경변수에 OAuth 정보가 있는지 확인"""
+    return bool(YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET)
+
+
+def has_file_credentials() -> bool:
+    """파일에 OAuth 정보가 있는지 확인"""
+    return os.path.exists(CLIENT_SECRET_FILE)
 
 
 def get_youtube_client() -> Any:
@@ -131,6 +148,7 @@ def get_channel_info() -> Optional[Dict[str, Any]]:
 def validate_credentials() -> Dict[str, Any]:
     """
     인증 정보 유효성 검사
+    - 환경변수 또는 파일 기반 인증 지원
 
     Returns:
         {'valid': bool, 'mode': str, 'message': str, 'channel': dict|None}
@@ -147,14 +165,18 @@ def validate_credentials() -> Dict[str, Any]:
             "channel": None
         }
 
-    # 2. client_secret 파일 확인
-    if not os.path.exists(CLIENT_SECRET_FILE):
+    # 2. OAuth 정보 확인 (환경변수 또는 파일)
+    if not has_env_credentials() and not has_file_credentials():
         return {
             "valid": False,
             "mode": "test",
-            "message": f"Client secret 파일이 없습니다: {CLIENT_SECRET_FILE}",
+            "message": "YouTube API 인증 정보가 없습니다. YOUTUBE_CLIENT_ID/YOUTUBE_CLIENT_SECRET 환경변수 또는 config/client_secret.json 파일이 필요합니다.",
             "channel": None
         }
+
+    # 환경변수 사용 시 로그
+    if has_env_credentials():
+        print(f"[YOUTUBE-AUTH] 환경변수 인증 사용 (CLIENT_ID: {YOUTUBE_CLIENT_ID[:20]}...)")
 
     # 3. 토큰 파일 확인
     if not os.path.exists(TOKEN_FILE):

@@ -7808,44 +7808,106 @@ def youtube_upload():
             else:
                 full_thumbnail_path = thumbnail_path
 
-        # 실제 업로드 시도
+        # 실제 업로드 시도 (DB 토큰 직접 사용)
         try:
-            import sys
-            sys.path.insert(0, os.path.dirname(__file__))
+            from google.oauth2.credentials import Credentials
+            from google.auth.transport.requests import Request
+            from googleapiclient.discovery import build
+            from googleapiclient.http import MediaFileUpload
 
-            from step5_youtube_upload.youtube_auth import check_auth_status
-            from step5_youtube_upload.upload_video import upload_video_to_youtube
+            # DB에서 토큰 로드
+            token_data = load_youtube_token_from_db()
 
-            # 인증 상태 확인
-            auth_status = check_auth_status()
-
-            if auth_status.get('connected'):
-                # 실제 업로드 실행
-                print(f"[YOUTUBE-UPLOAD] 실제 업로드 시작 - 채널: {auth_status.get('channelName')}")
-
-                result = upload_video_to_youtube(
-                    video_path=full_path,
-                    title=title,
-                    description=description,
-                    tags=tags,
-                    category_id=category_id,
-                    privacy_status=privacy_status,
-                    thumbnail_path=full_thumbnail_path
+            if not token_data or not token_data.get('refresh_token'):
+                print(f"[YOUTUBE-UPLOAD] 테스트 모드 - DB에 토큰 없음")
+            else:
+                # Credentials 객체 생성
+                creds = Credentials(
+                    token=token_data.get('token'),
+                    refresh_token=token_data.get('refresh_token'),
+                    token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                    client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
+                    client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
+                    scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
                 )
 
-                if result.get('ok'):
-                    print(f"[YOUTUBE-UPLOAD] 업로드 성공: {result.get('videoUrl')}")
-                    return jsonify(result)
-                else:
-                    print(f"[YOUTUBE-UPLOAD] 업로드 실패: {result.get('error')}")
-                    return jsonify(result)
+                # 토큰 만료 시 갱신
+                if creds.expired and creds.refresh_token:
+                    print("[YOUTUBE-UPLOAD] 토큰 갱신 중...")
+                    creds.refresh(Request())
+                    # 갱신된 토큰 저장
+                    updated_token = {
+                        'token': creds.token,
+                        'refresh_token': creds.refresh_token,
+                        'token_uri': creds.token_uri,
+                        'client_id': creds.client_id,
+                        'client_secret': creds.client_secret,
+                        'scopes': list(creds.scopes) if creds.scopes else []
+                    }
+                    save_youtube_token_to_db(updated_token)
 
-            else:
-                # 테스트 모드로 폴백
-                print(f"[YOUTUBE-UPLOAD] 테스트 모드 - 이유: {auth_status.get('message')}")
+                # YouTube API 클라이언트 생성
+                youtube = build('youtube', 'v3', credentials=creds)
+
+                # 업로드 실행
+                print(f"[YOUTUBE-UPLOAD] 실제 업로드 시작 - 파일: {full_path}")
+
+                body = {
+                    'snippet': {
+                        'title': title,
+                        'description': description,
+                        'tags': tags if tags else [],
+                        'categoryId': category_id
+                    },
+                    'status': {
+                        'privacyStatus': privacy_status,
+                        'selfDeclaredMadeForKids': False
+                    }
+                }
+
+                media = MediaFileUpload(
+                    full_path,
+                    mimetype='video/mp4',
+                    resumable=True,
+                    chunksize=1024*1024  # 1MB chunks
+                )
+
+                request_obj = youtube.videos().insert(
+                    part='snippet,status',
+                    body=body,
+                    media_body=media
+                )
+
+                response = None
+                while response is None:
+                    status, response = request_obj.next_chunk()
+                    if status:
+                        print(f"[YOUTUBE-UPLOAD] 진행률: {int(status.progress() * 100)}%")
+
+                video_id = response.get('id')
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+                print(f"[YOUTUBE-UPLOAD] 업로드 성공: {video_url}")
+
+                return jsonify({
+                    "ok": True,
+                    "mode": "live",
+                    "videoId": video_id,
+                    "videoUrl": video_url,
+                    "status": "uploaded",
+                    "message": "YouTube 업로드 완료!",
+                    "metadata": {
+                        "title": title,
+                        "privacyStatus": privacy_status
+                    }
+                })
 
         except ImportError as e:
-            print(f"[YOUTUBE-UPLOAD] 모듈 임포트 오류: {e}")
+            print(f"[YOUTUBE-UPLOAD] 라이브러리 없음: {e}")
+        except Exception as upload_error:
+            print(f"[YOUTUBE-UPLOAD] 업로드 오류: {upload_error}")
+            import traceback
+            traceback.print_exc()
 
         # 테스트 모드: 가상의 videoId 생성
         import random
