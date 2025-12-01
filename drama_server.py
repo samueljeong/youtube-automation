@@ -1181,6 +1181,10 @@ def home():
 def drama():
     return render_template("drama.html")
 
+@app.route("/product")
+def product():
+    return render_template("product.html")
+
 @app.route("/health")
 def health():
     return jsonify({"ok": True})
@@ -8508,6 +8512,76 @@ def generate_thumbnails():
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== Product Lab API =====
+@app.route('/api/product/analyze-script', methods=['POST'])
+def api_product_analyze_script():
+    """상품 대본 분석 - AI가 씬과 이미지 프롬프트를 자동 생성"""
+    try:
+        data = request.get_json()
+        product_name = data.get('product_name', '상품')
+        category = data.get('category', 'etc')
+        script = data.get('script', '')
+
+        if not script:
+            return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
+
+        # GPT-4o-mini로 대본 분석
+        system_prompt = """당신은 상품 홍보 영상 제작 전문가입니다.
+사용자가 제공한 상품 설명 대본을 분석하여 영상 씬으로 분리하고, 각 씬에 맞는 이미지 프롬프트를 생성합니다.
+
+응답은 반드시 다음 JSON 형식으로 해주세요:
+{
+  "scenes": [
+    {
+      "scene_number": 1,
+      "narration": "한국어 나레이션 텍스트",
+      "image_prompt": "English image generation prompt for this scene"
+    }
+  ]
+}
+
+이미지 프롬프트 작성 규칙:
+1. 영문으로 작성
+2. 상품을 돋보이게 하는 프로페셔널한 제품 사진 스타일
+3. 밝고 깨끗한 배경, 좋은 조명
+4. 상품 카테고리에 맞는 분위기 (전자제품=모던/미니멀, 뷰티=소프트/엘레강스, 식품=신선/맛있는)"""
+
+        user_prompt = f"""상품명: {product_name}
+카테고리: {category}
+
+대본:
+{script}
+
+위 대본을 3~6개의 씬으로 분리하고, 각 씬에 맞는 이미지 프롬프트를 생성해주세요.
+나레이션은 원본 대본의 문장을 그대로 사용하거나 약간 다듬어서 사용하세요."""
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        result_text = response.choices[0].message.content
+        result = json.loads(result_text)
+
+        return jsonify({
+            "ok": True,
+            "scenes": result.get("scenes", []),
+            "product_name": product_name,
+            "category": category
+        })
+
+    except Exception as e:
+        print(f"[PRODUCT-ANALYZE][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ===== Render 배포를 위한 설정 =====

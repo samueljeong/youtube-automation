@@ -10,7 +10,7 @@
 <body>
   <!-- Auth Header -->
   <div class="auth-header">
-    <h1>Drama Lab</h1>
+    <h1>Creator Lab</h1>
     <div class="auth-links">
       <span id="session-info" class="session-info"></span>
       <button id="btn-new-session" class="btn-header" onclick="DramaMain.newSession()">새 프로젝트</button>
@@ -18,7 +18,25 @@
     </div>
   </div>
 
-  <div id="drama-app">
+  <!-- Main Layout with Sidebar -->
+  <div class="main-layout">
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="/drama" class="sidebar-item active" data-page="drama">
+          <span class="sidebar-icon">🎬</span>
+          <span class="sidebar-label">드라마 제작</span>
+        </a>
+        <a href="/product" class="sidebar-item" data-page="product">
+          <span class="sidebar-icon">📦</span>
+          <span class="sidebar-label">상품 제작</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <div id="drama-app">
     <!-- Step Progress Bar -->
     <div class="step-progress">
       <div class="step-item active" data-step="1">
@@ -538,7 +556,8 @@
         </div>
       </div>
     </div>
-  </div>
+      </div><!-- /main-content -->
+  </div><!-- /main-layout -->
 
   <!-- 로딩 오버레이 -->
   <div id="loading-overlay" class="loading-overlay">

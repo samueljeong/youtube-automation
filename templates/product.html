@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>Product Lab - 상품 영상 제작</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%2310b981' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>P</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/product.css') }}">
+</head>
+<body>
+  <!-- Auth Header -->
+  <div class="auth-header">
+    <h1>Creator Lab</h1>
+    <div class="auth-links">
+      <span id="session-info" class="session-info"></span>
+      <button id="btn-new-session" class="btn-header" onclick="ProductMain.newSession()">새 프로젝트</button>
+      <a href="/" class="btn-home">홈</a>
+    </div>
+  </div>
+
+  <!-- Main Layout with Sidebar -->
+  <div class="main-layout">
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="/drama" class="sidebar-item" data-page="drama">
+          <span class="sidebar-icon">🎬</span>
+          <span class="sidebar-label">드라마 제작</span>
+        </a>
+        <a href="/product" class="sidebar-item active" data-page="product">
+          <span class="sidebar-icon">📦</span>
+          <span class="sidebar-label">상품 제작</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <div id="product-app">
+        <!-- Step Progress Bar -->
+        <div class="step-progress">
+          <div class="step-item active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">대본 입력</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-item" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">이미지 생성</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-item" data-step="3">
+            <div class="step-number">3</div>
+            <div class="step-label">TTS 음성</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-item" data-step="4">
+            <div class="step-number">4</div>
+            <div class="step-label">영상 제작</div>
+          </div>
+        </div>
+
+        <!-- Step Containers -->
+        <div class="step-containers">
+          <!-- Step 1: 대본 입력 -->
+          <div id="step1-container" class="step-container active">
+            <div class="step-header">
+              <h2>Step 1. 상품 대본 입력</h2>
+              <p class="step-desc">상품 설명 대본을 입력하면 AI가 씬을 자동으로 분리합니다.</p>
+            </div>
+
+            <div class="step-content">
+              <!-- 상품 정보 패널 -->
+              <div class="product-info-panel">
+                <div class="section-header">
+                  <h3>📦 상품 기본 정보</h3>
+                </div>
+                <div class="config-row">
+                  <div class="config-item">
+                    <label>상품명</label>
+                    <input type="text" id="product-name" placeholder="예: 프리미엄 무선 이어폰">
+                  </div>
+                  <div class="config-item">
+                    <label>카테고리</label>
+                    <select id="product-category">
+                      <option value="electronics">전자제품</option>
+                      <option value="fashion">패션/의류</option>
+                      <option value="beauty">뷰티/화장품</option>
+                      <option value="food">식품</option>
+                      <option value="home">가정/생활</option>
+                      <option value="etc">기타</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TTS 음성 선택 -->
+              <div class="voice-selection-section">
+                <div class="section-header">
+                  <h3>🎙️ 나레이션 음성 선택</h3>
+                  <span class="section-hint">미리듣기 버튼으로 음성을 확인하세요</span>
+                </div>
+                <input type="hidden" id="selected-voice" value="ko-KR-Neural2-A">
+
+                <div class="voice-cards">
+                  <!-- 여성 음성 -->
+                  <div class="voice-category">
+                    <h4>👩 여성 음성</h4>
+                    <div class="voice-options">
+                      <label class="voice-card selected" data-voice="ko-KR-Neural2-A" data-gender="female">
+                        <input type="radio" name="tts-voice" value="ko-KR-Neural2-A" checked>
+                        <div class="voice-info">
+                          <span class="voice-name">차분한 여성</span>
+                          <span class="voice-desc">Neural2-A · 따뜻하고 안정적</span>
+                        </div>
+                        <button type="button" class="btn-preview" onclick="ProductMain.previewVoice('ko-KR-Neural2-A', 'female')">▶</button>
+                      </label>
+                      <label class="voice-card" data-voice="ko-KR-Neural2-B" data-gender="female">
+                        <input type="radio" name="tts-voice" value="ko-KR-Neural2-B">
+                        <div class="voice-info">
+                          <span class="voice-name">밝은 여성</span>
+                          <span class="voice-desc">Neural2-B · 경쾌하고 친근</span>
+                        </div>
+                        <button type="button" class="btn-preview" onclick="ProductMain.previewVoice('ko-KR-Neural2-B', 'female')">▶</button>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- 남성 음성 -->
+                  <div class="voice-category">
+                    <h4>👨 남성 음성</h4>
+                    <div class="voice-options">
+                      <label class="voice-card" data-voice="ko-KR-Neural2-C" data-gender="male">
+                        <input type="radio" name="tts-voice" value="ko-KR-Neural2-C">
+                        <div class="voice-info">
+                          <span class="voice-name">중후한 남성</span>
+                          <span class="voice-desc">Neural2-C · 깊고 신뢰감</span>
+                        </div>
+                        <button type="button" class="btn-preview" onclick="ProductMain.previewVoice('ko-KR-Neural2-C', 'male')">▶</button>
+                      </label>
+                      <label class="voice-card" data-voice="ko-KR-Wavenet-D" data-gender="male">
+                        <input type="radio" name="tts-voice" value="ko-KR-Wavenet-D">
+                        <div class="voice-info">
+                          <span class="voice-name">젊은 남성</span>
+                          <span class="voice-desc">Wavenet-D · 활기찬 톤</span>
+                        </div>
+                        <button type="button" class="btn-preview" onclick="ProductMain.previewVoice('ko-KR-Wavenet-D', 'male')">▶</button>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 오디오 플레이어 (숨김) -->
+                <audio id="voice-preview-player" style="display:none;"></audio>
+              </div>
+
+              <!-- 상품 대본 입력 -->
+              <div class="script-input-section">
+                <div class="section-header">
+                  <h3>📝 상품 설명 대본</h3>
+                  <span class="section-hint">상품 설명을 입력하면 AI가 씬을 자동 분리합니다</span>
+                </div>
+                <textarea id="product-script" class="script-textarea" rows="15" placeholder="여기에 상품 설명 대본을 입력하세요...
+
+예시:
+안녕하세요, 오늘 소개해드릴 제품은 프리미엄 무선 이어폰입니다.
+
+첫 번째 특징은 놀라운 음질입니다.
+40mm 대형 드라이버가 풍부한 저음과 선명한 고음을 전달합니다.
+
+두 번째는 편안한 착용감입니다.
+인체공학적 설계로 장시간 착용해도 피로하지 않습니다.
+
+세 번째는 긴 배터리 수명입니다.
+한 번 충전으로 최대 30시간 사용이 가능합니다.
+
+지금 바로 만나보세요!"></textarea>
+
+                <div class="script-actions">
+                  <button id="btn-analyze-script" class="btn-primary" onclick="ProductMain.analyzeScript()">
+                    <span class="btn-icon">🤖</span> AI 대본 분석하기
+                  </button>
+                  <span class="action-hint">GPT가 씬과 이미지 프롬프트를 자동 생성합니다</span>
+                </div>
+              </div>
+
+              <!-- AI 분석 진행 상태 -->
+              <div id="analysis-progress" class="progress-panel hidden">
+                <h3>대본 분석 중...</h3>
+                <div class="progress-bar-container">
+                  <div id="analysis-progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="analysis-progress-text" class="progress-text">AI가 대본을 분석하고 있습니다...</div>
+              </div>
+
+              <!-- AI 분석 결과 (씬/샷 트리) -->
+              <div id="analysis-result" class="analysis-result hidden">
+                <div class="section-header">
+                  <h3>🎬 분석 결과</h3>
+                  <span class="section-hint">각 씬의 이미지 프롬프트와 나레이션을 확인/수정하세요</span>
+                </div>
+                <div id="scene-shot-tree" class="scene-shot-tree">
+                  <!-- JS로 동적 생성 -->
+                </div>
+              </div>
+
+              <!-- 액션 버튼 -->
+              <div class="action-buttons">
+                <button id="btn-save-script" class="btn-primary btn-large hidden" onclick="ProductMain.saveAnalyzedScript()">
+                  <span class="btn-icon">💾</span> 분석 결과 저장 및 다음 단계
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: 이미지 생성 -->
+          <div id="step2-container" class="step-container">
+            <div class="step-header">
+              <h2>Step 2. 이미지 생성</h2>
+              <p class="step-desc">상품 홍보를 위한 이미지를 AI가 생성합니다.</p>
+            </div>
+
+            <div class="step-content">
+              <div class="config-panel">
+                <div class="config-row">
+                  <div class="config-item">
+                    <label>이미지 생성 모델</label>
+                    <select id="image-model">
+                      <option value="gemini" selected>Google Gemini (무료)</option>
+                      <option value="flux">FLUX.1 Pro (고품질)</option>
+                      <option value="dalle">DALL-E 3 (OpenAI)</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>이미지 스타일</label>
+                    <select id="image-style">
+                      <option value="product-photo" selected>제품 사진 (Product Photo)</option>
+                      <option value="lifestyle">라이프스타일 (Lifestyle)</option>
+                      <option value="minimal">미니멀 (Minimal)</option>
+                      <option value="vibrant">생동감 (Vibrant)</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>이미지 비율</label>
+                    <select id="image-ratio">
+                      <option value="16:9" selected>16:9 (유튜브)</option>
+                      <option value="9:16">9:16 (쇼츠/릴스)</option>
+                      <option value="1:1">1:1 (정사각형)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 씬별 이미지 생성 -->
+              <div id="scene-images-area" class="scene-images-area hidden">
+                <div class="scene-images-header">
+                  <h3>씬별 이미지</h3>
+                  <div class="batch-actions">
+                    <button class="btn-small" onclick="ProductMain.generateAllImages()">모든 이미지 생성</button>
+                  </div>
+                </div>
+                <div id="scene-image-list" class="scene-image-list"></div>
+              </div>
+
+              <!-- 다음 단계 버튼 -->
+              <div id="step2-next" class="next-step-buttons hidden">
+                <button class="btn-secondary" onclick="ProductMain.goToStep(1)">← Step 1: 대본</button>
+                <button class="btn-primary" onclick="ProductMain.goToStep(3)">Step 3: TTS 음성 →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: TTS 음성합성 -->
+          <div id="step3-container" class="step-container">
+            <div class="step-header">
+              <h2>Step 3. TTS 음성합성</h2>
+              <p class="step-desc">대본을 자연스러운 음성으로 변환합니다.</p>
+            </div>
+
+            <div class="step-content">
+              <!-- TTS 설정 -->
+              <div class="config-panel">
+                <div class="config-row">
+                  <div class="config-item">
+                    <label>TTS 엔진</label>
+                    <select id="tts-engine">
+                      <option value="google" selected>Google Cloud TTS</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>말하기 속도</label>
+                    <select id="speech-rate">
+                      <option value="0.9">느리게 (0.9x)</option>
+                      <option value="1.0" selected>보통 (1.0x)</option>
+                      <option value="1.1">약간 빠르게 (1.1x)</option>
+                      <option value="1.2">빠르게 (1.2x)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TTS 생성 진행 상황 -->
+              <div id="tts-progress" class="progress-panel hidden">
+                <h3>음성 생성 진행</h3>
+                <div class="progress-bar-container">
+                  <div id="tts-progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="tts-progress-text" class="progress-text">준비 중...</div>
+              </div>
+
+              <!-- 생성된 음성 목록 -->
+              <div id="tts-result-area" class="tts-result-area hidden">
+                <h3>생성된 음성</h3>
+                <div id="tts-audio-list" class="tts-audio-list"></div>
+              </div>
+
+              <!-- 액션 버튼 -->
+              <div class="action-buttons">
+                <button id="btn-generate-tts" class="btn-primary btn-large" onclick="ProductMain.generateTTS()">
+                  <span class="btn-icon">🎙️</span> 음성 생성하기
+                </button>
+              </div>
+
+              <!-- 다음 단계 버튼 -->
+              <div id="step3-next" class="next-step-buttons hidden">
+                <button class="btn-secondary" onclick="ProductMain.goToStep(2)">← Step 2: 이미지</button>
+                <button class="btn-primary" onclick="ProductMain.goToStep(4)">Step 4: 영상 제작 →</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: 씬별 클립 다운로드 -->
+          <div id="step4-container" class="step-container">
+            <div class="step-header">
+              <h2>Step 4. 씬별 클립 다운로드</h2>
+              <p class="step-desc">각 씬의 이미지+오디오를 MP4로 변환하여 다운로드합니다.</p>
+            </div>
+
+            <div class="step-content">
+              <!-- 안내 메시지 -->
+              <div class="info-panel">
+                <div class="info-icon">💡</div>
+                <div class="info-text">
+                  <strong>씬별 MP4 클립</strong>을 다운로드하여 CapCut, Premiere 등에서 편집하세요.
+                  <ul>
+                    <li>각 씬: 이미지 + TTS 오디오 → MP4 변환</li>
+                    <li>상품 이미지나 추가 효과를 자유롭게 삽입 가능</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- 씬 클립 목록 -->
+              <div id="scene-clips-list" class="scene-clips-list">
+                <h3>📁 생성할 클립 목록</h3>
+                <div id="scene-clips-items" class="scene-clips-items">
+                  <div class="empty-message">Step 2, 3을 먼저 완료해주세요.</div>
+                </div>
+              </div>
+
+              <!-- 진행 상황 -->
+              <div id="clip-progress" class="progress-panel hidden">
+                <h3>클립 생성 진행</h3>
+                <div class="progress-bar-container">
+                  <div id="clip-progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="clip-progress-text" class="progress-text">준비 중...</div>
+              </div>
+
+              <!-- 다운로드 결과 -->
+              <div id="clip-download-area" class="download-area hidden">
+                <h3>✅ 다운로드 준비 완료</h3>
+                <button class="btn-primary btn-large" id="btn-download-zip" onclick="ProductMain.triggerDownload()">
+                  <span class="btn-icon">📦</span> ZIP 다운로드
+                </button>
+              </div>
+
+              <!-- 액션 버튼 -->
+              <div class="action-buttons">
+                <button id="btn-create-clips" class="btn-primary btn-large" onclick="ProductMain.createSceneClips()">
+                  <span class="btn-icon">🎬</span> 씬별 클립 생성하기
+                </button>
+              </div>
+
+              <!-- 이전 단계 버튼 -->
+              <div class="next-step-buttons">
+                <button class="btn-secondary" onclick="ProductMain.goToStep(3)">← Step 3: TTS</button>
+                <button class="btn-primary" onclick="ProductMain.newSession()">새 프로젝트 시작</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /main-content -->
+  </div><!-- /main-layout -->
+
+  <!-- 로딩 오버레이 -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">로딩 중...</div>
+    <div class="loading-subtext"></div>
+  </div>
+
+  <!-- 상태바 -->
+  <div id="status-bar" class="status-bar"></div>
+
+  <!-- JavaScript -->
+  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241201m"></script>
+  <script src="{{ url_for('static', filename='js/product-main.js') }}?v=20241201"></script>
+</body>
+</html>

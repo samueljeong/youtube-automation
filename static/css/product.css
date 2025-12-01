@@ -1,0 +1,151 @@
+/* ===== Product Lab Custom Styles ===== */
+/* 기본 스타일은 drama.css에서 상속받음 */
+
+/* 상품 정보 패널 */
+.product-info-panel {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid #a5d6a7;
+}
+
+.product-info-panel .section-header h3 {
+  color: #2e7d32;
+}
+
+.product-info-panel input,
+.product-info-panel select {
+  background: #fff;
+  border: 1px solid #c8e6c9;
+}
+
+.product-info-panel input:focus,
+.product-info-panel select:focus {
+  border-color: #4caf50;
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+/* 상품 페이지 테마 색상 오버라이드 */
+#product-app .step-item.active .step-number,
+#product-app .step-item.completed .step-number {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+#product-app .step-item.active .step-label {
+  color: #059669;
+}
+
+#product-app .btn-primary {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+#product-app .btn-primary:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* 상품 카테고리 아이콘 스타일 */
+.category-icon {
+  font-size: 1.5rem;
+  margin-right: 8px;
+}
+
+/* 상품 프리뷰 카드 */
+.product-preview-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+}
+
+.product-preview-card h4 {
+  margin: 0 0 12px;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.product-preview-card .preview-image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #f5f5f5;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+/* 상품 특징 리스트 */
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.feature-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.feature-list li:last-child {
+  border-bottom: none;
+}
+
+.feature-icon {
+  color: #10b981;
+}
+
+/* 상품 영상 미리보기 */
+.video-preview-container {
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  position: relative;
+}
+
+.video-preview-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.video-preview-placeholder .icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+/* 상품 씬 카드 스타일 */
+.product-scene-card {
+  border-left: 4px solid #10b981;
+}
+
+.product-scene-card .scene-badge {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .product-info-panel .config-row {
+    flex-direction: column;
+  }
+
+  .product-info-panel .config-item {
+    min-width: 100%;
+  }
+}
