@@ -4791,8 +4791,9 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
         print(f"[DRAMA-CUTS-VIDEO] ❌ 해상도 파싱 오류: resolution='{resolution}', error={e}")
         raise Exception(f"해상도 형식 오류: '{resolution}' (예상 형식: '1920x1080')")
 
-    MAX_WIDTH = 1280
-    MAX_HEIGHT = 720
+    # Render 512MB 메모리 제한 대응: 해상도 제한
+    MAX_WIDTH = 854   # 480p (메모리 절약)
+    MAX_HEIGHT = 480
     if width > MAX_WIDTH or height > MAX_HEIGHT:
         aspect_ratio = width / height
         if aspect_ratio > 16/9:
@@ -4802,7 +4803,7 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
             height = MAX_HEIGHT
             width = int(MAX_HEIGHT * aspect_ratio)
         resolution = f"{width}x{height}"
-        print(f"[DRAMA-CUTS-VIDEO] 해상도 조정: {resolution}")
+        print(f"[DRAMA-CUTS-VIDEO] 메모리 최적화 - 해상도 조정: {resolution}")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         update_progress(10, "씬별 영상 병렬 생성 준비 중...")
@@ -4813,8 +4814,8 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
         # 병렬 처리를 위한 작업 목록 생성
         tasks = [(idx, cut, temp_dir, width, height, fps) for idx, cut in enumerate(cuts)]
 
-        # 워커 수 결정 (CPU 코어 수 기반, 최대 4개로 제한 - 메모리 고려)
-        max_workers = min(4, len(cuts), os.cpu_count() or 2)
+        # 워커 수 결정 (메모리 제한으로 2개로 축소)
+        max_workers = min(2, len(cuts), os.cpu_count() or 2)
         print(f"[DRAMA-PARALLEL] 병렬 처리 시작 - {len(cuts)}개 씬, {max_workers}개 워커")
 
         update_progress(15, f"씬 {len(cuts)}개 병렬 처리 중... (워커 {max_workers}개)")
@@ -4836,6 +4837,9 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
                     # 진행률 업데이트
                     progress_pct = 15 + int((completed_count / len(cuts)) * 55)
                     update_progress(progress_pct, f"씬 클립 생성 중... ({completed_count}/{len(cuts)} 완료)")
+
+                    # 메모리 정리
+                    gc.collect()
 
                 except Exception as e:
                     print(f"[DRAMA-PARALLEL] 씬 {idx} Future 오류: {e}")
