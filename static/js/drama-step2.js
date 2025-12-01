@@ -121,28 +121,31 @@ window.DramaStep2 = {
   // 수동 입력 모드 처리 (Step1에서 이미지 프롬프트가 제공된 경우)
   prepareManualMode(step1Data) {
     console.log('[Step2] 수동 입력 모드 준비');
-    console.log('[Step2] step1Data:', JSON.stringify(step1Data, null, 2).substring(0, 500));
 
-    const imagePrompts = step1Data.imagePrompts || [];
     const scenes = step1Data.scenes || [];
-    const protagonistInfo = step1Data.protagonistInfo || '';
+    const characterInfo = step1Data.characterInfo || '';
 
-    console.log(`[Step2] 이미지 프롬프트 ${imagePrompts.length}개, 씬 ${scenes.length}개 로드됨`);
-    imagePrompts.forEach((p, i) => {
-      if (p) console.log(`[Step2] 프롬프트 ${i + 1}:`, p.substring(0, 60) + '...');
+    console.log(`[Step2] 캐릭터 정보: ${characterInfo.substring(0, 50)}...`);
+    console.log(`[Step2] 씬 ${scenes.length}개 로드됨`);
+
+    // 씬별 이미지 프롬프트 로그
+    scenes.forEach((scene, i) => {
+      if (scene.imagePrompt) {
+        console.log(`[Step2] 씬 ${i + 1} 프롬프트:`, scene.imagePrompt.substring(0, 60) + '...');
+      }
     });
 
     // 주인공 정보에서 이름 추출 시도
     let protagonistName = '주인공';
-    const nameMatch = protagonistInfo.match(/이름[:\s]*([^\n,]+)/);
+    const nameMatch = characterInfo.match(/([가-힣]+)/);  // 첫 번째 한글 이름
     if (nameMatch) {
-      protagonistName = nameMatch[1].trim();
+      protagonistName = nameMatch[1];
     }
 
-    // 씬 데이터 생성
+    // 씬 데이터 생성 - 각 씬에서 직접 이미지 프롬프트 사용
     const analysisScenes = scenes.map((scene, idx) => {
-      // 이미지 프롬프트가 있으면 사용, 없으면 기본 프롬프트 생성
-      let prompt = imagePrompts[idx] || '';
+      // 씬에서 직접 이미지 프롬프트 가져오기
+      let prompt = scene.imagePrompt || '';
 
       if (!prompt) {
         // 기본 프롬프트 생성 (주인공 정보 기반)
@@ -157,7 +160,7 @@ window.DramaStep2 = {
         sceneId: scene.id || `scene_${idx + 1}`,
         sceneNumber: idx + 1,
         description: scene.narration?.substring(0, 100) || `씬 ${idx + 1}`,
-        imagePrompt: prompt
+        imagePrompt: prompt  // 씬에서 직접 가져온 프롬프트
       };
     });
 
@@ -165,8 +168,8 @@ window.DramaStep2 = {
     this.analysisResult = {
       characters: [{
         name: protagonistName,
-        description: protagonistInfo.substring(0, 200),
-        imagePrompt: imagePrompts[0] || ''
+        description: characterInfo,
+        imagePrompt: ''  // 캐릭터 전용 프롬프트는 별도로 사용 안함
       }],
       scenes: analysisScenes
     };
