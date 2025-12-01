@@ -64,7 +64,14 @@ window.DramaMain = {
       console.log('[DramaMain] YouTube 인증 완료 감지');
       DramaUtils.showStatus('YouTube 계정이 연결되었습니다!', 'success');
 
-      // Step5 YouTube 상태 새로고침
+      // Step1 YouTube 상태 새로고침 (현재 Step에서 인증 완료)
+      if (typeof DramaStep1 !== 'undefined') {
+        setTimeout(() => {
+          DramaStep1.checkYouTubeAuth();
+        }, 500);
+      }
+
+      // Step5 YouTube 상태도 새로고침
       if (typeof DramaStep5 !== 'undefined') {
         setTimeout(() => {
           DramaStep5.checkYouTubeAuth();

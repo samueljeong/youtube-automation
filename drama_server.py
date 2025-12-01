@@ -6571,8 +6571,8 @@ def youtube_callback():
         save_youtube_token_to_db(token_data)
 
         print(f"[YOUTUBE-CALLBACK] 인증 완료, /drama 페이지로 리다이렉트")
-        # Drama Lab 페이지로 리다이렉트 (Step5로 이동)
-        return redirect('/drama?youtube_auth=success&step=5')
+        # Drama Lab 페이지로 리다이렉트 (Step 1 유지 - 인증만 완료)
+        return redirect('/drama?youtube_auth=success')
 
     except Exception as e:
         print(f"[YOUTUBE-CALLBACK][ERROR] {str(e)}")
