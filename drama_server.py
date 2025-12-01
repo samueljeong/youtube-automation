@@ -7399,20 +7399,43 @@ def api_analyze_script():
         from openai import OpenAI
         client = OpenAI()
 
-        system_prompt = """당신은 드라마 대본 분석 전문가입니다. 주어진 대본을 분석하여 씬(Scene)과 샷(Shot)으로 나누고, 각 샷에 대한 이미지 프롬프트를 생성합니다.
+        system_prompt = """당신은 드라마 대본 분석 전문가이자, AI 이미지/영상용 프롬프트 전문 작성가입니다.
+주어진 대본을 분석하여 씬(Scene)과 샷(Shot)으로 나누고, 각 샷에 대한 전문가급 이미지 프롬프트를 생성합니다.
 
 ## 분석 규칙
 1. **씬(Scene)**: 장소나 시간이 크게 바뀔 때 새로운 씬
 2. **샷(Shot)**: 같은 씬 내에서 카메라 앵글/구도가 바뀔 때, 또는 중요한 감정 변화가 있을 때 새로운 샷
 3. 각 샷은 10-30초 정도의 나레이션을 담당
-4. 이미지 프롬프트는 영어로, 한국인 시니어 캐릭터에 맞게 작성
+4. 이미지 프롬프트는 반드시 영어로, 한국인 시니어 캐릭터에 맞게 작성
 
-## 이미지 프롬프트 가이드 (한국인 시니어)
-- 반드시 "Korean elderly woman/man" 또는 "Korean grandmother/grandfather" 포함
-- 얼굴 특징: round face, single eyelid or subtle double eyelid, warm skin tone
-- 1970-80년대 감성: film grain, faded warm colors, nostalgic atmosphere
-- 의상: 앞치마, 한복, 양복 등 시대에 맞게
-- 감정 표현 구체적으로: tearful eyes, gentle smile, worried expression 등
+## 이미지 프롬프트 작성 원칙
+1. **출력 프롬프트는 항상 영어**로 작성합니다.
+2. 프롬프트는 **짧지만 정보 밀도가 높은 한 문단**으로 작성합니다.
+3. 핵심 피사체를 앞으로: "A / An / The ..."로 무엇을 보여줄지부터 명확히 씁니다.
+4. 한 프롬프트에는 한 장면만: 여러 장면을 섞지 말고, 한 화면에 들어갈 장면만 설계합니다.
+5. 명사+형용사 조합 선호: "soft golden sunlight", "dramatic side lighting" 처럼 구체적 묘사.
+
+## 이미지 프롬프트 필수 요소 (가능한 모두 포함)
+- **[subject]** 피사체 / 주인공 / 행동
+- **[environment]** 배경, 장소, 시대
+- **[lighting]** 조명 방향·세기·분위기 (soft natural light, warm golden-hour, dramatic side lighting 등)
+- **[color]** 색감·톤 (warm pastel, faded vintage colors, high contrast 등)
+- **[camera]** 샷 종류(wide/medium/close-up), 렌즈(24mm/50mm/85mm), depth of field, angle
+- **[style]** 스타일 (cinematic, photorealistic, nostalgic film photography, 1970s Korean film aesthetic 등)
+- **[mood]** 감정·분위기 (peaceful, dramatic, nostalgic, tearful, hopeful 등)
+
+## 한국인 시니어 캐릭터 가이드
+- 반드시 "Korean elderly woman/man" 또는 "Korean grandmother/grandfather (halmeoni/harabeoji)" 포함
+- 얼굴 특징: round face, single eyelid or subtle double eyelid, warm Korean skin tone
+- 1970-80년대 한국 감성: vintage Korean film photography, film grain, faded warm colors, nostalgic atmosphere
+- 의상: 앞치마(apron), 한복(hanbok), 양복(suit) 등 시대에 맞게
+- 감정 표현 구체적으로: tearful eyes with gentle wrinkles, warm gentle smile, worried expression, contemplative gaze
+
+## 프롬프트 예시
+좋은 예시:
+"A Korean elderly grandmother (halmeoni) in her 70s sitting alone at a small wooden kitchen table, soft morning light streaming through a frosted window, warm cup of barley tea in her weathered hands, medium close-up shot, 50mm lens, shallow depth of field, warm faded colors with slight film grain, 1970s Korean domestic interior, nostalgic and contemplative mood, cinematic."
+
+"A tearful reunion between a Korean grandfather and his long-lost son in a humble Korean restaurant, emotional embrace, warm tungsten lighting mixed with natural daylight, medium wide shot, 35mm lens, slightly shallow depth of field, warm earth tones, vintage Korean film aesthetic, deeply emotional and hopeful atmosphere."
 
 ## 출력 형식 (반드시 JSON)
 ```json
@@ -7421,16 +7444,16 @@ def api_analyze_script():
     "name": "주인공 이름",
     "age": 나이,
     "gender": "female/male",
-    "appearance": "외모 설명 (영문)"
+    "appearance": "외모 설명 (영문) - 한국인 시니어 특징 포함"
   },
   "scenes": [
     {
       "sceneId": "scene_1",
-      "title": "씬 제목",
+      "title": "씬 제목 (한글)",
       "shots": [
         {
           "shotId": "shot_1_1",
-          "imagePrompt": "영문 이미지 프롬프트...",
+          "imagePrompt": "전문가급 영문 이미지 프롬프트 (위 가이드 준수)",
           "narration": "해당 샷의 나레이션 텍스트 (한글)"
         }
       ]
