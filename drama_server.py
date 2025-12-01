@@ -8,7 +8,7 @@ import uuid
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
-from flask import Flask, render_template, request, jsonify, send_file, Response
+from flask import Flask, render_template, request, jsonify, send_file, Response, redirect
 from openai import OpenAI
 
 app = Flask(__name__)
