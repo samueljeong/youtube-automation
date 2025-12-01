@@ -615,6 +615,9 @@ window.DramaStep2 = {
       } else {
         DramaUtils.showStatus(`모든 씬 이미지 생성 완료! (${total}개) 🚀 병렬 처리`, 'success');
       }
+
+      // 썸네일 생성 섹션 표시
+      this.showThumbnailSection();
     } catch (error) {
       console.error('[Step2] 전체 이미지 생성 오류:', error);
       DramaUtils.showStatus(`오류: ${error.message}`, 'error');
@@ -693,5 +696,128 @@ window.DramaStep2 = {
       this.analysisResult = data;
       this.displayAnalysisResult(data);
     }
+  },
+
+  // ========== 썸네일 생성 기능 ==========
+
+  // 썸네일 섹션 표시
+  showThumbnailSection() {
+    const section = document.getElementById('thumbnail-generate-section');
+    if (section) {
+      section.classList.remove('hidden');
+    }
+
+    // AI 분석 결과에서 thumbnailTitle이 있으면 자동 입력
+    const step1Data = DramaSession.getStepData('step1');
+    if (step1Data?.thumbnailTitle) {
+      const input = document.getElementById('thumbnail-title-input');
+      if (input) {
+        input.value = step1Data.thumbnailTitle.replace(/\\n/g, ' ');
+      }
+    }
+  },
+
+  // 썸네일 생성
+  async generateThumbnail() {
+    const titleInput = document.getElementById('thumbnail-title-input');
+    const styleSelect = document.getElementById('thumbnail-style');
+    const thumbnailTitle = titleInput?.value || '';
+    const style = styleSelect?.value || 'emotional';
+
+    // 대본 데이터 가져오기
+    const step1Data = DramaSession.getStepData('step1');
+    let script = '';
+
+    if (step1Data?.type === 'analyzed' && step1Data.scenes) {
+      // AI 분석 모드: 씬들의 나레이션 합치기
+      script = step1Data.scenes.map(scene =>
+        (scene.shots || []).map(shot => shot.narration || '').join(' ')
+      ).join('\n');
+    } else if (step1Data?.content) {
+      script = typeof step1Data.content === 'string'
+        ? step1Data.content
+        : JSON.stringify(step1Data.content);
+    }
+
+    if (!script) {
+      DramaUtils.showStatus('대본 데이터가 없습니다. Step1을 먼저 완료해주세요.', 'error');
+      return;
+    }
+
+    DramaUtils.showLoading('썸네일 생성 중...', 'AI가 클릭을 유도하는 썸네일을 생성합니다');
+
+    try {
+      const config = this.getConfig();
+
+      const response = await fetch('/api/drama/generate-thumbnail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: script.substring(0, 5000),  // 대본 앞부분만
+          title: thumbnailTitle,
+          style: style,
+          provider: config.imageModel  // gemini, dalle, flux
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok && data.imageUrl) {
+        // 썸네일 미리보기 표시
+        const preview = document.getElementById('thumbnail-preview');
+        const thumbnailImg = document.getElementById('thumbnail-image');
+        const textPreview = document.getElementById('thumbnail-text-preview');
+
+        if (thumbnailImg) {
+          thumbnailImg.src = data.imageUrl;
+        }
+        if (textPreview) {
+          textPreview.textContent = data.thumbnailText || thumbnailTitle || '썸네일';
+        }
+        if (preview) {
+          preview.classList.remove('hidden');
+        }
+
+        // 세션에 저장
+        DramaSession.setStepData('thumbnail', {
+          imageUrl: data.imageUrl,
+          text: data.thumbnailText || thumbnailTitle,
+          style: style,
+          generatedAt: new Date().toISOString()
+        });
+
+        DramaUtils.showStatus('썸네일 생성 완료!', 'success');
+      } else {
+        throw new Error(data.error || '썸네일 생성 실패');
+      }
+    } catch (error) {
+      console.error('[Step2] 썸네일 생성 오류:', error);
+      DramaUtils.showStatus(`썸네일 생성 실패: ${error.message}`, 'error');
+    } finally {
+      DramaUtils.hideLoading();
+    }
+  },
+
+  // 썸네일 재생성
+  async regenerateThumbnail() {
+    await this.generateThumbnail();
+  },
+
+  // 썸네일 다운로드
+  downloadThumbnail() {
+    const thumbnailImg = document.getElementById('thumbnail-image');
+    if (!thumbnailImg?.src) {
+      DramaUtils.showStatus('다운로드할 썸네일이 없습니다.', 'error');
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = thumbnailImg.src;
+    link.download = `thumbnail_${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    DramaUtils.showStatus('썸네일 다운로드 시작!', 'success');
   }
 };

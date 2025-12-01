@@ -284,6 +284,48 @@
             <div id="scene-image-list" class="scene-image-list"></div>
           </div>
 
+          <!-- 썸네일 생성 섹션 -->
+          <div id="thumbnail-generate-section" class="thumbnail-generate-section hidden">
+            <div class="section-header">
+              <h3>🖼️ 유튜브 썸네일 생성</h3>
+              <span class="section-hint">클릭을 유도하는 썸네일을 AI가 생성합니다</span>
+            </div>
+
+            <div class="thumbnail-config">
+              <div class="config-item">
+                <label>썸네일 문구 (선택)</label>
+                <input type="text" id="thumbnail-title-input" placeholder="예: 40년 만에 만난 첫사랑" maxlength="50">
+              </div>
+              <div class="config-item">
+                <label>스타일</label>
+                <select id="thumbnail-style">
+                  <option value="emotional" selected>감성적 (눈물/감동)</option>
+                  <option value="dramatic">드라마틱 (강렬한)</option>
+                  <option value="warm">따뜻한 (가족/추억)</option>
+                  <option value="mystery">미스터리 (궁금증 유발)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="thumbnail-actions">
+              <button class="btn-primary" onclick="DramaStep2.generateThumbnail()">
+                <span class="btn-icon">🎨</span> 썸네일 생성
+              </button>
+            </div>
+
+            <div id="thumbnail-preview" class="thumbnail-preview hidden">
+              <h4>생성된 썸네일</h4>
+              <div class="thumbnail-result">
+                <img id="thumbnail-image" src="" alt="썸네일">
+                <div class="thumbnail-info">
+                  <p id="thumbnail-text-preview"></p>
+                  <button class="btn-small" onclick="DramaStep2.downloadThumbnail()">다운로드</button>
+                  <button class="btn-small" onclick="DramaStep2.regenerateThumbnail()">재생성</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 액션 버튼 -->
           <div class="action-buttons">
             <button id="btn-analyze-script" class="btn-primary btn-large" onclick="DramaStep2.analyzeAndPrepare()">
