@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>Image Lab - 이미지 제작</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23f59e0b' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>I</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/image.css') }}">
+</head>
+<body>
+  <!-- Auth Header -->
+  <div class="auth-header">
+    <h1>Creator Lab</h1>
+    <div class="auth-links">
+      <span id="session-info" class="session-info"></span>
+      <button id="btn-new-session" class="btn-header" onclick="ImageMain.newSession()">새 프로젝트</button>
+      <a href="/" class="btn-home">홈</a>
+    </div>
+  </div>
+
+  <!-- Main Layout with Sidebar -->
+  <div class="main-layout">
+    <!-- Left Sidebar Navigation -->
+    <aside class="sidebar">
+      <nav class="sidebar-nav">
+        <a href="/drama" class="sidebar-item" data-page="drama">
+          <span class="sidebar-icon">🎬</span>
+          <span class="sidebar-label">드라마 제작</span>
+        </a>
+        <a href="/image" class="sidebar-item active" data-page="image">
+          <span class="sidebar-icon">🖼️</span>
+          <span class="sidebar-label">이미지 제작</span>
+        </a>
+        <a href="/product" class="sidebar-item" data-page="product">
+          <span class="sidebar-icon">📦</span>
+          <span class="sidebar-label">상품 제작</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-content">
+      <div id="image-app">
+        <!-- Step Progress Bar (2 Steps Only) -->
+        <div class="step-progress">
+          <div class="step-item active" data-step="1">
+            <div class="step-number">1</div>
+            <div class="step-label">대본 분석</div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="step-item" data-step="2">
+            <div class="step-number">2</div>
+            <div class="step-label">이미지 생성</div>
+          </div>
+        </div>
+
+        <!-- Step Containers -->
+        <div class="step-containers">
+          <!-- Step 1: 대본 입력 및 분석 -->
+          <div id="step1-container" class="step-container active">
+            <div class="step-header">
+              <h2>Step 1. 대본 입력 및 분석</h2>
+              <p class="step-desc">대본을 입력하면 AI가 씬을 분리하고 이미지 프롬프트를 생성합니다.</p>
+            </div>
+
+            <div class="step-content">
+              <!-- 기본 설정 패널 -->
+              <div class="config-panel">
+                <div class="config-row">
+                  <div class="config-item">
+                    <label>콘텐츠 타입</label>
+                    <select id="content-type">
+                      <option value="drama" selected>드라마/스토리</option>
+                      <option value="product">상품 소개</option>
+                      <option value="education">교육/정보</option>
+                      <option value="etc">기타</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>주인공 타입</label>
+                    <select id="protagonist-type">
+                      <option value="grandmother" selected>할머니 (Korean Grandmother)</option>
+                      <option value="grandfather">할아버지 (Korean Grandfather)</option>
+                      <option value="young-woman">젊은 여성</option>
+                      <option value="young-man">젊은 남성</option>
+                      <option value="none">주인공 없음</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>이미지 스타일</label>
+                    <select id="image-style">
+                      <option value="nostalgic" selected>향수/빈티지 (70-80년대)</option>
+                      <option value="realistic">사실적 (Realistic)</option>
+                      <option value="cinematic">시네마틱 (Cinematic)</option>
+                      <option value="warm">따뜻한 톤 (Warm)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 전체 대본 입력 -->
+              <div class="script-input-section">
+                <div class="section-header">
+                  <h3>📝 전체 대본 입력</h3>
+                  <span class="section-hint">대본을 붙여넣으면 AI가 씬과 이미지 프롬프트를 자동 생성합니다</span>
+                </div>
+                <textarea id="full-script" class="script-textarea" rows="12" placeholder="여기에 전체 대본을 붙여넣으세요...
+
+예시:
+[주인공: 이순자, 75세, 한국인 할머니]
+
+그날 새벽이었습니다.
+작은 시골 마을, 안개가 자욱하게 깔린 논길을 할머니가 걸어갑니다.
+
+60년 전, 그 시절의 기억이 밀려왔습니다.
+전쟁이 끝나고 폐허가 된 마을에서 어린 순자는 처음 학교에 갔습니다.
+
+그때 만난 선생님의 한마디가 제 인생을 바꿨습니다.
+'순자야, 너는 할 수 있어.'"></textarea>
+
+                <div class="script-actions">
+                  <button id="btn-analyze-script" class="btn-primary" onclick="ImageMain.analyzeScript()">
+                    <span class="btn-icon">🤖</span> AI 대본 분석하기
+                  </button>
+                  <span class="action-hint">GPT가 씬과 이미지 프롬프트를 자동 생성합니다</span>
+                </div>
+              </div>
+
+              <!-- AI 분석 진행 상태 -->
+              <div id="analysis-progress" class="progress-panel hidden">
+                <h3>대본 분석 중...</h3>
+                <div class="progress-bar-container">
+                  <div id="analysis-progress-bar" class="progress-bar"></div>
+                </div>
+                <div id="analysis-progress-text" class="progress-text">AI가 대본을 분석하고 있습니다...</div>
+              </div>
+
+              <!-- AI 분석 결과 (씬 목록) -->
+              <div id="analysis-result" class="analysis-result hidden">
+                <div class="section-header">
+                  <h3>🎬 분석 결과</h3>
+                  <span class="section-hint">각 씬의 나레이션과 이미지 프롬프트를 확인/수정하세요</span>
+                </div>
+
+                <!-- 썸네일 정보 -->
+                <div id="thumbnail-info" class="thumbnail-info-panel">
+                  <h4>📸 썸네일 정보</h4>
+                  <div class="form-group">
+                    <label>썸네일 텍스트 (제목)</label>
+                    <input type="text" id="thumbnail-title" placeholder="예: 60년 만의 재회">
+                  </div>
+                  <div class="form-group">
+                    <label>썸네일 이미지 프롬프트</label>
+                    <textarea id="thumbnail-prompt" rows="2" placeholder="영문 프롬프트..."></textarea>
+                  </div>
+                </div>
+
+                <!-- 씬 목록 -->
+                <div id="scene-list" class="scene-list">
+                  <!-- JS로 동적 생성 -->
+                </div>
+              </div>
+
+              <!-- 액션 버튼 -->
+              <div class="action-buttons">
+                <button id="btn-next-step" class="btn-primary btn-large hidden" onclick="ImageMain.goToStep2()">
+                  <span class="btn-icon">➡️</span> Step 2: 이미지 생성으로
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: 이미지 생성 -->
+          <div id="step2-container" class="step-container">
+            <div class="step-header">
+              <h2>Step 2. 이미지 생성</h2>
+              <p class="step-desc">썸네일과 씬별 이미지를 AI로 생성합니다. 생성 후 다운로드하세요.</p>
+            </div>
+
+            <div class="step-content">
+              <!-- 이미지 생성 설정 -->
+              <div class="config-panel">
+                <div class="config-row">
+                  <div class="config-item">
+                    <label>이미지 생성 모델</label>
+                    <select id="image-model">
+                      <option value="gemini" selected>Google Gemini (무료)</option>
+                      <option value="flux">FLUX.1 Pro (고품질)</option>
+                      <option value="dalle">DALL-E 3 (OpenAI)</option>
+                    </select>
+                  </div>
+                  <div class="config-item">
+                    <label>이미지 비율</label>
+                    <select id="image-ratio">
+                      <option value="16:9" selected>16:9 (유튜브)</option>
+                      <option value="9:16">9:16 (쇼츠/릴스)</option>
+                      <option value="1:1">1:1 (정사각형)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 썸네일 섹션 -->
+              <div id="thumbnail-section" class="image-section">
+                <div class="section-header">
+                  <h3>📸 썸네일</h3>
+                  <button class="btn-small btn-generate" onclick="ImageMain.generateThumbnail()">썸네일 생성</button>
+                </div>
+                <div id="thumbnail-container" class="thumbnail-container">
+                  <div class="image-placeholder">
+                    <span>썸네일 이미지 생성 대기</span>
+                  </div>
+                </div>
+                <div id="thumbnail-title-display" class="thumbnail-title-overlay"></div>
+              </div>
+
+              <!-- 씬별 이미지 섹션 -->
+              <div id="scene-images-section" class="image-section">
+                <div class="section-header">
+                  <h3>🎬 씬별 이미지</h3>
+                  <div class="batch-actions">
+                    <button class="btn-small btn-generate" onclick="ImageMain.generateAllSceneImages()">전체 생성</button>
+                    <span id="scene-progress-text" class="progress-text-inline"></span>
+                  </div>
+                </div>
+                <div id="scene-images-grid" class="scene-images-grid">
+                  <!-- JS로 동적 생성 -->
+                </div>
+              </div>
+
+              <!-- 다운로드 섹션 -->
+              <div id="download-section" class="download-section hidden">
+                <div class="section-header">
+                  <h3>📥 이미지 다운로드</h3>
+                </div>
+                <div class="download-buttons">
+                  <button class="btn-primary" onclick="ImageMain.downloadAllImages()">
+                    <span class="btn-icon">📦</span> 전체 이미지 ZIP 다운로드
+                  </button>
+                  <button class="btn-secondary" onclick="ImageMain.downloadThumbnail()">
+                    <span class="btn-icon">📸</span> 썸네일만 다운로드
+                  </button>
+                </div>
+                <div class="download-info">
+                  <span id="download-count">생성된 이미지: 0개</span>
+                </div>
+              </div>
+
+              <!-- 네비게이션 -->
+              <div class="next-step-buttons">
+                <button class="btn-secondary" onclick="ImageMain.goToStep(1)">← Step 1: 대본 분석</button>
+                <button class="btn-primary" onclick="ImageMain.newSession()">새 프로젝트 시작</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /main-content -->
+  </div><!-- /main-layout -->
+
+  <!-- 로딩 오버레이 -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">로딩 중...</div>
+    <div class="loading-subtext"></div>
+  </div>
+
+  <!-- 상태바 -->
+  <div id="status-bar" class="status-bar"></div>
+
+  <!-- JavaScript -->
+  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241201v2"></script>
+  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241201"></script>
+</body>
+</html>

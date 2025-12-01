@@ -1185,6 +1185,10 @@ def drama():
 def product():
     return render_template("product.html")
 
+@app.route("/image")
+def image():
+    return render_template("image.html")
+
 @app.route("/health")
 def health():
     return jsonify({"ok": True})
@@ -8579,6 +8583,161 @@ def api_product_analyze_script():
 
     except Exception as e:
         print(f"[PRODUCT-ANALYZE][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ===== Image Lab API =====
+@app.route('/api/image/analyze-script', methods=['POST'])
+def api_image_analyze_script():
+    """이미지 제작용 대본 분석 - 씬 분리 + 썸네일/이미지 프롬프트 생성"""
+    try:
+        data = request.get_json()
+        script = data.get('script', '')
+        content_type = data.get('content_type', 'drama')
+        protagonist_type = data.get('protagonist_type', 'grandmother')
+        image_style = data.get('image_style', 'nostalgic')
+
+        if not script:
+            return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
+
+        # 주인공 타입별 프롬프트 가이드
+        protagonist_guides = {
+            'grandmother': 'Korean grandmother (halmeoni), elderly Korean woman in her 70s, round face, single eyelids typical of Korean elderly, warm wrinkled smile, permed short gray hair',
+            'grandfather': 'Korean grandfather (harabeoji), elderly Korean man in his 70s, angular Korean face, weathered kind face, balding or short gray hair',
+            'young-woman': 'Young Korean woman in her 20s-30s, modern Korean beauty features',
+            'young-man': 'Young Korean man in his 20s-30s, clean-cut Korean features',
+            'none': ''
+        }
+
+        # 스타일별 프롬프트 가이드
+        style_guides = {
+            'nostalgic': '1970s-1980s South Korea nostalgic atmosphere, vintage Korean film photography, slightly faded warm colors, film grain texture',
+            'realistic': 'photorealistic, high quality photography, natural lighting',
+            'cinematic': 'cinematic lighting, dramatic composition, movie still quality',
+            'warm': 'warm color tones, soft lighting, cozy atmosphere'
+        }
+
+        protagonist_desc = protagonist_guides.get(protagonist_type, '')
+        style_desc = style_guides.get(image_style, '')
+
+        system_prompt = f"""당신은 유튜브 콘텐츠용 이미지 제작 전문가입니다.
+사용자가 제공한 대본을 분석하여:
+1. 유튜브 썸네일용 제목과 이미지 프롬프트
+2. 각 씬별 나레이션과 이미지 프롬프트
+
+를 생성합니다.
+
+주인공 스타일: {protagonist_desc}
+이미지 스타일: {style_desc}
+
+응답은 반드시 다음 JSON 형식으로:
+{{
+  "thumbnail": {{
+    "title": "유튜브 썸네일에 들어갈 한글 제목 (짧고 임팩트 있게)",
+    "prompt": "English thumbnail image prompt"
+  }},
+  "scenes": [
+    {{
+      "scene_number": 1,
+      "narration": "한국어 나레이션",
+      "image_prompt": "English image prompt for this scene"
+    }}
+  ]
+}}
+
+이미지 프롬프트 규칙:
+1. 반드시 영문으로 작성
+2. 주인공이 있으면 주인공 설명을 포함
+3. 설정된 이미지 스타일 적용
+4. 감정과 분위기를 잘 표현"""
+
+        user_prompt = f"""대본:
+{script}
+
+위 대본을 4~8개 씬으로 분리하고, 썸네일과 각 씬에 맞는 이미지 프롬프트를 생성해주세요."""
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        result_text = response.choices[0].message.content
+        result = json.loads(result_text)
+
+        return jsonify({
+            "ok": True,
+            "thumbnail": result.get("thumbnail", {}),
+            "scenes": result.get("scenes", []),
+            "settings": {
+                "content_type": content_type,
+                "protagonist_type": protagonist_type,
+                "image_style": image_style
+            }
+        })
+
+    except Exception as e:
+        print(f"[IMAGE-ANALYZE][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/image/download-zip', methods=['POST'])
+def api_image_download_zip():
+    """이미지들을 ZIP으로 묶어 다운로드"""
+    try:
+        import zipfile
+        import io
+        import urllib.request
+
+        data = request.get_json()
+        images = data.get('images', [])
+
+        if not images:
+            return jsonify({"ok": False, "error": "다운로드할 이미지가 없습니다"}), 400
+
+        # ZIP 파일 생성
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for img in images:
+                try:
+                    name = img.get('name', 'image.png')
+                    url = img.get('url', '')
+
+                    if url.startswith('http'):
+                        # 외부 URL에서 이미지 다운로드
+                        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=30) as response:
+                            img_data = response.read()
+                            zip_file.writestr(name, img_data)
+                    elif url.startswith('/'):
+                        # 로컬 파일
+                        local_path = url.lstrip('/')
+                        if os.path.exists(local_path):
+                            with open(local_path, 'rb') as f:
+                                zip_file.writestr(name, f.read())
+                except Exception as e:
+                    print(f"[IMAGE-ZIP] Failed to add {img.get('name')}: {e}")
+                    continue
+
+        zip_buffer.seek(0)
+
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='images.zip'
+        )
+
+    except Exception as e:
+        print(f"[IMAGE-ZIP][ERROR] {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
