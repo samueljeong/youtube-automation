@@ -6487,17 +6487,53 @@ def youtube_callback():
         code = request.args.get('code')
         state = request.args.get('state')
         error = request.args.get('error')
+        error_description = request.args.get('error_description', '')
+
+        print(f"[YOUTUBE-CALLBACK] 콜백 수신 - code: {bool(code)}, state: {state[:20] if state else 'None'}...")
+        print(f"[YOUTUBE-CALLBACK] Error: {error}, Description: {error_description}")
 
         if error:
-            return f"인증 오류: {error}", 400
+            # 사용자 친화적인 에러 페이지 반환
+            return f"""
+            <!DOCTYPE html>
+            <html>
+            <head><title>YouTube 연결 오류</title>
+            <style>body{{font-family:Arial;padding:50px;text-align:center}}.error{{background:#ffebee;padding:20px;border-radius:8px;margin:20px auto;max-width:500px;color:#c62828}}.back-btn{{margin-top:20px;padding:10px 20px;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-block}}</style>
+            </head>
+            <body>
+                <h1>⚠️ YouTube 연결 오류</h1>
+                <div class="error">
+                    <p><strong>오류:</strong> {error}</p>
+                    <p>{error_description}</p>
+                </div>
+                <a href="/drama" class="back-btn">← Drama Lab으로 돌아가기</a>
+            </body>
+            </html>
+            """, 400
 
         if not code:
             return "인증 코드가 없습니다.", 400
 
         # 저장된 상태 로드
         oauth_state = load_oauth_state()
+        print(f"[YOUTUBE-CALLBACK] 저장된 OAuth 상태: {list(oauth_state.keys()) if oauth_state else 'None'}")
         if not oauth_state:
-            return "인증 세션이 만료되었습니다. 다시 시도해주세요.", 400
+            return """
+            <!DOCTYPE html>
+            <html>
+            <head><title>YouTube 연결 오류</title>
+            <style>body{font-family:Arial;padding:50px;text-align:center}.error{background:#ffebee;padding:20px;border-radius:8px;margin:20px auto;max-width:500px}.back-btn{margin-top:20px;padding:10px 20px;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-block}</style>
+            </head>
+            <body>
+                <h1>⚠️ 인증 세션 만료</h1>
+                <div class="error">
+                    <p>인증 세션이 만료되었습니다.</p>
+                    <p>다시 시도해주세요.</p>
+                </div>
+                <a href="/drama" class="back-btn">← 다시 시도</a>
+            </body>
+            </html>
+            """, 400
 
         # Flow 재생성
         client_config = {
@@ -6542,7 +6578,22 @@ def youtube_callback():
         print(f"[YOUTUBE-CALLBACK][ERROR] {str(e)}")
         import traceback
         traceback.print_exc()
-        return f"인증 오류: {str(e)}", 500
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head><title>YouTube 연결 오류</title>
+        <style>body{{font-family:Arial;padding:50px;text-align:center}}.error{{background:#ffebee;padding:20px;border-radius:8px;margin:20px auto;max-width:500px;color:#c62828}}.back-btn{{margin-top:20px;padding:10px 20px;background:#1a73e8;color:white;border:none;border-radius:4px;cursor:pointer;text-decoration:none;display:inline-block}}</style>
+        </head>
+        <body>
+            <h1>⚠️ YouTube 연결 오류</h1>
+            <div class="error">
+                <p>인증 처리 중 오류가 발생했습니다.</p>
+                <p style="font-size:12px;color:#666;">{str(e)[:200]}</p>
+            </div>
+            <a href="/drama" class="back-btn">← 다시 시도</a>
+        </body>
+        </html>
+        """, 500
 
 
 @app.route('/api/drama/youtube-auth-status')
@@ -7676,17 +7727,40 @@ def api_youtube_auth_page():
             </html>
             """
 
-        # 이미 인증된 토큰 확인
+        # 이미 인증된 토큰 확인 (refresh_token이 있으면 재인증 불필요)
         token_data = load_youtube_token_from_db()
         if token_data and token_data.get('refresh_token'):
             try:
                 from google.auth.transport.requests import Request
                 credentials = Credentials.from_authorized_user_info(token_data)
-                if credentials and (credentials.valid or credentials.refresh_token):
-                    # 이미 인증됨 - Drama 페이지로 리다이렉트
-                    return redirect('/drama?youtube_auth=success')
+
+                # refresh_token이 있으면 항상 갱신 가능 - 바로 리다이렉트
+                if credentials.refresh_token:
+                    # 만료된 경우 갱신 시도
+                    if credentials.expired:
+                        try:
+                            credentials.refresh(Request())
+                            # 갱신된 토큰 저장
+                            updated_token = {
+                                'token': credentials.token,
+                                'refresh_token': credentials.refresh_token,
+                                'token_uri': credentials.token_uri,
+                                'client_id': credentials.client_id,
+                                'client_secret': credentials.client_secret,
+                                'scopes': list(credentials.scopes) if credentials.scopes else []
+                            }
+                            save_youtube_token_to_db(updated_token)
+                            print("[YOUTUBE-AUTH-GET] 토큰 갱신 완료")
+                        except Exception as refresh_err:
+                            print(f"[YOUTUBE-AUTH-GET] 토큰 갱신 실패 (재인증 필요): {refresh_err}")
+                            # 갱신 실패 시 재인증 필요 - 아래 OAuth 플로우로 진행
+                            token_data = None
+
+                    if token_data:  # 갱신 성공 또는 아직 유효한 경우
+                        print("[YOUTUBE-AUTH-GET] 기존 토큰 유효 - 바로 리다이렉트")
+                        return redirect('/drama?youtube_auth=success')
             except Exception as e:
-                print(f"[YOUTUBE-AUTH-GET] 기존 토큰 검증 실패: {e}")
+                print(f"[YOUTUBE-AUTH-GET] 기존 토큰 검증 실패 (재인증 진행): {e}")
 
         # OAuth 플로우 생성
         client_config = {
@@ -7723,6 +7797,8 @@ def api_youtube_auth_page():
         })
 
         print(f"[YOUTUBE-AUTH-GET] Google OAuth URL로 리다이렉트")
+        print(f"[YOUTUBE-AUTH-GET] Auth URL: {auth_url[:100]}...")
+        print(f"[YOUTUBE-AUTH-GET] State: {state}")
         return redirect(auth_url)
 
     except ImportError as e:

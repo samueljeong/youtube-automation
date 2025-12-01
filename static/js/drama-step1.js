@@ -54,9 +54,50 @@ window.DramaStep1 = {
 
   /**
    * YouTube 연결 (OAuth)
+   * 먼저 현재 상태를 확인하고, 이미 연결되어 있으면 OAuth를 건너뜀
    */
-  connectYouTube() {
-    window.location.href = '/api/youtube/auth';
+  async connectYouTube() {
+    const statusIcon = document.getElementById('yt-status-icon');
+    const statusText = document.getElementById('yt-status-text');
+    const connectBtn = document.getElementById('btn-yt-connect');
+
+    // 로딩 상태 표시
+    if (statusIcon) statusIcon.textContent = '⏳';
+    if (statusText) statusText.textContent = 'YouTube 연결 확인 중...';
+    if (connectBtn) connectBtn.disabled = true;
+
+    try {
+      // 먼저 현재 인증 상태 확인
+      const response = await fetch('/api/youtube/auth-status');
+      const result = await response.json();
+
+      if (result.authenticated) {
+        // 이미 인증됨 - OAuth 불필요
+        this.youtubeConnected = true;
+        if (statusIcon) statusIcon.textContent = '✅';
+        if (statusText) statusText.textContent = `YouTube 연결됨: ${result.channelName || '채널'}`;
+        if (connectBtn) {
+          connectBtn.classList.add('hidden');
+          connectBtn.disabled = false;
+        }
+
+        dramaApp.session.youtubeConnected = true;
+        dramaApp.session.youtubeChannel = result.channelName;
+
+        DramaUtils.showStatus('YouTube가 이미 연결되어 있습니다!', 'success');
+        return;
+      }
+
+      // 인증 필요 - OAuth 페이지로 이동
+      // 서버에서 토큰이 유효하면 바로 리다이렉트됨
+      window.location.href = '/api/youtube/auth';
+
+    } catch (err) {
+      console.error('[Step1] YouTube 연결 확인 실패:', err);
+      if (statusIcon) statusIcon.textContent = '⚠️';
+      if (statusText) statusText.textContent = '연결 확인 실패 - 다시 시도해주세요';
+      if (connectBtn) connectBtn.disabled = false;
+    }
   },
 
   /**
