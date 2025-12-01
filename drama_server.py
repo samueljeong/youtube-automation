@@ -8,7 +8,7 @@ import uuid
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, Response
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -5535,6 +5535,167 @@ def api_generate_video():
         import traceback
         print(f"[DRAMA-STEP6-VIDEO][ERROR] {str(e)}")
         print(f"[DRAMA-STEP6-VIDEO][TRACEBACK]")
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 200
+
+
+# ===== Step6: 영상 제작 API (SSE 스트리밍) =====
+@app.route('/api/drama/generate-video-stream', methods=['POST'])
+def api_generate_video_stream():
+    """영상 생성 - SSE 스트리밍 방식 (Render 타임아웃 우회)
+
+    연결을 유지하면서 진행률을 스트리밍합니다.
+    클라이언트는 fetch API의 ReadableStream으로 응답을 읽습니다.
+    """
+    print(f"[DRAMA-VIDEO-STREAM] === SSE 스트리밍 API 호출 ===")
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"ok": False, "error": "No data received"}), 400
+
+        images = data.get("images", [])
+        cuts = data.get("cuts", [])
+        audio_url = data.get("audioUrl", "")
+        subtitle_data = data.get("subtitleData")
+        burn_subtitle = data.get("burnSubtitle", False)
+        resolution = data.get("resolution", "1920x1080")
+        fps = data.get("fps", 30)
+
+        print(f"[DRAMA-VIDEO-STREAM] cuts: {len(cuts)}개, images: {len(images)}개")
+
+        # cuts 배열 처리
+        if cuts and len(cuts) > 0:
+            images = [cut.get('imageUrl', '') for cut in cuts]
+            if not audio_url:
+                audio_url = cuts[0].get('audioUrl', '')
+
+        if not images:
+            return jsonify({"ok": False, "error": "이미지가 없습니다."}), 400
+
+        job_id = str(uuid.uuid4())
+
+        def generate():
+            """SSE 스트리밍 제너레이터"""
+            try:
+                # 시작 이벤트
+                yield f"data: {json.dumps({'event': 'start', 'jobId': job_id, 'progress': 0, 'message': '영상 생성 시작...'})}\n\n"
+
+                # 진행률 업데이트 함수 (yield를 통해 클라이언트에 전송)
+                progress_updates = []
+
+                def update_progress(progress, message=""):
+                    progress_updates.append({'progress': progress, 'message': message})
+
+                # Job 상태 저장
+                with video_jobs_lock:
+                    video_jobs[job_id] = {
+                        'status': 'processing',
+                        'progress': 0,
+                        'message': '영상 생성 시작...',
+                        'result': None,
+                        'error': None,
+                        'created_at': dt.now().isoformat()
+                    }
+                    save_video_jobs()
+
+                yield f"data: {json.dumps({'event': 'progress', 'progress': 5, 'message': '의존성 확인 중...'})}\n\n"
+
+                # 영상 생성 실행 (별도 스레드에서)
+                result_holder = {'result': None, 'error': None}
+
+                def run_video_generation():
+                    try:
+                        result = _generate_video_sync(
+                            images=images,
+                            audio_url=audio_url,
+                            cuts=cuts,
+                            subtitle_data=subtitle_data,
+                            burn_subtitle=burn_subtitle,
+                            resolution=resolution,
+                            fps=fps,
+                            transition='fade',
+                            job_id=job_id
+                        )
+                        result_holder['result'] = result
+                    except Exception as e:
+                        result_holder['error'] = str(e)
+                        import traceback
+                        traceback.print_exc()
+
+                # 스레드 시작
+                import time
+                gen_thread = threading.Thread(target=run_video_generation)
+                gen_thread.start()
+
+                # 진행률 모니터링 (3초마다 확인, 최대 10분)
+                max_wait = 600  # 10분
+                elapsed = 0
+                last_progress = 0
+
+                while gen_thread.is_alive() and elapsed < max_wait:
+                    time.sleep(3)
+                    elapsed += 3
+
+                    # job 상태에서 진행률 읽기
+                    with video_jobs_lock:
+                        if job_id in video_jobs:
+                            current_progress = video_jobs[job_id].get('progress', 0)
+                            current_message = video_jobs[job_id].get('message', '')
+
+                            if current_progress > last_progress:
+                                last_progress = current_progress
+                                yield f"data: {json.dumps({'event': 'progress', 'progress': current_progress, 'message': current_message})}\n\n"
+
+                    # 하트비트 (연결 유지)
+                    yield f": heartbeat\n\n"
+
+                # 스레드 종료 대기
+                gen_thread.join(timeout=30)
+
+                if result_holder['error']:
+                    # 실패
+                    with video_jobs_lock:
+                        if job_id in video_jobs:
+                            video_jobs[job_id]['status'] = 'failed'
+                            video_jobs[job_id]['error'] = result_holder['error']
+                            save_video_jobs()
+
+                    yield f"data: {json.dumps({'event': 'error', 'error': result_holder['error']})}\n\n"
+
+                elif result_holder['result']:
+                    # 성공
+                    result = result_holder['result']
+                    with video_jobs_lock:
+                        if job_id in video_jobs:
+                            video_jobs[job_id]['status'] = 'completed'
+                            video_jobs[job_id]['progress'] = 100
+                            video_jobs[job_id]['result'] = result
+                            save_video_jobs()
+
+                    yield f"data: {json.dumps({'event': 'complete', 'progress': 100, 'videoUrl': result.get('video_url'), 'videoPath': result.get('video_path'), 'duration': result.get('duration'), 'fileSize': result.get('file_size')})}\n\n"
+
+                else:
+                    # 타임아웃
+                    yield f"data: {json.dumps({'event': 'error', 'error': '영상 생성 시간 초과 (10분)'})}\n\n"
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                yield f"data: {json.dumps({'event': 'error', 'error': str(e)})}\n\n"
+
+        return Response(
+            generate(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'  # nginx 버퍼링 비활성화
+            }
+        )
+
+    except Exception as e:
+        import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 200
 

@@ -205,93 +205,11 @@ window.DramaStep4 = {
         console.warn('[Step4] 이미지 배열이 비어있음!');
       }
 
-      // 영상 생성 API 호출 (동기 모드: 10분 타임아웃)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10분
+      // SSE 스트리밍 방식으로 영상 생성 (Render 타임아웃 우회)
+      console.log('[Step4] SSE 스트리밍 영상 생성 시작');
+      if (progressText) progressText.textContent = '영상 생성 연결 중...';
 
-      console.log('[Step4] 동기 모드 영상 생성 시작 (최대 10분 대기)');
-      if (progressText) progressText.textContent = '영상 생성 중... (최대 10분 소요)';
-
-      // 동기 모드에서도 진행률 폴링 시작 (별도 스레드)
-      let progressPollId = null;
-      const pollProgress = async () => {
-        try {
-          // 아직 jobId가 없으면 대기
-          if (!this.currentJobId) {
-            progressPollId = setTimeout(pollProgress, 2000);
-            return;
-          }
-
-          const statusResp = await fetch(`/api/drama/video-status/${this.currentJobId}`);
-          const statusData = await statusResp.json();
-
-          if (statusData.ok && statusData.progress > 0) {
-            if (progressBar) progressBar.style.width = `${statusData.progress}%`;
-            if (progressText) progressText.textContent = statusData.message || `영상 생성 중... ${statusData.progress}%`;
-          }
-
-          // 아직 진행 중이면 계속 폴링
-          if (statusData.status === 'processing' || statusData.status === 'pending') {
-            progressPollId = setTimeout(pollProgress, 2000);
-          }
-        } catch (e) {
-          // 폴링 오류 무시 (메인 요청이 결과 반환)
-          progressPollId = setTimeout(pollProgress, 3000);
-        }
-      };
-
-      // 짧은 지연 후 진행률 폴링 시작
-      setTimeout(() => pollProgress(), 1000);
-
-      try {
-        const response = await fetch('/api/drama/generate-video', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: requestBody,
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-        if (progressPollId) clearTimeout(progressPollId);
-
-        const data = await this.safeJsonParse(response, 'Step4-영상제작');
-        console.log('[Step4] 영상 제작 응답:', data);
-
-        if (!data.ok && !data.jobId) {
-          throw new Error(data.error || '영상 제작 요청 실패');
-        }
-
-        this.currentJobId = data.jobId;
-        this.notFoundRetryCount = 0; // 재시도 카운터 초기화
-
-        // 동기식 응답: 이미 완료된 경우 바로 처리
-        if (data.status === 'completed') {
-          console.log('[Step4] 동기식 영상 생성 완료');
-          this.videoUrl = data.videoUrl;
-          this.onVideoComplete(data);
-          return;
-        }
-
-        // 동기식 응답: 실패한 경우 바로 처리
-        if (data.status === 'failed') {
-          console.log('[Step4] 동기식 영상 생성 실패');
-          this.onVideoFailed(data.error || '영상 제작 실패');
-          return;
-        }
-
-        // 비동기 응답: 작업 상태 폴링 시작 (fallback)
-        if (progressText) progressText.textContent = '영상 렌더링 중...';
-        this.startPolling();
-
-      } catch (fetchError) {
-        clearTimeout(timeoutId);
-        if (progressPollId) clearTimeout(progressPollId);
-
-        if (fetchError.name === 'AbortError') {
-          throw new Error('영상 생성 시간 초과 (10분). 다시 시도해주세요.');
-        }
-        throw fetchError;
-      }
+      await this.createVideoWithSSE(requestBody, progressBar, progressText, btn, originalText)
 
     } catch (error) {
       console.error('[Step4] 영상 제작 오류:', error);
@@ -302,6 +220,99 @@ window.DramaStep4 = {
         btn.disabled = false;
       }
       this.isCreating = false;
+    }
+  },
+
+  // SSE 스트리밍으로 영상 생성
+  async createVideoWithSSE(requestBody, progressBar, progressText, btn, originalText) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10분
+
+    try {
+      const response = await fetch('/api/drama/generate-video-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`서버 오류: ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      console.log('[Step4] SSE 스트리밍 시작');
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          console.log('[Step4] SSE 스트림 종료');
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 마지막 불완전한 라인은 버퍼에 유지
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6);
+            try {
+              const data = JSON.parse(jsonStr);
+              console.log('[Step4] SSE 이벤트:', data);
+
+              // 이벤트 타입별 처리
+              if (data.event === 'start') {
+                this.currentJobId = data.jobId;
+                if (progressText) progressText.textContent = data.message || '영상 생성 시작...';
+              } else if (data.event === 'progress') {
+                if (progressBar) progressBar.style.width = `${data.progress}%`;
+                if (progressText) progressText.textContent = data.message || `영상 생성 중... ${data.progress}%`;
+              } else if (data.event === 'complete') {
+                console.log('[Step4] SSE 완료:', data);
+                this.videoUrl = data.videoUrl;
+                this.onVideoComplete({
+                  videoUrl: data.videoUrl,
+                  videoPath: data.videoPath,
+                  duration: data.duration,
+                  fileSize: data.fileSize
+                });
+                return; // 성공적으로 완료
+              } else if (data.event === 'error') {
+                console.error('[Step4] SSE 에러:', data.error);
+                this.onVideoFailed(data.error || '영상 생성 실패');
+                return; // 에러로 종료
+              }
+            } catch (parseErr) {
+              // heartbeat 등 JSON이 아닌 라인은 무시
+              if (!line.startsWith(':')) {
+                console.warn('[Step4] SSE 파싱 실패:', line);
+              }
+            }
+          }
+        }
+      }
+
+      // 스트림 종료됐는데 완료/에러 이벤트 없으면 실패 처리
+      if (!this.videoUrl) {
+        this.onVideoFailed('영상 생성 중 연결이 끊어졌습니다.');
+      }
+
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error.name === 'AbortError') {
+        this.onVideoFailed('영상 생성 시간 초과 (10분). 다시 시도해주세요.');
+      } else {
+        console.error('[Step4] SSE 오류:', error);
+        this.onVideoFailed(error.message || '영상 생성 실패');
+      }
     }
   },
 
