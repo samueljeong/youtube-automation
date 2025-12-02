@@ -256,15 +256,16 @@ const ImageMain = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: prompt,
-          model: model,
+          imageProvider: model,
           style: 'thumbnail',
-          ratio: ratio
+          size: ratio
         })
       });
 
-      if (!response.ok) throw new Error('이미지 생성 실패');
-
       const data = await response.json();
+      if (!data.ok && data.error) {
+        throw new Error(data.error);
+      }
       if (data.image_url) {
         container.innerHTML = `<img src="${data.image_url}" alt="썸네일">`;
         this.thumbnailImage = data.image_url;
@@ -302,15 +303,16 @@ const ImageMain = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: scene.image_prompt,
-          model: model,
+          imageProvider: model,
           style: style,
-          ratio: ratio
+          size: ratio
         })
       });
 
-      if (!response.ok) throw new Error('이미지 생성 실패');
-
       const data = await response.json();
+      if (!data.ok && data.error) {
+        throw new Error(data.error);
+      }
       if (data.image_url) {
         container.innerHTML = `<img src="${data.image_url}" alt="씬 ${idx + 1}">`;
         this.sceneImages[idx] = data.image_url;
@@ -320,7 +322,7 @@ const ImageMain = {
     } catch (error) {
       console.error('[ImageMain] Scene image error:', error);
       container.innerHTML = '<div class="image-placeholder"><span style="color:red;">실패</span></div>';
-      this.showStatus(`씬 ${idx + 1} 이미지 생성 실패`, 'error');
+      this.showStatus(`씬 ${idx + 1} 이미지 생성 실패: ${error.message}`, 'error');
     }
   },
 
