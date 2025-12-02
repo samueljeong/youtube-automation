@@ -8723,7 +8723,6 @@ def api_image_analyze_script():
             "scenes": result.get("scenes", []),
             "settings": {
                 "content_type": content_type,
-                "protagonist_type": protagonist_type,
                 "image_style": image_style
             }
         })
