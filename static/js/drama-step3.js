@@ -16,10 +16,24 @@ window.DramaStep3 = {
 
   // 설정값 가져오기
   getConfig() {
+    // Step1 설정에서 쇼츠 여부 확인
+    const step1Data = DramaSession.getStepData('step1');
+    const contentType = step1Data?.config?.contentType || 'drama';
+    const duration = step1Data?.config?.duration || '5min';
+    const isShorts = contentType === 'shorts' || ['30s', '60s'].includes(duration);
+
+    // 쇼츠일 경우 말하기 속도 자동 조절 (1.15배속)
+    let speechRate = parseFloat(document.getElementById('speech-rate')?.value) || 0.95;
+    if (isShorts) {
+      speechRate = 1.15;  // 쇼츠는 빠른 템포
+      console.log('[Step3] 쇼츠 모드 - TTS 속도 1.15배속 적용');
+    }
+
     return {
       ttsEngine: document.getElementById('tts-engine')?.value || 'google',
       voiceStyle: document.getElementById('voice-style')?.value || 'warm',
-      speechRate: parseFloat(document.getElementById('speech-rate')?.value) || 0.95
+      speechRate: speechRate,
+      isShorts: isShorts
     };
   },
 

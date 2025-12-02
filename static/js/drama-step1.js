@@ -475,7 +475,10 @@ window.DramaStep1 = {
         body: JSON.stringify({
           script: script,
           channelType: config.channelType,
-          protagonistGender: config.protagonistGender
+          protagonistGender: config.protagonistGender,
+          contentType: config.contentType,
+          duration: config.duration,
+          videoFormat: config.videoFormat
         })
       });
 

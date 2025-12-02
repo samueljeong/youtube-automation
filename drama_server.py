@@ -7519,20 +7519,89 @@ def api_analyze_script():
         script = data.get('script', '').strip()
         channel_type = data.get('channelType', 'senior-nostalgia')
         protagonist_gender = data.get('protagonistGender', 'female')
+        content_type = data.get('contentType', 'drama')
+        duration = data.get('duration', '5min')
+        video_format = data.get('videoFormat', 'horizontal')
+
+        # 쇼츠 여부 판단
+        is_shorts = content_type == 'shorts' or duration in ['30s', '60s']
 
         if not script:
             return jsonify({'ok': False, 'error': '대본이 비어있습니다.'}), 400
 
-        if len(script) < 100:
-            return jsonify({'ok': False, 'error': '대본이 너무 짧습니다. (최소 100자)'}), 400
+        # 쇼츠는 짧은 대본도 허용
+        min_length = 30 if is_shorts else 100
+        if len(script) < min_length:
+            return jsonify({'ok': False, 'error': f'대본이 너무 짧습니다. (최소 {min_length}자)'}), 400
 
-        print(f"[ANALYZE-SCRIPT] 대본 분석 시작 - 길이: {len(script)}자, 채널: {channel_type}")
+        print(f"[ANALYZE-SCRIPT] 대본 분석 시작 - 길이: {len(script)}자, 채널: {channel_type}, is_shorts: {is_shorts}")
 
         # OpenAI API 호출
         from openai import OpenAI
         client = OpenAI()
 
-        system_prompt = """당신은 드라마 대본 분석 전문가이자, AI 이미지/영상용 프롬프트 전문 작성가입니다.
+        # 쇼츠용 시스템 프롬프트
+        if is_shorts:
+            system_prompt = """당신은 YouTube Shorts / Instagram Reels 전문 콘텐츠 분석가입니다.
+주어진 대본을 60초 이하의 세로 영상(9:16)에 맞게 분석합니다.
+
+## 🎯 쇼츠 핵심 규칙
+1. **첫 3초가 생명** - 강렬한 훅(Hook)으로 시작해야 스크롤을 멈춤
+2. **짧고 임팩트있게** - 전체 나레이션 150자 이내 권장
+3. **세로 구도** - 모든 이미지 프롬프트는 세로(9:16) 최적화
+4. **1-2개 씬, 2-3개 샷** - 쇼츠는 간결해야 함
+
+## 🎬 쇼츠 구성 공식
+1. **HOOK (0-3초)**: 질문/충격적 사실/감정적 장면으로 시작
+2. **CONTENT (3-50초)**: 핵심 메시지 1개만 전달
+3. **CTA (50-60초)**: 좋아요/구독/다음 영상 유도
+
+## 📱 쇼츠 이미지 프롬프트 규칙
+- **세로 구도 필수**: "vertical composition (9:16 aspect ratio)" 항상 포함
+- **클로즈업 선호**: 작은 화면에서 잘 보이게
+- **주인공 중앙 배치**: 피사체를 화면 가운데에
+- **심플한 배경**: 복잡한 배경은 시선 분산
+- **텍스트 공간 확보**: 상단/하단에 자막 들어갈 공간
+
+## 프롬프트 예시 (쇼츠용)
+"Vertical composition (9:16), close-up shot of a Korean elderly grandmother's tearful eyes, soft warm lighting from the side, blurred simple background, emotional moment, text-safe area at top and bottom, mobile-optimized framing, cinematic shallow depth of field."
+
+## 출력 형식 (JSON)
+```json
+{
+  "character": {
+    "name": "주인공 이름",
+    "age": 나이,
+    "gender": "female/male",
+    "appearance": "외모 설명 (영문)"
+  },
+  "scenes": [
+    {
+      "sceneId": "scene_1",
+      "title": "씬 제목 (한글)",
+      "shots": [
+        {
+          "shotId": "shot_1_1",
+          "shotType": "hook/content/cta",
+          "imagePrompt": "세로 구도 영문 프롬프트 (vertical composition 포함)",
+          "narration": "짧고 임팩트있는 나레이션 (한글, 1-2문장)"
+        }
+      ]
+    }
+  ],
+  "thumbnailSuggestion": {
+    "mainEmotion": "핵심 감정",
+    "textSuggestion": "썸네일 텍스트 (2-4글자, 임팩트있게)"
+  },
+  "hookLine": "첫 3초 훅 멘트"
+}
+```
+
+⚠️ 중요: 쇼츠는 최대 2개 씬, 3개 샷까지만! 나레이션 총합 150자 이내!"""
+
+        else:
+            # 기존 드라마용 시스템 프롬프트
+            system_prompt = """당신은 드라마 대본 분석 전문가이자, AI 이미지/영상용 프롬프트 전문 작성가입니다.
 주어진 대본을 분석하여 씬(Scene)과 샷(Shot)으로 나누고, 각 샷에 대한 전문가급 이미지 프롬프트를 생성합니다.
 
 ## 분석 규칙
@@ -7599,7 +7668,27 @@ def api_analyze_script():
 }
 ```"""
 
-        user_prompt = f"""다음 대본을 분석해주세요:
+        if is_shorts:
+            user_prompt = f"""📱 쇼츠/릴스용 콘텐츠 분석:
+
+---
+{script}
+---
+
+⚡ 영상 형식: 세로 (9:16) 쇼츠
+⏱️ 영상 길이: {duration}
+👤 주인공 성별: {"여성" if protagonist_gender == "female" else "남성"}
+
+🎯 요청사항:
+1. 첫 3초에 강렬한 훅(Hook)으로 시작
+2. 나레이션 총합 150자 이내로 압축
+3. 씬 1-2개, 샷 2-3개로 간결하게
+4. 모든 이미지 프롬프트는 세로 구도(vertical composition) 포함
+5. CTA(구독/좋아요 유도) 포함
+
+JSON 형식으로 출력해주세요."""
+        else:
+            user_prompt = f"""다음 대본을 분석해주세요:
 
 ---
 {script}
