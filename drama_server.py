@@ -9782,6 +9782,242 @@ def download_detail_zip():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+# ===== 썸네일 자동 생성 API =====
+
+@app.route('/thumbnail')
+def thumbnail_page():
+    """썸네일 자동 생성 페이지"""
+    return render_template('thumbnail.html')
+
+
+@app.route('/api/thumbnail/generate', methods=['POST'])
+def generate_thumbnail():
+    """썸네일 생성 API"""
+    try:
+        from PIL import Image, ImageDraw, ImageFont, ImageFilter
+        import requests
+        from io import BytesIO
+        import base64
+
+        data = request.json
+        image_src = data.get('image', '')
+        main_text = data.get('mainText', '')
+        price = data.get('price', '')
+        original_price = data.get('originalPrice')
+        tags = data.get('tags', [])
+        template = data.get('template', 'sale')
+        font_style = data.get('font', 'noto-black')
+        bg_style = data.get('bgStyle', 'blur')
+        bg_color = data.get('bgColor', '#1a1a2e')
+
+        print(f"[THUMBNAIL] 템플릿: {template}, 배경: {bg_style}")
+        print(f"[THUMBNAIL] 텍스트: {main_text}, 가격: {price}")
+
+        # 이미지 로드
+        if image_src.startswith('data:'):
+            # Base64 이미지
+            base64_data = image_src.split(',')[1]
+            img_data = base64.b64decode(base64_data)
+            product_img = Image.open(BytesIO(img_data))
+        elif image_src.startswith('http'):
+            # URL 이미지
+            response = requests.get(image_src, timeout=10)
+            product_img = Image.open(BytesIO(response.content))
+        else:
+            return jsonify({'ok': False, 'error': '유효하지 않은 이미지'}), 400
+
+        # RGBA로 변환
+        product_img = product_img.convert('RGBA')
+
+        # 썸네일 크기 (9:16)
+        WIDTH, HEIGHT = 1080, 1920
+
+        # 템플릿별 색상 설정
+        template_colors = {
+            'sale': {'primary': '#ff416c', 'secondary': '#ff4b2b', 'accent': '#ffffff'},
+            'value': {'primary': '#11998e', 'secondary': '#38ef7d', 'accent': '#ffffff'},
+            'must': {'primary': '#667eea', 'secondary': '#764ba2', 'accent': '#ffffff'},
+            'gift': {'primary': '#f093fb', 'secondary': '#f5576c', 'accent': '#ffffff'},
+            'hot': {'primary': '#eb3349', 'secondary': '#f45c43', 'accent': '#ffff00'},
+            'minimal': {'primary': '#2c3e50', 'secondary': '#4ca1af', 'accent': '#ffffff'}
+        }
+        colors = template_colors.get(template, template_colors['sale'])
+
+        # 배경 생성
+        if bg_style == 'blur':
+            # 상품 이미지를 확대하고 블러 처리
+            bg_img = product_img.copy()
+            bg_img = bg_img.resize((WIDTH + 100, HEIGHT + 100), Image.Resampling.LANCZOS)
+            bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=30))
+            # 중앙 크롭
+            left = (bg_img.width - WIDTH) // 2
+            top = (bg_img.height - HEIGHT) // 2
+            bg_img = bg_img.crop((left, top, left + WIDTH, top + HEIGHT))
+            # 어둡게 처리
+            dark_overlay = Image.new('RGBA', (WIDTH, HEIGHT), (0, 0, 0, 150))
+            bg_img = Image.alpha_composite(bg_img.convert('RGBA'), dark_overlay)
+        elif bg_style == 'gradient':
+            # 그라데이션 배경
+            bg_img = Image.new('RGBA', (WIDTH, HEIGHT))
+            draw = ImageDraw.Draw(bg_img)
+            c1 = tuple(int(colors['primary'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            c2 = tuple(int(colors['secondary'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            for y in range(HEIGHT):
+                r = int(c1[0] + (c2[0] - c1[0]) * y / HEIGHT)
+                g = int(c1[1] + (c2[1] - c1[1]) * y / HEIGHT)
+                b = int(c1[2] + (c2[2] - c1[2]) * y / HEIGHT)
+                draw.line([(0, y), (WIDTH, y)], fill=(r, g, b, 255))
+        else:
+            # 단색 배경
+            c = tuple(int(bg_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            bg_img = Image.new('RGBA', (WIDTH, HEIGHT), c + (255,))
+
+        # 상품 이미지 배치 (중앙)
+        product_size = int(WIDTH * 0.85)
+        product_img_resized = product_img.copy()
+        product_img_resized.thumbnail((product_size, product_size), Image.Resampling.LANCZOS)
+
+        # 상품 이미지 위치 (상단 여백 25%, 하단 여백 20% 고려)
+        img_x = (WIDTH - product_img_resized.width) // 2
+        img_y = int(HEIGHT * 0.28)
+
+        # 상품 이미지 합성
+        bg_img.paste(product_img_resized, (img_x, img_y), product_img_resized)
+
+        # 폰트 로드
+        font_paths = {
+            'noto-black': '/usr/share/fonts/truetype/noto/NotoSansCJK-Black.ttc',
+            'noto-bold': '/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',
+            'gmarket': '/usr/share/fonts/truetype/gmarket/GmarketSansBold.ttf',
+            'pretendard': '/usr/share/fonts/truetype/pretendard/Pretendard-Bold.ttf'
+        }
+        font_path = font_paths.get(font_style, font_paths['noto-black'])
+
+        # 폰트가 없으면 기본 폰트 사용
+        try:
+            font_large = ImageFont.truetype(font_path, 72)
+            font_medium = ImageFont.truetype(font_path, 56)
+            font_small = ImageFont.truetype(font_path, 40)
+            font_tag = ImageFont.truetype(font_path, 36)
+        except:
+            # 시스템 기본 폰트 시도
+            try:
+                font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+                font_large = ImageFont.truetype(font_path, 72)
+                font_medium = ImageFont.truetype(font_path, 56)
+                font_small = ImageFont.truetype(font_path, 40)
+                font_tag = ImageFont.truetype(font_path, 36)
+            except:
+                font_large = ImageFont.load_default()
+                font_medium = font_large
+                font_small = font_large
+                font_tag = font_large
+
+        draw = ImageDraw.Draw(bg_img)
+
+        # 상단 태그 영역 (상단 5~15%)
+        tag_y = int(HEIGHT * 0.06)
+        if tags:
+            tag_x_start = WIDTH // 2
+            tag_spacing = 20
+            total_width = 0
+
+            # 태그 총 너비 계산
+            tag_widths = []
+            for tag in tags[:3]:
+                if tag:
+                    bbox = draw.textbbox((0, 0), tag, font=font_tag)
+                    w = bbox[2] - bbox[0] + 40  # 패딩 포함
+                    tag_widths.append(w)
+                    total_width += w + tag_spacing
+
+            # 중앙 정렬을 위한 시작 위치
+            tag_x = (WIDTH - total_width) // 2
+
+            for i, tag in enumerate(tags[:3]):
+                if tag:
+                    bbox = draw.textbbox((0, 0), tag, font=font_tag)
+                    w = bbox[2] - bbox[0] + 40
+                    h = bbox[3] - bbox[1] + 20
+
+                    # 태그 배경 (둥근 사각형 효과)
+                    c = tuple(int(colors['primary'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+                    draw.rounded_rectangle(
+                        [tag_x, tag_y, tag_x + w, tag_y + h],
+                        radius=h // 2,
+                        fill=c + (230,)
+                    )
+                    # 태그 텍스트
+                    text_x = tag_x + 20
+                    text_y = tag_y + 10
+                    draw.text((text_x, text_y), tag, font=font_tag, fill='white')
+
+                    tag_x += w + tag_spacing
+
+        # 하단 텍스트 영역 (하단 20%)
+        bottom_y = int(HEIGHT * 0.78)
+
+        # 메인 텍스트 (상품명)
+        if main_text:
+            # 텍스트 그림자
+            shadow_offset = 3
+            bbox = draw.textbbox((0, 0), main_text, font=font_large)
+            text_w = bbox[2] - bbox[0]
+            text_x = (WIDTH - text_w) // 2
+
+            draw.text((text_x + shadow_offset, bottom_y + shadow_offset), main_text, font=font_large, fill=(0, 0, 0, 150))
+            draw.text((text_x, bottom_y), main_text, font=font_large, fill='white')
+
+        # 가격
+        price_y = bottom_y + 90
+        if price:
+            # 원가 (취소선 효과)
+            if original_price:
+                bbox = draw.textbbox((0, 0), original_price, font=font_small)
+                orig_w = bbox[2] - bbox[0]
+                orig_x = (WIDTH - orig_w) // 2
+                draw.text((orig_x, price_y), original_price, font=font_small, fill=(200, 200, 200, 200))
+                # 취소선
+                line_y = price_y + (bbox[3] - bbox[1]) // 2
+                draw.line([(orig_x - 5, line_y), (orig_x + orig_w + 5, line_y)], fill=(200, 200, 200, 200), width=3)
+                price_y += 50
+
+            # 현재 가격
+            bbox = draw.textbbox((0, 0), price, font=font_medium)
+            price_w = bbox[2] - bbox[0]
+            price_x = (WIDTH - price_w) // 2
+
+            # 가격 강조 배경
+            padding = 20
+            c = tuple(int(colors['primary'].lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+            draw.rounded_rectangle(
+                [price_x - padding, price_y - 10, price_x + price_w + padding, price_y + (bbox[3] - bbox[1]) + 10],
+                radius=10,
+                fill=c + (255,)
+            )
+            draw.text((price_x, price_y), price, font=font_medium, fill='white')
+
+        # 이미지 저장
+        timestamp = int(time.time() * 1000)
+        filename = f"thumbnail_{template}_{timestamp}.png"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+
+        # RGB로 변환하여 저장
+        final_img = bg_img.convert('RGB')
+        final_img.save(filepath, 'PNG', quality=95)
+
+        thumbnail_url = f'/output/{filename}'
+        print(f"[THUMBNAIL] 생성 완료: {thumbnail_url}")
+
+        return jsonify({'ok': True, 'thumbnailUrl': thumbnail_url})
+
+    except Exception as e:
+        print(f"[THUMBNAIL] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))

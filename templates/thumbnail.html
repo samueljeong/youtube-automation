@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>썸네일 자동 생성 | 쿠팡 도구</title>
+    <link rel="stylesheet" href="/static/css/thumbnail.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="page-wrapper">
+        <!-- 사이드바 -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">🛒 쿠팡 도구</div>
+            <nav class="sidebar-nav">
+                <a href="/shorts" class="nav-item">
+                    <span class="nav-icon">📱</span>
+                    <span class="nav-text">쇼츠 제작</span>
+                </a>
+                <a href="/thumbnail" class="nav-item active">
+                    <span class="nav-icon">🖼️</span>
+                    <span class="nav-text">썸네일</span>
+                </a>
+                <a href="/detail-page" class="nav-item">
+                    <span class="nav-icon">📄</span>
+                    <span class="nav-text">상세페이지</span>
+                </a>
+                <a href="/drama" class="nav-item">
+                    <span class="nav-icon">🎬</span>
+                    <span class="nav-text">드라마 제작</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <header class="page-header">
+                <h1>🖼️ 썸네일 자동 생성</h1>
+                <p>쿠팡 상품 이미지로 클릭률 높은 썸네일을 자동으로 만들어보세요</p>
+            </header>
+
+            <div class="content-grid">
+                <!-- 왼쪽: 설정 패널 -->
+                <div class="settings-panel">
+                    <!-- Step 1: 이미지 입력 -->
+                    <section class="setting-section">
+                        <h2><span class="step-num">1</span> 상품 이미지</h2>
+
+                        <div class="input-group">
+                            <label>쿠팡 URL로 불러오기</label>
+                            <div class="url-input-row">
+                                <input type="text" id="coupangUrl" placeholder="https://www.coupang.com/vp/products/...">
+                                <button id="fetchImageBtn" class="btn-secondary">불러오기</button>
+                            </div>
+                        </div>
+
+                        <div class="divider-or"><span>또는</span></div>
+
+                        <div class="input-group">
+                            <label>이미지 직접 업로드</label>
+                            <div class="upload-area" id="uploadArea">
+                                <input type="file" id="imageUpload" accept="image/*" hidden>
+                                <div class="upload-placeholder">
+                                    <span class="upload-icon">📷</span>
+                                    <span>클릭하여 이미지 선택</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="fetched-images" id="fetchedImages" style="display: none;">
+                            <label>불러온 이미지 선택</label>
+                            <div class="image-select-grid" id="imageSelectGrid"></div>
+                        </div>
+                    </section>
+
+                    <!-- Step 2: 텍스트 입력 -->
+                    <section class="setting-section">
+                        <h2><span class="step-num">2</span> 텍스트 설정</h2>
+
+                        <div class="input-group">
+                            <label>메인 텍스트 (상품명)</label>
+                            <input type="text" id="mainText" placeholder="예: 무선 청소기" maxlength="20">
+                            <small>최대 20자 권장</small>
+                        </div>
+
+                        <div class="input-group">
+                            <label>가격 표시</label>
+                            <div class="price-row">
+                                <input type="text" id="priceText" placeholder="29,900원">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="showOriginalPrice">
+                                    <span>원가 표시</span>
+                                </label>
+                            </div>
+                            <input type="text" id="originalPrice" placeholder="원가: 59,900원" style="display: none; margin-top: 8px;">
+                        </div>
+
+                        <div class="input-group">
+                            <label>강조 태그 (최대 3개)</label>
+                            <div class="tag-input-row">
+                                <input type="text" id="tag1" placeholder="세일중" maxlength="10">
+                                <input type="text" id="tag2" placeholder="가성비" maxlength="10">
+                                <input type="text" id="tag3" placeholder="필수템" maxlength="10">
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Step 3: 스타일 설정 -->
+                    <section class="setting-section">
+                        <h2><span class="step-num">3</span> 템플릿 & 스타일</h2>
+
+                        <div class="input-group">
+                            <label>템플릿 선택</label>
+                            <div class="template-grid">
+                                <div class="template-card selected" data-template="sale">
+                                    <div class="template-preview sale-preview"></div>
+                                    <span>🔥 세일</span>
+                                </div>
+                                <div class="template-card" data-template="value">
+                                    <div class="template-preview value-preview"></div>
+                                    <span>💰 가성비</span>
+                                </div>
+                                <div class="template-card" data-template="must">
+                                    <div class="template-preview must-preview"></div>
+                                    <span>⭐ 필수템</span>
+                                </div>
+                                <div class="template-card" data-template="gift">
+                                    <div class="template-preview gift-preview"></div>
+                                    <span>🎁 선물</span>
+                                </div>
+                                <div class="template-card" data-template="hot">
+                                    <div class="template-preview hot-preview"></div>
+                                    <span>🔴 핫딜</span>
+                                </div>
+                                <div class="template-card" data-template="minimal">
+                                    <div class="template-preview minimal-preview"></div>
+                                    <span>✨ 심플</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>폰트 선택</label>
+                            <select id="fontSelect">
+                                <option value="noto-black">Noto Sans 블랙 (기본)</option>
+                                <option value="noto-bold">Noto Sans 볼드</option>
+                                <option value="gmarket">GmarketSans</option>
+                                <option value="pretendard">Pretendard</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label>배경 처리</label>
+                            <div class="bg-options">
+                                <label class="radio-card selected" data-bg="blur">
+                                    <input type="radio" name="bgStyle" value="blur" checked>
+                                    <span>🌫️ 블러</span>
+                                </label>
+                                <label class="radio-card" data-bg="gradient">
+                                    <input type="radio" name="bgStyle" value="gradient">
+                                    <span>🎨 그라데이션</span>
+                                </label>
+                                <label class="radio-card" data-bg="solid">
+                                    <input type="radio" name="bgStyle" value="solid">
+                                    <span>⬛ 단색</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="input-group" id="colorPickerGroup" style="display: none;">
+                            <label>배경색 선택</label>
+                            <input type="color" id="bgColor" value="#1a1a2e">
+                        </div>
+                    </section>
+
+                    <!-- 생성 버튼 -->
+                    <div class="action-buttons">
+                        <button id="generateBtn" class="btn-primary btn-large">
+                            🎨 썸네일 생성하기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 미리보기 -->
+                <div class="preview-panel">
+                    <h2>미리보기</h2>
+                    <div class="preview-container">
+                        <div class="preview-frame" id="previewFrame">
+                            <div class="preview-placeholder">
+                                <span>👆</span>
+                                <p>왼쪽에서 설정 후<br>미리보기가 표시됩니다</p>
+                            </div>
+                        </div>
+                        <div class="preview-info">
+                            <span>1080 × 1920 (9:16)</span>
+                            <span>쇼츠/릴스 최적화</span>
+                        </div>
+                    </div>
+
+                    <div class="result-actions" id="resultActions" style="display: none;">
+                        <button id="downloadBtn" class="btn-primary">
+                            📥 PNG 다운로드
+                        </button>
+                        <button id="regenerateBtn" class="btn-secondary">
+                            🔄 다시 생성
+                        </button>
+                    </div>
+
+                    <!-- 최근 생성 히스토리 -->
+                    <div class="history-section">
+                        <h3>최근 생성</h3>
+                        <div class="history-grid" id="historyGrid">
+                            <div class="history-empty">아직 생성된 썸네일이 없습니다</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/thumbnail-main.js"></script>
+</body>
+</html>
