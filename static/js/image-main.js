@@ -84,16 +84,20 @@ const ImageMain = {
    * 씬 데이터 수집 (수정된 값 반영)
    */
   collectSceneData() {
-    // 썸네일 정보
+    // 썸네일 정보 (4줄 텍스트)
+    const textLines = this.getThumbnailTextLines();
+    const highlightLine = this.getHighlightLineIndex();
+
     this.analyzedData.thumbnail = {
-      title: document.getElementById('thumbnail-title').value,
-      prompt: document.getElementById('thumbnail-prompt').value
+      text_lines: textLines,
+      highlight_line: highlightLine,
+      prompt: document.getElementById('thumbnail-prompt')?.value || ''
     };
 
     // 씬 정보
     document.querySelectorAll('.scene-item').forEach((item, idx) => {
-      const narration = item.querySelector('.scene-narration').value;
-      const prompt = item.querySelector('.scene-prompt').value;
+      const narration = item.querySelector('.scene-narration')?.value || '';
+      const prompt = item.querySelector('.scene-prompt')?.value || '';
       if (this.analyzedData.scenes[idx]) {
         this.analyzedData.scenes[idx].narration = narration;
         this.analyzedData.scenes[idx].image_prompt = prompt;
