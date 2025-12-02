@@ -1189,6 +1189,10 @@ def product():
 def image():
     return render_template("image.html")
 
+@app.route("/product-manage")
+def product_manage():
+    return render_template("product-manage.html")
+
 @app.route("/health")
 def health():
     return jsonify({"ok": True})
