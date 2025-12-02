@@ -298,6 +298,15 @@
                   <label>구매 링크</label>
                   <input type="url" id="newLink" placeholder="https://...">
                 </div>
+                <div class="form-group">
+                  <label>상품 이미지 URL</label>
+                  <div style="display:flex; gap:8px; align-items:flex-start;">
+                    <input type="url" id="newImageUrl" placeholder="https://... 이미지 URL" style="flex:1;" oninput="previewImage()">
+                    <div id="imagePreview" style="width:60px; height:60px; border:1px dashed #cbd5e1; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#f8fafc;">
+                      <span style="font-size:10px; color:#94a3b8;">미리보기</span>
+                    </div>
+                  </div>
+                </div>
 
                 <!-- 판매 방식 -->
                 <div class="form-group" style="margin-top:16px;">
@@ -480,6 +489,7 @@
             <table>
               <thead>
                 <tr>
+                  <th style="width:50px;">이미지</th>
                   <th>플랫폼</th>
                   <th>방식</th>
                   <th class="text-left">상품명</th>
@@ -546,6 +556,15 @@
         <div class="form-group">
           <label>판매가 (KRW)</label>
           <input type="number" id="editSellPrice">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>이미지 URL</label>
+        <div style="display:flex; gap:8px; align-items:flex-start;">
+          <input type="url" id="editImageUrl" style="flex:1;" oninput="previewEditImage()">
+          <div id="editImagePreview" style="width:60px; height:60px; border:1px dashed #cbd5e1; border-radius:6px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:#f8fafc;">
+            <span style="font-size:10px; color:#94a3b8;">미리보기</span>
+          </div>
         </div>
       </div>
       <div class="modal-actions">
@@ -883,6 +902,27 @@
       };
     }
 
+    // === 이미지 미리보기 ===
+    function previewImage() {
+      const url = document.getElementById('newImageUrl').value.trim();
+      const preview = document.getElementById('imagePreview');
+      if (url) {
+        preview.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:10px; color:#ef4444;\\'>로드실패</span>'">`;
+      } else {
+        preview.innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
+      }
+    }
+
+    function previewEditImage() {
+      const url = document.getElementById('editImageUrl').value.trim();
+      const preview = document.getElementById('editImagePreview');
+      if (url) {
+        preview.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:10px; color:#ef4444;\\'>로드실패</span>'">`;
+      } else {
+        preview.innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
+      }
+    }
+
     // === 상품 추가 ===
     async function addProduct(platform) {
       const name = document.getElementById('newName').value.trim();
@@ -905,6 +945,7 @@
         hsCode: selectedHsCode,
         dutyRate: selectedDutyRate,
         link: document.getElementById('newLink').value.trim(),
+        imageUrl: document.getElementById('newImageUrl').value.trim(),
         createdAt: new Date().toISOString()
       };
 
@@ -917,6 +958,8 @@
         // 입력 초기화
         document.getElementById('newName').value = '';
         document.getElementById('newCnyPrice').value = '';
+        document.getElementById('newImageUrl').value = '';
+        document.getElementById('imagePreview').innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
         document.getElementById('hsRecommendBox').style.display = 'none';
         alert('상품이 등록되었습니다!');
       } else {
@@ -938,9 +981,13 @@
         const costKrw = p.cnyPrice * exchangeRate;
         const marginRate = p.sellPrice > 0 ? ((p.sellPrice - costKrw) / p.sellPrice * 100).toFixed(1) : 0;
         const date = new Date(p.createdAt).toLocaleDateString('ko-KR');
+        const imgHtml = p.imageUrl
+          ? `<img src="${p.imageUrl}" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" onerror="this.style.display='none'">`
+          : '<span style="color:#cbd5e1;">-</span>';
 
         return `
           <tr>
+            <td>${imgHtml}</td>
             <td><span class="badge badge-${p.platform}">${p.platform === 'naver' ? '네이버' : '쿠팡'}</span></td>
             <td><span class="badge badge-${p.saleType}">${p.saleType === 'import' ? '수입' : '대행'}</span></td>
             <td class="text-left">${p.name}</td>
@@ -1010,6 +1057,14 @@
       document.getElementById('editCategory').value = product.category;
       document.getElementById('editCnyPrice').value = product.cnyPrice;
       document.getElementById('editSellPrice').value = product.sellPrice;
+      document.getElementById('editImageUrl').value = product.imageUrl || '';
+      // 이미지 미리보기
+      const preview = document.getElementById('editImagePreview');
+      if (product.imageUrl) {
+        preview.innerHTML = `<img src="${product.imageUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        preview.innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
+      }
       document.getElementById('editModal').classList.add('active');
     }
 
@@ -1027,7 +1082,8 @@
         category: document.getElementById('editCategory').value,
         cnyPrice: parseFloat(document.getElementById('editCnyPrice').value),
         sellPrice: parseInt(document.getElementById('editSellPrice').value),
-        stock: product.stock
+        stock: product.stock,
+        imageUrl: document.getElementById('editImageUrl').value.trim()
       };
 
       const success = await updateProductOnServer(id, updatedData);

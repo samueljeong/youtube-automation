@@ -963,6 +963,7 @@ def init_db():
                 hs_code TEXT,
                 duty_rate REAL,
                 link TEXT,
+                image_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -991,6 +992,7 @@ def init_db():
                 hs_code TEXT,
                 duty_rate REAL,
                 link TEXT,
+                image_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -1261,7 +1263,7 @@ def get_products():
         cursor = conn.cursor()
         cursor.execute('''
             SELECT id, name, category, cny_price, sell_price, quantity, stock,
-                   platform, sale_type, hs_code, duty_rate, link, created_at
+                   platform, sale_type, hs_code, duty_rate, link, image_url, created_at
             FROM products ORDER BY created_at DESC
         ''')
         rows = cursor.fetchall()
@@ -1283,7 +1285,8 @@ def get_products():
                 'hsCode': row[9],
                 'dutyRate': row[10],
                 'link': row[11],
-                'createdAt': row[12]
+                'imageUrl': row[12],
+                'createdAt': row[13]
             })
         return jsonify({'ok': True, 'products': products})
     except Exception as e:
@@ -1300,8 +1303,8 @@ def add_product():
 
         cursor.execute('''
             INSERT INTO products (id, name, category, cny_price, sell_price, quantity, stock,
-                                  platform, sale_type, hs_code, duty_rate, link)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  platform, sale_type, hs_code, duty_rate, link, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data.get('id'),
             data.get('name'),
@@ -1314,7 +1317,8 @@ def add_product():
             data.get('saleType'),
             data.get('hsCode'),
             data.get('dutyRate'),
-            data.get('link', '')
+            data.get('link', ''),
+            data.get('imageUrl', '')
         ))
 
         conn.commit()
@@ -1335,7 +1339,7 @@ def update_product(product_id):
 
         cursor.execute('''
             UPDATE products SET name=?, category=?, cny_price=?, sell_price=?,
-                               stock=?, updated_at=CURRENT_TIMESTAMP
+                               stock=?, image_url=?, updated_at=CURRENT_TIMESTAMP
             WHERE id=?
         ''', (
             data.get('name'),
@@ -1343,6 +1347,7 @@ def update_product(product_id):
             data.get('cnyPrice'),
             data.get('sellPrice'),
             data.get('stock', 0),
+            data.get('imageUrl', ''),
             product_id
         ))
 
