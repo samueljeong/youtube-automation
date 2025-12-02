@@ -266,9 +266,9 @@ const ImageMain = {
       if (!data.ok && data.error) {
         throw new Error(data.error);
       }
-      if (data.image_url) {
-        container.innerHTML = `<img src="${data.image_url}" alt="썸네일">`;
-        this.thumbnailImage = data.image_url;
+      if (data.imageUrl) {
+        container.innerHTML = `<img src="${data.imageUrl}" alt="썸네일">`;
+        this.thumbnailImage = data.imageUrl;
         this.updateDownloadSection();
         this.showStatus('썸네일 생성 완료!', 'success');
       }
@@ -313,9 +313,9 @@ const ImageMain = {
       if (!data.ok && data.error) {
         throw new Error(data.error);
       }
-      if (data.image_url) {
-        container.innerHTML = `<img src="${data.image_url}" alt="씬 ${idx + 1}">`;
-        this.sceneImages[idx] = data.image_url;
+      if (data.imageUrl) {
+        container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}">`;
+        this.sceneImages[idx] = data.imageUrl;
         this.updateDownloadSection();
       }
 

@@ -325,18 +325,19 @@ const ProductMain = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: scene.image_prompt,
-          model: model,
+          imageProvider: model,
           style: style,
-          ratio: ratio
+          size: ratio
         })
       });
 
-      if (!response.ok) throw new Error('이미지 생성 실패');
-
       const data = await response.json();
-      if (data.image_url) {
-        placeholder.innerHTML = `<img src="${data.image_url}" alt="씬 ${idx + 1}" style="width:100%;height:100%;object-fit:cover;">`;
-        this.generatedImages[idx] = data.image_url;
+      if (!data.ok && data.error) {
+        throw new Error(data.error);
+      }
+      if (data.imageUrl) {
+        placeholder.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}" style="width:100%;height:100%;object-fit:cover;">`;
+        this.generatedImages[idx] = data.imageUrl;
         this.checkStep2Complete();
       }
 
