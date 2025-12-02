@@ -17,6 +17,39 @@ window.DramaStep1 = {
     this.restoreFromSession();
     this.restoreAnalyzedData();  // 분석 데이터 복원
     this.initVoiceSelection();
+    this.initContentTypeHandler();  // 콘텐츠 타입 핸들러 초기화
+  },
+
+  /**
+   * 콘텐츠 타입 변경 핸들러 초기화
+   * 쇼츠 선택시 자동으로 세로 형식, 짧은 영상으로 전환
+   */
+  initContentTypeHandler() {
+    const contentType = document.getElementById('content-type');
+    const videoFormat = document.getElementById('video-format');
+    const videoDuration = document.getElementById('video-duration');
+
+    if (contentType) {
+      contentType.addEventListener('change', (e) => {
+        if (e.target.value === 'shorts') {
+          // 쇼츠 선택시 자동 설정
+          if (videoFormat) videoFormat.value = 'vertical';
+          if (videoDuration) videoDuration.value = '60s';
+          console.log('[Step1] 쇼츠 모드: 세로 형식 + 60초');
+        }
+      });
+    }
+
+    // 영상 형식 변경시 이미지 비율도 연동
+    if (videoFormat) {
+      videoFormat.addEventListener('change', (e) => {
+        const imageRatio = document.getElementById('image-ratio');
+        if (imageRatio) {
+          imageRatio.value = e.target.value === 'vertical' ? '9:16' : '16:9';
+          console.log('[Step1] 이미지 비율 변경:', imageRatio.value);
+        }
+      });
+    }
   },
 
   /**
@@ -190,7 +223,22 @@ window.DramaStep1 = {
    * 설정값 가져오기
    */
   getConfig() {
+    const videoFormat = document.getElementById('video-format')?.value || 'horizontal';
+    const videoDuration = document.getElementById('video-duration')?.value || '5min';
+
+    // duration을 API 포맷으로 변환
+    const durationMap = {
+      '30s': '30s',
+      '60s': '60s',
+      '3min': '3min',
+      '5min': '5min',
+      '10min': '10min'
+    };
+
     return {
+      contentType: document.getElementById('content-type')?.value || 'drama',
+      videoFormat: videoFormat,
+      duration: durationMap[videoDuration] || '5min',
       channelType: document.getElementById('channel-type')?.value || 'senior-nostalgia',
       protagonistGender: document.getElementById('protagonist-gender')?.value || 'female',
       ttsVoiceQuality: document.getElementById('tts-voice-quality')?.value || 'neural2',

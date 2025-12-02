@@ -17,10 +17,21 @@ window.DramaStep2 = {
 
   // 설정값 가져오기
   getConfig() {
+    // Step1 설정에서 videoFormat 확인
+    const step1Data = DramaSession.getStepData('step1');
+    const videoFormat = step1Data?.config?.videoFormat || document.getElementById('video-format')?.value || 'horizontal';
+
+    // 영상 형식에 따른 이미지 비율 자동 결정
+    let imageRatio = document.getElementById('image-ratio')?.value || '16:9';
+    if (videoFormat === 'vertical') {
+      imageRatio = '9:16';
+    }
+
     return {
       imageModel: document.getElementById('image-model')?.value || 'gemini',
       imageStyle: document.getElementById('image-style')?.value || 'realistic',
-      imageRatio: document.getElementById('image-ratio')?.value || '16:9'
+      imageRatio: imageRatio,
+      videoFormat: videoFormat
     };
   },
 

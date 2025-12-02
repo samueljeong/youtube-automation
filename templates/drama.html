@@ -97,8 +97,28 @@
                   <option value="drama" selected>드라마/스토리</option>
                   <option value="product">상품 소개</option>
                   <option value="education">교육/정보</option>
+                  <option value="shorts">📱 쇼츠/릴스</option>
                 </select>
               </div>
+              <div class="config-item">
+                <label>영상 형식</label>
+                <select id="video-format">
+                  <option value="horizontal" selected>가로 (16:9)</option>
+                  <option value="vertical">세로 (9:16) - 쇼츠/릴스</option>
+                </select>
+              </div>
+              <div class="config-item">
+                <label>영상 길이</label>
+                <select id="video-duration">
+                  <option value="30s">30초 (쇼츠)</option>
+                  <option value="60s">60초 (쇼츠)</option>
+                  <option value="3min">3분</option>
+                  <option value="5min" selected>5분</option>
+                  <option value="10min">10분</option>
+                </select>
+              </div>
+            </div>
+            <div class="config-row">
               <div class="config-item">
                 <label>채널 타입</label>
                 <select id="channel-type">
@@ -113,6 +133,9 @@
                   <option value="female" selected>여성 (할머니)</option>
                   <option value="male">남성 (할아버지)</option>
                 </select>
+              </div>
+              <div class="config-item">
+                <!-- 빈 칸 (레이아웃 유지) -->
               </div>
             </div>
           </div>

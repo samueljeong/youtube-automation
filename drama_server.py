@@ -3147,7 +3147,9 @@ def api_analyze_characters():
 
         # duration에 따른 최대 씬 개수 설정
         max_scenes_map = {
-            "2min": 2,
+            "30s": 1,     # 쇼츠
+            "60s": 2,     # 쇼츠
+            "3min": 2,
             "5min": 3,
             "10min": 4,
             "20min": 6,
@@ -3155,10 +3157,47 @@ def api_analyze_characters():
         }
         max_scenes = max_scenes_map.get(duration, 4)
 
-        print(f"[DRAMA-STEP4-ANALYZE] 등장인물 및 씬 분석 시작 (duration: {duration}, max_scenes: {max_scenes}, content_type: {content_type})")
+        # 쇼츠 여부 판단 (content_type이 shorts이거나 duration이 60s 이하)
+        is_shorts = content_type == 'shorts' or duration in ['30s', '60s']
+
+        print(f"[DRAMA-STEP4-ANALYZE] 등장인물 및 씬 분석 시작 (duration: {duration}, max_scenes: {max_scenes}, content_type: {content_type}, is_shorts: {is_shorts})")
 
         # 콘텐츠 타입별 시스템 프롬프트 분기
-        if content_type == 'product':
+        if content_type == 'shorts' or is_shorts:
+            # 쇼츠/릴스 콘텐츠 (세로 9:16, 60초 이하)
+            system_content = """당신은 YouTube Shorts / Instagram Reels 대본을 분석하여 핵심 장면을 추출하는 전문가입니다.
+
+쇼츠는 세로 형식(9:16)이며 60초 이하의 짧은 영상입니다.
+대본을 분석하여 다음 정보를 JSON 형식으로 추출해주세요:
+
+1. 등장인물/요소 (characters): 각 항목에 대해
+   - name: 이름 (한글)
+   - description: 설명 (한글)
+   - imagePrompt: 세로 형식에 최적화된 영어 이미지 프롬프트
+
+2. 씬 (scenes): 각 씬에 대해 (최대 2개)
+   - title: 씬 제목 (한글)
+   - location: 장소 (한글)
+   - description: 씬 설명 (한글)
+   - characters: 등장하는 항목들
+   - backgroundPrompt: 세로 구도에 맞는 영어 배경 프롬프트
+
+응답 형식은 JSON으로:
+{
+  "characters": [...],
+  "scenes": [...]
+}
+
+🚨 쇼츠 이미지 프롬프트 핵심 규칙:
+- **세로 구도 (9:16)**: 모든 이미지는 세로 형식, 피사체를 화면 중앙에 배치
+- **클로즈업/미디엄샷**: 작은 화면에서 잘 보이도록 가까이 촬영
+- **심플한 배경**: 복잡한 배경은 피하고 피사체가 돋보이게
+- **강렬한 첫인상**: 첫 씬이 썸네일이 되므로 시선을 끄는 구도
+- **텍스트 오버레이 공간**: 상단/하단에 텍스트 영역 확보
+- 프롬프트 예시: "Vertical portrait composition (9:16 aspect ratio), [주제] centered in frame, close-up shot, simple blurred background, mobile-optimized framing, high contrast, eye-catching visual"
+- ⚠️ 가로 구도 금지, 복잡한 배경 금지, 너무 멀리서 찍은 샷 금지"""
+
+        elif content_type == 'product':
             # 상품 소개 콘텐츠
             system_content = """당신은 상품 소개 대본을 분석하여 제품과 씬 정보를 추출하는 전문가입니다.
 
