@@ -9920,7 +9920,7 @@ def thumbnail_page():
 
 
 @app.route('/api/thumbnail/generate', methods=['POST'])
-def generate_thumbnail():
+def generate_thumbnail_with_text():
     """썸네일 생성 API"""
     try:
         from PIL import Image, ImageDraw, ImageFont, ImageFilter
