@@ -139,7 +139,16 @@ window.ShortsApp = {
     const btn = document.getElementById('btn-generate-script');
     const originalText = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<span class="btn-icon">⏳</span> 생성 중...';
+
+    // Hook 스타일 옵션 가져오기
+    const hookStyle = document.getElementById('hook-style')?.value || 'random';
+    const category = document.getElementById('product-category')?.value || 'auto';
+    const lengthPreset = document.getElementById('length-preset')?.value || 'medium';
+    const generateVariations = document.getElementById('generate-variations')?.checked || false;
+
+    btn.innerHTML = generateVariations
+      ? '<span class="btn-icon">⏳</span> 3개 대본 생성 중...'
+      : '<span class="btn-icon">⏳</span> 생성 중...';
 
     try {
       const response = await fetch('/api/shorts/generate-script', {
@@ -149,7 +158,11 @@ window.ShortsApp = {
           productName: this.productData.name,
           price: this.productData.price,
           rating: this.productData.rating,
-          reviewCount: this.productData.reviewCount
+          reviewCount: this.productData.reviewCount,
+          hookStyle: hookStyle,
+          category: category,
+          lengthPreset: lengthPreset,
+          variations: generateVariations
         })
       });
 
@@ -159,13 +172,16 @@ window.ShortsApp = {
         throw new Error(data.error || '대본 생성 실패');
       }
 
-      // 대본 채우기
-      document.getElementById('script-hook').value = data.script.hook || '';
-      document.getElementById('script-content').value = data.script.content || '';
-      document.getElementById('script-cta').value = data.script.cta || '';
-      this.updateCharCounts();
-
-      this.showStatus('대본이 생성되었습니다!', 'success');
+      // 3개 대본 변형 모드
+      if (generateVariations && data.scripts) {
+        this.displayScriptVariations(data.scripts);
+        this.showStatus(`${data.count}개 대본이 생성되었습니다! 선택해주세요.`, 'success');
+      } else {
+        // 단일 대본 모드
+        document.getElementById('script-variations')?.classList.add('hidden');
+        this.applyScript(data.script);
+        this.showStatus('대본이 생성되었습니다!', 'success');
+      }
 
     } catch (error) {
       console.error('[Shorts] 대본 생성 오류:', error);
@@ -174,6 +190,88 @@ window.ShortsApp = {
       btn.disabled = false;
       btn.innerHTML = originalText;
     }
+  },
+
+  // 대본을 에디터에 적용
+  applyScript(script) {
+    document.getElementById('script-hook').value = script.hook || '';
+
+    // content가 있으면 사용, 없으면 pain + solution + features 조합
+    let content = script.content || '';
+    if (!content) {
+      const parts = [];
+      if (script.pain) parts.push(script.pain);
+      if (script.solution) parts.push(script.solution);
+      if (script.features && Array.isArray(script.features)) {
+        const features = script.features;
+        if (features[0]) parts.push(`첫째, ${features[0]}.`);
+        if (features[1]) parts.push(`둘째, ${features[1]}.`);
+        if (features[2]) parts.push(`셋째, ${features[2]}.`);
+      }
+      content = parts.join('\n');
+    }
+    document.getElementById('script-content').value = content;
+    document.getElementById('script-cta').value = script.cta || '';
+    this.updateCharCounts();
+
+    // 쿠팡파트너스 고지 문구
+    if (script.disclosure) {
+      console.log('[Shorts] 고지 문구:', script.disclosure);
+    }
+  },
+
+  // 3개 대본 변형 표시
+  displayScriptVariations(scripts) {
+    const container = document.getElementById('script-variations');
+    const grid = document.getElementById('variations-grid');
+
+    // 스타일 라벨
+    const styleLabels = {
+      'price_shock': '💰 가격 자극',
+      'pain_trigger': '🧊 문제 공감',
+      'shock_surprise': '⚡ 반전/충격',
+      'urgency': '⏰ 긴급',
+      'random': '🎲 랜덤'
+    };
+
+    // 카드 생성
+    grid.innerHTML = scripts.map((script, index) => {
+      const styleLabel = styleLabels[script.style] || `버전 ${index + 1}`;
+      const preview = script.pain || script.content?.slice(0, 60) || '';
+
+      return `
+        <div class="variation-card" data-index="${index}">
+          <span class="variation-badge">${styleLabel}</span>
+          <div class="variation-hook">"${script.hook}"</div>
+          <div class="variation-preview">${preview}...</div>
+        </div>
+      `;
+    }).join('');
+
+    // 클릭 이벤트 바인딩
+    grid.querySelectorAll('.variation-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const index = parseInt(card.dataset.index);
+        this.selectVariation(scripts, index);
+
+        // 선택 상태 표시
+        grid.querySelectorAll('.variation-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+
+    // 표시
+    container.classList.remove('hidden');
+
+    // 저장
+    this.currentVariations = scripts;
+  },
+
+  // 변형 선택
+  selectVariation(scripts, index) {
+    const script = scripts[index];
+    this.applyScript(script);
+    this.showStatus(`버전 ${index + 1} 대본이 적용되었습니다.`, 'success');
   },
 
   // TTS 음성 생성

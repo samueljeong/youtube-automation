@@ -301,16 +301,197 @@ body {
 }
 
 /* 대본 에디터 */
+/* Hook 스타일 선택 */
+.script-style-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.style-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.style-group label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a8b4ce;
+}
+
+.style-group select {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.style-group select:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+.style-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+@media (max-width: 768px) {
+  .script-style-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .script-options {
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .or-divider {
   color: #666;
   font-size: 0.9rem;
+}
+
+/* 3개 대본 생성 토글 */
+.variation-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #a8b4ce;
+  padding: 8px 12px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 20px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  transition: all 0.2s;
+}
+
+.variation-toggle:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.4);
+}
+
+.variation-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #667eea;
+}
+
+/* 대본 변형 선택 영역 */
+.script-variations {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+}
+
+.script-variations.hidden {
+  display: none;
+}
+
+.variations-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.variations-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.variations-header p {
+  font-size: 0.8rem;
+  color: #8892b0;
+}
+
+.variations-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.variation-card {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.variation-card:hover {
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-2px);
+}
+
+.variation-card.selected {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.variation-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.variation-card:nth-child(1) .variation-badge {
+  background: linear-gradient(135deg, #ff416c, #ff4b2b);
+  color: white;
+}
+
+.variation-card:nth-child(2) .variation-badge {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.variation-card:nth-child(3) .variation-badge {
+  background: linear-gradient(135deg, #11998e, #38ef7d);
+  color: white;
+}
+
+.variation-hook {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.variation-preview {
+  font-size: 0.8rem;
+  color: #8892b0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .variations-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .script-editor {

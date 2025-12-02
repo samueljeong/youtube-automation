@@ -9269,44 +9269,109 @@ def api_fetch_coupang():
 
 @app.route('/api/shorts/generate-script', methods=['POST'])
 def api_generate_shorts_script():
-    """상품 정보 기반 쇼츠 대본 자동 생성"""
+    """상품 정보 기반 쇼츠 대본 자동 생성 (Hook 라이브러리 연동)"""
     try:
+        import random
+
         data = request.get_json()
         product_name = data.get('productName', '')
         price = data.get('price', '')
         rating = data.get('rating', '')
         review_count = data.get('reviewCount', 0)
 
+        # 새로운 옵션들
+        hook_style = data.get('hookStyle', 'random')  # 훅 스타일
+        category = data.get('category', 'auto')  # 카테고리
+        length_preset = data.get('lengthPreset', 'medium')  # 길이 프리셋
+
         if not product_name:
             return jsonify({'ok': False, 'error': '상품명이 필요합니다.'}), 400
 
         print(f"[SHORTS] 대본 생성: {product_name[:30]}...")
+        print(f"[SHORTS] 옵션 - 훅스타일: {hook_style}, 카테고리: {category}, 길이: {length_preset}")
 
-        system_prompt = """당신은 쿠팡파트너스 쇼츠 콘텐츠 전문 카피라이터입니다.
-60초 이내의 짧은 상품 리뷰 쇼츠 대본을 작성합니다.
+        # Hook 라이브러리 로드
+        hook_library_path = os.path.join(os.path.dirname(__file__), 'guides', 'shorts-hook-library.json')
+        try:
+            with open(hook_library_path, 'r', encoding='utf-8') as f:
+                hook_library = json.load(f)
+        except:
+            hook_library = None
+            print("[SHORTS] Hook 라이브러리 로드 실패, 기본 모드로 진행")
+
+        # 훅 예시 선택
+        hook_examples = []
+        if hook_library:
+            hooks_data = hook_library.get('hooks', {})
+
+            if hook_style == 'random':
+                # 랜덤으로 여러 스타일에서 선택
+                all_hooks = []
+                for style_data in hooks_data.values():
+                    all_hooks.extend(style_data.get('templates', [])[:3])
+                hook_examples = random.sample(all_hooks, min(5, len(all_hooks)))
+            elif hook_style in hooks_data:
+                hook_examples = hooks_data[hook_style].get('templates', [])[:5]
+
+            # 카테고리 Pain/Solution 예시
+            category_data = hook_library.get('categories', {}).get(category, {})
+            category_pains = category_data.get('pains', [])[:3]
+            category_solutions = category_data.get('solutions', [])[:3]
+
+            # CTA 예시
+            cta_examples = []
+            for cta_list in hook_library.get('cta', {}).values():
+                cta_examples.extend(cta_list[:2])
+
+            # 길이 프리셋
+            length_info = hook_library.get('length_presets', {}).get(length_preset, {})
+            total_seconds = length_info.get('total_seconds', 38)
+        else:
+            hook_examples = ["이 가격에 이 스펙?", "솔직히 이건 사야 됩니다"]
+            category_pains = []
+            category_solutions = []
+            cta_examples = ["링크는 프로필에서 확인하세요"]
+            total_seconds = 38
+
+        # 가격 정보 처리
+        price_text = price.replace('원', '').replace(',', '') if price else ''
+
+        system_prompt = f"""당신은 쿠팡파트너스 쇼츠 콘텐츠 전문 카피라이터입니다.
+{total_seconds}초 이내의 상품 리뷰 쇼츠 대본을 작성합니다.
+
+## 핵심 원칙
+1. **첫 2-3초가 80%**: Hook에 모든 것을 걸어라
+2. **짧고 끊어치는 문장**: 쉼표 대신 줄바꿈
+3. **3개 이상 말하지 마라**: 특징은 딱 3가지만
 
 ## 대본 구성
-1. **훅 (0-3초)**: 첫 마디로 시선을 끄는 문장 (최대 20자)
-   - 가격 훅: "이게 만원대라고?", "이 가격 실화?"
-   - 효과 훅: "써보고 깜짝 놀랐습니다", "이거 진짜 대박"
-   - 문제해결 훅: "00 고민이시라면 이거 하나면 끝"
+1. **Hook (2-3초)**: 스크롤 멈추게 하는 첫 문장
+   예시: {', '.join(hook_examples[:3]) if hook_examples else '이 가격 실화?'}
 
-2. **상품 소개 (3-45초)**: 핵심 장점 1-2개만 (최대 80자)
-   - 짧고 간결하게
-   - 구체적인 효과나 특징
-   - 개인적 사용 경험 느낌으로
+2. **Pain → Solution (10-25초)**: 문제 공감 → 해결책 제시
+   {f'Pain 예시: {category_pains[0] if category_pains else "매일 이런 문제 겪으셨죠?"}' }
+   {f'Solution 예시: {category_solutions[0] if category_solutions else "이 제품이 해결합니다"}' }
 
-3. **CTA (45-60초)**: 구매 유도 (최대 20자)
-   - "링크는 프로필에 있어요"
-   - "쿠팡에서 [상품명] 검색하세요"
-   - "지금 할인 중이에요"
+3. **Key Features (10-20초)**: 핵심 특징 딱 3개만
+   형식: "첫째, OO. 둘째, OO. 셋째, OO."
+
+4. **CTA (3-5초)**: 클릭 유도
+   예시: {cta_examples[0] if cta_examples else '아래 링크에서 확인하세요'}
+
+## 문장 스타일
+- 길게 쓰지 마라. 끊어라.
+- "이 제품은 가격 대비 성능이 좋습니다" (X)
+- "가격? 미쳤다. 성능? 더 미쳤다." (O)
 
 ## 출력 형식 (JSON)
-{
-  "hook": "훅 문장",
-  "content": "상품 소개 문장",
-  "cta": "CTA 문장"
-}
+{{
+  "hook": "훅 문장 (최대 30자)",
+  "pain": "문제 공감 문장",
+  "solution": "해결책 문장",
+  "features": ["특징1", "특징2", "특징3"],
+  "cta": "CTA 문장",
+  "disclosure": "쿠팡파트너스 고지 문구"
+}}
 
 ⚠️ 반드시 JSON 형식으로만 출력하세요."""
 
@@ -9316,26 +9381,78 @@ def api_generate_shorts_script():
 가격: {price}
 평점: {rating}
 리뷰 수: {review_count}개
+영상 길이: {total_seconds}초
 
-위 정보를 바탕으로 훅, 상품소개, CTA를 작성해주세요."""
+{f'선호 훅 스타일: {hooks_data.get(hook_style, {}).get("name", "랜덤")}' if hook_library and hook_style != 'random' else ''}
+{f'카테고리: {category_data.get("name", "일반")}' if category_data else ''}
 
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.8,
-            max_tokens=500,
-            response_format={"type": "json_object"}
-        )
+위 정보를 바탕으로 쇼츠 대본을 작성해주세요.
+문장은 짧고 끊어서. 쉼표 대신 마침표.
+특징은 반드시 3개만."""
 
-        result_text = completion.choices[0].message.content
-        script = json.loads(result_text)
+        # 3개 대본 변형 생성 옵션
+        generate_variations = data.get('variations', False)
+        variation_count = 3 if generate_variations else 1
 
-        print(f"[SHORTS] 대본 생성 완료: 훅={len(script.get('hook', ''))}자")
+        scripts = []
+        variation_styles = ['price_shock', 'pain_trigger', 'shock_surprise'] if generate_variations else [hook_style]
 
-        return jsonify({'ok': True, 'script': script})
+        for i in range(variation_count):
+            # 각 변형별로 다른 Hook 스타일 사용
+            current_style = variation_styles[i] if i < len(variation_styles) else 'random'
+
+            # Hook 예시 업데이트
+            if hook_library and current_style != 'random':
+                style_hooks = hooks_data.get(current_style, {}).get('templates', [])[:5]
+                hook_hint = f"\n\n이번 대본의 훅 스타일: {hooks_data.get(current_style, {}).get('name', current_style)}\n예시: {', '.join(style_hooks[:3])}"
+            else:
+                hook_hint = ""
+
+            var_user_prompt = user_prompt + hook_hint
+            if generate_variations:
+                var_user_prompt += f"\n\n[버전 {i+1}] 다른 버전과 차별화된 독특한 훅과 접근 방식으로 작성해주세요."
+
+            completion = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": var_user_prompt}
+                ],
+                temperature=0.9 + (i * 0.05),  # 변형별로 다른 temperature
+                max_tokens=700,
+                response_format={"type": "json_object"}
+            )
+
+            result_text = completion.choices[0].message.content
+            script = json.loads(result_text)
+
+            # 호환성을 위해 content 필드도 생성
+            if 'content' not in script:
+                parts = []
+                if script.get('pain'):
+                    parts.append(script['pain'])
+                if script.get('solution'):
+                    parts.append(script['solution'])
+                if script.get('features'):
+                    features = script['features']
+                    if isinstance(features, list):
+                        parts.append(f"첫째, {features[0]}." if len(features) > 0 else '')
+                        parts.append(f"둘째, {features[1]}." if len(features) > 1 else '')
+                        parts.append(f"셋째, {features[2]}." if len(features) > 2 else '')
+                script['content'] = ' '.join(filter(None, parts))
+
+            # 버전 정보 추가
+            script['version'] = i + 1
+            script['style'] = current_style
+
+            scripts.append(script)
+            print(f"[SHORTS] 대본 {i+1} 생성 완료: 훅={script.get('hook', '')[:20]}...")
+
+        # 단일/다중 응답 처리
+        if generate_variations:
+            return jsonify({'ok': True, 'scripts': scripts, 'count': len(scripts)})
+        else:
+            return jsonify({'ok': True, 'script': scripts[0]})
 
     except Exception as e:
         print(f"[SHORTS] 대본 생성 오류: {e}")
