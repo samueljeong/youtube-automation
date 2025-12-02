@@ -1,3 +1,3 @@
 # Render.com에서 시스템 패키지 설치를 위한 Nixpacks 설정
 [phases.setup]
-nixPkgs = ["...", "ffmpeg"]
+nixPkgs = ["ffmpeg"]
