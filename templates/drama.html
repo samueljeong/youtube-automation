@@ -218,8 +218,8 @@
             <audio id="voice-preview-player" style="display:none;"></audio>
           </div>
 
-          <!-- 전체 대본 입력 -->
-          <div class="script-input-section">
+          <!-- 전체 대본 입력 (드라마/스토리 모드) -->
+          <div id="script-input-section" class="script-input-section">
             <div class="section-header">
               <h3>📝 전체 대본 입력</h3>
               <span class="section-hint">대본 전체를 붙여넣으면 AI가 씬과 샷을 자동 분석합니다</span>
@@ -243,6 +243,61 @@
                 <span class="btn-icon">🤖</span> AI 대본 분석하기
               </button>
               <span class="action-hint">GPT가 씬과 샷을 자동으로 나눠줍니다</span>
+            </div>
+          </div>
+
+          <!-- 쿠팡파트너스 상품 입력 (쿠팡 쇼츠 모드) -->
+          <div id="coupang-input-section" class="script-input-section hidden">
+            <div class="section-header">
+              <h3>🛒 쿠팡파트너스 상품 정보</h3>
+              <span class="section-hint">상품 URL 또는 상품명을 입력하면 AI가 리뷰 대본을 자동 생성합니다</span>
+            </div>
+
+            <div class="coupang-input-group">
+              <label>상품 URL (쿠팡 링크)</label>
+              <input type="text" id="coupang-product-url" class="input-field" placeholder="https://www.coupang.com/vp/products/...">
+              <button type="button" class="btn-secondary btn-small" onclick="DramaStep1.fetchProductInfo()">
+                🔍 상품 정보 가져오기
+              </button>
+            </div>
+
+            <div class="coupang-divider">
+              <span>또는</span>
+            </div>
+
+            <div class="coupang-input-group">
+              <label>상품명 직접 입력</label>
+              <input type="text" id="coupang-product-name" class="input-field" placeholder="예: 샤오미 무선 청소기 V12">
+            </div>
+
+            <div class="coupang-input-group">
+              <label>가격 (선택)</label>
+              <input type="text" id="coupang-product-price" class="input-field" placeholder="예: 89,000원">
+            </div>
+
+            <div class="coupang-input-group">
+              <label>핵심 장점 (선택, 쉼표로 구분)</label>
+              <input type="text" id="coupang-product-features" class="input-field" placeholder="예: 강력한 흡입력, 긴 배터리, 가벼운 무게">
+            </div>
+
+            <div class="script-actions">
+              <button id="btn-generate-coupang-script" class="btn-primary" onclick="DramaStep1.generateCoupangScript()">
+                <span class="btn-icon">🤖</span> AI 리뷰 대본 생성
+              </button>
+              <span class="action-hint">상품 정보로 60초 쇼츠 대본을 자동 생성합니다</span>
+            </div>
+
+            <!-- 생성된 대본 미리보기 -->
+            <div id="coupang-script-preview" class="hidden">
+              <div class="section-header" style="margin-top: 20px;">
+                <h4>📄 생성된 대본</h4>
+              </div>
+              <textarea id="coupang-generated-script" class="script-textarea" rows="8" placeholder="AI가 생성한 대본이 여기에 표시됩니다..."></textarea>
+              <div class="script-actions">
+                <button class="btn-primary" onclick="DramaStep1.useCoupangScript()">
+                  <span class="btn-icon">✅</span> 이 대본으로 진행
+                </button>
+              </div>
             </div>
           </div>
 

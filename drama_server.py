@@ -7486,6 +7486,96 @@ def api_get_benchmark_detail(benchmark_id):
         return jsonify({'ok': False, 'error': str(e)}), 200
 
 
+# ===== 쿠팡파트너스 상품 대본 생성 API =====
+@app.route('/api/drama/generate-coupang-script', methods=['POST'])
+def api_generate_coupang_script():
+    """상품 정보로 쿠팡파트너스 쇼츠 대본 생성
+
+    Input:
+    {
+        "productName": "샤오미 무선 청소기 V12",
+        "productPrice": "89,000원",
+        "productFeatures": ["강력한 흡입력", "긴 배터리"]
+    }
+
+    Output:
+    {
+        "ok": true,
+        "script": "생성된 대본..."
+    }
+    """
+    try:
+        data = request.get_json()
+        product_name = data.get('productName', '').strip()
+        product_price = data.get('productPrice', '')
+        product_features = data.get('productFeatures', [])
+
+        if not product_name:
+            return jsonify({'ok': False, 'error': '상품명이 비어있습니다.'}), 400
+
+        print(f"[COUPANG-SCRIPT] 대본 생성 시작 - 상품: {product_name}")
+
+        # OpenAI API로 대본 생성
+        from openai import OpenAI
+        client = OpenAI()
+
+        system_prompt = """당신은 쿠팡파트너스 제휴 마케팅 전문가입니다.
+상품 정보를 받아 60초 이하의 세로형 쇼츠 대본을 작성합니다.
+
+## 대본 작성 규칙
+1. **첫 3초 훅**: 가격/효과/놀람으로 시작 ("이게 만원대?", "써보고 놀랐습니다")
+2. **본문 (40초)**: 핵심 장점 1-2개만 간결하게 설명
+3. **CTA (마지막)**: "링크는 프로필에 있어요" 또는 "쿠팡에서 [상품명] 검색하세요"
+
+## 대본 형식
+- 나레이션 형식으로 작성 (1인칭 시점)
+- 총 150자 이내
+- 짧은 문장, 임팩트 있게
+- 상품명 언급 필수
+
+## 예시 대본
+"이게 8만원대라고요?
+샤오미 무선 청소기 써봤는데, 진짜 놀랐습니다.
+흡입력? 유선 못지않아요.
+배터리? 40분 넘게 가더라고요.
+링크는 프로필에 있어요."
+"""
+
+        features_text = ', '.join(product_features) if product_features else '미입력'
+        user_prompt = f"""다음 상품의 60초 쇼츠 대본을 작성해주세요:
+
+상품명: {product_name}
+가격: {product_price if product_price else '미입력'}
+핵심 장점: {features_text}
+
+대본만 출력해주세요 (설명 없이)."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+
+        script = response.choices[0].message.content.strip()
+        print(f"[COUPANG-SCRIPT] 대본 생성 완료 - 길이: {len(script)}자")
+
+        return jsonify({
+            'ok': True,
+            'script': script,
+            'productName': product_name
+        })
+
+    except Exception as e:
+        print(f"[COUPANG-SCRIPT][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ===== AI 대본 분석 API (씬/샷 자동 분리) =====
 @app.route('/api/drama/analyze-script', methods=['POST'])
 def api_analyze_script():
