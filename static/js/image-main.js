@@ -146,7 +146,6 @@ const ImageMain = {
     }
 
     const contentType = document.getElementById('content-type').value;
-    const protagonistType = document.getElementById('protagonist-type').value;
     const imageStyle = document.getElementById('image-style').value;
 
     // 진행 상태
@@ -167,7 +166,6 @@ const ImageMain = {
         body: JSON.stringify({
           script: script,
           content_type: contentType,
-          protagonist_type: protagonistType,
           image_style: imageStyle
         })
       });
@@ -204,7 +202,20 @@ const ImageMain = {
   renderAnalysisResult(data) {
     // 썸네일 정보
     if (data.thumbnail) {
-      document.getElementById('thumbnail-title').value = data.thumbnail.title || '';
+      // 텍스트 라인 채우기
+      const textLines = data.thumbnail.text_lines || [];
+      for (let i = 0; i < 4; i++) {
+        const input = document.getElementById(`thumb-line-${i}`);
+        if (input) {
+          input.value = textLines[i] || '';
+        }
+      }
+      // 강조 줄 선택
+      const highlightLine = data.thumbnail.highlight_line ?? 2;
+      const radio = document.getElementById(`hl-${highlightLine}`);
+      if (radio) radio.checked = true;
+
+      // 프롬프트
       document.getElementById('thumbnail-prompt').value = data.thumbnail.prompt || '';
     }
 
@@ -235,22 +246,45 @@ const ImageMain = {
   },
 
   /**
-   * 썸네일 이미지 생성
+   * 썸네일 텍스트 라인 가져오기
+   */
+  getThumbnailTextLines() {
+    const lines = [];
+    for (let i = 0; i < 4; i++) {
+      const input = document.getElementById(`thumb-line-${i}`);
+      if (input && input.value.trim()) {
+        lines.push(input.value.trim());
+      }
+    }
+    return lines;
+  },
+
+  /**
+   * 강조할 줄 인덱스 가져오기
+   */
+  getHighlightLineIndex() {
+    const checked = document.querySelector('input[name="highlight-line"]:checked');
+    return checked ? parseInt(checked.value) : 2;
+  },
+
+  /**
+   * 썸네일 이미지 생성 (이미지 + 텍스트 오버레이)
    */
   async generateThumbnail() {
-    const prompt = this.analyzedData?.thumbnail?.prompt || document.getElementById('thumbnail-prompt')?.value;
+    const prompt = document.getElementById('thumbnail-prompt')?.value || this.analyzedData?.thumbnail?.prompt;
     if (!prompt) {
       this.showStatus('썸네일 프롬프트가 없습니다.', 'warning');
       return;
     }
 
     const container = document.getElementById('thumbnail-container');
-    container.innerHTML = '<div class="image-placeholder loading"><span>썸네일 생성 중...</span></div>';
+    container.innerHTML = '<div class="image-placeholder loading"><span>썸네일 이미지 생성 중...</span></div>';
 
     try {
       const model = document.getElementById('image-model').value;
       const ratio = document.getElementById('image-ratio').value;
 
+      // 1단계: 이미지 생성
       const response = await fetch('/api/drama/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,12 +300,50 @@ const ImageMain = {
       if (!data.ok && data.error) {
         throw new Error(data.error);
       }
-      if (data.imageUrl) {
+      if (!data.imageUrl) {
+        throw new Error('이미지 URL이 없습니다.');
+      }
+
+      // 2단계: 텍스트 오버레이
+      const textLines = this.getThumbnailTextLines();
+      if (textLines.length > 0) {
+        container.innerHTML = '<div class="image-placeholder loading"><span>텍스트 오버레이 적용 중...</span></div>';
+
+        const highlightLine = this.getHighlightLineIndex();
+        const overlayResponse = await fetch('/api/drama/thumbnail-overlay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: data.imageUrl,
+            textLines: textLines,
+            highlightLines: [highlightLine],
+            textColor: '#FFFFFF',
+            highlightColor: '#FFD700',
+            outlineColor: '#000000',
+            outlineWidth: 4,
+            fontSize: 60,
+            position: 'left'
+          })
+        });
+
+        const overlayData = await overlayResponse.json();
+        if (overlayData.ok && overlayData.imageUrl) {
+          container.innerHTML = `<img src="${overlayData.imageUrl}" alt="썸네일">`;
+          this.thumbnailImage = overlayData.imageUrl;
+        } else {
+          // 오버레이 실패 시 원본 이미지 사용
+          console.warn('[ImageMain] Overlay failed, using original:', overlayData.error);
+          container.innerHTML = `<img src="${data.imageUrl}" alt="썸네일">`;
+          this.thumbnailImage = data.imageUrl;
+        }
+      } else {
+        // 텍스트 없으면 원본 이미지 사용
         container.innerHTML = `<img src="${data.imageUrl}" alt="썸네일">`;
         this.thumbnailImage = data.imageUrl;
-        this.updateDownloadSection();
-        this.showStatus('썸네일 생성 완료!', 'success');
       }
+
+      this.updateDownloadSection();
+      this.showStatus('썸네일 생성 완료!', 'success');
 
     } catch (error) {
       console.error('[ImageMain] Thumbnail error:', error);

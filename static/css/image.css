@@ -89,6 +89,38 @@
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
 }
 
+/* 썸네일 텍스트 라인 */
+.thumbnail-text-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.text-line-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.text-line-row input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+.thumb-line-input {
+  flex: 1;
+  padding: 8px 12px !important;
+  font-size: 0.9rem;
+}
+
+.text-line-row input[type="radio"]:checked + .thumb-line-input {
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+  font-weight: 600;
+}
+
 /* 씬 목록 */
 .scene-list {
   display: flex;

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <title>Image Lab - 이미지 제작</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23f59e0b' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>I</text></svg>">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/image.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}?v=20241202">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/image.css') }}?v=20241202b">
 </head>
 <body>
   <!-- Auth Header -->
@@ -78,16 +78,6 @@
                     </select>
                   </div>
                   <div class="config-item">
-                    <label>주인공 타입</label>
-                    <select id="protagonist-type">
-                      <option value="grandmother" selected>할머니 (Korean Grandmother)</option>
-                      <option value="grandfather">할아버지 (Korean Grandfather)</option>
-                      <option value="young-woman">젊은 여성</option>
-                      <option value="young-man">젊은 남성</option>
-                      <option value="none">주인공 없음</option>
-                    </select>
-                  </div>
-                  <div class="config-item">
                     <label>이미지 스타일</label>
                     <select id="image-style">
                       <option value="nostalgic" selected>향수/빈티지 (70-80년대)</option>
@@ -147,8 +137,25 @@
                 <div id="thumbnail-info" class="thumbnail-info-panel">
                   <h4>📸 썸네일 정보</h4>
                   <div class="form-group">
-                    <label>썸네일 텍스트 (제목)</label>
-                    <input type="text" id="thumbnail-title" placeholder="예: 60년 만의 재회">
+                    <label>썸네일 텍스트 (4줄, 강조할 줄 선택)</label>
+                    <div class="thumbnail-text-lines">
+                      <div class="text-line-row">
+                        <input type="radio" name="highlight-line" value="0" id="hl-0">
+                        <input type="text" id="thumb-line-0" class="thumb-line-input" placeholder="1줄: 훅/숫자 (예: 40년간 숨겨온)">
+                      </div>
+                      <div class="text-line-row">
+                        <input type="radio" name="highlight-line" value="1" id="hl-1">
+                        <input type="text" id="thumb-line-1" class="thumb-line-input" placeholder="2줄: 핵심 인물 (예: 78세 할머니의)">
+                      </div>
+                      <div class="text-line-row">
+                        <input type="radio" name="highlight-line" value="2" id="hl-2" checked>
+                        <input type="text" id="thumb-line-2" class="thumb-line-input" placeholder="3줄: 감정/강조 (예: 눈물의 고백)">
+                      </div>
+                      <div class="text-line-row">
+                        <input type="radio" name="highlight-line" value="3" id="hl-3">
+                        <input type="text" id="thumb-line-3" class="thumb-line-input" placeholder="4줄: 궁금증 유발 (예: 그날 밤 무슨 일이...)">
+                      </div>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label>썸네일 이미지 프롬프트</label>
@@ -271,6 +278,6 @@
 
   <!-- JavaScript -->
   <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241202"></script>
-  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241202b"></script>
+  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241202d"></script>
 </body>
 </html>

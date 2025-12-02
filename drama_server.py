@@ -6491,20 +6491,24 @@ def generate_thumbnail():
             font_size = int(height * 0.08)  # 이미지 높이의 8%
             font = None
             font_paths = [
+                os.path.join(static_dir, 'fonts', 'NanumSquareRoundB.ttf'),
                 os.path.join(static_dir, 'fonts', 'NanumGothicBold.ttf'),
+                os.path.join(static_dir, 'fonts', 'NanumBarunGothicBold.ttf'),
                 "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
                 "/System/Library/Fonts/AppleSDGothicNeo.ttc",
                 "C:/Windows/Fonts/malgunbd.ttf",
             ]
             for fp in font_paths:
-                if os_module.path.exists(fp):
+                if os.path.exists(fp):
                     try:
                         font = ImageFont.truetype(fp, font_size)
+                        print(f"[THUMBNAIL] 폰트 로드: {fp}")
                         break
                     except:
                         continue
             if not font:
                 font = ImageFont.load_default()
+                print("[THUMBNAIL] 기본 폰트 사용 (한글 미지원 가능)")
 
             # 텍스트 줄 분리
             text_lines = thumbnail_text.replace('\\n', '\n').split('\n')
@@ -7135,7 +7139,12 @@ def api_thumbnail_overlay():
 
         # 폰트 로드 (한글 지원 폰트)
         font = None
+        base_dir = os_module.path.dirname(os_module.path.abspath(__file__))
         font_paths = [
+            # 프로젝트 로컬 폰트 (최우선)
+            os_module.path.join(base_dir, "static/fonts/NanumSquareRoundB.ttf"),
+            os_module.path.join(base_dir, "static/fonts/NanumGothicBold.ttf"),
+            os_module.path.join(base_dir, "static/fonts/NanumBarunGothicBold.ttf"),
             # Linux (Render)
             "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
@@ -8635,7 +8644,6 @@ def api_image_analyze_script():
         data = request.get_json()
         script = data.get('script', '')
         content_type = data.get('content_type', 'drama')
-        protagonist_type = data.get('protagonist_type', 'grandmother')
         image_style = data.get('image_style', 'nostalgic')
 
         if not script:
@@ -8646,16 +8654,6 @@ def api_image_analyze_script():
         korean_senior = guides.get('korean_senior', {})
         expert_guide = guides.get('expert', {})
 
-        # 한국인 시니어 가이드에서 주인공 설명 가져오기
-        ethnicity_prefix = korean_senior.get('koreanEthnicityPrefix', {}) if korean_senior else {}
-        protagonist_guides = {
-            'grandmother': ethnicity_prefix.get('elderly_grandmother', 'Korean grandmother (halmeoni), elderly Korean woman in her 70s'),
-            'grandfather': ethnicity_prefix.get('elderly_grandfather', 'Korean grandfather (harabeoji), elderly Korean man in his 70s'),
-            'young-woman': ethnicity_prefix.get('middle_aged_woman', 'Young Korean woman in her 20s-30s'),
-            'young-man': ethnicity_prefix.get('middle_aged_man', 'Young Korean man in his 20s-30s'),
-            'none': ''
-        }
-
         # 시대 감성 스타일 가이드
         era_guide = korean_senior.get('era_1970s_1980s', {}).get('visual_style', {}) if korean_senior else {}
         style_guides = {
@@ -8665,46 +8663,43 @@ def api_image_analyze_script():
             'warm': 'warm color tones, soft diffused lighting, cozy atmosphere, golden hour warmth'
         }
 
-        protagonist_desc = protagonist_guides.get(protagonist_type, '')
         style_desc = style_guides.get(image_style, '')
 
-        # 전문가 가이드에서 시스템 프롬프트 템플릿 가져오기
-        expert_system_template = expert_guide.get('systemPromptTemplate', '') if expert_guide else ''
+        system_prompt = f"""당신의 역할은 대본을 분석하여 AI 이미지용 프롬프트를 전문적으로 작성하는 비서입니다.
 
-        # 예시 프롬프트
-        example_prompts = expert_guide.get('examplePrompts', {}) if expert_guide else {}
-        example_prompt = example_prompts.get('koreanElderly', '') if protagonist_type in ['grandmother', 'grandfather'] else example_prompts.get('portrait', '')
+## 핵심 작업
+1. 대본에서 주인공의 나이, 성별, 직업, 외모 특징을 자동으로 추출합니다.
+2. 추출된 인물 정보를 바탕으로 일관된 이미지 프롬프트를 생성합니다.
 
-        system_prompt = f"""당신의 역할은 AI 이미지용 프롬프트를 전문적으로 작성해 주는 비서입니다.
+## 한국인 인물 프롬프트 규칙
+- 한국인이 등장하면 반드시 "Korean" 또는 "South Korean"을 명시합니다.
+- 할머니: "Korean grandmother (halmeoni), elderly Korean woman, 70s, round face, single eyelids, permed short gray hair, warm wrinkled smile"
+- 할아버지: "Korean grandfather (harabeoji), elderly Korean man, 70s, angular Korean face, weathered kind face, short gray hair"
+- 젊은 여성: "Young Korean woman, 20s-30s, modern Korean beauty features"
+- 젊은 남성: "Young Korean man, 20s-30s, clean-cut Korean features"
 
 ## 프롬프트 작성 원칙
 1. 출력 프롬프트는 항상 영어로 작성합니다.
 2. 프롬프트는 짧지만 정보 밀도가 높은 한 문단으로 작성합니다.
-3. 다음 요소를 최대한 포함합니다:
-   - [subject] 피사체/장면 - 프롬프트 맨 앞에 배치
+3. 다음 요소를 포함합니다:
+   - [subject] 피사체/장면 - 프롬프트 맨 앞에 배치 (인물 특징 상세히)
    - [environment] 배경, 장소
-   - [lighting] 조명 방향·세기·분위기 (예: soft natural light, warm golden hour, dramatic side lighting)
-   - [color] 색감·톤 (예: warm tones, muted colors, film color grading)
-   - [camera] 샷 종류(wide/medium/close-up), 렌즈(24mm/50mm/85mm), depth of field
-   - [style] 사진/시네마틱 등 스타일
-   - [mood] 감정·분위기 (예: nostalgic, peaceful, dramatic)
-4. 형용사+명사 조합을 선호합니다 (예: soft golden sunlight, weathered wooden door)
-5. 중복 표현을 줄입니다 (highly detailed, 8k 등은 1-2개만 사용)
-
-## 주인공 스타일 (반드시 프롬프트에 포함)
-{protagonist_desc}
+   - [lighting] 조명 (soft natural light, warm golden hour, dramatic side lighting)
+   - [color] 색감·톤 (warm tones, muted colors, film color grading)
+   - [camera] 샷 종류(wide/medium/close-up), 렌즈(50mm/85mm), depth of field
+   - [style] 스타일
+   - [mood] 감정·분위기
 
 ## 이미지 스타일
 {style_desc}
 
-## 예시 프롬프트
-{example_prompt}
-
 ## 출력 형식 (반드시 JSON)
 {{
   "thumbnail": {{
-    "title": "유튜브 썸네일용 한글 제목 (짧고 임팩트 있게, 6자 이내 권장)",
-    "prompt": "English thumbnail image prompt with all elements above"
+    "title": "유튜브 썸네일용 한글 제목 (짧고 임팩트 있게)",
+    "text_lines": ["1줄: 훅/숫자", "2줄: 핵심 인물", "3줄: 감정/강조", "4줄: 궁금증 유발"],
+    "highlight_line": 2,
+    "prompt": "English thumbnail image prompt - close-up or medium shot of main character with dramatic expression"
   }},
   "scenes": [
     {{
