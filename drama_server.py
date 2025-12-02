@@ -9143,6 +9143,401 @@ def api_image_download_zip():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ===== 쿠팡파트너스 쇼츠 API =====
+
+@app.route('/shorts')
+def shorts_page():
+    """쿠팡파트너스 쇼츠 제작 페이지"""
+    return render_template('shorts.html')
+
+
+@app.route('/api/shorts/fetch-coupang', methods=['POST'])
+def api_fetch_coupang():
+    """쿠팡 상품 URL에서 상품 정보 추출"""
+    try:
+        data = request.get_json()
+        url = data.get('url', '').strip()
+
+        if not url or 'coupang.com' not in url:
+            return jsonify({'ok': False, 'error': '올바른 쿠팡 URL이 아닙니다.'}), 400
+
+        print(f"[SHORTS] 쿠팡 상품 정보 추출: {url}")
+
+        # 쿠팡 페이지 크롤링
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+        }
+
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # 상품명 추출
+        name = ''
+        name_el = soup.select_one('h2.prod-buy-header__title') or soup.select_one('.prod-buy-header__title') or soup.select_one('h1')
+        if name_el:
+            name = name_el.get_text(strip=True)
+
+        # 가격 추출
+        price = ''
+        price_el = soup.select_one('.total-price strong') or soup.select_one('.prod-sale-price .total-price') or soup.select_one('.prod-price')
+        if price_el:
+            price = price_el.get_text(strip=True)
+
+        # 이미지 추출
+        images = []
+        # 메인 이미지
+        main_img = soup.select_one('.prod-image__detail img') or soup.select_one('.prod-image img') or soup.select_one('#repImageContainer img')
+        if main_img:
+            src = main_img.get('src') or main_img.get('data-src')
+            if src:
+                if src.startswith('//'):
+                    src = 'https:' + src
+                images.append(src)
+
+        # 추가 이미지
+        thumb_imgs = soup.select('.prod-image__items img') or soup.select('.prod-image__item img') or soup.select('.subType-IMAGE img')
+        for img in thumb_imgs[:10]:
+            src = img.get('src') or img.get('data-src')
+            if src:
+                if src.startswith('//'):
+                    src = 'https:' + src
+                # 작은 썸네일은 큰 이미지로 변환
+                src = src.replace('_230x230', '_500x500').replace('_100x100', '_500x500')
+                if src not in images:
+                    images.append(src)
+
+        # 평점 추출
+        rating = '0.0'
+        rating_el = soup.select_one('.rating-star-num') or soup.select_one('.prod-rating__number')
+        if rating_el:
+            rating_text = rating_el.get_text(strip=True)
+            try:
+                rating = str(float(rating_text))
+            except:
+                pass
+
+        # 리뷰 수 추출
+        review_count = 0
+        review_el = soup.select_one('.count') or soup.select_one('.prod-review__count')
+        if review_el:
+            review_text = review_el.get_text(strip=True)
+            numbers = re.findall(r'\d+', review_text.replace(',', ''))
+            if numbers:
+                review_count = int(numbers[0])
+
+        product = {
+            'name': name or '상품명을 가져올 수 없습니다',
+            'price': price or '가격 정보 없음',
+            'images': images[:10],
+            'rating': rating,
+            'reviewCount': review_count,
+            'url': url
+        }
+
+        print(f"[SHORTS] 상품 정보 추출 완료: {name[:30]}..., 이미지 {len(images)}개")
+
+        return jsonify({'ok': True, 'product': product})
+
+    except requests.RequestException as e:
+        print(f"[SHORTS] 쿠팡 요청 오류: {e}")
+        return jsonify({'ok': False, 'error': f'쿠팡 페이지를 가져올 수 없습니다: {str(e)}'}), 500
+    except Exception as e:
+        print(f"[SHORTS] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/shorts/generate-script', methods=['POST'])
+def api_generate_shorts_script():
+    """상품 정보 기반 쇼츠 대본 자동 생성"""
+    try:
+        data = request.get_json()
+        product_name = data.get('productName', '')
+        price = data.get('price', '')
+        rating = data.get('rating', '')
+        review_count = data.get('reviewCount', 0)
+
+        if not product_name:
+            return jsonify({'ok': False, 'error': '상품명이 필요합니다.'}), 400
+
+        print(f"[SHORTS] 대본 생성: {product_name[:30]}...")
+
+        system_prompt = """당신은 쿠팡파트너스 쇼츠 콘텐츠 전문 카피라이터입니다.
+60초 이내의 짧은 상품 리뷰 쇼츠 대본을 작성합니다.
+
+## 대본 구성
+1. **훅 (0-3초)**: 첫 마디로 시선을 끄는 문장 (최대 20자)
+   - 가격 훅: "이게 만원대라고?", "이 가격 실화?"
+   - 효과 훅: "써보고 깜짝 놀랐습니다", "이거 진짜 대박"
+   - 문제해결 훅: "00 고민이시라면 이거 하나면 끝"
+
+2. **상품 소개 (3-45초)**: 핵심 장점 1-2개만 (최대 80자)
+   - 짧고 간결하게
+   - 구체적인 효과나 특징
+   - 개인적 사용 경험 느낌으로
+
+3. **CTA (45-60초)**: 구매 유도 (최대 20자)
+   - "링크는 프로필에 있어요"
+   - "쿠팡에서 [상품명] 검색하세요"
+   - "지금 할인 중이에요"
+
+## 출력 형식 (JSON)
+{
+  "hook": "훅 문장",
+  "content": "상품 소개 문장",
+  "cta": "CTA 문장"
+}
+
+⚠️ 반드시 JSON 형식으로만 출력하세요."""
+
+        user_prompt = f"""다음 상품에 대한 쇼츠 대본을 작성해주세요:
+
+상품명: {product_name}
+가격: {price}
+평점: {rating}
+리뷰 수: {review_count}개
+
+위 정보를 바탕으로 훅, 상품소개, CTA를 작성해주세요."""
+
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.8,
+            max_tokens=500,
+            response_format={"type": "json_object"}
+        )
+
+        result_text = completion.choices[0].message.content
+        script = json.loads(result_text)
+
+        print(f"[SHORTS] 대본 생성 완료: 훅={len(script.get('hook', ''))}자")
+
+        return jsonify({'ok': True, 'script': script})
+
+    except Exception as e:
+        print(f"[SHORTS] 대본 생성 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/shorts/generate-tts', methods=['POST'])
+def api_generate_shorts_tts():
+    """쇼츠용 TTS 음성 생성"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        voice = data.get('voice', 'ko-KR-Neural2-C')
+        speed = float(data.get('speed', 1.2))
+
+        if not text:
+            return jsonify({'ok': False, 'error': '텍스트가 필요합니다.'}), 400
+
+        print(f"[SHORTS-TTS] 음성 생성: {len(text)}자, 속도: {speed}x")
+
+        from google.cloud import texttospeech
+
+        tts_client = texttospeech.TextToSpeechClient()
+
+        synthesis_input = texttospeech.SynthesisInput(text=text)
+
+        voice_params = texttospeech.VoiceSelectionParams(
+            language_code="ko-KR",
+            name=voice
+        )
+
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3,
+            speaking_rate=speed,
+            pitch=0.0
+        )
+
+        response = tts_client.synthesize_speech(
+            input=synthesis_input,
+            voice=voice_params,
+            audio_config=audio_config
+        )
+
+        # 오디오 파일 저장
+        audio_dir = 'static/audio/shorts'
+        os.makedirs(audio_dir, exist_ok=True)
+        audio_filename = f'shorts_tts_{uuid.uuid4().hex[:8]}.mp3'
+        audio_path = os.path.join(audio_dir, audio_filename)
+
+        with open(audio_path, 'wb') as f:
+            f.write(response.audio_content)
+
+        audio_url = f'/{audio_path}'
+        print(f"[SHORTS-TTS] 저장 완료: {audio_path}")
+
+        return jsonify({'ok': True, 'audioUrl': audio_url})
+
+    except Exception as e:
+        print(f"[SHORTS-TTS] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/shorts/generate-video', methods=['POST'])
+def api_generate_shorts_video():
+    """쇼츠 영상 생성 (이미지 슬라이드쇼 + TTS)"""
+    try:
+        data = request.get_json()
+        images = data.get('images', [])
+        audio_url = data.get('audioUrl', '')
+        effect = data.get('effect', 'kenburns')
+        image_duration = int(data.get('imageDuration', 4))
+
+        if not images:
+            return jsonify({'ok': False, 'error': '이미지가 필요합니다.'}), 400
+
+        if not audio_url:
+            return jsonify({'ok': False, 'error': '오디오가 필요합니다.'}), 400
+
+        print(f"[SHORTS-VIDEO] 영상 생성: 이미지 {len(images)}개, 효과: {effect}")
+
+        from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip
+        from PIL import Image
+        import io
+
+        # 오디오 파일 경로
+        audio_path = audio_url.lstrip('/')
+
+        if not os.path.exists(audio_path):
+            return jsonify({'ok': False, 'error': '오디오 파일을 찾을 수 없습니다.'}), 400
+
+        # 오디오 길이 확인
+        audio_clip = AudioFileClip(audio_path)
+        audio_duration = audio_clip.duration
+
+        # 이미지당 시간 계산 (오디오 길이에 맞춤)
+        actual_image_duration = audio_duration / len(images) if len(images) > 0 else image_duration
+
+        # 세로 영상 크기 (9:16)
+        VIDEO_WIDTH = 1080
+        VIDEO_HEIGHT = 1920
+
+        clips = []
+
+        for idx, img_url in enumerate(images):
+            try:
+                print(f"[SHORTS-VIDEO] 이미지 {idx+1}/{len(images)} 처리 중...")
+
+                # 이미지 다운로드
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                img_response = requests.get(img_url, headers=headers, timeout=15)
+                img_response.raise_for_status()
+
+                # PIL로 이미지 열기
+                img = Image.open(io.BytesIO(img_response.content))
+                img = img.convert('RGB')
+
+                # 세로 비율에 맞게 리사이즈 (중앙 크롭)
+                img_ratio = img.width / img.height
+                target_ratio = VIDEO_WIDTH / VIDEO_HEIGHT
+
+                if img_ratio > target_ratio:
+                    # 이미지가 더 넓음 -> 좌우 크롭
+                    new_width = int(img.height * target_ratio)
+                    left = (img.width - new_width) // 2
+                    img = img.crop((left, 0, left + new_width, img.height))
+                else:
+                    # 이미지가 더 높음 -> 상하 크롭
+                    new_height = int(img.width / target_ratio)
+                    top = (img.height - new_height) // 2
+                    img = img.crop((0, top, img.width, top + new_height))
+
+                img = img.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.Resampling.LANCZOS)
+
+                # numpy 배열로 변환
+                import numpy as np
+                img_array = np.array(img)
+
+                # ImageClip 생성
+                clip = ImageClip(img_array).set_duration(actual_image_duration)
+
+                # Ken Burns 효과 (줌인)
+                if effect == 'kenburns':
+                    def zoom_effect(get_frame, t):
+                        frame = get_frame(t)
+                        zoom = 1 + 0.1 * (t / actual_image_duration)  # 1.0 -> 1.1 줌
+                        h, w = frame.shape[:2]
+                        new_h, new_w = int(h * zoom), int(w * zoom)
+
+                        # 리사이즈
+                        from PIL import Image as PILImage
+                        pil_img = PILImage.fromarray(frame)
+                        pil_img = pil_img.resize((new_w, new_h), PILImage.Resampling.LANCZOS)
+
+                        # 중앙 크롭
+                        left = (new_w - w) // 2
+                        top = (new_h - h) // 2
+                        pil_img = pil_img.crop((left, top, left + w, top + h))
+
+                        return np.array(pil_img)
+
+                    clip = clip.fl(zoom_effect)
+
+                clips.append(clip)
+
+            except Exception as e:
+                print(f"[SHORTS-VIDEO] 이미지 {idx+1} 처리 오류: {e}")
+                continue
+
+        if not clips:
+            return jsonify({'ok': False, 'error': '처리 가능한 이미지가 없습니다.'}), 500
+
+        # 클립 연결
+        final_clip = concatenate_videoclips(clips, method="compose")
+
+        # 오디오 추가
+        final_clip = final_clip.set_audio(audio_clip)
+
+        # 영상 저장
+        video_dir = 'static/video/shorts'
+        os.makedirs(video_dir, exist_ok=True)
+        video_filename = f'shorts_{uuid.uuid4().hex[:8]}.mp4'
+        video_path = os.path.join(video_dir, video_filename)
+
+        final_clip.write_videofile(
+            video_path,
+            fps=30,
+            codec='libx264',
+            audio_codec='aac',
+            threads=4,
+            preset='fast',
+            verbose=False,
+            logger=None
+        )
+
+        # 리소스 정리
+        final_clip.close()
+        audio_clip.close()
+
+        video_url = f'/{video_path}'
+        print(f"[SHORTS-VIDEO] 영상 생성 완료: {video_path}")
+
+        return jsonify({'ok': True, 'videoUrl': video_url})
+
+    except Exception as e:
+        print(f"[SHORTS-VIDEO] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))

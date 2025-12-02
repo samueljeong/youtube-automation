@@ -1,0 +1,472 @@
+/* 쿠팡파트너스 쇼츠 제작 페이지 스타일 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  min-height: 100vh;
+  color: #e0e0e0;
+}
+
+.app-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* 헤더 */
+.app-header {
+  text-align: center;
+  padding: 30px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 30px;
+}
+
+.app-header h1 {
+  font-size: 2rem;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  color: #888;
+  font-size: 1rem;
+}
+
+/* 스텝 섹션 */
+.step-section {
+  background: rgba(255,255,255,0.05);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #fff;
+}
+
+.step-header h2 {
+  font-size: 1.2rem;
+  color: #fff;
+}
+
+/* URL 입력 */
+.input-group {
+  display: flex;
+  gap: 12px;
+}
+
+.url-input {
+  flex: 1;
+  padding: 14px 18px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.3s;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.2);
+}
+
+.url-input::placeholder {
+  color: #666;
+}
+
+/* 버튼 */
+.btn-primary, .btn-secondary {
+  padding: 14px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102,126,234,0.4);
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.15);
+}
+
+.btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-icon {
+  font-size: 1.1rem;
+}
+
+/* 로딩 */
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  justify-content: center;
+  color: #888;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 상품 정보 카드 */
+.product-card {
+  display: flex;
+  gap: 20px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.product-images {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 200px;
+}
+
+.product-images img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.product-images img:hover {
+  transform: scale(1.1);
+}
+
+.product-images img.selected {
+  border: 2px solid #667eea;
+}
+
+.product-details {
+  flex: 1;
+}
+
+.product-details h3 {
+  font-size: 1.1rem;
+  color: #fff;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.product-price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.price-label {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.price-value {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #ff6b6b;
+}
+
+.product-meta {
+  display: flex;
+  gap: 12px;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* 대본 에디터 */
+.script-options {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.or-divider {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.script-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.script-part {
+  position: relative;
+}
+
+.script-part label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.script-input, .script-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+  font-size: 1rem;
+  resize: none;
+  transition: all 0.3s;
+}
+
+.script-input:focus, .script-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.char-count {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.total-chars {
+  text-align: right;
+  color: #888;
+  font-size: 0.9rem;
+  padding-top: 8px;
+}
+
+/* 설정 그리드 */
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.setting-item label {
+  display: block;
+  margin-bottom: 8px;
+  color: #ccc;
+  font-weight: 500;
+}
+
+.setting-item select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.setting-item select:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+/* 생성 버튼 */
+.generate-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+/* 진행 상태 */
+.progress-section {
+  margin-top: 24px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  text-align: center;
+  margin-top: 12px;
+  color: #888;
+}
+
+/* 결과 섹션 */
+.result-section {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.result-section h3 {
+  color: #4ade80;
+  margin-bottom: 20px;
+}
+
+.result-preview {
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 360px;
+  margin: 0 auto 20px;
+  aspect-ratio: 9/16;
+}
+
+.result-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.result-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+/* 상태 바 */
+.status-bar {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+
+.status-bar.success {
+  background: rgba(74, 222, 128, 0.9);
+  color: #000;
+}
+
+.status-bar.error {
+  background: rgba(248, 113, 113, 0.9);
+  color: #fff;
+}
+
+.status-bar.info {
+  background: rgba(102, 126, 234, 0.9);
+  color: #fff;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* 유틸리티 */
+.hidden {
+  display: none !important;
+}
+
+/* 반응형 */
+@media (max-width: 600px) {
+  .app-container {
+    padding: 12px;
+  }
+
+  .input-group {
+    flex-direction: column;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .product-card {
+    flex-direction: column;
+  }
+
+  .product-images {
+    max-width: 100%;
+    justify-content: center;
+  }
+
+  .generate-buttons {
+    flex-direction: column;
+  }
+
+  .result-actions {
+    flex-direction: column;
+  }
+}
