@@ -566,8 +566,7 @@
     let volumeType = 'individual';
     let shippingType = 'lcl';
 
-    const STORAGE_KEY = 'pm_products_v3';
-    const SALES_LOG_KEY = 'pm_sales_logs';
+    // DB 저장으로 변경됨 (localStorage 제거)
 
     // === HS 코드 데이터베이스 ===
     const HS_DATABASE = {
@@ -601,12 +600,10 @@
     };
 
     // === 초기화 ===
-    function init() {
-      loadProducts();
-      loadSalesLogs();
+    async function init() {
       fetchExchangeRate();
-      renderTable();
-      updateCategoryFilter();
+      await loadProducts();   // API에서 상품 로드
+      await loadSalesLogs();  // API에서 로그 로드
     }
 
     // === 탭 전환 ===
@@ -887,7 +884,7 @@
     }
 
     // === 상품 추가 ===
-    function addProduct(platform) {
+    async function addProduct(platform) {
       const name = document.getElementById('newName').value.trim();
       const cnyPrice = parseFloat(document.getElementById('newCnyPrice').value);
       if (!name || !cnyPrice) {
@@ -911,16 +908,20 @@
         createdAt: new Date().toISOString()
       };
 
-      products.push(product);
-      saveProducts();
-      renderTable();
-      updateCategoryFilter();
+      const success = await saveProductToServer(product);
+      if (success) {
+        products.push(product);
+        renderTable();
+        updateCategoryFilter();
 
-      // 입력 초기화
-      document.getElementById('newName').value = '';
-      document.getElementById('newCnyPrice').value = '';
-      document.getElementById('hsRecommendBox').style.display = 'none';
-      alert('상품이 등록되었습니다!');
+        // 입력 초기화
+        document.getElementById('newName').value = '';
+        document.getElementById('newCnyPrice').value = '';
+        document.getElementById('hsRecommendBox').style.display = 'none';
+        alert('상품이 등록되었습니다!');
+      } else {
+        alert('상품 등록에 실패했습니다.');
+      }
     }
 
     // === 테이블 렌더링 ===
@@ -966,25 +967,14 @@
     }
 
     // === 재고 업데이트 ===
-    function updateStock(id, newStock) {
+    async function updateStock(id, newStock) {
       const product = products.find(p => p.id === id);
       if (!product) return;
 
-      const oldStock = product.stock || 0;
-      const diff = newStock - oldStock;
-      product.stock = parseInt(newStock);
-      saveProducts();
-
-      // 판매 로그 기록
-      if (diff !== 0) {
-        salesLogs.push({
-          productId: id,
-          productName: product.name,
-          change: diff,
-          date: new Date().toISOString()
-        });
-        saveSalesLogs();
-        renderSalesLog();
+      const success = await updateStockOnServer(id, newStock);
+      if (success) {
+        product.stock = parseInt(newStock);
+        loadSalesLogs(); // 로그 새로고침
       }
     }
 
@@ -1027,35 +1017,50 @@
       document.getElementById('editModal').classList.remove('active');
     }
 
-    function saveEdit() {
+    async function saveEdit() {
       const id = document.getElementById('editId').value;
       const product = products.find(p => p.id === id);
       if (!product) return;
 
-      product.name = document.getElementById('editName').value;
-      product.category = document.getElementById('editCategory').value;
-      product.cnyPrice = parseFloat(document.getElementById('editCnyPrice').value);
-      product.sellPrice = parseInt(document.getElementById('editSellPrice').value);
+      const updatedData = {
+        name: document.getElementById('editName').value,
+        category: document.getElementById('editCategory').value,
+        cnyPrice: parseFloat(document.getElementById('editCnyPrice').value),
+        sellPrice: parseInt(document.getElementById('editSellPrice').value),
+        stock: product.stock
+      };
 
-      saveProducts();
-      renderTable();
-      updateCategoryFilter();
-      closeEditModal();
+      const success = await updateProductOnServer(id, updatedData);
+      if (success) {
+        Object.assign(product, updatedData);
+        renderTable();
+        updateCategoryFilter();
+        closeEditModal();
+      } else {
+        alert('상품 수정에 실패했습니다.');
+      }
     }
 
     // === 삭제 ===
-    function deleteProduct(id) {
+    async function deleteProduct(id) {
       if (!confirm('정말 삭제하시겠습니까?')) return;
-      products = products.filter(p => p.id !== id);
-      saveProducts();
-      renderTable();
-      updateCategoryFilter();
+      const success = await deleteProductOnServer(id);
+      if (success) {
+        products = products.filter(p => p.id !== id);
+        renderTable();
+        updateCategoryFilter();
+      } else {
+        alert('상품 삭제에 실패했습니다.');
+      }
     }
 
-    function clearAll() {
+    async function clearAll() {
       if (!confirm('전체 상품을 삭제하시겠습니까?')) return;
+      // 모든 상품을 하나씩 삭제
+      for (const p of products) {
+        await deleteProductOnServer(p.id);
+      }
       products = [];
-      saveProducts();
       renderTable();
     }
 
@@ -1067,21 +1072,88 @@
         categories.map(c => `<option value="${c}">${c}</option>`).join('');
     }
 
-    // === 저장/로드 ===
-    function saveProducts() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    // === API 호출 ===
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        if (data.ok) {
+          products = data.products;
+          renderTable();
+          updateCategoryFilter();
+        }
+      } catch (e) {
+        console.error('상품 로드 실패:', e);
+      }
     }
-    function loadProducts() {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (data) products = JSON.parse(data);
+
+    async function loadSalesLogs() {
+      try {
+        const res = await fetch('/api/products/sales-logs');
+        const data = await res.json();
+        if (data.ok) {
+          salesLogs = data.logs;
+          renderSalesLog();
+        }
+      } catch (e) {
+        console.error('로그 로드 실패:', e);
+      }
     }
-    function saveSalesLogs() {
-      localStorage.setItem(SALES_LOG_KEY, JSON.stringify(salesLogs));
+
+    async function saveProductToServer(product) {
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(product)
+        });
+        const data = await res.json();
+        return data.ok;
+      } catch (e) {
+        console.error('상품 저장 실패:', e);
+        return false;
+      }
     }
-    function loadSalesLogs() {
-      const data = localStorage.getItem(SALES_LOG_KEY);
-      if (data) salesLogs = JSON.parse(data);
-      renderSalesLog();
+
+    async function updateProductOnServer(id, product) {
+      try {
+        const res = await fetch(`/api/products/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(product)
+        });
+        const data = await res.json();
+        return data.ok;
+      } catch (e) {
+        console.error('상품 수정 실패:', e);
+        return false;
+      }
+    }
+
+    async function deleteProductOnServer(id) {
+      try {
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        return data.ok;
+      } catch (e) {
+        console.error('상품 삭제 실패:', e);
+        return false;
+      }
+    }
+
+    async function updateStockOnServer(id, stock) {
+      try {
+        const res = await fetch(`/api/products/${id}/stock`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: parseInt(stock) })
+        });
+        const data = await res.json();
+        return data.ok;
+      } catch (e) {
+        console.error('재고 업데이트 실패:', e);
+        return false;
+      }
     }
 
     // === 유틸 ===

@@ -947,10 +947,69 @@ def init_db():
             )
         ''')
 
+    # 상품관리 테이블 생성
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id VARCHAR(100) PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT,
+                cny_price REAL,
+                sell_price INTEGER,
+                quantity INTEGER DEFAULT 1,
+                stock INTEGER DEFAULT 0,
+                platform TEXT,
+                sale_type TEXT,
+                hs_code TEXT,
+                duty_rate REAL,
+                link TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sales_logs (
+                id SERIAL PRIMARY KEY,
+                product_id VARCHAR(100) REFERENCES products(id) ON DELETE CASCADE,
+                product_name TEXT,
+                change_amount INTEGER,
+                log_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT,
+                cny_price REAL,
+                sell_price INTEGER,
+                quantity INTEGER DEFAULT 1,
+                stock INTEGER DEFAULT 0,
+                platform TEXT,
+                sale_type TEXT,
+                hs_code TEXT,
+                duty_rate REAL,
+                link TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sales_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id TEXT,
+                product_name TEXT,
+                change_amount INTEGER,
+                log_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+            )
+        ''')
+
     conn.commit()
     cursor.close()
     conn.close()
-    print("[DRAMA-DB] Database initialized (including youtube_tokens)")
+    print("[DRAMA-DB] Database initialized (including youtube_tokens, products)")
 
 # 앱 시작 시 DB 초기화
 init_db()
@@ -1192,6 +1251,188 @@ def image():
 @app.route("/product-manage")
 def product_manage():
     return render_template("product-manage.html")
+
+# ===== 상품관리 API =====
+@app.route("/api/products", methods=["GET"])
+def get_products():
+    """모든 상품 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, name, category, cny_price, sell_price, quantity, stock,
+                   platform, sale_type, hs_code, duty_rate, link, created_at
+            FROM products ORDER BY created_at DESC
+        ''')
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        products = []
+        for row in rows:
+            products.append({
+                'id': row[0],
+                'name': row[1],
+                'category': row[2],
+                'cnyPrice': row[3],
+                'sellPrice': row[4],
+                'quantity': row[5],
+                'stock': row[6],
+                'platform': row[7],
+                'saleType': row[8],
+                'hsCode': row[9],
+                'dutyRate': row[10],
+                'link': row[11],
+                'createdAt': row[12]
+            })
+        return jsonify({'ok': True, 'products': products})
+    except Exception as e:
+        print(f"[PRODUCTS] Error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route("/api/products", methods=["POST"])
+def add_product():
+    """상품 추가"""
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO products (id, name, category, cny_price, sell_price, quantity, stock,
+                                  platform, sale_type, hs_code, duty_rate, link)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('id'),
+            data.get('name'),
+            data.get('category', '미분류'),
+            data.get('cnyPrice'),
+            data.get('sellPrice'),
+            data.get('quantity', 1),
+            data.get('stock', 0),
+            data.get('platform'),
+            data.get('saleType'),
+            data.get('hsCode'),
+            data.get('dutyRate'),
+            data.get('link', '')
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'ok': True, 'message': '상품이 등록되었습니다.'})
+    except Exception as e:
+        print(f"[PRODUCTS] Add error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route("/api/products/<product_id>", methods=["PUT"])
+def update_product(product_id):
+    """상품 수정"""
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE products SET name=?, category=?, cny_price=?, sell_price=?,
+                               stock=?, updated_at=CURRENT_TIMESTAMP
+            WHERE id=?
+        ''', (
+            data.get('name'),
+            data.get('category'),
+            data.get('cnyPrice'),
+            data.get('sellPrice'),
+            data.get('stock', 0),
+            product_id
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'ok': True, 'message': '상품이 수정되었습니다.'})
+    except Exception as e:
+        print(f"[PRODUCTS] Update error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route("/api/products/<product_id>", methods=["DELETE"])
+def delete_product(product_id):
+    """상품 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM products WHERE id=?', (product_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'ok': True, 'message': '상품이 삭제되었습니다.'})
+    except Exception as e:
+        print(f"[PRODUCTS] Delete error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route("/api/products/<product_id>/stock", methods=["PATCH"])
+def update_stock(product_id):
+    """재고 업데이트 + 로그 기록"""
+    try:
+        data = request.json
+        new_stock = data.get('stock', 0)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 기존 재고 조회
+        cursor.execute('SELECT stock, name FROM products WHERE id=?', (product_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'ok': False, 'error': '상품을 찾을 수 없습니다.'}), 404
+
+        old_stock = row[0]
+        product_name = row[1]
+        change = new_stock - old_stock
+
+        # 재고 업데이트
+        cursor.execute('UPDATE products SET stock=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                      (new_stock, product_id))
+
+        # 변동이 있으면 로그 기록
+        if change != 0:
+            cursor.execute('''
+                INSERT INTO sales_logs (product_id, product_name, change_amount)
+                VALUES (?, ?, ?)
+            ''', (product_id, product_name, change))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'ok': True, 'change': change})
+    except Exception as e:
+        print(f"[PRODUCTS] Stock update error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route("/api/products/sales-logs", methods=["GET"])
+def get_sales_logs():
+    """판매/재고 변동 로그 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT product_name, change_amount, log_date
+            FROM sales_logs ORDER BY log_date DESC LIMIT 50
+        ''')
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        logs = []
+        for row in rows:
+            logs.append({
+                'productName': row[0],
+                'change': row[1],
+                'date': row[2]
+            })
+        return jsonify({'ok': True, 'logs': logs})
+    except Exception as e:
+        print(f"[PRODUCTS] Logs error: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route("/health")
 def health():
