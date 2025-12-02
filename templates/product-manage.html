@@ -251,6 +251,16 @@
               <option value="0.035">3.5%</option>
             </select>
           </div>
+          <div class="fee-item">
+            <label>타오바오</label>
+            <select id="taobaoFee" onchange="recalculate()">
+              <option value="0" selected>없음</option>
+              <option value="0.01">1%</option>
+              <option value="0.02">2%</option>
+              <option value="0.03">3%</option>
+              <option value="0.05">5%</option>
+            </select>
+          </div>
         </div>
 
         <!-- 상품등록 탭 -->
@@ -331,27 +341,64 @@
                 </div>
               </div>
 
-              <!-- 배송비 비교 -->
+              <!-- 배송비 비교 (이지타오 기준) -->
               <div class="card">
-                <h3>🚚 배송비 비교</h3>
+                <h3>🚚 배송비 비교 <span style="font-size:11px; color:#64748b;">(이지타오 기준)</span></h3>
                 <div class="shipping-compare">
                   <div class="shipping-option selected" onclick="selectShipping('lcl')">
                     <h5>🚢 LCL (해상소량)</h5>
                     <div class="price" id="lclPrice">계산 필요</div>
-                    <div class="detail">
-                      <div>기본운임: <span id="lclBase">-</span></div>
-                      <div>기타비용: <span id="lclExtra">-</span></div>
+                    <div class="detail" style="font-size:10px;">
+                      <div>운임(CBM): <span id="lclFreight">-</span></div>
+                      <div style="color:#64748b;">BL비: 22,000원</div>
+                      <div style="color:#64748b;">핸들링: 33,000원</div>
+                      <div style="color:#64748b;">통관수수료: 33,000원</div>
+                      <div id="lclFtaRow" style="color:#16a34a;">원산지증명: 35,000원</div>
+                      <div>국내배송: <span id="lclDomestic">-</span></div>
+                    </div>
+                    <div class="form-hint" style="margin-top:6px; font-size:9px;">
+                      최소 0.5CBM 적용 | 소요 2-3주
                     </div>
                   </div>
                   <div class="shipping-option" onclick="selectShipping('air')">
-                    <h5>✈️ 항공운송</h5>
+                    <h5>✈️ 항공/특송</h5>
                     <div class="price" id="airPrice">계산 필요</div>
-                    <div class="detail">예상 7-10일 소요</div>
+                    <div class="detail" style="font-size:10px;">
+                      <div>CBM당 약 50만원</div>
+                      <div style="color:#64748b;">소요 7-10일</div>
+                    </div>
+                    <div class="form-hint" style="margin-top:6px; font-size:9px;">
+                      급할 때만 사용 권장
+                    </div>
                   </div>
                 </div>
-                <div class="form-hint" style="margin-top:8px;">
-                  * LCL 상세 비용은 배송대행지 견적서 제공 시 자동 반영됩니다
+                <div style="margin-top:10px;">
+                  <label style="font-size:11px; display:flex; align-items:center; gap:4px;">
+                    <input type="checkbox" id="useFta" checked onchange="recalculate()">
+                    FTA 원산지증명 신청 (+35,000원, 관세 0% 적용)
+                  </label>
                 </div>
+                <div class="form-hint" style="margin-top:6px; background:#f0f9ff; padding:8px; border-radius:6px;">
+                  <strong>📦 국내배송 기준 (CJ대한통운)</strong><br>
+                  • 삼변합 80cm 미만: 기본 3,500원<br>
+                  • 80-100cm: +500원 / 100-120cm: +1,000원 / 120-160cm: +3,000원<br>
+                  • 160cm 초과 또는 15kg 초과: 경동택배 이관
+                </div>
+                <details style="margin-top:8px; font-size:11px;">
+                  <summary style="cursor:pointer; color:#4f46e5;">📊 LCL CBM 요금표 보기</summary>
+                  <div style="background:#f8fafc; padding:8px; margin-top:4px; border-radius:6px;">
+                    <table style="width:100%; font-size:10px;">
+                      <tr><th style="padding:2px 4px;">CBM</th><th style="padding:2px 4px;">단가</th></tr>
+                      <tr><td>0.5 (최소)</td><td>220,000원</td></tr>
+                      <tr><td>~1</td><td>180,000원/CBM</td></tr>
+                      <tr><td>~2</td><td>160,000원/CBM</td></tr>
+                      <tr><td>~3</td><td>150,000원/CBM</td></tr>
+                      <tr><td>~5</td><td>140,000원/CBM</td></tr>
+                      <tr><td>~10</td><td>130,000원/CBM</td></tr>
+                      <tr><td>10+</td><td>120,000원/CBM</td></tr>
+                    </table>
+                  </div>
+                </details>
               </div>
             </div>
 
@@ -366,6 +413,7 @@
                   <div class="result-row"><span>관세</span><span id="totalDuty">-</span></div>
                   <div class="result-row"><span>부가세</span><span id="totalVat">-</span></div>
                   <div class="result-row"><span>카드수수료</span><span id="totalCard">-</span></div>
+                  <div class="result-row"><span>타오바오</span><span id="totalTaobao">-</span></div>
                   <div class="result-row"><span>배송비</span><span id="totalShipping">-</span></div>
                   <div class="result-row total"><span>총 결제 예상</span><span id="grandTotal">-</span></div>
                 </div>
@@ -672,6 +720,53 @@
       recalculate();
     }
 
+    // === 이지타오 LCL 요금표 (CBM당, 일반해운) ===
+    const LCL_RATES = {
+      // CBM 구간: 요금(원/CBM)
+      0.5: 220000,   // 0.5CBM 이하 최소
+      1: 180000,     // 1CBM까지
+      2: 160000,     // 2CBM까지
+      3: 150000,     // 3CBM까지
+      5: 140000,     // 5CBM까지
+      10: 130000,    // 10CBM까지
+      999: 120000    // 10CBM 초과
+    };
+
+    // 국내배송 추가요금 (삼변합 기준)
+    const DOMESTIC_SURCHARGE = {
+      80: 0,        // 80cm 미만: 기본
+      100: 500,     // 80-100cm: +500원
+      120: 1000,    // 100-120cm: +1,000원
+      160: 3000,    // 120-160cm: +3,000원
+      999: 5000     // 160cm 초과: 경동택배 이관 추가요금
+    };
+
+    // CBM 운임 계산
+    function calcLclFreight(cbm) {
+      const effectiveCbm = Math.max(cbm, 0.5); // 최소 0.5CBM 적용
+      let rate = LCL_RATES[999];
+      for (const [threshold, r] of Object.entries(LCL_RATES)) {
+        if (effectiveCbm <= parseFloat(threshold)) {
+          rate = r;
+          break;
+        }
+      }
+      return effectiveCbm * rate;
+    }
+
+    // 국내배송 추가요금 계산 (삼변합 기준)
+    function calcDomesticSurcharge(w, h, d) {
+      const sum = w + h + d; // 삼변합
+      let surcharge = 0;
+      for (const [threshold, s] of Object.entries(DOMESTIC_SURCHARGE)) {
+        if (sum <= parseFloat(threshold)) {
+          surcharge = s;
+          break;
+        }
+      }
+      return surcharge;
+    }
+
     // === 메인 계산 ===
     function recalculate() {
       const cnyPrice = parseFloat(document.getElementById('newCnyPrice').value) || 0;
@@ -681,36 +776,70 @@
       const coupangFeeRate = parseFloat(document.getElementById('coupangFee').value);
       const vatRate = parseFloat(document.getElementById('vatRate').value);
       const cardFeeRate = parseFloat(document.getElementById('cardFee').value);
+      const taobaoFeeRate = parseFloat(document.getElementById('taobaoFee').value);
+      const useFta = document.getElementById('useFta').checked;
 
       if (cnyPrice <= 0) return;
 
       // 총 원가 계산
       const totalCny = cnyPrice * quantity;
       const totalKrw = totalCny * exchangeRate;
-      const duty = totalKrw * selectedDutyRate;
+
+      // FTA 적용 시 관세 0%, 아니면 선택된 관세율 적용
+      const effectiveDutyRate = useFta ? 0 : selectedDutyRate;
+      const duty = totalKrw * effectiveDutyRate;
       const vat = (totalKrw + duty) * vatRate;
       const cardFee = totalKrw * cardFeeRate;
+      const taobaoFee = totalKrw * taobaoFeeRate;
 
       // 배송비 계산
       let shipping = 0;
       if (saleType === 'proxy') {
         shipping = (parseFloat(document.getElementById('proxyShipping').value) || 0) * quantity;
       } else {
-        // LCL/항공 배송비 (CBM 기반 - 임시 계산)
-        const cbm = parseFloat(document.getElementById('volumeResult').textContent) || 0.01;
+        // 부피 정보 가져오기
+        const w = parseFloat(document.getElementById('dimW').value) || 0;
+        const h = parseFloat(document.getElementById('dimH').value) || 0;
+        const d = parseFloat(document.getElementById('dimD').value) || 0;
+        const cbm = parseFloat(document.getElementById('volumeResult').textContent) || 0;
         const boxQty = volumeType === 'box' ? parseInt(document.getElementById('boxQty').value) || 1 : 1;
+        const shipmentCount = Math.ceil(quantity / boxQty);
+
         if (shippingType === 'lcl') {
-          shipping = Math.max(cbm * 150000, 50000) * Math.ceil(quantity / boxQty); // CBM당 15만원, 최소 5만원
+          // LCL 이지타오 요금 계산
+          const freight = calcLclFreight(cbm * shipmentCount);
+          const blFee = 22000;        // BL비
+          const handlingFee = 33000;  // 핸들링
+          const customsFee = 33000;   // 통관수수료
+          const ftaFee = useFta ? 35000 : 0;  // 원산지증명
+          const domesticSurcharge = calcDomesticSurcharge(w, h, d) * quantity;
+          const domesticBase = 3500 * quantity;  // 기본 국내배송비
+
+          shipping = freight + blFee + handlingFee + customsFee + ftaFee + domesticBase + domesticSurcharge;
+
+          // UI 업데이트
           document.getElementById('lclPrice').textContent = formatNum(shipping) + '원';
-          document.getElementById('lclBase').textContent = formatNum(cbm * 150000) + '원/CBM';
-          document.getElementById('lclExtra').textContent = '추후 반영';
+          document.getElementById('lclFreight').textContent = formatNum(freight) + '원';
+          document.getElementById('lclDomestic').textContent = formatNum(domesticBase + domesticSurcharge) + '원';
+          document.getElementById('lclFtaRow').style.display = useFta ? 'block' : 'none';
+
+          // 항공 비교 (참고용)
+          const airFreight = cbm * shipmentCount * 500000;
+          document.getElementById('airPrice').textContent = formatNum(airFreight + domesticBase) + '원';
         } else {
-          shipping = cbm * 500000 * Math.ceil(quantity / boxQty); // 항공 CBM당 50만원
+          // 항공 배송비
+          const domesticBase = 3500 * quantity;
+          shipping = (cbm * shipmentCount * 500000) + domesticBase;
           document.getElementById('airPrice').textContent = formatNum(shipping) + '원';
+
+          // LCL 비교 (참고용)
+          const lclTotal = calcLclFreight(cbm * shipmentCount) + 22000 + 33000 + 33000 + (useFta ? 35000 : 0) + domesticBase;
+          document.getElementById('lclPrice').textContent = formatNum(lclTotal) + '원';
+          document.getElementById('lclFreight').textContent = formatNum(calcLclFreight(cbm * shipmentCount)) + '원';
         }
       }
 
-      const grandTotal = totalKrw + duty + vat + cardFee + shipping;
+      const grandTotal = totalKrw + duty + vat + cardFee + taobaoFee + shipping;
 
       // 결제 예상 금액 표시
       document.getElementById('totalCny').textContent = formatNum(totalCny) + ' CNY';
@@ -718,6 +847,7 @@
       document.getElementById('totalDuty').textContent = formatNum(duty) + '원';
       document.getElementById('totalVat').textContent = formatNum(vat) + '원';
       document.getElementById('totalCard').textContent = formatNum(cardFee) + '원';
+      document.getElementById('totalTaobao').textContent = formatNum(taobaoFee) + '원';
       document.getElementById('totalShipping').textContent = formatNum(shipping) + '원';
       document.getElementById('grandTotal').textContent = formatNum(grandTotal) + '원';
 
