@@ -82,15 +82,16 @@ window.DramaStep2 = {
 
       DramaUtils.showLoading('대본을 분석하고 있습니다...', '등장인물과 씬 정보를 추출 중 (약 30초 소요)');
 
-      // Step1에서 저장된 duration 가져오기
+      // Step1에서 저장된 설정 가져오기
       const duration = step1Data?.config?.duration || '10min';
+      const contentType = document.getElementById('content-type')?.value || 'drama';
 
-      console.log('[Step2] 대본 분석 시작 (duration:', duration, ')');
+      console.log('[Step2] 대본 분석 시작 (duration:', duration, ', contentType:', contentType, ')');
 
       const response = await fetch('/api/drama/analyze-characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script: script, duration: duration })
+        body: JSON.stringify({ script: script, duration: duration, content_type: contentType })
       });
 
       const data = await response.json();
