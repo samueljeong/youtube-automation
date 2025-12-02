@@ -28,18 +28,37 @@ window.DramaStep1 = {
     const contentType = document.getElementById('content-type');
     const videoFormat = document.getElementById('video-format');
     const videoDuration = document.getElementById('video-duration');
+    const scriptInputSection = document.getElementById('script-input-section');
+    const coupangInputSection = document.getElementById('coupang-input-section');
 
     if (contentType) {
       contentType.addEventListener('change', (e) => {
         const value = e.target.value;
-        if (value === 'shorts' || value === 'coupang-shorts') {
-          // 쇼츠 선택시 자동 설정
+
+        // 쿠팡파트너스 모드 UI 전환
+        if (value === 'coupang-shorts') {
+          // 쿠팡 입력 섹션 보이기, 대본 입력 섹션 숨기기
+          if (scriptInputSection) scriptInputSection.classList.add('hidden');
+          if (coupangInputSection) {
+            coupangInputSection.classList.remove('hidden');
+            coupangInputSection.classList.add('coupang-mode-active');
+          }
           if (videoFormat) videoFormat.value = 'vertical';
           if (videoDuration) videoDuration.value = '60s';
-          console.log('[Step1] 쇼츠 모드: 세로 형식 + 60초');
+          console.log('[Step1] 🛒 쿠팡파트너스 쇼츠 모드 활성화 - UI 전환');
+        } else {
+          // 일반 모드 - 대본 입력 섹션 보이기
+          if (scriptInputSection) scriptInputSection.classList.remove('hidden');
+          if (coupangInputSection) {
+            coupangInputSection.classList.add('hidden');
+            coupangInputSection.classList.remove('coupang-mode-active');
+          }
 
-          if (value === 'coupang-shorts') {
-            console.log('[Step1] 🛒 쿠팡파트너스 쇼츠 모드 활성화');
+          if (value === 'shorts') {
+            // 일반 쇼츠 모드
+            if (videoFormat) videoFormat.value = 'vertical';
+            if (videoDuration) videoDuration.value = '60s';
+            console.log('[Step1] 📱 쇼츠/릴스 모드: 세로 형식 + 60초');
           }
         }
       });
@@ -55,6 +74,96 @@ window.DramaStep1 = {
         }
       });
     }
+  },
+
+  /**
+   * 쿠팡 상품 URL에서 정보 가져오기
+   */
+  async fetchProductInfo() {
+    const urlInput = document.getElementById('coupang-product-url');
+    const url = urlInput?.value?.trim();
+
+    if (!url) {
+      alert('상품 URL을 입력해주세요.');
+      return;
+    }
+
+    if (!url.includes('coupang.com')) {
+      alert('쿠팡 상품 URL을 입력해주세요.');
+      return;
+    }
+
+    // TODO: 실제 크롤링 API 연동 (현재는 안내 메시지)
+    alert('⚠️ 쿠팡 URL 자동 크롤링은 준비 중입니다.\n\n상품명과 가격을 직접 입력해주세요.');
+  },
+
+  /**
+   * 쿠팡 상품 정보로 리뷰 대본 생성
+   */
+  async generateCoupangScript() {
+    const productName = document.getElementById('coupang-product-name')?.value?.trim();
+    const productPrice = document.getElementById('coupang-product-price')?.value?.trim();
+    const productFeatures = document.getElementById('coupang-product-features')?.value?.trim();
+
+    if (!productName) {
+      alert('상품명을 입력해주세요.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-generate-coupang-script');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> AI 대본 생성 중...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch('/api/drama/generate-coupang-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName,
+          productPrice,
+          productFeatures: productFeatures ? productFeatures.split(',').map(f => f.trim()) : []
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.ok && result.script) {
+        document.getElementById('coupang-generated-script').value = result.script;
+        document.getElementById('coupang-script-preview').classList.remove('hidden');
+        console.log('[Step1] 🛒 쿠팡 대본 생성 완료');
+      } else {
+        alert('대본 생성 실패: ' + (result.error || '알 수 없는 오류'));
+      }
+    } catch (error) {
+      console.error('[Step1] 쿠팡 대본 생성 오류:', error);
+      alert('대본 생성 중 오류가 발생했습니다.');
+    } finally {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+    }
+  },
+
+  /**
+   * 생성된 쿠팡 대본을 사용하여 분석 진행
+   */
+  useCoupangScript() {
+    const generatedScript = document.getElementById('coupang-generated-script')?.value?.trim();
+
+    if (!generatedScript) {
+      alert('생성된 대본이 없습니다.');
+      return;
+    }
+
+    // 대본 입력 필드에 복사
+    document.getElementById('full-script').value = generatedScript;
+
+    // 기존 대본 입력 섹션 표시 (분석 버튼 사용을 위해)
+    document.getElementById('script-input-section').classList.remove('hidden');
+    document.getElementById('coupang-input-section').classList.add('hidden');
+
+    // 자동으로 AI 분석 시작
+    this.analyzeScript();
   },
 
   /**

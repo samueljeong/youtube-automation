@@ -2409,3 +2409,74 @@ body {
     font-size: 0.85rem;
   }
 }
+
+/* ===== 쿠팡파트너스 입력 섹션 ===== */
+.coupang-input-group {
+  margin-bottom: 16px;
+}
+
+.coupang-input-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.coupang-input-group .input-field {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.coupang-input-group .input-field:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.coupang-input-group .btn-small {
+  margin-top: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.coupang-divider {
+  text-align: center;
+  margin: 20px 0;
+  position: relative;
+}
+
+.coupang-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 1px;
+  background: #ddd;
+}
+
+.coupang-divider span {
+  background: #fff;
+  padding: 0 16px;
+  color: #999;
+  font-size: 13px;
+  position: relative;
+}
+
+#coupang-input-section.active {
+  display: block;
+}
+
+/* 쿠팡 모드 강조 표시 */
+.coupang-mode-active {
+  border: 2px solid #ff6b35 !important;
+  background: linear-gradient(to bottom, #fff9f5, #fff) !important;
+}
+
+.coupang-mode-active .section-header h3 {
+  color: #ff6b35;
+}
