@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>상세페이지 제작</title>
+  <link rel="stylesheet" href="/static/css/shorts.css">
+  <link rel="stylesheet" href="/static/css/detail-page.css">
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- 사이드바 -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">🛒 쿠팡 도구</div>
+      <nav class="sidebar-nav">
+        <a href="/shorts" class="nav-item">
+          <span class="nav-icon">📱</span>
+          <span class="nav-text">쇼츠 제작</span>
+        </a>
+        <a href="/detail-page" class="nav-item active">
+          <span class="nav-icon">📄</span>
+          <span class="nav-text">상세페이지</span>
+        </a>
+        <a href="/drama" class="nav-item">
+          <span class="nav-icon">🎬</span>
+          <span class="nav-text">드라마 제작</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- 메인 영역 -->
+    <div class="app-container">
+      <!-- 헤더 -->
+      <header class="app-header">
+        <h1>📄 상세페이지 제작</h1>
+        <p class="subtitle">키워드만 입력하면 상품 상세페이지가 자동으로 생성됩니다</p>
+      </header>
+
+      <!-- 메인 컨텐츠 -->
+      <main class="main-content">
+        <!-- Step 1: 상품 정보 입력 -->
+        <section class="step-section" id="step1-section">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <h2>상품 정보 입력</h2>
+          </div>
+
+          <div class="form-group">
+            <label for="product-name">상품명 / 키워드</label>
+            <input type="text" id="product-name" placeholder="예: 무선 물걸레 청소기" class="form-input">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="product-category">카테고리</label>
+              <select id="product-category" class="form-select">
+                <option value="생활용품">생활용품</option>
+                <option value="가전">가전/디지털</option>
+                <option value="뷰티">뷰티/화장품</option>
+                <option value="식품">식품/건강</option>
+                <option value="패션">패션/의류</option>
+                <option value="주방">주방용품</option>
+                <option value="유아">유아/아동</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="target-audience">타겟 고객</label>
+              <select id="target-audience" class="form-select">
+                <option value="주부">주부/가정주부</option>
+                <option value="직장인">직장인</option>
+                <option value="학생">학생/20대</option>
+                <option value="시니어">시니어/50대+</option>
+                <option value="전체">전체 연령</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="product-features">핵심 특징 (쉼표로 구분)</label>
+            <input type="text" id="product-features" placeholder="예: 무선, 자동 물분사, 가벼움, 긴 배터리" class="form-input">
+          </div>
+
+          <div class="form-group">
+            <label for="price-point">가격대</label>
+            <input type="text" id="price-point" placeholder="예: 5만원대, 3~5만원" class="form-input">
+          </div>
+        </section>
+
+        <!-- Step 2: 상세페이지 구성 -->
+        <section class="step-section" id="step2-section">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <h2>상세페이지 구성</h2>
+          </div>
+
+          <div class="form-group">
+            <label for="page-style">페이지 스타일</label>
+            <select id="page-style" class="form-select">
+              <option value="modern">모던/심플</option>
+              <option value="premium">프리미엄/고급</option>
+              <option value="cute">귀여운/친근한</option>
+              <option value="professional">전문적/신뢰감</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>포함할 섹션 선택</label>
+            <div class="checkbox-group">
+              <label class="checkbox-item">
+                <input type="checkbox" value="hero" checked> 히어로 배너 (메인 이미지)
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="problem" checked> 문제 제기 (이런 고민 있으신가요?)
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="solution" checked> 해결책 (이 제품이 해결합니다)
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="features" checked> 주요 특징 (3-4가지)
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="usage" checked> 사용 방법
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="review"> 후기/리뷰
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="spec"> 제품 스펙
+              </label>
+              <label class="checkbox-item">
+                <input type="checkbox" value="cta" checked> CTA (지금 구매하세요)
+              </label>
+            </div>
+          </div>
+
+          <button id="btn-generate" class="btn-primary btn-large">
+            <span class="btn-icon">🎨</span> 상세페이지 생성하기
+          </button>
+        </section>
+
+        <!-- Step 3: 결과 미리보기 -->
+        <section class="step-section hidden" id="step3-section">
+          <div class="step-header">
+            <span class="step-number">3</span>
+            <h2>생성 결과</h2>
+          </div>
+
+          <div class="loading-indicator hidden" id="generate-loading">
+            <div class="spinner"></div>
+            <span id="loading-text">상세페이지를 생성하는 중...</span>
+          </div>
+
+          <div class="result-container hidden" id="result-container">
+            <!-- 텍스트 결과 -->
+            <div class="result-text-section">
+              <h3>📝 생성된 카피</h3>
+              <div class="copy-sections" id="copy-sections">
+                <!-- 섹션별 카피가 여기에 표시됨 -->
+              </div>
+              <button id="btn-copy-all" class="btn-secondary">
+                <span class="btn-icon">📋</span> 전체 복사
+              </button>
+            </div>
+
+            <!-- 이미지 결과 -->
+            <div class="result-image-section">
+              <h3>🖼️ 생성된 이미지</h3>
+              <div class="image-grid" id="image-grid">
+                <!-- 이미지들이 여기에 표시됨 -->
+              </div>
+              <div class="image-actions">
+                <button id="btn-regenerate-images" class="btn-secondary">
+                  <span class="btn-icon">🔄</span> 이미지 재생성
+                </button>
+                <button id="btn-download-all" class="btn-primary">
+                  <span class="btn-icon">📥</span> 전체 다운로드
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- 상태 메시지 -->
+      <div class="status-bar hidden" id="status-bar">
+        <span class="status-icon"></span>
+        <span class="status-message"></span>
+      </div>
+    </div><!-- app-container -->
+  </div><!-- page-wrapper -->
+
+  <script src="/static/js/detail-page-main.js"></script>
+</body>
+</html>

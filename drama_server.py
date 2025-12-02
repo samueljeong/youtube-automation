@@ -9538,6 +9538,250 @@ def api_generate_shorts_video():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 
+# ===== 상세페이지 제작 API =====
+
+@app.route('/detail-page')
+def detail_page():
+    """상세페이지 제작 페이지"""
+    return render_template('detail-page.html')
+
+
+@app.route('/api/detail-page/generate-copy', methods=['POST'])
+def generate_detail_copy():
+    """상세페이지 카피 생성 API"""
+    try:
+        data = request.json
+        product_name = data.get('productName', '')
+        category = data.get('category', '생활용품')
+        target_audience = data.get('targetAudience', '전체')
+        features = data.get('features', '')
+        price_point = data.get('pricePoint', '')
+        page_style = data.get('pageStyle', 'modern')
+        sections = data.get('sections', ['hero', 'features', 'cta'])
+
+        print(f"[DETAIL-COPY] 상품명: {product_name}, 카테고리: {category}")
+        print(f"[DETAIL-COPY] 섹션: {sections}")
+
+        # 스타일별 톤 설정
+        style_tones = {
+            'modern': '깔끔하고 세련된 톤. 짧고 임팩트 있는 문장 사용.',
+            'premium': '고급스럽고 신뢰감 있는 톤. 품격있는 표현 사용.',
+            'cute': '친근하고 귀여운 톤. 이모티콘과 재미있는 표현 사용.',
+            'professional': '전문적이고 객관적인 톤. 데이터와 근거 중심.'
+        }
+
+        # 섹션별 프롬프트 가이드
+        section_guides = {
+            'hero': '메인 헤드라인과 서브 헤드라인. 한 줄로 제품의 핵심 가치 전달.',
+            'problem': '타겟 고객이 공감할 수 있는 문제점 3-4가지 나열.',
+            'solution': '이 제품이 문제를 어떻게 해결하는지 설명.',
+            'features': '제품의 주요 특징 3-4가지를 각각 제목+설명 형태로.',
+            'usage': '사용 방법을 단계별로 간단히 설명.',
+            'review': '가상의 고객 후기 2-3개 작성. 실감나게.',
+            'spec': '제품 스펙/사양 정리. 표 형태 텍스트.',
+            'cta': '구매를 유도하는 마무리 문구. 긴박감 또는 혜택 강조.'
+        }
+
+        # 선택된 섹션만 포함
+        selected_guides = {k: v for k, v in section_guides.items() if k in sections}
+
+        system_prompt = f"""당신은 쿠팡, 스마트스토어 등 이커머스 상세페이지 전문 카피라이터입니다.
+{style_tones.get(page_style, style_tones['modern'])}
+
+타겟 고객: {target_audience}
+가격대: {price_point if price_point else '미정'}
+
+각 섹션별로 판매력 있는 카피를 작성해주세요.
+응답은 반드시 JSON 형식으로, 각 섹션을 key로 하여 작성해주세요."""
+
+        user_prompt = f"""상품명: {product_name}
+카테고리: {category}
+핵심 특징: {features if features else '(자유롭게 추론)'}
+
+다음 섹션들의 카피를 작성해주세요:
+{chr(10).join([f'- {k}: {v}' for k, v in selected_guides.items()])}
+
+JSON 형식으로 응답해주세요. 예시:
+{{"hero": "헤드라인 텍스트", "features": "특징1\\n특징2\\n...", ...}}"""
+
+        # OpenAI API 호출
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.8
+        )
+
+        copy_text = response.choices[0].message.content
+        copy_data = json.loads(copy_text)
+
+        print(f"[DETAIL-COPY] 카피 생성 완료: {list(copy_data.keys())}")
+
+        return jsonify({'ok': True, 'copy': copy_data})
+
+    except Exception as e:
+        print(f"[DETAIL-COPY] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/detail-page/generate-images', methods=['POST'])
+def generate_detail_images():
+    """상세페이지 이미지 생성 API"""
+    try:
+        data = request.json
+        product_name = data.get('productName', '')
+        category = data.get('category', '생활용품')
+        page_style = data.get('pageStyle', 'modern')
+        sections = data.get('sections', ['hero'])
+        copy_data = data.get('copy', {})
+
+        print(f"[DETAIL-IMAGE] 상품명: {product_name}, 섹션 수: {len(sections)}")
+
+        # 스타일별 이미지 스타일
+        style_visuals = {
+            'modern': 'minimalist, clean white background, modern design, professional product photography',
+            'premium': 'luxury, elegant, dark background with gold accents, premium feel',
+            'cute': 'pastel colors, playful, kawaii style, soft lighting',
+            'professional': 'corporate style, clean lines, trustworthy, infographic style'
+        }
+
+        visual_style = style_visuals.get(page_style, style_visuals['modern'])
+
+        # 섹션별 이미지 프롬프트 생성
+        section_prompts = {
+            'hero': f'Hero banner for {product_name}, {category} product, {visual_style}, eye-catching main visual, no text',
+            'problem': f'Problem illustration, frustrated person concept, {visual_style}, emotional visual',
+            'solution': f'Solution concept, happy person with {product_name}, {visual_style}, positive mood',
+            'features': f'Product features showcase, {product_name} details, {visual_style}, multiple angle view',
+            'usage': f'Product usage demonstration, step by step visual, {product_name}, {visual_style}',
+            'review': f'Happy customer testimonial concept, satisfied person, {visual_style}',
+            'spec': f'Product specification infographic style, {product_name}, {visual_style}, clean layout',
+            'cta': f'Call to action banner, {product_name}, {visual_style}, promotional feel, urgent mood'
+        }
+
+        generated_images = []
+
+        # Gemini로 이미지 생성
+        for section in sections:
+            if section not in section_prompts:
+                continue
+
+            prompt = section_prompts[section]
+            print(f"[DETAIL-IMAGE] {section} 이미지 생성 중...")
+
+            try:
+                # Gemini imagen 사용
+                imagen = genai.ImageGenerationModel("imagen-3.0-generate-002")
+                result = imagen.generate_images(
+                    prompt=prompt,
+                    number_of_images=1,
+                    aspect_ratio="1:1",
+                    safety_filter_level="block_only_high",
+                    person_generation="allow_adult"
+                )
+
+                if result.images:
+                    # 이미지 저장
+                    timestamp = int(time.time() * 1000)
+                    filename = f"detail_{section}_{timestamp}.png"
+                    filepath = os.path.join(OUTPUT_DIR, filename)
+
+                    result.images[0].save(filepath)
+                    image_url = f'/output/{filename}'
+
+                    generated_images.append({
+                        'section': section,
+                        'url': image_url,
+                        'prompt': prompt
+                    })
+                    print(f"[DETAIL-IMAGE] {section} 완료: {image_url}")
+
+            except Exception as img_error:
+                print(f"[DETAIL-IMAGE] {section} 이미지 생성 실패: {img_error}")
+                # 실패한 섹션은 건너뛰기
+                continue
+
+        if not generated_images:
+            return jsonify({'ok': False, 'error': '이미지 생성에 실패했습니다'}), 500
+
+        return jsonify({'ok': True, 'images': generated_images})
+
+    except Exception as e:
+        print(f"[DETAIL-IMAGE] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/api/detail-page/download-zip', methods=['POST'])
+def download_detail_zip():
+    """상세페이지 전체 다운로드 (ZIP)"""
+    try:
+        data = request.json
+        images = data.get('images', [])
+        copy_data = data.get('copy', {})
+
+        print(f"[DETAIL-ZIP] 이미지 {len(images)}개, 카피 섹션 {len(copy_data)}개")
+
+        # ZIP 파일 생성
+        timestamp = int(time.time())
+        zip_filename = f"detail_page_{timestamp}.zip"
+        zip_path = os.path.join(OUTPUT_DIR, zip_filename)
+
+        import zipfile
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # 이미지 파일 추가
+            for img in images:
+                img_url = img.get('url', '')
+                section = img.get('section', 'unknown')
+
+                if img_url.startswith('/output/'):
+                    local_path = os.path.join(OUTPUT_DIR, img_url.replace('/output/', ''))
+                    if os.path.exists(local_path):
+                        zf.write(local_path, f'images/{section}.png')
+
+            # 카피 텍스트 파일 추가
+            section_names = {
+                'hero': '01_히어로배너',
+                'problem': '02_문제제기',
+                'solution': '03_해결책',
+                'features': '04_주요특징',
+                'usage': '05_사용방법',
+                'review': '06_후기리뷰',
+                'spec': '07_제품스펙',
+                'cta': '08_CTA'
+            }
+
+            copy_text = ""
+            for key, content in copy_data.items():
+                if content:
+                    title = section_names.get(key, key)
+                    copy_text += f"=== {title} ===\n{content}\n\n"
+
+            zf.writestr('copy.txt', copy_text.encode('utf-8'))
+
+        # ZIP 파일 반환
+        return send_file(
+            zip_path,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=zip_filename
+        )
+
+    except Exception as e:
+        print(f"[DETAIL-ZIP] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))
