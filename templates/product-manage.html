@@ -606,7 +606,30 @@
     let volumeType = 'individual';
     let shippingType = 'lcl';
 
-    // DB 저장으로 변경됨 (localStorage 제거)
+    // === localStorage 백업 키 ===
+    const STORAGE_KEY = 'products_backup';
+    const LOGS_KEY = 'sales_logs_backup';
+
+    // === localStorage 백업 함수 ===
+    function saveToLocalStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+      localStorage.setItem(LOGS_KEY, JSON.stringify(salesLogs));
+    }
+
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          products = JSON.parse(saved);
+        }
+        const logs = localStorage.getItem(LOGS_KEY);
+        if (logs) {
+          salesLogs = JSON.parse(logs);
+        }
+      } catch (e) {
+        console.error('localStorage 로드 실패:', e);
+      }
+    }
 
     // === HS 코드 데이터베이스 ===
     const HS_DATABASE = {
@@ -1058,22 +1081,27 @@
         createdAt: new Date().toISOString()
       };
 
-      const success = await saveProductToServer(product);
-      if (success) {
-        products.push(product);
-        renderTable();
-        updateCategoryFilter();
+      // API 저장 시도 (실패해도 계속 진행)
+      const apiSuccess = await saveProductToServer(product);
 
-        // 입력 초기화
-        document.getElementById('newName').value = '';
-        document.getElementById('newCnyPrice').value = '';
-        document.getElementById('newSellPrice').value = '';
-        document.getElementById('newImageUrl').value = '';
-        document.getElementById('imagePreview').innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
-        document.getElementById('hsRecommendBox').style.display = 'none';
+      // 항상 로컬에 저장 (API 성공 여부 관계없이)
+      products.push(product);
+      saveToLocalStorage();
+      renderTable();
+      updateCategoryFilter();
+
+      // 입력 초기화
+      document.getElementById('newName').value = '';
+      document.getElementById('newCnyPrice').value = '';
+      document.getElementById('newSellPrice').value = '';
+      document.getElementById('newImageUrl').value = '';
+      document.getElementById('imagePreview').innerHTML = '<span style="font-size:10px; color:#94a3b8;">미리보기</span>';
+      document.getElementById('hsRecommendBox').style.display = 'none';
+
+      if (apiSuccess) {
         alert('상품이 등록되었습니다!');
       } else {
-        alert('상품 등록에 실패했습니다.');
+        alert('상품이 등록되었습니다! (로컬 저장됨 - 서버 동기화 필요)');
       }
     }
 
@@ -1140,11 +1168,13 @@
       const product = products.find(p => p.id === id);
       if (!product) return;
 
-      const success = await updateStockOnServer(id, newStock);
-      if (success) {
-        product.stock = parseInt(newStock);
-        loadSalesLogs(); // 로그 새로고침
-      }
+      // API 업데이트 시도
+      await updateStockOnServer(id, newStock);
+
+      // 로컬 데이터 업데이트 (API 성공 여부 관계없이)
+      product.stock = parseInt(newStock);
+      saveToLocalStorage();
+      loadSalesLogs();
     }
 
     function renderSalesLog() {
@@ -1208,38 +1238,43 @@
         imageUrl: document.getElementById('editImageUrl').value.trim()
       };
 
-      const success = await updateProductOnServer(id, updatedData);
-      if (success) {
-        Object.assign(product, updatedData);
-        renderTable();
-        updateCategoryFilter();
-        closeEditModal();
-      } else {
-        alert('상품 수정에 실패했습니다.');
-      }
+      // API 업데이트 시도
+      await updateProductOnServer(id, updatedData);
+
+      // 로컬 데이터 업데이트 (API 성공 여부 관계없이)
+      Object.assign(product, updatedData);
+      saveToLocalStorage();
+      renderTable();
+      updateCategoryFilter();
+      closeEditModal();
     }
 
     // === 삭제 ===
     async function deleteProduct(id) {
       if (!confirm('정말 삭제하시겠습니까?')) return;
-      const success = await deleteProductOnServer(id);
-      if (success) {
-        products = products.filter(p => p.id !== id);
-        renderTable();
-        updateCategoryFilter();
-      } else {
-        alert('상품 삭제에 실패했습니다.');
-      }
+
+      // API 삭제 시도
+      await deleteProductOnServer(id);
+
+      // 로컬에서도 삭제 (API 성공 여부 관계없이)
+      products = products.filter(p => p.id !== id);
+      saveToLocalStorage();
+      renderTable();
+      updateCategoryFilter();
     }
 
     async function clearAll() {
       if (!confirm('전체 상품을 삭제하시겠습니까?')) return;
-      // 모든 상품을 하나씩 삭제
+      // API에서 모든 상품 삭제 시도
       for (const p of products) {
         await deleteProductOnServer(p.id);
       }
+      // 로컬 데이터도 초기화
       products = [];
+      salesLogs = [];
+      saveToLocalStorage();
       renderTable();
+      renderSalesLog();
     }
 
     // === 카테고리 필터 업데이트 ===
@@ -1252,30 +1287,51 @@
 
     // === API 호출 ===
     async function loadProducts() {
+      let apiSuccess = false;
       try {
         const res = await fetch('/api/products');
         const data = await res.json();
-        if (data.ok) {
+        if (data.ok && data.products) {
           products = data.products;
-          renderTable();
-          updateCategoryFilter();
+          apiSuccess = true;
+          // API 성공 시 localStorage에도 백업
+          saveToLocalStorage();
         }
       } catch (e) {
-        console.error('상품 로드 실패:', e);
+        console.error('API 상품 로드 실패:', e);
       }
+
+      // API 실패 시 localStorage에서 로드
+      if (!apiSuccess) {
+        console.log('localStorage에서 상품 로드 시도...');
+        loadFromLocalStorage();
+      }
+
+      renderTable();
+      updateCategoryFilter();
     }
 
     async function loadSalesLogs() {
+      let apiSuccess = false;
       try {
         const res = await fetch('/api/products/sales-logs');
         const data = await res.json();
-        if (data.ok) {
+        if (data.ok && data.logs) {
           salesLogs = data.logs;
-          renderSalesLog();
+          apiSuccess = true;
         }
       } catch (e) {
-        console.error('로그 로드 실패:', e);
+        console.error('API 로그 로드 실패:', e);
       }
+
+      // API 실패 시 localStorage 데이터 유지
+      if (!apiSuccess) {
+        const logs = localStorage.getItem(LOGS_KEY);
+        if (logs) {
+          salesLogs = JSON.parse(logs);
+        }
+      }
+      renderSalesLog();
     }
 
     async function saveProductToServer(product) {
@@ -1288,7 +1344,7 @@
         const data = await res.json();
         return data.ok;
       } catch (e) {
-        console.error('상품 저장 실패:', e);
+        console.error('API 상품 저장 실패 (localStorage에 백업됨):', e);
         return false;
       }
     }
