@@ -1272,22 +1272,40 @@ def get_products():
 
         products = []
         for row in rows:
-            products.append({
-                'id': row[0],
-                'name': row[1],
-                'category': row[2],
-                'cnyPrice': row[3],
-                'sellPrice': row[4],
-                'quantity': row[5],
-                'stock': row[6],
-                'platform': row[7],
-                'saleType': row[8],
-                'hsCode': row[9],
-                'dutyRate': row[10],
-                'link': row[11],
-                'imageUrl': row[12],
-                'createdAt': row[13]
-            })
+            if USE_POSTGRES:
+                products.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'category': row['category'],
+                    'cnyPrice': row['cny_price'],
+                    'sellPrice': row['sell_price'],
+                    'quantity': row['quantity'],
+                    'stock': row['stock'],
+                    'platform': row['platform'],
+                    'saleType': row['sale_type'],
+                    'hsCode': row['hs_code'],
+                    'dutyRate': row['duty_rate'],
+                    'link': row['link'],
+                    'imageUrl': row['image_url'],
+                    'createdAt': str(row['created_at']) if row['created_at'] else None
+                })
+            else:
+                products.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'category': row[2],
+                    'cnyPrice': row[3],
+                    'sellPrice': row[4],
+                    'quantity': row[5],
+                    'stock': row[6],
+                    'platform': row[7],
+                    'saleType': row[8],
+                    'hsCode': row[9],
+                    'dutyRate': row[10],
+                    'link': row[11],
+                    'imageUrl': row[12],
+                    'createdAt': row[13]
+                })
         return jsonify({'ok': True, 'products': products})
     except Exception as e:
         print(f"[PRODUCTS] Error: {e}")
@@ -1301,25 +1319,46 @@ def add_product():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('''
-            INSERT INTO products (id, name, category, cny_price, sell_price, quantity, stock,
-                                  platform, sale_type, hs_code, duty_rate, link, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            data.get('id'),
-            data.get('name'),
-            data.get('category', '미분류'),
-            data.get('cnyPrice'),
-            data.get('sellPrice'),
-            data.get('quantity', 1),
-            data.get('stock', 0),
-            data.get('platform'),
-            data.get('saleType'),
-            data.get('hsCode'),
-            data.get('dutyRate'),
-            data.get('link', ''),
-            data.get('imageUrl', '')
-        ))
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO products (id, name, category, cny_price, sell_price, quantity, stock,
+                                      platform, sale_type, hs_code, duty_rate, link, image_url)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                data.get('id'),
+                data.get('name'),
+                data.get('category', '미분류'),
+                data.get('cnyPrice'),
+                data.get('sellPrice'),
+                data.get('quantity', 1),
+                data.get('stock', 0),
+                data.get('platform'),
+                data.get('saleType'),
+                data.get('hsCode'),
+                data.get('dutyRate'),
+                data.get('link', ''),
+                data.get('imageUrl', '')
+            ))
+        else:
+            cursor.execute('''
+                INSERT INTO products (id, name, category, cny_price, sell_price, quantity, stock,
+                                      platform, sale_type, hs_code, duty_rate, link, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                data.get('id'),
+                data.get('name'),
+                data.get('category', '미분류'),
+                data.get('cnyPrice'),
+                data.get('sellPrice'),
+                data.get('quantity', 1),
+                data.get('stock', 0),
+                data.get('platform'),
+                data.get('saleType'),
+                data.get('hsCode'),
+                data.get('dutyRate'),
+                data.get('link', ''),
+                data.get('imageUrl', '')
+            ))
 
         conn.commit()
         cursor.close()
@@ -1337,19 +1376,34 @@ def update_product(product_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('''
-            UPDATE products SET name=?, category=?, cny_price=?, sell_price=?,
-                               stock=?, image_url=?, updated_at=CURRENT_TIMESTAMP
-            WHERE id=?
-        ''', (
-            data.get('name'),
-            data.get('category'),
-            data.get('cnyPrice'),
-            data.get('sellPrice'),
-            data.get('stock', 0),
-            data.get('imageUrl', ''),
-            product_id
-        ))
+        if USE_POSTGRES:
+            cursor.execute('''
+                UPDATE products SET name=%s, category=%s, cny_price=%s, sell_price=%s,
+                                   stock=%s, image_url=%s, updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            ''', (
+                data.get('name'),
+                data.get('category'),
+                data.get('cnyPrice'),
+                data.get('sellPrice'),
+                data.get('stock', 0),
+                data.get('imageUrl', ''),
+                product_id
+            ))
+        else:
+            cursor.execute('''
+                UPDATE products SET name=?, category=?, cny_price=?, sell_price=?,
+                                   stock=?, image_url=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+            ''', (
+                data.get('name'),
+                data.get('category'),
+                data.get('cnyPrice'),
+                data.get('sellPrice'),
+                data.get('stock', 0),
+                data.get('imageUrl', ''),
+                product_id
+            ))
 
         conn.commit()
         cursor.close()
@@ -1365,7 +1419,10 @@ def delete_product(product_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM products WHERE id=?', (product_id,))
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM products WHERE id=%s', (product_id,))
+        else:
+            cursor.execute('DELETE FROM products WHERE id=?', (product_id,))
         conn.commit()
         cursor.close()
         conn.close()
@@ -1385,25 +1442,42 @@ def update_stock(product_id):
         cursor = conn.cursor()
 
         # 기존 재고 조회
-        cursor.execute('SELECT stock, name FROM products WHERE id=?', (product_id,))
+        if USE_POSTGRES:
+            cursor.execute('SELECT stock, name FROM products WHERE id=%s', (product_id,))
+        else:
+            cursor.execute('SELECT stock, name FROM products WHERE id=?', (product_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'ok': False, 'error': '상품을 찾을 수 없습니다.'}), 404
 
-        old_stock = row[0]
-        product_name = row[1]
+        if USE_POSTGRES:
+            old_stock = row['stock']
+            product_name = row['name']
+        else:
+            old_stock = row[0]
+            product_name = row[1]
         change = new_stock - old_stock
 
         # 재고 업데이트
-        cursor.execute('UPDATE products SET stock=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
-                      (new_stock, product_id))
+        if USE_POSTGRES:
+            cursor.execute('UPDATE products SET stock=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
+                          (new_stock, product_id))
+        else:
+            cursor.execute('UPDATE products SET stock=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                          (new_stock, product_id))
 
         # 변동이 있으면 로그 기록
         if change != 0:
-            cursor.execute('''
-                INSERT INTO sales_logs (product_id, product_name, change_amount)
-                VALUES (?, ?, ?)
-            ''', (product_id, product_name, change))
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO sales_logs (product_id, product_name, change_amount)
+                    VALUES (%s, %s, %s)
+                ''', (product_id, product_name, change))
+            else:
+                cursor.execute('''
+                    INSERT INTO sales_logs (product_id, product_name, change_amount)
+                    VALUES (?, ?, ?)
+                ''', (product_id, product_name, change))
 
         conn.commit()
         cursor.close()
@@ -1429,11 +1503,18 @@ def get_sales_logs():
 
         logs = []
         for row in rows:
-            logs.append({
-                'productName': row[0],
-                'change': row[1],
-                'date': row[2]
-            })
+            if USE_POSTGRES:
+                logs.append({
+                    'productName': row['product_name'],
+                    'change': row['change_amount'],
+                    'date': str(row['log_date']) if row['log_date'] else None
+                })
+            else:
+                logs.append({
+                    'productName': row[0],
+                    'change': row[1],
+                    'date': row[2]
+                })
         return jsonify({'ok': True, 'logs': logs})
     except Exception as e:
         print(f"[PRODUCTS] Logs error: {e}")
