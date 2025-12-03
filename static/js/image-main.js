@@ -1,15 +1,16 @@
 /**
- * Image Lab - 이미지 제작 (간소화 버전)
- * 대본 분석 → 썸네일 + 씬별 이미지 생성
+ * Image Lab - 이미지 제작 (새 UI 버전)
+ * 좌측: 대본 입력 + 유튜브 메타데이터
+ * 우측: 썸네일 + 씬별 이미지 생성
  */
 
 const ImageMain = {
   // 상태
-  currentStep: 1,
   sessionId: null,
   analyzedData: null,
-  thumbnailImage: null,
-  sceneImages: {},
+  thumbnailImages: [],   // 썸네일 이미지 URL 배열
+  sceneImages: {},       // { index: imageUrl }
+  selectedThumbnailText: null,  // 선택된 썸네일 텍스트
 
   /**
    * 초기화
@@ -48,98 +49,6 @@ const ImageMain = {
   },
 
   /**
-   * 스텝 이동
-   */
-  goToStep(step) {
-    if (step < 1 || step > 2) return;
-
-    document.querySelectorAll('.step-item').forEach(item => item.classList.remove('active'));
-    document.querySelectorAll('.step-container').forEach(c => c.classList.remove('active'));
-
-    document.querySelector(`.step-item[data-step="${step}"]`).classList.add('active');
-    document.getElementById(`step${step}-container`).classList.add('active');
-
-    this.currentStep = step;
-  },
-
-  /**
-   * Step 2로 이동
-   */
-  goToStep2() {
-    if (!this.analyzedData || !this.analyzedData.scenes || this.analyzedData.scenes.length === 0) {
-      this.showStatus('먼저 대본 분석을 완료해주세요.', 'warning');
-      return;
-    }
-
-    // 입력값 수집
-    this.collectSceneData();
-
-    // Step 2 UI 준비
-    this.prepareStep2UI();
-
-    this.goToStep(2);
-  },
-
-  /**
-   * 씬 데이터 수집 (수정된 값 반영)
-   */
-  collectSceneData() {
-    // 썸네일 정보 (4줄 텍스트)
-    const textLines = this.getThumbnailTextLines();
-    const highlightLine = this.getHighlightLineIndex();
-
-    this.analyzedData.thumbnail = {
-      text_lines: textLines,
-      highlight_line: highlightLine,
-      prompt: document.getElementById('thumbnail-prompt')?.value || ''
-    };
-
-    // 씬 정보
-    document.querySelectorAll('.scene-item').forEach((item, idx) => {
-      const narration = item.querySelector('.scene-narration')?.value || '';
-      const prompt = item.querySelector('.scene-prompt')?.value || '';
-      if (this.analyzedData.scenes[idx]) {
-        this.analyzedData.scenes[idx].narration = narration;
-        this.analyzedData.scenes[idx].image_prompt = prompt;
-      }
-    });
-  },
-
-  /**
-   * Step 2 UI 준비
-   */
-  prepareStep2UI() {
-    const grid = document.getElementById('scene-images-grid');
-    const scenes = this.analyzedData.scenes || [];
-
-    let html = '';
-    scenes.forEach((scene, idx) => {
-      html += `
-        <div class="scene-image-card" data-scene-idx="${idx}">
-          <div class="scene-image-card-header">
-            <span class="scene-badge">씬 ${idx + 1}</span>
-            <button class="btn-small btn-generate" onclick="ImageMain.generateSceneImage(${idx})">생성</button>
-          </div>
-          <div class="scene-image-container" id="scene-img-container-${idx}">
-            <div class="image-placeholder">
-              <span>이미지 생성 대기</span>
-            </div>
-          </div>
-          <div class="scene-image-narration">${(scene.narration || '').substring(0, 100)}...</div>
-        </div>
-      `;
-    });
-
-    grid.innerHTML = html || '<div class="empty-message">분석된 씬이 없습니다.</div>';
-
-    // 썸네일 제목 표시
-    const titleDisplay = document.getElementById('thumbnail-title-display');
-    if (titleDisplay && this.analyzedData.thumbnail?.title) {
-      titleDisplay.textContent = this.analyzedData.thumbnail.title;
-    }
-  },
-
-  /**
    * 대본 분석 (AI)
    */
   async analyzeScript() {
@@ -151,17 +60,12 @@ const ImageMain = {
 
     const contentType = document.getElementById('content-type').value;
     const imageStyle = document.getElementById('image-style').value;
+    const imageCount = parseInt(document.getElementById('image-count').value) || 4;
 
-    // 진행 상태
-    document.getElementById('analysis-progress').classList.remove('hidden');
-    document.getElementById('analysis-result').classList.add('hidden');
-    document.getElementById('btn-next-step').classList.add('hidden');
-
-    const progressBar = document.getElementById('analysis-progress-bar');
-    const progressText = document.getElementById('analysis-progress-text');
-
-    progressBar.style.width = '20%';
-    progressText.textContent = 'AI가 대본을 분석하고 있습니다...';
+    // 분석 중 오버레이 표시
+    document.getElementById('analyzing-overlay').classList.remove('hidden');
+    document.getElementById('result-empty').style.display = 'none';
+    document.getElementById('btn-analyze').disabled = true;
 
     try {
       const response = await fetch('/api/image/analyze-script', {
@@ -170,11 +74,10 @@ const ImageMain = {
         body: JSON.stringify({
           script: script,
           content_type: contentType,
-          image_style: imageStyle
+          image_style: imageStyle,
+          image_count: imageCount
         })
       });
-
-      progressBar.style.width = '80%';
 
       if (!response.ok) {
         const errData = await response.json();
@@ -182,178 +85,212 @@ const ImageMain = {
       }
 
       const data = await response.json();
-      progressBar.style.width = '100%';
-
       this.analyzedData = data;
-      this.renderAnalysisResult(data);
 
-      document.getElementById('analysis-progress').classList.add('hidden');
-      document.getElementById('analysis-result').classList.remove('hidden');
-      document.getElementById('btn-next-step').classList.remove('hidden');
+      // 유튜브 메타데이터 렌더링
+      this.renderYoutubeMetadata(data.youtube || {});
 
-      this.showStatus('대본 분석 완료!', 'success');
+      // 씬 카드 렌더링
+      this.renderSceneCards(data.scenes || []);
+
+      // 썸네일 텍스트 옵션 렌더링
+      this.renderThumbnailTextOptions(data.thumbnail || {});
+
+      // 분석 완료
+      document.getElementById('analyzing-overlay').classList.add('hidden');
+      this.showStatus(`대본 분석 완료! ${data.scenes?.length || 0}개 씬 추출됨`, 'success');
 
     } catch (error) {
       console.error('[ImageMain] Analyze error:', error);
-      document.getElementById('analysis-progress').classList.add('hidden');
+      document.getElementById('analyzing-overlay').classList.add('hidden');
+      document.getElementById('result-empty').style.display = 'flex';
       this.showStatus('분석 실패: ' + error.message, 'error');
+    } finally {
+      document.getElementById('btn-analyze').disabled = false;
     }
   },
 
   /**
-   * 분석 결과 렌더링
+   * 유튜브 메타데이터 렌더링
    */
-  renderAnalysisResult(data) {
-    // 썸네일 정보
-    if (data.thumbnail) {
-      // 텍스트 라인 채우기
-      const textLines = data.thumbnail.text_lines || [];
-      for (let i = 0; i < 4; i++) {
-        const input = document.getElementById(`thumb-line-${i}`);
-        if (input) {
-          input.value = textLines[i] || '';
-        }
-      }
-      // 강조 줄 선택
-      const highlightLine = data.thumbnail.highlight_line ?? 2;
-      const radio = document.getElementById(`hl-${highlightLine}`);
-      if (radio) radio.checked = true;
+  renderYoutubeMetadata(youtube) {
+    const section = document.getElementById('youtube-meta-section');
+    const titlesContainer = document.getElementById('youtube-titles');
+    const descriptionEl = document.getElementById('youtube-description');
 
-      // 프롬프트
-      document.getElementById('thumbnail-prompt').value = data.thumbnail.prompt || '';
+    if (!youtube || (!youtube.titles && !youtube.description)) {
+      section.classList.add('hidden');
+      return;
     }
 
-    // 씬 목록
-    const container = document.getElementById('scene-list');
-    const scenes = data.scenes || [];
-
-    let html = '';
-    scenes.forEach((scene, idx) => {
-      html += `
-        <div class="scene-item" data-scene-idx="${idx}">
-          <div class="scene-item-header">
-            <span class="scene-badge">씬 ${idx + 1}</span>
-          </div>
-          <div class="form-group">
-            <label>나레이션 (한글)</label>
-            <textarea class="scene-narration" rows="2">${scene.narration || ''}</textarea>
-          </div>
-          <div class="form-group">
-            <label>이미지 프롬프트 (영문)</label>
-            <textarea class="scene-prompt" rows="2">${scene.image_prompt || ''}</textarea>
-          </div>
+    // 제목 옵션 렌더링
+    const titles = youtube.titles || [];
+    let titlesHtml = '';
+    titles.forEach((title, idx) => {
+      titlesHtml += `
+        <div class="title-option" onclick="ImageMain.selectTitle(${idx})">
+          <input type="radio" name="youtube-title" value="${idx}" ${idx === 0 ? 'checked' : ''}>
+          <span class="title-text">${this.escapeHtml(title)}</span>
+          <button class="btn-copy-small" onclick="event.stopPropagation(); ImageMain.copyText('${this.escapeHtml(title).replace(/'/g, "\\'")}')">복사</button>
         </div>
       `;
     });
+    titlesContainer.innerHTML = titlesHtml;
 
-    container.innerHTML = html || '<div class="empty-message">분석된 씬이 없습니다.</div>';
+    // 설명란 렌더링
+    descriptionEl.value = youtube.description || '';
+
+    section.classList.remove('hidden');
   },
 
   /**
-   * 썸네일 텍스트 라인 가져오기
+   * 제목 선택
    */
-  getThumbnailTextLines() {
-    const lines = [];
-    for (let i = 0; i < 4; i++) {
-      const input = document.getElementById(`thumb-line-${i}`);
-      if (input && input.value.trim()) {
-        lines.push(input.value.trim());
+  selectTitle(idx) {
+    document.querySelectorAll('.title-option').forEach((el, i) => {
+      el.classList.toggle('selected', i === idx);
+      el.querySelector('input').checked = (i === idx);
+    });
+  },
+
+  /**
+   * 썸네일 텍스트 옵션 렌더링
+   */
+  renderThumbnailTextOptions(thumbnail) {
+    const section = document.getElementById('thumbnail-section');
+    const optionsContainer = document.getElementById('thumbnail-text-options');
+    const generateBtn = document.getElementById('btn-generate-with-text');
+
+    if (!thumbnail || !thumbnail.text_options || thumbnail.text_options.length === 0) {
+      // text_options가 없으면 기존 text_lines 사용 시도
+      if (thumbnail.text_lines && thumbnail.text_lines.length > 0) {
+        this.selectedThumbnailText = thumbnail.text_lines[0];
+        generateBtn.disabled = false;
       }
+      section.classList.remove('hidden');
+      return;
     }
-    return lines;
+
+    const options = thumbnail.text_options;
+    let optionsHtml = '';
+    options.forEach((text, idx) => {
+      optionsHtml += `
+        <div class="text-option" onclick="ImageMain.selectThumbnailText(${idx}, '${this.escapeHtml(text).replace(/'/g, "\\'")}')">
+          <input type="radio" name="thumbnail-text" value="${idx}">
+          <span class="text-preview">${this.escapeHtml(text)}</span>
+        </div>
+      `;
+    });
+    optionsContainer.innerHTML = optionsHtml;
+
+    section.classList.remove('hidden');
+    generateBtn.disabled = true;  // 선택 전까지 비활성화
   },
 
   /**
-   * 강조할 줄 인덱스 가져오기
+   * 썸네일 텍스트 선택
    */
-  getHighlightLineIndex() {
-    const checked = document.querySelector('input[name="highlight-line"]:checked');
-    return checked ? parseInt(checked.value) : 2;
+  selectThumbnailText(idx, text) {
+    this.selectedThumbnailText = text;
+
+    document.querySelectorAll('.text-option').forEach((el, i) => {
+      el.classList.toggle('selected', i === idx);
+      el.querySelector('input').checked = (i === idx);
+    });
+
+    // 생성 버튼 활성화
+    document.getElementById('btn-generate-with-text').disabled = false;
   },
 
   /**
-   * 썸네일 이미지 생성 (이미지 + 텍스트 오버레이)
+   * 선택한 텍스트로 썸네일 생성
    */
-  async generateThumbnail() {
-    const prompt = document.getElementById('thumbnail-prompt')?.value || this.analyzedData?.thumbnail?.prompt;
+  async generateThumbnailsWithText() {
+    if (!this.analyzedData) {
+      this.showStatus('먼저 대본을 분석해주세요.', 'warning');
+      return;
+    }
+
+    if (!this.selectedThumbnailText) {
+      this.showStatus('썸네일 텍스트를 선택해주세요.', 'warning');
+      return;
+    }
+
+    const thumbnailData = this.analyzedData.thumbnail || {};
+    const prompt = thumbnailData.prompt || '';
+    const textColor = thumbnailData.text_color || '#FFD700';
+    const outlineColor = thumbnailData.outline_color || '#000000';
+
     if (!prompt) {
       this.showStatus('썸네일 프롬프트가 없습니다.', 'warning');
       return;
     }
 
-    const container = document.getElementById('thumbnail-container');
-    container.innerHTML = '<div class="image-placeholder loading"><span>썸네일 이미지 생성 중...</span></div>';
+    // 썸네일 그리드 표시
+    document.getElementById('thumbnail-grid').style.display = 'flex';
 
-    try {
-      const model = document.getElementById('image-model').value;
-      const ratio = document.getElementById('image-ratio').value;
+    const model = document.getElementById('image-model').value;
+    const textLines = [this.selectedThumbnailText];
 
-      // 1단계: 이미지 생성
-      const response = await fetch('/api/drama/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: prompt,
-          imageProvider: model,
-          style: 'thumbnail',
-          size: ratio
-        })
-      });
-
-      const data = await response.json();
-      if (!data.ok && data.error) {
-        throw new Error(data.error);
+    // 텍스트 미리보기 표시
+    for (let i = 0; i < 2; i++) {
+      const textEl = document.getElementById(`thumbnail-text-${i}`);
+      if (textEl) {
+        textEl.textContent = this.selectedThumbnailText;
       }
-      if (!data.imageUrl) {
-        throw new Error('이미지 URL이 없습니다.');
-      }
-
-      // 2단계: 텍스트 오버레이
-      const textLines = this.getThumbnailTextLines();
-      if (textLines.length > 0) {
-        container.innerHTML = '<div class="image-placeholder loading"><span>텍스트 오버레이 적용 중...</span></div>';
-
-        const highlightLine = this.getHighlightLineIndex();
-        const overlayResponse = await fetch('/api/drama/thumbnail-overlay', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageUrl: data.imageUrl,
-            textLines: textLines,
-            highlightLines: [highlightLine],
-            textColor: '#FFFFFF',
-            highlightColor: '#FFD700',
-            outlineColor: '#000000',
-            outlineWidth: 4,
-            fontSize: 60,
-            position: 'left'
-          })
-        });
-
-        const overlayData = await overlayResponse.json();
-        if (overlayData.ok && overlayData.imageUrl) {
-          container.innerHTML = `<img src="${overlayData.imageUrl}" alt="썸네일">`;
-          this.thumbnailImage = overlayData.imageUrl;
-        } else {
-          // 오버레이 실패 시 원본 이미지 사용
-          console.warn('[ImageMain] Overlay failed, using original:', overlayData.error);
-          container.innerHTML = `<img src="${data.imageUrl}" alt="썸네일">`;
-          this.thumbnailImage = data.imageUrl;
-        }
-      } else {
-        // 텍스트 없으면 원본 이미지 사용
-        container.innerHTML = `<img src="${data.imageUrl}" alt="썸네일">`;
-        this.thumbnailImage = data.imageUrl;
-      }
-
-      this.updateDownloadSection();
-      this.showStatus('썸네일 생성 완료!', 'success');
-
-    } catch (error) {
-      console.error('[ImageMain] Thumbnail error:', error);
-      container.innerHTML = '<div class="image-placeholder"><span style="color:red;">생성 실패</span></div>';
-      this.showStatus('썸네일 생성 실패: ' + error.message, 'error');
     }
+
+    // 병렬 생성
+    const promises = [0, 1].map(idx => this.generateSingleThumbnail(idx, prompt, textLines, model, textColor, outlineColor));
+    await Promise.all(promises);
+
+    this.showStatus('썸네일 2개 생성 완료!', 'success');
+  },
+
+  /**
+   * 씬 카드 렌더링
+   */
+  renderSceneCards(scenes) {
+    const container = document.getElementById('scene-cards');
+
+    if (!scenes || scenes.length === 0) {
+      container.style.display = 'none';
+      document.getElementById('result-empty').style.display = 'flex';
+      return;
+    }
+
+    let html = '';
+    scenes.forEach((scene, idx) => {
+      html += `
+        <div class="scene-card" data-scene-idx="${idx}">
+          <div class="scene-narration">
+            <span class="scene-number">${idx + 1}</span>
+            <div class="scene-text">${this.escapeHtml(scene.narration || '')}</div>
+            <div class="scene-prompt">${this.escapeHtml(scene.image_prompt || '').substring(0, 100)}...</div>
+          </div>
+          <div class="scene-image-area">
+            <div class="scene-image-box" id="scene-img-${idx}">
+              <div class="placeholder">생성 대기</div>
+            </div>
+            <div class="scene-image-actions">
+              <button class="btn-regenerate" onclick="ImageMain.generateSceneImage(${idx})">
+                🎨 생성
+              </button>
+              <button class="btn-download-single" onclick="ImageMain.downloadSceneImage(${idx})" title="다운로드">
+                💾
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+    container.style.display = 'flex';
+    document.getElementById('result-empty').style.display = 'none';
+
+    // 전체 다운로드 버튼 표시
+    document.getElementById('btn-download-all').classList.remove('hidden');
   },
 
   /**
@@ -366,13 +303,13 @@ const ImageMain = {
       return;
     }
 
-    const container = document.getElementById(`scene-img-container-${idx}`);
-    container.innerHTML = '<div class="image-placeholder loading"><span>생성 중...</span></div>';
+    const container = document.getElementById(`scene-img-${idx}`);
+    container.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
 
     try {
       const model = document.getElementById('image-model').value;
       const ratio = document.getElementById('image-ratio').value;
-      const style = document.getElementById('image-style')?.value || 'nostalgic';
+      const style = document.getElementById('image-style')?.value || 'realistic';
 
       const response = await fetch('/api/drama/generate-image', {
         method: 'POST',
@@ -392,49 +329,137 @@ const ImageMain = {
       if (data.imageUrl) {
         container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}">`;
         this.sceneImages[idx] = data.imageUrl;
-        this.updateDownloadSection();
+        this.showStatus(`씬 ${idx + 1} 이미지 생성 완료!`, 'success');
       }
 
     } catch (error) {
       console.error('[ImageMain] Scene image error:', error);
-      container.innerHTML = '<div class="image-placeholder"><span style="color:red;">실패</span></div>';
+      container.innerHTML = '<div class="placeholder" style="color:red;">생성 실패</div>';
       this.showStatus(`씬 ${idx + 1} 이미지 생성 실패: ${error.message}`, 'error');
     }
   },
 
   /**
-   * 전체 씬 이미지 생성
+   * 단일 썸네일 생성 (시니어 가이드 적용)
    */
-  async generateAllSceneImages() {
-    const scenes = this.analyzedData?.scenes || [];
-    if (scenes.length === 0) return;
+  async generateSingleThumbnail(idx, prompt, textLines, model, textColor, outlineColor) {
+    const card = document.getElementById(`thumbnail-card-${idx}`);
+    const imageBox = card.querySelector('.thumbnail-image-box');
 
-    const progressText = document.getElementById('scene-progress-text');
+    imageBox.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div> 생성중...</div>';
 
-    for (let i = 0; i < scenes.length; i++) {
-      progressText.textContent = `(${i + 1}/${scenes.length})`;
-      await this.generateSceneImage(i);
-      await this.sleep(500); // Rate limiting
+    try {
+      // 두 번째 썸네일은 약간 다른 프롬프트 변형 사용
+      let finalPrompt = prompt;
+      if (idx === 1) {
+        finalPrompt = prompt + ', different angle, alternative composition';
+      }
+
+      // 1단계: 이미지 생성
+      const imageResponse = await fetch('/api/drama/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          imageProvider: model,
+          style: 'thumbnail',
+          size: '16:9'
+        })
+      });
+
+      const imageData = await imageResponse.json();
+      if (!imageData.ok && imageData.error) {
+        throw new Error(imageData.error);
+      }
+      if (!imageData.imageUrl) {
+        throw new Error('이미지 URL이 없습니다.');
+      }
+
+      // 2단계: 텍스트 오버레이 (시니어 가이드: 노랑+검정)
+      if (textLines && textLines.length > 0) {
+        imageBox.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div> 텍스트 적용중...</div>';
+
+        const overlayResponse = await fetch('/api/drama/thumbnail-overlay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageUrl: imageData.imageUrl,
+            textLines: textLines,
+            highlightLines: [0],
+            textColor: textColor,
+            highlightColor: textColor,
+            outlineColor: outlineColor,
+            outlineWidth: 5,
+            fontSize: 72,
+            position: 'left'
+          })
+        });
+
+        const overlayData = await overlayResponse.json();
+        if (overlayData.ok && overlayData.imageUrl) {
+          imageBox.innerHTML = `<img src="${overlayData.imageUrl}" alt="썸네일 ${idx + 1}">`;
+          this.thumbnailImages[idx] = overlayData.imageUrl;
+        } else {
+          console.warn('[ImageMain] Overlay failed:', overlayData.error);
+          imageBox.innerHTML = `<img src="${imageData.imageUrl}" alt="썸네일 ${idx + 1}">`;
+          this.thumbnailImages[idx] = imageData.imageUrl;
+        }
+      } else {
+        imageBox.innerHTML = `<img src="${imageData.imageUrl}" alt="썸네일 ${idx + 1}">`;
+        this.thumbnailImages[idx] = imageData.imageUrl;
+      }
+
+    } catch (error) {
+      console.error(`[ImageMain] Thumbnail ${idx} error:`, error);
+      imageBox.innerHTML = '<div class="placeholder" style="color:red;">생성 실패</div>';
     }
-
-    progressText.textContent = '완료!';
-    this.showStatus('모든 씬 이미지 생성 완료!', 'success');
   },
 
   /**
-   * 다운로드 섹션 업데이트
+   * 클립보드에 복사
    */
-  updateDownloadSection() {
-    const downloadSection = document.getElementById('download-section');
-    const countEl = document.getElementById('download-count');
+  copyToClipboard(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
 
-    const sceneCount = Object.keys(this.sceneImages).length;
-    const totalCount = sceneCount + (this.thumbnailImage ? 1 : 0);
+    const text = el.value || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      this.showStatus('클립보드에 복사됨!', 'success');
+    }).catch(err => {
+      console.error('Copy failed:', err);
+      this.showStatus('복사 실패', 'error');
+    });
+  },
 
-    if (totalCount > 0) {
-      downloadSection.classList.remove('hidden');
-      countEl.textContent = `생성된 이미지: ${totalCount}개 (썸네일: ${this.thumbnailImage ? 1 : 0}, 씬: ${sceneCount})`;
+  /**
+   * 텍스트 직접 복사
+   */
+  copyText(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      this.showStatus('클립보드에 복사됨!', 'success');
+    }).catch(err => {
+      console.error('Copy failed:', err);
+      this.showStatus('복사 실패', 'error');
+    });
+  },
+
+  /**
+   * 개별 씬 이미지 다운로드
+   */
+  downloadSceneImage(idx) {
+    const imageUrl = this.sceneImages[idx];
+    if (!imageUrl) {
+      this.showStatus('다운로드할 이미지가 없습니다.', 'warning');
+      return;
     }
+
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = `scene_${idx + 1}.png`;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   },
 
   /**
@@ -443,10 +468,14 @@ const ImageMain = {
   async downloadAllImages() {
     const images = [];
 
-    if (this.thumbnailImage) {
-      images.push({ name: 'thumbnail.png', url: this.thumbnailImage });
-    }
+    // 썸네일
+    this.thumbnailImages.forEach((url, idx) => {
+      if (url) {
+        images.push({ name: `thumbnail_${idx + 1}.png`, url: url });
+      }
+    });
 
+    // 씬 이미지
     Object.entries(this.sceneImages).forEach(([idx, url]) => {
       images.push({ name: `scene_${parseInt(idx) + 1}.png`, url: url });
     });
@@ -481,7 +510,6 @@ const ImageMain = {
 
     } catch (error) {
       console.error('[ImageMain] Download error:', error);
-      // Fallback: 개별 다운로드
       this.downloadImagesIndividually(images);
     }
   },
@@ -506,26 +534,6 @@ const ImageMain = {
   },
 
   /**
-   * 썸네일만 다운로드
-   */
-  downloadThumbnail() {
-    if (!this.thumbnailImage) {
-      this.showStatus('썸네일 이미지가 없습니다.', 'warning');
-      return;
-    }
-
-    const a = document.createElement('a');
-    a.href = this.thumbnailImage;
-    a.download = 'thumbnail.png';
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    this.showStatus('썸네일 다운로드 시작!', 'success');
-  },
-
-  /**
    * 상태 메시지 표시
    */
   showStatus(message, type = 'info') {
@@ -536,6 +544,15 @@ const ImageMain = {
     setTimeout(() => {
       statusBar.classList.remove('show');
     }, 3000);
+  },
+
+  /**
+   * HTML 이스케이프
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   },
 
   /**

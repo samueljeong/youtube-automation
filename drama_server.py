@@ -7598,9 +7598,10 @@ def api_thumbnail_overlay():
         base_dir = os_module.path.dirname(os_module.path.abspath(__file__))
         font_paths = [
             # 프로젝트 로컬 폰트 (최우선)
-            os_module.path.join(base_dir, "static/fonts/NanumSquareRoundB.ttf"),
-            os_module.path.join(base_dir, "static/fonts/NanumGothicBold.ttf"),
-            os_module.path.join(base_dir, "static/fonts/NanumBarunGothicBold.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumSquareB.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumSquareRoundB.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumGothicBold.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumBarunGothicBold.ttf"),
             # Linux (Render)
             "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
             "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
@@ -9422,10 +9423,19 @@ def api_image_analyze_script():
         data = request.get_json()
         script = data.get('script', '')
         content_type = data.get('content_type', 'drama')
-        image_style = data.get('image_style', 'nostalgic')
+        image_style = data.get('image_style', 'realistic')
+        image_count = data.get('image_count', 4)  # 기본 4개
 
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
+
+        # 시니어 썸네일 가이드 로드
+        senior_thumbnail_guide = None
+        try:
+            with open('guides/senior-thumbnail-guide.json', 'r', encoding='utf-8') as f:
+                senior_thumbnail_guide = json.load(f)
+        except:
+            pass
 
         # 가이드 파일 로드
         guides = load_prompt_guides()
@@ -9466,10 +9476,19 @@ illustration, anime background, simple stickman character, black outline, storyt
 
 ## OUTPUT FORMAT (MUST BE JSON)
 {
+  "youtube": {
+    "titles": [
+      "유튜브 제목 1 (클릭 유도, 50자 이내)",
+      "유튜브 제목 2 (감정 강조)",
+      "유튜브 제목 3 (궁금증 유발)",
+      "유튜브 제목 4 (경험 공유형)"
+    ],
+    "description": "유튜브 설명란 (영상 내용 요약 + 해시태그 포함, 500자 이상)"
+  },
   "thumbnail": {
-    "title": "유튜브 썸네일용 한글 제목",
-    "text_lines": ["1줄: 훅/숫자", "2줄: 핵심 내용", "3줄: 감정/강조", "4줄: 궁금증"],
-    "highlight_line": 2,
+    "text_options": ["썸네일 텍스트1 (5~7자)", "썸네일 텍스트2 (5~7자)", "썸네일 텍스트3 (5~7자)"],
+    "text_color": "#FFD700",
+    "outline_color": "#000000",
     "prompt": "Thumbnail prompt with simple stickman in emotional pose, detailed anime background, illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
   },
   "scenes": [
@@ -9539,12 +9558,13 @@ illustration, anime background, simple stickman character, black outline, storyt
   ]
 }}"""
         else:
-            # 드라마/스토리 콘텐츠 (기본값)
+            # 드라마/스토리 콘텐츠 (기본값) - 시니어 썸네일 가이드 적용
             system_prompt = f"""당신의 역할은 대본을 분석하여 AI 이미지용 프롬프트를 전문적으로 작성하는 비서입니다.
 
 ## 핵심 작업
 1. 대본에서 주인공의 나이, 성별, 직업, 외모 특징을 자동으로 추출합니다.
 2. 추출된 인물 정보를 바탕으로 일관된 이미지 프롬프트를 생성합니다.
+3. 시니어 타겟 유튜브 채널용 썸네일 텍스트와 프롬프트를 생성합니다.
 
 ## 한국인 인물 프롬프트 규칙
 - 한국인이 등장하면 반드시 "Korean" 또는 "South Korean"을 명시합니다.
@@ -9553,12 +9573,23 @@ illustration, anime background, simple stickman character, black outline, storyt
 - 젊은 여성: "Young Korean woman, 20s-30s, modern Korean beauty features"
 - 젊은 남성: "Young Korean man, 20s-30s, clean-cut Korean features"
 
+## 시니어용 썸네일 문구 규칙 (중요!)
+시니어 타겟 썸네일은 "경험을 떠올리게" 해야 합니다.
+
+1. **문구 길이**: 최대 12자 이하 (노안 고려)
+2. **문구 유형**:
+   - 회상형: "그날을 잊지 않는다", "처음엔 몰랐다", "돌아보면 눈물이 난다"
+   - 후회/교훈형: "하는 게 아니었다", "늦게 알았다", "왜 그랬을까"
+   - 경험 공유형: "다 겪어봤다", "나도 그랬다", "누구나 그런 날 있다"
+3. **색상 조합**: 노랑+검정이 최고 CTR (text_color에 반영)
+4. **구도**: 왼쪽 상단 텍스트 + 오른쪽 인물/상황
+
 ## 프롬프트 작성 원칙
 1. 출력 프롬프트는 항상 영어로 작성합니다.
 2. 프롬프트는 짧지만 정보 밀도가 높은 한 문단으로 작성합니다.
 3. 다음 요소를 포함합니다:
    - [subject] 피사체/장면 - 프롬프트 맨 앞에 배치 (인물 특징 상세히)
-   - [environment] 배경, 장소
+   - [environment] 배경, 장소 (한국적 공간: 병원, 골목, 시장, 기차역 등)
    - [lighting] 조명 (soft natural light, warm golden hour, dramatic side lighting)
    - [color] 색감·톤 (warm tones, muted colors, film color grading)
    - [camera] 샷 종류(wide/medium/close-up), 렌즈(50mm/85mm), depth of field
@@ -9570,11 +9601,24 @@ illustration, anime background, simple stickman character, black outline, storyt
 
 ## 출력 형식 (반드시 JSON)
 {{
+  "youtube": {{
+    "titles": [
+      "유튜브 제목 1 (클릭 유도, 50자 이내)",
+      "유튜브 제목 2 (감정 강조)",
+      "유튜브 제목 3 (궁금증 유발)",
+      "유튜브 제목 4 (경험 공유형)"
+    ],
+    "description": "유튜브 설명란 (영상 내용 요약 + 해시태그 포함, 500자 이상)"
+  }},
   "thumbnail": {{
-    "title": "유튜브 썸네일용 한글 제목 (짧고 임팩트 있게)",
-    "text_lines": ["1줄: 훅/숫자", "2줄: 핵심 인물", "3줄: 감정/강조", "4줄: 궁금증 유발"],
-    "highlight_line": 2,
-    "prompt": "English thumbnail image prompt - close-up or medium shot of main character with dramatic expression"
+    "text_options": [
+      "썸네일 텍스트 옵션1 (5~7자)",
+      "썸네일 텍스트 옵션2 (5~7자)",
+      "썸네일 텍스트 옵션3 (5~7자)"
+    ],
+    "text_color": "#FFD700",
+    "outline_color": "#000000",
+    "prompt": "Thumbnail prompt - character in emotional pose, Korean setting (hospital/street/home), warm nostalgic lighting, text space on left, slightly blurred background 5%"
   }},
   "scenes": [
     {{
@@ -9583,29 +9627,47 @@ illustration, anime background, simple stickman character, black outline, storyt
       "image_prompt": "English image prompt with subject, environment, lighting, color, camera, style, mood"
     }}
   ]
-}}"""
+}}
+
+## 유튜브 제목 작성 규칙
+1. 시니어 타겟: 경험, 회상, 교훈 키워드 포함
+2. 50자 이내로 작성
+3. 숫자, 감정, 질문 등 클릭 유도 요소 포함
+4. 예시: "의사 30년, 아직도 후회하는 그 환자", "늦게 알았습니다... 그때 그 말"
+
+## 유튜브 설명란 작성 규칙
+1. 영상 내용 3줄 요약
+2. 관련 해시태그 5개 이상
+3. 구독/좋아요 유도 문구
+4. 500자 이상 작성"""
 
         # 스타일별 user prompt 분기
         if image_style == 'animation':
             user_prompt = f"""대본:
 {script}
 
-위 대본을 4~8개 씬으로 분리하고, 각 씬에 맞는 스틱맨 드라마 이미지 프롬프트를 생성해주세요.
+위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 스틱맨 드라마 이미지 프롬프트를 생성해주세요.
 
 중요 규칙:
-1. 모든 캐릭터는 반드시 simple stickman (둥근 머리, 점 2개 눈, 선 1개 입, 검은 윤곽선)으로 표현
-2. 배경은 디테일한 애니메이션 스타일 (anime slice-of-life)
-3. 감정은 자세와 몸짓으로만 표현 (표정 X)
-4. 간판이나 장소명이 나오면 signboard text: "한글텍스트" 형식 포함
-5. 모든 프롬프트 끝에 필수 태그 추가: illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting
+1. 반드시 {image_count}개의 씬을 생성할 것 (더 많거나 적으면 안됨)
+2. 모든 캐릭터는 반드시 simple stickman (둥근 머리, 점 2개 눈, 선 1개 입, 검은 윤곽선)으로 표현
+3. 배경은 디테일한 애니메이션 스타일 (anime slice-of-life)
+4. 감정은 자세와 몸짓으로만 표현 (표정 X)
+5. 간판이나 장소명이 나오면 signboard text: "한글텍스트" 형식 포함
+6. 모든 프롬프트 끝에 필수 태그 추가: illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting
+7. 썸네일 문구는 시니어 타겟 (12자 이하, 감정+사건)
 
 프롬프트는 반드시 영어로 작성해주세요."""
         else:
             user_prompt = f"""대본:
 {script}
 
-위 대본을 4~8개 씬으로 분리하고, 각 씬에 맞는 전문가급 이미지 프롬프트를 생성해주세요.
-프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
+위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 전문가급 이미지 프롬프트를 생성해주세요.
+
+중요:
+1. 반드시 {image_count}개의 씬을 생성할 것 (더 많거나 적으면 안됨)
+2. 썸네일 문구는 시니어 타겟 (12자 이하, 회상형/후회형/경험공유형)
+3. 프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
 
         print(f"[IMAGE-ANALYZE] GPT-5.1로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type})")
 
@@ -9626,11 +9688,13 @@ illustration, anime background, simple stickman character, black outline, storyt
 
         return jsonify({
             "ok": True,
+            "youtube": result.get("youtube", {}),
             "thumbnail": result.get("thumbnail", {}),
             "scenes": result.get("scenes", []),
             "settings": {
                 "content_type": content_type,
-                "image_style": image_style
+                "image_style": image_style,
+                "image_count": image_count
             }
         })
 

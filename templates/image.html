@@ -5,8 +5,700 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
   <title>Image Lab - 이미지 제작</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23f59e0b' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>I</text></svg>">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}?v=20241202">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/image.css') }}?v=20241202b">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}?v=20241203">
+  <style>
+    /* 이미지 제작 페이지 전용 스타일 */
+    .image-workspace {
+      display: flex;
+      gap: 24px;
+      padding: 20px;
+      min-height: calc(100vh - 120px);
+    }
+
+    /* 왼쪽 패널: 입력 영역 */
+    .input-panel {
+      width: 45%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .input-panel .config-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .input-panel .config-item {
+      flex: 1;
+    }
+
+    .input-panel .config-item label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 6px;
+    }
+
+    .input-panel .config-item select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    .script-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .script-section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .script-textarea {
+      flex: 1;
+      min-height: 300px;
+      padding: 14px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      resize: vertical;
+    }
+
+    .script-textarea:focus {
+      outline: none;
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+    }
+
+    .analyze-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .btn-analyze {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-analyze:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-analyze:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .image-count-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .image-count-input label {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .image-count-input input {
+      width: 60px;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    /* 오른쪽 패널: 결과 영역 */
+    .result-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 500px;
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .result-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .btn-download-all {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: #10b981;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-download-all:hover {
+      background: #059669;
+    }
+
+    .btn-download-all.hidden {
+      display: none;
+    }
+
+    .result-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #999;
+    }
+
+    .result-empty-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .result-empty-text {
+      font-size: 14px;
+    }
+
+    /* 씬 카드 */
+    .scene-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      max-height: calc(100vh - 280px);
+    }
+
+    .scene-card {
+      display: flex;
+      gap: 16px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .scene-narration {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scene-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: #f59e0b;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .scene-text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+      flex: 1;
+    }
+
+    .scene-prompt {
+      font-size: 12px;
+      color: #888;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #eee;
+      font-style: italic;
+    }
+
+    .scene-image-area {
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .scene-image-box {
+      width: 200px;
+      height: 112px;
+      background: #e5e7eb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .scene-image-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .scene-image-box .placeholder {
+      color: #999;
+      font-size: 13px;
+    }
+
+    .scene-image-box .loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .scene-image-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-regenerate {
+      flex: 1;
+      padding: 6px 10px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-regenerate:hover {
+      background: #e5e7eb;
+    }
+
+    .btn-download-single {
+      padding: 6px 10px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #555;
+      cursor: pointer;
+    }
+
+    .btn-download-single:hover {
+      background: #e5e7eb;
+    }
+
+    /* 분석 진행 상태 */
+    .analyzing-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      z-index: 10;
+    }
+
+    .analyzing-overlay.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #f59e0b;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 12px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 이미지 생성 설정 (결과 패널 상단) */
+    .generation-config {
+      display: flex;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e7eb;
+      margin-bottom: 4px;
+    }
+
+    .generation-config select {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fff;
+    }
+
+    /* 썸네일 버튼 */
+    .thumbnail-btn-area {
+      flex: 0 0 auto;
+    }
+
+    .btn-thumbnail {
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-thumbnail:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-thumbnail:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* 썸네일 섹션 */
+    .thumbnail-section {
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .thumbnail-section.hidden {
+      display: none;
+    }
+
+    .thumbnail-section h4 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+
+    .thumbnail-grid {
+      display: flex;
+      gap: 16px;
+    }
+
+    .thumbnail-card {
+      flex: 1;
+      background: #fff;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .thumbnail-image-box {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #e5e7eb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .thumbnail-image-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .thumbnail-image-box .placeholder {
+      color: #999;
+      font-size: 13px;
+    }
+
+    .thumbnail-image-box .loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #666;
+    }
+
+    .thumbnail-text-preview {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.4;
+      max-height: 40px;
+      overflow: hidden;
+    }
+
+    /* 유튜브 메타데이터 섹션 */
+    .youtube-meta-section {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 10px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .youtube-meta-section.hidden {
+      display: none;
+    }
+
+    .youtube-meta-section h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+    }
+
+    .meta-group {
+      margin-bottom: 16px;
+    }
+
+    .meta-group > label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .title-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .title-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .title-option:hover {
+      border-color: #3b82f6;
+      background: #f0f7ff;
+    }
+
+    .title-option.selected {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+
+    .title-option input[type="radio"] {
+      margin: 0;
+    }
+
+    .title-option .title-text {
+      flex: 1;
+      font-size: 13px;
+      color: #333;
+    }
+
+    .title-option .btn-copy-small {
+      padding: 4px 8px;
+      font-size: 11px;
+      background: #e5e7eb;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .title-option .btn-copy-small:hover {
+      background: #d1d5db;
+    }
+
+    .meta-content-box {
+      position: relative;
+    }
+
+    .meta-textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+      resize: vertical;
+      background: #fff;
+    }
+
+    .btn-copy {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 6px 12px;
+      font-size: 11px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn-copy:hover {
+      background: #2563eb;
+    }
+
+    /* 썸네일 텍스트 선택 */
+    .thumbnail-text-select {
+      margin-bottom: 16px;
+    }
+
+    .thumbnail-text-select > label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .text-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .text-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: #fff;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .text-option:hover {
+      border-color: #8b5cf6;
+    }
+
+    .text-option.selected {
+      border-color: #8b5cf6;
+      background: #f5f3ff;
+    }
+
+    .text-option input[type="radio"] {
+      margin: 0;
+      accent-color: #8b5cf6;
+    }
+
+    .text-option .text-preview {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .btn-generate-thumb {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-generate-thumb:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+
+    .btn-generate-thumb:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* 반응형 */
+    @media (max-width: 1024px) {
+      .image-workspace {
+        flex-direction: column;
+      }
+
+      .input-panel {
+        width: 100%;
+        max-width: none;
+      }
+
+      .result-panel {
+        min-height: 400px;
+      }
+
+      .scene-card {
+        flex-direction: column;
+      }
+
+      .scene-image-area {
+        width: 100%;
+      }
+
+      .scene-image-box {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16/9;
+      }
+    }
+  </style>
 </head>
 <body>
   <!-- Auth Header -->
@@ -45,59 +737,33 @@
 
     <!-- Main Content Area -->
     <div class="main-content">
-      <div id="image-app">
-        <!-- Step Progress Bar (2 Steps Only) -->
-        <div class="step-progress">
-          <div class="step-item active" data-step="1">
-            <div class="step-number">1</div>
-            <div class="step-label">대본 분석</div>
-          </div>
-          <div class="step-connector"></div>
-          <div class="step-item" data-step="2">
-            <div class="step-number">2</div>
-            <div class="step-label">이미지 생성</div>
-          </div>
-        </div>
-
-        <!-- Step Containers -->
-        <div class="step-containers">
-          <!-- Step 1: 대본 입력 및 분석 -->
-          <div id="step1-container" class="step-container active">
-            <div class="step-header">
-              <h2>Step 1. 대본 입력 및 분석</h2>
-              <p class="step-desc">대본을 입력하면 AI가 씬을 분리하고 이미지 프롬프트를 생성합니다.</p>
+      <div class="image-workspace">
+        <!-- 왼쪽: 입력 패널 -->
+        <div class="input-panel">
+          <!-- 설정 -->
+          <div class="config-row">
+            <div class="config-item">
+              <label>콘텐츠 타입</label>
+              <select id="content-type">
+                <option value="drama" selected>드라마/스토리</option>
+                <option value="product">상품 소개</option>
+                <option value="education">교육/정보</option>
+                <option value="etc">기타</option>
+              </select>
             </div>
+            <div class="config-item">
+              <label>이미지 스타일</label>
+              <select id="image-style">
+                <option value="realistic" selected>실사</option>
+                <option value="animation">애니메이션</option>
+              </select>
+            </div>
+          </div>
 
-            <div class="step-content">
-              <!-- 기본 설정 패널 -->
-              <div class="config-panel">
-                <div class="config-row">
-                  <div class="config-item">
-                    <label>콘텐츠 타입</label>
-                    <select id="content-type">
-                      <option value="drama" selected>드라마/스토리</option>
-                      <option value="product">상품 소개</option>
-                      <option value="education">교육/정보</option>
-                      <option value="etc">기타</option>
-                    </select>
-                  </div>
-                  <div class="config-item">
-                    <label>이미지 스타일</label>
-                    <select id="image-style">
-                      <option value="realistic" selected>실사</option>
-                      <option value="animation">애니메이션</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 전체 대본 입력 -->
-              <div class="script-input-section">
-                <div class="section-header">
-                  <h3>📝 전체 대본 입력</h3>
-                  <span class="section-hint">대본을 붙여넣으면 AI가 씬과 이미지 프롬프트를 자동 생성합니다</span>
-                </div>
-                <textarea id="full-script" class="script-textarea" rows="12" placeholder="여기에 전체 대본을 붙여넣으세요...
+          <!-- 대본 입력 -->
+          <div class="script-section">
+            <h3>📝 대본 입력</h3>
+            <textarea id="full-script" class="script-textarea" placeholder="여기에 전체 대본을 붙여넣으세요...
 
 예시:
 [주인공: 이순자, 75세, 한국인 할머니]
@@ -106,180 +772,124 @@
 작은 시골 마을, 안개가 자욱하게 깔린 논길을 할머니가 걸어갑니다.
 
 60년 전, 그 시절의 기억이 밀려왔습니다.
-전쟁이 끝나고 폐허가 된 마을에서 어린 순자는 처음 학교에 갔습니다.
+전쟁이 끝나고 폐허가 된 마을에서 어린 순자는 처음 학교에 갔습니다."></textarea>
 
-그때 만난 선생님의 한마디가 제 인생을 바꿨습니다.
-'순자야, 너는 할 수 있어.'"></textarea>
-
-                <div class="script-actions">
-                  <button id="btn-analyze-script" class="btn-primary" onclick="ImageMain.analyzeScript()">
-                    <span class="btn-icon">🤖</span> AI 대본 분석하기
-                  </button>
-                  <span class="action-hint">GPT가 씬과 이미지 프롬프트를 자동 생성합니다</span>
-                </div>
-              </div>
-
-              <!-- AI 분석 진행 상태 -->
-              <div id="analysis-progress" class="progress-panel hidden">
-                <h3>대본 분석 중...</h3>
-                <div class="progress-bar-container">
-                  <div id="analysis-progress-bar" class="progress-bar"></div>
-                </div>
-                <div id="analysis-progress-text" class="progress-text">AI가 대본을 분석하고 있습니다...</div>
-              </div>
-
-              <!-- AI 분석 결과 (씬 목록) -->
-              <div id="analysis-result" class="analysis-result hidden">
-                <div class="section-header">
-                  <h3>🎬 분석 결과</h3>
-                  <span class="section-hint">각 씬의 나레이션과 이미지 프롬프트를 확인/수정하세요</span>
-                </div>
-
-                <!-- 썸네일 정보 -->
-                <div id="thumbnail-info" class="thumbnail-info-panel">
-                  <h4>📸 썸네일 정보</h4>
-                  <div class="form-group">
-                    <label>썸네일 텍스트 (4줄, 강조할 줄 선택)</label>
-                    <div class="thumbnail-text-lines">
-                      <div class="text-line-row">
-                        <input type="radio" name="highlight-line" value="0" id="hl-0">
-                        <input type="text" id="thumb-line-0" class="thumb-line-input" placeholder="1줄: 훅/숫자 (예: 40년간 숨겨온)">
-                      </div>
-                      <div class="text-line-row">
-                        <input type="radio" name="highlight-line" value="1" id="hl-1">
-                        <input type="text" id="thumb-line-1" class="thumb-line-input" placeholder="2줄: 핵심 인물 (예: 78세 할머니의)">
-                      </div>
-                      <div class="text-line-row">
-                        <input type="radio" name="highlight-line" value="2" id="hl-2" checked>
-                        <input type="text" id="thumb-line-2" class="thumb-line-input" placeholder="3줄: 감정/강조 (예: 눈물의 고백)">
-                      </div>
-                      <div class="text-line-row">
-                        <input type="radio" name="highlight-line" value="3" id="hl-3">
-                        <input type="text" id="thumb-line-3" class="thumb-line-input" placeholder="4줄: 궁금증 유발 (예: 그날 밤 무슨 일이...)">
-                      </div>
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label>썸네일 이미지 프롬프트</label>
-                    <textarea id="thumbnail-prompt" rows="2" placeholder="영문 프롬프트..."></textarea>
-                  </div>
-                </div>
-
-                <!-- 씬 목록 -->
-                <div id="scene-list" class="scene-list">
-                  <!-- JS로 동적 생성 -->
-                </div>
-              </div>
-
-              <!-- 액션 버튼 -->
-              <div class="action-buttons">
-                <button id="btn-next-step" class="btn-primary btn-large hidden" onclick="ImageMain.goToStep2()">
-                  <span class="btn-icon">➡️</span> Step 2: 이미지 생성으로
-                </button>
+            <div class="analyze-actions">
+              <button id="btn-analyze" class="btn-analyze" onclick="ImageMain.analyzeScript()">
+                🤖 AI 대본 분석하기
+              </button>
+              <div class="image-count-input">
+                <label>이미지 수</label>
+                <input type="number" id="image-count" value="4" min="1" max="20">
               </div>
             </div>
           </div>
 
-          <!-- Step 2: 이미지 생성 -->
-          <div id="step2-container" class="step-container">
-            <div class="step-header">
-              <h2>Step 2. 이미지 생성</h2>
-              <p class="step-desc">썸네일과 씬별 이미지를 AI로 생성합니다. 생성 후 다운로드하세요.</p>
+          <!-- 유튜브 메타데이터 영역 (분석 후 표시) -->
+          <div id="youtube-meta-section" class="youtube-meta-section hidden">
+            <h3>📺 유튜브 메타데이터</h3>
+
+            <!-- 제목 선택 -->
+            <div class="meta-group">
+              <label>제목 (4개 중 선택)</label>
+              <div id="youtube-titles" class="title-options">
+                <!-- JS로 동적 생성 -->
+              </div>
             </div>
 
-            <div class="step-content">
-              <!-- 이미지 생성 설정 -->
-              <div class="config-panel">
-                <div class="config-row">
-                  <div class="config-item">
-                    <label>이미지 생성 모델</label>
-                    <select id="image-model">
-                      <option value="gemini" selected>Google Gemini (무료)</option>
-                      <option value="flux">FLUX.1 Pro (고품질)</option>
-                      <option value="dalle">DALL-E 3 (OpenAI)</option>
-                    </select>
-                  </div>
-                  <div class="config-item">
-                    <label>이미지 비율</label>
-                    <select id="image-ratio">
-                      <option value="16:9" selected>16:9 (유튜브)</option>
-                      <option value="9:16">9:16 (쇼츠/릴스)</option>
-                      <option value="1:1">1:1 (정사각형)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 썸네일 섹션 -->
-              <div id="thumbnail-section" class="image-section">
-                <div class="section-header">
-                  <h3>📸 썸네일</h3>
-                  <button class="btn-small btn-generate" onclick="ImageMain.generateThumbnail()">썸네일 생성</button>
-                </div>
-                <div id="thumbnail-container" class="thumbnail-container">
-                  <div class="image-placeholder">
-                    <span>썸네일 이미지 생성 대기</span>
-                  </div>
-                </div>
-                <div id="thumbnail-title-display" class="thumbnail-title-overlay"></div>
-              </div>
-
-              <!-- 씬별 이미지 섹션 -->
-              <div id="scene-images-section" class="image-section">
-                <div class="section-header">
-                  <h3>🎬 씬별 이미지</h3>
-                  <div class="batch-actions">
-                    <button class="btn-small btn-generate" onclick="ImageMain.generateAllSceneImages()">전체 생성</button>
-                    <span id="scene-progress-text" class="progress-text-inline"></span>
-                  </div>
-                </div>
-                <div id="scene-images-grid" class="scene-images-grid">
-                  <!-- JS로 동적 생성 -->
-                </div>
-              </div>
-
-              <!-- 다운로드 섹션 -->
-              <div id="download-section" class="download-section hidden">
-                <div class="section-header">
-                  <h3>📥 이미지 다운로드</h3>
-                </div>
-                <div class="download-buttons">
-                  <button class="btn-primary" onclick="ImageMain.downloadAllImages()">
-                    <span class="btn-icon">📦</span> 전체 이미지 ZIP 다운로드
-                  </button>
-                  <button class="btn-secondary" onclick="ImageMain.downloadThumbnail()">
-                    <span class="btn-icon">📸</span> 썸네일만 다운로드
-                  </button>
-                </div>
-                <div class="download-info">
-                  <span id="download-count">생성된 이미지: 0개</span>
-                </div>
-              </div>
-
-              <!-- 네비게이션 -->
-              <div class="next-step-buttons">
-                <button class="btn-secondary" onclick="ImageMain.goToStep(1)">← Step 1: 대본 분석</button>
-                <button class="btn-primary" onclick="ImageMain.newSession()">새 프로젝트 시작</button>
+            <!-- 설명란 -->
+            <div class="meta-group">
+              <label>설명란</label>
+              <div class="meta-content-box">
+                <textarea id="youtube-description" class="meta-textarea" rows="6" readonly></textarea>
+                <button class="btn-copy" onclick="ImageMain.copyToClipboard('youtube-description')">📋 복사</button>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </div><!-- /main-content -->
-  </div><!-- /main-layout -->
 
-  <!-- 로딩 오버레이 -->
-  <div id="loading-overlay" class="loading-overlay">
-    <div class="loading-spinner"></div>
-    <div class="loading-text">로딩 중...</div>
-    <div class="loading-subtext"></div>
+        <!-- 오른쪽: 결과 패널 -->
+        <div class="result-panel" style="position: relative;">
+          <!-- 분석 중 오버레이 -->
+          <div id="analyzing-overlay" class="analyzing-overlay hidden">
+            <div class="spinner"></div>
+            <div>대본 분석 중...</div>
+          </div>
+
+          <!-- 헤더 -->
+          <div class="result-header">
+            <h3>🎬 생성된 이미지</h3>
+            <button id="btn-download-all" class="btn-download-all hidden" onclick="ImageMain.downloadAllImages()">
+              📦 전체 다운로드 (ZIP)
+            </button>
+          </div>
+
+          <!-- 이미지 생성 설정 -->
+          <div class="generation-config">
+            <select id="image-model">
+              <option value="gemini" selected>Gemini (무료)</option>
+              <option value="flux">FLUX.1 Pro</option>
+              <option value="dalle">DALL-E 3</option>
+            </select>
+            <select id="image-ratio">
+              <option value="16:9" selected>16:9 (유튜브)</option>
+              <option value="9:16">9:16 (쇼츠)</option>
+              <option value="1:1">1:1 (정사각형)</option>
+            </select>
+          </div>
+
+          <!-- 빈 상태 -->
+          <div id="result-empty" class="result-empty">
+            <div class="result-empty-icon">🖼️</div>
+            <div class="result-empty-text">대본을 분석하면 이미지가 여기에 생성됩니다</div>
+          </div>
+
+          <!-- 썸네일 영역 -->
+          <div id="thumbnail-section" class="thumbnail-section hidden">
+            <h4>🎨 썸네일</h4>
+
+            <!-- 썸네일 텍스트 선택 (3개 중 선택) -->
+            <div id="thumbnail-text-select" class="thumbnail-text-select">
+              <label>텍스트 선택 (3개 중 선택)</label>
+              <div id="thumbnail-text-options" class="text-options">
+                <!-- JS로 동적 생성 -->
+              </div>
+              <button id="btn-generate-with-text" class="btn-generate-thumb" onclick="ImageMain.generateThumbnailsWithText()" disabled>
+                🎨 선택한 텍스트로 썸네일 생성
+              </button>
+            </div>
+
+            <!-- 생성된 썸네일 -->
+            <div id="thumbnail-grid" class="thumbnail-grid" style="display: none;">
+              <div class="thumbnail-card" id="thumbnail-card-0">
+                <div class="thumbnail-image-box">
+                  <div class="placeholder">썸네일 1</div>
+                </div>
+                <div class="thumbnail-text-preview" id="thumbnail-text-0"></div>
+              </div>
+              <div class="thumbnail-card" id="thumbnail-card-1">
+                <div class="thumbnail-image-box">
+                  <div class="placeholder">썸네일 2</div>
+                </div>
+                <div class="thumbnail-text-preview" id="thumbnail-text-1"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 씬 카드 목록 -->
+          <div id="scene-cards" class="scene-cards" style="display: none;">
+            <!-- JS로 동적 생성 -->
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 상태바 -->
   <div id="status-bar" class="status-bar"></div>
 
   <!-- JavaScript -->
-  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241202"></script>
-  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241202e"></script>
+  <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241203"></script>
+  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241203"></script>
 </body>
 </html>

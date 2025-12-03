@@ -1,0 +1,100 @@
+{
+  "title": "시니어용 유튜브 썸네일 제작 가이드",
+  "version": "1.0",
+  "principles": {
+    "text_rules": {
+      "max_chars": 12,
+      "font_style": "bold gothic",
+      "outline": true,
+      "outline_color": "#000000",
+      "position": "left_top"
+    },
+    "visual_rules": {
+      "single_scene": true,
+      "emotion_required": true,
+      "no_complex_gradient": true,
+      "background_blur": "5-10%"
+    },
+    "color_combinations": [
+      { "text": "#FFD700", "outline": "#000000", "name": "노랑+검정" },
+      { "text": "#FF0000", "outline": "#FFFFFF", "name": "빨강+흰색" },
+      { "text": "#0066FF", "outline": "#FFFFFF", "name": "파랑+흰색" },
+      { "text": "#FF8C00", "outline": "#000000", "name": "주황+검정" },
+      { "text": "#00AA00", "outline": "#FFFFFF", "name": "녹색+흰색" }
+    ],
+    "forbidden_colors": ["연보라", "연회색", "파스텔톤만"]
+  },
+  "text_patterns": {
+    "retrospective": [
+      "그날을 잊지 않는다",
+      "처음엔 몰랐다",
+      "그때 말하지 말걸",
+      "돌아보면 눈물이 난다",
+      "다시 만난 그 자리"
+    ],
+    "regret_lesson": [
+      "하는 게 아니었다",
+      "그 말을 왜 했을까",
+      "늦게 알았다",
+      "지금도 후회한다",
+      "왜 그랬을까"
+    ],
+    "experience_sharing": [
+      "다 겪어봤다",
+      "누구나 그런 날 있다",
+      "나도 그랬다",
+      "환자 앞에서 배운 것들",
+      "기적 같은 하루"
+    ]
+  },
+  "stickman_poses": [
+    "종이봉투 들고 서 있음",
+    "문 앞에서 주춤",
+    "고개 숙임",
+    "손에 서류/차트 들고 있음",
+    "창 밖을 바라봄",
+    "의자에 앉아 대기",
+    "가운 들고/접고 있음",
+    "손을 모으고 있음",
+    "문 여는 자세",
+    "멈춰 서 있음"
+  ],
+  "korean_backgrounds": [
+    "병원 입구 간판",
+    "진료대기실 의자",
+    "병원 복도",
+    "창가 햇살",
+    "약국 외관",
+    "동네 상점가",
+    "벚꽃 길",
+    "진료실 책상",
+    "기차역 플랫폼",
+    "시장 골목"
+  ],
+  "layout_templates": {
+    "template_a": {
+      "name": "기본형",
+      "text_position": "left_top",
+      "character_position": "right",
+      "background": "병원 관련",
+      "text_color": "노랑+검정"
+    },
+    "template_b": {
+      "name": "스토리형",
+      "text_position": "top_center",
+      "character_position": "center_right",
+      "background": "책상+창문+햇살",
+      "props": "가운, 서류"
+    },
+    "template_c": {
+      "name": "감정형",
+      "text_position": "left_top",
+      "character_position": "right_bottom_small",
+      "background": "흐림10%+진한 대비"
+    }
+  },
+  "prompt_template": {
+    "realistic": "Korean elderly [gender], [emotion] expression, [location], warm nostalgic lighting, soft focus background, [action], film grain, 1970s Korean aesthetic",
+    "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime slice-of-life background showing [location], soft pastel lighting, emotional storytelling composition"
+  }
+}
