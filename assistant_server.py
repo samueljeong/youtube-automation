@@ -302,27 +302,42 @@ def assistant_dashboard():
 # ===== 이벤트 API =====
 @assistant_bp.route('/assistant/api/events', methods=['GET'])
 def get_events():
-    """이벤트 목록 조회"""
+    """이벤트 목록 조회 (start, end 파라미터로 기간 지정 가능)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 오늘 날짜 기준으로 이번 주 이벤트 조회
+        # 쿼리 파라미터에서 날짜 범위 가져오기
+        start_date_str = request.args.get('start')
+        end_date_str = request.args.get('end')
+
         today = date.today()
-        week_end = today + timedelta(days=7)
+
+        if start_date_str and end_date_str:
+            # 지정된 기간으로 조회
+            start_date = date.fromisoformat(start_date_str)
+            end_date = date.fromisoformat(end_date_str)
+        else:
+            # 기본: 현재 달 전체 + 앞뒤 1주씩
+            start_date = today.replace(day=1) - timedelta(days=7)
+            # 다음 달 1일 - 1일 = 이번 달 마지막 날
+            if today.month == 12:
+                end_date = date(today.year + 1, 1, 1) + timedelta(days=7)
+            else:
+                end_date = date(today.year, today.month + 1, 1) + timedelta(days=7)
 
         if USE_POSTGRES:
             cursor.execute('''
                 SELECT * FROM events
                 WHERE DATE(start_time) >= %s AND DATE(start_time) <= %s
                 ORDER BY start_time ASC
-            ''', (today, week_end))
+            ''', (start_date, end_date))
         else:
             cursor.execute('''
                 SELECT * FROM events
                 WHERE DATE(start_time) >= ? AND DATE(start_time) <= ?
                 ORDER BY start_time ASC
-            ''', (today.isoformat(), week_end.isoformat()))
+            ''', (start_date.isoformat(), end_date.isoformat()))
 
         events = cursor.fetchall()
         conn.close()
@@ -339,8 +354,8 @@ def get_events():
         return jsonify({
             'success': True,
             'events': events_list,
-            'today': today.isoformat(),
-            'week_end': week_end.isoformat()
+            'start': start_date.isoformat(),
+            'end': end_date.isoformat()
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -398,34 +413,52 @@ def create_event():
 # ===== 태스크 API =====
 @assistant_bp.route('/assistant/api/tasks', methods=['GET'])
 def get_tasks():
-    """태스크 목록 조회"""
+    """태스크 목록 조회 (all=true 파라미터로 전체 태스크 조회)"""
     try:
+        include_all = request.args.get('all', 'true').lower() == 'true'
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        if USE_POSTGRES:
-            cursor.execute('''
-                SELECT * FROM tasks
-                WHERE is_completed = FALSE
-                ORDER BY due_date ASC NULLS LAST, priority DESC
-            ''')
+        if include_all:
+            # 전체 태스크 조회 (완료/미완료 모두)
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT * FROM tasks
+                    ORDER BY is_completed ASC, due_date ASC NULLS LAST, priority DESC
+                ''')
+            else:
+                cursor.execute('''
+                    SELECT * FROM tasks
+                    ORDER BY is_completed ASC, due_date ASC, priority DESC
+                ''')
         else:
-            cursor.execute('''
-                SELECT * FROM tasks
-                WHERE is_completed = 0
-                ORDER BY due_date ASC, priority DESC
-            ''')
+            # 미완료 태스크만 조회
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT * FROM tasks
+                    WHERE is_completed = FALSE
+                    ORDER BY due_date ASC NULLS LAST, priority DESC
+                ''')
+            else:
+                cursor.execute('''
+                    SELECT * FROM tasks
+                    WHERE is_completed = 0
+                    ORDER BY due_date ASC, priority DESC
+                ''')
 
         tasks = cursor.fetchall()
         conn.close()
 
         tasks_list = [dict(row) for row in tasks]
 
-        # date 객체를 문자열로 변환
+        # date 객체를 문자열로 변환 및 status 필드 추가
         for task in tasks_list:
             for key in ['due_date', 'created_at', 'updated_at']:
                 if task.get(key) and not isinstance(task[key], str):
                     task[key] = task[key].isoformat() if hasattr(task[key], 'isoformat') else str(task[key])
+            # status 필드 추가 (프론트엔드 호환)
+            task['status'] = 'completed' if task.get('is_completed') else 'pending'
 
         return jsonify({
             'success': True,
@@ -508,6 +541,58 @@ def complete_task(task_id):
         return jsonify({
             'success': True,
             'message': '태스크가 완료되었습니다.'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/tasks/<int:task_id>/uncomplete', methods=['POST'])
+def uncomplete_task(task_id):
+    """태스크 완료 취소"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                UPDATE tasks SET is_completed = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            ''', (task_id,))
+        else:
+            cursor.execute('''
+                UPDATE tasks SET is_completed = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (task_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': '태스크 완료가 취소되었습니다.'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/tasks/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """태스크 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
+        else:
+            cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': '태스크가 삭제되었습니다.'
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

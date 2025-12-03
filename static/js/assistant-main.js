@@ -490,10 +490,508 @@ const AssistantMain = (() => {
   }
 
   // ===== Section Navigation =====
+  let currentSection = 'dashboard';
+
   function showSection(section) {
     console.log('[Assistant] Show section:', section);
-    // TODO: Implement section navigation
-    alert('Section navigation coming soon: ' + section);
+    currentSection = section;
+
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+    // Show selected section
+    const sectionEl = document.getElementById(`section-${section}`);
+    if (sectionEl) {
+      sectionEl.classList.add('active');
+    }
+
+    // Update sidebar active state
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+      item.classList.remove('active');
+      if (item.dataset.section === section) {
+        item.classList.add('active');
+      }
+    });
+
+    // Initialize section-specific content
+    if (section === 'calendar') {
+      initCalendar();
+    } else if (section === 'tasks') {
+      loadFullTasksList();
+    } else if (section === 'attendance') {
+      // Attendance section is already initialized
+    }
+  }
+
+  // ===== Calendar State & Functions =====
+  let calendarDate = new Date();
+  let calendarView = 'month';
+  let selectedDate = null;
+  let allEvents = [];
+
+  async function initCalendar() {
+    console.log('[Assistant] Initializing calendar');
+
+    // Load all events
+    try {
+      const response = await fetch('/assistant/api/events');
+      const data = await response.json();
+      if (data.success) {
+        allEvents = data.events || [];
+      }
+    } catch (err) {
+      console.error('[Assistant] Failed to load events:', err);
+    }
+
+    // Render calendar
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    // Update title
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    document.getElementById('calendar-title').textContent =
+      `${year}년 ${month + 1}월`;
+
+    if (calendarView === 'month') {
+      document.getElementById('month-view').style.display = 'block';
+      document.getElementById('week-view').style.display = 'none';
+      renderMonthView(year, month);
+    } else {
+      document.getElementById('month-view').style.display = 'none';
+      document.getElementById('week-view').style.display = 'block';
+      renderWeekView();
+    }
+
+    // Show today's events by default
+    if (!selectedDate) {
+      selectedDate = new Date();
+    }
+    renderSelectedDateEvents();
+  }
+
+  function renderMonthView(year, month) {
+    const grid = document.getElementById('calendar-grid');
+
+    // Keep headers, clear days
+    const headers = Array.from(grid.querySelectorAll('.calendar-day-header'));
+    grid.innerHTML = '';
+    headers.forEach(h => grid.appendChild(h));
+
+    // Get first day of month and total days
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDayOfWeek = firstDay.getDay();
+    const totalDays = lastDay.getDate();
+
+    // Get previous month days to show
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+
+    // Today
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+    // Render previous month days
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const dayNum = prevMonthLastDay - i;
+      const dayEl = createCalendarDay(dayNum, true, false, false);
+      grid.appendChild(dayEl);
+    }
+
+    // Render current month days
+    for (let day = 1; day <= totalDays; day++) {
+      const isToday = isCurrentMonth && today.getDate() === day;
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isSelected = selectedDate && formatDateISO(selectedDate) === dateStr;
+      const dayEvents = getEventsForDate(dateStr);
+      const dayEl = createCalendarDay(day, false, isToday, isSelected, dayEvents, dateStr);
+      grid.appendChild(dayEl);
+    }
+
+    // Render next month days to fill grid (6 rows = 42 cells)
+    const cellsRendered = startDayOfWeek + totalDays;
+    const cellsNeeded = Math.ceil(cellsRendered / 7) * 7;
+    for (let day = 1; day <= cellsNeeded - cellsRendered; day++) {
+      const dayEl = createCalendarDay(day, true, false, false);
+      grid.appendChild(dayEl);
+    }
+  }
+
+  function createCalendarDay(day, isOtherMonth, isToday, isSelected, events = [], dateStr = '') {
+    const div = document.createElement('div');
+    div.className = 'calendar-day';
+    if (isOtherMonth) div.classList.add('other-month');
+    if (isToday) div.classList.add('today');
+    if (isSelected) div.classList.add('selected');
+
+    if (dateStr) {
+      div.onclick = () => selectCalendarDate(dateStr);
+    }
+
+    let html = `<div class="day-number">${day}</div>`;
+
+    if (events && events.length > 0) {
+      html += '<div class="day-events">';
+      const maxShow = 2;
+      events.slice(0, maxShow).forEach(e => {
+        const isMac = e.source === 'mac_calendar';
+        html += `<div class="day-event ${isMac ? 'mac' : ''}">${escapeHtml(e.title?.substring(0, 15) || '')}</div>`;
+      });
+      if (events.length > maxShow) {
+        html += `<div class="day-event more">+${events.length - maxShow} more</div>`;
+      }
+      html += '</div>';
+    }
+
+    div.innerHTML = html;
+    return div;
+  }
+
+  function getEventsForDate(dateStr) {
+    return allEvents.filter(e => {
+      if (!e.start_time) return false;
+      const eventDate = e.start_time.split('T')[0];
+      return eventDate === dateStr;
+    });
+  }
+
+  function selectCalendarDate(dateStr) {
+    selectedDate = new Date(dateStr);
+    renderCalendar();
+  }
+
+  function renderSelectedDateEvents() {
+    const dateStr = formatDateISO(selectedDate);
+    const events = getEventsForDate(dateStr);
+
+    // Update title
+    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+    document.getElementById('selected-date-title').textContent =
+      selectedDate.toLocaleDateString('ko-KR', options) + '의 일정';
+
+    const container = document.getElementById('selected-date-events-list');
+
+    if (events.length === 0) {
+      container.innerHTML = '<div class="empty">이 날짜에 일정이 없습니다</div>';
+      return;
+    }
+
+    container.innerHTML = events.map(event => {
+      const startTime = event.start_time ? formatTime(event.start_time) : '';
+      const category = event.category ? `<span class="item-category">${event.category}</span>` : '';
+      const source = event.source === 'mac_calendar'
+        ? '<span class="sync-badge sync-synced">📱 Mac</span>'
+        : '';
+
+      return `
+        <div class="item">
+          <div class="item-time">${startTime}</div>
+          <div class="item-content">
+            <div class="item-title">${escapeHtml(event.title || '')}</div>
+            <div class="item-meta">${category} ${source}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderWeekView() {
+    const grid = document.getElementById('week-grid');
+    grid.innerHTML = '';
+
+    // Get start of week (Sunday)
+    const weekStart = new Date(calendarDate);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+    // Headers
+    const today = new Date();
+    grid.innerHTML = '<div class="week-day-header"></div>'; // Empty corner cell
+
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(weekStart);
+      date.setDate(date.getDate() + i);
+      const isToday = formatDateISO(date) === formatDateISO(today);
+
+      grid.innerHTML += `
+        <div class="week-day-header ${isToday ? 'today' : ''}">
+          <div class="day-name">${dayNames[i]}</div>
+          <div class="day-date">${date.getDate()}</div>
+        </div>
+      `;
+    }
+
+    // Time slots (simplified: show key hours)
+    const hours = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+
+    hours.forEach(hour => {
+      // Time label
+      grid.innerHTML += `<div class="time-slot">${hour}:00</div>`;
+
+      // Cells for each day
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(weekStart);
+        date.setDate(date.getDate() + i);
+        const dateStr = formatDateISO(date);
+        const dayEvents = getEventsForDate(dateStr).filter(e => {
+          if (!e.start_time) return false;
+          const eventHour = new Date(e.start_time).getHours();
+          return eventHour === hour;
+        });
+
+        let cellHtml = '<div class="week-cell">';
+        dayEvents.forEach(e => {
+          cellHtml += `<div class="week-event">${escapeHtml(e.title?.substring(0, 10) || '')}</div>`;
+        });
+        cellHtml += '</div>';
+        grid.innerHTML += cellHtml;
+      }
+    });
+  }
+
+  function calendarPrev() {
+    if (calendarView === 'month') {
+      calendarDate.setMonth(calendarDate.getMonth() - 1);
+    } else {
+      calendarDate.setDate(calendarDate.getDate() - 7);
+    }
+    renderCalendar();
+  }
+
+  function calendarNext() {
+    if (calendarView === 'month') {
+      calendarDate.setMonth(calendarDate.getMonth() + 1);
+    } else {
+      calendarDate.setDate(calendarDate.getDate() + 7);
+    }
+    renderCalendar();
+  }
+
+  function calendarToday() {
+    calendarDate = new Date();
+    selectedDate = new Date();
+    renderCalendar();
+  }
+
+  function setCalendarView(view) {
+    calendarView = view;
+
+    // Update buttons
+    document.querySelectorAll('.view-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === view);
+    });
+
+    renderCalendar();
+  }
+
+  function formatDateISO(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // ===== Tasks Section Functions =====
+  let allTasks = [];
+  let taskFilter = 'all';
+
+  async function loadFullTasksList() {
+    console.log('[Assistant] Loading full tasks list');
+
+    try {
+      const response = await fetch('/assistant/api/tasks');
+      const data = await response.json();
+
+      if (data.success) {
+        allTasks = data.tasks || [];
+        updateTasksStats();
+        renderFullTasksList();
+      }
+    } catch (err) {
+      console.error('[Assistant] Failed to load tasks:', err);
+    }
+  }
+
+  function updateTasksStats() {
+    const today = formatDateISO(new Date());
+
+    const total = allTasks.length;
+    const completed = allTasks.filter(t => t.status === 'completed').length;
+    const pending = allTasks.filter(t => t.status !== 'completed').length;
+    const overdue = allTasks.filter(t => {
+      if (t.status === 'completed') return false;
+      if (!t.due_date) return false;
+      return t.due_date < today;
+    }).length;
+
+    document.getElementById('stat-total').textContent = total;
+    document.getElementById('stat-pending').textContent = pending;
+    document.getElementById('stat-completed').textContent = completed;
+    document.getElementById('stat-overdue').textContent = overdue;
+  }
+
+  function renderFullTasksList() {
+    const container = document.getElementById('full-tasks-list');
+    const today = formatDateISO(new Date());
+    const weekEnd = new Date();
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndStr = formatDateISO(weekEnd);
+
+    // Filter tasks
+    let filteredTasks = allTasks;
+
+    switch (taskFilter) {
+      case 'pending':
+        filteredTasks = allTasks.filter(t => t.status !== 'completed');
+        break;
+      case 'completed':
+        filteredTasks = allTasks.filter(t => t.status === 'completed');
+        break;
+      case 'today':
+        filteredTasks = allTasks.filter(t =>
+          t.status !== 'completed' && t.due_date === today
+        );
+        break;
+      case 'week':
+        filteredTasks = allTasks.filter(t =>
+          t.status !== 'completed' && t.due_date && t.due_date <= weekEndStr
+        );
+        break;
+    }
+
+    if (filteredTasks.length === 0) {
+      container.innerHTML = `
+        <div class="empty-tasks">
+          <div class="empty-tasks-icon">✅</div>
+          <p>${taskFilter === 'completed' ? '완료된 태스크가 없습니다' : '태스크가 없습니다'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = filteredTasks.map(task => {
+      const isCompleted = task.status === 'completed';
+      const isOverdue = !isCompleted && task.due_date && task.due_date < today;
+      const isToday = task.due_date === today;
+
+      let dueDateClass = '';
+      if (isOverdue) dueDateClass = 'overdue';
+      else if (isToday) dueDateClass = 'today';
+
+      const dueDisplay = task.due_date
+        ? `<span class="task-due ${dueDateClass}">📅 ${formatDate(task.due_date)}</span>`
+        : '';
+      const categoryDisplay = task.category
+        ? `<span class="item-category">${task.category}</span>`
+        : '';
+
+      return `
+        <div class="task-item ${isCompleted ? 'completed' : ''}">
+          <div class="task-checkbox ${isCompleted ? 'checked' : ''}"
+               onclick="AssistantMain.toggleTaskComplete(${task.id}, ${!isCompleted})">
+            ${isCompleted ? '✓' : ''}
+          </div>
+          <div class="task-content">
+            <div class="task-title">${escapeHtml(task.title)}</div>
+            <div class="task-meta">
+              ${dueDisplay}
+              ${categoryDisplay}
+            </div>
+          </div>
+          <div class="task-actions">
+            <button class="task-action-btn delete" onclick="AssistantMain.deleteTask(${task.id})" title="삭제">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function filterTasks(filter) {
+    taskFilter = filter;
+
+    // Update filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+
+    renderFullTasksList();
+  }
+
+  async function quickAddTask() {
+    const input = document.getElementById('quick-task-input');
+    const title = input.value.trim();
+
+    if (!title) {
+      alert('태스크 제목을 입력하세요');
+      return;
+    }
+
+    try {
+      const response = await fetch('/assistant/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          priority: 'medium'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        input.value = '';
+        loadFullTasksList();
+        // Also refresh dashboard if we go back
+        loadDashboard();
+      } else {
+        alert('태스크 추가 실패: ' + data.error);
+      }
+    } catch (err) {
+      console.error('[Assistant] Quick add task error:', err);
+      alert('Network error');
+    }
+  }
+
+  async function toggleTaskComplete(taskId, complete) {
+    try {
+      const endpoint = complete
+        ? `/assistant/api/tasks/${taskId}/complete`
+        : `/assistant/api/tasks/${taskId}/uncomplete`;
+
+      const response = await fetch(endpoint, { method: 'POST' });
+      const data = await response.json();
+
+      if (data.success) {
+        loadFullTasksList();
+        loadDashboard();
+      } else {
+        alert('Failed: ' + data.error);
+      }
+    } catch (err) {
+      console.error('[Assistant] Toggle task error:', err);
+    }
+  }
+
+  async function deleteTask(taskId) {
+    if (!confirm('이 태스크를 삭제하시겠습니까?')) return;
+
+    try {
+      const response = await fetch(`/assistant/api/tasks/${taskId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        loadFullTasksList();
+        loadDashboard();
+      } else {
+        alert('삭제 실패: ' + data.error);
+      }
+    } catch (err) {
+      console.error('[Assistant] Delete task error:', err);
+    }
   }
 
   // ===== Attendance Functions =====
@@ -868,6 +1366,16 @@ const AssistantMain = (() => {
     saveTask,
     syncToMac,
     showSection,
+    // Calendar functions
+    calendarPrev,
+    calendarNext,
+    calendarToday,
+    setCalendarView,
+    // Tasks section functions
+    filterTasks,
+    quickAddTask,
+    toggleTaskComplete,
+    deleteTask,
     // Attendance functions
     showAttendanceTab,
     handleFileSelect,
