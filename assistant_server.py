@@ -58,12 +58,21 @@ def init_assistant_db():
                 start_time TIMESTAMP,
                 end_time TIMESTAMP,
                 category VARCHAR(100),
+                location VARCHAR(200),
+                notes TEXT,
                 source VARCHAR(50) DEFAULT 'web',
                 sync_status VARCHAR(50) DEFAULT 'pending_to_mac',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # 기존 테이블에 location, notes 컬럼 추가 (이미 존재하면 무시)
+        try:
+            cursor.execute('ALTER TABLE events ADD COLUMN IF NOT EXISTS location VARCHAR(200)')
+            cursor.execute('ALTER TABLE events ADD COLUMN IF NOT EXISTS notes TEXT')
+        except Exception:
+            pass  # 컬럼이 이미 존재하면 무시
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tasks (
@@ -99,12 +108,24 @@ def init_assistant_db():
                 start_time DATETIME,
                 end_time DATETIME,
                 category TEXT,
+                location TEXT,
+                notes TEXT,
                 source TEXT DEFAULT 'web',
                 sync_status TEXT DEFAULT 'pending_to_mac',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # 기존 테이블에 location, notes 컬럼 추가 (SQLite는 IF NOT EXISTS 미지원)
+        try:
+            cursor.execute('ALTER TABLE events ADD COLUMN location TEXT')
+        except Exception:
+            pass
+        try:
+            cursor.execute('ALTER TABLE events ADD COLUMN notes TEXT')
+        except Exception:
+            pass
 
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tasks (
@@ -448,34 +469,64 @@ def sync_to_mac():
     """
     Mac 단축어가 가져갈 pending_to_mac 상태의 데이터 반환
     단축어가 이 데이터를 Calendar/Reminders에 추가
+
+    쿼리 파라미터:
+    - type: 'events' | 'tasks' | None (둘 다)
+    - category: 특정 카테고리만 필터링 (선택)
     """
     try:
+        sync_type = request.args.get('type')  # 'events', 'tasks', or None
+        category_filter = request.args.get('category')  # 선택적 카테고리 필터
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # pending_to_mac 상태의 이벤트 조회
-        if USE_POSTGRES:
-            cursor.execute('''
-                SELECT * FROM events WHERE sync_status = %s
-            ''', ('pending_to_mac',))
-        else:
-            cursor.execute('''
-                SELECT * FROM events WHERE sync_status = ?
-            ''', ('pending_to_mac',))
+        events = []
+        tasks = []
 
-        events = [dict(row) for row in cursor.fetchall()]
+        # 이벤트 조회 (type이 없거나 'events'일 때)
+        if not sync_type or sync_type == 'events':
+            if category_filter:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        SELECT * FROM events WHERE sync_status = %s AND category = %s
+                    ''', ('pending_to_mac', category_filter))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM events WHERE sync_status = ? AND category = ?
+                    ''', ('pending_to_mac', category_filter))
+            else:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        SELECT * FROM events WHERE sync_status = %s
+                    ''', ('pending_to_mac',))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM events WHERE sync_status = ?
+                    ''', ('pending_to_mac',))
+            events = [dict(row) for row in cursor.fetchall()]
 
-        # pending_to_mac 상태의 태스크 조회
-        if USE_POSTGRES:
-            cursor.execute('''
-                SELECT * FROM tasks WHERE sync_status = %s
-            ''', ('pending_to_mac',))
-        else:
-            cursor.execute('''
-                SELECT * FROM tasks WHERE sync_status = ?
-            ''', ('pending_to_mac',))
-
-        tasks = [dict(row) for row in cursor.fetchall()]
+        # 태스크 조회 (type이 없거나 'tasks'일 때)
+        if not sync_type or sync_type == 'tasks':
+            if category_filter:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        SELECT * FROM tasks WHERE sync_status = %s AND category = %s
+                    ''', ('pending_to_mac', category_filter))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM tasks WHERE sync_status = ? AND category = ?
+                    ''', ('pending_to_mac', category_filter))
+            else:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        SELECT * FROM tasks WHERE sync_status = %s
+                    ''', ('pending_to_mac',))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM tasks WHERE sync_status = ?
+                    ''', ('pending_to_mac',))
+            tasks = [dict(row) for row in cursor.fetchall()]
 
         conn.close()
 
