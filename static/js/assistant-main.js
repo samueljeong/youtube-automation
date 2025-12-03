@@ -343,33 +343,108 @@ const AssistantMain = (() => {
     }
   }
 
+  // ===== Task Modal =====
+  let selectedDueDate = null;
+  let selectedCategory = '';
+
   function addTask() {
-    const title = prompt('Enter task title:');
-    if (!title) return;
+    // Reset and open modal
+    selectedDueDate = null;
+    selectedCategory = '';
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-due-date').value = '';
+    document.getElementById('task-due-date').style.display = 'none';
 
-    const dueDate = prompt('Enter due date (YYYY-MM-DD) or leave empty:');
+    // Reset button states
+    document.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector('.date-btn[data-date="none"]').classList.add('active');
+    document.querySelector('.cat-btn[data-cat=""]').classList.add('active');
 
-    fetch('/assistant/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title,
-        due_date: dueDate || null,
-        priority: 'medium'
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
+    document.getElementById('task-modal').style.display = 'flex';
+    document.getElementById('task-title').focus();
+  }
+
+  function closeTaskModal() {
+    document.getElementById('task-modal').style.display = 'none';
+  }
+
+  function setDueDate(type) {
+    // Update button states
+    document.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.date-btn[data-date="${type}"]`).classList.add('active');
+
+    const dateInput = document.getElementById('task-due-date');
+    const today = new Date();
+
+    switch(type) {
+      case 'none':
+        selectedDueDate = null;
+        dateInput.style.display = 'none';
+        break;
+      case 'today':
+        selectedDueDate = today.toISOString().split('T')[0];
+        dateInput.style.display = 'none';
+        break;
+      case 'tomorrow':
+        today.setDate(today.getDate() + 1);
+        selectedDueDate = today.toISOString().split('T')[0];
+        dateInput.style.display = 'none';
+        break;
+      case 'week':
+        // This Sunday
+        const daysUntilSunday = 7 - today.getDay();
+        today.setDate(today.getDate() + daysUntilSunday);
+        selectedDueDate = today.toISOString().split('T')[0];
+        dateInput.style.display = 'none';
+        break;
+      case 'custom':
+        dateInput.style.display = 'block';
+        dateInput.focus();
+        break;
+    }
+  }
+
+  function setCategory(cat) {
+    selectedCategory = cat;
+    document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.cat-btn[data-cat="${cat}"]`).classList.add('active');
+  }
+
+  async function saveTask() {
+    const title = document.getElementById('task-title').value.trim();
+    if (!title) {
+      alert('제목을 입력하세요.');
+      return;
+    }
+
+    // Get custom date if selected
+    const customDate = document.getElementById('task-due-date').value;
+    const dueDate = customDate || selectedDueDate;
+
+    try {
+      const response = await fetch('/assistant/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          due_date: dueDate || null,
+          priority: 'medium',
+          category: selectedCategory
+        })
+      });
+
+      const data = await response.json();
       if (data.success) {
+        closeTaskModal();
         loadDashboard();
       } else {
-        alert('Failed to add task: ' + data.error);
+        alert('태스크 추가 실패: ' + data.error);
       }
-    })
-    .catch(err => {
+    } catch (err) {
       console.error('[Assistant] Add task error:', err);
       alert('Network error');
-    });
+    }
   }
 
   // ===== Mac Sync =====
@@ -781,6 +856,10 @@ const AssistantMain = (() => {
     saveParsedData,
     completeTask,
     addTask,
+    closeTaskModal,
+    setDueDate,
+    setCategory,
+    saveTask,
     syncToMac,
     showSection,
     // Attendance functions

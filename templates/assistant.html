@@ -587,6 +587,117 @@
         grid-template-columns: 1fr;
       }
     }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 450px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+    }
+
+    .modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="date"] {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+    }
+
+    .due-date-toggle,
+    .category-toggle {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .date-btn,
+    .cat-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      background: var(--card-bg);
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .date-btn:hover,
+    .cat-btn:hover {
+      border-color: var(--primary-color);
+    }
+
+    .date-btn.active,
+    .cat-btn.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
   </style>
 </head>
 <body>
@@ -821,6 +932,47 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- Task Add Modal -->
+  <div class="modal-overlay" id="task-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>새 태스크 추가</h3>
+        <button class="modal-close" onclick="AssistantMain.closeTaskModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>제목 *</label>
+          <input type="text" id="task-title" placeholder="태스크 제목 입력..." />
+        </div>
+        <div class="form-group">
+          <label>마감일</label>
+          <div class="due-date-toggle">
+            <button class="date-btn" data-date="none" onclick="AssistantMain.setDueDate('none')">없음</button>
+            <button class="date-btn" data-date="today" onclick="AssistantMain.setDueDate('today')">오늘</button>
+            <button class="date-btn" data-date="tomorrow" onclick="AssistantMain.setDueDate('tomorrow')">내일</button>
+            <button class="date-btn" data-date="week" onclick="AssistantMain.setDueDate('week')">이번 주</button>
+            <button class="date-btn" data-date="custom" onclick="AssistantMain.setDueDate('custom')">직접 선택</button>
+          </div>
+          <input type="date" id="task-due-date" style="display: none; margin-top: 0.5rem;" />
+        </div>
+        <div class="form-group">
+          <label>카테고리</label>
+          <div class="category-toggle">
+            <button class="cat-btn" data-cat="" onclick="AssistantMain.setCategory('')">없음</button>
+            <button class="cat-btn" data-cat="교회" onclick="AssistantMain.setCategory('교회')">교회</button>
+            <button class="cat-btn" data-cat="사업" onclick="AssistantMain.setCategory('사업')">사업</button>
+            <button class="cat-btn" data-cat="가정" onclick="AssistantMain.setCategory('가정')">가정</button>
+            <button class="cat-btn" data-cat="공부" onclick="AssistantMain.setCategory('공부')">공부</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closeTaskModal()">취소</button>
+        <button class="btn btn-primary" onclick="AssistantMain.saveTask()">저장</button>
+      </div>
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='js/assistant-main.js') }}"></script>

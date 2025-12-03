@@ -6,8 +6,43 @@ import os
 import io
 import csv
 import json
+import re
 from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, render_template
+
+
+def parse_korean_date(date_str):
+    """
+    한국어 날짜 형식을 ISO 형식으로 변환
+    예: "2025. 12. 4. 오전 12:00" -> "2025-12-04"
+        "2025. 12. 4." -> "2025-12-04"
+        "2025-12-04" -> "2025-12-04" (이미 ISO 형식)
+    """
+    if not date_str:
+        return None
+
+    # 이미 ISO 형식이면 그대로 반환
+    if re.match(r'^\d{4}-\d{2}-\d{2}', date_str):
+        return date_str[:10]
+
+    # 한국어 날짜 형식 파싱: "2025. 12. 4. 오전 12:00" 또는 "2025. 12. 4."
+    match = re.match(r'(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?', date_str)
+    if match:
+        year, month, day = match.groups()
+        return f"{year}-{int(month):02d}-{int(day):02d}"
+
+    # 다른 형식 시도: "12/4/2025" 등
+    try:
+        for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%m/%d/%Y', '%d/%m/%Y']:
+            try:
+                parsed = datetime.strptime(date_str.split()[0], fmt)
+                return parsed.strftime('%Y-%m-%d')
+            except ValueError:
+                continue
+    except Exception:
+        pass
+
+    return None
 
 # OpenAI (GPT-4o-mini for parsing)
 from openai import OpenAI
@@ -441,13 +476,16 @@ def sync_from_mac():
 
         # 태스크 저장
         for task in data.get('tasks', []):
+            # 한국어 날짜 형식을 ISO 형식으로 변환
+            due_date = parse_korean_date(task.get('due_date'))
+
             if USE_POSTGRES:
                 cursor.execute('''
                     INSERT INTO tasks (title, due_date, priority, category, source, sync_status)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 ''', (
                     task.get('title'),
-                    task.get('due_date'),
+                    due_date,
                     task.get('priority', 'medium'),
                     task.get('category', ''),
                     'mac_reminders',
@@ -459,7 +497,7 @@ def sync_from_mac():
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', (
                     task.get('title'),
-                    task.get('due_date'),
+                    due_date,
                     task.get('priority', 'medium'),
                     task.get('category', ''),
                     'mac_reminders',
