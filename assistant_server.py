@@ -532,6 +532,22 @@ def sync_from_mac():
         events_added = 0
         tasks_added = 0
 
+        # 기존 mac_calendar 소스 이벤트 삭제 (전체 동기화)
+        if data.get('events'):
+            if USE_POSTGRES:
+                cursor.execute("DELETE FROM events WHERE source = %s", ('mac_calendar',))
+            else:
+                cursor.execute("DELETE FROM events WHERE source = ?", ('mac_calendar',))
+            print(f"[SYNC-FROM-MAC] 기존 mac_calendar 이벤트 삭제 완료")
+
+        # 기존 mac_reminders 소스 태스크 삭제 (전체 동기화)
+        if data.get('tasks'):
+            if USE_POSTGRES:
+                cursor.execute("DELETE FROM tasks WHERE source = %s", ('mac_reminders',))
+            else:
+                cursor.execute("DELETE FROM tasks WHERE source = ?", ('mac_reminders',))
+            print(f"[SYNC-FROM-MAC] 기존 mac_reminders 태스크 삭제 완료")
+
         # 이벤트 저장
         for event in data.get('events', []):
             # 한국어 날짜/시간 형식을 ISO 형식으로 변환
