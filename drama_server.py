@@ -9452,32 +9452,66 @@ def api_image_analyze_script():
 
         style_desc = style_guides.get(image_style, 'photorealistic')
 
-        # 애니메이션(스틱맨) 스타일 전용 시스템 프롬프트
+        # 애니메이션(스틱맨) 스타일 전용 시스템 프롬프트 - audience 반영
         if image_style == 'animation':
-            system_prompt = """You are an AI that generates image prompts for a specific STICKMAN DRAMA visual style.
+            # audience별 썸네일 규칙 설정
+            if audience == 'general':
+                thumb_length = "4-7자"
+                thumb_color = "#FFFFFF"
+                thumb_outline = "#000000"
+                thumb_style = "자극형/충격형 (결국 터졌다, 이게 실화?, 소름 돋았다)"
+            else:  # senior
+                thumb_length = "8-12자"
+                thumb_color = "#FFD700"
+                thumb_outline = "#000000"
+                thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
-## REQUIRED VISUAL STYLE
-- Background: detailed, realistic, anime slice-of-life illustration with soft lighting and gentle colors.
-- Foreground character: a simple stickman figure with a round white head, two dots for eyes, one line for mouth, black outline, white body, minimal details.
-- The stickman character must always look 2D, simple, and symbolic, while the background should be more complex and emotional.
+            system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Realistic Background + 2D Stickman Character.
+타겟 시청자: {'일반 (20-40대)' if audience == 'general' else '시니어 (50-70대)'}
 
-## RULES
-1. Characters NEVER have detailed faces. Use only simple shapes (circle head, dot eyes, line mouth).
-2. Emotions must be expressed through POSTURE and GESTURES, not facial expressions.
-   - 긴장: head down, shoulders hunched
-   - 기쁨: arms raised, body leaning forward
-   - 슬픔: head tilted down, arms limp
-   - 결의: standing straight, fist on chest
-3. Always include realistic locations (clinic entrance, hospital waiting room, street, home, office, etc.)
-4. If a sign or location name appears, include: signboard text: "한국어 텍스트"
-5. Always describe: time of day, lighting, weather/atmosphere, character actions, surrounding objects
+## CORE CONCEPT (CRITICAL!)
+The key visual style is:
+1. Background = REALISTIC / CINEMATIC / DETAILED (like a real photo or film still)
+2. Stickman = SIMPLE / BOLD OUTLINE / WHITE BODY (flat 2D cartoon character)
+3. Combination = "COLLAGE STYLE" - the stickman looks like it was inserted into a real photograph
 
-## MANDATORY STYLE TAGS (ALWAYS APPEND TO EVERY PROMPT)
-illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting, 2D character on detailed background, emotional slice-of-life
+This creates "a 2D cartoon character inside a realistic 3D world" effect.
+
+## PROMPT STRUCTURE (ALWAYS FOLLOW THIS ORDER)
+(realistic detailed background) +
+(minimal stickman foreground) +
+(collage / composited character style) +
+(clean line art)
+
+## STICKMAN CHARACTER DESCRIPTION (USE THIS EXACT PHRASE)
+"white stickman character with a round head and black outline, clean minimal flat style, placed naturally in the environment"
+
+## MANDATORY STYLE KEYWORDS (MUST INCLUDE IN EVERY PROMPT)
+- collage style
+- 2D cartoon character inside a realistic 3D world
+- white stickman with black outline
+- clean minimal line art
+- flat character + realistic background
+- drop shadow to match lighting
+- seamless composition
+- depth of field
+
+## 썸네일 텍스트 규칙 (중요!)
+- 문구 길이: {thumb_length}
+- 문구 스타일: {thumb_style}
+- 색상: text_color에 "{thumb_color}" 사용
+
+## EMOTION THROUGH POSTURE
+- 긴장/걱정: standing nervously, hunched shoulders
+- 기쁨: arms raised, leaning forward
+- 슬픔: head down, drooping posture
+- 분노: arms spread wide, body tensed
+- 놀람: arms up, leaning back
+- 중립: neutral face expression, standing calmly
 
 ## OUTPUT FORMAT (MUST BE JSON)
-{
-  "youtube": {
+{{
+  "youtube": {{
     "titles": [
       "유튜브 제목 1 (클릭 유도, 50자 이내)",
       "유튜브 제목 2 (감정 강조)",
@@ -9485,26 +9519,35 @@ illustration, anime background, simple stickman character, black outline, storyt
       "유튜브 제목 4 (경험 공유형)"
     ],
     "description": "유튜브 설명란 (영상 내용 요약 + 해시태그 포함, 500자 이상)"
-  },
-  "thumbnail": {
-    "text_options": ["썸네일 텍스트1 (5~7자)", "썸네일 텍스트2 (5~7자)", "썸네일 텍스트3 (5~7자)"],
-    "text_color": "#FFD700",
-    "outline_color": "#000000",
-    "prompt": "Thumbnail prompt with simple stickman in emotional pose, detailed anime background, illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-  },
+  }},
+  "thumbnail": {{
+    "text_options": ["썸네일 텍스트1 ({thumb_length})", "썸네일 텍스트2 ({thumb_length})", "썸네일 텍스트3 ({thumb_length})"],
+    "text_color": "{thumb_color}",
+    "outline_color": "{thumb_outline}",
+    "prompt": "[Realistic background description], cinematic lighting. White stickman character with round head and black outline, clean minimal flat style, [pose/action]. Collage style, 2D cartoon character inserted into a realistic photo, seamless composition, depth of field, drop shadow to match lighting."
+  }},
   "scenes": [
-    {
+    {{
       "scene_number": 1,
       "narration": "한국어 나레이션",
-      "image_prompt": "Scene description with simple stickman character doing [action], [location with details], [time of day], [lighting], [mood]. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-    }
+      "image_prompt": "[Realistic background], cinematic lighting, detailed environment. White stickman character with round head and black outline, clean minimal flat style, [action]. Collage style, cartoon character seamlessly placed in realistic world, depth of field, drop shadow to match lighting."
+    }}
   ]
-}
+}}
 
 ## EXAMPLE PROMPTS
-- "Early morning in front of a small Korean clinic with cherry blossom trees, petals falling in the wind, signboard text: '박선생 내과의원'. A simple stickman doctor holding a brown paper bag, standing at entrance, soft sunlight. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-- "Inside a cozy Korean home living room, warm afternoon light through window, traditional furniture. Simple stickman grandmother sitting on floor cushion, hands folded, peaceful expression through relaxed posture. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-- "1980s Seoul street at night, neon signs glowing, light rain, signboard text: '미래다방'. Simple stickman young man walking alone, head slightly down, hands in pockets. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
+
+### 신문 읽는 아저씨 스타일
+"Realistic middle-aged businessman sitting on the stairs outside an office building, reading a newspaper, warm morning sunlight, realistic texture, 35mm film look. Simple white stickman character with black outline kneeling and looking at the newspaper, flat cartoon style, clean lines. Collage style, cartoon character seamlessly placed in a realistic world, depth of field, drop shadow to match lighting."
+
+### 주식 시장 혼돈 스타일
+"Wall Street trading floor chaos, monitors with red and green stock charts, crowded scene, dramatic lighting, high detail, newspapers and tickers. A white stickman character with neutral face expression placed in the center, clean line style, bold outline. Collage style, cartoon character inserted into a realistic scene, seamless composition, depth of field."
+
+### 한국 진료소 스타일
+"Spring morning in front of a small Korean clinic, cherry blossoms falling, soft pastel lighting, realistic background, 35mm film look. Stickman doctor wearing a white coat and holding a paper bag, minimal cartoon style, bold outline. Collage style, cartoon character in a realistic environment, drop shadow to match lighting, depth of field."
+
+### 도시 거리 스타일
+"Realistic Korean city street background, soft shadows, cinematic daylight, people and buildings in natural perspective. White stickman character with a round head, black outline, clean flat line style, standing in the foreground, interacting with real objects. Collage style, cartoon character inserted into a realistic photo, seamless composition, depth of field, drop shadow to match lighting."
 """
 
         # 콘텐츠 타입별 시스템 프롬프트 분기 (실사 스타일)
@@ -9664,19 +9707,31 @@ illustration, anime background, simple stickman character, black outline, storyt
 
         # 스타일별 user prompt 분기
         if image_style == 'animation':
+            # audience에 따른 썸네일 규칙
+            if audience == 'general':
+                thumb_instruction = "썸네일 문구는 일반 타겟 (4-7자 이하, 자극형/충격형: 결국 터졌다, 이게 실화?, 소름)"
+            else:
+                thumb_instruction = "썸네일 문구는 시니어 타겟 (8-12자 이하, 회상형/후회형: 그날을 잊지 않는다, 하는게 아니었다)"
+
             user_prompt = f"""대본:
 {script}
 
-위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 스틱맨 드라마 이미지 프롬프트를 생성해주세요.
+위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 "COLLAGE STYLE: 실사 배경 + 스틱맨" 이미지 프롬프트를 생성해주세요.
+타겟 시청자: {'일반 (20-40대)' if audience == 'general' else '시니어 (50-70대)'}
+
+핵심 스타일 (반드시 지킬 것):
+- 배경 = 리얼/사실적/영화적 (realistic, cinematic, 35mm film look)
+- 스틱맨 = 단순/굵은 라인/흰 몸 (white stickman with black outline, flat style)
+- 결합 = "collage style" - 스틱맨이 실사 사진 안에 삽입된 느낌
 
 중요 규칙:
 1. 반드시 {image_count}개의 씬을 생성할 것 (더 많거나 적으면 안됨)
-2. 모든 캐릭터는 반드시 simple stickman (둥근 머리, 점 2개 눈, 선 1개 입, 검은 윤곽선)으로 표현
-3. 배경은 디테일한 애니메이션 스타일 (anime slice-of-life)
-4. 감정은 자세와 몸짓으로만 표현 (표정 X)
-5. 간판이나 장소명이 나오면 signboard text: "한글텍스트" 형식 포함
-6. 모든 프롬프트 끝에 필수 태그 추가: illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting
-7. 썸네일 문구는 시니어 타겟 (12자 이하, 감정+사건)
+2. 배경은 반드시 REALISTIC (실사 사진, 영화적 조명, 35mm film look) - 애니메이션/일러스트 스타일 절대 금지!
+3. 캐릭터는 "white stickman character with round head and black outline, clean minimal flat style"로 표현
+4. 절대 애니메이션 캐릭터, 만화 캐릭터, 지브리 스타일을 그리지 말 것. 오직 심플한 스틱맨만!
+5. 감정은 자세와 몸짓으로만 표현 (hunched shoulders, arms raised 등)
+6. 모든 프롬프트 끝에 필수 태그: collage style, cartoon character inserted into realistic photo, seamless composition, depth of field, drop shadow to match lighting
+7. {thumb_instruction}
 
 프롬프트는 반드시 영어로 작성해주세요."""
         else:

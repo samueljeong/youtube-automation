@@ -88,7 +88,7 @@ const ImageMain = {
   },
 
   /**
-   * 대본 분석 (AI)
+   * 대본 분석 (AI) - 분석 후 이미지 자동 생성
    */
   async analyzeScript() {
     const script = document.getElementById('full-script').value.trim();
@@ -133,12 +133,15 @@ const ImageMain = {
       // 씬 카드 렌더링
       this.renderSceneCards(data.scenes || []);
 
-      // 썸네일 텍스트 옵션 렌더링
+      // 썸네일 텍스트 옵션 렌더링 + 첫 번째 자동 선택
       this.renderThumbnailTextOptions(data.thumbnail || {});
 
       // 분석 완료
       document.getElementById('analyzing-overlay').classList.add('hidden');
-      this.showStatus(`대본 분석 완료! ${data.scenes?.length || 0}개 씬 추출됨`, 'success');
+      this.showStatus(`대본 분석 완료! ${data.scenes?.length || 0}개 씬 이미지 자동 생성 시작...`, 'success');
+
+      // ★★★ 이미지 자동 생성 시작 ★★★
+      await this.generateAllImages();
 
     } catch (error) {
       console.error('[ImageMain] Analyze error:', error);
@@ -148,6 +151,43 @@ const ImageMain = {
     } finally {
       document.getElementById('btn-analyze').disabled = false;
     }
+  },
+
+  /**
+   * ★★★ 모든 이미지 자동 생성 (썸네일 + 씬 이미지) ★★★
+   */
+  async generateAllImages() {
+    if (!this.analyzedData) return;
+
+    const scenes = this.analyzedData.scenes || [];
+    const thumbnail = this.analyzedData.thumbnail || {};
+
+    // 1. 썸네일 자동 생성 (첫 번째 텍스트 옵션 사용)
+    if (thumbnail.text_options && thumbnail.text_options.length > 0) {
+      this.selectedThumbnailText = thumbnail.text_options[0];
+      // 첫 번째 옵션 자동 선택 UI 업데이트
+      const firstOption = document.querySelector('.text-option');
+      if (firstOption) {
+        firstOption.classList.add('selected');
+        const radio = firstOption.querySelector('input');
+        if (radio) radio.checked = true;
+      }
+      document.getElementById('btn-generate-with-text').disabled = false;
+    }
+
+    // 2. 모든 씬 이미지 병렬 생성
+    this.showStatus(`${scenes.length}개 씬 이미지 생성 중...`, 'info');
+
+    const scenePromises = scenes.map((_, idx) => this.generateSceneImage(idx));
+    await Promise.all(scenePromises);
+
+    // 3. 썸네일 자동 생성
+    if (this.selectedThumbnailText && thumbnail.prompt) {
+      this.showStatus('썸네일 생성 중...', 'info');
+      await this.generateThumbnailsWithText();
+    }
+
+    this.showStatus('모든 이미지 생성 완료!', 'success');
   },
 
   /**
@@ -168,7 +208,7 @@ const ImageMain = {
     let titlesHtml = '';
     titles.forEach((title, idx) => {
       titlesHtml += `
-        <div class="title-option" onclick="ImageMain.selectTitle(${idx})">
+        <div class="title-option${idx === 0 ? ' selected' : ''}" onclick="ImageMain.selectTitle(${idx})">
           <input type="radio" name="youtube-title" value="${idx}" ${idx === 0 ? 'checked' : ''}>
           <span class="title-text">${this.escapeHtml(title)}</span>
           <button class="btn-copy-small" onclick="event.stopPropagation(); ImageMain.copyText('${this.escapeHtml(title).replace(/'/g, "\\'")}')">복사</button>
@@ -214,17 +254,22 @@ const ImageMain = {
     const options = thumbnail.text_options;
     let optionsHtml = '';
     options.forEach((text, idx) => {
+      // 첫 번째 옵션 자동 선택
+      const isSelected = idx === 0;
       optionsHtml += `
-        <div class="text-option" onclick="ImageMain.selectThumbnailText(${idx}, '${this.escapeHtml(text).replace(/'/g, "\\'")}')">
-          <input type="radio" name="thumbnail-text" value="${idx}">
+        <div class="text-option${isSelected ? ' selected' : ''}" onclick="ImageMain.selectThumbnailText(${idx}, '${this.escapeHtml(text).replace(/'/g, "\\'")}')">
+          <input type="radio" name="thumbnail-text" value="${idx}" ${isSelected ? 'checked' : ''}>
           <span class="text-preview">${this.escapeHtml(text)}</span>
         </div>
       `;
     });
     optionsContainer.innerHTML = optionsHtml;
 
+    // 첫 번째 옵션 자동 선택
+    this.selectedThumbnailText = options[0];
+    generateBtn.disabled = false;
+
     section.classList.remove('hidden');
-    generateBtn.disabled = true;  // 선택 전까지 비활성화
   },
 
   /**
@@ -288,7 +333,7 @@ const ImageMain = {
   },
 
   /**
-   * 씬 카드 렌더링
+   * 씬 카드 렌더링 (UI 개선)
    */
   renderSceneCards(scenes) {
     const container = document.getElementById('scene-cards');
@@ -301,32 +346,40 @@ const ImageMain = {
 
     let html = '';
     scenes.forEach((scene, idx) => {
+      const narration = scene.narration || '';
+      const prompt = scene.image_prompt || '';
+
       html += `
         <div class="scene-card" data-scene-idx="${idx}">
-          <div class="scene-narration">
-            <span class="scene-number">${idx + 1}</span>
-            <div class="scene-text">${this.escapeHtml(scene.narration || '')}</div>
-            <div class="scene-prompt">${this.escapeHtml(scene.image_prompt || '').substring(0, 100)}...</div>
-          </div>
           <div class="scene-image-area">
             <div class="scene-image-box" id="scene-img-${idx}">
-              <div class="placeholder">생성 대기</div>
+              <div class="placeholder">
+                <div class="spinner"></div>
+                <span>생성 중...</span>
+              </div>
             </div>
-            <div class="scene-image-actions">
-              <button class="btn-regenerate" onclick="ImageMain.generateSceneImage(${idx})">
-                🎨 생성
-              </button>
-              <button class="btn-download-single" onclick="ImageMain.downloadSceneImage(${idx})" title="다운로드">
-                💾
-              </button>
+          </div>
+          <div class="scene-content">
+            <div class="scene-header">
+              <span class="scene-number">${idx + 1}</span>
+              <div class="scene-actions">
+                <button class="btn-regenerate" onclick="ImageMain.generateSceneImage(${idx})" title="재생성">
+                  🔄
+                </button>
+                <button class="btn-download-single" onclick="ImageMain.downloadSceneImage(${idx})" title="다운로드">
+                  💾
+                </button>
+              </div>
             </div>
+            <div class="scene-text">${this.escapeHtml(narration)}</div>
+            <div class="scene-prompt" title="${this.escapeHtml(prompt)}">${this.escapeHtml(prompt).substring(0, 80)}...</div>
           </div>
         </div>
       `;
     });
 
     container.innerHTML = html;
-    container.style.display = 'flex';
+    container.style.display = 'grid';
     document.getElementById('result-empty').style.display = 'none';
 
     // 전체 다운로드 버튼 표시
@@ -344,7 +397,7 @@ const ImageMain = {
     }
 
     const container = document.getElementById(`scene-img-${idx}`);
-    container.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div></div>';
+    container.innerHTML = '<div class="placeholder"><div class="spinner"></div><span>생성 중...</span></div>';
 
     try {
       const model = document.getElementById('image-model').value;
@@ -367,16 +420,31 @@ const ImageMain = {
         throw new Error(data.error);
       }
       if (data.imageUrl) {
-        container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}">`;
+        container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}" onclick="ImageMain.openImageModal('${data.imageUrl}')">`;
         this.sceneImages[idx] = data.imageUrl;
-        this.showStatus(`씬 ${idx + 1} 이미지 생성 완료!`, 'success');
       }
 
     } catch (error) {
       console.error('[ImageMain] Scene image error:', error);
-      container.innerHTML = '<div class="placeholder" style="color:red;">생성 실패</div>';
-      this.showStatus(`씬 ${idx + 1} 이미지 생성 실패: ${error.message}`, 'error');
+      container.innerHTML = `<div class="placeholder error"><span>생성 실패</span><button onclick="ImageMain.generateSceneImage(${idx})">재시도</button></div>`;
     }
+  },
+
+  /**
+   * 이미지 모달 열기
+   */
+  openImageModal(imageUrl) {
+    // 간단한 이미지 확대 보기
+    const modal = document.createElement('div');
+    modal.className = 'image-modal';
+    modal.innerHTML = `
+      <div class="image-modal-backdrop" onclick="this.parentElement.remove()"></div>
+      <div class="image-modal-content">
+        <img src="${imageUrl}" alt="확대 이미지">
+        <button class="image-modal-close" onclick="this.parentElement.parentElement.remove()">✕</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
   },
 
   /**
@@ -386,7 +454,7 @@ const ImageMain = {
     const card = document.getElementById(`thumbnail-card-${idx}`);
     const imageBox = card.querySelector('.thumbnail-image-box');
 
-    imageBox.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div> 생성중...</div>';
+    imageBox.innerHTML = '<div class="placeholder"><div class="spinner"></div><span>생성중...</span></div>';
 
     try {
       // 두 번째 썸네일은 약간 다른 프롬프트 변형 사용
@@ -417,7 +485,7 @@ const ImageMain = {
 
       // 2단계: 텍스트 오버레이 (시니어 가이드: 노랑+검정)
       if (textLines && textLines.length > 0) {
-        imageBox.innerHTML = '<div class="loading"><div class="spinner" style="width:24px;height:24px;border-width:2px;"></div> 텍스트 적용중...</div>';
+        imageBox.innerHTML = '<div class="placeholder"><div class="spinner"></div><span>텍스트 적용중...</span></div>';
 
         const overlayResponse = await fetch('/api/drama/thumbnail-overlay', {
           method: 'POST',
@@ -451,7 +519,7 @@ const ImageMain = {
 
     } catch (error) {
       console.error(`[ImageMain] Thumbnail ${idx} error:`, error);
-      imageBox.innerHTML = '<div class="placeholder" style="color:red;">생성 실패</div>';
+      imageBox.innerHTML = '<div class="placeholder error"><span>생성 실패</span></div>';
     }
   },
 
