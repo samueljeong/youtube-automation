@@ -297,12 +297,19 @@
                 <div class="grid-2">
                   <div class="form-group">
                     <label>🇰🇷 실제 판매가 (원) *</label>
-                    <input type="number" id="newSellPrice" placeholder="예: 159000" style="background:#fffbeb; border-color:#fcd34d;">
-                    <div class="form-hint">네이버/쿠팡에 등록할 실제 가격</div>
+                    <input type="number" id="newSellPrice" placeholder="예: 159000" style="background:#fffbeb; border-color:#fcd34d;" oninput="calcActualMargin()">
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
+                      <span class="form-hint">실제 마진율:</span>
+                      <span id="actualMarginDisplay" style="font-weight:600; font-size:14px;">-</span>
+                      <span id="marginQualityIcon"></span>
+                    </div>
                   </div>
                   <div class="form-group">
                     <label>구매 링크</label>
                     <input type="url" id="newLink" placeholder="https://...">
+                    <div class="form-hint" style="margin-top:24px; background:#f0f9ff; padding:6px 8px; border-radius:4px; font-size:10px;">
+                      <strong>마진율 기준:</strong> 🔴 20%↓ 위험 | 🟡 20-30% 보통 | 🟢 30-40% 양호 | 🔵 40%↑ 우수
+                    </div>
                   </div>
                 </div>
                 <div class="form-group">
@@ -797,6 +804,78 @@
       return surcharge;
     }
 
+    // === 실제 마진율 계산 ===
+    function calcActualMargin() {
+      const sellPrice = parseInt(document.getElementById('newSellPrice').value) || 0;
+      const cnyPrice = parseFloat(document.getElementById('newCnyPrice').value) || 0;
+      const quantity = parseInt(document.getElementById('newQuantity').value) || 1;
+      const vatRate = parseFloat(document.getElementById('vatRate').value);
+      const cardFeeRate = parseFloat(document.getElementById('cardFee').value);
+      const taobaoFeeRate = parseFloat(document.getElementById('taobaoFee').value);
+      const useFta = document.getElementById('useFta').checked;
+      const includeShipping = document.getElementById('includeShipping').checked;
+      const naverFeeRate = parseFloat(document.getElementById('naverFee').value);
+
+      const displayEl = document.getElementById('actualMarginDisplay');
+      const iconEl = document.getElementById('marginQualityIcon');
+
+      if (sellPrice <= 0 || cnyPrice <= 0) {
+        displayEl.textContent = '-';
+        displayEl.style.color = '#64748b';
+        iconEl.innerHTML = '';
+        return;
+      }
+
+      // 총 원가 계산 (배송비 제외)
+      const totalCny = cnyPrice * quantity;
+      const totalKrw = totalCny * exchangeRate;
+      const effectiveDutyRate = useFta ? 0 : selectedDutyRate;
+      const duty = totalKrw * effectiveDutyRate;
+      const vat = (totalKrw + duty) * vatRate;
+      const cardFee = totalKrw * cardFeeRate;
+      const taobaoFee = totalKrw * taobaoFeeRate;
+
+      let shipping = 0;
+      if (includeShipping) {
+        // 배송비 계산 로직 (간소화)
+        const cbm = parseFloat(document.getElementById('volumeResult').textContent) || 0;
+        shipping = calcLclFreight(cbm) + 22000 + 33000 + 33000 + (useFta ? 35000 : 0) + 3500 * quantity;
+      }
+
+      const totalCost = totalKrw + duty + vat + cardFee + taobaoFee + shipping;
+      const costPerUnit = totalCost / quantity;
+
+      // 플랫폼 수수료 포함 실제 마진 계산
+      const platformFee = sellPrice * naverFeeRate;
+      const profit = sellPrice - costPerUnit - platformFee;
+      const marginRate = (profit / sellPrice) * 100;
+
+      // 마진율 표시
+      displayEl.textContent = marginRate.toFixed(1) + '%';
+
+      // 마진 품질에 따른 색상 및 아이콘
+      let icon, color;
+      if (marginRate < 20) {
+        icon = '🔴';
+        color = '#dc2626';  // 빨강 - 위험
+      } else if (marginRate < 30) {
+        icon = '🟡';
+        color = '#d97706';  // 노랑 - 보통
+      } else if (marginRate < 40) {
+        icon = '🟢';
+        color = '#16a34a';  // 초록 - 양호
+      } else {
+        icon = '🔵';
+        color = '#2563eb';  // 파랑 - 우수
+      }
+
+      displayEl.style.color = color;
+      iconEl.innerHTML = icon;
+
+      // 전역 변수에 저장 (상품 등록 시 사용)
+      window.actualMarginRate = marginRate;
+    }
+
     // === 메인 계산 ===
     function recalculate() {
       const cnyPrice = parseFloat(document.getElementById('newCnyPrice').value) || 0;
@@ -921,6 +1000,9 @@
         costPerUnit,
         grandTotal
       };
+
+      // 실제 판매가 입력된 경우 마진율 재계산
+      calcActualMargin();
     }
 
     // === 이미지 미리보기 ===
@@ -1013,6 +1095,18 @@
           ? `<img src="${p.imageUrl}" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" onerror="this.style.display='none'">`
           : '<span style="color:#cbd5e1;">-</span>';
 
+        // 마진 품질 아이콘
+        let marginIcon, marginColor;
+        if (marginRate < 20) {
+          marginIcon = '🔴'; marginColor = '#dc2626';
+        } else if (marginRate < 30) {
+          marginIcon = '🟡'; marginColor = '#d97706';
+        } else if (marginRate < 40) {
+          marginIcon = '🟢'; marginColor = '#16a34a';
+        } else {
+          marginIcon = '🔵'; marginColor = '#2563eb';
+        }
+
         return `
           <tr>
             <td>${imgHtml}</td>
@@ -1021,7 +1115,7 @@
             <td class="text-left">${p.name}</td>
             <td>${p.cnyPrice}¥</td>
             <td>${formatNum(p.sellPrice)}원</td>
-            <td style="color:${marginRate >= 30 ? '#16a34a' : '#dc2626'}">${marginRate}%</td>
+            <td style="color:${marginColor}">${marginIcon} ${marginRate}%</td>
             <td>
               <input type="number" class="stock-input" value="${p.stock || 0}"
                 onchange="updateStock('${p.id}', this.value)">
