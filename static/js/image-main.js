@@ -11,6 +11,7 @@ const ImageMain = {
   thumbnailImages: [],   // 썸네일 이미지 URL 배열
   sceneImages: {},       // { index: imageUrl }
   selectedThumbnailText: null,  // 선택된 썸네일 텍스트
+  audience: 'senior',    // 타겟 시청자: 'senior' 또는 'general'
 
   /**
    * 초기화
@@ -20,6 +21,44 @@ const ImageMain = {
     this.sessionId = this.generateSessionId();
     this.updateSessionInfo();
     console.log('[ImageMain] Ready. Session:', this.sessionId);
+  },
+
+  /**
+   * 타겟 시청자 설정 (시니어/일반)
+   */
+  setAudience(audience) {
+    this.audience = audience;
+    console.log('[ImageMain] Audience set to:', audience);
+
+    // 버튼 상태 업데이트
+    document.querySelectorAll('.audience-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.audience === audience);
+    });
+
+    // 시니어/일반에 따른 힌트 업데이트
+    const placeholder = document.getElementById('full-script');
+    if (placeholder) {
+      if (audience === 'senior') {
+        placeholder.placeholder = `여기에 전체 대본을 붙여넣으세요...
+
+예시 (시니어 드라마):
+[주인공: 이순자, 75세, 한국인 할머니]
+
+그날 새벽이었습니다.
+작은 시골 마을, 안개가 자욱하게 깔린 논길을 할머니가 걸어갑니다.
+
+60년 전, 그 시절의 기억이 밀려왔습니다.`;
+      } else {
+        placeholder.placeholder = `여기에 전체 대본을 붙여넣으세요...
+
+예시 (일반 콘텐츠):
+결국 터졌습니다.
+많은 분들이 궁금해하셨던 그 사건의 전말을 공개합니다.
+
+처음엔 아무도 몰랐습니다.
+하지만 진실은 언제나 드러나기 마련입니다.`;
+      }
+    }
   },
 
   /**
@@ -75,7 +114,8 @@ const ImageMain = {
           script: script,
           content_type: contentType,
           image_style: imageStyle,
-          image_count: imageCount
+          image_count: imageCount,
+          audience: this.audience  // 시니어/일반 구분
         })
       });
 
