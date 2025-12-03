@@ -347,6 +347,232 @@
       to { transform: rotate(360deg); }
     }
 
+    /* Attendance Section */
+    .attendance-section {
+      margin-top: 2rem;
+    }
+
+    .file-upload-zone {
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .file-upload-zone:hover {
+      border-color: var(--primary-color);
+      background: rgba(76, 175, 80, 0.05);
+    }
+
+    .file-upload-zone.dragover {
+      border-color: var(--primary-color);
+      background: rgba(76, 175, 80, 0.1);
+    }
+
+    .file-upload-zone input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-upload-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .file-upload-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .upload-options {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .upload-options input, .upload-options select {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.9rem;
+    }
+
+    /* Under-attending list */
+    .under-attending-controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .under-attending-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .person-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem;
+      background: var(--bg-color);
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .person-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .person-info {
+      flex: 1;
+    }
+
+    .person-name {
+      font-weight: 600;
+    }
+
+    .person-meta {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .absent-badge {
+      background: rgba(244, 67, 54, 0.15);
+      color: var(--danger-color);
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Message result */
+    .message-list {
+      margin-top: 1rem;
+    }
+
+    .message-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .message-name {
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .message-text {
+      color: var(--text-primary);
+      line-height: 1.5;
+      background: var(--bg-color);
+      padding: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .message-text:hover {
+      background: var(--border-color);
+    }
+
+    .copy-btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      background: var(--secondary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .copy-btn:hover {
+      opacity: 0.9;
+    }
+
+    /* Tab navigation */
+    .tab-nav {
+      display: flex;
+      border-bottom: 2px solid var(--border-color);
+      margin-bottom: 1rem;
+    }
+
+    .tab-btn {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Style selector */
+    .style-selector {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .style-btn {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      background: var(--card-bg);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .style-btn:hover {
+      border-color: var(--primary-color);
+    }
+
+    .style-btn.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .sidebar {
@@ -472,6 +698,115 @@
                   Save All
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attendance Section -->
+      <div class="attendance-section">
+        <div class="card">
+          <div class="card-header">
+            <h2>📋 Attendance Management</h2>
+          </div>
+          <div class="card-body">
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+              <button class="tab-btn active" onclick="AssistantMain.showAttendanceTab('upload')">
+                파일 업로드
+              </button>
+              <button class="tab-btn" onclick="AssistantMain.showAttendanceTab('under-attending')">
+                부진자 관리
+              </button>
+              <button class="tab-btn" onclick="AssistantMain.showAttendanceTab('messages')">
+                문자 생성
+              </button>
+            </div>
+
+            <!-- Upload Tab -->
+            <div class="tab-content active" id="tab-upload">
+              <div class="file-upload-zone" id="upload-zone">
+                <input type="file" id="attendance-file" accept=".csv,.xlsx,.xls"
+                       onchange="AssistantMain.handleFileSelect(event)">
+                <div class="file-upload-icon">📁</div>
+                <div class="file-upload-text">
+                  CSV 또는 XLSX 파일을 드래그하거나 클릭하여 선택<br>
+                  <small>형식: name, date, status, group_name</small>
+                </div>
+              </div>
+              <div class="upload-options">
+                <div>
+                  <label>기본 날짜:</label>
+                  <input type="date" id="upload-date" value="">
+                </div>
+                <div>
+                  <label>그룹:</label>
+                  <select id="upload-group">
+                    <option value="">선택...</option>
+                    <option value="청년부">청년부</option>
+                    <option value="장년부">장년부</option>
+                    <option value="주일학교">주일학교</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary" id="btn-upload" disabled onclick="AssistantMain.uploadAttendance()">
+                  업로드
+                </button>
+              </div>
+              <div id="upload-result" style="margin-top: 1rem; display: none;"></div>
+            </div>
+
+            <!-- Under-attending Tab -->
+            <div class="tab-content" id="tab-under-attending">
+              <div class="under-attending-controls">
+                <div>
+                  <label>연속 결석 기준:</label>
+                  <select id="absent-weeks">
+                    <option value="2">2주 이상</option>
+                    <option value="3">3주 이상</option>
+                    <option value="4">4주 이상</option>
+                  </select>
+                </div>
+                <div>
+                  <label>그룹:</label>
+                  <select id="filter-group">
+                    <option value="">전체</option>
+                    <option value="청년부">청년부</option>
+                    <option value="장년부">장년부</option>
+                    <option value="주일학교">주일학교</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary" onclick="AssistantMain.findUnderAttending()">
+                  조회
+                </button>
+                <button class="btn btn-secondary" onclick="AssistantMain.selectAllUnderAttending()">
+                  전체 선택
+                </button>
+              </div>
+              <div class="under-attending-list" id="under-attending-list">
+                <div class="empty">조회 버튼을 클릭하여 부진자를 확인하세요.</div>
+              </div>
+            </div>
+
+            <!-- Messages Tab -->
+            <div class="tab-content" id="tab-messages">
+              <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                부진자 탭에서 대상자를 선택한 후 문자를 생성하세요.
+              </p>
+              <div class="under-attending-controls">
+                <div>
+                  <label>문체 스타일:</label>
+                  <div class="style-selector">
+                    <button class="style-btn active" data-style="따뜻한">따뜻한</button>
+                    <button class="style-btn" data-style="격려">격려</button>
+                    <button class="style-btn" data-style="공식적인">공식적인</button>
+                  </div>
+                </div>
+              </div>
+              <div id="selected-people" style="margin-bottom: 1rem;"></div>
+              <button class="btn btn-primary" onclick="AssistantMain.generateMessages()" id="btn-generate-msg" disabled>
+                문자 생성 (GPT)
+              </button>
+              <div class="message-list" id="message-list"></div>
             </div>
           </div>
         </div>

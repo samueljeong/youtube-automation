@@ -3,6 +3,8 @@ Personal AI Assistant - 메인 대시보드 서버
 Mac(iCloud) 일정/미리알림과 웹 서버(DB) 데이터를 통합 관리하는 허브
 """
 import os
+import io
+import csv
 import json
 from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, render_template
@@ -95,10 +97,17 @@ def init_assistant_db():
                 name VARCHAR(200) NOT NULL,
                 date DATE NOT NULL,
                 status VARCHAR(20) DEFAULT 'present',
+                group_name VARCHAR(100),
                 source VARCHAR(50) DEFAULT 'web',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # 기존 테이블에 group_name 컬럼 추가
+        try:
+            cursor.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS group_name VARCHAR(100)')
+        except Exception:
+            pass
     else:
         # SQLite 스키마
         cursor.execute('''
@@ -148,10 +157,17 @@ def init_assistant_db():
                 name TEXT NOT NULL,
                 date DATE NOT NULL,
                 status TEXT DEFAULT 'present',
+                group_name TEXT,
                 source TEXT DEFAULT 'web',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # 기존 테이블에 group_name 컬럼 추가 (SQLite는 IF NOT EXISTS 미지원)
+        try:
+            cursor.execute('ALTER TABLE attendance ADD COLUMN group_name TEXT')
+        except Exception:
+            pass
 
     conn.commit()
     conn.close()
@@ -898,6 +914,463 @@ def get_attendance():
             'date': target_date,
             'records': records,
             'total': len(records)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/attendance/upload', methods=['POST'])
+def upload_attendance_file():
+    """
+    CSV/XLSX 파일 업로드로 출석 데이터 일괄 저장
+
+    CSV 형식 예시:
+    name,date,status,group_name
+    홍길동,2024-12-01,present,청년부
+    김철수,2024-12-01,absent,청년부
+
+    또는 단순 형식 (날짜/그룹은 파라미터로):
+    name,status
+    홍길동,present
+    김철수,absent
+    """
+    try:
+        # 파일 체크
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': '파일이 없습니다.'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': '파일이 선택되지 않았습니다.'}), 400
+
+        # 추가 파라미터 (CSV에 날짜/그룹이 없을 경우 사용)
+        default_date = request.form.get('date', date.today().isoformat())
+        default_group = request.form.get('group_name', '')
+
+        filename = file.filename.lower()
+        records = []
+
+        if filename.endswith('.csv'):
+            # CSV 파싱
+            content = file.read().decode('utf-8-sig')  # BOM 처리
+            reader = csv.DictReader(io.StringIO(content))
+
+            for row in reader:
+                name = row.get('name', row.get('이름', '')).strip()
+                if not name:
+                    continue
+
+                records.append({
+                    'name': name,
+                    'date': row.get('date', row.get('날짜', default_date)),
+                    'status': row.get('status', row.get('상태', 'present')),
+                    'group_name': row.get('group_name', row.get('그룹', default_group))
+                })
+
+        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+            # XLSX 파싱 (openpyxl 필요)
+            try:
+                from openpyxl import load_workbook
+
+                wb = load_workbook(filename=io.BytesIO(file.read()))
+                ws = wb.active
+
+                headers = [cell.value for cell in ws[1]]
+                header_map = {}
+                for idx, h in enumerate(headers):
+                    if h:
+                        h_lower = str(h).lower().strip()
+                        if h_lower in ['name', '이름']:
+                            header_map['name'] = idx
+                        elif h_lower in ['date', '날짜']:
+                            header_map['date'] = idx
+                        elif h_lower in ['status', '상태']:
+                            header_map['status'] = idx
+                        elif h_lower in ['group_name', '그룹', 'group']:
+                            header_map['group_name'] = idx
+
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if not row or not any(row):
+                        continue
+
+                    name = ''
+                    if 'name' in header_map and row[header_map['name']]:
+                        name = str(row[header_map['name']]).strip()
+
+                    if not name:
+                        continue
+
+                    record_date = default_date
+                    if 'date' in header_map and row[header_map['date']]:
+                        d = row[header_map['date']]
+                        if hasattr(d, 'isoformat'):
+                            record_date = d.isoformat()[:10]
+                        else:
+                            record_date = str(d)[:10]
+
+                    status = 'present'
+                    if 'status' in header_map and row[header_map['status']]:
+                        status = str(row[header_map['status']]).strip().lower()
+                        # 한글 상태 변환
+                        if status in ['출석', '참석', 'o', '○']:
+                            status = 'present'
+                        elif status in ['결석', '불참', 'x', '×']:
+                            status = 'absent'
+
+                    group_name = default_group
+                    if 'group_name' in header_map and row[header_map['group_name']]:
+                        group_name = str(row[header_map['group_name']]).strip()
+
+                    records.append({
+                        'name': name,
+                        'date': record_date,
+                        'status': status,
+                        'group_name': group_name
+                    })
+
+            except ImportError:
+                return jsonify({
+                    'success': False,
+                    'error': 'XLSX 파일 처리를 위한 openpyxl 라이브러리가 설치되지 않았습니다.'
+                }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'error': '지원하지 않는 파일 형식입니다. CSV 또는 XLSX 파일을 업로드해주세요.'
+            }), 400
+
+        if not records:
+            return jsonify({'success': False, 'error': '유효한 출석 데이터가 없습니다.'}), 400
+
+        # DB에 저장
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        added = 0
+        for record in records:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO attendance (name, date, status, group_name, source)
+                    VALUES (%s, %s, %s, %s, %s)
+                ''', (
+                    record['name'],
+                    record['date'],
+                    record['status'],
+                    record['group_name'],
+                    'file_upload'
+                ))
+            else:
+                cursor.execute('''
+                    INSERT INTO attendance (name, date, status, group_name, source)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (
+                    record['name'],
+                    record['date'],
+                    record['status'],
+                    record['group_name'],
+                    'file_upload'
+                ))
+            added += 1
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'출석 데이터 {added}건 업로드 완료',
+            'records_added': added,
+            'sample': records[:3] if len(records) > 3 else records
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/attendance/under-attending', methods=['GET'])
+def get_under_attending():
+    """
+    부진자(지속 결석자) 조회 API
+
+    쿼리 파라미터:
+    - weeks: 연속 결석 기준 주 수 (기본: 2)
+    - group: 특정 그룹만 필터링 (선택)
+
+    응답:
+    [{ name, absent_weeks, last_attended_date, group_name }]
+    """
+    try:
+        weeks = int(request.args.get('weeks', 2))
+        group_filter = request.args.get('group', None)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 최근 N주간의 예배 날짜 조회 (일요일 기준)
+        today = date.today()
+
+        # 최근 예배 날짜들 조회 (출석 기록이 있는 날짜들)
+        if group_filter:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT DISTINCT date FROM attendance
+                    WHERE group_name = %s
+                    ORDER BY date DESC
+                    LIMIT %s
+                ''', (group_filter, weeks + 2))  # 여유분 포함
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT date FROM attendance
+                    WHERE group_name = ?
+                    ORDER BY date DESC
+                    LIMIT ?
+                ''', (group_filter, weeks + 2))
+        else:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT DISTINCT date FROM attendance
+                    ORDER BY date DESC
+                    LIMIT %s
+                ''', (weeks + 2,))
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT date FROM attendance
+                    ORDER BY date DESC
+                    LIMIT ?
+                ''', (weeks + 2,))
+
+        recent_dates = [row['date'] if isinstance(row['date'], str) else row['date'].isoformat()
+                       for row in cursor.fetchall()]
+
+        if len(recent_dates) < weeks:
+            conn.close()
+            return jsonify({
+                'success': True,
+                'message': f'충분한 출석 데이터가 없습니다. (최소 {weeks}주 필요, 현재 {len(recent_dates)}주)',
+                'under_attending': [],
+                'recent_dates': recent_dates
+            })
+
+        # 최근 N주 날짜
+        check_dates = recent_dates[:weeks]
+
+        # 모든 멤버 조회
+        if group_filter:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT DISTINCT name, group_name FROM attendance
+                    WHERE group_name = %s
+                ''', (group_filter,))
+            else:
+                cursor.execute('''
+                    SELECT DISTINCT name, group_name FROM attendance
+                    WHERE group_name = ?
+                ''', (group_filter,))
+        else:
+            cursor.execute('''
+                SELECT DISTINCT name, group_name FROM attendance
+            ''')
+
+        members = [dict(row) for row in cursor.fetchall()]
+
+        under_attending = []
+
+        for member in members:
+            name = member['name']
+            group_name = member.get('group_name', '')
+
+            # 이 멤버의 최근 N주 출석 현황 확인
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT date, status FROM attendance
+                    WHERE name = %s AND date = ANY(%s)
+                    ORDER BY date DESC
+                ''', (name, check_dates))
+            else:
+                placeholders = ','.join('?' * len(check_dates))
+                cursor.execute(f'''
+                    SELECT date, status FROM attendance
+                    WHERE name = ? AND date IN ({placeholders})
+                    ORDER BY date DESC
+                ''', [name] + check_dates)
+
+            attendance_records = {
+                (row['date'] if isinstance(row['date'], str) else row['date'].isoformat()): row['status']
+                for row in cursor.fetchall()
+            }
+
+            # 연속 결석 횟수 계산
+            absent_count = 0
+            for check_date in check_dates:
+                status = attendance_records.get(check_date, 'absent')  # 기록 없으면 결석으로 간주
+                if status == 'absent':
+                    absent_count += 1
+                else:
+                    break  # 출석 기록이 있으면 연속 결석 종료
+
+            # 기준 이상 연속 결석인 경우 부진자로 분류
+            if absent_count >= weeks:
+                # 마지막 출석 날짜 조회
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        SELECT date FROM attendance
+                        WHERE name = %s AND status = 'present'
+                        ORDER BY date DESC
+                        LIMIT 1
+                    ''', (name,))
+                else:
+                    cursor.execute('''
+                        SELECT date FROM attendance
+                        WHERE name = ? AND status = 'present'
+                        ORDER BY date DESC
+                        LIMIT 1
+                    ''', (name,))
+
+                last_row = cursor.fetchone()
+                last_attended = None
+                if last_row:
+                    last_attended = last_row['date'] if isinstance(last_row['date'], str) else last_row['date'].isoformat()
+
+                under_attending.append({
+                    'name': name,
+                    'absent_weeks': absent_count,
+                    'last_attended_date': last_attended,
+                    'group_name': group_name
+                })
+
+        conn.close()
+
+        # 결석 주수로 정렬 (많은 순)
+        under_attending.sort(key=lambda x: x['absent_weeks'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'under_attending': under_attending,
+            'total': len(under_attending),
+            'weeks_checked': weeks,
+            'check_dates': check_dates,
+            'group_filter': group_filter
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/attendance/messages', methods=['POST'])
+def generate_care_messages():
+    """
+    부진자별 심방/안부 문자 GPT 생성 API
+
+    Body:
+    {
+        "people": [{ "name": "홍길동", "absent_weeks": 3, "last_attended_date": "2024-11-10", "group_name": "청년부" }],
+        "style": "따뜻한" | "격려" | "공식적인" (선택, 기본: 따뜻한)
+    }
+
+    응답:
+    { "messages": [{ "name": "홍길동", "message": "..." }] }
+    """
+    try:
+        data = request.get_json()
+        people = data.get('people', [])
+        style = data.get('style', '따뜻한')
+
+        if not people:
+            return jsonify({'success': False, 'error': '대상자 목록이 비어있습니다.'}), 400
+
+        client = get_openai_client()
+        if not client:
+            return jsonify({'success': False, 'error': 'OpenAI API 키가 설정되지 않았습니다.'}), 500
+
+        today = date.today()
+
+        # GPT 프롬프트 작성
+        system_prompt = f"""[역할]
+너는 교회 목회자/리더의 심방 문자 작성을 돕는 비서이다.
+지속적으로 예배에 참석하지 못한 성도들에게 보낼 따뜻한 안부 문자를 작성한다.
+
+[오늘 날짜]
+{today.isoformat()}
+
+[문체 스타일]
+{style}
+
+[규칙]
+1. 각 문자는 2-3문장으로 간결하게 작성한다.
+2. 이름을 자연스럽게 포함한다 (예: "OO님" 또는 "OO 집사님/권사님/장로님" 등).
+3. 정죄하거나 부담을 주는 표현은 피한다.
+4. 안부와 함께 예배 참석에 대한 부드러운 권면을 담는다.
+5. 그룹(청년부, 장년부 등)에 맞는 어투를 사용한다.
+6. 결석 기간에 대한 직접적인 언급(예: "3주 동안 안 오셨네요")은 피한다.
+7. 건강/상황을 걱정하는 따뜻한 마음을 담는다.
+
+[출력 형식]
+JSON 배열로만 출력한다:
+[
+  {{"name": "이름", "message": "문자 내용"}}
+]
+
+JSON 외의 다른 텍스트는 출력하지 마라."""
+
+        # 대상자 정보 정리
+        people_info = "\n".join([
+            f"- {p['name']} ({p.get('group_name', '그룹 미지정')}): {p['absent_weeks']}주 연속 결석, 마지막 출석: {p.get('last_attended_date', '기록 없음')}"
+            for p in people
+        ])
+
+        user_prompt = f"""다음 분들에게 보낼 안부 문자를 작성해주세요:
+
+{people_info}"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        # 결과 형식 정규화
+        messages = result if isinstance(result, list) else result.get('messages', result.get('data', []))
+
+        return jsonify({
+            'success': True,
+            'messages': messages,
+            'total': len(messages),
+            'style': style
+        })
+    except json.JSONDecodeError as e:
+        return jsonify({'success': False, 'error': f'JSON 파싱 오류: {str(e)}'}), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/attendance/groups', methods=['GET'])
+def get_attendance_groups():
+    """출석부에 등록된 그룹 목록 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT DISTINCT group_name FROM attendance
+            WHERE group_name IS NOT NULL AND group_name != ''
+            ORDER BY group_name
+        ''')
+
+        groups = [row['group_name'] for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'groups': groups
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

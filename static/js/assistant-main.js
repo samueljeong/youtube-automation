@@ -7,6 +7,9 @@ const AssistantMain = (() => {
   // State
   let dashboardData = null;
   let parsedData = null;
+  let selectedFile = null;
+  let underAttendingData = [];
+  let selectedPeople = [];
 
   // ===== Initialization =====
   async function init() {
@@ -19,6 +22,56 @@ const AssistantMain = (() => {
 
     // Load dashboard data
     await loadDashboard();
+
+    // Initialize attendance section
+    initUploadDate();
+    initStyleButtons();
+    initDragDrop();
+  }
+
+  // Initialize drag and drop for file upload
+  function initDragDrop() {
+    const uploadZone = document.getElementById('upload-zone');
+    if (!uploadZone) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, () => {
+        uploadZone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      uploadZone.addEventListener(eventName, () => {
+        uploadZone.classList.remove('dragover');
+      }, false);
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        const file = files[0];
+        const fileName = file.name.toLowerCase();
+        if (fileName.endsWith('.csv') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+          selectedFile = file;
+          document.getElementById('btn-upload').disabled = false;
+          uploadZone.querySelector('.file-upload-text').innerHTML = `
+            <strong>${escapeHtml(file.name)}</strong><br>
+            <small>파일 선택됨 - 업로드 버튼을 클릭하세요</small>
+          `;
+        } else {
+          alert('CSV 또는 XLSX 파일만 업로드 가능합니다.');
+        }
+      }
+    }, false);
   }
 
   // ===== Dashboard Loading =====
@@ -362,6 +415,301 @@ const AssistantMain = (() => {
     alert('Section navigation coming soon: ' + section);
   }
 
+  // ===== Attendance Functions =====
+  function showAttendanceTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    // Update selected people display in messages tab
+    if (tabName === 'messages') {
+      updateSelectedPeopleDisplay();
+    }
+  }
+
+  function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+      selectedFile = file;
+      document.getElementById('btn-upload').disabled = false;
+
+      // Update upload zone text
+      const uploadZone = document.getElementById('upload-zone');
+      uploadZone.querySelector('.file-upload-text').innerHTML = `
+        <strong>${escapeHtml(file.name)}</strong><br>
+        <small>파일 선택됨 - 업로드 버튼을 클릭하세요</small>
+      `;
+    }
+  }
+
+  async function uploadAttendance() {
+    if (!selectedFile) {
+      alert('파일을 먼저 선택해주세요.');
+      return;
+    }
+
+    const uploadDate = document.getElementById('upload-date').value;
+    const groupName = document.getElementById('upload-group').value;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    if (uploadDate) formData.append('date', uploadDate);
+    if (groupName) formData.append('group_name', groupName);
+
+    const btn = document.getElementById('btn-upload');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> 업로드 중...';
+
+    try {
+      const response = await fetch('/assistant/api/attendance/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      const resultDiv = document.getElementById('upload-result');
+      resultDiv.style.display = 'block';
+
+      if (data.success) {
+        resultDiv.innerHTML = `
+          <div style="color: var(--primary-color); padding: 1rem; background: rgba(76,175,80,0.1); border-radius: 8px;">
+            <strong>✓ ${data.message}</strong>
+            ${data.sample ? `<br><small>샘플: ${data.sample.map(r => r.name).join(', ')}</small>` : ''}
+          </div>
+        `;
+        // Reset
+        selectedFile = null;
+        document.getElementById('attendance-file').value = '';
+        document.getElementById('upload-zone').querySelector('.file-upload-text').innerHTML = `
+          CSV 또는 XLSX 파일을 드래그하거나 클릭하여 선택<br>
+          <small>형식: name, date, status, group_name</small>
+        `;
+      } else {
+        resultDiv.innerHTML = `
+          <div style="color: var(--danger-color); padding: 1rem; background: rgba(244,67,54,0.1); border-radius: 8px;">
+            <strong>✗ 오류:</strong> ${escapeHtml(data.error)}
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('[Assistant] Upload error:', error);
+      alert('업로드 중 오류가 발생했습니다.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '업로드';
+    }
+  }
+
+  async function findUnderAttending() {
+    const weeks = document.getElementById('absent-weeks').value;
+    const group = document.getElementById('filter-group').value;
+
+    const listDiv = document.getElementById('under-attending-list');
+    listDiv.innerHTML = '<div class="empty"><span class="loading"></span> 조회 중...</div>';
+
+    try {
+      let url = `/assistant/api/attendance/under-attending?weeks=${weeks}`;
+      if (group) url += `&group=${encodeURIComponent(group)}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.success) {
+        underAttendingData = data.under_attending || [];
+
+        if (underAttendingData.length === 0) {
+          listDiv.innerHTML = `
+            <div class="empty">
+              ${data.message || '기준에 해당하는 부진자가 없습니다.'}
+            </div>
+          `;
+          return;
+        }
+
+        listDiv.innerHTML = underAttendingData.map((person, idx) => `
+          <div class="person-item">
+            <input type="checkbox" id="person-${idx}" data-index="${idx}"
+                   onchange="AssistantMain.togglePersonSelection(${idx})">
+            <div class="person-info">
+              <div class="person-name">${escapeHtml(person.name)}</div>
+              <div class="person-meta">
+                ${person.group_name ? `<span class="item-category">${escapeHtml(person.group_name)}</span>` : ''}
+                마지막 출석: ${person.last_attended_date || '기록 없음'}
+              </div>
+            </div>
+            <span class="absent-badge">${person.absent_weeks}주 결석</span>
+          </div>
+        `).join('');
+      } else {
+        listDiv.innerHTML = `
+          <div class="empty" style="color: var(--danger-color);">
+            오류: ${escapeHtml(data.error)}
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('[Assistant] Find under-attending error:', error);
+      listDiv.innerHTML = '<div class="empty" style="color: var(--danger-color);">조회 중 오류가 발생했습니다.</div>';
+    }
+  }
+
+  function togglePersonSelection(index) {
+    const person = underAttendingData[index];
+    const checkbox = document.getElementById(`person-${index}`);
+
+    if (checkbox.checked) {
+      if (!selectedPeople.find(p => p.name === person.name)) {
+        selectedPeople.push(person);
+      }
+    } else {
+      selectedPeople = selectedPeople.filter(p => p.name !== person.name);
+    }
+
+    updateSelectedPeopleDisplay();
+    document.getElementById('btn-generate-msg').disabled = selectedPeople.length === 0;
+  }
+
+  function selectAllUnderAttending() {
+    const checkboxes = document.querySelectorAll('#under-attending-list input[type="checkbox"]');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+    checkboxes.forEach(cb => {
+      cb.checked = !allChecked;
+    });
+
+    if (allChecked) {
+      selectedPeople = [];
+    } else {
+      selectedPeople = [...underAttendingData];
+    }
+
+    updateSelectedPeopleDisplay();
+    document.getElementById('btn-generate-msg').disabled = selectedPeople.length === 0;
+  }
+
+  function updateSelectedPeopleDisplay() {
+    const div = document.getElementById('selected-people');
+    if (selectedPeople.length === 0) {
+      div.innerHTML = '<p style="color: var(--text-secondary);">선택된 대상자가 없습니다.</p>';
+    } else {
+      div.innerHTML = `
+        <p><strong>선택된 대상자 (${selectedPeople.length}명):</strong></p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+          ${selectedPeople.map(p => `
+            <span class="item-category">${escapeHtml(p.name)}</span>
+          `).join('')}
+        </div>
+      `;
+    }
+  }
+
+  async function generateMessages() {
+    if (selectedPeople.length === 0) {
+      alert('부진자 탭에서 대상자를 먼저 선택해주세요.');
+      return;
+    }
+
+    // Get selected style
+    const activeStyleBtn = document.querySelector('.style-btn.active');
+    const style = activeStyleBtn ? activeStyleBtn.dataset.style : '따뜻한';
+
+    const btn = document.getElementById('btn-generate-msg');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading"></span> 생성 중...';
+
+    const messageListDiv = document.getElementById('message-list');
+    messageListDiv.innerHTML = '<div class="empty"><span class="loading"></span> GPT가 문자를 생성하고 있습니다...</div>';
+
+    try {
+      const response = await fetch('/assistant/api/attendance/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          people: selectedPeople,
+          style: style
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const messages = data.messages || [];
+
+        if (messages.length === 0) {
+          messageListDiv.innerHTML = '<div class="empty">생성된 문자가 없습니다.</div>';
+          return;
+        }
+
+        messageListDiv.innerHTML = messages.map((msg, idx) => `
+          <div class="message-item">
+            <div class="message-header">
+              <span class="message-name">${escapeHtml(msg.name)}</span>
+              <button class="copy-btn" onclick="AssistantMain.copyMessage(${idx})">복사</button>
+            </div>
+            <div class="message-text" id="message-text-${idx}" onclick="AssistantMain.copyMessage(${idx})">
+              ${escapeHtml(msg.message)}
+            </div>
+          </div>
+        `).join('');
+
+        // Store messages for copy function
+        window._generatedMessages = messages;
+      } else {
+        messageListDiv.innerHTML = `
+          <div class="empty" style="color: var(--danger-color);">
+            오류: ${escapeHtml(data.error)}
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('[Assistant] Generate messages error:', error);
+      messageListDiv.innerHTML = '<div class="empty" style="color: var(--danger-color);">문자 생성 중 오류가 발생했습니다.</div>';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '문자 생성 (GPT)';
+    }
+  }
+
+  async function copyMessage(index) {
+    const messages = window._generatedMessages || [];
+    if (messages[index]) {
+      try {
+        await navigator.clipboard.writeText(messages[index].message);
+
+        // Visual feedback
+        const textDiv = document.getElementById(`message-text-${index}`);
+        const originalBg = textDiv.style.background;
+        textDiv.style.background = 'rgba(76, 175, 80, 0.2)';
+        setTimeout(() => {
+          textDiv.style.background = originalBg || '';
+        }, 300);
+      } catch (err) {
+        console.error('[Assistant] Copy failed:', err);
+        alert('복사에 실패했습니다. 텍스트를 직접 선택해주세요.');
+      }
+    }
+  }
+
+  // Initialize style button click handlers
+  function initStyleButtons() {
+    document.querySelectorAll('.style-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+      });
+    });
+  }
+
+  // Set default upload date
+  function initUploadDate() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('upload-date').value = today;
+  }
+
   // ===== Utility Functions =====
   function formatTime(isoString) {
     if (!isoString) return '';
@@ -413,6 +761,15 @@ const AssistantMain = (() => {
     completeTask,
     addTask,
     syncToMac,
-    showSection
+    showSection,
+    // Attendance functions
+    showAttendanceTab,
+    handleFileSelect,
+    uploadAttendance,
+    findUnderAttending,
+    togglePersonSelection,
+    selectAllUnderAttending,
+    generateMessages,
+    copyMessage
   };
 })();
