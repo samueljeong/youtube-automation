@@ -18,13 +18,26 @@ def parse_korean_datetime(datetime_str):
         "2025. 12. 3. 오후 2:30" -> "2025-12-03T14:30:00"
     """
     if not datetime_str:
+        print(f"[DATE-PARSER] 빈 값 수신")
         return None
 
-    # 이미 ISO 형식이면 그대로 반환
-    if re.match(r'^\d{4}-\d{2}-\d{2}T', datetime_str):
-        return datetime_str
+    # 문자열 정리 (앞뒤 공백 제거)
+    datetime_str = str(datetime_str).strip()
 
-    # 한국어 날짜/시간 형식 파싱: "2025. 12. 3. 오전 9:00"
+    if not datetime_str:
+        print(f"[DATE-PARSER] 정리 후 빈 값")
+        return None
+
+    print(f"[DATE-PARSER] 입력값: '{datetime_str}'")
+
+    # 이미 ISO 형식이면 그대로 반환 (timezone 포함 가능)
+    if re.match(r'^\d{4}-\d{2}-\d{2}T', datetime_str):
+        # timezone 제거 후 반환
+        result = datetime_str[:19]  # "2025-12-03T09:00:00" 까지만
+        print(f"[DATE-PARSER] ISO 형식 감지: {result}")
+        return result
+
+    # 한국어 날짜/시간 형식 파싱: "2025. 12. 3. 오전 9:00" 또는 "2025.12.3. 오전 9:00"
     match = re.match(r'(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(오전|오후)\s*(\d{1,2}):(\d{2})', datetime_str)
     if match:
         year, month, day, ampm, hour, minute = match.groups()
@@ -33,14 +46,49 @@ def parse_korean_datetime(datetime_str):
             hour += 12
         elif ampm == '오전' and hour == 12:
             hour = 0
-        return f"{year}-{int(month):02d}-{int(day):02d}T{hour:02d}:{minute}:00"
+        result = f"{year}-{int(month):02d}-{int(day):02d}T{hour:02d}:{minute}:00"
+        print(f"[DATE-PARSER] 한국어 형식 파싱 성공: {result}")
+        return result
 
-    # 날짜만 있는 경우: "2025. 12. 3."
+    # "2025년 12월 3일 오전 9:00" 형식
+    match = re.match(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(오전|오후)\s*(\d{1,2}):(\d{2})', datetime_str)
+    if match:
+        year, month, day, ampm, hour, minute = match.groups()
+        hour = int(hour)
+        if ampm == '오후' and hour != 12:
+            hour += 12
+        elif ampm == '오전' and hour == 12:
+            hour = 0
+        result = f"{year}-{int(month):02d}-{int(day):02d}T{hour:02d}:{minute}:00"
+        print(f"[DATE-PARSER] 한국어 '년월일' 형식 파싱 성공: {result}")
+        return result
+
+    # 날짜만 있는 경우: "2025. 12. 3." 또는 "2025.12.3"
     match = re.match(r'(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?', datetime_str)
     if match:
         year, month, day = match.groups()
-        return f"{year}-{int(month):02d}-{int(day):02d}T00:00:00"
+        result = f"{year}-{int(month):02d}-{int(day):02d}T00:00:00"
+        print(f"[DATE-PARSER] 날짜만 파싱 성공: {result}")
+        return result
 
+    # "2025년 12월 3일" 형식 (시간 없음)
+    match = re.match(r'(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일', datetime_str)
+    if match:
+        year, month, day = match.groups()
+        result = f"{year}-{int(month):02d}-{int(day):02d}T00:00:00"
+        print(f"[DATE-PARSER] 한국어 '년월일' 날짜만 파싱 성공: {result}")
+        return result
+
+    # "2025-12-03 09:00:00" 형식 (ISO-like with space)
+    match = re.match(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):?(\d{2})?', datetime_str)
+    if match:
+        year, month, day, hour, minute, second = match.groups()
+        second = second or '00'
+        result = f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+        print(f"[DATE-PARSER] ISO-like 형식 파싱 성공: {result}")
+        return result
+
+    print(f"[DATE-PARSER] 파싱 실패: '{datetime_str}'")
     return None
 
 
