@@ -473,6 +473,9 @@ def sync_from_mac():
     try:
         data = request.get_json()
 
+        # 디버그 로그: 수신된 원본 데이터 출력
+        print(f"[SYNC-FROM-MAC] 수신된 원본 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
@@ -482,8 +485,15 @@ def sync_from_mac():
         # 이벤트 저장
         for event in data.get('events', []):
             # 한국어 날짜/시간 형식을 ISO 형식으로 변환
-            start_time = parse_korean_datetime(event.get('start_time'))
-            end_time = parse_korean_datetime(event.get('end_time'))
+            raw_start = event.get('start_time')
+            raw_end = event.get('end_time')
+            start_time = parse_korean_datetime(raw_start)
+            end_time = parse_korean_datetime(raw_end)
+
+            # 디버그 로그: 각 이벤트의 파싱 결과
+            print(f"[SYNC-FROM-MAC] 이벤트: {event.get('title')}")
+            print(f"  - 원본 start_time: {raw_start} -> 파싱 결과: {start_time}")
+            print(f"  - 원본 end_time: {raw_end} -> 파싱 결과: {end_time}")
 
             if USE_POSTGRES:
                 cursor.execute('''
@@ -1618,6 +1628,33 @@ def get_dashboard():
                 'tasks': pending_tasks_count,
                 'total': pending_events_count + pending_tasks_count
             }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/debug/all-events', methods=['GET'])
+def debug_all_events():
+    """디버그용: DB에 저장된 모든 이벤트 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM events ORDER BY id DESC LIMIT 20')
+        all_events = [dict(row) for row in cursor.fetchall()]
+
+        conn.close()
+
+        # datetime 객체를 문자열로 변환
+        for event in all_events:
+            for key in ['start_time', 'end_time', 'created_at', 'updated_at']:
+                if event.get(key) and not isinstance(event[key], str):
+                    event[key] = event[key].isoformat() if hasattr(event[key], 'isoformat') else str(event[key])
+
+        return jsonify({
+            'success': True,
+            'count': len(all_events),
+            'events': all_events
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
