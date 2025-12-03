@@ -5,319 +5,1080 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TubeLens - YouTube Analytics</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23FF0000' width='32' height='32' rx='6'/><text x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-weight='bold'>T</text></svg>">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/tubelens.css') }}?v={{ range(1000, 9999) | random }}">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+      background: #fff;
+      border-bottom: 1px solid #e1e5eb;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-left h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #e53e3e;
+    }
+
+    .header-badge {
+      font-size: 0.75rem;
+      color: #666;
+      background: #f0f0f0;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 10px;
+    }
+
+    .header-btn {
+      padding: 8px 16px;
+      background: #f5f7fa;
+      color: #333;
+      text-decoration: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .header-btn:hover { background: #e1e5eb; }
+    .header-btn.home { background: #e53e3e; color: #fff; }
+    .header-btn.home:hover { background: #c53030; }
+
+    /* Main Container */
+    .main-container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    /* Search Panel */
+    .search-panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .search-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .search-input-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 1rem;
+      border: 2px solid #e1e5eb;
+      border-radius: 12px;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #e53e3e;
+      box-shadow: 0 0 0 4px rgba(229, 62, 62, 0.1);
+    }
+
+    .btn-search {
+      padding: 14px 32px;
+      background: #e53e3e;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-search:hover { background: #c53030; }
+    .btn-search:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* Options Grid */
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+    }
+
+    .option-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .option-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .option-select {
+      padding: 10px 14px;
+      border: 1px solid #e1e5eb;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      background: #fff;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .option-select:focus {
+      outline: none;
+      border-color: #e53e3e;
+    }
+
+    /* Toggle Buttons */
+    .toggle-group {
+      display: flex;
+      background: #f5f7fa;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: #fff;
+      color: #e53e3e;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+
+    /* Filter Panel */
+    .filter-panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .filter-header h3 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-filter {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-filter.apply { background: #48bb78; color: #fff; }
+    .btn-filter.apply:hover { background: #38a169; }
+    .btn-filter.clear { background: #f5f7fa; color: #666; }
+    .btn-filter.clear:hover { background: #e1e5eb; }
+
+    .filter-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-end;
+    }
+
+    /* CII Buttons */
+    .cii-filter-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .cii-btn {
+      padding: 8px 14px;
+      border: 2px solid #e1e5eb;
+      background: #fff;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .cii-btn:hover { border-color: #48bb78; }
+    .cii-btn.active { background: #48bb78; color: #fff; border-color: #48bb78; }
+
+    /* Results Panel */
+    .results-panel {
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      border-bottom: 1px solid #e1e5eb;
+    }
+
+    .results-header h3 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .results-count {
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .results-body {
+      position: relative;
+      min-height: 400px;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      color: #999;
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .empty-state h4 {
+      font-size: 1.1rem;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      font-size: 0.9rem;
+    }
+
+    /* Loading */
+    .loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #f0f0f0;
+      border-top-color: #e53e3e;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Table */
+    .table-wrapper {
+      overflow-x: auto;
+      max-height: 600px;
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .results-table th {
+      position: sticky;
+      top: 0;
+      background: #f8f9fa;
+      padding: 14px 12px;
+      text-align: center;
+      font-weight: 600;
+      color: #333;
+      border-bottom: 2px solid #e1e5eb;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    .results-table td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: middle;
+    }
+
+    .results-table tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    .thumbnail {
+      width: 140px;
+      height: 79px;
+      object-fit: cover;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .thumbnail:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .video-title {
+      text-align: left;
+      max-width: 280px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+
+    .channel-name {
+      color: #3182ce;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .channel-name:hover {
+      text-decoration: underline;
+    }
+
+    /* Badges */
+    .cii-badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .cii-great { background: linear-gradient(135deg, #48bb78, #38a169); }
+    .cii-good { background: linear-gradient(135deg, #68d391, #48bb78); }
+    .cii-soso { background: linear-gradient(135deg, #ed8936, #dd6b20); }
+    .cii-notbad { background: linear-gradient(135deg, #fc8181, #f56565); }
+    .cii-bad { background: linear-gradient(135deg, #f56565, #e53e3e); }
+
+    /* Gauge */
+    .gauge {
+      width: 100px;
+      height: 8px;
+      background: #e1e5eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 0 auto;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s;
+    }
+
+    .gauge-fill.green { background: linear-gradient(90deg, #48bb78, #38a169); }
+    .gauge-fill.blue { background: linear-gradient(90deg, #4299e1, #3182ce); }
+    .gauge-fill.yellow { background: linear-gradient(90deg, #ecc94b, #d69e2e); }
+    .gauge-fill.red { background: linear-gradient(90deg, #fc8181, #f56565); }
+
+    .gauge-value {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    /* Status Bar */
+    .status-bar {
+      padding: 12px 24px;
+      background: #2d3748;
+      color: #a0aec0;
+      font-size: 0.85rem;
+      border-radius: 0 0 16px 16px;
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: #fff;
+      border-radius: 20px;
+      width: 90%;
+      max-width: 500px;
+      max-height: 85vh;
+      overflow: hidden;
+      transform: translateY(20px);
+      transition: transform 0.3s;
+    }
+
+    .modal.show .modal-content {
+      transform: translateY(0);
+    }
+
+    .modal-content.lg { max-width: 700px; }
+    .modal-content.xl { max-width: 900px; }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid #e1e5eb;
+    }
+
+    .modal-header h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: #f5f7fa;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      color: #666;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: #e1e5eb;
+      color: #333;
+    }
+
+    .modal-body {
+      padding: 24px;
+      max-height: 60vh;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      background: #f8f9fa;
+      border-top: 1px solid #e1e5eb;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    /* Form in Modal */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e1e5eb;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #e53e3e;
+    }
+
+    .form-help {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .input-with-btn {
+      display: flex;
+      gap: 10px;
+    }
+
+    .input-with-btn .form-input { flex: 1; }
+
+    /* API Keys List */
+    .api-keys-list {
+      border: 1px solid #e1e5eb;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .api-key-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .api-key-item:last-child { border-bottom: none; }
+
+    .api-key-item.active {
+      background: #f0fff4;
+    }
+
+    .api-key-text {
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .api-key-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-sm.success { background: #48bb78; color: #fff; }
+    .btn-sm.success:hover { background: #38a169; }
+    .btn-sm.danger { background: #f56565; color: #fff; }
+    .btn-sm.danger:hover { background: #e53e3e; }
+
+    .empty-list {
+      padding: 40px 20px;
+      text-align: center;
+      color: #999;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background: #e53e3e; color: #fff; }
+    .btn-primary:hover { background: #c53030; }
+    .btn-secondary { background: #f5f7fa; color: #333; }
+    .btn-secondary:hover { background: #e1e5eb; }
+    .btn-success { background: #48bb78; color: #fff; }
+    .btn-success:hover { background: #38a169; }
+    .btn-link {
+      background: none;
+      color: #3182ce;
+      text-decoration: none;
+      padding: 12px 24px;
+    }
+    .btn-link:hover { text-decoration: underline; }
+
+    /* Video Container */
+    .video-wrap {
+      position: relative;
+      padding-bottom: 56.25%;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .video-wrap iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    /* Channel List */
+    .channel-list {
+      max-height: 350px;
+      overflow-y: auto;
+    }
+
+    .channel-item {
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .channel-item:hover { background: #f8f9fa; }
+    .channel-item.selected { background: #ebf8ff; }
+
+    .channel-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-right: 16px;
+    }
+
+    .channel-info h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .channel-info p {
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    /* Comments */
+    .comments-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .comment-item {
+      display: flex;
+      padding: 16px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .comment-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 14px;
+      flex-shrink: 0;
+    }
+
+    .comment-author {
+      font-weight: 600;
+      color: #3182ce;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+    }
+
+    .comment-text {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 6px;
+    }
+
+    .comment-meta {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    /* Description */
+    .description-content {
+      white-space: pre-wrap;
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: #333;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .search-row {
+        flex-direction: column;
+      }
+
+      .options-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .filter-grid {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .results-table {
+        font-size: 0.75rem;
+      }
+
+      .thumbnail {
+        width: 100px;
+        height: 56px;
+      }
+
+      .video-title {
+        max-width: 150px;
+      }
+    }
+  </style>
 </head>
 <body>
   <!-- Header -->
   <header class="header">
     <div class="header-left">
       <h1>TubeLens</h1>
-      <span class="header-badge">YouTube Analytics Tool</span>
+      <span class="header-badge">YouTube Analytics</span>
     </div>
     <div class="header-right">
+      <button class="header-btn" onclick="TubeLens.openSettings()">API 설정</button>
       <a href="/drama" class="header-btn">드라마 제작</a>
       <a href="/" class="header-btn home">홈</a>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <div class="container">
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
-      <!-- 설정 섹션 -->
-      <div class="sidebar-section">
-        <div class="section-title">설정</div>
-        <button class="btn-api" onclick="TubeLens.openSettings()">API 키</button>
+  <div class="main-container">
+    <!-- Search Panel -->
+    <div class="search-panel">
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <input type="text" class="search-input" id="search-keyword" placeholder="검색어를 입력하세요 (예: 먹방, ASMR, 브이로그...)" onkeypress="if(event.key==='Enter') TubeLens.search()">
+        </div>
+        <button class="btn-search" id="btn-search" onclick="TubeLens.search()">검색</button>
       </div>
 
-      <!-- 검색 조건 섹션 -->
-      <div class="sidebar-section">
-        <div class="section-title">검색 조건</div>
-
-        <!-- 정렬 토글 -->
-        <div class="toggle-row">
-          <button class="toggle-btn active" id="btn-sort-views" onclick="TubeLens.toggleSort()">조회수순</button>
-          <button class="toggle-btn" id="btn-sort-date" onclick="TubeLens.toggleSort()">최신순</button>
-        </div>
-
-        <!-- 타입 / 수집 수 -->
-        <div class="form-row">
-          <div class="form-group">
-            <label>타입</label>
-            <select id="video-type" class="form-select">
-              <option value="all">쇼츠+롱폼</option>
-              <option value="shorts">쇼츠</option>
-              <option value="longform_4_20">롱폼 4~20분</option>
-              <option value="longform_20_plus">롱폼 20분 이상</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>영상 수집 수</label>
-            <select id="max-results" class="form-select">
-              <option value="50">50개</option>
-              <option value="100" selected>100개</option>
-              <option value="200">200개</option>
-              <option value="500">500개</option>
-            </select>
+      <div class="options-grid">
+        <div class="option-group">
+          <label>검색 타입</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-video" onclick="TubeLens.setSearchType('video')">영상</button>
+            <button class="toggle-btn" id="btn-channel" onclick="TubeLens.setSearchType('channel')">채널</button>
           </div>
         </div>
 
-        <!-- 기간 / 국가 -->
-        <div class="form-row">
-          <div class="form-group">
-            <label>기간 선택</label>
-            <select id="time-frame" class="form-select" onchange="TubeLens.toggleDatePicker()">
-              <option value="">모든 기간</option>
-              <option value="year">1년 이내</option>
-              <option value="6months">6개월 이내</option>
-              <option value="3months">3개월 이내</option>
-              <option value="month" selected>1개월 이내</option>
-              <option value="week">7일 이내</option>
-              <option value="day">1일 이내</option>
-              <option value="hour">1시간 이내</option>
-              <option value="custom">날짜 직접 선택</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>국가 선택</label>
-            <select id="region-code" class="form-select">
-              <option value="KR" selected>한국(KR)</option>
-              <option value="JP">일본(JP)</option>
-              <option value="US">미국(US)</option>
-              <option value="TW">대만(TW)</option>
-              <option value="GB">영국(GB)</option>
-              <option value="CA">캐나다(CA)</option>
-              <option value="AU">호주(AU)</option>
-              <option value="DE">독일(DE)</option>
-              <option value="FR">프랑스(FR)</option>
-              <option value="ES">스페인(ES)</option>
-              <option value="BR">브라질(BR)</option>
-              <option value="IN">인도(IN)</option>
-              <option value="RU">러시아(RU)</option>
-            </select>
+        <div class="option-group">
+          <label>정렬</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-sort-view" onclick="TubeLens.setSort('viewCount')">조회수순</button>
+            <button class="toggle-btn" id="btn-sort-date" onclick="TubeLens.setSort('date')">최신순</button>
           </div>
         </div>
 
-        <!-- 날짜 직접 선택 (숨김) -->
-        <div class="form-row date-picker-row" id="date-picker-row" style="display: none;">
-          <div class="form-group">
-            <label>시작일</label>
-            <input type="date" id="start-date" class="form-input">
-          </div>
-          <div class="form-group">
-            <label>종료일</label>
-            <input type="date" id="end-date" class="form-input">
-          </div>
+        <div class="option-group">
+          <label>영상 타입</label>
+          <select class="option-select" id="video-type">
+            <option value="all">전체</option>
+            <option value="shorts">쇼츠</option>
+            <option value="long_4_20">롱폼 (4~20분)</option>
+            <option value="long_20">롱폼 (20분+)</option>
+          </select>
         </div>
 
-        <!-- 검색 모드 토글 -->
-        <button class="btn-search-mode" id="btn-search-mode" onclick="TubeLens.toggleSearchMode()">영상 검색</button>
-
-        <!-- 키워드 입력 -->
-        <div class="form-group">
-          <input type="text" id="search-keyword" class="form-input keyword-input" placeholder="검색할 키워드 입력" onkeypress="if(event.key==='Enter') TubeLens.startSearch()">
+        <div class="option-group">
+          <label>기간</label>
+          <select class="option-select" id="time-period">
+            <option value="">전체 기간</option>
+            <option value="hour">1시간</option>
+            <option value="day">24시간</option>
+            <option value="week">7일</option>
+            <option value="month" selected>1개월</option>
+            <option value="year">1년</option>
+          </select>
         </div>
 
-        <!-- 검색 / Clear -->
-        <div class="btn-row">
-          <button class="btn-search" onclick="TubeLens.startSearch()">검색</button>
-          <button class="btn-clear" onclick="TubeLens.clearResults()">Clear</button>
+        <div class="option-group">
+          <label>국가</label>
+          <select class="option-select" id="region">
+            <option value="KR" selected>한국</option>
+            <option value="US">미국</option>
+            <option value="JP">일본</option>
+            <option value="TW">대만</option>
+            <option value="GB">영국</option>
+          </select>
+        </div>
+
+        <div class="option-group">
+          <label>수집 수</label>
+          <select class="option-select" id="max-results">
+            <option value="25">25개</option>
+            <option value="50" selected>50개</option>
+            <option value="100">100개</option>
+            <option value="200">200개</option>
+          </select>
         </div>
       </div>
+    </div>
 
-      <!-- 필터 설정 섹션 -->
-      <div class="sidebar-section">
-        <div class="section-title">필터 설정</div>
-
-        <!-- CII 필터 -->
-        <div class="form-group">
-          <label>CII 필터</label>
-          <div class="cii-buttons">
-            <button class="cii-btn" id="cii-great" onclick="TubeLens.toggleCiiFilter('great')">Great!!</button>
-            <button class="cii-btn" id="cii-good" onclick="TubeLens.toggleCiiFilter('good')">Good</button>
-            <button class="cii-btn" id="cii-soso" onclick="TubeLens.toggleCiiFilter('soso')">Soso</button>
-          </div>
-        </div>
-
-        <!-- 조회수 / 구독자수 -->
-        <div class="form-row">
-          <div class="form-group">
-            <label>조회수</label>
-            <select id="view-count-filter" class="form-select">
-              <option value="">선택 안함</option>
-              <option value="10000">1만 이상</option>
-              <option value="50000">5만 이상</option>
-              <option value="100000">10만 이상</option>
-              <option value="500000">50만 이상</option>
-              <option value="1000000">100만 이상</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>구독자수</label>
-            <select id="subscriber-filter" class="form-select">
-              <option value="">선택 안함</option>
-              <option value="1000">1천명 이하</option>
-              <option value="5000">5천명 이하</option>
-              <option value="10000">1만명 이하</option>
-              <option value="50000">5만명 이하</option>
-              <option value="100000">10만명 이하</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- 필터 적용/해제 -->
-        <div class="btn-row">
-          <button class="btn-filter-apply" onclick="TubeLens.applyFilters()">필터 적용</button>
-          <button class="btn-filter-clear" onclick="TubeLens.clearFilters()">필터 해제</button>
+    <!-- Filter Panel -->
+    <div class="filter-panel">
+      <div class="filter-header">
+        <h3>필터 설정</h3>
+        <div class="filter-actions">
+          <button class="btn-filter apply" onclick="TubeLens.applyFilters()">필터 적용</button>
+          <button class="btn-filter clear" onclick="TubeLens.clearFilters()">초기화</button>
         </div>
       </div>
-    </aside>
+      <div class="filter-grid">
+        <div class="option-group">
+          <label>CII 등급</label>
+          <div class="cii-filter-group">
+            <button class="cii-btn" id="cii-great" onclick="TubeLens.toggleCii('great')">Great!!</button>
+            <button class="cii-btn" id="cii-good" onclick="TubeLens.toggleCii('good')">Good</button>
+            <button class="cii-btn" id="cii-soso" onclick="TubeLens.toggleCii('soso')">Soso</button>
+          </div>
+        </div>
 
-    <!-- Main Content -->
-    <main class="main-content">
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <div class="url-input-group">
-          <input type="text" id="youtube-url" class="url-input" placeholder="YouTube URL 입력">
-          <button class="btn-analyze" onclick="TubeLens.analyzeUrl()">URL 분석</button>
+        <div class="option-group">
+          <label>최소 조회수</label>
+          <select class="option-select" id="min-views">
+            <option value="">선택 안함</option>
+            <option value="1000">1천 이상</option>
+            <option value="10000">1만 이상</option>
+            <option value="50000">5만 이상</option>
+            <option value="100000">10만 이상</option>
+            <option value="1000000">100만 이상</option>
+          </select>
+        </div>
+
+        <div class="option-group">
+          <label>구독자 수</label>
+          <select class="option-select" id="subscriber-range">
+            <option value="">선택 안함</option>
+            <option value="1000">1천 이하</option>
+            <option value="10000">1만 이하</option>
+            <option value="50000">5만 이하</option>
+            <option value="100000">10만 이하</option>
+          </select>
         </div>
       </div>
+    </div>
 
-      <!-- Results Container -->
-      <div class="results-container">
-        <!-- 워터마크 -->
-        <div id="watermark" class="watermark">
-          <div class="watermark-text">TubeLens</div>
+    <!-- Results Panel -->
+    <div class="results-panel">
+      <div class="results-header">
+        <h3>검색 결과</h3>
+        <span class="results-count" id="results-count">0개 영상</span>
+      </div>
+      <div class="results-body" id="results-body">
+        <div class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <h4>검색어를 입력해주세요</h4>
+          <p>YouTube 영상을 검색하고 분석해보세요</p>
         </div>
 
-        <!-- 로딩 -->
-        <div id="loading" class="loading" style="display: none;">
+        <div class="loading" id="loading" style="display: none;">
           <div class="loading-spinner"></div>
-          <div>YouTube 데이터 분석 중...</div>
+          <p>YouTube 데이터 분석 중...</p>
         </div>
 
-        <!-- 결과 테이블 -->
-        <div class="table-wrapper">
-          <table class="results-table" id="results-table">
+        <div class="table-wrapper" id="table-wrapper" style="display: none;">
+          <table class="results-table">
             <thead>
               <tr>
-                <th>N</th>
+                <th>#</th>
                 <th>썸네일</th>
-                <th>채널명</th>
+                <th>채널</th>
                 <th>제목</th>
                 <th>게시일</th>
-                <th>구독자 수</th>
                 <th>조회수</th>
-                <th>채널 기여도</th>
-                <th>성과도 배율</th>
+                <th>구독자</th>
+                <th>기여도</th>
+                <th>성과배율</th>
                 <th>CII</th>
-                <th>영상 길이</th>
-                <th>좋아요 수</th>
-                <th>댓글 수</th>
-                <th>참여율</th>
-                <th>총 영상 수</th>
-                <th>설명</th>
+                <th>길이</th>
+                <th>좋아요</th>
+                <th>댓글</th>
               </tr>
             </thead>
-            <tbody id="results-body">
-            </tbody>
+            <tbody id="results-tbody"></tbody>
           </table>
         </div>
       </div>
-
-      <!-- Status Bar -->
-      <div class="status-bar" id="status-bar">준비 완료 - API 키를 설정해주세요</div>
-    </main>
+      <div class="status-bar" id="status-bar">준비 완료 - API 키를 설정하고 검색을 시작하세요</div>
+    </div>
   </div>
 
-  <!-- API 키 설정 모달 -->
-  <div id="settings-modal" class="modal" style="display: none;">
+  <!-- Settings Modal -->
+  <div class="modal" id="settings-modal">
     <div class="modal-content">
-      <button class="modal-close" onclick="TubeLens.closeSettings()">&times;</button>
-      <h3>YouTube API 키 관리</h3>
-
-      <div class="form-group">
-        <label>새 API 키 추가</label>
-        <div class="input-row">
-          <input type="password" id="new-api-key" class="form-input" placeholder="API 키를 입력하세요">
-          <button class="btn-add" onclick="TubeLens.addApiKey()">추가</button>
-        </div>
-        <small class="help-text">Google Cloud Console에서 발급받은 API 키를 입력하세요</small>
+      <div class="modal-header">
+        <h3>YouTube API 설정</h3>
+        <button class="modal-close" onclick="TubeLens.closeSettings()">&times;</button>
       </div>
-
-      <div class="form-group">
-        <label>등록된 API 키 목록</label>
-        <div id="api-keys-list" class="api-keys-list">
-          <div class="empty-keys">등록된 API 키가 없습니다.</div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>새 API 키 추가</label>
+          <div class="input-with-btn">
+            <input type="password" class="form-input" id="new-api-key" placeholder="API 키를 입력하세요">
+            <button class="btn btn-success" onclick="TubeLens.addApiKey()">추가</button>
+          </div>
+          <p class="form-help">Google Cloud Console에서 YouTube Data API v3 키를 발급받으세요</p>
+        </div>
+        <div class="form-group">
+          <label>등록된 API 키</label>
+          <div class="api-keys-list" id="api-keys-list">
+            <div class="empty-list">등록된 API 키가 없습니다</div>
+          </div>
         </div>
       </div>
-
-      <div class="modal-buttons">
-        <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" class="btn-guide">API 키 발급받기</a>
-        <button class="btn-modal-close" onclick="TubeLens.closeSettings()">닫기</button>
+      <div class="modal-footer">
+        <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" class="btn-link">API 키 발급받기</a>
+        <button class="btn btn-secondary" onclick="TubeLens.closeSettings()">닫기</button>
       </div>
     </div>
   </div>
 
-  <!-- 채널 선택 모달 -->
-  <div id="channel-modal" class="modal" style="display: none;">
-    <div class="modal-content modal-lg">
-      <button class="modal-close" onclick="TubeLens.closeChannelModal()">&times;</button>
-      <h3>채널 선택</h3>
-      <div class="search-info" id="channel-search-info"></div>
-      <div id="channel-list" class="channel-list"></div>
-      <div class="channel-options">
-        <label>영상 타입:</label>
-        <select id="channel-video-type" class="form-select">
-          <option value="all">쇼츠 + 롱폼</option>
+  <!-- Video Modal -->
+  <div class="modal" id="video-modal">
+    <div class="modal-content xl">
+      <div class="modal-header">
+        <h3 id="video-modal-title">영상 재생</h3>
+        <button class="modal-close" onclick="TubeLens.closeVideoModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="video-wrap">
+          <iframe id="video-iframe" allowfullscreen></iframe>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="TubeLens.openYouTube()">YouTube에서 보기</button>
+        <button class="btn btn-secondary" onclick="TubeLens.closeVideoModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Channel Modal -->
+  <div class="modal" id="channel-modal">
+    <div class="modal-content lg">
+      <div class="modal-header">
+        <h3>채널 선택</h3>
+        <button class="modal-close" onclick="TubeLens.closeChannelModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="channel-list" id="channel-list"></div>
+      </div>
+      <div class="modal-footer">
+        <select class="option-select" id="channel-video-type" style="min-width: 150px;">
+          <option value="all">전체 영상</option>
           <option value="shorts">쇼츠</option>
-          <option value="longform">롱폼</option>
+          <option value="long">롱폼</option>
         </select>
-        <button class="btn-collect" onclick="TubeLens.collectChannelVideos()">선택하기</button>
-        <button class="btn-modal-close" onclick="TubeLens.closeChannelModal()">취소</button>
+        <button class="btn btn-primary" onclick="TubeLens.selectChannel()">영상 불러오기</button>
+        <button class="btn btn-secondary" onclick="TubeLens.closeChannelModal()">취소</button>
       </div>
     </div>
   </div>
 
-  <!-- 댓글 모달 -->
-  <div id="comments-modal" class="modal" style="display: none;">
+  <!-- Comments Modal -->
+  <div class="modal" id="comments-modal">
+    <div class="modal-content lg">
+      <div class="modal-header">
+        <h3>베스트 댓글</h3>
+        <button class="modal-close" onclick="TubeLens.closeCommentsModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="comments-list" id="comments-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" onclick="TubeLens.copyComments()">댓글 복사</button>
+        <button class="btn btn-secondary" onclick="TubeLens.closeCommentsModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Description Modal -->
+  <div class="modal" id="description-modal">
     <div class="modal-content">
-      <button class="modal-close" onclick="TubeLens.closeCommentsModal()">&times;</button>
-      <h3>베스트 댓글</h3>
-      <div id="comments-video-title" class="comments-video-title"></div>
-      <div id="comments-list" class="comments-list"></div>
-      <div class="modal-buttons">
-        <button class="btn-copy" onclick="TubeLens.copyComments()">모든 댓글 복사</button>
-        <button class="btn-modal-close" onclick="TubeLens.closeCommentsModal()">닫기</button>
+      <div class="modal-header">
+        <h3>영상 설명</h3>
+        <button class="modal-close" onclick="TubeLens.closeDescriptionModal()">&times;</button>
       </div>
-    </div>
-  </div>
-
-  <!-- 영상 재생 모달 -->
-  <div id="video-modal" class="modal" style="display: none;">
-    <div class="modal-content modal-video">
-      <button class="modal-close" onclick="TubeLens.closeVideoModal()">&times;</button>
-      <h3 id="video-modal-title">영상 재생</h3>
-      <div class="video-container">
-        <iframe id="video-iframe" allowfullscreen></iframe>
+      <div class="modal-body">
+        <div class="description-content" id="description-content"></div>
       </div>
-      <div class="modal-buttons">
-        <button class="btn-youtube" onclick="TubeLens.openYouTube()">YouTube에서 보기</button>
-        <button class="btn-modal-close" onclick="TubeLens.closeVideoModal()">닫기</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 설명 모달 -->
-  <div id="description-modal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <button class="modal-close" onclick="TubeLens.closeDescriptionModal()">&times;</button>
-      <h3>영상 설명</h3>
-      <div id="description-video-title" class="description-video-title"></div>
-      <div id="description-content" class="description-content"></div>
-      <div class="modal-buttons">
-        <button class="btn-copy" onclick="TubeLens.copyDescription()">설명 복사</button>
-        <button class="btn-modal-close" onclick="TubeLens.closeDescriptionModal()">닫기</button>
+      <div class="modal-footer">
+        <button class="btn btn-success" onclick="TubeLens.copyDescription()">설명 복사</button>
+        <button class="btn btn-secondary" onclick="TubeLens.closeDescriptionModal()">닫기</button>
       </div>
     </div>
   </div>
