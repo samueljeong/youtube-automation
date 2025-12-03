@@ -110,6 +110,7 @@ const AssistantMain = (() => {
 
   function renderEvents(containerId, events) {
     const container = document.getElementById(containerId);
+    const showDate = containerId === 'week-events';  // 이번주 섹션에서는 날짜 표시
 
     if (!events || events.length === 0) {
       container.innerHTML = '<div class="empty">No events</div>';
@@ -118,14 +119,19 @@ const AssistantMain = (() => {
 
     container.innerHTML = events.map(event => {
       const startTime = event.start_time ? formatTime(event.start_time) : '';
+      const startDate = event.start_time ? formatDate(event.start_time) : '';
       const category = event.category ? `<span class="item-category">${event.category}</span>` : '';
       const syncBadge = getSyncBadge(event.sync_status);
+      // 이벤트 제목에서 대괄호 제거
+      const title = event.title ? event.title.replace(/^\[|\]$/g, '') : '';
+      // 날짜+시간 표시 (이번주 섹션) 또는 시간만 표시 (오늘 섹션)
+      const timeDisplay = showDate ? `${startDate} ${startTime}` : startTime;
 
       return `
         <div class="item">
-          <div class="item-time">${startTime}</div>
+          <div class="item-time">${timeDisplay}</div>
           <div class="item-content">
-            <div class="item-title">${escapeHtml(event.title)}</div>
+            <div class="item-title">${escapeHtml(title)}</div>
             <div class="item-meta">${category} ${syncBadge}</div>
           </div>
         </div>
