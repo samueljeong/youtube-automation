@@ -9454,26 +9454,32 @@ def api_image_analyze_script():
 
         # 애니메이션(스틱맨) 스타일 전용 시스템 프롬프트
         if image_style == 'animation':
-            system_prompt = """You are an AI that generates image prompts for a specific STICKMAN DRAMA visual style.
+            system_prompt = """You are an AI that generates image prompts for STICKMAN + PHOTOREALISTIC BACKGROUND style.
 
-## REQUIRED VISUAL STYLE
-- Background: detailed, realistic, anime slice-of-life illustration with soft lighting and gentle colors.
-- Foreground character: a simple stickman figure with a round white head, two dots for eyes, one line for mouth, black outline, white body, minimal details.
-- The stickman character must always look 2D, simple, and symbolic, while the background should be more complex and emotional.
+## CRITICAL VISUAL STYLE REQUIREMENTS
+- Background: PHOTOREALISTIC, real photograph quality, like a stock photo or film still. NOT anime, NOT illustration, NOT cartoon.
+- Character: ONLY simple 2D stickman figure - white circular head, two black dots for eyes, simple line for mouth, black stick body with thin lines for arms and legs. Like a child's drawing.
+- The contrast between realistic background and simple 2D stickman is the KEY visual identity.
 
-## RULES
-1. Characters NEVER have detailed faces. Use only simple shapes (circle head, dot eyes, line mouth).
-2. Emotions must be expressed through POSTURE and GESTURES, not facial expressions.
-   - 긴장: head down, shoulders hunched
-   - 기쁨: arms raised, body leaning forward
-   - 슬픔: head tilted down, arms limp
-   - 결의: standing straight, fist on chest
-3. Always include realistic locations (clinic entrance, hospital waiting room, street, home, office, etc.)
-4. If a sign or location name appears, include: signboard text: "한국어 텍스트"
-5. Always describe: time of day, lighting, weather/atmosphere, character actions, surrounding objects
+## ABSOLUTE RULES - MUST FOLLOW
+1. Background MUST be photorealistic (real photo, stock image quality, cinematic photograph)
+2. Characters MUST be simple black-and-white stickman ONLY
+3. NEVER include anime characters, cartoon characters, or realistic human figures
+4. NEVER use anime style, illustration style, or cartoon style for the background
+5. The stickman should look like it was drawn/overlaid on a real photograph
 
-## MANDATORY STYLE TAGS (ALWAYS APPEND TO EVERY PROMPT)
-illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting, 2D character on detailed background, emotional slice-of-life
+## STICKMAN DESCRIPTION (use this exact description)
+"simple 2D black and white stickman figure with circular white head, two dot eyes, line mouth, thin black line body and limbs, like a child's drawing overlaid on the photo"
+
+## EMOTION THROUGH POSTURE (no facial details)
+- 긴장/걱정: hunched shoulders, head tilted down
+- 기쁨: arms raised up, body leaning forward
+- 슬픔: drooping posture, head down, arms hanging
+- 분노: arms spread wide, body tensed
+- 놀람: arms up, body leaning back
+
+## MANDATORY STYLE TAGS (APPEND TO EVERY PROMPT)
+photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, black and white stickman character, stick figure on real photo, NOT anime, NOT illustration
 
 ## OUTPUT FORMAT (MUST BE JSON)
 {
@@ -9490,21 +9496,21 @@ illustration, anime background, simple stickman character, black outline, storyt
     "text_options": ["썸네일 텍스트1 (5~7자)", "썸네일 텍스트2 (5~7자)", "썸네일 텍스트3 (5~7자)"],
     "text_color": "#FFD700",
     "outline_color": "#000000",
-    "prompt": "Thumbnail prompt with simple stickman in emotional pose, detailed anime background, illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
+    "prompt": "Photorealistic [location], [lighting], [mood]. Simple 2D black and white stickman figure with circular head and stick body in [pose/action]. photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration"
   },
   "scenes": [
     {
       "scene_number": 1,
       "narration": "한국어 나레이션",
-      "image_prompt": "Scene description with simple stickman character doing [action], [location with details], [time of day], [lighting], [mood]. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
+      "image_prompt": "Photorealistic [detailed location description], [time of day], [cinematic lighting]. Simple 2D black and white stickman with circular head and thin line body [doing action]. photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration"
     }
   ]
 }
 
 ## EXAMPLE PROMPTS
-- "Early morning in front of a small Korean clinic with cherry blossom trees, petals falling in the wind, signboard text: '박선생 내과의원'. A simple stickman doctor holding a brown paper bag, standing at entrance, soft sunlight. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-- "Inside a cozy Korean home living room, warm afternoon light through window, traditional furniture. Simple stickman grandmother sitting on floor cushion, hands folded, peaceful expression through relaxed posture. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
-- "1980s Seoul street at night, neon signs glowing, light rain, signboard text: '미래다방'. Simple stickman young man walking alone, head slightly down, hands in pockets. illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting"
+- "Photorealistic Korean hospital corridor, fluorescent lighting, white walls, medical equipment visible, daytime. Simple 2D black and white stickman figure with circular head standing nervously with hunched shoulders. photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration"
+- "Photorealistic 1980s Seoul street at dusk, golden hour lighting, old buildings, vintage cars parked, neon signs starting to glow. Simple 2D black and white stickman with circular head walking alone, head slightly down. photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration"
+- "Photorealistic traditional Korean home interior (hanok), warm afternoon sunlight through paper windows, wooden floor, low table with tea cups. Simple 2D black and white stickman sitting on floor cushion with relaxed posture. photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration"
 """
 
         # 콘텐츠 타입별 시스템 프롬프트 분기 (실사 스타일)
@@ -9667,15 +9673,15 @@ illustration, anime background, simple stickman character, black outline, storyt
             user_prompt = f"""대본:
 {script}
 
-위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 스틱맨 드라마 이미지 프롬프트를 생성해주세요.
+위 대본을 정확히 {image_count}개 씬으로 분리하고, 각 씬에 맞는 "실사 배경 + 스틱맨" 이미지 프롬프트를 생성해주세요.
 
 중요 규칙:
 1. 반드시 {image_count}개의 씬을 생성할 것 (더 많거나 적으면 안됨)
-2. 모든 캐릭터는 반드시 simple stickman (둥근 머리, 점 2개 눈, 선 1개 입, 검은 윤곽선)으로 표현
-3. 배경은 디테일한 애니메이션 스타일 (anime slice-of-life)
-4. 감정은 자세와 몸짓으로만 표현 (표정 X)
-5. 간판이나 장소명이 나오면 signboard text: "한글텍스트" 형식 포함
-6. 모든 프롬프트 끝에 필수 태그 추가: illustration, anime background, simple stickman character, black outline, storytelling composition, soft pastel lighting
+2. 배경은 반드시 PHOTOREALISTIC (실사 사진, 스톡 이미지 품질) - 애니메이션/일러스트 절대 금지
+3. 캐릭터는 반드시 simple 2D stickman만 (흰 원 머리, 점 눈 2개, 선 입, 검은 막대 몸통/팔다리)
+4. 절대 애니메이션 캐릭터, 만화 캐릭터, 실사 인물을 포함하지 말 것
+5. 감정은 자세와 몸짓으로만 표현 (표정 X)
+6. 모든 프롬프트 끝에 필수 태그 추가: photorealistic background, real photograph, cinematic lighting, simple 2D stickman overlay, stick figure on real photo, NOT anime, NOT illustration
 7. 썸네일 문구는 시니어 타겟 (12자 이하, 감정+사건)
 
 프롬프트는 반드시 영어로 작성해주세요."""
