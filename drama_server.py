@@ -14,11 +14,15 @@ from openai import OpenAI
 
 # Assistant Blueprint 등록
 from assistant_server import assistant_bp
+# TubeLens Blueprint 등록
+from tubelens_server import tubelens_bp
 
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
 app.register_blueprint(assistant_bp)
+# TubeLens Blueprint 등록
+app.register_blueprint(tubelens_bp)
 
 # ===== 전역 에러 핸들러 (항상 JSON 반환) =====
 @app.errorhandler(500)

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TubeLens - YouTube Analytics</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23FF0000' width='32' height='32' rx='6'/><text x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-weight='bold'>T</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tubelens.css') }}?v={{ range(1000, 9999) | random }}">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1>TubeLens</h1>
+      <span class="header-badge">YouTube Analytics Tool</span>
+    </div>
+    <div class="header-right">
+      <a href="/drama" class="header-btn">드라마 제작</a>
+      <a href="/" class="header-btn home">홈</a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <!-- 설정 섹션 -->
+      <div class="sidebar-section">
+        <div class="section-title">설정</div>
+        <button class="btn-api" onclick="TubeLens.openSettings()">API 키</button>
+      </div>
+
+      <!-- 검색 조건 섹션 -->
+      <div class="sidebar-section">
+        <div class="section-title">검색 조건</div>
+
+        <!-- 정렬 토글 -->
+        <div class="toggle-row">
+          <button class="toggle-btn active" id="btn-sort-views" onclick="TubeLens.toggleSort()">조회수순</button>
+          <button class="toggle-btn" id="btn-sort-date" onclick="TubeLens.toggleSort()">최신순</button>
+        </div>
+
+        <!-- 타입 / 수집 수 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>타입</label>
+            <select id="video-type" class="form-select">
+              <option value="all">쇼츠+롱폼</option>
+              <option value="shorts">쇼츠</option>
+              <option value="longform_4_20">롱폼 4~20분</option>
+              <option value="longform_20_plus">롱폼 20분 이상</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>영상 수집 수</label>
+            <select id="max-results" class="form-select">
+              <option value="50">50개</option>
+              <option value="100" selected>100개</option>
+              <option value="200">200개</option>
+              <option value="500">500개</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 기간 / 국가 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>기간 선택</label>
+            <select id="time-frame" class="form-select" onchange="TubeLens.toggleDatePicker()">
+              <option value="">모든 기간</option>
+              <option value="year">1년 이내</option>
+              <option value="6months">6개월 이내</option>
+              <option value="3months">3개월 이내</option>
+              <option value="month" selected>1개월 이내</option>
+              <option value="week">7일 이내</option>
+              <option value="day">1일 이내</option>
+              <option value="hour">1시간 이내</option>
+              <option value="custom">날짜 직접 선택</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>국가 선택</label>
+            <select id="region-code" class="form-select">
+              <option value="KR" selected>한국(KR)</option>
+              <option value="JP">일본(JP)</option>
+              <option value="US">미국(US)</option>
+              <option value="TW">대만(TW)</option>
+              <option value="GB">영국(GB)</option>
+              <option value="CA">캐나다(CA)</option>
+              <option value="AU">호주(AU)</option>
+              <option value="DE">독일(DE)</option>
+              <option value="FR">프랑스(FR)</option>
+              <option value="ES">스페인(ES)</option>
+              <option value="BR">브라질(BR)</option>
+              <option value="IN">인도(IN)</option>
+              <option value="RU">러시아(RU)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 날짜 직접 선택 (숨김) -->
+        <div class="form-row date-picker-row" id="date-picker-row" style="display: none;">
+          <div class="form-group">
+            <label>시작일</label>
+            <input type="date" id="start-date" class="form-input">
+          </div>
+          <div class="form-group">
+            <label>종료일</label>
+            <input type="date" id="end-date" class="form-input">
+          </div>
+        </div>
+
+        <!-- 검색 모드 토글 -->
+        <button class="btn-search-mode" id="btn-search-mode" onclick="TubeLens.toggleSearchMode()">영상 검색</button>
+
+        <!-- 키워드 입력 -->
+        <div class="form-group">
+          <input type="text" id="search-keyword" class="form-input keyword-input" placeholder="검색할 키워드 입력" onkeypress="if(event.key==='Enter') TubeLens.startSearch()">
+        </div>
+
+        <!-- 검색 / Clear -->
+        <div class="btn-row">
+          <button class="btn-search" onclick="TubeLens.startSearch()">검색</button>
+          <button class="btn-clear" onclick="TubeLens.clearResults()">Clear</button>
+        </div>
+      </div>
+
+      <!-- 필터 설정 섹션 -->
+      <div class="sidebar-section">
+        <div class="section-title">필터 설정</div>
+
+        <!-- CII 필터 -->
+        <div class="form-group">
+          <label>CII 필터</label>
+          <div class="cii-buttons">
+            <button class="cii-btn" id="cii-great" onclick="TubeLens.toggleCiiFilter('great')">Great!!</button>
+            <button class="cii-btn" id="cii-good" onclick="TubeLens.toggleCiiFilter('good')">Good</button>
+            <button class="cii-btn" id="cii-soso" onclick="TubeLens.toggleCiiFilter('soso')">Soso</button>
+          </div>
+        </div>
+
+        <!-- 조회수 / 구독자수 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label>조회수</label>
+            <select id="view-count-filter" class="form-select">
+              <option value="">선택 안함</option>
+              <option value="10000">1만 이상</option>
+              <option value="50000">5만 이상</option>
+              <option value="100000">10만 이상</option>
+              <option value="500000">50만 이상</option>
+              <option value="1000000">100만 이상</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>구독자수</label>
+            <select id="subscriber-filter" class="form-select">
+              <option value="">선택 안함</option>
+              <option value="1000">1천명 이하</option>
+              <option value="5000">5천명 이하</option>
+              <option value="10000">1만명 이하</option>
+              <option value="50000">5만명 이하</option>
+              <option value="100000">10만명 이하</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 필터 적용/해제 -->
+        <div class="btn-row">
+          <button class="btn-filter-apply" onclick="TubeLens.applyFilters()">필터 적용</button>
+          <button class="btn-filter-clear" onclick="TubeLens.clearFilters()">필터 해제</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="url-input-group">
+          <input type="text" id="youtube-url" class="url-input" placeholder="YouTube URL 입력">
+          <button class="btn-analyze" onclick="TubeLens.analyzeUrl()">URL 분석</button>
+        </div>
+      </div>
+
+      <!-- Results Container -->
+      <div class="results-container">
+        <!-- 워터마크 -->
+        <div id="watermark" class="watermark">
+          <div class="watermark-text">TubeLens</div>
+        </div>
+
+        <!-- 로딩 -->
+        <div id="loading" class="loading" style="display: none;">
+          <div class="loading-spinner"></div>
+          <div>YouTube 데이터 분석 중...</div>
+        </div>
+
+        <!-- 결과 테이블 -->
+        <div class="table-wrapper">
+          <table class="results-table" id="results-table">
+            <thead>
+              <tr>
+                <th>N</th>
+                <th>썸네일</th>
+                <th>채널명</th>
+                <th>제목</th>
+                <th>게시일</th>
+                <th>구독자 수</th>
+                <th>조회수</th>
+                <th>채널 기여도</th>
+                <th>성과도 배율</th>
+                <th>CII</th>
+                <th>영상 길이</th>
+                <th>좋아요 수</th>
+                <th>댓글 수</th>
+                <th>참여율</th>
+                <th>총 영상 수</th>
+                <th>설명</th>
+              </tr>
+            </thead>
+            <tbody id="results-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Status Bar -->
+      <div class="status-bar" id="status-bar">준비 완료 - API 키를 설정해주세요</div>
+    </main>
+  </div>
+
+  <!-- API 키 설정 모달 -->
+  <div id="settings-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <button class="modal-close" onclick="TubeLens.closeSettings()">&times;</button>
+      <h3>YouTube API 키 관리</h3>
+
+      <div class="form-group">
+        <label>새 API 키 추가</label>
+        <div class="input-row">
+          <input type="password" id="new-api-key" class="form-input" placeholder="API 키를 입력하세요">
+          <button class="btn-add" onclick="TubeLens.addApiKey()">추가</button>
+        </div>
+        <small class="help-text">Google Cloud Console에서 발급받은 API 키를 입력하세요</small>
+      </div>
+
+      <div class="form-group">
+        <label>등록된 API 키 목록</label>
+        <div id="api-keys-list" class="api-keys-list">
+          <div class="empty-keys">등록된 API 키가 없습니다.</div>
+        </div>
+      </div>
+
+      <div class="modal-buttons">
+        <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" class="btn-guide">API 키 발급받기</a>
+        <button class="btn-modal-close" onclick="TubeLens.closeSettings()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 채널 선택 모달 -->
+  <div id="channel-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-lg">
+      <button class="modal-close" onclick="TubeLens.closeChannelModal()">&times;</button>
+      <h3>채널 선택</h3>
+      <div class="search-info" id="channel-search-info"></div>
+      <div id="channel-list" class="channel-list"></div>
+      <div class="channel-options">
+        <label>영상 타입:</label>
+        <select id="channel-video-type" class="form-select">
+          <option value="all">쇼츠 + 롱폼</option>
+          <option value="shorts">쇼츠</option>
+          <option value="longform">롱폼</option>
+        </select>
+        <button class="btn-collect" onclick="TubeLens.collectChannelVideos()">선택하기</button>
+        <button class="btn-modal-close" onclick="TubeLens.closeChannelModal()">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 댓글 모달 -->
+  <div id="comments-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <button class="modal-close" onclick="TubeLens.closeCommentsModal()">&times;</button>
+      <h3>베스트 댓글</h3>
+      <div id="comments-video-title" class="comments-video-title"></div>
+      <div id="comments-list" class="comments-list"></div>
+      <div class="modal-buttons">
+        <button class="btn-copy" onclick="TubeLens.copyComments()">모든 댓글 복사</button>
+        <button class="btn-modal-close" onclick="TubeLens.closeCommentsModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 영상 재생 모달 -->
+  <div id="video-modal" class="modal" style="display: none;">
+    <div class="modal-content modal-video">
+      <button class="modal-close" onclick="TubeLens.closeVideoModal()">&times;</button>
+      <h3 id="video-modal-title">영상 재생</h3>
+      <div class="video-container">
+        <iframe id="video-iframe" allowfullscreen></iframe>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-youtube" onclick="TubeLens.openYouTube()">YouTube에서 보기</button>
+        <button class="btn-modal-close" onclick="TubeLens.closeVideoModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 설명 모달 -->
+  <div id="description-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <button class="modal-close" onclick="TubeLens.closeDescriptionModal()">&times;</button>
+      <h3>영상 설명</h3>
+      <div id="description-video-title" class="description-video-title"></div>
+      <div id="description-content" class="description-content"></div>
+      <div class="modal-buttons">
+        <button class="btn-copy" onclick="TubeLens.copyDescription()">설명 복사</button>
+        <button class="btn-modal-close" onclick="TubeLens.closeDescriptionModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/tubelens-main.js') }}?v={{ range(1000, 9999) | random }}"></script>
+</body>
+</html>
