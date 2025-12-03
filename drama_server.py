@@ -9607,10 +9607,10 @@ illustration, anime background, simple stickman character, black outline, storyt
 위 대본을 4~8개 씬으로 분리하고, 각 씬에 맞는 전문가급 이미지 프롬프트를 생성해주세요.
 프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
 
-        print(f"[IMAGE-ANALYZE] GPT-4o로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type})")
+        print(f"[IMAGE-ANALYZE] GPT-5.1로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type})")
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -9619,7 +9619,7 @@ illustration, anime background, simple stickman character, black outline, storyt
             response_format={"type": "json_object"}
         )
 
-        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료")
+        print(f"[IMAGE-ANALYZE] GPT-5.1 응답 완료")
 
         result_text = response.choices[0].message.content
         result = json.loads(result_text)
