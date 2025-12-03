@@ -455,6 +455,47 @@
       margin-top: 4px;
     }
 
+    /* URL Bar */
+    .url-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      background: #fff;
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .url-bar .url-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e1e5eb;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .url-bar .url-input:focus {
+      outline: none;
+      border-color: #48bb78;
+    }
+
+    .btn-url-analyze {
+      padding: 12px 28px;
+      background: #48bb78;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    .btn-url-analyze:hover {
+      background: #38a169;
+    }
+
     /* Status Bar */
     .status-bar {
       padding: 12px 24px;
@@ -931,6 +972,12 @@
       </div>
     </div>
 
+    <!-- URL 분석 바 -->
+    <div class="url-bar">
+      <input type="text" class="url-input" id="youtube-url" placeholder="YouTube URL 입력" onkeypress="if(event.key==='Enter') TubeLens.analyzeUrl()">
+      <button class="btn-url-analyze" onclick="TubeLens.analyzeUrl()">URL 분석</button>
+    </div>
+
     <!-- Results Panel -->
     <div class="results-panel">
       <div class="results-header">
@@ -955,19 +1002,22 @@
           <table class="results-table">
             <thead>
               <tr>
-                <th>#</th>
+                <th>N</th>
                 <th>썸네일</th>
-                <th>채널</th>
+                <th>채널명</th>
                 <th>제목</th>
                 <th>게시일</th>
+                <th>구독자 수</th>
                 <th>조회수</th>
-                <th>구독자</th>
-                <th>기여도</th>
-                <th>성과배율</th>
+                <th>채널 기여도</th>
+                <th>성과도 배율</th>
                 <th>CII</th>
-                <th>길이</th>
-                <th>좋아요</th>
-                <th>댓글</th>
+                <th>영상 길이</th>
+                <th>좋아요 수</th>
+                <th>댓글 수</th>
+                <th>참여율</th>
+                <th>총 영상 수</th>
+                <th>설명</th>
               </tr>
             </thead>
             <tbody id="results-tbody"></tbody>

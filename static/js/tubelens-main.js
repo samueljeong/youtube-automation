@@ -360,7 +360,7 @@ const TubeLens = {
       id: videoIds
     });
 
-    // 채널 정보 가져오기
+    // 채널 정보 가져오기 (구독자 수 + 총 영상 수)
     const channelIds = [...new Set(videoDetails.items.map(v => v.snippet.channelId))].join(',');
     const channelDetails = await this.youtubeApi('channels', {
       part: 'statistics',
@@ -369,18 +369,21 @@ const TubeLens = {
 
     const channelMap = {};
     channelDetails.items.forEach(ch => {
-      channelMap[ch.id] = parseInt(ch.statistics.subscriberCount) || 0;
+      channelMap[ch.id] = {
+        subscriberCount: parseInt(ch.statistics.subscriberCount) || 0,
+        videoCount: parseInt(ch.statistics.videoCount) || 0
+      };
     });
 
     // 결과 가공
     this.originalResults = videoDetails.items.map((video, index) => {
-      const subscriberCount = channelMap[video.snippet.channelId] || 0;
+      const channelInfo = channelMap[video.snippet.channelId] || { subscriberCount: 0, videoCount: 0 };
       const viewCount = parseInt(video.statistics.viewCount) || 0;
       const likeCount = parseInt(video.statistics.likeCount) || 0;
       const commentCount = parseInt(video.statistics.commentCount) || 0;
 
       // CII 계산
-      const { contributionValue, performanceValue, cii } = this.calculateCII(viewCount, subscriberCount);
+      const { contributionValue, performanceValue, cii } = this.calculateCII(viewCount, channelInfo.subscriberCount);
 
       return {
         index: index + 1,
@@ -394,7 +397,8 @@ const TubeLens = {
         viewCount,
         likeCount,
         commentCount,
-        subscriberCount,
+        subscriberCount: channelInfo.subscriberCount,
+        videoCount: channelInfo.videoCount,
         contributionValue,
         performanceValue,
         cii,
@@ -405,6 +409,181 @@ const TubeLens = {
     this.currentResults = [...this.originalResults];
     this.displayResults(this.currentResults);
     this.updateStatus(`${this.currentResults.length}개 영상 검색됨`);
+  },
+
+  // ===== URL 분석 =====
+  async analyzeUrl() {
+    const url = document.getElementById('youtube-url').value.trim();
+
+    if (!url) {
+      alert('YouTube URL을 입력해주세요.');
+      return;
+    }
+
+    if (this.apiKeys.length === 0) {
+      alert('먼저 API 키를 설정해주세요.');
+      this.openSettings();
+      return;
+    }
+
+    // URL에서 비디오 ID 또는 채널 ID 추출
+    let videoId = null;
+    let channelId = null;
+
+    // 비디오 URL 패턴
+    const videoPatterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/
+    ];
+
+    for (const pattern of videoPatterns) {
+      const match = url.match(pattern);
+      if (match) {
+        videoId = match[1];
+        break;
+      }
+    }
+
+    // 채널 URL 패턴
+    const channelPatterns = [
+      /youtube\.com\/channel\/([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/@([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/c\/([a-zA-Z0-9_-]+)/,
+      /youtube\.com\/user\/([a-zA-Z0-9_-]+)/
+    ];
+
+    for (const pattern of channelPatterns) {
+      const match = url.match(pattern);
+      if (match) {
+        channelId = match[1];
+        break;
+      }
+    }
+
+    if (!videoId && !channelId) {
+      alert('올바른 YouTube URL이 아닙니다.');
+      return;
+    }
+
+    this.showLoading(true);
+    this.updateStatus('URL 분석 중...');
+
+    try {
+      if (videoId) {
+        // 영상 분석
+        await this.analyzeVideo(videoId);
+      } else if (channelId) {
+        // 채널 분석
+        await this.analyzeChannel(channelId);
+      }
+
+      // URL 입력창 초기화
+      document.getElementById('youtube-url').value = '';
+
+    } catch (error) {
+      console.error('[TubeLens] URL analysis error:', error);
+      alert('URL 분석 중 오류가 발생했습니다: ' + error.message);
+      this.showLoading(false);
+    }
+  },
+
+  async analyzeVideo(videoId) {
+    // 영상 상세 정보 가져오기
+    const videoDetails = await this.youtubeApi('videos', {
+      part: 'snippet,statistics,contentDetails',
+      id: videoId
+    });
+
+    if (!videoDetails.items || videoDetails.items.length === 0) {
+      throw new Error('영상을 찾을 수 없습니다.');
+    }
+
+    const video = videoDetails.items[0];
+
+    // 채널 정보 가져오기
+    const channelDetails = await this.youtubeApi('channels', {
+      part: 'statistics',
+      id: video.snippet.channelId
+    });
+
+    const channelInfo = channelDetails.items[0] ? {
+      subscriberCount: parseInt(channelDetails.items[0].statistics.subscriberCount) || 0,
+      videoCount: parseInt(channelDetails.items[0].statistics.videoCount) || 0
+    } : { subscriberCount: 0, videoCount: 0 };
+
+    const viewCount = parseInt(video.statistics.viewCount) || 0;
+    const likeCount = parseInt(video.statistics.likeCount) || 0;
+    const commentCount = parseInt(video.statistics.commentCount) || 0;
+
+    const { contributionValue, performanceValue, cii } = this.calculateCII(viewCount, channelInfo.subscriberCount);
+
+    const newItem = {
+      index: this.originalResults.length + 1,
+      videoId: video.id,
+      title: video.snippet.title,
+      channelId: video.snippet.channelId,
+      channelTitle: video.snippet.channelTitle,
+      thumbnail: video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.default?.url,
+      publishedAt: this.formatDate(video.snippet.publishedAt),
+      duration: this.formatDuration(video.contentDetails.duration),
+      viewCount,
+      likeCount,
+      commentCount,
+      subscriberCount: channelInfo.subscriberCount,
+      videoCount: channelInfo.videoCount,
+      contributionValue,
+      performanceValue,
+      cii,
+      description: video.snippet.description
+    };
+
+    // 기존 결과에 추가
+    this.originalResults.push(newItem);
+    this.currentResults = [...this.originalResults];
+    this.displayResults(this.currentResults);
+    this.updateStatus(`영상 추가됨 - 총 ${this.currentResults.length}개`);
+  },
+
+  async analyzeChannel(channelIdOrHandle) {
+    let channelId = channelIdOrHandle;
+
+    // @handle 형식인 경우 채널 ID로 변환
+    if (!channelIdOrHandle.startsWith('UC')) {
+      const searchResult = await this.youtubeApi('search', {
+        part: 'snippet',
+        q: channelIdOrHandle,
+        type: 'channel',
+        maxResults: 1
+      });
+
+      if (searchResult.items && searchResult.items.length > 0) {
+        channelId = searchResult.items[0].id.channelId;
+      } else {
+        throw new Error('채널을 찾을 수 없습니다.');
+      }
+    }
+
+    // 채널 정보 가져오기
+    const channelDetails = await this.youtubeApi('channels', {
+      part: 'snippet,statistics,contentDetails',
+      id: channelId
+    });
+
+    if (!channelDetails.items || channelDetails.items.length === 0) {
+      throw new Error('채널을 찾을 수 없습니다.');
+    }
+
+    const ch = channelDetails.items[0];
+    this.showLoading(false);
+    this.openChannelModal([{
+      channelId: ch.id,
+      channelTitle: ch.snippet.title,
+      thumbnailUrl: ch.snippet.thumbnails.default?.url,
+      subscriberCount: parseInt(ch.statistics.subscriberCount) || 0,
+      videoCount: parseInt(ch.statistics.videoCount) || 0,
+      uploadPlaylist: ch.contentDetails?.relatedPlaylists?.uploads
+    }]);
+    this.updateStatus('채널 분석 완료');
   },
 
   async searchChannels(keyword) {
@@ -496,6 +675,7 @@ const TubeLens = {
           likeCount,
           commentCount,
           subscriberCount: channel.subscriberCount,
+          videoCount: channel.videoCount,
           contributionValue,
           performanceValue,
           cii,
@@ -651,6 +831,9 @@ const TubeLens = {
     const contribPercent = Math.min(100, item.contributionValue);
     const contribColor = contribPercent >= 100 ? 'green' : contribPercent >= 50 ? 'blue' : contribPercent >= 20 ? 'yellow' : 'red';
 
+    // 참여율 계산: (좋아요 + 댓글) / 조회수 * 100
+    const engagementRate = item.viewCount > 0 ? ((item.likeCount + item.commentCount) / item.viewCount * 100) : 0;
+
     return `
       <tr>
         <td>${item.index}</td>
@@ -662,8 +845,8 @@ const TubeLens = {
         <td class="channel-name" onclick="TubeLens.searchChannelById('${item.channelId}')">${item.channelTitle}</td>
         <td class="video-title">${item.title}</td>
         <td>${item.publishedAt}</td>
-        <td>${this.formatNumber(item.viewCount)}</td>
         <td>${this.formatNumber(item.subscriberCount)}</td>
+        <td>${this.formatNumber(item.viewCount)}</td>
         <td>
           <div class="gauge"><div class="gauge-fill ${contribColor}" style="width:${contribPercent}%"></div></div>
           <div class="gauge-value">${contribPercent.toFixed(0)}%</div>
@@ -673,6 +856,9 @@ const TubeLens = {
         <td>${item.duration}</td>
         <td>${this.formatNumber(item.likeCount)}</td>
         <td style="cursor:pointer;color:#3182ce" onclick="TubeLens.loadComments('${item.videoId}', '${this.escapeHtml(item.title)}')">${this.formatNumber(item.commentCount)}</td>
+        <td>${engagementRate.toFixed(2)}%</td>
+        <td>${this.formatNumber(item.videoCount || 0)}</td>
+        <td style="cursor:pointer;color:#3182ce" onclick="TubeLens.showDescription('${item.videoId}')">보기</td>
       </tr>
     `;
   },
