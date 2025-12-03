@@ -613,8 +613,12 @@ const AssistantMain = (() => {
       return;
     }
 
+    // Get selected profile (youth/adult)
+    const activeProfileBtn = document.querySelector('#profile-selector .style-btn.active');
+    const profile = activeProfileBtn ? activeProfileBtn.dataset.profile : 'adult';
+
     // Get selected style
-    const activeStyleBtn = document.querySelector('.style-btn.active');
+    const activeStyleBtn = document.querySelector('#style-selector .style-btn.active');
     const style = activeStyleBtn ? activeStyleBtn.dataset.style : '따뜻한';
 
     const btn = document.getElementById('btn-generate-msg');
@@ -622,7 +626,8 @@ const AssistantMain = (() => {
     btn.innerHTML = '<span class="loading"></span> 생성 중...';
 
     const messageListDiv = document.getElementById('message-list');
-    messageListDiv.innerHTML = '<div class="empty"><span class="loading"></span> GPT가 문자를 생성하고 있습니다...</div>';
+    const profileLabel = profile === 'youth' ? '청년부 전도사' : '장년 목사';
+    messageListDiv.innerHTML = `<div class="empty"><span class="loading"></span> GPT가 ${profileLabel} 톤으로 문자를 생성하고 있습니다...</div>`;
 
     try {
       const response = await fetch('/assistant/api/attendance/messages', {
@@ -630,7 +635,8 @@ const AssistantMain = (() => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           people: selectedPeople,
-          style: style
+          style: style,
+          profile: profile
         })
       });
 
@@ -694,14 +700,29 @@ const AssistantMain = (() => {
     }
   }
 
-  // Initialize style button click handlers
+  // Initialize style button and profile selector click handlers
   function initStyleButtons() {
-    document.querySelectorAll('.style-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
+    // Profile selector (youth/adult)
+    const profileSelector = document.getElementById('profile-selector');
+    if (profileSelector) {
+      profileSelector.querySelectorAll('.style-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          profileSelector.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+        });
       });
-    });
+    }
+
+    // Style selector (따뜻한/격려/공식적인)
+    const styleSelector = document.getElementById('style-selector');
+    if (styleSelector) {
+      styleSelector.querySelectorAll('.style-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          styleSelector.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+        });
+      });
+    }
   }
 
   // Set default upload date

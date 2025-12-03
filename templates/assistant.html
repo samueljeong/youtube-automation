@@ -794,15 +794,24 @@
               </p>
               <div class="under-attending-controls">
                 <div>
+                  <label>대상 프로필:</label>
+                  <div class="style-selector" id="profile-selector">
+                    <button class="style-btn" data-profile="youth">청년부 전도사</button>
+                    <button class="style-btn active" data-profile="adult">장년 목사</button>
+                  </div>
+                </div>
+              </div>
+              <div class="under-attending-controls" style="margin-top: 0.5rem;">
+                <div>
                   <label>문체 스타일:</label>
-                  <div class="style-selector">
+                  <div class="style-selector" id="style-selector">
                     <button class="style-btn active" data-style="따뜻한">따뜻한</button>
                     <button class="style-btn" data-style="격려">격려</button>
                     <button class="style-btn" data-style="공식적인">공식적인</button>
                   </div>
                 </div>
               </div>
-              <div id="selected-people" style="margin-bottom: 1rem;"></div>
+              <div id="selected-people" style="margin: 1rem 0;"></div>
               <button class="btn btn-primary" onclick="AssistantMain.generateMessages()" id="btn-generate-msg" disabled>
                 문자 생성 (GPT)
               </button>
