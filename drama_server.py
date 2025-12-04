@@ -10489,8 +10489,30 @@ def format_srt_time(seconds):
 
 # ===== Image Lab 영상 생성 API (백그라운드 처리) =====
 
-# 영상 생성 작업 상태 저장
-video_jobs = {}  # {job_id: {status, progress, message, video_url, error, created_at}}
+# 영상 생성 작업 상태 저장 (파일 기반 - 멀티워커 지원)
+VIDEO_JOBS_DIR = "uploads/video_jobs"
+os.makedirs(VIDEO_JOBS_DIR, exist_ok=True)
+
+def _save_job_status(job_id, status_data):
+    """작업 상태를 파일로 저장"""
+    job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+    with open(job_file, 'w', encoding='utf-8') as f:
+        json.dump(status_data, f, ensure_ascii=False)
+
+def _load_job_status(job_id):
+    """작업 상태를 파일에서 로드"""
+    job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+    if os.path.exists(job_file):
+        with open(job_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
+def _update_job_status(job_id, **kwargs):
+    """작업 상태 부분 업데이트"""
+    status = _load_job_status(job_id)
+    if status:
+        status.update(kwargs)
+        _save_job_status(job_id, status)
 
 def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식)"""
@@ -10514,8 +10536,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
     import urllib.request
 
     try:
-        video_jobs[job_id]['status'] = 'processing'
-        video_jobs[job_id]['message'] = '영상 생성 시작...'
+        _update_job_status(job_id, status='processing', message='영상 생성 시작...')
 
         total_scenes = len(scenes)
         upload_dir = "uploads"
@@ -10532,8 +10553,8 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
 
             # 1. 각 씬별 영상 클립 생성
             for idx, scene in enumerate(scenes):
-                video_jobs[job_id]['progress'] = int((idx / total_scenes) * 70)
-                video_jobs[job_id]['message'] = f'씬 {idx + 1}/{total_scenes} 처리 중...'
+                progress = int((idx / total_scenes) * 70)
+                _update_job_status(job_id, progress=progress, message=f'씬 {idx + 1}/{total_scenes} 처리 중...')
 
                 image_url = scene.get('image_url', '')
                 audio_url = scene.get('audio_url', '')
@@ -10622,8 +10643,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                 raise Exception("영상 클립 생성 실패")
 
             # 2. 클립 병합
-            video_jobs[job_id]['progress'] = 75
-            video_jobs[job_id]['message'] = '클립 병합 중...'
+            _update_job_status(job_id, progress=75, message='클립 병합 중...')
 
             concat_list = os.path.join(work_dir, "concat.txt")
             with open(concat_list, 'w') as f:
@@ -10635,8 +10655,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                           capture_output=True, timeout=600)
 
             # 3. SRT 자막 생성
-            video_jobs[job_id]['progress'] = 85
-            video_jobs[job_id]['message'] = '자막 처리 중...'
+            _update_job_status(job_id, progress=85, message='자막 처리 중...')
 
             srt_path = os.path.join(work_dir, "subtitles.srt")
             with open(srt_path, 'w', encoding='utf-8') as f:
@@ -10646,8 +10665,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                     f.write(f"{i}\n{start_str} --> {end_str}\n{sub['text']}\n\n")
 
             # 4. 자막 burn-in
-            video_jobs[job_id]['progress'] = 90
-            video_jobs[job_id]['message'] = '자막 삽입 중...'
+            _update_job_status(job_id, progress=90, message='자막 삽입 중...')
 
             subtitle_style = _get_subtitle_style(detected_lang)
             final_path = os.path.join(work_dir, "final.mp4")
@@ -10675,12 +10693,14 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
             minutes = int(current_time // 60)
             seconds = int(current_time % 60)
 
-            video_jobs[job_id]['status'] = 'completed'
-            video_jobs[job_id]['progress'] = 100
-            video_jobs[job_id]['message'] = '완료!'
-            video_jobs[job_id]['video_url'] = f"/uploads/{output_filename}"
-            video_jobs[job_id]['duration'] = f"{minutes}분 {seconds}초"
-            video_jobs[job_id]['subtitle_count'] = len(all_subtitles)
+            _update_job_status(job_id,
+                status='completed',
+                progress=100,
+                message='완료!',
+                video_url=f"/uploads/{output_filename}",
+                duration=f"{minutes}분 {seconds}초",
+                subtitle_count=len(all_subtitles)
+            )
 
             print(f"[VIDEO-WORKER] Completed: {output_path}")
 
@@ -10692,9 +10712,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
         print(f"[VIDEO-WORKER] Error: {e}")
         import traceback
         traceback.print_exc()
-        video_jobs[job_id]['status'] = 'failed'
-        video_jobs[job_id]['error'] = str(e)
-        video_jobs[job_id]['message'] = f'오류: {str(e)}'
+        _update_job_status(job_id, status='failed', error=str(e), message=f'오류: {str(e)}')
 
 
 @app.route('/api/image/generate-video', methods=['POST'])
@@ -10715,8 +10733,8 @@ def api_image_generate_video():
     total_duration = sum(s.get('duration', 0) for s in scenes)
     job_id = f"vj_{uuid_module.uuid4().hex[:12]}"
 
-    # 작업 상태 초기화
-    video_jobs[job_id] = {
+    # 작업 상태 초기화 (파일 기반)
+    _save_job_status(job_id, {
         'status': 'queued',
         'progress': 0,
         'message': '대기 중...',
@@ -10726,7 +10744,7 @@ def api_image_generate_video():
         'subtitle_count': 0,
         'created_at': datetime.now().isoformat(),
         'total_duration': total_duration
-    }
+    })
 
     # 백그라운드 스레드 시작
     thread = threading.Thread(
@@ -10748,21 +10766,21 @@ def api_image_generate_video():
 
 @app.route('/api/image/video-status/<job_id>', methods=['GET'])
 def api_image_video_status(job_id):
-    """영상 생성 작업 상태 확인"""
-    if job_id not in video_jobs:
+    """영상 생성 작업 상태 확인 (파일 기반)"""
+    job = _load_job_status(job_id)
+    if not job:
         return jsonify({"ok": False, "error": "작업을 찾을 수 없습니다"}), 404
 
-    job = video_jobs[job_id]
     return jsonify({
         "ok": True,
         "job_id": job_id,
-        "status": job['status'],
-        "progress": job['progress'],
-        "message": job['message'],
-        "video_url": job['video_url'],
-        "duration": job['duration'],
-        "subtitle_count": job['subtitle_count'],
-        "error": job['error']
+        "status": job.get('status', 'unknown'),
+        "progress": job.get('progress', 0),
+        "message": job.get('message', ''),
+        "video_url": job.get('video_url'),
+        "duration": job.get('duration'),
+        "subtitle_count": job.get('subtitle_count', 0),
+        "error": job.get('error')
     })
 
 
