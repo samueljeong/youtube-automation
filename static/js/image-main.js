@@ -12,7 +12,7 @@ const ImageMain = {
   sceneImages: {},       // { index: imageUrl }
   selectedThumbnailText: null,  // 선택된 썸네일 텍스트
   audience: 'senior',    // 타겟 시청자: 'senior' 또는 'general'
-  selectedVoice: 'ko-KR-Neural2-A',  // 선택된 TTS 음성
+  selectedVoice: 'ko-KR-Neural2-C',  // 선택된 TTS 음성 (남성 중후한 목소리)
   assetZipUrl: null,     // 생성된 ZIP 다운로드 URL
   sceneMetadata: null,   // 영상 생성용 씬 메타데이터
   detectedLanguage: 'ko', // 감지된 언어
@@ -177,6 +177,7 @@ const ImageMain = {
 
   /**
    * ★★★ 모든 이미지 자동 생성 (썸네일 + 씬 이미지) ★★★
+   * 완료 후 자동으로 TTS 생성 시작
    */
   async generateAllImages() {
     if (!this.analyzedData) return;
@@ -197,19 +198,36 @@ const ImageMain = {
       document.getElementById('btn-generate-with-text').disabled = false;
     }
 
-    // 씬 이미지 생성 (한 번에 2개씩 병렬 처리)
+    // 씬 이미지 생성 (한 번에 2개씩 병렬 처리, 실패 시 3회 재시도)
     this.showStatus(`${scenes.length}개 씬 이미지 생성 중...`, 'info');
 
     const BATCH_SIZE = 2;  // 한 번에 2개씩만 생성
+    let allSuccess = true;
+
     for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
       const batch = scenes.slice(i, i + BATCH_SIZE);
       const batchPromises = batch.map((_, batchIdx) => this.generateSceneImage(i + batchIdx));
-      await Promise.all(batchPromises);
+      const results = await Promise.all(batchPromises);
+
+      // 실패한 이미지가 있는지 확인
+      if (results.some(r => r === false)) {
+        allSuccess = false;
+      }
+
       this.showStatus(`씬 이미지 생성 중... (${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length})`, 'info');
     }
 
-    // 썸네일은 자동 생성하지 않음 - 사용자가 텍스트 선택 후 버튼 클릭
-    this.showStatus('씬 이미지 생성 완료! 썸네일 텍스트를 선택하고 생성 버튼을 눌러주세요.', 'success');
+    // 모든 이미지 생성 성공 시 자동으로 TTS 생성 시작
+    const successCount = Object.keys(this.sceneImages).length;
+    if (successCount === scenes.length) {
+      this.showStatus(`✅ 씬 이미지 ${successCount}개 완료! TTS 생성 시작...`, 'success');
+
+      // 1초 후 TTS 자동 시작
+      await this.sleep(1000);
+      await this.generateAssets();
+    } else {
+      this.showStatus(`⚠️ 이미지 ${successCount}/${scenes.length}개 완료. 실패한 이미지를 확인해주세요.`, 'warning');
+    }
   },
 
   /**
@@ -440,17 +458,19 @@ const ImageMain = {
   },
 
   /**
-   * 단일 씬 이미지 생성
+   * 단일 씬 이미지 생성 (3회 자동 재시도)
    */
-  async generateSceneImage(idx) {
+  async generateSceneImage(idx, retryCount = 0) {
+    const MAX_RETRIES = 3;
     const scene = this.analyzedData?.scenes?.[idx];
     if (!scene || !scene.image_prompt) {
       this.showStatus('이미지 프롬프트가 없습니다.', 'warning');
-      return;
+      return false;
     }
 
     const container = document.getElementById(`scene-img-${idx}`);
-    container.innerHTML = '<div class="placeholder"><div class="spinner"></div><span>생성 중...</span></div>';
+    const retryText = retryCount > 0 ? ` (재시도 ${retryCount}/${MAX_RETRIES})` : '';
+    container.innerHTML = `<div class="placeholder"><div class="spinner"></div><span>생성 중...${retryText}</span></div>`;
 
     try {
       const model = document.getElementById('image-model').value;
@@ -475,11 +495,23 @@ const ImageMain = {
       if (data.imageUrl) {
         container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}" onclick="ImageMain.openImageModal('${data.imageUrl}')">`;
         this.sceneImages[idx] = data.imageUrl;
+        return true;  // 성공
       }
+      throw new Error('이미지 URL 없음');
 
     } catch (error) {
-      console.error('[ImageMain] Scene image error:', error);
-      container.innerHTML = `<div class="placeholder error"><span>생성 실패</span><button onclick="ImageMain.generateSceneImage(${idx})">재시도</button></div>`;
+      console.error(`[ImageMain] Scene ${idx + 1} image error (attempt ${retryCount + 1}):`, error);
+
+      // 재시도 로직
+      if (retryCount < MAX_RETRIES) {
+        console.log(`[ImageMain] Retrying scene ${idx + 1}... (${retryCount + 1}/${MAX_RETRIES})`);
+        await this.sleep(1000);  // 1초 대기 후 재시도
+        return await this.generateSceneImage(idx, retryCount + 1);
+      }
+
+      // 최대 재시도 실패
+      container.innerHTML = `<div class="placeholder error"><span>생성 실패 (${MAX_RETRIES}회 시도)</span><button onclick="ImageMain.generateSceneImage(${idx})">재시도</button></div>`;
+      return false;
     }
   },
 
@@ -823,9 +855,13 @@ const ImageMain = {
       document.getElementById('btn-generate-video').classList.remove('hidden');  // 영상 생성 버튼 표시
 
       btn.textContent = '✅ 생성 완료';
-      this.showStatus('CapCut 에셋이 준비되었습니다!', 'success');
+      this.showStatus('✅ TTS 완료! 영상 생성 시작...', 'success');
 
       console.log('[ImageMain] Scene metadata saved:', this.sceneMetadata?.length, 'scenes, lang:', this.detectedLanguage);
+
+      // ★★★ TTS 완료 후 자동으로 영상 생성 시작 ★★★
+      await this.sleep(1000);
+      await this.generateVideo();
 
     } catch (error) {
       console.error('[ImageMain] Asset generation error:', error);
