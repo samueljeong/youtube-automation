@@ -9503,8 +9503,31 @@ def api_image_analyze_script():
             'ko': {'name': 'Korean', 'native': '한국어', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Korean (한국어).'},
             'en': {'name': 'English', 'native': 'English', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in English.'},
             'ja': {'name': 'Japanese', 'native': '日本語', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Japanese (日本語).'},
-            'auto': {'name': 'Auto-detect', 'native': 'Auto', 'instruction': 'DETECT the language of the input script and write ALL outputs in THE SAME LANGUAGE.'}
         }
+
+        # 자동 감지 시 스크립트 언어 분석
+        if output_language == 'auto':
+            def detect_script_language(text):
+                """스크립트 언어 감지 (한국어/영어/일본어)"""
+                if not text:
+                    return 'en'
+                korean_chars = len(re.findall(r'[가-힣]', text))
+                japanese_chars = len(re.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
+                total_chars = len(re.sub(r'\s', '', text))
+                if total_chars == 0:
+                    return 'en'
+                korean_ratio = korean_chars / total_chars
+                japanese_ratio = japanese_chars / total_chars
+                if korean_ratio > 0.3:
+                    return 'ko'
+                elif japanese_ratio > 0.2:
+                    return 'ja'
+                return 'en'
+
+            detected_lang = detect_script_language(script)
+            print(f"[IMAGE-ANALYZE] Auto-detected language: {detected_lang} (from script)")
+            output_language = detected_lang  # 감지된 언어로 변경
+
         lang_config = language_config.get(output_language, language_config['ko'])
 
         if not script:
