@@ -9614,11 +9614,18 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
   "scenes": [
     {{
       "scene_number": 1,
-      "narration": "Narration in {lang_config['name']} (same content as script)",
+      "narration": "⚠️ EXACT TEXT from the script - COPY-PASTE the original sentences, DO NOT summarize or paraphrase!",
       "image_prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head and black outline, clean minimal flat style, [action]. NO anime characters, NO realistic humans, ONLY stickman. Contrast collage, detailed anime world with simple stickman."
     }}
   ]
 }}
+
+## ⚠️ CRITICAL: NARRATION RULE ⚠️
+The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
+- DO NOT summarize or paraphrase
+- DO NOT add your own words
+- COPY-PASTE the exact sentences from the script that this scene covers
+- This helps the user know EXACTLY where to place each image in the video timeline
 
 ## EXAMPLE PROMPTS (스틱맨은 항상 동일한 얼굴: 점 눈 2개, 작은 입, 얇은 눈썹)
 
@@ -9780,11 +9787,16 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
   "scenes": [
     {{
       "scene_number": 1,
-      "narration": "Narration in {lang_config['name']} (same content as script)",
+      "narration": "⚠️ EXACT TEXT from the script - COPY-PASTE the original sentences, DO NOT summarize!",
       "image_prompt": "English image prompt..."
     }}
   ]
-}}"""
+}}
+
+## ⚠️ CRITICAL: NARRATION RULE ⚠️
+The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
+- DO NOT summarize or paraphrase - COPY-PASTE the exact sentences
+- This helps the user know EXACTLY where to place each image in the video"""
 
         # Style-specific user prompt
         if image_style == 'animation':
@@ -9818,6 +9830,7 @@ Rules:
 6. Express emotion through eyebrows, mouth shape, and body posture
 7. Add these tags to every image_prompt: detailed anime background, slice-of-life style, simple white stickman, NO other characters, contrast collage
 8. {thumb_instruction}
+9. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 
 image_prompt MUST be in English."""
         else:
@@ -9840,7 +9853,8 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 Rules:
 1. Generate exactly {image_count} scenes (no more, no less)
 2. {thumbnail_instruction}
-3. image_prompt MUST be in English, following the prompt writing principles above."""
+3. image_prompt MUST be in English, following the prompt writing principles above.
+4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!"""
 
         print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
