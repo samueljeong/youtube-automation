@@ -407,61 +407,90 @@ const AssistantMain = (() => {
     const showDate = containerId === 'week-events';  // 이번주 섹션에서는 날짜 표시
 
     if (!events || events.length === 0) {
-      container.innerHTML = '<div class="empty">No events</div>';
+      container.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">📅</div>
+          <div>No events scheduled</div>
+        </div>
+      `;
       return;
     }
 
     container.innerHTML = events.map(event => {
       const startTime = event.start_time ? formatTime(event.start_time) : '';
-      const startDate = event.start_time ? formatDate(event.start_time) : '';
-      const category = event.category ? `<span class="item-category">${event.category}</span>` : '';
-      const syncBadge = getSyncBadge(event.sync_status);
+      const startDate = event.start_time ? formatDateShort(event.start_time) : '';
+      const category = event.category ? `<span class="schedule-category">${escapeHtml(event.category)}</span>` : '';
+      const syncBadge = getScheduleSyncBadge(event.sync_status);
+      const location = event.location ? `<span class="schedule-location">📍 ${escapeHtml(event.location)}</span>` : '';
       // 이벤트 제목에서 대괄호 제거
       const title = event.title ? event.title.replace(/^\[|\]$/g, '') : '';
       // 날짜+시간 표시 (이번주 섹션) 또는 시간만 표시 (오늘 섹션)
-      const timeDisplay = showDate ? `${startDate} ${startTime}` : startTime;
+      const timeDisplay = showDate ? `${startDate}<br>${startTime}` : startTime;
+      const timeClass = showDate ? 'schedule-time date-time' : 'schedule-time';
 
       return `
-        <div class="item">
-          <div class="item-time">${timeDisplay}</div>
-          <div class="item-content">
-            <div class="item-title">${escapeHtml(title)}</div>
-            <div class="item-meta">${category} ${syncBadge}</div>
+        <div class="schedule-item">
+          <div class="${timeClass}">${timeDisplay}</div>
+          <div class="schedule-content">
+            <div class="schedule-title" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+            <div class="schedule-meta">${category}${syncBadge}${location}</div>
           </div>
         </div>
       `;
     }).join('');
   }
 
+  function formatDateShort(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
+  function getScheduleSyncBadge(status) {
+    if (status === 'synced') {
+      return '<span class="schedule-sync synced">✓ Synced</span>';
+    } else if (status === 'pending_to_mac') {
+      return '<span class="schedule-sync pending">⏳ Pending</span>';
+    }
+    return '';
+  }
+
   function renderTasks(containerId, tasks) {
     const container = document.getElementById(containerId);
 
     if (!tasks || tasks.length === 0) {
-      container.innerHTML = '<div class="empty">No pending tasks</div>';
+      container.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">✅</div>
+          <div>No pending tasks</div>
+        </div>
+      `;
       return;
     }
 
     container.innerHTML = tasks.map(task => {
-      const dueDate = task.due_date ? formatDate(task.due_date) : 'No due date';
-      const priorityClass = `priority-${task.priority || 'medium'}`;
-      const category = task.category ? `<span class="item-category">${task.category}</span>` : '';
-      const syncBadge = getSyncBadge(task.sync_status);
+      const dueDate = task.due_date ? formatDate(task.due_date) : '';
+      const priority = task.priority || 'medium';
+      const category = task.category ? `<span class="schedule-category">${escapeHtml(task.category)}</span>` : '';
+      const syncBadge = getScheduleSyncBadge(task.sync_status);
+      const isOverdue = task.due_date && new Date(task.due_date) < new Date() && !task.is_completed;
+      const dueDateClass = isOverdue ? 'task-due overdue' : 'task-due';
 
       return `
-        <div class="item">
-          <div class="item-content">
-            <div class="item-title">
-              <span class="${priorityClass}">●</span>
+        <div class="task-item" onclick="AssistantMain.completeTask(${task.id})">
+          <div class="task-checkbox">
+            <span style="font-size: 10px;">✓</span>
+          </div>
+          <div class="task-content">
+            <div class="task-title">
+              <span class="task-priority ${priority}"></span>
               ${escapeHtml(task.title)}
             </div>
-            <div class="item-meta">
-              <span>${dueDate}</span>
-              ${category} ${syncBadge}
+            <div class="task-meta">
+              ${dueDate ? `<span class="${dueDateClass}">📅 ${dueDate}</span>` : ''}
+              ${category}${syncBadge}
             </div>
           </div>
-          <button class="btn btn-small btn-secondary" onclick="AssistantMain.completeTask(${task.id})">
-            ✓
-          </button>
         </div>
       `;
     }).join('');
