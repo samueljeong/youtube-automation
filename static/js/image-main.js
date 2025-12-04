@@ -181,11 +181,16 @@ const ImageMain = {
       document.getElementById('btn-generate-with-text').disabled = false;
     }
 
-    // 씬 이미지만 병렬 생성 (썸네일은 사용자가 직접 생성)
+    // 씬 이미지 생성 (한 번에 2개씩 병렬 처리)
     this.showStatus(`${scenes.length}개 씬 이미지 생성 중...`, 'info');
 
-    const scenePromises = scenes.map((_, idx) => this.generateSceneImage(idx));
-    await Promise.all(scenePromises);
+    const BATCH_SIZE = 2;  // 한 번에 2개씩만 생성
+    for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
+      const batch = scenes.slice(i, i + BATCH_SIZE);
+      const batchPromises = batch.map((_, batchIdx) => this.generateSceneImage(i + batchIdx));
+      await Promise.all(batchPromises);
+      this.showStatus(`씬 이미지 생성 중... (${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length})`, 'info');
+    }
 
     // 썸네일은 자동 생성하지 않음 - 사용자가 텍스트 선택 후 버튼 클릭
     this.showStatus('씬 이미지 생성 완료! 썸네일 텍스트를 선택하고 생성 버튼을 눌러주세요.', 'success');
