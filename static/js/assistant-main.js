@@ -814,6 +814,10 @@ const AssistantMain = (() => {
       loadFullTasksList();
     } else if (section === 'attendance') {
       // Attendance section is already initialized
+    } else if (section === 'people') {
+      loadPeople();
+    } else if (section === 'projects') {
+      loadProjects();
     }
   }
 
@@ -1644,6 +1648,632 @@ const AssistantMain = (() => {
     });
   }
 
+  // ===== People Management =====
+  let peopleList = [];
+  let currentPersonId = null;
+  let quickInputType = 'people'; // 'people' or 'project'
+
+  async function loadPeople() {
+    const search = document.getElementById('people-search')?.value || '';
+    const category = document.getElementById('people-category-filter')?.value || '';
+
+    try {
+      const res = await fetch(`/assistant/api/people?search=${encodeURIComponent(search)}&category=${encodeURIComponent(category)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        peopleList = data.people;
+        renderPeopleList();
+      }
+    } catch (err) {
+      console.error('Failed to load people:', err);
+    }
+  }
+
+  function renderPeopleList() {
+    const container = document.getElementById('people-list');
+    if (!container) return;
+
+    if (peopleList.length === 0) {
+      container.innerHTML = '<div class="empty">No people found</div>';
+      return;
+    }
+
+    container.innerHTML = peopleList.map(person => `
+      <div class="person-card ${currentPersonId === person.id ? 'selected' : ''}" onclick="AssistantMain.selectPerson(${person.id})">
+        <div class="person-avatar">👤</div>
+        <div class="person-info-brief">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="person-name">${escapeHtml(person.name)}</span>
+            ${person.category ? `<span class="person-category-badge">${escapeHtml(person.category)}</span>` : ''}
+          </div>
+          ${person.notes ? `<div class="person-last-note">${escapeHtml(person.notes.substring(0, 50))}${person.notes.length > 50 ? '...' : ''}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function selectPerson(personId) {
+    currentPersonId = personId;
+    renderPeopleList();
+
+    try {
+      const res = await fetch(`/assistant/api/people/${personId}`);
+      const data = await res.json();
+
+      if (data.success) {
+        const person = data.person;
+        document.getElementById('person-detail-name').textContent = person.name;
+
+        const infoHtml = `
+          ${person.category ? `<div><strong>Category:</strong> ${escapeHtml(person.category)}</div>` : ''}
+          ${person.phone ? `<div><strong>Phone:</strong> ${escapeHtml(person.phone)}</div>` : ''}
+          ${person.email ? `<div><strong>Email:</strong> ${escapeHtml(person.email)}</div>` : ''}
+          ${person.address ? `<div><strong>Address:</strong> ${escapeHtml(person.address)}</div>` : ''}
+          ${person.notes ? `<div><strong>Notes:</strong> ${escapeHtml(person.notes)}</div>` : ''}
+        `;
+        document.getElementById('person-info').innerHTML = infoHtml;
+
+        // Render notes
+        const notesContainer = document.getElementById('person-notes-list');
+        if (person.notes_list && person.notes_list.length > 0) {
+          notesContainer.innerHTML = person.notes_list.map(note => `
+            <div class="note-item">
+              <div class="note-header">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <span class="note-date">${note.note_date}</span>
+                  ${note.category ? `<span class="note-category-badge">${escapeHtml(note.category)}</span>` : ''}
+                </div>
+                <button class="note-delete" onclick="AssistantMain.deletePersonNote(${note.id}); event.stopPropagation();">×</button>
+              </div>
+              <div class="note-content">${escapeHtml(note.content)}</div>
+            </div>
+          `).join('');
+        } else {
+          notesContainer.innerHTML = '<div class="empty">No notes yet</div>';
+        }
+
+        document.getElementById('person-detail-panel').style.display = 'block';
+      }
+    } catch (err) {
+      console.error('Failed to load person:', err);
+    }
+  }
+
+  function addPerson() {
+    document.getElementById('person-modal-title').textContent = 'Add Person';
+    document.getElementById('person-id').value = '';
+    document.getElementById('person-name').value = '';
+    document.getElementById('person-category').value = '';
+    document.getElementById('person-phone').value = '';
+    document.getElementById('person-email').value = '';
+    document.getElementById('person-address').value = '';
+    document.getElementById('person-notes').value = '';
+    document.getElementById('person-modal').style.display = 'flex';
+  }
+
+  function editPerson() {
+    if (!currentPersonId) return;
+    const person = peopleList.find(p => p.id === currentPersonId);
+    if (!person) return;
+
+    document.getElementById('person-modal-title').textContent = 'Edit Person';
+    document.getElementById('person-id').value = person.id;
+    document.getElementById('person-name').value = person.name || '';
+    document.getElementById('person-category').value = person.category || '';
+    document.getElementById('person-phone').value = person.phone || '';
+    document.getElementById('person-email').value = person.email || '';
+    document.getElementById('person-address').value = person.address || '';
+    document.getElementById('person-notes').value = person.notes || '';
+    document.getElementById('person-modal').style.display = 'flex';
+  }
+
+  function closePersonModal() {
+    document.getElementById('person-modal').style.display = 'none';
+  }
+
+  async function savePerson() {
+    const id = document.getElementById('person-id').value;
+    const data = {
+      name: document.getElementById('person-name').value.trim(),
+      category: document.getElementById('person-category').value,
+      phone: document.getElementById('person-phone').value.trim(),
+      email: document.getElementById('person-email').value.trim(),
+      address: document.getElementById('person-address').value.trim(),
+      notes: document.getElementById('person-notes').value.trim()
+    };
+
+    if (!data.name) {
+      alert('Name is required');
+      return;
+    }
+
+    try {
+      const url = id ? `/assistant/api/people/${id}` : '/assistant/api/people';
+      const method = id ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closePersonModal();
+        loadPeople();
+        if (id) selectPerson(parseInt(id));
+      } else {
+        alert(result.error || 'Failed to save person');
+      }
+    } catch (err) {
+      console.error('Failed to save person:', err);
+      alert('Failed to save person');
+    }
+  }
+
+  async function deletePerson() {
+    if (!currentPersonId) return;
+    if (!confirm('Are you sure you want to delete this person?')) return;
+
+    try {
+      const res = await fetch(`/assistant/api/people/${currentPersonId}`, { method: 'DELETE' });
+      const result = await res.json();
+
+      if (result.success) {
+        currentPersonId = null;
+        document.getElementById('person-detail-panel').style.display = 'none';
+        loadPeople();
+      } else {
+        alert(result.error || 'Failed to delete person');
+      }
+    } catch (err) {
+      console.error('Failed to delete person:', err);
+    }
+  }
+
+  function addPersonNote() {
+    if (!currentPersonId) return;
+    document.getElementById('person-note-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('person-note-content').value = '';
+    document.getElementById('person-note-category').value = '';
+    document.getElementById('person-note-modal').style.display = 'flex';
+  }
+
+  function closePersonNoteModal() {
+    document.getElementById('person-note-modal').style.display = 'none';
+  }
+
+  async function savePersonNote() {
+    const data = {
+      note_date: document.getElementById('person-note-date').value,
+      content: document.getElementById('person-note-content').value.trim(),
+      category: document.getElementById('person-note-category').value
+    };
+
+    if (!data.content) {
+      alert('Note content is required');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/assistant/api/people/${currentPersonId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closePersonNoteModal();
+        selectPerson(currentPersonId);
+      } else {
+        alert(result.error || 'Failed to save note');
+      }
+    } catch (err) {
+      console.error('Failed to save note:', err);
+    }
+  }
+
+  async function deletePersonNote(noteId) {
+    if (!confirm('Delete this note?')) return;
+
+    try {
+      const res = await fetch(`/assistant/api/people/notes/${noteId}`, { method: 'DELETE' });
+      const result = await res.json();
+
+      if (result.success) {
+        selectPerson(currentPersonId);
+      }
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
+  }
+
+  function searchPeople() {
+    loadPeople();
+  }
+
+  function filterPeopleByCategory() {
+    loadPeople();
+  }
+
+  // ===== Projects Management =====
+  let projectsList = [];
+  let currentProjectId = null;
+  let projectStatusFilter = 'all';
+
+  async function loadProjects() {
+    const search = document.getElementById('projects-search')?.value || '';
+    const status = projectStatusFilter === 'all' ? '' : projectStatusFilter;
+
+    try {
+      const res = await fetch(`/assistant/api/projects?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
+      const data = await res.json();
+
+      if (data.success) {
+        projectsList = data.projects;
+        renderProjectsList();
+      }
+    } catch (err) {
+      console.error('Failed to load projects:', err);
+    }
+  }
+
+  function renderProjectsList() {
+    const container = document.getElementById('projects-list');
+    if (!container) return;
+
+    if (projectsList.length === 0) {
+      container.innerHTML = '<div class="empty">No projects found</div>';
+      return;
+    }
+
+    container.innerHTML = projectsList.map(project => `
+      <div class="project-card ${currentProjectId === project.id ? 'selected' : ''}" onclick="AssistantMain.selectProject(${project.id})">
+        <div class="project-icon">📁</div>
+        <div class="project-info-brief">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="project-name">${escapeHtml(project.name)}</span>
+            <span class="project-status-badge ${project.status}">${project.status}</span>
+          </div>
+          ${project.description ? `<div class="project-last-note">${escapeHtml(project.description.substring(0, 50))}${project.description.length > 50 ? '...' : ''}</div>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function selectProject(projectId) {
+    currentProjectId = projectId;
+    renderProjectsList();
+
+    try {
+      const res = await fetch(`/assistant/api/projects/${projectId}`);
+      const data = await res.json();
+
+      if (data.success) {
+        const project = data.project;
+        document.getElementById('project-detail-name').textContent = project.name;
+
+        const infoHtml = `
+          <div><strong>Status:</strong> <span class="project-status-badge ${project.status}">${project.status}</span></div>
+          ${project.description ? `<div><strong>Description:</strong> ${escapeHtml(project.description)}</div>` : ''}
+          ${project.priority ? `<div><strong>Priority:</strong> ${project.priority}</div>` : ''}
+          ${project.start_date ? `<div><strong>Start:</strong> ${project.start_date}</div>` : ''}
+          ${project.end_date ? `<div><strong>End:</strong> ${project.end_date}</div>` : ''}
+        `;
+        document.getElementById('project-info').innerHTML = infoHtml;
+
+        // Render notes
+        const notesContainer = document.getElementById('project-notes-list');
+        if (project.notes_list && project.notes_list.length > 0) {
+          notesContainer.innerHTML = project.notes_list.map(note => `
+            <div class="note-item">
+              <div class="note-header">
+                <span class="note-date">${note.note_date}</span>
+                <button class="note-delete" onclick="AssistantMain.deleteProjectNote(${note.id}); event.stopPropagation();">×</button>
+              </div>
+              <div class="note-content">${escapeHtml(note.content)}</div>
+            </div>
+          `).join('');
+        } else {
+          notesContainer.innerHTML = '<div class="empty">No notes yet</div>';
+        }
+
+        document.getElementById('project-detail-panel').style.display = 'block';
+      }
+    } catch (err) {
+      console.error('Failed to load project:', err);
+    }
+  }
+
+  function addProject() {
+    document.getElementById('project-modal-title').textContent = 'Add Project';
+    document.getElementById('project-id').value = '';
+    document.getElementById('project-name').value = '';
+    document.getElementById('project-description').value = '';
+    document.getElementById('project-status').value = 'active';
+    document.getElementById('project-priority').value = 'medium';
+    document.getElementById('project-start-date').value = '';
+    document.getElementById('project-end-date').value = '';
+    document.getElementById('project-modal').style.display = 'flex';
+  }
+
+  function editProject() {
+    if (!currentProjectId) return;
+    const project = projectsList.find(p => p.id === currentProjectId);
+    if (!project) return;
+
+    document.getElementById('project-modal-title').textContent = 'Edit Project';
+    document.getElementById('project-id').value = project.id;
+    document.getElementById('project-name').value = project.name || '';
+    document.getElementById('project-description').value = project.description || '';
+    document.getElementById('project-status').value = project.status || 'active';
+    document.getElementById('project-priority').value = project.priority || 'medium';
+    document.getElementById('project-start-date').value = project.start_date || '';
+    document.getElementById('project-end-date').value = project.end_date || '';
+    document.getElementById('project-modal').style.display = 'flex';
+  }
+
+  function closeProjectModal() {
+    document.getElementById('project-modal').style.display = 'none';
+  }
+
+  async function saveProject() {
+    const id = document.getElementById('project-id').value;
+    const data = {
+      name: document.getElementById('project-name').value.trim(),
+      description: document.getElementById('project-description').value.trim(),
+      status: document.getElementById('project-status').value,
+      priority: document.getElementById('project-priority').value,
+      start_date: document.getElementById('project-start-date').value || null,
+      end_date: document.getElementById('project-end-date').value || null
+    };
+
+    if (!data.name) {
+      alert('Project name is required');
+      return;
+    }
+
+    try {
+      const url = id ? `/assistant/api/projects/${id}` : '/assistant/api/projects';
+      const method = id ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closeProjectModal();
+        loadProjects();
+        if (id) selectProject(parseInt(id));
+      } else {
+        alert(result.error || 'Failed to save project');
+      }
+    } catch (err) {
+      console.error('Failed to save project:', err);
+      alert('Failed to save project');
+    }
+  }
+
+  async function deleteProject() {
+    if (!currentProjectId) return;
+    if (!confirm('Are you sure you want to delete this project?')) return;
+
+    try {
+      const res = await fetch(`/assistant/api/projects/${currentProjectId}`, { method: 'DELETE' });
+      const result = await res.json();
+
+      if (result.success) {
+        currentProjectId = null;
+        document.getElementById('project-detail-panel').style.display = 'none';
+        loadProjects();
+      } else {
+        alert(result.error || 'Failed to delete project');
+      }
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    }
+  }
+
+  function addProjectNote() {
+    if (!currentProjectId) return;
+    document.getElementById('project-note-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('project-note-content').value = '';
+    document.getElementById('project-note-modal').style.display = 'flex';
+  }
+
+  function closeProjectNoteModal() {
+    document.getElementById('project-note-modal').style.display = 'none';
+  }
+
+  async function saveProjectNote() {
+    const data = {
+      note_date: document.getElementById('project-note-date').value,
+      content: document.getElementById('project-note-content').value.trim()
+    };
+
+    if (!data.content) {
+      alert('Note content is required');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/assistant/api/projects/${currentProjectId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closeProjectNoteModal();
+        selectProject(currentProjectId);
+      } else {
+        alert(result.error || 'Failed to save note');
+      }
+    } catch (err) {
+      console.error('Failed to save note:', err);
+    }
+  }
+
+  async function deleteProjectNote(noteId) {
+    if (!confirm('Delete this note?')) return;
+
+    try {
+      const res = await fetch(`/assistant/api/projects/notes/${noteId}`, { method: 'DELETE' });
+      const result = await res.json();
+
+      if (result.success) {
+        selectProject(currentProjectId);
+      }
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
+  }
+
+  function searchProjects() {
+    loadProjects();
+  }
+
+  function filterProjectsByStatus(status) {
+    projectStatusFilter = status;
+    // Update button active state
+    document.querySelectorAll('#section-projects .filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.status === status);
+    });
+    loadProjects();
+  }
+
+  // ===== Quick Input for People/Projects =====
+  function setQuickInputType(type) {
+    quickInputType = type;
+    // Update button styles
+    document.querySelectorAll('.input-type-toggle .toggle-btn').forEach(btn => {
+      if (btn.dataset.type === type) {
+        btn.style.background = 'var(--primary-light)';
+        btn.style.color = 'var(--primary-dark)';
+      } else {
+        btn.style.background = 'white';
+        btn.style.color = 'var(--text-secondary)';
+      }
+    });
+
+    // Update placeholder
+    const textarea = document.getElementById('input-box-people');
+    if (textarea) {
+      if (type === 'people') {
+        textarea.placeholder = '예: 홍길동 집사 12월 10일 담낭암 수술 예정...';
+      } else {
+        textarea.placeholder = '예: 교회 리모델링 프로젝트 1차 설계 검토 완료...';
+      }
+    }
+  }
+
+  let parsedPeopleData = null;
+
+  async function analyzeInputPeople() {
+    const inputText = document.getElementById('input-box-people').value.trim();
+    if (!inputText) {
+      alert('Please enter some text');
+      return;
+    }
+
+    const btn = document.getElementById('btn-analyze-people');
+    const originalText = btn.textContent;
+    btn.textContent = 'Analyzing...';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch('/assistant/api/analyze-input-people', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, type: quickInputType })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        parsedPeopleData = data.parsed;
+
+        // Display parsed result
+        const resultDiv = document.getElementById('parsed-result-people');
+        const infoDiv = document.getElementById('parsed-people-info');
+
+        if (quickInputType === 'people') {
+          infoDiv.innerHTML = `
+            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;">
+              <div><strong>Name:</strong> ${escapeHtml(data.parsed.name || '')}</div>
+              <div><strong>Category:</strong> ${escapeHtml(data.parsed.category || '-')}</div>
+              <div><strong>Date:</strong> ${data.parsed.note_date || '-'}</div>
+              <div><strong>Note:</strong> ${escapeHtml(data.parsed.note_content || '-')}</div>
+            </div>
+          `;
+        } else {
+          infoDiv.innerHTML = `
+            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;">
+              <div><strong>Project:</strong> ${escapeHtml(data.parsed.name || '')}</div>
+              <div><strong>Description:</strong> ${escapeHtml(data.parsed.description || '-')}</div>
+              <div><strong>Date:</strong> ${data.parsed.note_date || '-'}</div>
+              <div><strong>Note:</strong> ${escapeHtml(data.parsed.note_content || '-')}</div>
+              <div><strong>Priority:</strong> ${data.parsed.priority || 'medium'}</div>
+            </div>
+          `;
+        }
+
+        resultDiv.style.display = 'block';
+      } else {
+        alert(data.error || 'Failed to analyze input');
+      }
+    } catch (err) {
+      console.error('Failed to analyze:', err);
+      alert('Failed to analyze input');
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  }
+
+  async function saveParsedPeople() {
+    if (!parsedPeopleData) return;
+
+    try {
+      const url = quickInputType === 'people'
+        ? '/assistant/api/quick-add-people'
+        : '/assistant/api/quick-add-project';
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsedPeopleData)
+      });
+
+      const result = await res.json();
+
+      if (result.success) {
+        alert(result.message);
+        document.getElementById('input-box-people').value = '';
+        document.getElementById('parsed-result-people').style.display = 'none';
+        parsedPeopleData = null;
+
+        // Refresh the list if on that section
+        if (quickInputType === 'people') {
+          loadPeople();
+        } else {
+          loadProjects();
+        }
+      } else {
+        alert(result.error || 'Failed to save');
+      }
+    } catch (err) {
+      console.error('Failed to save:', err);
+      alert('Failed to save');
+    }
+  }
+
   // ===== Initialize on DOM Ready =====
   document.addEventListener('DOMContentLoaded', init);
 
@@ -1683,6 +2313,38 @@ const AssistantMain = (() => {
     togglePersonSelection,
     selectAllUnderAttending,
     generateMessages,
-    copyMessage
+    copyMessage,
+    // People functions
+    loadPeople,
+    selectPerson,
+    addPerson,
+    editPerson,
+    closePersonModal,
+    savePerson,
+    deletePerson,
+    addPersonNote,
+    closePersonNoteModal,
+    savePersonNote,
+    deletePersonNote,
+    searchPeople,
+    filterPeopleByCategory,
+    // Projects functions
+    loadProjects,
+    selectProject,
+    addProject,
+    editProject,
+    closeProjectModal,
+    saveProject,
+    deleteProject,
+    addProjectNote,
+    closeProjectNoteModal,
+    saveProjectNote,
+    deleteProjectNote,
+    searchProjects,
+    filterProjectsByStatus,
+    // Quick Input People/Projects
+    setQuickInputType,
+    analyzeInputPeople,
+    saveParsedPeople
   };
 })();

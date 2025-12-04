@@ -226,6 +226,61 @@ def init_assistant_db():
             cursor.execute('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS group_name VARCHAR(100)')
         except Exception:
             pass
+
+        # People 테이블 (인물 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS people (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                category VARCHAR(100),
+                phone VARCHAR(50),
+                email VARCHAR(200),
+                address TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # People Notes 테이블 (인물별 누적 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS people_notes (
+                id SERIAL PRIMARY KEY,
+                person_id INTEGER REFERENCES people(id) ON DELETE CASCADE,
+                note_date DATE NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Projects 테이블 (프로젝트 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(300) NOT NULL,
+                description TEXT,
+                status VARCHAR(50) DEFAULT 'active',
+                start_date DATE,
+                end_date DATE,
+                priority VARCHAR(20) DEFAULT 'medium',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Project Notes 테이블 (프로젝트별 누적 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS project_notes (
+                id SERIAL PRIMARY KEY,
+                project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+                note_date DATE NOT NULL,
+                content TEXT NOT NULL,
+                category VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     else:
         # SQLite 스키마
         cursor.execute('''
@@ -286,6 +341,62 @@ def init_assistant_db():
             cursor.execute('ALTER TABLE attendance ADD COLUMN group_name TEXT')
         except Exception:
             pass
+
+        # People 테이블 (인물 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS people (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                category TEXT,
+                phone TEXT,
+                email TEXT,
+                address TEXT,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # People Notes 테이블 (인물별 누적 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS people_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id INTEGER NOT NULL,
+                note_date DATE NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (person_id) REFERENCES people(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Projects 테이블 (프로젝트 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'active',
+                start_date DATE,
+                end_date DATE,
+                priority TEXT DEFAULT 'medium',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Project Notes 테이블 (프로젝트별 누적 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS project_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                note_date DATE NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            )
+        ''')
 
     conn.commit()
     conn.close()
@@ -2188,6 +2299,662 @@ def refresh_news():
                 'error': 'GPT 분석에 실패했습니다.'
             }), 500
 
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===== People (인물 관리) API =====
+@assistant_bp.route('/assistant/api/people', methods=['GET'])
+def get_people():
+    """인물 목록 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        search = request.args.get('search', '')
+        category = request.args.get('category', '')
+
+        if USE_POSTGRES:
+            query = 'SELECT * FROM people WHERE 1=1'
+            params = []
+            if search:
+                query += ' AND name ILIKE %s'
+                params.append(f'%{search}%')
+            if category:
+                query += ' AND category = %s'
+                params.append(category)
+            query += ' ORDER BY updated_at DESC'
+            cursor.execute(query, params)
+        else:
+            query = 'SELECT * FROM people WHERE 1=1'
+            params = []
+            if search:
+                query += ' AND name LIKE ?'
+                params.append(f'%{search}%')
+            if category:
+                query += ' AND category = ?'
+                params.append(category)
+            query += ' ORDER BY updated_at DESC'
+            cursor.execute(query, params)
+
+        people = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'success': True, 'people': people})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people', methods=['POST'])
+def create_person():
+    """새 인물 생성"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': '이름은 필수입니다.'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO people (name, category, phone, email, address, notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes')))
+            person_id = cursor.fetchone()['id']
+        else:
+            cursor.execute('''
+                INSERT INTO people (name, category, phone, email, address, notes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes')))
+            person_id = cursor.lastrowid
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'id': person_id, 'message': f'{name} 인물이 추가되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people/<int:person_id>', methods=['GET'])
+def get_person(person_id):
+    """특정 인물 상세 조회 (노트 포함)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM people WHERE id = %s', (person_id,))
+        else:
+            cursor.execute('SELECT * FROM people WHERE id = ?', (person_id,))
+
+        person = cursor.fetchone()
+        if not person:
+            conn.close()
+            return jsonify({'success': False, 'error': '인물을 찾을 수 없습니다.'}), 404
+
+        person = dict(person)
+
+        # 노트 목록도 함께 조회
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT * FROM people_notes WHERE person_id = %s ORDER BY note_date DESC, created_at DESC
+            ''', (person_id,))
+        else:
+            cursor.execute('''
+                SELECT * FROM people_notes WHERE person_id = ? ORDER BY note_date DESC, created_at DESC
+            ''', (person_id,))
+
+        notes = [dict(row) for row in cursor.fetchall()]
+        person['notes_list'] = notes
+
+        conn.close()
+        return jsonify({'success': True, 'person': person})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people/<int:person_id>', methods=['PUT'])
+def update_person(person_id):
+    """인물 정보 수정"""
+    try:
+        data = request.get_json()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                UPDATE people SET name = %s, category = %s, phone = %s, email = %s, address = %s, notes = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            ''', (data.get('name'), data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes'), person_id))
+        else:
+            cursor.execute('''
+                UPDATE people SET name = ?, category = ?, phone = ?, email = ?, address = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (data.get('name'), data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes'), person_id))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '인물 정보가 수정되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people/<int:person_id>', methods=['DELETE'])
+def delete_person(person_id):
+    """인물 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM people WHERE id = %s', (person_id,))
+        else:
+            cursor.execute('DELETE FROM people WHERE id = ?', (person_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '인물이 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people/<int:person_id>/notes', methods=['POST'])
+def add_person_note(person_id):
+    """인물에 노트 추가"""
+    try:
+        data = request.get_json()
+        content = data.get('content', '').strip()
+        if not content:
+            return jsonify({'success': False, 'error': '내용은 필수입니다.'}), 400
+
+        note_date = data.get('note_date', date.today().isoformat())
+        category = data.get('category')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO people_notes (person_id, note_date, content, category)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            ''', (person_id, note_date, content, category))
+            note_id = cursor.fetchone()['id']
+            # 인물의 updated_at 갱신
+            cursor.execute('UPDATE people SET updated_at = CURRENT_TIMESTAMP WHERE id = %s', (person_id,))
+        else:
+            cursor.execute('''
+                INSERT INTO people_notes (person_id, note_date, content, category)
+                VALUES (?, ?, ?, ?)
+            ''', (person_id, note_date, content, category))
+            note_id = cursor.lastrowid
+            cursor.execute('UPDATE people SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (person_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'id': note_id, 'message': '노트가 추가되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/people/notes/<int:note_id>', methods=['DELETE'])
+def delete_person_note(note_id):
+    """인물 노트 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM people_notes WHERE id = %s', (note_id,))
+        else:
+            cursor.execute('DELETE FROM people_notes WHERE id = ?', (note_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '노트가 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===== Projects (프로젝트 관리) API =====
+@assistant_bp.route('/assistant/api/projects', methods=['GET'])
+def get_projects():
+    """프로젝트 목록 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        status = request.args.get('status', '')
+        search = request.args.get('search', '')
+
+        if USE_POSTGRES:
+            query = 'SELECT * FROM projects WHERE 1=1'
+            params = []
+            if status:
+                query += ' AND status = %s'
+                params.append(status)
+            if search:
+                query += ' AND name ILIKE %s'
+                params.append(f'%{search}%')
+            query += ' ORDER BY updated_at DESC'
+            cursor.execute(query, params)
+        else:
+            query = 'SELECT * FROM projects WHERE 1=1'
+            params = []
+            if status:
+                query += ' AND status = ?'
+                params.append(status)
+            if search:
+                query += ' AND name LIKE ?'
+                params.append(f'%{search}%')
+            query += ' ORDER BY updated_at DESC'
+            cursor.execute(query, params)
+
+        projects = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'success': True, 'projects': projects})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects', methods=['POST'])
+def create_project():
+    """새 프로젝트 생성"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': '프로젝트 이름은 필수입니다.'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO projects (name, description, status, start_date, end_date, priority)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (name, data.get('description'), data.get('status', 'active'), data.get('start_date'), data.get('end_date'), data.get('priority', 'medium')))
+            project_id = cursor.fetchone()['id']
+        else:
+            cursor.execute('''
+                INSERT INTO projects (name, description, status, start_date, end_date, priority)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (name, data.get('description'), data.get('status', 'active'), data.get('start_date'), data.get('end_date'), data.get('priority', 'medium')))
+            project_id = cursor.lastrowid
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'id': project_id, 'message': f'{name} 프로젝트가 생성되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects/<int:project_id>', methods=['GET'])
+def get_project(project_id):
+    """특정 프로젝트 상세 조회 (노트 포함)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM projects WHERE id = %s', (project_id,))
+        else:
+            cursor.execute('SELECT * FROM projects WHERE id = ?', (project_id,))
+
+        project = cursor.fetchone()
+        if not project:
+            conn.close()
+            return jsonify({'success': False, 'error': '프로젝트를 찾을 수 없습니다.'}), 404
+
+        project = dict(project)
+
+        # 노트 목록도 함께 조회
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT * FROM project_notes WHERE project_id = %s ORDER BY note_date DESC, created_at DESC
+            ''', (project_id,))
+        else:
+            cursor.execute('''
+                SELECT * FROM project_notes WHERE project_id = ? ORDER BY note_date DESC, created_at DESC
+            ''', (project_id,))
+
+        notes = [dict(row) for row in cursor.fetchall()]
+        project['notes_list'] = notes
+
+        conn.close()
+        return jsonify({'success': True, 'project': project})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects/<int:project_id>', methods=['PUT'])
+def update_project(project_id):
+    """프로젝트 정보 수정"""
+    try:
+        data = request.get_json()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                UPDATE projects SET name = %s, description = %s, status = %s, start_date = %s, end_date = %s, priority = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            ''', (data.get('name'), data.get('description'), data.get('status'), data.get('start_date'), data.get('end_date'), data.get('priority'), project_id))
+        else:
+            cursor.execute('''
+                UPDATE projects SET name = ?, description = ?, status = ?, start_date = ?, end_date = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            ''', (data.get('name'), data.get('description'), data.get('status'), data.get('start_date'), data.get('end_date'), data.get('priority'), project_id))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '프로젝트 정보가 수정되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects/<int:project_id>', methods=['DELETE'])
+def delete_project(project_id):
+    """프로젝트 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM projects WHERE id = %s', (project_id,))
+        else:
+            cursor.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '프로젝트가 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects/<int:project_id>/notes', methods=['POST'])
+def add_project_note(project_id):
+    """프로젝트에 노트 추가"""
+    try:
+        data = request.get_json()
+        content = data.get('content', '').strip()
+        if not content:
+            return jsonify({'success': False, 'error': '내용은 필수입니다.'}), 400
+
+        note_date = data.get('note_date', date.today().isoformat())
+        category = data.get('category')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO project_notes (project_id, note_date, content, category)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            ''', (project_id, note_date, content, category))
+            note_id = cursor.fetchone()['id']
+            cursor.execute('UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s', (project_id,))
+        else:
+            cursor.execute('''
+                INSERT INTO project_notes (project_id, note_date, content, category)
+                VALUES (?, ?, ?, ?)
+            ''', (project_id, note_date, content, category))
+            note_id = cursor.lastrowid
+            cursor.execute('UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (project_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'id': note_id, 'message': '노트가 추가되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects/notes/<int:note_id>', methods=['DELETE'])
+def delete_project_note(note_id):
+    """프로젝트 노트 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM project_notes WHERE id = %s', (note_id,))
+        else:
+            cursor.execute('DELETE FROM project_notes WHERE id = ?', (note_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '노트가 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===== AI 분석 (Quick Input for People/Project) =====
+@assistant_bp.route('/assistant/api/analyze-input-people', methods=['POST'])
+def analyze_input_people():
+    """
+    Quick Input 텍스트를 AI로 분석하여 인물/프로젝트 정보 추출
+    예: "홍길동 집사 12월 10일 담낭암 수술" -> 인물: 홍길동 집사, 노트: 12월 10일 담낭암 수술
+    """
+    try:
+        data = request.get_json()
+        input_text = data.get('text', '').strip()
+        input_type = data.get('type', 'people')  # 'people' or 'project'
+
+        if not input_text:
+            return jsonify({'success': False, 'error': '입력 텍스트가 없습니다.'}), 400
+
+        client = OpenAI()
+
+        if input_type == 'people':
+            system_prompt = """당신은 텍스트에서 인물 정보를 추출하는 AI입니다.
+입력된 텍스트에서 다음을 추출하세요:
+1. 인물 이름 (name): 이름과 직함/호칭을 함께 (예: "홍길동 집사", "김영희 권사")
+2. 카테고리 (category): 교회 직분 또는 관계 (예: "집사", "권사", "장로", "청년부" 등)
+3. 노트 날짜 (note_date): 언급된 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
+4. 노트 내용 (note_content): 인물에 관한 상황/내용 요약
+
+JSON 형식으로 반환:
+{
+  "name": "홍길동 집사",
+  "category": "집사",
+  "note_date": "2024-12-10",
+  "note_content": "담낭암 수술 예정"
+}
+"""
+        else:  # project
+            system_prompt = """당신은 텍스트에서 프로젝트 정보를 추출하는 AI입니다.
+입력된 텍스트에서 다음을 추출하세요:
+1. 프로젝트 이름 (name): 프로젝트/업무 명칭
+2. 설명 (description): 프로젝트 간략 설명
+3. 노트 날짜 (note_date): 언급된 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
+4. 노트 내용 (note_content): 진행 상황/내용 요약
+5. 우선순위 (priority): high, medium, low 중 하나
+
+JSON 형식으로 반환:
+{
+  "name": "교회 리모델링",
+  "description": "교회 본당 리모델링 프로젝트",
+  "note_date": "2024-12-10",
+  "note_content": "설계 도면 검토 완료",
+  "priority": "high"
+}
+"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": input_text}
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # JSON 파싱
+        import json
+        # ```json ... ``` 형식 제거
+        if '```' in result_text:
+            result_text = result_text.split('```')[1]
+            if result_text.startswith('json'):
+                result_text = result_text[4:]
+            result_text = result_text.strip()
+
+        parsed_result = json.loads(result_text)
+
+        return jsonify({'success': True, 'parsed': parsed_result, 'type': input_type})
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'error': 'AI 응답을 파싱할 수 없습니다.'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/quick-add-people', methods=['POST'])
+def quick_add_people():
+    """
+    AI 분석 결과를 바탕으로 인물/노트를 빠르게 추가
+    기존 인물이면 노트만 추가, 새 인물이면 인물 생성 후 노트 추가
+    """
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        category = data.get('category')
+        note_date = data.get('note_date', date.today().isoformat())
+        note_content = data.get('note_content', '').strip()
+
+        if not name:
+            return jsonify({'success': False, 'error': '이름은 필수입니다.'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 기존 인물 검색 (이름으로)
+        if USE_POSTGRES:
+            cursor.execute('SELECT id FROM people WHERE name = %s', (name,))
+        else:
+            cursor.execute('SELECT id FROM people WHERE name = ?', (name,))
+
+        existing = cursor.fetchone()
+
+        if existing:
+            person_id = existing['id'] if USE_POSTGRES else existing[0]
+            message = f'기존 인물 "{name}"에 노트가 추가되었습니다.'
+        else:
+            # 새 인물 생성
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO people (name, category)
+                    VALUES (%s, %s)
+                    RETURNING id
+                ''', (name, category))
+                person_id = cursor.fetchone()['id']
+            else:
+                cursor.execute('''
+                    INSERT INTO people (name, category)
+                    VALUES (?, ?)
+                ''', (name, category))
+                person_id = cursor.lastrowid
+            message = f'새 인물 "{name}"이(가) 생성되고 노트가 추가되었습니다.'
+
+        # 노트 추가
+        if note_content:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO people_notes (person_id, note_date, content, category)
+                    VALUES (%s, %s, %s, %s)
+                ''', (person_id, note_date, note_content, category))
+                cursor.execute('UPDATE people SET updated_at = CURRENT_TIMESTAMP WHERE id = %s', (person_id,))
+            else:
+                cursor.execute('''
+                    INSERT INTO people_notes (person_id, note_date, content, category)
+                    VALUES (?, ?, ?, ?)
+                ''', (person_id, note_date, note_content, category))
+                cursor.execute('UPDATE people SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (person_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'person_id': person_id, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/quick-add-project', methods=['POST'])
+def quick_add_project():
+    """
+    AI 분석 결과를 바탕으로 프로젝트/노트를 빠르게 추가
+    기존 프로젝트면 노트만 추가, 새 프로젝트면 프로젝트 생성 후 노트 추가
+    """
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        description = data.get('description')
+        priority = data.get('priority', 'medium')
+        note_date = data.get('note_date', date.today().isoformat())
+        note_content = data.get('note_content', '').strip()
+
+        if not name:
+            return jsonify({'success': False, 'error': '프로젝트 이름은 필수입니다.'}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 기존 프로젝트 검색 (이름으로)
+        if USE_POSTGRES:
+            cursor.execute('SELECT id FROM projects WHERE name = %s', (name,))
+        else:
+            cursor.execute('SELECT id FROM projects WHERE name = ?', (name,))
+
+        existing = cursor.fetchone()
+
+        if existing:
+            project_id = existing['id'] if USE_POSTGRES else existing[0]
+            message = f'기존 프로젝트 "{name}"에 노트가 추가되었습니다.'
+        else:
+            # 새 프로젝트 생성
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO projects (name, description, priority)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                ''', (name, description, priority))
+                project_id = cursor.fetchone()['id']
+            else:
+                cursor.execute('''
+                    INSERT INTO projects (name, description, priority)
+                    VALUES (?, ?, ?)
+                ''', (name, description, priority))
+                project_id = cursor.lastrowid
+            message = f'새 프로젝트 "{name}"이(가) 생성되고 노트가 추가되었습니다.'
+
+        # 노트 추가
+        if note_content:
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO project_notes (project_id, note_date, content)
+                    VALUES (%s, %s, %s)
+                ''', (project_id, note_date, note_content))
+                cursor.execute('UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = %s', (project_id,))
+            else:
+                cursor.execute('''
+                    INSERT INTO project_notes (project_id, note_date, content)
+                    VALUES (?, ?, ?)
+                ''', (project_id, note_date, note_content))
+                cursor.execute('UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (project_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'project_id': project_id, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
