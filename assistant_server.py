@@ -710,6 +710,16 @@ def delete_task(task_id):
 
 
 # ===== Mac 연동 API (Shortcuts 호출용) =====
+@assistant_bp.route('/assistant/api/sync/health', methods=['GET', 'POST'])
+def sync_health():
+    """Mac 단축어 연결 테스트용 health check"""
+    return jsonify({
+        'success': True,
+        'message': 'Server is running',
+        'timestamp': datetime.now().isoformat()
+    })
+
+
 @assistant_bp.route('/assistant/api/sync/from-mac', methods=['POST'])
 def sync_from_mac():
     """
@@ -717,7 +727,37 @@ def sync_from_mac():
     Body: { "events": [...], "tasks": [...] }
     """
     try:
-        data = request.get_json()
+        # 요청 정보 로깅
+        print(f"[SYNC-FROM-MAC] Content-Type: {request.content_type}")
+        print(f"[SYNC-FROM-MAC] Content-Length: {request.content_length}")
+
+        # JSON 파싱 시도 (여러 방법으로)
+        data = None
+        raw_data = None
+
+        try:
+            # 방법 1: get_json() 사용
+            data = request.get_json(force=True, silent=True)
+        except Exception as json_error:
+            print(f"[SYNC-FROM-MAC] get_json 실패: {json_error}")
+
+        if not data:
+            # 방법 2: 원본 데이터에서 직접 파싱
+            try:
+                raw_data = request.get_data(as_text=True)
+                print(f"[SYNC-FROM-MAC] 원본 데이터 (처음 500자): {raw_data[:500] if raw_data else 'EMPTY'}")
+                if raw_data:
+                    data = json.loads(raw_data)
+            except Exception as raw_error:
+                print(f"[SYNC-FROM-MAC] 원본 데이터 파싱 실패: {raw_error}")
+
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'JSON 파싱 실패. Content-Type을 application/json으로 설정하세요.',
+                'received_content_type': request.content_type,
+                'raw_preview': raw_data[:200] if raw_data else None
+            }), 400
 
         # 디버그 로그: 수신된 원본 데이터 출력
         print(f"[SYNC-FROM-MAC] 수신된 원본 데이터: {json.dumps(data, ensure_ascii=False, indent=2)}")
@@ -817,14 +857,23 @@ def sync_from_mac():
         conn.commit()
         conn.close()
 
-        return jsonify({
+        result = {
             'success': True,
             'message': f'Mac에서 동기화 완료: 이벤트 {events_added}개, 태스크 {tasks_added}개',
             'events_added': events_added,
             'tasks_added': tasks_added
-        })
+        }
+        print(f"[SYNC-FROM-MAC] 완료: {result}")
+        return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"[SYNC-FROM-MAC] 오류 발생: {error_detail}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'detail': error_detail
+        }), 500
 
 
 @assistant_bp.route('/assistant/api/sync/to-mac', methods=['GET'])
@@ -913,11 +962,51 @@ def sync_to_mac():
                 if task.get(key) and not isinstance(task[key], str):
                     task[key] = task[key].isoformat() if hasattr(task[key], 'isoformat') else str(task[key])
 
+        # 자동으로 synced 처리 (auto_mark 파라미터가 false가 아닌 경우)
+        auto_mark = request.args.get('auto_mark', 'true').lower() != 'false'
+        if auto_mark and (events or tasks):
+            conn2 = get_db_connection()
+            cursor2 = conn2.cursor()
+
+            event_ids = [e['id'] for e in events]
+            task_ids = [t['id'] for t in tasks]
+
+            if event_ids:
+                if USE_POSTGRES:
+                    cursor2.execute('''
+                        UPDATE events SET sync_status = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ANY(%s)
+                    ''', ('synced', event_ids))
+                else:
+                    placeholders = ','.join('?' * len(event_ids))
+                    cursor2.execute(f'''
+                        UPDATE events SET sync_status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id IN ({placeholders})
+                    ''', ['synced'] + event_ids)
+
+            if task_ids:
+                if USE_POSTGRES:
+                    cursor2.execute('''
+                        UPDATE tasks SET sync_status = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ANY(%s)
+                    ''', ('synced', task_ids))
+                else:
+                    placeholders = ','.join('?' * len(task_ids))
+                    cursor2.execute(f'''
+                        UPDATE tasks SET sync_status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id IN ({placeholders})
+                    ''', ['synced'] + task_ids)
+
+            conn2.commit()
+            conn2.close()
+            print(f"[SYNC-TO-MAC] 자동 synced 처리: events={len(event_ids)}, tasks={len(task_ids)}")
+
         return jsonify({
             'success': True,
             'events': events,
             'tasks': tasks,
-            'total_pending': len(events) + len(tasks)
+            'total_pending': len(events) + len(tasks),
+            'auto_marked_synced': auto_mark
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
