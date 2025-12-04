@@ -127,13 +127,19 @@ const ImageMain = {
       const data = await response.json();
       this.analyzedData = data;
 
+      console.log('[ImageMain] API Response:', data);
+      console.log('[ImageMain] Scenes count:', data.scenes?.length || 0);
+      console.log('[ImageMain] Thumbnail:', data.thumbnail);
+
       // 유튜브 메타데이터 렌더링
       this.renderYoutubeMetadata(data.youtube || {});
 
       // 씬 카드 렌더링
+      console.log('[ImageMain] Rendering scene cards...');
       this.renderSceneCards(data.scenes || []);
 
       // 썸네일 텍스트 옵션 렌더링 + 첫 번째 자동 선택
+      console.log('[ImageMain] Rendering thumbnail options...');
       this.renderThumbnailTextOptions(data.thumbnail || {});
 
       // 분석 완료
@@ -236,29 +242,37 @@ const ImageMain = {
     const optionsContainer = document.getElementById('thumbnail-text-options');
     const generateBtn = document.getElementById('btn-generate-with-text');
 
-    if (!thumbnail || !thumbnail.text_options || thumbnail.text_options.length === 0) {
-      // text_options가 없으면 기존 text_lines 사용 시도
-      if (thumbnail.text_lines && thumbnail.text_lines.length > 0) {
-        this.selectedThumbnailText = thumbnail.text_lines[0];
-        generateBtn.disabled = false;
-      }
+    // text_options 또는 text_lines 중 하나라도 있으면 사용
+    let options = thumbnail?.text_options || thumbnail?.text_lines || [];
+
+    if (options.length === 0) {
       section.classList.remove('hidden');
+      optionsContainer.innerHTML = '<div class="no-options">썸네일 텍스트 옵션이 없습니다.</div>';
       return;
     }
 
-    const options = thumbnail.text_options;
     let optionsHtml = '';
     options.forEach((text, idx) => {
       // 첫 번째 옵션 자동 선택
       const isSelected = idx === 0;
+      const escapedText = this.escapeHtml(text);
       optionsHtml += `
-        <div class="text-option${isSelected ? ' selected' : ''}" onclick="ImageMain.selectThumbnailText(${idx}, '${this.escapeHtml(text).replace(/'/g, "\\'")}')">
+        <div class="text-option${isSelected ? ' selected' : ''}" data-idx="${idx}" data-text="${escapedText}">
           <input type="radio" name="thumbnail-text" value="${idx}" ${isSelected ? 'checked' : ''}>
-          <span class="text-preview">${this.escapeHtml(text)}</span>
+          <span class="text-preview">${escapedText}</span>
         </div>
       `;
     });
     optionsContainer.innerHTML = optionsHtml;
+
+    // 클릭 이벤트 바인딩 (onclick 대신)
+    optionsContainer.querySelectorAll('.text-option').forEach(el => {
+      el.addEventListener('click', () => {
+        const idx = parseInt(el.dataset.idx);
+        const text = el.dataset.text;
+        this.selectThumbnailText(idx, text);
+      });
+    });
 
     // 첫 번째 옵션 자동 선택
     this.selectedThumbnailText = options[0];
@@ -332,8 +346,10 @@ const ImageMain = {
    */
   renderSceneCards(scenes) {
     const container = document.getElementById('scene-cards');
+    console.log('[ImageMain] renderSceneCards called with', scenes?.length || 0, 'scenes');
 
     if (!scenes || scenes.length === 0) {
+      console.log('[ImageMain] No scenes, showing placeholder');
       container.style.display = 'none';
       document.getElementById('result-empty').style.display = 'flex';
       return;
