@@ -10149,7 +10149,9 @@ def api_image_generate_assets_zip():
         # 3. ZIP 파일 저장
         zip_buffer.seek(0)
         zip_filename = f"capcut_assets_{session_id}.zip"
-        zip_path = os.path.join(UPLOAD_DIR, zip_filename)
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
+        zip_path = os.path.join(upload_dir, zip_filename)
 
         with open(zip_path, 'wb') as f:
             f.write(zip_buffer.read())
