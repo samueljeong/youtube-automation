@@ -9997,6 +9997,7 @@ def api_image_generate_assets_zip():
         import requests
         import base64
         import uuid
+        from datetime import datetime
 
         data = request.get_json()
         session_id = data.get('session_id', str(uuid.uuid4())[:8])
