@@ -1333,10 +1333,10 @@
             <div class="tts-config">
               <label>음성 선택</label>
               <div class="voice-options">
-                <button type="button" class="voice-btn active" data-voice="ko-KR-Neural2-A" onclick="ImageMain.selectVoice(this)">
+                <button type="button" class="voice-btn" data-voice="ko-KR-Neural2-A" onclick="ImageMain.selectVoice(this)">
                   👩 여성 (차분)
                 </button>
-                <button type="button" class="voice-btn" data-voice="ko-KR-Neural2-C" onclick="ImageMain.selectVoice(this)">
+                <button type="button" class="voice-btn active" data-voice="ko-KR-Neural2-C" onclick="ImageMain.selectVoice(this)">
                   👨 남성 (중후)
                 </button>
                 <button type="button" class="voice-btn" data-voice="ko-KR-Neural2-B" onclick="ImageMain.selectVoice(this)">
@@ -1392,6 +1392,6 @@
 
   <!-- JavaScript -->
   <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241203"></script>
-  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241205a"></script>
+  <script src="{{ url_for('static', filename='js/image-main.js') }}?v={{ range(100000, 999999) | random }}"></script>
 </body>
 </html>
