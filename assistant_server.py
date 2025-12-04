@@ -913,11 +913,51 @@ def sync_to_mac():
                 if task.get(key) and not isinstance(task[key], str):
                     task[key] = task[key].isoformat() if hasattr(task[key], 'isoformat') else str(task[key])
 
+        # 자동으로 synced 처리 (auto_mark 파라미터가 false가 아닌 경우)
+        auto_mark = request.args.get('auto_mark', 'true').lower() != 'false'
+        if auto_mark and (events or tasks):
+            conn2 = get_db_connection()
+            cursor2 = conn2.cursor()
+
+            event_ids = [e['id'] for e in events]
+            task_ids = [t['id'] for t in tasks]
+
+            if event_ids:
+                if USE_POSTGRES:
+                    cursor2.execute('''
+                        UPDATE events SET sync_status = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ANY(%s)
+                    ''', ('synced', event_ids))
+                else:
+                    placeholders = ','.join('?' * len(event_ids))
+                    cursor2.execute(f'''
+                        UPDATE events SET sync_status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id IN ({placeholders})
+                    ''', ['synced'] + event_ids)
+
+            if task_ids:
+                if USE_POSTGRES:
+                    cursor2.execute('''
+                        UPDATE tasks SET sync_status = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ANY(%s)
+                    ''', ('synced', task_ids))
+                else:
+                    placeholders = ','.join('?' * len(task_ids))
+                    cursor2.execute(f'''
+                        UPDATE tasks SET sync_status = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id IN ({placeholders})
+                    ''', ['synced'] + task_ids)
+
+            conn2.commit()
+            conn2.close()
+            print(f"[SYNC-TO-MAC] 자동 synced 처리: events={len(event_ids)}, tasks={len(task_ids)}")
+
         return jsonify({
             'success': True,
             'events': events,
             'tasks': tasks,
-            'total_pending': len(events) + len(tasks)
+            'total_pending': len(events) + len(tasks),
+            'auto_marked_synced': auto_mark
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
