@@ -9755,21 +9755,53 @@ This creates contrast between the detailed anime world and the simple stickman.
 2. {thumbnail_instruction}
 3. 프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
 
-        print(f"[IMAGE-ANALYZE] GPT-4o로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type}, 타겟: {audience})")
+        print(f"[IMAGE-ANALYZE] GPT-5.1로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type}, 타겟: {audience})")
 
-        response = client.chat.completions.create(
-            model="gpt-4o",  # TODO: gpt-5.1은 Responses API 필요할 수 있음
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+        # GPT-5.1은 Responses API 사용
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": system_prompt
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": user_prompt + "\n\n반드시 유효한 JSON 형식으로만 응답해주세요. 다른 텍스트 없이 JSON만 출력하세요."
+                        }
+                    ]
+                }
             ],
-            temperature=0.7,
-            response_format={"type": "json_object"}
+            temperature=0.7
         )
 
-        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료")
+        print(f"[IMAGE-ANALYZE] GPT-5.1 응답 완료")
 
-        result_text = response.choices[0].message.content
+        # Responses API 결과 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱 (마크다운 코드블록 제거)
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+        result_text = result_text.strip()
         result = json.loads(result_text)
 
         return jsonify({
