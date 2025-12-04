@@ -2415,7 +2415,7 @@ const AssistantMain = (() => {
           loadProjects();
         }
         // 이벤트가 생성됐으면 대시보드도 새로고침
-        if (result.birthday_event_created || (result.events_created && result.events_created.length > 0)) {
+        if (result.birthday_event_created || result.note_event_created || (result.events_created && result.events_created.length > 0)) {
           loadDashboard();
         }
       } else if (result.error === 'duplicate_found') {

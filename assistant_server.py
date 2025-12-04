@@ -3260,6 +3260,7 @@ def quick_add_people():
                         print(f"[QUICK-ADD] 생일 이벤트 생성 실패: {e}")
 
         # 노트 추가
+        note_event_created = False
         if note_content:
             if USE_POSTGRES:
                 cursor.execute('''
@@ -3277,6 +3278,28 @@ def quick_add_people():
             if not is_new:
                 message += ' 노트가 추가되었습니다.'
 
+            # 노트에 날짜가 있으면 캘린더 이벤트 자동 생성 (오늘이 아닌 미래 날짜만)
+            if note_date and note_date != date.today().isoformat():
+                try:
+                    note_date_obj = datetime.strptime(note_date, '%Y-%m-%d').date()
+                    if note_date_obj >= date.today():  # 미래 또는 오늘 날짜만
+                        # 이벤트 제목: 인물명 - 노트 내용 요약
+                        event_title = f'👤 {name} - {note_content[:30]}{"..." if len(note_content) > 30 else ""}'
+                        if USE_POSTGRES:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            ''', (event_title, f'{note_date}T09:00:00', f'{note_date}T10:00:00', '심방', 'web', 'pending_to_mac'))
+                        else:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (event_title, f'{note_date}T09:00:00', f'{note_date}T10:00:00', '심방', 'web', 'pending_to_mac'))
+                        note_event_created = True
+                        message += f' 캘린더에 {note_date} 일정이 추가되었습니다.'
+                except Exception as e:
+                    print(f"[QUICK-ADD] 노트 일정 이벤트 생성 실패: {e}")
+
         conn.commit()
         conn.close()
 
@@ -3285,7 +3308,8 @@ def quick_add_people():
             'person_id': person_id,
             'message': message,
             'is_new': is_new,
-            'birthday_event_created': birthday_event_created
+            'birthday_event_created': birthday_event_created,
+            'note_event_created': note_event_created
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
