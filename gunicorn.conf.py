@@ -7,8 +7,9 @@ bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
 workers = int(os.environ.get('GUNICORN_WORKERS', '2'))
 worker_class = 'sync'
 worker_connections = 1000
-timeout = 120
+timeout = 600  # 10분 (영상 생성용)
 keepalive = 5
+graceful_timeout = 300  # graceful shutdown 5분
 
 # Logging
 accesslog = '-'

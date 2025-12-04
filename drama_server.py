@@ -10508,16 +10508,16 @@ def api_image_generate_video():
         if not scenes:
             return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
 
-        # 총 영상 길이 계산 및 제한 확인
+        # 총 영상 길이 계산
         total_duration = sum(s.get('duration', 0) for s in scenes)
-        MAX_DURATION = 90  # 최대 90초 (서버 타임아웃 방지)
+        MAX_DURATION = 540  # 최대 9분 (Gunicorn 10분 타임아웃 여유분 확보)
 
         if total_duration > MAX_DURATION:
             minutes = int(total_duration // 60)
             seconds = int(total_duration % 60)
             return jsonify({
                 "ok": False,
-                "error": f"영상이 너무 깁니다 ({minutes}분 {seconds}초). 서버 제한으로 {MAX_DURATION}초 이하만 가능합니다. ZIP 다운로드 후 CapCut에서 편집해주세요."
+                "error": f"영상이 너무 깁니다 ({minutes}분 {seconds}초). 최대 9분까지 가능합니다. ZIP 다운로드 후 CapCut에서 편집해주세요."
             }), 400
 
         print(f"[IMAGE-VIDEO] Starting video generation: {len(scenes)} scenes, lang={detected_lang}, total={total_duration:.1f}s")
@@ -10640,7 +10640,7 @@ def api_image_generate_video():
                         clip_path
                     ]
 
-                result = subprocess.run(cmd, capture_output=True, timeout=120)
+                result = subprocess.run(cmd, capture_output=True, timeout=300)  # 5분 타임아웃 (긴 씬용)
                 if result.returncode == 0 and os.path.exists(clip_path):
                     scene_videos.append(clip_path)
                 else:
