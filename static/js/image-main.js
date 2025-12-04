@@ -110,6 +110,7 @@ const ImageMain = {
     const contentType = document.getElementById('content-type').value;
     const imageStyle = document.getElementById('image-style').value;
     const imageCount = parseInt(document.getElementById('image-count').value) || 4;
+    const outputLanguage = document.getElementById('output-language')?.value || 'ko';
 
     // 분석 중 오버레이 표시
     document.getElementById('analyzing-overlay').classList.remove('hidden');
@@ -125,7 +126,8 @@ const ImageMain = {
           content_type: contentType,
           image_style: imageStyle,
           image_count: imageCount,
-          audience: this.audience  // 시니어/일반 구분
+          audience: this.audience,  // 시니어/일반 구분
+          output_language: outputLanguage  // 출력 언어 (ko/en/ja/auto)
         })
       });
 

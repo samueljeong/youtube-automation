@@ -9486,6 +9486,16 @@ def api_image_analyze_script():
         image_style = data.get('image_style', 'realistic')
         image_count = data.get('image_count', 4)  # 기본 4개
         audience = data.get('audience', 'senior')  # 시니어/일반 타겟
+        output_language = data.get('output_language', 'ko')  # 출력 언어 (ko/en/ja/auto)
+
+        # 언어 설정 매핑
+        language_config = {
+            'ko': {'name': 'Korean', 'native': '한국어', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Korean (한국어).'},
+            'en': {'name': 'English', 'native': 'English', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in English.'},
+            'ja': {'name': 'Japanese', 'native': '日本語', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Japanese (日本語).'},
+            'auto': {'name': 'Auto-detect', 'native': 'Auto', 'instruction': 'DETECT the language of the input script and write ALL outputs in THE SAME LANGUAGE.'}
+        }
+        lang_config = language_config.get(output_language, language_config['ko'])
 
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
@@ -9527,7 +9537,16 @@ def api_image_analyze_script():
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
             system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
-타겟 시청자: {'일반 (20-40대)' if audience == 'general' else '시니어 (50-70대)'}
+
+## ⚠️ LANGUAGE RULE (CRITICAL!) ⚠️
+Output Language: {lang_config['name']} ({lang_config['native']})
+{lang_config['instruction']}
+- YouTube titles, description → {lang_config['name']}
+- Thumbnail text → {lang_config['name']}
+- Narration → {lang_config['name']}
+- ONLY image_prompt → Always in English (for AI image generation)
+
+Target Audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
 ## CORE CONCEPT (CRITICAL!)
 The key visual style is:
@@ -9579,15 +9598,15 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 {{
   "youtube": {{
     "titles": [
-      "유튜브 제목 1 (클릭 유도, 50자 이내)",
-      "유튜브 제목 2 (감정 강조)",
-      "유튜브 제목 3 (궁금증 유발)",
-      "유튜브 제목 4 (경험 공유형)"
+      "Title 1 in {lang_config['name']} (click-inducing, max 50 chars)",
+      "Title 2 in {lang_config['name']} (emotional)",
+      "Title 3 in {lang_config['name']} (curiosity-driven)",
+      "Title 4 in {lang_config['name']} (experience-sharing)"
     ],
-    "description": "유튜브 설명란 (영상 내용 요약 + 해시태그 포함, 500자 이상)"
+    "description": "Description in {lang_config['name']} (video summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{
-    "text_options": ["썸네일 텍스트1 ({thumb_length})", "썸네일 텍스트2 ({thumb_length})", "썸네일 텍스트3 ({thumb_length})"],
+    "text_options": ["Thumbnail text 1 in {lang_config['name']}", "Thumbnail text 2 in {lang_config['name']}", "Thumbnail text 3 in {lang_config['name']}"],
     "text_color": "{thumb_color}",
     "outline_color": "{thumb_outline}",
     "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head and black outline, clean minimal flat style, [pose/action]. NO anime characters, NO realistic humans, ONLY stickman. Contrast collage style, detailed anime world with simple stickman."
@@ -9595,7 +9614,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
   "scenes": [
     {{
       "scene_number": 1,
-      "narration": "한국어 나레이션",
+      "narration": "Narration in {lang_config['name']} (same content as script)",
       "image_prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head and black outline, clean minimal flat style, [action]. NO anime characters, NO realistic humans, ONLY stickman. Contrast collage, detailed anime world with simple stickman."
     }}
   ]
@@ -9699,19 +9718,13 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 
             system_prompt = f"""You are an AI assistant that analyzes scripts and generates image prompts.
 
-## ⚠️⚠️⚠️ CRITICAL LANGUAGE RULE - READ THIS FIRST! ⚠️⚠️⚠️
-1. DETECT the language of the input script.
-2. OUTPUT titles, description, thumbnail text, and narration in THE EXACT SAME LANGUAGE as the script!
-   - If script is in ENGLISH → Write ALL text outputs in ENGLISH
-   - If script is in JAPANESE → Write ALL text outputs in JAPANESE
-   - If script is in KOREAN → Write ALL text outputs in KOREAN
-3. ONLY image_prompt should ALWAYS be in English (for AI image generation).
-4. Use natural expressions that native speakers of that language would use.
-
-Example:
-- English script "The company collapsed..." → English title "The Day Everything Fell Apart"
-- Japanese script "会社が崩壊した..." → Japanese title "すべてが崩壊した日"
-- Korean script "회사가 무너졌다..." → Korean title "모든 것이 무너진 날"
+## ⚠️ LANGUAGE RULE (CRITICAL!) ⚠️
+Output Language: {lang_config['name']} ({lang_config['native']})
+{lang_config['instruction']}
+- YouTube titles, description → {lang_config['name']}
+- Thumbnail text → {lang_config['name']}
+- Narration → {lang_config['name']}
+- ONLY image_prompt → Always in English (for AI image generation)
 
 Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
@@ -9747,33 +9760,31 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 {{
   "youtube": {{
     "titles": [
-      "Title 1 in SCRIPT LANGUAGE (click-inducing, max 50 chars)",
-      "Title 2 in SCRIPT LANGUAGE (emotional)",
-      "Title 3 in SCRIPT LANGUAGE (curiosity-driven)",
-      "Title 4 in SCRIPT LANGUAGE (experience-sharing)"
+      "Title 1 in {lang_config['name']} (click-inducing, max 50 chars)",
+      "Title 2 in {lang_config['name']} (emotional)",
+      "Title 3 in {lang_config['name']} (curiosity-driven)",
+      "Title 4 in {lang_config['name']} (experience-sharing)"
     ],
-    "description": "Description in SCRIPT LANGUAGE (summary + hashtags, 500+ chars)"
+    "description": "Description in {lang_config['name']} (summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{
     "text_options": [
-      "Thumbnail text 1 in SCRIPT LANGUAGE ({'4-7 chars' if audience == 'general' else '8-12 chars'})",
-      "Thumbnail text 2 in SCRIPT LANGUAGE",
-      "Thumbnail text 3 in SCRIPT LANGUAGE"
+      "Thumbnail text 1 in {lang_config['name']} ({'4-7 chars' if audience == 'general' else '8-12 chars'})",
+      "Thumbnail text 2 in {lang_config['name']}",
+      "Thumbnail text 3 in {lang_config['name']}"
     ],
     "text_color": "{thumbnail_color}",
     "outline_color": "{outline_color}",
-    "prompt": "English prompt - detailed anime background with simple white stickman..."
+    "prompt": "English prompt for thumbnail image..."
   }},
   "scenes": [
     {{
       "scene_number": 1,
-      "narration": "Narration in SCRIPT LANGUAGE (same as original script)",
+      "narration": "Narration in {lang_config['name']} (same content as script)",
       "image_prompt": "English image prompt..."
     }}
   ]
-}}
-
-REMEMBER: If the script is in English, ALL titles/description/thumbnail/narration MUST be in English!"""
+}}"""
 
         # Style-specific user prompt
         if image_style == 'animation':
@@ -9783,12 +9794,11 @@ REMEMBER: If the script is in English, ALL titles/description/thumbnail/narratio
             else:
                 thumb_instruction = "Thumbnail text for Senior audience (8-12 chars, nostalgic/reflective style)"
 
-            user_prompt = f"""Script (analyze the language):
+            user_prompt = f"""Script:
 {script}
 
-★★★ LANGUAGE RULE ★★★
-- Detect the language of the script above
-- Write YouTube titles, description, thumbnail text, and narration in THE SAME LANGUAGE as the script!
+★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
+{lang_config['instruction']}
 - ONLY image_prompt should be in English
 
 Split this script into exactly {image_count} scenes and generate "CONTRAST COLLAGE: Anime background + Stickman" image prompts.
@@ -9817,12 +9827,11 @@ image_prompt MUST be in English."""
             else:
                 thumbnail_instruction = "Thumbnail text for Senior audience (8-12 chars, nostalgic/reflective/experience-sharing style)"
 
-            user_prompt = f"""Script (analyze the language):
+            user_prompt = f"""Script:
 {script}
 
-★★★ LANGUAGE RULE ★★★
-- Detect the language of the script above
-- Write YouTube titles, description, thumbnail text, and narration in THE SAME LANGUAGE as the script!
+★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
+{lang_config['instruction']}
 - ONLY image_prompt should be in English
 
 Split this script into exactly {image_count} scenes and generate professional image prompts.
@@ -9833,7 +9842,7 @@ Rules:
 2. {thumbnail_instruction}
 3. image_prompt MUST be in English, following the prompt writing principles above."""
 
-        print(f"[IMAGE-ANALYZE] GPT-5.1로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type}, 타겟: {audience})")
+        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
         # GPT-5.1은 Responses API 사용
         response = client.responses.create(
