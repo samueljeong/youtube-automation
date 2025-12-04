@@ -1693,6 +1693,39 @@ const AssistantMain = (() => {
     });
   }
 
+  function showToast(message, type = 'info') {
+    // 기존 토스트 제거
+    const existing = document.querySelector('.toast-notification');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      z-index: 10000;
+      animation: slideUp 0.3s ease;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // 3초 후 자동 제거
+    setTimeout(() => {
+      toast.style.animation = 'fadeOut 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
   // ===== People Management =====
   let peopleList = [];
   let currentPersonId = null;
