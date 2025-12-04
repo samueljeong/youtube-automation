@@ -1666,6 +1666,22 @@ const AssistantMain = (() => {
     return div.innerHTML;
   }
 
+  function formatKoreanDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const day = d.getDate();
+      const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+      const weekday = weekdays[d.getDay()];
+      return `${year}년 ${month}월 ${day}일 (${weekday})`;
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
   function showError(message) {
     console.error('[Assistant] Error:', message);
     // Show error in all containers
@@ -1752,7 +1768,7 @@ const AssistantMain = (() => {
             <div class="note-item">
               <div class="note-header">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span class="note-date">${note.note_date}</span>
+                  <span class="note-date">${formatKoreanDate(note.note_date)}</span>
                   ${note.category ? `<span class="note-category-badge">${escapeHtml(note.category)}</span>` : ''}
                 </div>
                 <button class="note-delete" onclick="AssistantMain.deletePersonNote(${note.id}); event.stopPropagation();">×</button>
@@ -2119,7 +2135,7 @@ const AssistantMain = (() => {
           notesContainer.innerHTML = project.notes_list.map(note => `
             <div class="note-item">
               <div class="note-header">
-                <span class="note-date">${note.note_date}</span>
+                <span class="note-date">${formatKoreanDate(note.note_date)}</span>
                 <button class="note-delete" onclick="AssistantMain.deleteProjectNote(${note.id}); event.stopPropagation();">×</button>
               </div>
               <div class="note-content">${escapeHtml(note.content)}</div>
@@ -2333,53 +2349,69 @@ const AssistantMain = (() => {
 
     const btn = document.getElementById('btn-analyze-people');
     const originalText = btn.textContent;
-    btn.textContent = 'Analyzing...';
+    btn.textContent = '분석 중...';
     btn.disabled = true;
 
     try {
-      const res = await fetch('/assistant/api/analyze-input-people', {
+      // Step 1: AI 분석
+      const analyzeRes = await fetch('/assistant/api/analyze-input-people', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: inputText, type: quickInputType })
       });
 
-      const data = await res.json();
+      const analyzeData = await analyzeRes.json();
 
-      if (data.success) {
-        parsedPeopleData = data.parsed;
+      if (!analyzeData.success) {
+        alert(analyzeData.error || 'Failed to analyze input');
+        return;
+      }
 
-        // Display parsed result
-        const resultDiv = document.getElementById('parsed-result-people');
-        const infoDiv = document.getElementById('parsed-people-info');
+      const parsed = analyzeData.parsed;
+      btn.textContent = '저장 중...';
 
+      // Step 2: 바로 저장 (force=true로 중복 확인 건너뛰기)
+      const saveUrl = quickInputType === 'people'
+        ? '/assistant/api/quick-add-people'
+        : '/assistant/api/quick-add-project';
+
+      const saveRes = await fetch(saveUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...parsed, force: true })
+      });
+
+      const saveData = await saveRes.json();
+
+      if (saveData.success) {
+        // 성공 - 입력창 비우고 결과 표시
+        document.getElementById('input-box-people').value = '';
+        document.getElementById('parsed-result-people').style.display = 'none';
+
+        // 결과 메시지 표시
+        const summary = quickInputType === 'people'
+          ? `✓ ${parsed.name} 등록 완료${parsed.note_content ? ` (${parsed.note_date})` : ''}`
+          : `✓ ${parsed.name} 프로젝트 등록 완료`;
+        showToast(saveData.message || summary, 'success');
+
+        // 리스트 새로고침
         if (quickInputType === 'people') {
-          infoDiv.innerHTML = `
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;">
-              <div><strong>Name:</strong> ${escapeHtml(data.parsed.name || '')}</div>
-              <div><strong>Category:</strong> ${escapeHtml(data.parsed.category || '-')}</div>
-              <div><strong>Date:</strong> ${data.parsed.note_date || '-'}</div>
-              <div><strong>Note:</strong> ${escapeHtml(data.parsed.note_content || '-')}</div>
-            </div>
-          `;
+          loadPeople();
         } else {
-          infoDiv.innerHTML = `
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem;">
-              <div><strong>Project:</strong> ${escapeHtml(data.parsed.name || '')}</div>
-              <div><strong>Description:</strong> ${escapeHtml(data.parsed.description || '-')}</div>
-              <div><strong>Date:</strong> ${data.parsed.note_date || '-'}</div>
-              <div><strong>Note:</strong> ${escapeHtml(data.parsed.note_content || '-')}</div>
-              <div><strong>Priority:</strong> ${data.parsed.priority || 'medium'}</div>
-            </div>
-          `;
+          loadProjects();
         }
 
-        resultDiv.style.display = 'block';
+        // 이벤트가 생성됐으면 대시보드도 새로고침
+        if (saveData.birthday_event_created || saveData.note_event_created ||
+            (saveData.events_created && saveData.events_created.length > 0)) {
+          loadDashboard();
+        }
       } else {
-        alert(data.error || 'Failed to analyze input');
+        alert(saveData.error || 'Failed to save');
       }
     } catch (err) {
-      console.error('Failed to analyze:', err);
-      alert('Failed to analyze input');
+      console.error('Failed to analyze/save:', err);
+      alert('오류가 발생했습니다: ' + err.message);
     } finally {
       btn.textContent = originalText;
       btn.disabled = false;

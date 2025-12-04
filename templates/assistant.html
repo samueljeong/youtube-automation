@@ -2096,20 +2096,14 @@
             <textarea id="input-box-people" placeholder="예: 홍길동 집사 12월 10일 담낭암 수술 예정..." style="min-height: 60px;"></textarea>
             <div class="quick-input-actions" style="margin-top: 0.75rem;">
               <button class="btn btn-primary btn-small" onclick="AssistantMain.analyzeInputPeople()" id="btn-analyze-people">
-                Analyze & Add
+                📝 등록하기
               </button>
               <button class="btn btn-secondary btn-small" onclick="document.getElementById('input-box-people').value = ''">
-                Clear
+                지우기
               </button>
             </div>
             <div class="parsed-result" id="parsed-result-people" style="display: none;">
-              <h4>Parsed Info</h4>
               <div id="parsed-people-info"></div>
-              <div style="margin-top: 0.75rem;">
-                <button class="btn btn-primary btn-small" onclick="AssistantMain.saveParsedPeople()">
-                  Confirm & Save
-                </button>
-              </div>
             </div>
           </div>
         </div>
