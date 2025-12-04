@@ -1736,9 +1736,9 @@ def api_gpt_pro():
             "7. 충분히 길고 상세하며 풍성한 내용으로 작성해주세요 (최대 16000 토큰)."
         )
 
-        # 최신 Responses API (gpt-4o) 호출
+        # 최신 Responses API (gpt-5.1) 호출
         completion = client.responses.create(
-            model="gpt-4o",
+            model="gpt-5.1",
             input=[
                 {
                     "role": "system",
@@ -9755,10 +9755,10 @@ This creates contrast between the detailed anime world and the simple stickman.
 2. {thumbnail_instruction}
 3. 프롬프트는 반드시 영어로, 위의 작성 원칙을 따라주세요."""
 
-        print(f"[IMAGE-ANALYZE] GPT-4o로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type}, 타겟: {audience})")
+        print(f"[IMAGE-ANALYZE] GPT-5.1로 이미지 프롬프트 생성 중... (스타일: {image_style}, 콘텐츠: {content_type}, 타겟: {audience})")
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -9767,7 +9767,7 @@ This creates contrast between the detailed anime world and the simple stickman.
             response_format={"type": "json_object"}
         )
 
-        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료")
+        print(f"[IMAGE-ANALYZE] GPT-5.1 응답 완료")
 
         result_text = response.choices[0].message.content
         result = json.loads(result_text)
