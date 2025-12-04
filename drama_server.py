@@ -10039,11 +10039,84 @@ def api_image_generate_assets_zip():
         def get_language_code(lang):
             return {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP'}.get(lang, 'en-US')
 
-        def split_sentences(text):
-            """텍스트를 문장 단위로 분리"""
-            # 마침표, 물음표, 느낌표 뒤에서 분리 (단, 숫자.숫자는 제외)
-            sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-            return [s.strip() for s in sentences if s.strip()]
+        def split_sentences(text, lang='en'):
+            """텍스트를 자막 단위로 분리 (언어별 다른 처리)"""
+            if lang == 'ko':
+                # 한국어: 의미 기준 분리, 최대 20자
+                return split_korean_semantic(text, max_chars=20)
+            else:
+                # 영어/일본어: 문장 단위 유지
+                sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+                return [s.strip() for s in sentences if s.strip()]
+
+        def split_korean_semantic(text, max_chars=20):
+            """한국어 의미 기준 분리 (최대 글자 수 제한)"""
+            # 먼저 문장 단위로 분리
+            sentences = re.split(r'(?<=[.!?])\s*', text.strip())
+            sentences = [s.strip() for s in sentences if s.strip()]
+
+            result = []
+            for sentence in sentences:
+                if len(sentence) <= max_chars:
+                    result.append(sentence)
+                else:
+                    # 의미 단위로 분리 (조사, 접속사, 쉼표 등)
+                    chunks = split_by_meaning(sentence, max_chars)
+                    result.extend(chunks)
+
+            return result
+
+        def split_by_meaning(text, max_chars=20):
+            """의미 단위로 텍스트 분리"""
+            # 분리 우선순위: 쉼표 > 조사+공백 > 접속부사 > 강제 분리
+            chunks = []
+            remaining = text.strip()
+
+            while remaining:
+                if len(remaining) <= max_chars:
+                    chunks.append(remaining)
+                    break
+
+                # 최대 길이 내에서 분리점 찾기
+                search_range = remaining[:max_chars + 5]  # 약간 여유
+
+                # 1. 쉼표에서 분리
+                comma_pos = search_range.rfind(',')
+                if comma_pos > 5:
+                    chunks.append(remaining[:comma_pos + 1].strip())
+                    remaining = remaining[comma_pos + 1:].strip()
+                    continue
+
+                # 2. 조사 + 공백에서 분리 (은/는/이/가/을/를/에/의/와/과/로/으로 등)
+                patterns = [
+                    r'(.{5,}?(?:은|는|이|가|을|를|에서|에게|으로|로|와|과|의|도|만|까지|부터|처럼|보다))\s',
+                    r'(.{5,}?(?:하고|하면|하지만|그리고|그래서|하여|해서|했고|했지만))\s',
+                ]
+                found = False
+                for pattern in patterns:
+                    match = re.search(pattern, search_range)
+                    if match and len(match.group(1)) <= max_chars:
+                        split_pos = match.end(1)
+                        chunks.append(remaining[:split_pos].strip())
+                        remaining = remaining[split_pos:].strip()
+                        found = True
+                        break
+
+                if found:
+                    continue
+
+                # 3. 공백에서 분리 (최대한 max_chars에 가깝게)
+                space_pos = search_range[:max_chars].rfind(' ')
+                if space_pos > 5:
+                    chunks.append(remaining[:space_pos].strip())
+                    remaining = remaining[space_pos:].strip()
+                    continue
+
+                # 4. 강제 분리 (max_chars에서 자르기)
+                chunks.append(remaining[:max_chars].strip())
+                remaining = remaining[max_chars:].strip()
+
+            return chunks
 
         def get_mp3_duration(audio_bytes):
             """MP3 오디오 길이 측정 (초)"""
@@ -10113,7 +10186,7 @@ def api_image_generate_assets_zip():
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
-            sentences = split_sentences(narration)
+            sentences = split_sentences(narration, detected_lang)
             if not sentences:
                 sentences = [narration]
 
@@ -10340,6 +10413,226 @@ def format_srt_time(seconds):
     secs = int(seconds % 60)
     millis = int((seconds - int(seconds)) * 1000)
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+# ===== Image Lab 영상 생성 API =====
+
+@app.route('/api/image/generate-video', methods=['POST'])
+def api_image_generate_video():
+    """이미지 + 오디오 + 자막 → MP4 영상 생성 (자막 burn-in 포함)"""
+    try:
+        import subprocess
+        import shutil
+        import uuid as uuid_module
+        from datetime import datetime
+
+        data = request.get_json()
+        session_id = data.get('session_id', str(uuid_module.uuid4())[:8])
+        scenes = data.get('scenes', [])  # [{image_url, audio_url, duration, subtitles: [{start, end, text}]}]
+        detected_lang = data.get('language', 'en')  # 자막 언어
+        resolution = data.get('resolution', '1920x1080')
+        fps = data.get('fps', 30)
+
+        if not scenes:
+            return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
+
+        print(f"[IMAGE-VIDEO] Starting video generation: {len(scenes)} scenes, lang={detected_lang}")
+
+        # FFmpeg 확인
+        ffmpeg_path = shutil.which('ffmpeg')
+        if not ffmpeg_path:
+            return jsonify({"ok": False, "error": "FFmpeg가 설치되어 있지 않습니다"}), 500
+
+        # 언어별 자막 스타일 설정
+        def get_subtitle_style(lang):
+            """언어별 자막 스타일 반환 (ASS 형식)"""
+            if lang == 'ko':
+                # 한국어: 더 크게, 더 아래, 외곽선+그림자
+                return (
+                    "FontName=Noto Sans KR,FontSize=42,PrimaryColour=&H00FFFFFF,"
+                    "OutlineColour=&H00000000,BackColour=&H80000000,"
+                    "BorderStyle=1,Outline=3,Shadow=2,MarginV=25"
+                )
+            else:
+                # 영어: 중간 아래, 보통 크기, 외곽선+그림자
+                return (
+                    "FontName=Arial,FontSize=28,PrimaryColour=&H00FFFFFF,"
+                    "OutlineColour=&H00000000,BackColour=&H80000000,"
+                    "BorderStyle=1,Outline=2,Shadow=1,MarginV=60"
+                )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scene_videos = []
+            all_subtitles = []
+            current_time = 0.0
+
+            # 1. 각 씬별 영상 클립 생성
+            for idx, scene in enumerate(scenes):
+                image_url = scene.get('image_url', '')
+                audio_url = scene.get('audio_url', '')
+                duration = scene.get('duration', 5.0)
+                subtitles = scene.get('subtitles', [])
+
+                print(f"[IMAGE-VIDEO] Scene {idx + 1}: duration={duration:.2f}s, subtitles={len(subtitles)}")
+
+                if not image_url:
+                    continue
+
+                # 이미지 다운로드
+                img_path = os.path.join(temp_dir, f"scene_{idx:03d}.jpg")
+                try:
+                    if image_url.startswith('http'):
+                        import urllib.request
+                        req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        with urllib.request.urlopen(req, timeout=30) as response:
+                            with open(img_path, 'wb') as f:
+                                f.write(response.read())
+                    elif image_url.startswith('/'):
+                        local_path = image_url.lstrip('/')
+                        if os.path.exists(local_path):
+                            shutil.copy(local_path, img_path)
+                        else:
+                            print(f"[IMAGE-VIDEO] Image not found: {local_path}")
+                            continue
+                except Exception as e:
+                    print(f"[IMAGE-VIDEO] Image download failed: {e}")
+                    continue
+
+                # 오디오 다운로드 (있으면)
+                audio_path = None
+                if audio_url:
+                    audio_path = os.path.join(temp_dir, f"audio_{idx:03d}.mp3")
+                    try:
+                        if audio_url.startswith('http'):
+                            import urllib.request
+                            req = urllib.request.Request(audio_url, headers={'User-Agent': 'Mozilla/5.0'})
+                            with urllib.request.urlopen(req, timeout=30) as response:
+                                with open(audio_path, 'wb') as f:
+                                    f.write(response.read())
+                        elif audio_url.startswith('/'):
+                            local_path = audio_url.lstrip('/')
+                            if os.path.exists(local_path):
+                                shutil.copy(local_path, audio_path)
+                    except Exception as e:
+                        print(f"[IMAGE-VIDEO] Audio download failed: {e}")
+                        audio_path = None
+
+                # 자막 시간 조정 (전체 타임라인 기준)
+                for sub in subtitles:
+                    all_subtitles.append({
+                        'start': current_time + sub.get('start', 0),
+                        'end': current_time + sub.get('end', duration),
+                        'text': sub.get('text', '')
+                    })
+
+                current_time += duration
+
+                # 씬 클립 생성 (이미지 + 오디오)
+                clip_path = os.path.join(temp_dir, f"clip_{idx:03d}.mp4")
+
+                if audio_path and os.path.exists(audio_path):
+                    # 오디오가 있으면: 이미지 + 오디오
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-loop", "1", "-i", img_path,
+                        "-i", audio_path,
+                        "-c:v", "libx264", "-tune", "stillimage",
+                        "-c:a", "aac", "-b:a", "128k",
+                        "-pix_fmt", "yuv420p",
+                        "-shortest",
+                        "-t", str(duration),
+                        clip_path
+                    ]
+                else:
+                    # 오디오 없으면: 이미지만 (무음)
+                    cmd = [
+                        "ffmpeg", "-y",
+                        "-loop", "1", "-i", img_path,
+                        "-c:v", "libx264", "-tune", "stillimage",
+                        "-pix_fmt", "yuv420p",
+                        "-t", str(duration),
+                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                        "-shortest",
+                        clip_path
+                    ]
+
+                result = subprocess.run(cmd, capture_output=True, timeout=120)
+                if result.returncode == 0 and os.path.exists(clip_path):
+                    scene_videos.append(clip_path)
+                else:
+                    print(f"[IMAGE-VIDEO] Clip creation failed: {result.stderr.decode()[:200]}")
+
+            if not scene_videos:
+                return jsonify({"ok": False, "error": "영상 클립 생성 실패"}), 500
+
+            # 2. 모든 클립 병합
+            concat_list = os.path.join(temp_dir, "concat.txt")
+            with open(concat_list, 'w') as f:
+                for clip in scene_videos:
+                    f.write(f"file '{clip}'\n")
+
+            merged_path = os.path.join(temp_dir, "merged.mp4")
+            cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path]
+            subprocess.run(cmd, capture_output=True, timeout=300)
+
+            # 3. SRT 자막 파일 생성
+            srt_path = os.path.join(temp_dir, "subtitles.srt")
+            with open(srt_path, 'w', encoding='utf-8') as f:
+                for i, sub in enumerate(all_subtitles, 1):
+                    start_str = format_srt_time(sub['start'])
+                    end_str = format_srt_time(sub['end'])
+                    f.write(f"{i}\n{start_str} --> {end_str}\n{sub['text']}\n\n")
+
+            # 4. 자막 burn-in
+            subtitle_style = get_subtitle_style(detected_lang)
+            final_path = os.path.join(temp_dir, "final.mp4")
+
+            # subtitles 필터 사용 (ASS 스타일)
+            vf_filter = f"subtitles={srt_path}:force_style='{subtitle_style}'"
+
+            cmd = [
+                "ffmpeg", "-y",
+                "-i", merged_path,
+                "-vf", vf_filter,
+                "-c:v", "libx264", "-preset", "fast",
+                "-c:a", "copy",
+                final_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, timeout=600)
+
+            if result.returncode != 0:
+                print(f"[IMAGE-VIDEO] Subtitle burn-in failed: {result.stderr.decode()[:500]}")
+                # 자막 없이 fallback
+                final_path = merged_path
+
+            # 5. 결과 파일 저장
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            output_filename = f"video_{session_id}.mp4"
+            output_path = os.path.join(upload_dir, output_filename)
+            shutil.copy(final_path, output_path)
+
+            # 영상 길이 계산
+            total_duration = current_time
+            minutes = int(total_duration // 60)
+            seconds = int(total_duration % 60)
+            duration_str = f"{minutes}분 {seconds}초"
+
+            print(f"[IMAGE-VIDEO] Video created: {output_path}, duration: {duration_str}")
+
+            return jsonify({
+                "ok": True,
+                "video_url": f"/uploads/{output_filename}",
+                "duration": duration_str,
+                "subtitle_count": len(all_subtitles)
+            })
+
+    except Exception as e:
+        print(f"[IMAGE-VIDEO][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ===== 쿠팡파트너스 쇼츠 API =====
