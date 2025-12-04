@@ -236,11 +236,18 @@ def init_assistant_db():
                 phone VARCHAR(50),
                 email VARCHAR(200),
                 address TEXT,
+                birthday DATE,
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # birthday 컬럼 추가 (기존 테이블 마이그레이션)
+        try:
+            cursor.execute('ALTER TABLE people ADD COLUMN IF NOT EXISTS birthday DATE')
+        except:
+            pass  # 이미 존재하면 무시
 
         # People Notes 테이블 (인물별 누적 기록)
         cursor.execute('''
@@ -351,11 +358,18 @@ def init_assistant_db():
                 phone TEXT,
                 email TEXT,
                 address TEXT,
+                birthday DATE,
                 notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # birthday 컬럼 추가 (기존 테이블 마이그레이션)
+        try:
+            cursor.execute('ALTER TABLE people ADD COLUMN birthday DATE')
+        except Exception:
+            pass  # 이미 존재하면 무시
 
         # People Notes 테이블 (인물별 누적 기록)
         cursor.execute('''
@@ -2434,36 +2448,125 @@ def get_people():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@assistant_bp.route('/assistant/api/people/check-duplicate', methods=['POST'])
+def check_duplicate_person():
+    """동명이인 확인"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': True, 'duplicates': []})
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 이름이 같거나 비슷한 인물 검색
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT id, name, category, phone, birthday FROM people
+                WHERE name ILIKE %s OR name ILIKE %s
+                ORDER BY updated_at DESC
+            ''', (name, f'%{name}%'))
+        else:
+            cursor.execute('''
+                SELECT id, name, category, phone, birthday FROM people
+                WHERE name LIKE ? OR name LIKE ?
+                ORDER BY updated_at DESC
+            ''', (name, f'%{name}%'))
+
+        duplicates = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'success': True, 'duplicates': duplicates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @assistant_bp.route('/assistant/api/people', methods=['POST'])
 def create_person():
-    """새 인물 생성"""
+    """새 인물 생성 (중복 확인 및 생일 이벤트 자동 생성)"""
     try:
         data = request.get_json()
         name = data.get('name', '').strip()
         if not name:
             return jsonify({'success': False, 'error': '이름은 필수입니다.'}), 400
 
+        # 중복 확인 옵션 (force=true면 중복 무시)
+        force = data.get('force', False)
+
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        # 중복 확인 (force가 아닐 때만)
+        if not force:
+            if USE_POSTGRES:
+                cursor.execute('SELECT id, name, category, phone, birthday FROM people WHERE name ILIKE %s', (name,))
+            else:
+                cursor.execute('SELECT id, name, category, phone, birthday FROM people WHERE name LIKE ?', (name,))
+
+            duplicates = [dict(row) for row in cursor.fetchall()]
+            if duplicates:
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': 'duplicate_found',
+                    'message': f'"{name}"과(와) 동일하거나 비슷한 이름의 인물이 이미 있습니다.',
+                    'duplicates': duplicates
+                }), 409  # Conflict
+
+        birthday = data.get('birthday')
+
         if USE_POSTGRES:
             cursor.execute('''
-                INSERT INTO people (name, category, phone, email, address, notes)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO people (name, category, phone, email, address, birthday, notes)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes')))
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), birthday, data.get('notes')))
             person_id = cursor.fetchone()['id']
         else:
             cursor.execute('''
-                INSERT INTO people (name, category, phone, email, address, notes)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes')))
+                INSERT INTO people (name, category, phone, email, address, birthday, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), birthday, data.get('notes')))
             person_id = cursor.lastrowid
+
+        # 생일이 있으면 캘린더 이벤트 자동 생성
+        birthday_event_created = False
+        if birthday:
+            try:
+                # 올해 생일 이벤트 생성
+                year = datetime.now().year
+                birthday_date = datetime.strptime(birthday, '%Y-%m-%d')
+                this_year_birthday = birthday_date.replace(year=year)
+
+                # 이미 지났으면 내년으로
+                if this_year_birthday.date() < date.today():
+                    this_year_birthday = this_year_birthday.replace(year=year + 1)
+
+                birthday_str = this_year_birthday.strftime('%Y-%m-%d')
+
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    ''', (f'🎂 {name} 생일', f'{birthday_str}T00:00:00', f'{birthday_str}T23:59:59', '생일', 'web', 'pending_to_mac'))
+                else:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (f'🎂 {name} 생일', f'{birthday_str}T00:00:00', f'{birthday_str}T23:59:59', '생일', 'web', 'pending_to_mac'))
+                birthday_event_created = True
+            except Exception as e:
+                print(f"[PERSON] 생일 이벤트 생성 실패: {e}")
 
         conn.commit()
         conn.close()
 
-        return jsonify({'success': True, 'id': person_id, 'message': f'{name} 인물이 추가되었습니다.'})
+        message = f'{name} 인물이 추가되었습니다.'
+        if birthday_event_created:
+            message += ' 생일 이벤트가 캘린더에 추가되었습니다.'
+
+        return jsonify({'success': True, 'id': person_id, 'message': message, 'birthday_event_created': birthday_event_created})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -2508,22 +2611,25 @@ def get_person(person_id):
 
 @assistant_bp.route('/assistant/api/people/<int:person_id>', methods=['PUT'])
 def update_person(person_id):
-    """인물 정보 수정"""
+    """인물 정보 수정 (생일 변경 시 캘린더 이벤트 업데이트)"""
     try:
         data = request.get_json()
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        name = data.get('name')
+        birthday = data.get('birthday')
+
         if USE_POSTGRES:
             cursor.execute('''
-                UPDATE people SET name = %s, category = %s, phone = %s, email = %s, address = %s, notes = %s, updated_at = CURRENT_TIMESTAMP
+                UPDATE people SET name = %s, category = %s, phone = %s, email = %s, address = %s, birthday = %s, notes = %s, updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
-            ''', (data.get('name'), data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes'), person_id))
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), birthday, data.get('notes'), person_id))
         else:
             cursor.execute('''
-                UPDATE people SET name = ?, category = ?, phone = ?, email = ?, address = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+                UPDATE people SET name = ?, category = ?, phone = ?, email = ?, address = ?, birthday = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            ''', (data.get('name'), data.get('category'), data.get('phone'), data.get('email'), data.get('address'), data.get('notes'), person_id))
+            ''', (name, data.get('category'), data.get('phone'), data.get('email'), data.get('address'), birthday, data.get('notes'), person_id))
 
         conn.commit()
         conn.close()
@@ -2651,36 +2757,130 @@ def get_projects():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@assistant_bp.route('/assistant/api/projects', methods=['POST'])
-def create_project():
-    """새 프로젝트 생성"""
+@assistant_bp.route('/assistant/api/projects/check-duplicate', methods=['POST'])
+def check_duplicate_project():
+    """유사 프로젝트 확인"""
     try:
         data = request.get_json()
         name = data.get('name', '').strip()
         if not name:
-            return jsonify({'success': False, 'error': '프로젝트 이름은 필수입니다.'}), 400
+            return jsonify({'success': True, 'duplicates': []})
 
         conn = get_db_connection()
         cursor = conn.cursor()
 
         if USE_POSTGRES:
             cursor.execute('''
+                SELECT id, name, status, start_date, end_date FROM projects
+                WHERE name ILIKE %s OR name ILIKE %s
+                ORDER BY updated_at DESC
+            ''', (name, f'%{name}%'))
+        else:
+            cursor.execute('''
+                SELECT id, name, status, start_date, end_date FROM projects
+                WHERE name LIKE ? OR name LIKE ?
+                ORDER BY updated_at DESC
+            ''', (name, f'%{name}%'))
+
+        duplicates = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({'success': True, 'duplicates': duplicates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/projects', methods=['POST'])
+def create_project():
+    """새 프로젝트 생성 (중복 확인 및 일정 자동 생성)"""
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': '프로젝트 이름은 필수입니다.'}), 400
+
+        # 중복 확인 옵션 (force=true면 중복 무시)
+        force = data.get('force', False)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 중복 확인 (force가 아닐 때만)
+        if not force:
+            if USE_POSTGRES:
+                cursor.execute('SELECT id, name, status, start_date, end_date FROM projects WHERE name ILIKE %s', (name,))
+            else:
+                cursor.execute('SELECT id, name, status, start_date, end_date FROM projects WHERE name LIKE ?', (name,))
+
+            duplicates = [dict(row) for row in cursor.fetchall()]
+            if duplicates:
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': 'duplicate_found',
+                    'message': f'"{name}"과(와) 동일하거나 비슷한 이름의 프로젝트가 이미 있습니다.',
+                    'duplicates': duplicates
+                }), 409  # Conflict
+
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+
+        if USE_POSTGRES:
+            cursor.execute('''
                 INSERT INTO projects (name, description, status, start_date, end_date, priority)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (name, data.get('description'), data.get('status', 'active'), data.get('start_date'), data.get('end_date'), data.get('priority', 'medium')))
+            ''', (name, data.get('description'), data.get('status', 'active'), start_date, end_date, data.get('priority', 'medium')))
             project_id = cursor.fetchone()['id']
         else:
             cursor.execute('''
                 INSERT INTO projects (name, description, status, start_date, end_date, priority)
                 VALUES (?, ?, ?, ?, ?, ?)
-            ''', (name, data.get('description'), data.get('status', 'active'), data.get('start_date'), data.get('end_date'), data.get('priority', 'medium')))
+            ''', (name, data.get('description'), data.get('status', 'active'), start_date, end_date, data.get('priority', 'medium')))
             project_id = cursor.lastrowid
+
+        # 날짜가 있으면 캘린더 이벤트 자동 생성
+        events_created = []
+        if start_date:
+            try:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    ''', (f'📋 {name} 시작', f'{start_date}T09:00:00', f'{start_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                else:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (f'📋 {name} 시작', f'{start_date}T09:00:00', f'{start_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                events_created.append('시작일')
+            except Exception as e:
+                print(f"[PROJECT] 시작일 이벤트 생성 실패: {e}")
+
+        if end_date:
+            try:
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    ''', (f'🏁 {name} 마감', f'{end_date}T09:00:00', f'{end_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                else:
+                    cursor.execute('''
+                        INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (f'🏁 {name} 마감', f'{end_date}T09:00:00', f'{end_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                events_created.append('마감일')
+            except Exception as e:
+                print(f"[PROJECT] 마감일 이벤트 생성 실패: {e}")
 
         conn.commit()
         conn.close()
 
-        return jsonify({'success': True, 'id': project_id, 'message': f'{name} 프로젝트가 생성되었습니다.'})
+        message = f'{name} 프로젝트가 생성되었습니다.'
+        if events_created:
+            message += f' 캘린더에 {", ".join(events_created)} 이벤트가 추가되었습니다.'
+
+        return jsonify({'success': True, 'id': project_id, 'message': message, 'events_created': events_created})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -2842,39 +3042,70 @@ def analyze_input_people():
 
         client = OpenAI()
 
+        # 오늘 날짜 정보
+        today = date.today()
+        today_str = today.isoformat()
+        year = today.year
+
         if input_type == 'people':
-            system_prompt = """당신은 텍스트에서 인물 정보를 추출하는 AI입니다.
+            system_prompt = f"""당신은 텍스트에서 인물 정보를 추출하는 AI입니다.
+오늘 날짜: {today_str}
+
 입력된 텍스트에서 다음을 추출하세요:
 1. 인물 이름 (name): 이름과 직함/호칭을 함께 (예: "홍길동 집사", "김영희 권사")
 2. 카테고리 (category): 교회 직분 또는 관계 (예: "집사", "권사", "장로", "청년부" 등)
-3. 노트 날짜 (note_date): 언급된 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
-4. 노트 내용 (note_content): 인물에 관한 상황/내용 요약
+3. 전화번호 (phone): 전화번호가 언급되면 추출 (예: "010-1234-5678")
+4. 이메일 (email): 이메일이 언급되면 추출
+5. 주소 (address): 주소가 언급되면 추출
+6. 생일 (birthday): 생일이 언급되면 YYYY-MM-DD 형식으로 추출 (예: "12월 10일 생일" → "{year}-12-10")
+7. 노트 날짜 (note_date): 특정 일정이나 사건 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
+8. 노트 내용 (note_content): 인물에 관한 상황/내용 요약
 
-JSON 형식으로 반환:
-{
+중요: 날짜를 정확히 변환하세요.
+- "12월 10일" → "{year}-12-10"
+- "다음주 월요일" → 실제 날짜로 변환
+- "내년 1월" → "{year+1}-01-XX"
+
+JSON 형식으로 반환 (해당 없는 필드는 null):
+{{
   "name": "홍길동 집사",
   "category": "집사",
-  "note_date": "2024-12-10",
+  "phone": "010-1234-5678",
+  "email": null,
+  "address": null,
+  "birthday": "1960-05-15",
+  "note_date": "{today_str}",
   "note_content": "담낭암 수술 예정"
-}
+}}
 """
         else:  # project
-            system_prompt = """당신은 텍스트에서 프로젝트 정보를 추출하는 AI입니다.
+            system_prompt = f"""당신은 텍스트에서 프로젝트 정보를 추출하는 AI입니다.
+오늘 날짜: {today_str}
+
 입력된 텍스트에서 다음을 추출하세요:
 1. 프로젝트 이름 (name): 프로젝트/업무 명칭
 2. 설명 (description): 프로젝트 간략 설명
-3. 노트 날짜 (note_date): 언급된 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
-4. 노트 내용 (note_content): 진행 상황/내용 요약
-5. 우선순위 (priority): high, medium, low 중 하나
+3. 시작일 (start_date): 프로젝트 시작 날짜 (YYYY-MM-DD 형식)
+4. 마감일 (end_date): 프로젝트 마감/완료 예정 날짜 (YYYY-MM-DD 형식)
+5. 노트 날짜 (note_date): 언급된 날짜 (YYYY-MM-DD 형식, 없으면 오늘 날짜)
+6. 노트 내용 (note_content): 진행 상황/내용 요약
+7. 우선순위 (priority): high, medium, low 중 하나
 
-JSON 형식으로 반환:
-{
+중요: 날짜를 정확히 변환하세요.
+- "12월 10일" → "{year}-12-10"
+- "다음주 금요일까지" → 실제 날짜로 변환
+- "내년 1월" → "{year+1}-01-XX"
+
+JSON 형식으로 반환 (해당 없는 필드는 null):
+{{
   "name": "교회 리모델링",
   "description": "교회 본당 리모델링 프로젝트",
-  "note_date": "2024-12-10",
+  "start_date": "{today_str}",
+  "end_date": "{year}-12-31",
+  "note_date": "{today_str}",
   "note_content": "설계 도면 검토 완료",
   "priority": "high"
-}
+}}
 """
 
         response = client.chat.completions.create(
@@ -2911,14 +3142,23 @@ JSON 형식으로 반환:
 def quick_add_people():
     """
     AI 분석 결과를 바탕으로 인물/노트를 빠르게 추가
-    기존 인물이면 노트만 추가, 새 인물이면 인물 생성 후 노트 추가
+    - 동명이인 발견 시 duplicate_found 에러 반환 (사용자 확인 필요)
+    - force=true면 중복 무시하고 추가
+    - 기존 인물이면 노트만 추가, 새 인물이면 인물 생성 후 노트 추가
+    - 생일이 있으면 캘린더 이벤트 자동 생성
     """
     try:
         data = request.get_json()
         name = data.get('name', '').strip()
         category = data.get('category')
+        phone = data.get('phone')
+        email = data.get('email')
+        address = data.get('address')
+        birthday = data.get('birthday')
         note_date = data.get('note_date', date.today().isoformat())
         note_content = data.get('note_content', '').strip()
+        force = data.get('force', False)
+        use_existing_id = data.get('use_existing_id')  # 기존 인물에 추가할 경우
 
         if not name:
             return jsonify({'success': False, 'error': '이름은 필수입니다.'}), 400
@@ -2926,33 +3166,98 @@ def quick_add_people():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 기존 인물 검색 (이름으로)
-        if USE_POSTGRES:
-            cursor.execute('SELECT id FROM people WHERE name = %s', (name,))
-        else:
-            cursor.execute('SELECT id FROM people WHERE name = ?', (name,))
+        person_id = None
+        is_new = False
+        birthday_event_created = False
 
-        existing = cursor.fetchone()
-
-        if existing:
-            person_id = existing['id'] if USE_POSTGRES else existing[0]
-            message = f'기존 인물 "{name}"에 노트가 추가되었습니다.'
+        # 기존 인물 ID가 지정되면 그 인물 사용
+        if use_existing_id:
+            person_id = use_existing_id
+            message = f'기존 인물에 노트가 추가되었습니다.'
         else:
-            # 새 인물 생성
+            # 동명이인 검색
             if USE_POSTGRES:
-                cursor.execute('''
-                    INSERT INTO people (name, category)
-                    VALUES (%s, %s)
-                    RETURNING id
-                ''', (name, category))
-                person_id = cursor.fetchone()['id']
+                cursor.execute('SELECT id, name, category, phone, birthday FROM people WHERE name ILIKE %s', (f'%{name}%',))
             else:
-                cursor.execute('''
-                    INSERT INTO people (name, category)
-                    VALUES (?, ?)
-                ''', (name, category))
-                person_id = cursor.lastrowid
-            message = f'새 인물 "{name}"이(가) 생성되고 노트가 추가되었습니다.'
+                cursor.execute('SELECT id, name, category, phone, birthday FROM people WHERE name LIKE ?', (f'%{name}%',))
+
+            similar_people = [dict(row) for row in cursor.fetchall()]
+
+            # 정확히 일치하는 인물 찾기
+            exact_match = None
+            for p in similar_people:
+                if p['name'].lower() == name.lower():
+                    exact_match = p
+                    break
+
+            if exact_match:
+                # 정확히 일치하는 인물이 있으면 그 인물에 노트 추가
+                person_id = exact_match['id']
+                message = f'기존 인물 "{name}"에 노트가 추가되었습니다.'
+            elif similar_people and not force:
+                # 비슷한 이름이 있고 force가 아니면 확인 요청
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': 'duplicate_found',
+                    'message': f'"{name}"과(와) 비슷한 이름의 인물이 있습니다. 동일 인물인지 확인해주세요.',
+                    'duplicates': similar_people,
+                    'parsed_data': {
+                        'name': name,
+                        'category': category,
+                        'phone': phone,
+                        'email': email,
+                        'address': address,
+                        'birthday': birthday,
+                        'note_date': note_date,
+                        'note_content': note_content
+                    }
+                }), 409
+            else:
+                # 새 인물 생성
+                is_new = True
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO people (name, category, phone, email, address, birthday)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    ''', (name, category, phone, email, address, birthday))
+                    person_id = cursor.fetchone()['id']
+                else:
+                    cursor.execute('''
+                        INSERT INTO people (name, category, phone, email, address, birthday)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (name, category, phone, email, address, birthday))
+                    person_id = cursor.lastrowid
+
+                message = f'새 인물 "{name}"이(가) 생성되었습니다.'
+
+                # 생일이 있으면 캘린더 이벤트 자동 생성
+                if birthday:
+                    try:
+                        year = datetime.now().year
+                        birthday_date = datetime.strptime(birthday, '%Y-%m-%d')
+                        this_year_birthday = birthday_date.replace(year=year)
+
+                        if this_year_birthday.date() < date.today():
+                            this_year_birthday = this_year_birthday.replace(year=year + 1)
+
+                        birthday_str = this_year_birthday.strftime('%Y-%m-%d')
+
+                        if USE_POSTGRES:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            ''', (f'🎂 {name} 생일', f'{birthday_str}T00:00:00', f'{birthday_str}T23:59:59', '생일', 'web', 'pending_to_mac'))
+                        else:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (f'🎂 {name} 생일', f'{birthday_str}T00:00:00', f'{birthday_str}T23:59:59', '생일', 'web', 'pending_to_mac'))
+                        birthday_event_created = True
+                        message += ' 생일 이벤트가 캘린더에 추가되었습니다.'
+                    except Exception as e:
+                        print(f"[QUICK-ADD] 생일 이벤트 생성 실패: {e}")
 
         # 노트 추가
         if note_content:
@@ -2969,10 +3274,19 @@ def quick_add_people():
                 ''', (person_id, note_date, note_content, category))
                 cursor.execute('UPDATE people SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (person_id,))
 
+            if not is_new:
+                message += ' 노트가 추가되었습니다.'
+
         conn.commit()
         conn.close()
 
-        return jsonify({'success': True, 'person_id': person_id, 'message': message})
+        return jsonify({
+            'success': True,
+            'person_id': person_id,
+            'message': message,
+            'is_new': is_new,
+            'birthday_event_created': birthday_event_created
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -2981,15 +3295,22 @@ def quick_add_people():
 def quick_add_project():
     """
     AI 분석 결과를 바탕으로 프로젝트/노트를 빠르게 추가
-    기존 프로젝트면 노트만 추가, 새 프로젝트면 프로젝트 생성 후 노트 추가
+    - 유사 프로젝트 발견 시 duplicate_found 에러 반환
+    - force=true면 중복 무시하고 추가
+    - 기존 프로젝트면 노트만 추가, 새 프로젝트면 프로젝트 생성 후 노트 추가
+    - start_date, end_date가 있으면 캘린더 이벤트 자동 생성
     """
     try:
         data = request.get_json()
         name = data.get('name', '').strip()
         description = data.get('description')
         priority = data.get('priority', 'medium')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
         note_date = data.get('note_date', date.today().isoformat())
         note_content = data.get('note_content', '').strip()
+        force = data.get('force', False)
+        use_existing_id = data.get('use_existing_id')
 
         if not name:
             return jsonify({'success': False, 'error': '프로젝트 이름은 필수입니다.'}), 400
@@ -2997,33 +3318,104 @@ def quick_add_project():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # 기존 프로젝트 검색 (이름으로)
-        if USE_POSTGRES:
-            cursor.execute('SELECT id FROM projects WHERE name = %s', (name,))
-        else:
-            cursor.execute('SELECT id FROM projects WHERE name = ?', (name,))
+        project_id = None
+        is_new = False
+        events_created = []
 
-        existing = cursor.fetchone()
-
-        if existing:
-            project_id = existing['id'] if USE_POSTGRES else existing[0]
-            message = f'기존 프로젝트 "{name}"에 노트가 추가되었습니다.'
+        # 기존 프로젝트 ID가 지정되면 그 프로젝트 사용
+        if use_existing_id:
+            project_id = use_existing_id
+            message = f'기존 프로젝트에 노트가 추가되었습니다.'
         else:
-            # 새 프로젝트 생성
+            # 유사 프로젝트 검색
             if USE_POSTGRES:
-                cursor.execute('''
-                    INSERT INTO projects (name, description, priority)
-                    VALUES (%s, %s, %s)
-                    RETURNING id
-                ''', (name, description, priority))
-                project_id = cursor.fetchone()['id']
+                cursor.execute('SELECT id, name, status, start_date, end_date FROM projects WHERE name ILIKE %s', (f'%{name}%',))
             else:
-                cursor.execute('''
-                    INSERT INTO projects (name, description, priority)
-                    VALUES (?, ?, ?)
-                ''', (name, description, priority))
-                project_id = cursor.lastrowid
-            message = f'새 프로젝트 "{name}"이(가) 생성되고 노트가 추가되었습니다.'
+                cursor.execute('SELECT id, name, status, start_date, end_date FROM projects WHERE name LIKE ?', (f'%{name}%',))
+
+            similar_projects = [dict(row) for row in cursor.fetchall()]
+
+            # 정확히 일치하는 프로젝트 찾기
+            exact_match = None
+            for p in similar_projects:
+                if p['name'].lower() == name.lower():
+                    exact_match = p
+                    break
+
+            if exact_match:
+                project_id = exact_match['id']
+                message = f'기존 프로젝트 "{name}"에 노트가 추가되었습니다.'
+            elif similar_projects and not force:
+                conn.close()
+                return jsonify({
+                    'success': False,
+                    'error': 'duplicate_found',
+                    'message': f'"{name}"과(와) 비슷한 이름의 프로젝트가 있습니다. 동일 프로젝트인지 확인해주세요.',
+                    'duplicates': similar_projects,
+                    'parsed_data': {
+                        'name': name,
+                        'description': description,
+                        'priority': priority,
+                        'start_date': start_date,
+                        'end_date': end_date,
+                        'note_date': note_date,
+                        'note_content': note_content
+                    }
+                }), 409
+            else:
+                # 새 프로젝트 생성
+                is_new = True
+                if USE_POSTGRES:
+                    cursor.execute('''
+                        INSERT INTO projects (name, description, priority, start_date, end_date)
+                        VALUES (%s, %s, %s, %s, %s)
+                        RETURNING id
+                    ''', (name, description, priority, start_date, end_date))
+                    project_id = cursor.fetchone()['id']
+                else:
+                    cursor.execute('''
+                        INSERT INTO projects (name, description, priority, start_date, end_date)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (name, description, priority, start_date, end_date))
+                    project_id = cursor.lastrowid
+
+                message = f'새 프로젝트 "{name}"이(가) 생성되었습니다.'
+
+                # 날짜가 있으면 캘린더 이벤트 자동 생성
+                if start_date:
+                    try:
+                        if USE_POSTGRES:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            ''', (f'📋 {name} 시작', f'{start_date}T09:00:00', f'{start_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                        else:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (f'📋 {name} 시작', f'{start_date}T09:00:00', f'{start_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                        events_created.append('시작일')
+                    except Exception as e:
+                        print(f"[QUICK-ADD-PROJECT] 시작일 이벤트 생성 실패: {e}")
+
+                if end_date:
+                    try:
+                        if USE_POSTGRES:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (%s, %s, %s, %s, %s, %s)
+                            ''', (f'🏁 {name} 마감', f'{end_date}T09:00:00', f'{end_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                        else:
+                            cursor.execute('''
+                                INSERT INTO events (title, start_time, end_time, category, source, sync_status)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (f'🏁 {name} 마감', f'{end_date}T09:00:00', f'{end_date}T10:00:00', '프로젝트', 'web', 'pending_to_mac'))
+                        events_created.append('마감일')
+                    except Exception as e:
+                        print(f"[QUICK-ADD-PROJECT] 마감일 이벤트 생성 실패: {e}")
+
+                if events_created:
+                    message += f' 캘린더에 {", ".join(events_created)} 이벤트가 추가되었습니다.'
 
         # 노트 추가
         if note_content:
@@ -3040,10 +3432,19 @@ def quick_add_project():
                 ''', (project_id, note_date, note_content))
                 cursor.execute('UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', (project_id,))
 
+            if not is_new:
+                message += ' 노트가 추가되었습니다.'
+
         conn.commit()
         conn.close()
 
-        return jsonify({'success': True, 'project_id': project_id, 'message': message})
+        return jsonify({
+            'success': True,
+            'project_id': project_id,
+            'message': message,
+            'is_new': is_new,
+            'events_created': events_created
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

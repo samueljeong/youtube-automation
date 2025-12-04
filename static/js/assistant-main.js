@@ -1712,9 +1712,10 @@ const AssistantMain = (() => {
       <div class="person-card ${currentPersonId === person.id ? 'selected' : ''}" onclick="AssistantMain.selectPerson(${person.id})">
         <div class="person-avatar">👤</div>
         <div class="person-info-brief">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <span class="person-name">${escapeHtml(person.name)}</span>
             ${person.category ? `<span class="person-category-badge">${escapeHtml(person.category)}</span>` : ''}
+            ${person.birthday ? `<span style="font-size: 0.75rem; color: var(--text-secondary);">🎂 ${person.birthday}</span>` : ''}
           </div>
           ${person.notes ? `<div class="person-last-note">${escapeHtml(person.notes.substring(0, 50))}${person.notes.length > 50 ? '...' : ''}</div>` : ''}
         </div>
@@ -1739,6 +1740,7 @@ const AssistantMain = (() => {
           ${person.phone ? `<div><strong>Phone:</strong> ${escapeHtml(person.phone)}</div>` : ''}
           ${person.email ? `<div><strong>Email:</strong> ${escapeHtml(person.email)}</div>` : ''}
           ${person.address ? `<div><strong>Address:</strong> ${escapeHtml(person.address)}</div>` : ''}
+          ${person.birthday ? `<div><strong>Birthday:</strong> 🎂 ${person.birthday}</div>` : ''}
           ${person.notes ? `<div><strong>Notes:</strong> ${escapeHtml(person.notes)}</div>` : ''}
         `;
         document.getElementById('person-info').innerHTML = infoHtml;
@@ -1777,6 +1779,7 @@ const AssistantMain = (() => {
     document.getElementById('person-phone').value = '';
     document.getElementById('person-email').value = '';
     document.getElementById('person-address').value = '';
+    document.getElementById('person-birthday').value = '';
     document.getElementById('person-notes').value = '';
     document.getElementById('person-modal').style.display = 'flex';
   }
@@ -1793,12 +1796,120 @@ const AssistantMain = (() => {
     document.getElementById('person-phone').value = person.phone || '';
     document.getElementById('person-email').value = person.email || '';
     document.getElementById('person-address').value = person.address || '';
+    document.getElementById('person-birthday').value = person.birthday || '';
     document.getElementById('person-notes').value = person.notes || '';
     document.getElementById('person-modal').style.display = 'flex';
   }
 
   function closePersonModal() {
     document.getElementById('person-modal').style.display = 'none';
+  }
+
+  // 중복 확인 모달 관련
+  let pendingDuplicateData = null;
+  let pendingDuplicateType = null;
+
+  function showDuplicateModal(message, duplicates, parsedData, type) {
+    pendingDuplicateData = parsedData;
+    pendingDuplicateType = type;
+
+    document.getElementById('duplicate-message').textContent = message;
+
+    const listEl = document.getElementById('duplicate-list');
+    listEl.innerHTML = duplicates.map(item => {
+      const info = type === 'people'
+        ? `${item.category || ''} ${item.phone || ''} ${item.birthday ? '🎂 ' + item.birthday : ''}`
+        : `${item.status || ''} ${item.start_date ? '시작: ' + item.start_date : ''} ${item.end_date ? '~ ' + item.end_date : ''}`;
+      return `
+        <div class="duplicate-item" style="padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; transition: background 0.2s;"
+             onclick="AssistantMain.selectDuplicate(${item.id})"
+             onmouseover="this.style.background='var(--primary-light)'"
+             onmouseout="this.style.background=''">
+          <strong>${item.name}</strong>
+          <div style="font-size: 0.85rem; color: var(--text-secondary);">${info}</div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('duplicate-modal').style.display = 'flex';
+  }
+
+  function closeDuplicateModal() {
+    document.getElementById('duplicate-modal').style.display = 'none';
+    pendingDuplicateData = null;
+    pendingDuplicateType = null;
+  }
+
+  async function selectDuplicate(existingId) {
+    // 기존 항목에 노트만 추가
+    if (!pendingDuplicateData) return;
+
+    const endpoint = pendingDuplicateType === 'people'
+      ? '/assistant/api/quick-add-people'
+      : '/assistant/api/quick-add-project';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingDuplicateData,
+          use_existing_id: existingId
+        })
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closeDuplicateModal();
+        showToast(result.message, 'success');
+        if (pendingDuplicateType === 'people') {
+          loadPeople();
+        } else {
+          loadProjects();
+        }
+        loadDashboard();
+      } else {
+        alert(result.error || 'Failed to add');
+      }
+    } catch (err) {
+      console.error('Failed to add to existing:', err);
+    }
+  }
+
+  async function forceCreate() {
+    // 강제로 새로 만들기
+    if (!pendingDuplicateData) return;
+
+    const endpoint = pendingDuplicateType === 'people'
+      ? '/assistant/api/quick-add-people'
+      : '/assistant/api/quick-add-project';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingDuplicateData,
+          force: true
+        })
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        closeDuplicateModal();
+        showToast(result.message, 'success');
+        if (pendingDuplicateType === 'people') {
+          loadPeople();
+        } else {
+          loadProjects();
+        }
+        loadDashboard();
+      } else {
+        alert(result.error || 'Failed to create');
+      }
+    } catch (err) {
+      console.error('Failed to force create:', err);
+    }
   }
 
   async function savePerson() {
@@ -1809,6 +1920,7 @@ const AssistantMain = (() => {
       phone: document.getElementById('person-phone').value.trim(),
       email: document.getElementById('person-email').value.trim(),
       address: document.getElementById('person-address').value.trim(),
+      birthday: document.getElementById('person-birthday').value || null,
       notes: document.getElementById('person-notes').value.trim()
     };
 
@@ -1831,7 +1943,15 @@ const AssistantMain = (() => {
       if (result.success) {
         closePersonModal();
         loadPeople();
+        if (result.birthday_event_created) {
+          showToast('생일 이벤트가 캘린더에 추가되었습니다', 'success');
+          loadDashboard();
+        }
         if (id) selectPerson(parseInt(id));
+      } else if (result.error === 'duplicate_found') {
+        // 중복 발견 - 모달 표시
+        closePersonModal();
+        showDuplicateModal(result.message, result.duplicates, data, 'people');
       } else {
         alert(result.error || 'Failed to save person');
       }
@@ -2283,7 +2403,7 @@ const AssistantMain = (() => {
       const result = await res.json();
 
       if (result.success) {
-        alert(result.message);
+        showToast(result.message, 'success');
         document.getElementById('input-box-people').value = '';
         document.getElementById('parsed-result-people').style.display = 'none';
         parsedPeopleData = null;
@@ -2294,6 +2414,14 @@ const AssistantMain = (() => {
         } else {
           loadProjects();
         }
+        // 이벤트가 생성됐으면 대시보드도 새로고침
+        if (result.birthday_event_created || (result.events_created && result.events_created.length > 0)) {
+          loadDashboard();
+        }
+      } else if (result.error === 'duplicate_found') {
+        // 중복 발견 - 모달 표시
+        document.getElementById('parsed-result-people').style.display = 'none';
+        showDuplicateModal(result.message, result.duplicates, result.parsed_data || parsedPeopleData, quickInputType);
       } else {
         alert(result.error || 'Failed to save');
       }
@@ -2374,6 +2502,11 @@ const AssistantMain = (() => {
     // Quick Input People/Projects
     setQuickInputType,
     analyzeInputPeople,
-    saveParsedPeople
+    saveParsedPeople,
+    // Duplicate modal functions
+    showDuplicateModal,
+    closeDuplicateModal,
+    selectDuplicate,
+    forceCreate
   };
 })();

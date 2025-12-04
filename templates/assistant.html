@@ -2545,6 +2545,11 @@
           <input type="text" id="person-address" placeholder="주소" />
         </div>
         <div class="form-group">
+          <label>Birthday</label>
+          <input type="date" id="person-birthday" />
+          <small style="color: var(--text-secondary);">생일을 입력하면 캘린더에 자동으로 추가됩니다</small>
+        </div>
+        <div class="form-group">
           <label>Notes</label>
           <textarea id="person-notes" placeholder="메모..." rows="3"></textarea>
         </div>
@@ -2552,6 +2557,25 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="AssistantMain.closePersonModal()">Cancel</button>
         <button class="btn btn-primary" onclick="AssistantMain.savePerson()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duplicate Confirmation Modal -->
+  <div class="modal-overlay" id="duplicate-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚠️ 동일 인물/프로젝트 확인</h3>
+        <button class="modal-close" onclick="AssistantMain.closeDuplicateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="duplicate-message" style="margin-bottom: 1rem;"></p>
+        <div id="duplicate-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; max-height: 200px; overflow-y: auto;"></div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem;">기존 항목에 추가하려면 해당 항목을 선택하세요. 새로 만들려면 "새로 만들기"를 클릭하세요.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closeDuplicateModal()">취소</button>
+        <button class="btn btn-primary" onclick="AssistantMain.forceCreate()">새로 만들기</button>
       </div>
     </div>
   </div>
