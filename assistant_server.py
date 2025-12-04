@@ -2134,12 +2134,11 @@ def generate_news_script():
 """
 
         response = client.chat.completions.create(
-            model="gpt-4o",  # 더 긴 대본을 위해 gpt-4o 사용
+            model="o3",  # GPT 5.1 사용
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            temperature=0.7,
             max_tokens=4000
         )
 
