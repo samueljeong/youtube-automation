@@ -247,8 +247,23 @@ const ImageMain = {
     const optionsContainer = document.getElementById('thumbnail-text-options');
     const generateBtn = document.getElementById('btn-generate-with-text');
 
-    // text_options 또는 text_lines 중 하나라도 있으면 사용
-    let options = thumbnail?.text_options || thumbnail?.text_lines || [];
+    // 디버깅: thumbnail 객체 전체 내용 출력
+    console.log('[ImageMain] Thumbnail object details:', JSON.stringify(thumbnail, null, 2));
+
+    // text_options, text_lines, texts, options 등 다양한 필드명 폴백
+    let options = thumbnail?.text_options
+      || thumbnail?.text_lines
+      || thumbnail?.texts
+      || thumbnail?.options
+      || thumbnail?.textOptions
+      || [];
+
+    // 객체 배열인 경우 텍스트만 추출
+    if (options.length > 0 && typeof options[0] === 'object') {
+      options = options.map(opt => opt.text || opt.content || opt.value || JSON.stringify(opt));
+    }
+
+    console.log('[ImageMain] Extracted text options:', options);
 
     if (options.length === 0) {
       section.classList.remove('hidden');
