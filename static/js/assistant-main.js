@@ -102,21 +102,29 @@ const AssistantMain = (() => {
     }
   }
 
+  // Store news data for script generation
+  let newsData = [];
+  let currentScript = '';
+
   function renderNewsTable(news) {
     const container = document.getElementById('news-container');
     if (!container) return;
+
+    // Store news data for later use
+    newsData = news;
 
     const html = `
       <table class="news-table">
         <thead>
           <tr>
-            <th style="width: 80px;">Category</th>
-            <th>News</th>
-            <th style="width: 100px;">Video</th>
+            <th style="width: 70px;">구분</th>
+            <th>뉴스</th>
+            <th style="width: 100px;">영상화</th>
+            <th style="width: 90px;">액션</th>
           </tr>
         </thead>
         <tbody>
-          ${news.map(item => `
+          ${news.map((item, idx) => `
             <tr>
               <td>
                 <span class="news-category ${item.category === '국내' ? 'domestic' : 'international'}">
@@ -124,7 +132,13 @@ const AssistantMain = (() => {
                 </span>
               </td>
               <td>
-                <div class="news-title">${escapeHtml(item.title)}</div>
+                ${item.pub_date ? `<div class="news-time">📅 ${escapeHtml(item.pub_date)}</div>` : ''}
+                <div class="news-title">
+                  ${item.link
+                    ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>`
+                    : escapeHtml(item.title)
+                  }
+                </div>
                 <div class="news-summary">${escapeHtml(item.summary || '')}</div>
                 ${item.interpretation ? `
                   <div class="news-interpretation">
@@ -136,6 +150,13 @@ const AssistantMain = (() => {
                 <div class="video-potential">
                   <span class="video-score ${item.video_potential}">${getVideoScoreIcon(item.video_potential)}</span>
                   <span class="video-label">${escapeHtml(item.video_reason || '')}</span>
+                </div>
+              </td>
+              <td>
+                <div class="news-actions">
+                  <button class="btn-script" onclick="AssistantMain.generateScript(${idx})">
+                    ✍️ 대본
+                  </button>
                 </div>
               </td>
             </tr>
@@ -198,6 +219,125 @@ const AssistantMain = (() => {
       `;
     } finally {
       if (refreshIcon) refreshIcon.style.animation = '';
+    }
+  }
+
+  // ===== Script Generation Functions =====
+  async function generateScript(newsIndex) {
+    const news = newsData[newsIndex];
+    if (!news) {
+      alert('뉴스 데이터를 찾을 수 없습니다.');
+      return;
+    }
+
+    // Open modal and show loading
+    const modal = document.getElementById('script-modal');
+    const modalBody = document.getElementById('script-modal-body');
+    const copyBtn = document.getElementById('btn-copy-script');
+
+    modal.style.display = 'flex';
+    copyBtn.style.display = 'none';
+    modalBody.innerHTML = `
+      <div class="script-info">
+        <h4>${escapeHtml(news.title)}</h4>
+        <p>${escapeHtml(news.summary || '')}</p>
+      </div>
+      <div class="script-loading">
+        <div class="spinner" style="width: 50px; height: 50px; border-width: 4px;"></div>
+        <p>GPT가 10분 분량의 유튜브 대본을 생성하고 있습니다...</p>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">약 30초~1분 소요됩니다</p>
+      </div>
+    `;
+
+    try {
+      const response = await fetch('/assistant/api/news/script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: news.title,
+          summary: news.summary || '',
+          interpretation: news.interpretation || '',
+          category: news.category
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.script) {
+        currentScript = data.script;
+
+        // Format script with section highlighting
+        const formattedScript = formatScript(data.script);
+
+        modalBody.innerHTML = `
+          <div class="script-info">
+            <h4>${escapeHtml(news.title)}</h4>
+            <p>${escapeHtml(news.summary || '')}</p>
+          </div>
+          <div class="script-output">${formattedScript}</div>
+        `;
+        copyBtn.style.display = 'inline-flex';
+      } else {
+        modalBody.innerHTML = `
+          <div class="script-info">
+            <h4>${escapeHtml(news.title)}</h4>
+          </div>
+          <div class="news-empty" style="color: var(--danger-color);">
+            <p>대본 생성 실패: ${escapeHtml(data.error || '알 수 없는 오류')}</p>
+          </div>
+        `;
+      }
+    } catch (error) {
+      console.error('[Assistant] Script generation error:', error);
+      modalBody.innerHTML = `
+        <div class="news-empty" style="color: var(--danger-color);">
+          <p>네트워크 오류가 발생했습니다. 다시 시도해주세요.</p>
+        </div>
+      `;
+    }
+  }
+
+  function formatScript(script) {
+    // Highlight section markers like [오프닝], [배경 설명] etc.
+    let formatted = escapeHtml(script);
+
+    // Highlight section markers
+    formatted = formatted.replace(/\[([^\]]+)\]/g, '<span class="scene-marker">[$1]</span>');
+
+    // Highlight time markers like (30초), (2분) etc.
+    formatted = formatted.replace(/\((\d+[분초]?[~\s]*\d*[분초]?)\)/g, '<span style="color: #a78bfa;">($1)</span>');
+
+    return formatted;
+  }
+
+  function closeScriptModal() {
+    const modal = document.getElementById('script-modal');
+    modal.style.display = 'none';
+    currentScript = '';
+  }
+
+  async function copyScript() {
+    if (!currentScript) {
+      alert('복사할 대본이 없습니다.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(currentScript);
+
+      // Visual feedback
+      const copyBtn = document.getElementById('btn-copy-script');
+      const originalText = copyBtn.innerHTML;
+      copyBtn.innerHTML = '✓ 복사됨!';
+      copyBtn.style.background = 'var(--primary-color)';
+
+      setTimeout(() => {
+        copyBtn.innerHTML = originalText;
+        copyBtn.style.background = '';
+      }, 2000);
+    } catch (err) {
+      console.error('[Assistant] Copy failed:', err);
+      alert('복사에 실패했습니다. 대본을 직접 선택해서 복사해주세요.');
     }
   }
 
@@ -1540,6 +1680,9 @@ const AssistantMain = (() => {
     showSection,
     // News functions
     refreshNews,
+    generateScript,
+    closeScriptModal,
+    copyScript,
     // Calendar functions
     calendarPrev,
     calendarNext,

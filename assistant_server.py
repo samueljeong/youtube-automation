@@ -1870,6 +1870,21 @@ def fetch_rss_news():
     return news_items
 
 
+def parse_rss_date(date_str):
+    """RSS 날짜 문자열을 한국 시간으로 변환"""
+    if not date_str:
+        return None
+    try:
+        from email.utils import parsedate_to_datetime
+        import pytz
+        dt = parsedate_to_datetime(date_str)
+        kst = pytz.timezone('Asia/Seoul')
+        dt_kst = dt.astimezone(kst)
+        return dt_kst.strftime('%Y-%m-%d %H:%M')
+    except Exception:
+        return None
+
+
 def analyze_news_with_gpt(news_items):
     """GPT로 뉴스 분석 및 유튜브 영상 소재 평가"""
     client = get_openai_client()
@@ -1878,10 +1893,10 @@ def analyze_news_with_gpt(news_items):
 
     today = date.today()
 
-    # 뉴스 헤드라인 목록 생성
+    # 뉴스 헤드라인 목록 생성 (인덱스 포함)
     headlines_text = "\n".join([
-        f"[{item['category']}] {item['title']}"
-        for item in news_items[:20]  # 최대 20개 분석
+        f"[{i}][{item['category']}] {item['title']}"
+        for i, item in enumerate(news_items[:20])
     ])
 
     system_prompt = f"""[역할]
@@ -1905,6 +1920,7 @@ def analyze_news_with_gpt(news_items):
 {{
   "news": [
     {{
+      "original_index": 0,
       "category": "국내" | "해외",
       "title": "뉴스 제목 (간결하게)",
       "summary": "2-3문장 요약",
@@ -1920,7 +1936,8 @@ def analyze_news_with_gpt(news_items):
 2. 국내/해외 균형있게 포함한다 (각각 3-4개)
 3. 단순 연예/스포츠 결과보다는 사회적 이슈를 우선한다
 4. 같은 사건의 후속 보도는 하나로 통합한다
-5. JSON 외의 텍스트는 출력하지 마라"""
+5. original_index는 입력된 뉴스의 [인덱스] 번호를 그대로 사용한다
+6. JSON 외의 텍스트는 출력하지 마라"""
 
     try:
         response = client.chat.completions.create(
@@ -1934,7 +1951,20 @@ def analyze_news_with_gpt(news_items):
         )
 
         result = json.loads(response.choices[0].message.content)
-        return result.get('news', [])
+        analyzed = result.get('news', [])
+
+        # 원본 뉴스에서 링크와 발행 시간 추가
+        for item in analyzed:
+            idx = item.get('original_index', -1)
+            if 0 <= idx < len(news_items):
+                original = news_items[idx]
+                item['link'] = original.get('link', '')
+                item['pub_date'] = parse_rss_date(original.get('pub_date', ''))
+            else:
+                item['link'] = ''
+                item['pub_date'] = None
+
+        return analyzed
     except Exception as e:
         print(f"[NEWS] GPT 분석 오류: {e}")
         return None
@@ -2024,6 +2054,102 @@ def get_news():
                 'updated_at': now.isoformat(),
                 'fallback': True
             })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/news/script', methods=['POST'])
+def generate_news_script():
+    """
+    뉴스 기반 유튜브 대본 생성 API
+
+    Body:
+    {
+        "title": "뉴스 제목",
+        "summary": "뉴스 요약",
+        "interpretation": "해석 (선택)",
+        "category": "국내" | "해외"
+    }
+
+    응답:
+    {
+        "success": true,
+        "script": "생성된 대본 텍스트"
+    }
+    """
+    try:
+        data = request.get_json()
+        title = data.get('title', '')
+        summary = data.get('summary', '')
+        interpretation = data.get('interpretation', '')
+        category = data.get('category', '국내')
+
+        if not title:
+            return jsonify({'success': False, 'error': '뉴스 제목이 필요합니다.'}), 400
+
+        client = get_openai_client()
+        if not client:
+            return jsonify({'success': False, 'error': 'OpenAI API 키가 설정되지 않았습니다.'}), 500
+
+        today = date.today()
+
+        system_prompt = f"""[역할]
+너는 유튜브 이슈/뉴스 채널의 전문 대본 작가이다.
+주어진 뉴스를 바탕으로 10분 분량의 유튜브 영상 대본을 작성한다.
+
+[오늘 날짜]
+{today.isoformat()}
+
+[대본 구성]
+1. 오프닝 (30초): 시청자의 관심을 끄는 도입부 - 핵심 이슈를 간결하게 소개
+2. 배경 설명 (2분): 이 뉴스가 왜 중요한지, 관련 배경 정보
+3. 본론 1 (2분 30초): 뉴스의 핵심 내용 상세 설명
+4. 본론 2 (2분): 다양한 시각/반응/영향 분석
+5. 전망 및 의견 (2분): 앞으로의 전망, 시청자가 주목해야 할 점
+6. 클로징 (1분): 요약 + 구독/좋아요 유도 멘트
+
+[작성 규칙]
+1. 자연스러운 구어체로 작성한다 (유튜브 대본이므로)
+2. 각 섹션은 [섹션명] 형식으로 구분한다
+3. 시청자를 '여러분'으로 호칭한다
+4. 너무 딱딱하지 않게, 친근하면서도 신뢰감 있는 톤을 유지한다
+5. 각 섹션마다 대략적인 시간을 표기한다
+6. 총 분량은 약 2000-2500자 (말하면 약 10분)
+7. 해외 뉴스인 경우 한국 시청자가 이해하기 쉽게 맥락을 설명한다
+8. 정치적으로 편향되지 않게 객관적으로 작성한다
+9. 확인되지 않은 정보는 "~로 알려졌습니다", "~라는 보도가 있습니다" 형식으로 작성한다
+
+[출력]
+대본 텍스트만 출력한다. JSON이 아닌 순수 텍스트로 출력."""
+
+        user_content = f"""다음 뉴스를 바탕으로 10분 분량의 유튜브 대본을 작성해주세요.
+
+[카테고리] {category}
+[제목] {title}
+[요약] {summary}
+{f'[해석/맥락] {interpretation}' if interpretation else ''}
+"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",  # 더 긴 대본을 위해 gpt-4o 사용
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7,
+            max_tokens=4000
+        )
+
+        script = response.choices[0].message.content
+
+        return jsonify({
+            'success': True,
+            'script': script,
+            'title': title
+        })
 
     except Exception as e:
         import traceback
