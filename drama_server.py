@@ -9528,7 +9528,7 @@ def api_image_analyze_script():
 ## CORE CONCEPT (CRITICAL!)
 The key visual style is:
 1. Background = DETAILED ANIME STYLE (slice-of-life anime, Ghibli-inspired, warm colors, soft lighting)
-2. Stickman = SIMPLE / BOLD OUTLINE / WHITE BODY (flat 2D minimal cartoon character)
+2. Stickman = SIMPLE WHITE BODY + CONSISTENT FACE (round head, TWO DOT EYES, small mouth, thin eyebrows)
 3. Combination = "CONTRAST COLLAGE" - simple stickman contrasts against detailed anime background
 4. NO OTHER CHARACTERS - absolutely NO anime characters, NO realistic humans, ONLY the stickman!
 
@@ -9536,20 +9536,26 @@ This creates contrast between the detailed anime world and the simple stickman.
 
 ## PROMPT STRUCTURE (ALWAYS FOLLOW THIS ORDER)
 (detailed anime background, slice-of-life style, Ghibli-inspired) +
-(minimal white stickman with black outline) +
+(simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows, black outline body) +
 (contrast collage style) +
 (no other characters)
 
-## STICKMAN CHARACTER DESCRIPTION (USE THIS EXACT PHRASE)
-"simple white stickman character with a round head and black outline, clean minimal flat style, placed naturally in the anime environment. NO other characters."
+## STICKMAN CHARACTER DESCRIPTION (USE THIS EXACT PHRASE - CRITICAL FOR CONSISTENCY!)
+"simple white stickman with round head, two black dot eyes, small curved mouth, thin eyebrows, black outline body, [pose/emotion]. NO other characters."
+
+The stickman MUST ALWAYS have these facial features in EVERY image:
+- Round white head
+- TWO BLACK DOT EYES (always visible)
+- Small curved mouth (can show emotion: smile, frown, neutral)
+- Thin eyebrows (can show emotion: raised, lowered)
 
 ## MANDATORY STYLE KEYWORDS (MUST INCLUDE IN EVERY PROMPT)
 - detailed anime background, slice-of-life style
 - Ghibli-inspired warm colors and soft lighting
-- simple white stickman with black outline
+- simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows
+- black outline body, clean minimal flat style
 - contrast between detailed background and minimal character
 - NO anime characters, NO realistic humans, ONLY stickman
-- clean minimal line art for stickman only
 - seamless composition
 
 ## 썸네일 텍스트 규칙 (중요!)
@@ -9557,13 +9563,13 @@ This creates contrast between the detailed anime world and the simple stickman.
 - 문구 스타일: {thumb_style}
 - 색상: text_color에 "{thumb_color}" 사용
 
-## EMOTION THROUGH POSTURE
-- 긴장/걱정: standing nervously, hunched shoulders
-- 기쁨: arms raised, leaning forward
-- 슬픔: head down, drooping posture
-- 분노: arms spread wide, body tensed
-- 놀람: arms up, leaning back
-- 중립: neutral face expression, standing calmly
+## EMOTION THROUGH FACE + POSTURE (얼굴 표정 + 자세로 감정 표현)
+- 긴장/걱정: worried small mouth, raised thin eyebrows, hunched shoulders
+- 기쁨: happy curved smile mouth, relaxed eyebrows, arms raised
+- 슬픔: small frown mouth, lowered eyebrows, head down, drooping posture
+- 분노: tight mouth, angled eyebrows, arms spread wide, body tensed
+- 놀람: open small mouth, raised eyebrows, arms up, leaning back
+- 중립: small neutral mouth, relaxed thin eyebrows, standing calmly
 
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
@@ -9591,19 +9597,19 @@ This creates contrast between the detailed anime world and the simple stickman.
   ]
 }}
 
-## EXAMPLE PROMPTS
+## EXAMPLE PROMPTS (스틱맨은 항상 동일한 얼굴: 점 눈 2개, 작은 입, 얇은 눈썹)
 
 ### 신문 읽는 스틱맨
-"Detailed anime background of office building stairs in warm morning sunlight, slice-of-life anime style, Ghibli-inspired warm colors, soft lighting. Simple white stickman character with round head and black outline reading a newspaper, clean minimal flat style. NO other characters, ONLY the stickman. Contrast collage style, seamless composition."
+"Detailed anime background of office building stairs in warm morning sunlight, slice-of-life anime style, Ghibli-inspired warm colors. Simple white stickman with round head, two black dot eyes, small curved mouth, thin eyebrows, black outline body, reading a newspaper with curious expression. NO other characters. Contrast collage style."
 
 ### 주식 시장 혼돈
-"Detailed anime style trading floor background, monitors with stock charts, dramatic lighting, slice-of-life anime aesthetic. Simple white stickman character with black outline standing in the center, clean minimal flat style. NO anime characters, NO realistic humans, ONLY the stickman. Contrast collage, detailed background vs simple character."
+"Detailed anime style trading floor background, monitors with stock charts, dramatic lighting, slice-of-life anime aesthetic. Simple white stickman with round head, two black dot eyes, small worried mouth, raised thin eyebrows showing concern, black outline body, standing in the center. NO anime characters, NO realistic humans. Contrast collage."
 
 ### 한국 진료소 스타일
-"Anime style spring morning in front of a small Korean clinic, cherry blossoms falling, Ghibli-inspired soft pastel colors, detailed slice-of-life background. Simple white stickman wearing a white coat, minimal cartoon style with bold outline. NO other characters. Contrast collage style, detailed anime world with simple stickman."
+"Anime style spring morning in front of a small Korean clinic, cherry blossoms falling, Ghibli-inspired soft pastel colors. Simple white stickman with round head, two black dot eyes, gentle smile mouth, thin eyebrows, wearing a white coat, black outline body. NO other characters. Contrast collage style."
 
 ### 도시 거리 스타일
-"Detailed anime style Korean city street background, warm colors, soft shadows, Ghibli-inspired slice-of-life aesthetic, detailed buildings and environment. Simple white stickman character with round head and black outline, clean flat minimal style, standing in the foreground. NO anime characters, NO realistic humans, ONLY the stickman. Contrast collage composition."
+"Detailed anime style Korean city street background, warm colors, Ghibli-inspired slice-of-life aesthetic. Simple white stickman with round head, two black dot eyes, small neutral mouth, thin eyebrows, black outline body, standing in the foreground. NO anime characters, NO realistic humans. Contrast collage composition."
 """
 
         # 콘텐츠 타입별 시스템 프롬프트 분기 (실사 스타일)
@@ -9777,18 +9783,19 @@ This creates contrast between the detailed anime world and the simple stickman.
 
 핵심 스타일 (반드시 지킬 것):
 - 배경 = 상세한 애니메이션 스타일 (slice-of-life anime, Ghibli-inspired, warm colors, soft lighting)
-- 스틱맨 = 단순/굵은 라인/흰 몸 (simple white stickman with black outline, minimal flat style)
+- 스틱맨 = 단순/굵은 라인/흰 몸 + 얼굴 필수 (simple white stickman with black outline, round head with TWO DOT EYES, SMALL CURVED MOUTH, THIN EYEBROWS)
 - 결합 = "contrast collage" - 상세한 애니메이션 배경 속에 심플한 스틱맨이 대비되는 느낌
 
 중요 규칙:
 1. 반드시 {image_count}개의 씬을 생성할 것 (더 많거나 적으면 안됨)
 2. 배경은 반드시 DETAILED ANIME STYLE (slice-of-life anime, Ghibli-inspired, warm colors) - 실사/사진 스타일 금지!
-3. 캐릭터는 오직 "simple white stickman character with round head and black outline, clean minimal flat style"만 표현
-4. 절대 애니메이션 캐릭터, 만화 캐릭터, 실사 인물을 그리지 말 것. 오직 심플한 흰색 스틱맨만!
-5. NO anime characters, NO realistic humans - ONLY the simple white stickman!
-6. 감정은 자세와 몸짓으로만 표현 (hunched shoulders, arms raised 등)
-7. 모든 프롬프트 끝에 필수 태그: detailed anime background, slice-of-life style, Ghibli-inspired, simple white stickman, NO other characters, contrast collage
-8. {thumb_instruction}
+3. 캐릭터는 오직 "simple white stickman with round head, TWO BLACK DOT EYES, small curved mouth, thin eyebrows, black outline body, clean minimal flat style"만 표현
+4. 스틱맨 얼굴 필수 요소: 둥근 머리, 검은 점 눈 2개, 작은 곡선 입, 얇은 눈썹 - 모든 씬에서 동일하게!
+5. 절대 애니메이션 캐릭터, 만화 캐릭터, 실사 인물을 그리지 말 것. 오직 심플한 흰색 스틱맨만!
+6. NO anime characters, NO realistic humans - ONLY the simple white stickman!
+7. 감정은 눈썹과 입 모양, 자세와 몸짓으로 표현 (raised eyebrows for surprise, curved down mouth for sad)
+9. 모든 프롬프트 끝에 필수 태그: detailed anime background, slice-of-life style, simple white stickman with dot eyes and mouth, NO other characters, contrast collage
+10. {thumb_instruction}
 
 프롬프트는 반드시 영어로 작성해주세요."""
         else:

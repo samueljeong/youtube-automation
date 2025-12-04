@@ -377,33 +377,24 @@ const ImageMain = {
 
     let html = '';
     scenes.forEach((scene, idx) => {
-      const narration = scene.narration || '';
-      const prompt = scene.image_prompt || '';
+      const narration = scene.narration || '(나레이션 없음)';
+      // 나레이션 첫 60자만 표시
+      const shortNarration = narration.length > 60 ? narration.substring(0, 60) + '...' : narration;
 
       html += `
         <div class="scene-card" data-scene-idx="${idx}">
-          <div class="scene-image-area">
-            <div class="scene-image-box" id="scene-img-${idx}">
-              <div class="placeholder">
-                <div class="spinner"></div>
-                <span>생성 중...</span>
-              </div>
+          <div class="scene-image-box" id="scene-img-${idx}">
+            <div class="placeholder">
+              <div class="spinner"></div>
+              <span>생성 중...</span>
             </div>
           </div>
-          <div class="scene-content">
-            <div class="scene-header">
+          <div class="scene-info">
+            <div class="scene-info-top">
               <span class="scene-number">${idx + 1}</span>
-              <div class="scene-actions">
-                <button class="btn-regenerate" onclick="ImageMain.generateSceneImage(${idx})" title="재생성">
-                  🔄
-                </button>
-                <button class="btn-download-single" onclick="ImageMain.downloadSceneImage(${idx})" title="다운로드">
-                  💾
-                </button>
-              </div>
+              <button class="btn-scene-regenerate" onclick="ImageMain.generateSceneImage(${idx})" title="다시 생성">🔄</button>
             </div>
-            <div class="scene-text">${this.escapeHtml(narration)}</div>
-            <div class="scene-prompt" title="${this.escapeHtml(prompt)}">${this.escapeHtml(prompt).substring(0, 80)}...</div>
+            <p class="scene-narration" title="${this.escapeHtml(narration)}">${this.escapeHtml(shortNarration)}</p>
           </div>
         </div>
       `;
