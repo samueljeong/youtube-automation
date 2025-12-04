@@ -535,6 +535,74 @@ def create_event():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@assistant_bp.route('/assistant/api/events/<int:event_id>', methods=['GET'])
+def get_event(event_id):
+    """특정 이벤트 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT * FROM events WHERE id = %s', (event_id,))
+        else:
+            cursor.execute('SELECT * FROM events WHERE id = ?', (event_id,))
+
+        event = cursor.fetchone()
+        conn.close()
+
+        if event:
+            return jsonify({'success': True, 'event': dict(event)})
+        else:
+            return jsonify({'success': False, 'error': '이벤트를 찾을 수 없습니다.'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/events/<int:event_id>', methods=['PUT'])
+def update_event(event_id):
+    """이벤트 수정"""
+    try:
+        data = request.get_json()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                UPDATE events SET title = %s, start_time = %s, end_time = %s, category = %s
+                WHERE id = %s
+            ''', (data.get('title'), data.get('start_time'), data.get('end_time'), data.get('category', ''), event_id))
+        else:
+            cursor.execute('''
+                UPDATE events SET title = ?, start_time = ?, end_time = ?, category = ?
+                WHERE id = ?
+            ''', (data.get('title'), data.get('start_time'), data.get('end_time'), data.get('category', ''), event_id))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '이벤트가 수정되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/events/<int:event_id>', methods=['DELETE'])
+def delete_event(event_id):
+    """이벤트 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM events WHERE id = %s', (event_id,))
+        else:
+            cursor.execute('DELETE FROM events WHERE id = ?', (event_id,))
+
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'message': '이벤트가 삭제되었습니다.'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ===== 태스크 API =====
 @assistant_bp.route('/assistant/api/tasks', methods=['GET'])
 def get_tasks():

@@ -1012,7 +1012,7 @@ const AssistantMain = (() => {
         : '';
 
       return `
-        <div class="item">
+        <div class="item event-item" onclick="AssistantMain.openEventModal(${event.id})" style="cursor: pointer;">
           <div class="item-time">${startTime}</div>
           <div class="item-content">
             <div class="item-title">${escapeHtml(event.title || '')}</div>
@@ -2496,6 +2496,126 @@ const AssistantMain = (() => {
     }
   }
 
+  // ===== Event Modal Functions =====
+  async function openEventModal(eventId) {
+    try {
+      const response = await fetch(`/assistant/api/events/${eventId}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        showToast(data.error || '이벤트를 불러올 수 없습니다', 'error');
+        return;
+      }
+
+      const event = data.event;
+
+      // Populate modal fields
+      document.getElementById('event-id').value = event.id;
+      document.getElementById('event-title').value = event.title || '';
+      document.getElementById('event-category').value = event.category || '';
+
+      // Format datetime for input
+      if (event.start_time) {
+        const startDt = new Date(event.start_time);
+        document.getElementById('event-start').value = formatDateTimeLocal(startDt);
+      } else {
+        document.getElementById('event-start').value = '';
+      }
+
+      if (event.end_time) {
+        const endDt = new Date(event.end_time);
+        document.getElementById('event-end').value = formatDateTimeLocal(endDt);
+      } else {
+        document.getElementById('event-end').value = '';
+      }
+
+      // Show modal
+      document.getElementById('event-modal').style.display = 'flex';
+    } catch (err) {
+      console.error('[Assistant] Open event modal error:', err);
+      showToast('이벤트를 불러오는 중 오류가 발생했습니다', 'error');
+    }
+  }
+
+  function closeEventModal() {
+    document.getElementById('event-modal').style.display = 'none';
+  }
+
+  function formatDateTimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  async function saveEvent() {
+    const eventId = document.getElementById('event-id').value;
+    const title = document.getElementById('event-title').value.trim();
+    const startTime = document.getElementById('event-start').value;
+    const endTime = document.getElementById('event-end').value;
+    const category = document.getElementById('event-category').value.trim();
+
+    if (!title) {
+      showToast('제목을 입력해주세요', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/assistant/api/events/${eventId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          start_time: startTime || null,
+          end_time: endTime || null,
+          category: category || null
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('일정이 수정되었습니다', 'success');
+        closeEventModal();
+        loadDashboard();
+      } else {
+        showToast(data.error || '저장 실패', 'error');
+      }
+    } catch (err) {
+      console.error('[Assistant] Save event error:', err);
+      showToast('저장 중 오류가 발생했습니다', 'error');
+    }
+  }
+
+  async function deleteEvent() {
+    const eventId = document.getElementById('event-id').value;
+
+    if (!confirm('이 일정을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/assistant/api/events/${eventId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('일정이 삭제되었습니다', 'success');
+        closeEventModal();
+        loadDashboard();
+      } else {
+        showToast(data.error || '삭제 실패', 'error');
+      }
+    } catch (err) {
+      console.error('[Assistant] Delete event error:', err);
+      showToast('삭제 중 오류가 발생했습니다', 'error');
+    }
+  }
+
   // ===== Initialize on DOM Ready =====
   document.addEventListener('DOMContentLoaded', init);
 
@@ -2522,6 +2642,11 @@ const AssistantMain = (() => {
     calendarNext,
     calendarToday,
     setCalendarView,
+    // Event modal functions
+    openEventModal,
+    closeEventModal,
+    saveEvent,
+    deleteEvent,
     // Tasks section functions
     filterTasks,
     quickAddTask,
