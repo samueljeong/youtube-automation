@@ -10638,6 +10638,12 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                 result = subprocess.run(cmd, capture_output=True, timeout=600)
                 if result.returncode == 0 and os.path.exists(clip_path):
                     scene_videos.append(clip_path)
+                    print(f"[VIDEO-WORKER] Clip {idx+1} created successfully")
+                else:
+                    stderr = result.stderr.decode('utf-8', errors='ignore') if result.stderr else 'no stderr'
+                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode}): {stderr[:300]}")
+
+            print(f"[VIDEO-WORKER] Total clips created: {len(scene_videos)} / {total_scenes}")
 
             if not scene_videos:
                 raise Exception("영상 클립 생성 실패")
@@ -10648,11 +10654,33 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
             concat_list = os.path.join(work_dir, "concat.txt")
             with open(concat_list, 'w') as f:
                 for clip in scene_videos:
-                    f.write(f"file '{clip}'\n")
+                    # 절대 경로 사용
+                    abs_clip = os.path.abspath(clip)
+                    f.write(f"file '{abs_clip}'\n")
+
+            print(f"[VIDEO-WORKER] Concat list created with {len(scene_videos)} clips")
+
+            # 클립 파일 존재 확인
+            for clip in scene_videos:
+                if os.path.exists(clip):
+                    file_size = os.path.getsize(clip)
+                    print(f"[VIDEO-WORKER] Clip exists: {clip} ({file_size} bytes)")
+                else:
+                    print(f"[VIDEO-WORKER] Clip MISSING: {clip}")
 
             merged_path = os.path.join(work_dir, "merged.mp4")
-            subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path],
-                          capture_output=True, timeout=600)
+            concat_result = subprocess.run(
+                ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path],
+                capture_output=True, timeout=600
+            )
+
+            if concat_result.returncode != 0:
+                stderr = concat_result.stderr.decode('utf-8', errors='ignore')
+                print(f"[VIDEO-WORKER] Concat FAILED (code {concat_result.returncode}): {stderr}")
+                raise Exception(f"클립 병합 실패: {stderr[:200]}")
+
+            if not os.path.exists(merged_path):
+                raise Exception("merged.mp4 파일이 생성되지 않음")
 
             # 3. SRT 자막 생성
             _update_job_status(job_id, progress=85, message='자막 처리 중...')
