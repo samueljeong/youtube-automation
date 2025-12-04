@@ -9,7 +9,7 @@ import tempfile
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime as dt
-from flask import Flask, render_template, request, jsonify, send_file, Response, redirect
+from flask import Flask, render_template, request, jsonify, send_file, Response, redirect, send_from_directory
 from openai import OpenAI
 
 # Assistant Blueprint 등록
@@ -44,6 +44,16 @@ def handle_exception(e):
         "ok": False,
         "error": f"서버 오류: {type(e).__name__}: {str(e)}"
     }), 500
+
+
+# ===== uploads 폴더 정적 파일 서빙 =====
+@app.route('/uploads/<path:filename>')
+def serve_uploads(filename):
+    """uploads 폴더의 파일을 제공"""
+    upload_dir = os.path.join(os.getcwd(), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    return send_from_directory(upload_dir, filename)
+
 
 # ===== 비동기 영상 생성 작업 큐 시스템 =====
 video_job_queue = queue.Queue()
