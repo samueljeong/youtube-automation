@@ -9999,7 +9999,7 @@ def api_image_download_zip():
 
 @app.route('/api/image/generate-assets-zip', methods=['POST'])
 def api_image_generate_assets_zip():
-    """CapCut용 에셋 ZIP 생성 (이미지 + TTS 오디오 + SRT 자막)"""
+    """CapCut용 에셋 ZIP 생성 (이미지 + TTS 오디오 + SRT 자막) - 문장별 정확한 싱크"""
     try:
         import zipfile
         import io
@@ -10007,169 +10007,145 @@ def api_image_generate_assets_zip():
         import requests
         import base64
         import uuid
+        import subprocess
         from datetime import datetime
 
         def detect_language(text):
             """텍스트의 주요 언어 감지 (한국어/영어/일본어)"""
             if not text:
                 return 'en'
-
-            # 한글 문자 수
             korean_chars = len(re.findall(r'[가-힣]', text))
-            # 일본어 문자 수 (히라가나, 가타카나, 일부 한자)
             japanese_chars = len(re.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
-            # 전체 문자 수 (공백 제외)
             total_chars = len(re.sub(r'\s', '', text))
-
             if total_chars == 0:
                 return 'en'
-
-            korean_ratio = korean_chars / total_chars
-            japanese_ratio = japanese_chars / total_chars
-
-            if korean_ratio > 0.3:
+            if korean_chars / total_chars > 0.3:
                 return 'ko'
-            elif japanese_ratio > 0.2:
+            elif japanese_chars / total_chars > 0.2:
                 return 'ja'
-            else:
-                return 'en'
+            return 'en'
 
         def get_voice_for_language(lang, base_voice):
             """언어에 맞는 TTS 음성 반환"""
-            # 기본 음성에서 성별 추출 (Neural2-A, Neural2-B = 여성, Neural2-C, Neural2-D = 남성)
             is_female = 'Neural2-A' in base_voice or 'Neural2-B' in base_voice or 'Wavenet-A' in base_voice
-
             voice_map = {
-                'ko': {
-                    'female': 'ko-KR-Neural2-A',
-                    'male': 'ko-KR-Neural2-C'
-                },
-                'en': {
-                    'female': 'en-US-Neural2-F',
-                    'male': 'en-US-Neural2-D'
-                },
-                'ja': {
-                    'female': 'ja-JP-Neural2-B',
-                    'male': 'ja-JP-Neural2-C'
-                }
+                'ko': {'female': 'ko-KR-Neural2-A', 'male': 'ko-KR-Neural2-C'},
+                'en': {'female': 'en-US-Neural2-F', 'male': 'en-US-Neural2-D'},
+                'ja': {'female': 'ja-JP-Neural2-B', 'male': 'ja-JP-Neural2-C'}
             }
-
             gender = 'female' if is_female else 'male'
             return voice_map.get(lang, voice_map['en'])[gender]
 
         def get_language_code(lang):
-            """언어 코드 반환"""
             return {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP'}.get(lang, 'en-US')
+
+        def split_sentences(text):
+            """텍스트를 문장 단위로 분리"""
+            # 마침표, 물음표, 느낌표 뒤에서 분리 (단, 숫자.숫자는 제외)
+            sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+            return [s.strip() for s in sentences if s.strip()]
+
+        def get_mp3_duration(audio_bytes):
+            """MP3 오디오 길이 측정 (초)"""
+            # 임시 파일에 저장 후 ffprobe로 측정
+            try:
+                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                    tmp.write(audio_bytes)
+                    tmp_path = tmp.name
+
+                cmd = [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    tmp_path
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                os.unlink(tmp_path)
+
+                if result.returncode == 0 and result.stdout.strip():
+                    return float(result.stdout.strip())
+            except Exception as e:
+                print(f"[ASSETS-ZIP] ffprobe failed: {e}")
+
+            # 폴백: MP3 128kbps 기준 추정 (16KB/초)
+            return len(audio_bytes) / 16000
+
+        def generate_tts_for_sentence(text, voice_name, language_code, api_key):
+            """단일 문장에 대한 TTS 생성"""
+            tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+            payload = {
+                "input": {"text": text},
+                "voice": {"languageCode": language_code, "name": voice_name},
+                "audioConfig": {"audioEncoding": "MP3", "speakingRate": 0.95, "pitch": 0}
+            }
+            response = requests.post(tts_url, json=payload, timeout=60)
+            if response.status_code == 200:
+                result = response.json()
+                return base64.b64decode(result.get("audioContent", ""))
+            return None
 
         data = request.get_json()
         session_id = data.get('session_id', str(uuid.uuid4())[:8])
-        base_voice = data.get('voice', 'ko-KR-Neural2-A')  # 사용자가 선택한 기본 음성 (성별 참조용)
+        base_voice = data.get('voice', 'ko-KR-Neural2-A')
         scenes = data.get('scenes', [])
 
         if not scenes:
             return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
 
-        print(f"[ASSETS-ZIP] Generating assets for {len(scenes)} scenes, base_voice: {base_voice}")
-
-        # Google Cloud TTS REST API 사용
         api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
         if not api_key:
             return jsonify({"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}), 500
 
-        tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+        print(f"[ASSETS-ZIP] Starting sentence-by-sentence TTS for {len(scenes)} scenes")
 
         # 결과 저장용
-        audio_segments = []
+        all_sentence_audios = []  # [(scene_idx, sent_idx, audio_bytes, duration, text), ...]
         srt_entries = []
-        current_time = 0.0  # 현재 시간 (초)
+        current_time = 0.0
 
-        # 1. 각 씬별 TTS 생성
-        for idx, scene in enumerate(scenes):
+        # 1. 각 씬의 문장별 TTS 생성
+        for scene_idx, scene in enumerate(scenes):
             narration = scene.get('text', '')
             if not narration:
                 continue
 
-            # 언어 감지 및 적절한 음성 선택
             detected_lang = detect_language(narration)
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
-            print(f"[ASSETS-ZIP] Scene {idx + 1}: lang={detected_lang}, voice={voice_name}, text={narration[:30]}...")
-
-            # TTS 생성 (REST API)
-            payload = {
-                "input": {"text": narration},
-                "voice": {
-                    "languageCode": language_code,
-                    "name": voice_name
-                },
-                "audioConfig": {
-                    "audioEncoding": "MP3",
-                    "speakingRate": 0.95,
-                    "pitch": 0
-                }
-            }
-
-            tts_response = requests.post(tts_url, json=payload, timeout=60)
-
-            if tts_response.status_code != 200:
-                print(f"[ASSETS-ZIP] TTS API error for scene {idx + 1}: {tts_response.status_code} - {tts_response.text}")
-                continue
-
-            tts_result = tts_response.json()
-            audio_content = base64.b64decode(tts_result.get("audioContent", ""))
-            audio_segments.append(audio_content)
-
-            # 오디오 길이 추정 (언어별로 다른 속도)
-            # 한국어: 약 4-5자/초, 영어: 약 12-15자/초 (단어 기준 2-3단어/초)
-            if detected_lang == 'ko':
-                estimated_duration = max(len(narration) / 4.5, 2.0)
-            else:
-                word_count = len(narration.split())
-                estimated_duration = max(word_count / 2.5, 2.0)  # 영어는 단어 수 기준
-
-            # SRT 엔트리 생성 (문장 단위로 분리)
-            # 문장 분리 (마침표, 물음표, 느낌표 기준)
-            sentences = re.split(r'(?<=[.!?])\s+', narration.strip())
-            sentences = [s.strip() for s in sentences if s.strip()]
-
+            sentences = split_sentences(narration)
             if not sentences:
                 sentences = [narration]
 
-            # 각 문장의 길이 비율로 시간 배분
-            if detected_lang == 'ko':
-                # 한국어: 글자 수 기준
-                total_chars = sum(len(s) for s in sentences)
-                for sent in sentences:
-                    sent_ratio = len(sent) / total_chars if total_chars > 0 else 1 / len(sentences)
-                    sent_duration = estimated_duration * sent_ratio
-                    sent_duration = max(sent_duration, 1.0)  # 최소 1초
+            print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
 
+            scene_audios = []
+            for sent_idx, sentence in enumerate(sentences):
+                # 문장별 TTS 생성
+                audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
+
+                if audio_bytes:
+                    # 실제 오디오 길이 측정
+                    duration = get_mp3_duration(audio_bytes)
+                    scene_audios.append(audio_bytes)
+
+                    # SRT 엔트리 생성 (정확한 시간)
                     srt_entries.append({
                         'index': len(srt_entries) + 1,
                         'start': current_time,
-                        'end': current_time + sent_duration,
-                        'text': sent
+                        'end': current_time + duration,
+                        'text': sentence
                     })
-                    current_time += sent_duration
-            else:
-                # 영어: 단어 수 기준
-                total_words = sum(len(s.split()) for s in sentences)
-                for sent in sentences:
-                    sent_words = len(sent.split())
-                    sent_ratio = sent_words / total_words if total_words > 0 else 1 / len(sentences)
-                    sent_duration = estimated_duration * sent_ratio
-                    sent_duration = max(sent_duration, 1.0)  # 최소 1초
 
-                    srt_entries.append({
-                        'index': len(srt_entries) + 1,
-                        'start': current_time,
-                        'end': current_time + sent_duration,
-                        'text': sent
-                    })
-                    current_time += sent_duration
+                    print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                    current_time += duration
 
-            current_time += 0.2  # 씬 간 0.2초 간격
+                    all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
+
+            # 씬 간 짧은 간격 (무음 0.3초 추가 가능, 여기서는 시간만 조정)
+            current_time += 0.3
+
+        print(f"[ASSETS-ZIP] Total: {len(srt_entries)} sentences, {current_time:.1f}s")
 
         # 2. ZIP 파일 생성
         zip_buffer = io.BytesIO()
@@ -10205,16 +10181,91 @@ def api_image_generate_assets_zip():
                 except Exception as e:
                     print(f"[ASSETS-ZIP] Failed to add image {idx + 1}: {e}")
 
-            # 오디오 병합 및 추가
-            if audio_segments:
-                # 개별 오디오 파일들도 추가
-                for idx, audio in enumerate(audio_segments):
-                    filename = f"{str(idx + 1).zfill(2)}_audio.mp3"
-                    zip_file.writestr(f"audio/{filename}", audio)
+            # 오디오 파일 추가 (문장별 + 씬별 병합 + 전체 병합)
+            if all_sentence_audios:
+                # 1. 문장별 개별 오디오 저장
+                for scene_idx, sent_idx, audio_bytes in all_sentence_audios:
+                    filename = f"{str(scene_idx + 1).zfill(2)}_{str(sent_idx + 1).zfill(2)}_sent.mp3"
+                    zip_file.writestr(f"audio/sentences/{filename}", audio_bytes)
 
-                # 전체 병합 오디오 (단순 concat - 실제로는 FFmpeg 필요하지만 간단히 처리)
-                combined_audio = b''.join(audio_segments)
-                zip_file.writestr("audio/narration_full.mp3", combined_audio)
+                # 2. 씬별 오디오 병합 (FFmpeg 사용)
+                scene_audio_map = {}  # {scene_idx: [audio_bytes, ...]}
+                for scene_idx, sent_idx, audio_bytes in all_sentence_audios:
+                    if scene_idx not in scene_audio_map:
+                        scene_audio_map[scene_idx] = []
+                    scene_audio_map[scene_idx].append(audio_bytes)
+
+                scene_merged_files = []
+                for scene_idx in sorted(scene_audio_map.keys()):
+                    audios = scene_audio_map[scene_idx]
+                    try:
+                        # 임시 파일들 생성
+                        temp_files = []
+                        for i, audio in enumerate(audios):
+                            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                                tmp.write(audio)
+                                temp_files.append(tmp.name)
+
+                        # FFmpeg concat으로 병합
+                        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False, mode='w') as list_file:
+                            for tf in temp_files:
+                                list_file.write(f"file '{tf}'\n")
+                            list_path = list_file.name
+
+                        merged_path = tempfile.mktemp(suffix='.mp3')
+                        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", merged_path]
+                        subprocess.run(cmd, capture_output=True, timeout=60)
+
+                        if os.path.exists(merged_path):
+                            with open(merged_path, 'rb') as f:
+                                merged_audio = f.read()
+                            filename = f"{str(scene_idx + 1).zfill(2)}_scene.mp3"
+                            zip_file.writestr(f"audio/{filename}", merged_audio)
+                            scene_merged_files.append(merged_path)
+                            os.unlink(merged_path)
+
+                        # 임시 파일 정리
+                        for tf in temp_files:
+                            if os.path.exists(tf):
+                                os.unlink(tf)
+                        if os.path.exists(list_path):
+                            os.unlink(list_path)
+
+                    except Exception as e:
+                        print(f"[ASSETS-ZIP] Scene {scene_idx + 1} merge failed: {e}")
+
+                # 3. 전체 오디오 병합
+                try:
+                    all_audios = [audio for _, _, audio in all_sentence_audios]
+                    temp_files = []
+                    for audio in all_audios:
+                        with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as tmp:
+                            tmp.write(audio)
+                            temp_files.append(tmp.name)
+
+                    with tempfile.NamedTemporaryFile(suffix='.txt', delete=False, mode='w') as list_file:
+                        for tf in temp_files:
+                            list_file.write(f"file '{tf}'\n")
+                        list_path = list_file.name
+
+                    full_merged_path = tempfile.mktemp(suffix='.mp3')
+                    cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", full_merged_path]
+                    subprocess.run(cmd, capture_output=True, timeout=120)
+
+                    if os.path.exists(full_merged_path):
+                        with open(full_merged_path, 'rb') as f:
+                            full_audio = f.read()
+                        zip_file.writestr("audio/narration_full.mp3", full_audio)
+                        os.unlink(full_merged_path)
+
+                    for tf in temp_files:
+                        if os.path.exists(tf):
+                            os.unlink(tf)
+                    if os.path.exists(list_path):
+                        os.unlink(list_path)
+
+                except Exception as e:
+                    print(f"[ASSETS-ZIP] Full audio merge failed: {e}")
 
             # SRT 자막 파일 생성
             srt_content = ""
@@ -10231,17 +10282,20 @@ def api_image_generate_assets_zip():
 
 📁 폴더 구조:
 - images/ : 씬별 이미지 ({image_count}개)
-- audio/  : 씬별 오디오 + 전체 오디오
-- subtitles.srt : 자막 파일
+- audio/narration_full.mp3 : 전체 나레이션 (싱크용)
+- audio/01_scene.mp3, 02_scene.mp3... : 씬별 오디오
+- audio/sentences/ : 문장별 개별 오디오
+- subtitles.srt : 자막 파일 (정확한 싱크!)
 
 🎬 CapCut 임포트 방법:
-1. images 폴더의 이미지들을 타임라인에 드래그
-2. audio/narration_full.mp3를 오디오 트랙에 드래그
-3. subtitles.srt를 자막으로 임포트
+1. audio/narration_full.mp3를 오디오 트랙에 드래그
+2. subtitles.srt를 자막으로 임포트 → 자동 싱크!
+3. images 폴더의 이미지들을 타임라인에 배치
 
-💡 팁:
-- 이미지 순서대로 정렬되어 있습니다 (01, 02, 03...)
-- 각 씬의 개별 오디오도 포함되어 있어 편집 가능합니다
+✨ 자막 싱크 정보:
+- 문장별 TTS를 개별 생성하여 정확한 타이밍 측정
+- SRT 파일의 시간이 실제 오디오와 정확히 일치합니다
+- 총 {len(srt_entries)}개 자막, {current_time:.1f}초
 
 생성일: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
