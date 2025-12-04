@@ -7574,16 +7574,27 @@ def api_thumbnail_overlay():
         if not text_lines:
             return jsonify({"ok": False, "error": "텍스트가 필요합니다."}), 400
 
+        # base_dir 먼저 정의 (로컬 경로 처리용)
+        base_dir = os_module.path.dirname(os_module.path.abspath(__file__))
+
         # 이미지 로드
         if image_url.startswith("data:"):
             # Base64 data URL
             header, encoded = image_url.split(",", 1)
             image_data = base64.b64decode(encoded)
             img = Image.open(BytesIO(image_data))
-        else:
+        elif image_url.startswith("/static/"):
+            # 로컬 상대 경로 (서버 내 파일)
+            local_path = os_module.path.join(base_dir, image_url.lstrip("/"))
+            print(f"[THUMBNAIL] 로컬 파일 로드: {local_path}")
+            img = Image.open(local_path)
+        elif image_url.startswith("http"):
             # HTTP URL
             response = req.get(image_url, timeout=30)
             img = Image.open(BytesIO(response.content))
+        else:
+            # 기타 로컬 경로
+            img = Image.open(image_url)
 
         # RGBA로 변환 (투명도 지원)
         if img.mode != 'RGBA':
