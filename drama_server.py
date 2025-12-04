@@ -6787,7 +6787,11 @@ def generate_thumbnail():
                 "X-Title": "Drama Thumbnail Generator"
             }
 
-            enhanced_prompt = f"Generate a high quality YouTube thumbnail image: {image_prompt}. IMPORTANT: Ensure Korean/East Asian facial features if person is depicted. Style: dramatic, eye-catching, professional YouTube thumbnail quality."
+            # 스틱맨 스타일 강제 적용 (프롬프트에 stickman이 포함되어 있으면)
+            if 'stickman' in image_prompt.lower():
+                enhanced_prompt = f"CRITICAL: 16:9 WIDESCREEN aspect ratio. {image_prompt}. IMPORTANT: Only simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows, black outline body. NO realistic humans, NO anime characters, ONLY the stickman! Detailed anime background, dramatic composition, eye-catching YouTube thumbnail."
+            else:
+                enhanced_prompt = f"CRITICAL: 16:9 WIDESCREEN aspect ratio. Generate a high quality YouTube thumbnail image: {image_prompt}. IMPORTANT: Ensure Korean/East Asian facial features if person is depicted. Style: dramatic, eye-catching, professional YouTube thumbnail quality."
 
             payload = {
                 "model": "google/gemini-2.5-flash-image-preview",
@@ -9744,7 +9748,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     ],
     "text_color": "{thumbnail_color}",
     "outline_color": "{outline_color}",
-    "prompt": "Thumbnail prompt - {'dark dramatic background, silhouette, high contrast, text space center' if audience == 'general' else 'character in emotional pose, Korean setting (hospital/street/home), warm nostalgic lighting, text space on left, slightly blurred background 5%'}"
+    "prompt": "Thumbnail prompt - detailed anime background with simple white stickman (round head, two dot eyes, small mouth, thin eyebrows), dramatic pose, emotional expression, text space on {'center' if audience == 'general' else 'left'}, Ghibli-inspired warm colors, NO realistic humans, NO anime characters, ONLY stickman"
   }},
   "scenes": [
     {{
