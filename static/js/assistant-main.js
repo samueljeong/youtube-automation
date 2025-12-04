@@ -113,56 +113,38 @@ const AssistantMain = (() => {
     // Store news data for later use
     newsData = news;
 
+    // Card-style layout (more compact)
     const html = `
-      <table class="news-table">
-        <thead>
-          <tr>
-            <th style="width: 70px;">구분</th>
-            <th>뉴스</th>
-            <th style="width: 100px;">영상화</th>
-            <th style="width: 90px;">액션</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${news.map((item, idx) => `
-            <tr>
-              <td>
-                <span class="news-category ${item.category === '국내' ? 'domestic' : 'international'}">
-                  ${item.category}
-                </span>
-              </td>
-              <td>
-                ${item.pub_date ? `<div class="news-time">📅 ${escapeHtml(item.pub_date)}</div>` : ''}
-                <div class="news-title">
-                  ${item.link
-                    ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>`
-                    : escapeHtml(item.title)
-                  }
-                </div>
-                <div class="news-summary">${escapeHtml(item.summary || '')}</div>
-                ${item.interpretation ? `
-                  <div class="news-interpretation">
-                    💡 ${escapeHtml(item.interpretation)}
-                  </div>
-                ` : ''}
-              </td>
-              <td>
-                <div class="video-potential">
-                  <span class="video-score ${item.video_potential}">${getVideoScoreIcon(item.video_potential)}</span>
-                  <span class="video-label">${escapeHtml(item.video_reason || '')}</span>
-                </div>
-              </td>
-              <td>
-                <div class="news-actions">
-                  <button class="btn-script" onclick="AssistantMain.generateScript(${idx})">
-                    ✍️ 대본
-                  </button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="news-list">
+        ${news.map((item, idx) => `
+          <div class="news-item">
+            <div class="news-item-left">
+              <span class="news-category ${item.category === '국내' ? 'domestic' : 'international'}">
+                ${item.category}
+              </span>
+              <span class="video-score ${item.video_potential}">${getVideoScoreIcon(item.video_potential)}</span>
+            </div>
+            <div class="news-item-content">
+              ${item.pub_date ? `<div class="news-time">🕐 ${escapeHtml(item.pub_date)}</div>` : ''}
+              <div class="news-title">
+                ${item.link
+                  ? `<a href="${escapeHtml(item.link)}" target="_blank" rel="noopener">${escapeHtml(item.title)}</a>`
+                  : escapeHtml(item.title)
+                }
+              </div>
+              <div class="news-summary">${escapeHtml(item.summary || '')}</div>
+              ${item.interpretation ? `
+                <div class="news-interpretation">💡 ${escapeHtml(item.interpretation)}</div>
+              ` : ''}
+            </div>
+            <div class="news-item-right">
+              <button class="btn-script" onclick="AssistantMain.generateScript(${idx})">
+                ✍️ 대본
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
     `;
 
     container.innerHTML = html;

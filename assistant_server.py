@@ -2134,7 +2134,7 @@ def generate_news_script():
 """
 
         response = client.chat.completions.create(
-            model="o3",  # GPT 5.1 사용
+            model="gpt-5.1",  # GPT 5.1
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
