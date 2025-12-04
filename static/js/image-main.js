@@ -856,7 +856,7 @@ const ImageMain = {
   },
 
   /**
-   * 영상 생성 (이미지 + 오디오 + 자막 → MP4)
+   * 영상 생성 (백그라운드 처리 + 폴링)
    */
   async generateVideo() {
     if (!this.sceneMetadata || this.sceneMetadata.length === 0) {
@@ -870,13 +870,13 @@ const ImageMain = {
     const progressText = document.getElementById('asset-progress-text');
 
     btn.disabled = true;
-    btn.textContent = '⏳ 영상 생성 중...';
+    btn.textContent = '⏳ 시작 중...';
     progressDiv.classList.remove('hidden');
-    progressFill.style.width = '20%';
-    progressText.textContent = '영상 생성 중... (1-2분 소요)';
+    progressFill.style.width = '5%';
+    progressText.textContent = '영상 생성 작업 시작 중...';
 
     try {
-      // scene_metadata를 API 형식에 맞게 변환
+      // 1. 영상 생성 작업 시작
       const scenes = this.sceneMetadata.map(sm => ({
         image_url: sm.image_url,
         audio_url: sm.audio_url,
@@ -884,9 +884,9 @@ const ImageMain = {
         subtitles: sm.subtitles
       }));
 
-      console.log('[ImageMain] Generating video with', scenes.length, 'scenes');
+      console.log('[ImageMain] Starting video generation with', scenes.length, 'scenes');
 
-      const response = await fetch('/api/image/generate-video', {
+      const startResponse = await fetch('/api/image/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -896,33 +896,80 @@ const ImageMain = {
         })
       });
 
-      progressFill.style.width = '80%';
-      progressText.textContent = '영상 인코딩 중...';
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'API 오류');
+      if (!startResponse.ok) {
+        const errData = await startResponse.json();
+        throw new Error(errData.error || '작업 시작 실패');
       }
 
-      const data = await response.json();
+      const startData = await startResponse.json();
+      const jobId = startData.job_id;
 
-      progressFill.style.width = '100%';
-      progressText.textContent = '완료!';
+      console.log('[ImageMain] Job started:', jobId, startData.estimated_time);
+      btn.textContent = '⏳ 처리 중...';
+      progressText.textContent = `작업 시작됨 (${startData.estimated_time})`;
 
-      // 영상 다운로드
-      if (data.video_url) {
-        this.showStatus(`영상 생성 완료! (${data.duration}, 자막 ${data.subtitle_count}개)`, 'success');
+      // 2. 상태 폴링
+      const pollInterval = 2000; // 2초마다 확인
+      const maxPolls = 900; // 최대 30분 (900 * 2초)
+      let polls = 0;
 
-        // 다운로드 링크 생성
-        const a = document.createElement('a');
-        a.href = data.video_url;
-        a.download = `video_${this.sessionId}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+      const pollStatus = async () => {
+        try {
+          const statusResponse = await fetch(`/api/image/video-status/${jobId}`);
+          const statusData = await statusResponse.json();
 
-        btn.textContent = '✅ 영상 완료';
-      }
+          if (!statusData.ok) {
+            throw new Error(statusData.error || '상태 확인 실패');
+          }
+
+          // 진행률 업데이트
+          progressFill.style.width = `${statusData.progress}%`;
+          progressText.textContent = statusData.message;
+          btn.textContent = `⏳ ${statusData.progress}%`;
+
+          if (statusData.status === 'completed') {
+            // 완료!
+            progressFill.style.width = '100%';
+            progressText.textContent = '완료!';
+            btn.textContent = '✅ 영상 완료';
+
+            this.showStatus(`영상 생성 완료! (${statusData.duration}, 자막 ${statusData.subtitle_count}개)`, 'success');
+
+            // 다운로드
+            if (statusData.video_url) {
+              const a = document.createElement('a');
+              a.href = statusData.video_url;
+              a.download = `video_${this.sessionId}.mp4`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }
+            return;
+
+          } else if (statusData.status === 'failed') {
+            throw new Error(statusData.error || '영상 생성 실패');
+
+          } else {
+            // 계속 폴링
+            polls++;
+            if (polls < maxPolls) {
+              setTimeout(pollStatus, pollInterval);
+            } else {
+              throw new Error('시간 초과 (30분)');
+            }
+          }
+
+        } catch (error) {
+          console.error('[ImageMain] Poll error:', error);
+          this.showStatus('영상 생성 실패: ' + error.message, 'error');
+          btn.disabled = false;
+          btn.textContent = '🎬 영상 생성';
+          progressDiv.classList.add('hidden');
+        }
+      };
+
+      // 폴링 시작
+      setTimeout(pollStatus, pollInterval);
 
     } catch (error) {
       console.error('[ImageMain] Video generation error:', error);
