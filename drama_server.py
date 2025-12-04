@@ -9994,7 +9994,8 @@ def api_image_generate_assets_zip():
         import zipfile
         import io
         import urllib.request
-        from google.cloud import texttospeech
+        import requests
+        import base64
         import uuid
 
         data = request.get_json()
@@ -10007,8 +10008,12 @@ def api_image_generate_assets_zip():
 
         print(f"[ASSETS-ZIP] Generating assets for {len(scenes)} scenes, voice: {voice_name}")
 
-        # Google TTS 클라이언트
-        tts_client = texttospeech.TextToSpeechClient()
+        # Google Cloud TTS REST API 사용
+        api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+        if not api_key:
+            return jsonify({"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}), 500
+
+        tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
 
         # 결과 저장용
         audio_segments = []
@@ -10023,26 +10028,29 @@ def api_image_generate_assets_zip():
 
             print(f"[ASSETS-ZIP] Processing scene {idx + 1}: {narration[:30]}...")
 
-            # TTS 생성
-            synthesis_input = texttospeech.SynthesisInput(text=narration)
-            voice = texttospeech.VoiceSelectionParams(
-                language_code="ko-KR",
-                name=voice_name
-            )
-            audio_config = texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3,
-                speaking_rate=0.95,
-                pitch=0
-            )
+            # TTS 생성 (REST API)
+            payload = {
+                "input": {"text": narration},
+                "voice": {
+                    "languageCode": "ko-KR",
+                    "name": voice_name
+                },
+                "audioConfig": {
+                    "audioEncoding": "MP3",
+                    "speakingRate": 0.95,
+                    "pitch": 0
+                }
+            }
 
-            response = tts_client.synthesize_speech(
-                input=synthesis_input,
-                voice=voice,
-                audio_config=audio_config
-            )
+            tts_response = requests.post(tts_url, json=payload, timeout=60)
 
-            audio_data = response.audio_content
-            audio_segments.append(audio_data)
+            if tts_response.status_code != 200:
+                print(f"[ASSETS-ZIP] TTS API error for scene {idx + 1}: {tts_response.status_code}")
+                continue
+
+            tts_result = tts_response.json()
+            audio_content = base64.b64decode(tts_result.get("audioContent", ""))
+            audio_segments.append(audio_content)
 
             # 오디오 길이 추정 (MP3는 정확한 길이 계산 어려움, 대략 추정)
             # 한국어 평균 읽기 속도: 약 4-5자/초
