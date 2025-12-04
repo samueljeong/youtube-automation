@@ -9507,13 +9507,15 @@ def api_image_analyze_script():
 
         # 자동 감지 시 스크립트 언어 분석
         if output_language == 'auto':
+            import re as re_module  # 스코프 문제 해결
+
             def detect_script_language(text):
                 """스크립트 언어 감지 (한국어/영어/일본어)"""
                 if not text:
                     return 'en'
-                korean_chars = len(re.findall(r'[가-힣]', text))
-                japanese_chars = len(re.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
-                total_chars = len(re.sub(r'\s', '', text))
+                korean_chars = len(re_module.findall(r'[가-힣]', text))
+                japanese_chars = len(re_module.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
+                total_chars = len(re_module.sub(r'\s', '', text))
                 if total_chars == 0:
                     return 'en'
                 korean_ratio = korean_chars / total_chars
