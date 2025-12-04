@@ -165,3 +165,90 @@ Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
 - TTS: Google Cloud TTS (기본) / 네이버 클로바 지원
 - 백엔드/프론트엔드 파이프라인 모두 완성 상태
 - 실행을 위해 필요한 환경 변수: OPENAI_API_KEY, GOOGLE_API_KEY 등
+
+---
+
+## ⚠️ GPT-5.1 API 사용 가이드 (중요!)
+
+GPT-5.1은 기존 Chat Completions API가 아닌 **Responses API**를 사용해야 합니다.
+
+### ❌ 잘못된 방식 (Chat Completions API - 작동 안함)
+```python
+from openai import OpenAI
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-5.1",  # 이 방식은 안됨!
+    messages=[
+        {"role": "system", "content": "..."},
+        {"role": "user", "content": "..."}
+    ]
+)
+result = response.choices[0].message.content
+```
+
+### ✅ 올바른 방식 (Responses API)
+```python
+from openai import OpenAI
+client = OpenAI()
+
+response = client.responses.create(
+    model="gpt-5.1",
+    input=[
+        {
+            "role": "system",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "시스템 프롬프트"
+                }
+            ]
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "input_text",
+                    "text": "사용자 프롬프트"
+                }
+            ]
+        }
+    ],
+    temperature=0.7
+)
+
+# 결과 추출
+if getattr(response, "output_text", None):
+    result = response.output_text.strip()
+else:
+    text_chunks = []
+    for item in getattr(response, "output", []) or []:
+        for content in getattr(item, "content", []) or []:
+            if getattr(content, "type", "") == "text":
+                text_chunks.append(getattr(content, "text", ""))
+    result = "\n".join(text_chunks).strip()
+```
+
+### 참고 예시 코드
+- `drama_server.py` 내 `/api/drama/gpt-pro` 엔드포인트 (약 1740줄)
+- `drama_server.py` 내 `/api/image/analyze-script` 엔드포인트 (약 9760줄)
+
+### GPT-5.1 모델 종류
+- `gpt-5.1` - 기본 모델 (Thinking 모드)
+- `gpt-5.1-chat-latest` - Instant 모드
+- `gpt-5.1-codex` - 코딩 특화 (400K 컨텍스트)
+- `gpt-5.1-codex-mini` - 코딩 특화 경량 버전
+
+### JSON 응답 받기
+Responses API는 `response_format={"type": "json_object"}` 옵션을 지원하지 않을 수 있습니다.
+대신 프롬프트에 "반드시 JSON 형식으로만 응답하세요"를 추가하고, 응답에서 마크다운 코드블록을 제거 후 파싱하세요.
+
+```python
+# JSON 파싱 (마크다운 코드블록 제거)
+if result_text.startswith("```"):
+    result_text = result_text.split("```")[1]
+    if result_text.startswith("json"):
+        result_text = result_text[4:]
+result_text = result_text.strip()
+result = json.loads(result_text)
+```
