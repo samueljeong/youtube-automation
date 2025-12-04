@@ -10487,86 +10487,68 @@ def format_srt_time(seconds):
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-# ===== Image Lab 영상 생성 API =====
+# ===== Image Lab 영상 생성 API (백그라운드 처리) =====
 
-@app.route('/api/image/generate-video', methods=['POST'])
-def api_image_generate_video():
-    """이미지 + 오디오 + 자막 → MP4 영상 생성 (자막 burn-in 포함)"""
+# 영상 생성 작업 상태 저장
+video_jobs = {}  # {job_id: {status, progress, message, video_url, error, created_at}}
+
+def _get_subtitle_style(lang):
+    """언어별 자막 스타일 반환 (ASS 형식)"""
+    if lang == 'ko':
+        return (
+            "FontName=Noto Sans KR,FontSize=42,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=3,Shadow=2,MarginV=25"
+        )
+    else:
+        return (
+            "FontName=Arial,FontSize=28,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=2,Shadow=1,MarginV=60"
+        )
+
+def _generate_video_worker(job_id, session_id, scenes, detected_lang):
+    """백그라운드 영상 생성 워커"""
+    import subprocess
+    import shutil
+    import urllib.request
+
     try:
-        import subprocess
-        import shutil
-        import uuid as uuid_module
-        from datetime import datetime
+        video_jobs[job_id]['status'] = 'processing'
+        video_jobs[job_id]['message'] = '영상 생성 시작...'
 
-        data = request.get_json()
-        session_id = data.get('session_id', str(uuid_module.uuid4())[:8])
-        scenes = data.get('scenes', [])  # [{image_url, audio_url, duration, subtitles: [{start, end, text}]}]
-        detected_lang = data.get('language', 'en')  # 자막 언어
-        resolution = data.get('resolution', '1920x1080')
-        fps = data.get('fps', 30)
+        total_scenes = len(scenes)
+        upload_dir = "uploads"
+        os.makedirs(upload_dir, exist_ok=True)
 
-        if not scenes:
-            return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
+        # 작업 디렉토리 생성 (tempfile 대신 직접 관리)
+        work_dir = os.path.join(upload_dir, f"work_{job_id}")
+        os.makedirs(work_dir, exist_ok=True)
 
-        # 총 영상 길이 계산
-        total_duration = sum(s.get('duration', 0) for s in scenes)
-        MAX_DURATION = 540  # 최대 9분 (Gunicorn 10분 타임아웃 여유분 확보)
-
-        if total_duration > MAX_DURATION:
-            minutes = int(total_duration // 60)
-            seconds = int(total_duration % 60)
-            return jsonify({
-                "ok": False,
-                "error": f"영상이 너무 깁니다 ({minutes}분 {seconds}초). 최대 9분까지 가능합니다. ZIP 다운로드 후 CapCut에서 편집해주세요."
-            }), 400
-
-        print(f"[IMAGE-VIDEO] Starting video generation: {len(scenes)} scenes, lang={detected_lang}, total={total_duration:.1f}s")
-
-        # FFmpeg 확인
-        ffmpeg_path = shutil.which('ffmpeg')
-        if not ffmpeg_path:
-            return jsonify({"ok": False, "error": "FFmpeg가 설치되어 있지 않습니다"}), 500
-
-        # 언어별 자막 스타일 설정
-        def get_subtitle_style(lang):
-            """언어별 자막 스타일 반환 (ASS 형식)"""
-            if lang == 'ko':
-                # 한국어: 더 크게, 더 아래, 외곽선+그림자
-                return (
-                    "FontName=Noto Sans KR,FontSize=42,PrimaryColour=&H00FFFFFF,"
-                    "OutlineColour=&H00000000,BackColour=&H80000000,"
-                    "BorderStyle=1,Outline=3,Shadow=2,MarginV=25"
-                )
-            else:
-                # 영어: 중간 아래, 보통 크기, 외곽선+그림자
-                return (
-                    "FontName=Arial,FontSize=28,PrimaryColour=&H00FFFFFF,"
-                    "OutlineColour=&H00000000,BackColour=&H80000000,"
-                    "BorderStyle=1,Outline=2,Shadow=1,MarginV=60"
-                )
-
-        with tempfile.TemporaryDirectory() as temp_dir:
+        try:
             scene_videos = []
             all_subtitles = []
             current_time = 0.0
 
             # 1. 각 씬별 영상 클립 생성
             for idx, scene in enumerate(scenes):
+                video_jobs[job_id]['progress'] = int((idx / total_scenes) * 70)
+                video_jobs[job_id]['message'] = f'씬 {idx + 1}/{total_scenes} 처리 중...'
+
                 image_url = scene.get('image_url', '')
                 audio_url = scene.get('audio_url', '')
                 duration = scene.get('duration', 5.0)
                 subtitles = scene.get('subtitles', [])
 
-                print(f"[IMAGE-VIDEO] Scene {idx + 1}: duration={duration:.2f}s, subtitles={len(subtitles)}")
+                print(f"[VIDEO-WORKER] Scene {idx + 1}: duration={duration:.2f}s")
 
                 if not image_url:
                     continue
 
                 # 이미지 다운로드
-                img_path = os.path.join(temp_dir, f"scene_{idx:03d}.jpg")
+                img_path = os.path.join(work_dir, f"scene_{idx:03d}.jpg")
                 try:
                     if image_url.startswith('http'):
-                        import urllib.request
                         req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
                         with urllib.request.urlopen(req, timeout=30) as response:
                             with open(img_path, 'wb') as f:
@@ -10576,19 +10558,17 @@ def api_image_generate_video():
                         if os.path.exists(local_path):
                             shutil.copy(local_path, img_path)
                         else:
-                            print(f"[IMAGE-VIDEO] Image not found: {local_path}")
                             continue
                 except Exception as e:
-                    print(f"[IMAGE-VIDEO] Image download failed: {e}")
+                    print(f"[VIDEO-WORKER] Image download failed: {e}")
                     continue
 
-                # 오디오 다운로드 (있으면)
+                # 오디오 다운로드
                 audio_path = None
                 if audio_url:
-                    audio_path = os.path.join(temp_dir, f"audio_{idx:03d}.mp3")
+                    audio_path = os.path.join(work_dir, f"audio_{idx:03d}.mp3")
                     try:
                         if audio_url.startswith('http'):
-                            import urllib.request
                             req = urllib.request.Request(audio_url, headers={'User-Agent': 'Mozilla/5.0'})
                             with urllib.request.urlopen(req, timeout=30) as response:
                                 with open(audio_path, 'wb') as f:
@@ -10598,24 +10578,21 @@ def api_image_generate_video():
                             if os.path.exists(local_path):
                                 shutil.copy(local_path, audio_path)
                     except Exception as e:
-                        print(f"[IMAGE-VIDEO] Audio download failed: {e}")
+                        print(f"[VIDEO-WORKER] Audio download failed: {e}")
                         audio_path = None
 
-                # 자막 시간 조정 (전체 타임라인 기준)
+                # 자막 시간 조정
                 for sub in subtitles:
                     all_subtitles.append({
                         'start': current_time + sub.get('start', 0),
                         'end': current_time + sub.get('end', duration),
                         'text': sub.get('text', '')
                     })
-
                 current_time += duration
 
-                # 씬 클립 생성 (이미지 + 오디오)
-                clip_path = os.path.join(temp_dir, f"clip_{idx:03d}.mp4")
-
+                # 씬 클립 생성
+                clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
                 if audio_path and os.path.exists(audio_path):
-                    # 오디오가 있으면: 이미지 + 오디오
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", img_path,
@@ -10623,44 +10600,45 @@ def api_image_generate_video():
                         "-c:v", "libx264", "-tune", "stillimage",
                         "-c:a", "aac", "-b:a", "128k",
                         "-pix_fmt", "yuv420p",
-                        "-shortest",
-                        "-t", str(duration),
+                        "-shortest", "-t", str(duration),
                         clip_path
                     ]
                 else:
-                    # 오디오 없으면: 이미지만 (무음)
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", img_path,
+                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
                         "-c:v", "libx264", "-tune", "stillimage",
                         "-pix_fmt", "yuv420p",
-                        "-t", str(duration),
-                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                        "-shortest",
+                        "-t", str(duration), "-shortest",
                         clip_path
                     ]
 
-                result = subprocess.run(cmd, capture_output=True, timeout=300)  # 5분 타임아웃 (긴 씬용)
+                result = subprocess.run(cmd, capture_output=True, timeout=600)
                 if result.returncode == 0 and os.path.exists(clip_path):
                     scene_videos.append(clip_path)
-                else:
-                    print(f"[IMAGE-VIDEO] Clip creation failed: {result.stderr.decode()[:200]}")
 
             if not scene_videos:
-                return jsonify({"ok": False, "error": "영상 클립 생성 실패"}), 500
+                raise Exception("영상 클립 생성 실패")
 
-            # 2. 모든 클립 병합
-            concat_list = os.path.join(temp_dir, "concat.txt")
+            # 2. 클립 병합
+            video_jobs[job_id]['progress'] = 75
+            video_jobs[job_id]['message'] = '클립 병합 중...'
+
+            concat_list = os.path.join(work_dir, "concat.txt")
             with open(concat_list, 'w') as f:
                 for clip in scene_videos:
                     f.write(f"file '{clip}'\n")
 
-            merged_path = os.path.join(temp_dir, "merged.mp4")
-            cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path]
-            subprocess.run(cmd, capture_output=True, timeout=300)
+            merged_path = os.path.join(work_dir, "merged.mp4")
+            subprocess.run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path],
+                          capture_output=True, timeout=600)
 
-            # 3. SRT 자막 파일 생성
-            srt_path = os.path.join(temp_dir, "subtitles.srt")
+            # 3. SRT 자막 생성
+            video_jobs[job_id]['progress'] = 85
+            video_jobs[job_id]['message'] = '자막 처리 중...'
+
+            srt_path = os.path.join(work_dir, "subtitles.srt")
             with open(srt_path, 'w', encoding='utf-8') as f:
                 for i, sub in enumerate(all_subtitles, 1):
                     start_str = format_srt_time(sub['start'])
@@ -10668,55 +10646,124 @@ def api_image_generate_video():
                     f.write(f"{i}\n{start_str} --> {end_str}\n{sub['text']}\n\n")
 
             # 4. 자막 burn-in
-            subtitle_style = get_subtitle_style(detected_lang)
-            final_path = os.path.join(temp_dir, "final.mp4")
+            video_jobs[job_id]['progress'] = 90
+            video_jobs[job_id]['message'] = '자막 삽입 중...'
 
-            # subtitles 필터 사용 (ASS 스타일)
+            subtitle_style = _get_subtitle_style(detected_lang)
+            final_path = os.path.join(work_dir, "final.mp4")
             vf_filter = f"subtitles={srt_path}:force_style='{subtitle_style}'"
 
-            cmd = [
-                "ffmpeg", "-y",
-                "-i", merged_path,
+            result = subprocess.run([
+                "ffmpeg", "-y", "-i", merged_path,
                 "-vf", vf_filter,
-                "-c:v", "libx264", "-preset", "fast",
-                "-c:a", "copy",
+                "-c:v", "libx264", "-preset", "fast", "-c:a", "copy",
                 final_path
-            ]
-
-            result = subprocess.run(cmd, capture_output=True, timeout=600)
+            ], capture_output=True, timeout=1800)  # 30분 타임아웃
 
             if result.returncode != 0:
-                print(f"[IMAGE-VIDEO] Subtitle burn-in failed: {result.stderr.decode()[:500]}")
-                # 자막 없이 fallback
+                print(f"[VIDEO-WORKER] Subtitle burn-in failed, using merged")
                 final_path = merged_path
 
-            # 5. 결과 파일 저장
-            upload_dir = "uploads"
-            os.makedirs(upload_dir, exist_ok=True)
+            # 5. 결과 저장
             output_filename = f"video_{session_id}.mp4"
             output_path = os.path.join(upload_dir, output_filename)
             shutil.copy(final_path, output_path)
 
-            # 영상 길이 계산
-            total_duration = current_time
-            minutes = int(total_duration // 60)
-            seconds = int(total_duration % 60)
-            duration_str = f"{minutes}분 {seconds}초"
+            # 작업 디렉토리 정리
+            shutil.rmtree(work_dir, ignore_errors=True)
 
-            print(f"[IMAGE-VIDEO] Video created: {output_path}, duration: {duration_str}")
+            minutes = int(current_time // 60)
+            seconds = int(current_time % 60)
 
-            return jsonify({
-                "ok": True,
-                "video_url": f"/uploads/{output_filename}",
-                "duration": duration_str,
-                "subtitle_count": len(all_subtitles)
-            })
+            video_jobs[job_id]['status'] = 'completed'
+            video_jobs[job_id]['progress'] = 100
+            video_jobs[job_id]['message'] = '완료!'
+            video_jobs[job_id]['video_url'] = f"/uploads/{output_filename}"
+            video_jobs[job_id]['duration'] = f"{minutes}분 {seconds}초"
+            video_jobs[job_id]['subtitle_count'] = len(all_subtitles)
+
+            print(f"[VIDEO-WORKER] Completed: {output_path}")
+
+        except Exception as e:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            raise e
 
     except Exception as e:
-        print(f"[IMAGE-VIDEO][ERROR] {str(e)}")
+        print(f"[VIDEO-WORKER] Error: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"ok": False, "error": str(e)}), 500
+        video_jobs[job_id]['status'] = 'failed'
+        video_jobs[job_id]['error'] = str(e)
+        video_jobs[job_id]['message'] = f'오류: {str(e)}'
+
+
+@app.route('/api/image/generate-video', methods=['POST'])
+def api_image_generate_video():
+    """영상 생성 시작 (백그라운드) - job_id 반환"""
+    import threading
+    import uuid as uuid_module
+    from datetime import datetime
+
+    data = request.get_json()
+    session_id = data.get('session_id', str(uuid_module.uuid4())[:8])
+    scenes = data.get('scenes', [])
+    detected_lang = data.get('language', 'en')
+
+    if not scenes:
+        return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
+
+    total_duration = sum(s.get('duration', 0) for s in scenes)
+    job_id = f"vj_{uuid_module.uuid4().hex[:12]}"
+
+    # 작업 상태 초기화
+    video_jobs[job_id] = {
+        'status': 'queued',
+        'progress': 0,
+        'message': '대기 중...',
+        'video_url': None,
+        'error': None,
+        'duration': None,
+        'subtitle_count': 0,
+        'created_at': datetime.now().isoformat(),
+        'total_duration': total_duration
+    }
+
+    # 백그라운드 스레드 시작
+    thread = threading.Thread(
+        target=_generate_video_worker,
+        args=(job_id, session_id, scenes, detected_lang),
+        daemon=True
+    )
+    thread.start()
+
+    print(f"[IMAGE-VIDEO] Job started: {job_id}, {len(scenes)} scenes, {total_duration:.1f}s")
+
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "message": "영상 생성이 시작되었습니다. 상태를 확인해주세요.",
+        "estimated_time": f"{int(total_duration // 60)}분 {int(total_duration % 60)}초 예상"
+    })
+
+
+@app.route('/api/image/video-status/<job_id>', methods=['GET'])
+def api_image_video_status(job_id):
+    """영상 생성 작업 상태 확인"""
+    if job_id not in video_jobs:
+        return jsonify({"ok": False, "error": "작업을 찾을 수 없습니다"}), 404
+
+    job = video_jobs[job_id]
+    return jsonify({
+        "ok": True,
+        "job_id": job_id,
+        "status": job['status'],
+        "progress": job['progress'],
+        "message": job['message'],
+        "video_url": job['video_url'],
+        "duration": job['duration'],
+        "subtitle_count": job['subtitle_count'],
+        "error": job['error']
+    })
 
 
 # ===== 쿠팡파트너스 쇼츠 API =====
