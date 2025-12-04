@@ -3841,13 +3841,16 @@ def api_generate_image():
 
             print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작 - 요청 사이즈: {size}")
 
-            # 사이즈에 따른 비율 결정
+            # 사이즈에 따른 비율 결정 - 매우 강력하게 명시
             if size == "1792x1024" or "16:9" in size:
-                aspect_instruction = "IMPORTANT: Generate image in 16:9 widescreen landscape aspect ratio (width significantly larger than height)."
+                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. The width MUST be 1.78 times the height. Target dimensions: 1920x1080 pixels or 1280x720 pixels. This is MANDATORY for YouTube video format. DO NOT generate square or portrait images."
+                target_width, target_height = 1280, 720
             elif size == "1024x1792" or "9:16" in size:
-                aspect_instruction = "IMPORTANT: Generate image in 9:16 vertical portrait aspect ratio (height significantly larger than width)."
+                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 9:16 VERTICAL PORTRAIT aspect ratio. The height MUST be 1.78 times the width. Target dimensions: 1080x1920 pixels or 720x1280 pixels. This is MANDATORY for YouTube Shorts format. DO NOT generate square or landscape images."
+                target_width, target_height = 720, 1280
             else:
-                aspect_instruction = "IMPORTANT: Generate image in 16:9 widescreen landscape aspect ratio for YouTube video."
+                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. Target dimensions: 1920x1080 or 1280x720 pixels. MANDATORY for YouTube."
+                target_width, target_height = 1280, 720
 
             # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
             # 한국인 캐릭터인 경우 인종적 특징을 프롬프트 맨 앞에 배치하여 강조
@@ -3871,9 +3874,9 @@ def api_generate_image():
                     korean_features = "CRITICAL REQUIREMENT: The person MUST have authentic Korean/East Asian ethnicity from South Korea with Korean facial bone structure, Korean skin tone, natural Korean facial features. NOT Western features."
                     style_suffix = "cinematic Korean drama photography, professional lighting, 8k resolution, detailed"
 
-                enhanced_prompt = f"{korean_features} {prompt}. {aspect_instruction} Style: {style_suffix}, wide shot composition"
+                enhanced_prompt = f"{aspect_instruction} {korean_features} {prompt}. Style: {style_suffix}, wide shot composition"
             else:
-                enhanced_prompt = f"Generate a high quality, photorealistic image: {prompt}. {aspect_instruction} Style: cinematic lighting, professional photography, 8k resolution, detailed, wide shot composition"
+                enhanced_prompt = f"{aspect_instruction} Generate a high quality image: {prompt}. Style: cinematic lighting, professional photography, detailed, wide shot composition"
 
             # OpenRouter API 호출 (Chat Completions 형식)
             headers = {
@@ -4038,23 +4041,64 @@ def api_generate_image():
                         elif isinstance(content, str):
                             print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:200]}")
 
-                # base64 데이터가 있으면 파일로 저장
+                # base64 데이터가 있으면 파일로 저장 (+ 16:9 리사이즈 및 압축)
                 if base64_image_data and not image_url:
                     import base64 as b64
+                    from PIL import Image as PILImage
+                    from io import BytesIO
                     try:
                         # base64 디코딩
                         image_bytes = b64.b64decode(base64_image_data)
 
-                        # 파일 저장
+                        # PIL로 이미지 열기
+                        img = PILImage.open(BytesIO(image_bytes))
+                        original_size = len(image_bytes)
+                        original_dimensions = f"{img.width}x{img.height}"
+                        print(f"[DRAMA-STEP4-IMAGE] 원본 이미지: {original_dimensions}, {original_size/1024:.1f}KB")
+
+                        # 16:9 비율로 리사이즈/크롭 (target_width, target_height 사용)
+                        target_ratio = target_width / target_height
+                        current_ratio = img.width / img.height
+
+                        if abs(current_ratio - target_ratio) > 0.05:  # 비율 차이가 5% 이상이면 크롭
+                            if current_ratio > target_ratio:
+                                # 이미지가 더 넓음 - 좌우 크롭
+                                new_width = int(img.height * target_ratio)
+                                left = (img.width - new_width) // 2
+                                img = img.crop((left, 0, left + new_width, img.height))
+                            else:
+                                # 이미지가 더 높음 - 상하 크롭
+                                new_height = int(img.width / target_ratio)
+                                top = (img.height - new_height) // 2
+                                img = img.crop((0, top, img.width, top + new_height))
+                            print(f"[DRAMA-STEP4-IMAGE] 16:9 크롭 완료: {img.width}x{img.height}")
+
+                        # 타겟 크기로 리사이즈 (YouTube HD: 1280x720)
+                        if img.width > target_width or img.height > target_height:
+                            img = img.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
+                            print(f"[DRAMA-STEP4-IMAGE] 리사이즈 완료: {target_width}x{target_height}")
+
+                        # RGB 변환 (RGBA 이미지인 경우)
+                        if img.mode == 'RGBA':
+                            background = PILImage.new('RGB', img.size, (255, 255, 255))
+                            background.paste(img, mask=img.split()[3])
+                            img = background
+                        elif img.mode != 'RGB':
+                            img = img.convert('RGB')
+
+                        # JPEG로 압축 저장 (품질 85)
                         static_dir = os.path.join(os.path.dirname(__file__), 'static', 'images')
                         os.makedirs(static_dir, exist_ok=True)
 
                         timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
-                        filename = f"gemini_{timestamp}.png"
+                        filename = f"gemini_{timestamp}.jpg"
                         filepath = os.path.join(static_dir, filename)
 
-                        with open(filepath, 'wb') as f:
-                            f.write(image_bytes)
+                        img.save(filepath, 'JPEG', quality=85, optimize=True)
+
+                        final_size = os.path.getsize(filepath)
+                        compression_ratio = (1 - final_size / original_size) * 100
+                        print(f"[DRAMA-STEP4-IMAGE] 최종 이미지: {target_width}x{target_height}, {final_size/1024:.1f}KB (압축률: {compression_ratio:.1f}%)")
 
                         image_url = f"/static/images/{filename}"
                         print(f"[DRAMA-STEP4-IMAGE] 이미지 저장 완료: {image_url}")
