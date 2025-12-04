@@ -1494,6 +1494,129 @@
       }
       .news-table td:first-child { padding-top: 0; }
     }
+
+    /* People/Project Cards */
+    .person-card, .project-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.875rem 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .person-card:hover, .project-card:hover {
+      border-color: var(--primary-color);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .person-card.selected, .project-card.selected {
+      border-color: var(--primary-color);
+      background: var(--primary-light);
+    }
+
+    .person-avatar, .project-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .person-info-brief, .project-info-brief {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .person-name, .project-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    .person-category-badge, .project-status-badge {
+      font-size: 0.7rem;
+      padding: 0.125rem 0.5rem;
+      border-radius: 10px;
+      background: var(--bg-color);
+      color: var(--text-secondary);
+    }
+
+    .project-status-badge.active { background: #dcfce7; color: #16a34a; }
+    .project-status-badge.completed { background: #dbeafe; color: #2563eb; }
+    .project-status-badge.on-hold { background: #fef3c7; color: #d97706; }
+
+    .person-last-note, .project-last-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-item {
+      background: var(--bg-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.375rem;
+    }
+
+    .note-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .note-category-badge {
+      font-size: 0.65rem;
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      background: var(--primary-light);
+      color: var(--primary-dark);
+    }
+
+    .note-content {
+      font-size: 0.875rem;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .note-delete {
+      font-size: 0.7rem;
+      padding: 0.125rem 0.375rem;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .note-delete:hover {
+      background: var(--danger-color);
+      border-color: var(--danger-color);
+      color: white;
+    }
+
+    /* Quick Input responsive */
+    @media (max-width: 900px) {
+      .quick-input-container {
+        grid-template-columns: 1fr !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1530,6 +1653,14 @@
           <a href="#" class="sidebar-item" data-section="attendance" onclick="AssistantMain.showSection('attendance'); return false;">
             <span class="sidebar-icon">📋</span>
             <span>Attendance</span>
+          </a>
+          <a href="#" class="sidebar-item" data-section="people" onclick="AssistantMain.showSection('people'); return false;">
+            <span class="sidebar-icon">👥</span>
+            <span>People</span>
+          </a>
+          <a href="#" class="sidebar-item" data-section="projects" onclick="AssistantMain.showSection('projects'); return false;">
+            <span class="sidebar-icon">📁</span>
+            <span>Projects</span>
           </a>
         </nav>
       </div>
@@ -1603,29 +1734,66 @@
           </div>
         </div>
 
-        <!-- Quick Input (Compact) -->
-        <div class="quick-input-section" style="padding: 1rem;">
-          <div class="quick-input-header" style="margin-bottom: 0.75rem;">
-            <h3 style="font-size: 0.9rem;">📥 Quick Input</h3>
-            <span class="badge">AI</span>
-          </div>
-          <textarea id="input-box" placeholder="Paste notice, image text, or schedule info..." style="min-height: 60px;"></textarea>
-          <div class="quick-input-actions" style="margin-top: 0.75rem;">
-            <button class="btn btn-primary btn-small" onclick="AssistantMain.analyzeInput()" id="btn-analyze">
-              Analyze & Save
-            </button>
-            <button class="btn btn-secondary btn-small" onclick="document.getElementById('input-box').value = ''">
-              Clear
-            </button>
-          </div>
-          <div class="parsed-result" id="parsed-result">
-            <h4>Parsed Results</h4>
-            <div id="parsed-events"></div>
-            <div id="parsed-tasks"></div>
-            <div style="margin-top: 0.75rem;">
-              <button class="btn btn-primary btn-small" onclick="AssistantMain.saveParsedData()">
-                Save All
+        <!-- Quick Input Container (Two Areas) -->
+        <div class="quick-input-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+          <!-- Area 1: Schedule & Tasks -->
+          <div class="quick-input-section" style="padding: 1rem;">
+            <div class="quick-input-header" style="margin-bottom: 0.75rem;">
+              <h3 style="font-size: 0.9rem;">📅 Schedule & Tasks</h3>
+              <span class="badge">AI</span>
+            </div>
+            <textarea id="input-box" placeholder="Paste notice, image text, or schedule info..." style="min-height: 60px;"></textarea>
+            <div class="quick-input-actions" style="margin-top: 0.75rem;">
+              <button class="btn btn-primary btn-small" onclick="AssistantMain.analyzeInput()" id="btn-analyze">
+                Analyze & Save
               </button>
+              <button class="btn btn-secondary btn-small" onclick="document.getElementById('input-box').value = ''">
+                Clear
+              </button>
+            </div>
+            <div class="parsed-result" id="parsed-result">
+              <h4>Parsed Results</h4>
+              <div id="parsed-events"></div>
+              <div id="parsed-tasks"></div>
+              <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary btn-small" onclick="AssistantMain.saveParsedData()">
+                  Save All
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Area 2: People & Projects -->
+          <div class="quick-input-section" style="padding: 1rem;">
+            <div class="quick-input-header" style="margin-bottom: 0.75rem;">
+              <h3 style="font-size: 0.9rem;">👥 People & Projects</h3>
+              <span class="badge">AI</span>
+            </div>
+            <div class="input-type-toggle" style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <button class="toggle-btn active" data-type="people" onclick="AssistantMain.setQuickInputType('people')" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--primary-light); color: var(--primary-dark); font-size: 0.8rem; font-weight: 500; cursor: pointer;">
+                👤 People
+              </button>
+              <button class="toggle-btn" data-type="project" onclick="AssistantMain.setQuickInputType('project')" style="flex: 1; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: white; color: var(--text-secondary); font-size: 0.8rem; font-weight: 500; cursor: pointer;">
+                📁 Project
+              </button>
+            </div>
+            <textarea id="input-box-people" placeholder="예: 홍길동 집사 12월 10일 담낭암 수술 예정..." style="min-height: 60px;"></textarea>
+            <div class="quick-input-actions" style="margin-top: 0.75rem;">
+              <button class="btn btn-primary btn-small" onclick="AssistantMain.analyzeInputPeople()" id="btn-analyze-people">
+                Analyze & Add
+              </button>
+              <button class="btn btn-secondary btn-small" onclick="document.getElementById('input-box-people').value = ''">
+                Clear
+              </button>
+            </div>
+            <div class="parsed-result" id="parsed-result-people" style="display: none;">
+              <h4>Parsed Info</h4>
+              <div id="parsed-people-info"></div>
+              <div style="margin-top: 0.75rem;">
+                <button class="btn btn-primary btn-small" onclick="AssistantMain.saveParsedPeople()">
+                  Confirm & Save
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1831,6 +1999,102 @@
           </div>
         </div>
       </div>
+
+      <!-- People Section -->
+      <div id="section-people" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h3>👥 People Management</h3>
+            <button class="btn btn-primary btn-small" onclick="AssistantMain.addPerson()">+ Add Person</button>
+          </div>
+          <div class="card-body">
+            <div class="search-bar" style="margin-bottom: 1rem;">
+              <input type="text" id="people-search" placeholder="Search by name..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;" onkeyup="AssistantMain.searchPeople()">
+              <select id="people-category-filter" onchange="AssistantMain.filterPeopleByCategory()" style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; margin-left: 0.5rem;">
+                <option value="">All Categories</option>
+                <option value="집사">집사</option>
+                <option value="권사">권사</option>
+                <option value="장로">장로</option>
+                <option value="청년부">청년부</option>
+                <option value="주일학교">주일학교</option>
+              </select>
+            </div>
+            <div class="people-list" id="people-list" style="display: grid; gap: 0.75rem;">
+              <div class="empty">Loading people...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Person Detail Panel (shown when person is selected) -->
+        <div class="card" id="person-detail-panel" style="display: none; margin-top: 1rem;">
+          <div class="card-header">
+            <h3 id="person-detail-name">Person Name</h3>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary btn-small" onclick="AssistantMain.editPerson()">Edit</button>
+              <button class="btn btn-small" style="background: var(--danger-color); color: white;" onclick="AssistantMain.deletePerson()">Delete</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="person-info" id="person-info" style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;"></div>
+            <div class="notes-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h4 style="font-size: 0.9rem; font-weight: 600;">Notes History</h4>
+                <button class="btn btn-primary btn-small" onclick="AssistantMain.addPersonNote()">+ Add Note</button>
+              </div>
+              <div class="notes-list" id="person-notes-list">
+                <div class="empty">No notes yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Projects Section -->
+      <div id="section-projects" class="section">
+        <div class="card">
+          <div class="card-header">
+            <h3>📁 Project Management</h3>
+            <button class="btn btn-primary btn-small" onclick="AssistantMain.addProject()">+ Add Project</button>
+          </div>
+          <div class="card-body">
+            <div class="projects-filters" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+              <button class="filter-btn active" data-status="all" onclick="AssistantMain.filterProjectsByStatus('all')">All</button>
+              <button class="filter-btn" data-status="active" onclick="AssistantMain.filterProjectsByStatus('active')">Active</button>
+              <button class="filter-btn" data-status="completed" onclick="AssistantMain.filterProjectsByStatus('completed')">Completed</button>
+              <button class="filter-btn" data-status="on-hold" onclick="AssistantMain.filterProjectsByStatus('on-hold')">On Hold</button>
+            </div>
+            <div class="search-bar" style="margin-bottom: 1rem;">
+              <input type="text" id="projects-search" placeholder="Search projects..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px;" onkeyup="AssistantMain.searchProjects()">
+            </div>
+            <div class="projects-list" id="projects-list" style="display: grid; gap: 0.75rem;">
+              <div class="empty">Loading projects...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Detail Panel -->
+        <div class="card" id="project-detail-panel" style="display: none; margin-top: 1rem;">
+          <div class="card-header">
+            <h3 id="project-detail-name">Project Name</h3>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary btn-small" onclick="AssistantMain.editProject()">Edit</button>
+              <button class="btn btn-small" style="background: var(--danger-color); color: white;" onclick="AssistantMain.deleteProject()">Delete</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="project-info" id="project-info" style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;"></div>
+            <div class="notes-section">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h4 style="font-size: 0.9rem; font-weight: 600;">Progress Notes</h4>
+                <button class="btn btn-primary btn-small" onclick="AssistantMain.addProjectNote()">+ Add Note</button>
+              </div>
+              <div class="notes-list" id="project-notes-list">
+                <div class="empty">No notes yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -1852,6 +2116,14 @@
       <a href="#" class="mobile-nav-item" data-section="attendance" onclick="AssistantMain.showSection('attendance'); return false;">
         <span class="nav-icon">📋</span>
         <span>Attendance</span>
+      </a>
+      <a href="#" class="mobile-nav-item" data-section="people" onclick="AssistantMain.showSection('people'); return false;">
+        <span class="nav-icon">👥</span>
+        <span>People</span>
+      </a>
+      <a href="#" class="mobile-nav-item" data-section="projects" onclick="AssistantMain.showSection('projects'); return false;">
+        <span class="nav-icon">📁</span>
+        <span>Projects</span>
       </a>
     </div>
   </nav>
@@ -1915,6 +2187,165 @@
         <button class="btn btn-primary" id="btn-copy-script" onclick="AssistantMain.copyScript()" style="display: none;">
           📋 대본 복사
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Person Add/Edit Modal -->
+  <div class="modal-overlay" id="person-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="person-modal-title">Add Person</h3>
+        <button class="modal-close" onclick="AssistantMain.closePersonModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="person-id">
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="person-name" placeholder="이름 (예: 홍길동 집사)" />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="person-category">
+            <option value="">Select...</option>
+            <option value="집사">집사</option>
+            <option value="권사">권사</option>
+            <option value="장로">장로</option>
+            <option value="청년부">청년부</option>
+            <option value="주일학교">주일학교</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" id="person-phone" placeholder="010-0000-0000" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="person-email" placeholder="email@example.com" />
+        </div>
+        <div class="form-group">
+          <label>Address</label>
+          <input type="text" id="person-address" placeholder="주소" />
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="person-notes" placeholder="메모..." rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closePersonModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="AssistantMain.savePerson()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Person Note Add Modal -->
+  <div class="modal-overlay" id="person-note-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Note</h3>
+        <button class="modal-close" onclick="AssistantMain.closePersonNoteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="person-note-date" />
+        </div>
+        <div class="form-group">
+          <label>Note *</label>
+          <textarea id="person-note-content" placeholder="노트 내용..." rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="person-note-category">
+            <option value="">Select...</option>
+            <option value="심방">심방</option>
+            <option value="상담">상담</option>
+            <option value="건강">건강</option>
+            <option value="경조사">경조사</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closePersonNoteModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="AssistantMain.savePersonNote()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Add/Edit Modal -->
+  <div class="modal-overlay" id="project-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="project-modal-title">Add Project</h3>
+        <button class="modal-close" onclick="AssistantMain.closeProjectModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="project-id">
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="project-name" placeholder="프로젝트 이름" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="project-description" placeholder="프로젝트 설명..." rows="2"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="project-status">
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="on-hold">On Hold</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="project-priority">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <div class="form-row" style="display: flex; gap: 1rem;">
+          <div class="form-group" style="flex: 1;">
+            <label>Start Date</label>
+            <input type="date" id="project-start-date" />
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>End Date</label>
+            <input type="date" id="project-end-date" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closeProjectModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="AssistantMain.saveProject()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Note Add Modal -->
+  <div class="modal-overlay" id="project-note-modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Progress Note</h3>
+        <button class="modal-close" onclick="AssistantMain.closeProjectNoteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="project-note-date" />
+        </div>
+        <div class="form-group">
+          <label>Note *</label>
+          <textarea id="project-note-content" placeholder="진행 상황..." rows="4"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="AssistantMain.closeProjectNoteModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="AssistantMain.saveProjectNote()">Save</button>
       </div>
     </div>
   </div>
