@@ -10199,13 +10199,19 @@ def api_image_generate_assets_zip():
         srt_entries = []
         current_time = 0.0
 
+        # 씬별 메타데이터 (영상 생성용)
+        scene_metadata = []  # [{image_url, audio_url, duration, subtitles: [{start, end, text}], language}]
+        detected_lang_global = 'ko'  # 전체 언어 (마지막 감지된 언어)
+
         # 1. 각 씬의 문장별 TTS 생성
         for scene_idx, scene in enumerate(scenes):
             narration = scene.get('text', '')
+            image_url = scene.get('image_url', '')
             if not narration:
                 continue
 
             detected_lang = detect_language(narration)
+            detected_lang_global = detected_lang  # 전체 언어 업데이트
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
@@ -10216,6 +10222,10 @@ def api_image_generate_assets_zip():
             print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
 
             scene_audios = []
+            scene_start_time = current_time  # 씬 시작 시간
+            scene_subtitles = []  # 씬 내 상대적 자막 타이밍
+            scene_relative_time = 0.0
+
             for sent_idx, sentence in enumerate(sentences):
                 # 문장별 TTS 생성
                 audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
@@ -10225,7 +10235,7 @@ def api_image_generate_assets_zip():
                     duration = get_mp3_duration(audio_bytes)
                     scene_audios.append(audio_bytes)
 
-                    # SRT 엔트리 생성 (정확한 시간)
+                    # SRT 엔트리 생성 (전체 타임라인)
                     srt_entries.append({
                         'index': len(srt_entries) + 1,
                         'start': current_time,
@@ -10233,10 +10243,28 @@ def api_image_generate_assets_zip():
                         'text': sentence
                     })
 
+                    # 씬 내 상대적 자막 (영상 생성용)
+                    scene_subtitles.append({
+                        'start': scene_relative_time,
+                        'end': scene_relative_time + duration,
+                        'text': sentence
+                    })
+
                     print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
                     current_time += duration
+                    scene_relative_time += duration
 
                     all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
+
+            # 씬 메타데이터 저장
+            scene_duration = current_time - scene_start_time
+            scene_metadata.append({
+                'scene_idx': scene_idx,
+                'image_url': image_url,
+                'duration': scene_duration,
+                'subtitles': scene_subtitles,
+                'language': detected_lang
+            })
 
             # 씬 간 짧은 간격 (무음 0.3초 추가 가능, 여기서는 시간만 조정)
             current_time += 0.3
@@ -10284,12 +10312,16 @@ def api_image_generate_assets_zip():
                     filename = f"{str(scene_idx + 1).zfill(2)}_{str(sent_idx + 1).zfill(2)}_sent.mp3"
                     zip_file.writestr(f"audio/sentences/{filename}", audio_bytes)
 
-                # 2. 씬별 오디오 병합 (FFmpeg 사용)
+                # 2. 씬별 오디오 병합 (FFmpeg 사용) + uploads/ 저장
                 scene_audio_map = {}  # {scene_idx: [audio_bytes, ...]}
                 for scene_idx, sent_idx, audio_bytes in all_sentence_audios:
                     if scene_idx not in scene_audio_map:
                         scene_audio_map[scene_idx] = []
                     scene_audio_map[scene_idx].append(audio_bytes)
+
+                # uploads 디렉토리 생성
+                upload_dir = "uploads"
+                os.makedirs(upload_dir, exist_ok=True)
 
                 scene_merged_files = []
                 for scene_idx in sorted(scene_audio_map.keys()):
@@ -10317,6 +10349,19 @@ def api_image_generate_assets_zip():
                                 merged_audio = f.read()
                             filename = f"{str(scene_idx + 1).zfill(2)}_scene.mp3"
                             zip_file.writestr(f"audio/{filename}", merged_audio)
+
+                            # uploads/에도 개별 저장 (영상 생성용)
+                            audio_filename = f"{session_id}_scene_{str(scene_idx + 1).zfill(2)}.mp3"
+                            audio_path = os.path.join(upload_dir, audio_filename)
+                            with open(audio_path, 'wb') as f:
+                                f.write(merged_audio)
+
+                            # scene_metadata에 audio_url 추가
+                            for sm in scene_metadata:
+                                if sm['scene_idx'] == scene_idx:
+                                    sm['audio_url'] = f"/uploads/{audio_filename}"
+                                    break
+
                             scene_merged_files.append(merged_path)
                             os.unlink(merged_path)
 
@@ -10419,7 +10464,9 @@ def api_image_generate_assets_zip():
             "ok": True,
             "zip_url": f"/uploads/{zip_filename}",
             "image_count": image_count,
-            "audio_duration": duration_str
+            "audio_duration": duration_str,
+            "scene_metadata": scene_metadata,  # 영상 생성용 메타데이터
+            "detected_language": detected_lang_global  # 감지된 언어
         })
 
     except Exception as e:

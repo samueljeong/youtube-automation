@@ -1037,6 +1037,30 @@
       transform: translateY(-1px);
     }
 
+    .btn-generate-video {
+      flex: 1;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-generate-video:hover {
+      background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+      transform: translateY(-1px);
+    }
+
+    .btn-generate-video:disabled {
+      background: #475569;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .asset-preview {
       display: flex;
       gap: 20px;
@@ -1337,6 +1361,9 @@
               <button id="btn-download-assets" class="btn-download-assets hidden" onclick="ImageMain.downloadAssets()">
                 ⬇️ ZIP 다운로드
               </button>
+              <button id="btn-generate-video" class="btn-generate-video hidden" onclick="ImageMain.generateVideo()">
+                🎬 영상 생성
+              </button>
             </div>
 
             <!-- 생성 결과 미리보기 -->
@@ -1365,6 +1392,6 @@
 
   <!-- JavaScript -->
   <script src="{{ url_for('static', filename='js/drama-utils.js') }}?v=20241203"></script>
-  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241204d"></script>
+  <script src="{{ url_for('static', filename='js/image-main.js') }}?v=20241204e"></script>
 </body>
 </html>

@@ -14,6 +14,8 @@ const ImageMain = {
   audience: 'senior',    // 타겟 시청자: 'senior' 또는 'general'
   selectedVoice: 'ko-KR-Neural2-A',  // 선택된 TTS 음성
   assetZipUrl: null,     // 생성된 ZIP 다운로드 URL
+  sceneMetadata: null,   // 영상 생성용 씬 메타데이터
+  detectedLanguage: 'ko', // 감지된 언어
 
   /**
    * 초기화
@@ -811,13 +813,19 @@ const ImageMain = {
 
       // 결과 표시
       this.assetZipUrl = data.zip_url;
+      this.sceneMetadata = data.scene_metadata;  // 영상 생성용 메타데이터 저장
+      this.detectedLanguage = data.detected_language || 'ko';  // 감지된 언어 저장
+
       document.getElementById('asset-image-count').textContent = `이미지 ${data.image_count}개`;
       document.getElementById('asset-audio-info').textContent = `오디오 ${data.audio_duration}`;
       document.getElementById('asset-preview').classList.remove('hidden');
       document.getElementById('btn-download-assets').classList.remove('hidden');
+      document.getElementById('btn-generate-video').classList.remove('hidden');  // 영상 생성 버튼 표시
 
       btn.textContent = '✅ 생성 완료';
       this.showStatus('CapCut 에셋이 준비되었습니다!', 'success');
+
+      console.log('[ImageMain] Scene metadata saved:', this.sceneMetadata?.length, 'scenes, lang:', this.detectedLanguage);
 
     } catch (error) {
       console.error('[ImageMain] Asset generation error:', error);
@@ -845,6 +853,84 @@ const ImageMain = {
     document.body.removeChild(a);
 
     this.showStatus('ZIP 파일 다운로드 중...', 'info');
+  },
+
+  /**
+   * 영상 생성 (이미지 + 오디오 + 자막 → MP4)
+   */
+  async generateVideo() {
+    if (!this.sceneMetadata || this.sceneMetadata.length === 0) {
+      this.showStatus('먼저 에셋을 생성해주세요.', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btn-generate-video');
+    const progressDiv = document.getElementById('asset-progress');
+    const progressFill = document.getElementById('asset-progress-fill');
+    const progressText = document.getElementById('asset-progress-text');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ 영상 생성 중...';
+    progressDiv.classList.remove('hidden');
+    progressFill.style.width = '20%';
+    progressText.textContent = '영상 생성 중... (1-2분 소요)';
+
+    try {
+      // scene_metadata를 API 형식에 맞게 변환
+      const scenes = this.sceneMetadata.map(sm => ({
+        image_url: sm.image_url,
+        audio_url: sm.audio_url,
+        duration: sm.duration,
+        subtitles: sm.subtitles
+      }));
+
+      console.log('[ImageMain] Generating video with', scenes.length, 'scenes');
+
+      const response = await fetch('/api/image/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          scenes: scenes,
+          language: this.detectedLanguage
+        })
+      });
+
+      progressFill.style.width = '80%';
+      progressText.textContent = '영상 인코딩 중...';
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'API 오류');
+      }
+
+      const data = await response.json();
+
+      progressFill.style.width = '100%';
+      progressText.textContent = '완료!';
+
+      // 영상 다운로드
+      if (data.video_url) {
+        this.showStatus(`영상 생성 완료! (${data.duration}, 자막 ${data.subtitle_count}개)`, 'success');
+
+        // 다운로드 링크 생성
+        const a = document.createElement('a');
+        a.href = data.video_url;
+        a.download = `video_${this.sessionId}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        btn.textContent = '✅ 영상 완료';
+      }
+
+    } catch (error) {
+      console.error('[ImageMain] Video generation error:', error);
+      this.showStatus('영상 생성 실패: ' + error.message, 'error');
+      btn.disabled = false;
+      btn.textContent = '🎬 영상 생성';
+      progressDiv.classList.add('hidden');
+    }
   }
 };
 
