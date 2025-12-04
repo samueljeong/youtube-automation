@@ -10128,18 +10128,48 @@ def api_image_generate_assets_zip():
                 word_count = len(narration.split())
                 estimated_duration = max(word_count / 2.5, 2.0)  # 영어는 단어 수 기준
 
-            # SRT 엔트리 생성
-            start_time = current_time
-            end_time = current_time + estimated_duration
+            # SRT 엔트리 생성 (문장 단위로 분리)
+            # 문장 분리 (마침표, 물음표, 느낌표 기준)
+            sentences = re.split(r'(?<=[.!?])\s+', narration.strip())
+            sentences = [s.strip() for s in sentences if s.strip()]
 
-            srt_entries.append({
-                'index': idx + 1,
-                'start': start_time,
-                'end': end_time,
-                'text': narration
-            })
+            if not sentences:
+                sentences = [narration]
 
-            current_time = end_time + 0.3  # 0.3초 간격
+            # 각 문장의 길이 비율로 시간 배분
+            if detected_lang == 'ko':
+                # 한국어: 글자 수 기준
+                total_chars = sum(len(s) for s in sentences)
+                for sent in sentences:
+                    sent_ratio = len(sent) / total_chars if total_chars > 0 else 1 / len(sentences)
+                    sent_duration = estimated_duration * sent_ratio
+                    sent_duration = max(sent_duration, 1.0)  # 최소 1초
+
+                    srt_entries.append({
+                        'index': len(srt_entries) + 1,
+                        'start': current_time,
+                        'end': current_time + sent_duration,
+                        'text': sent
+                    })
+                    current_time += sent_duration
+            else:
+                # 영어: 단어 수 기준
+                total_words = sum(len(s.split()) for s in sentences)
+                for sent in sentences:
+                    sent_words = len(sent.split())
+                    sent_ratio = sent_words / total_words if total_words > 0 else 1 / len(sentences)
+                    sent_duration = estimated_duration * sent_ratio
+                    sent_duration = max(sent_duration, 1.0)  # 최소 1초
+
+                    srt_entries.append({
+                        'index': len(srt_entries) + 1,
+                        'start': current_time,
+                        'end': current_time + sent_duration,
+                        'text': sent
+                    })
+                    current_time += sent_duration
+
+            current_time += 0.2  # 씬 간 0.2초 간격
 
         # 2. ZIP 파일 생성
         zip_buffer = io.BytesIO()
