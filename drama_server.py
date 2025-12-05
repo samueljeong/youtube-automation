@@ -13403,6 +13403,21 @@ Style requirements:
 
         result = response.json()
 
+        # 디버그: 전체 응답 구조 출력
+        print(f"[THUMBNAIL-AI][DEBUG] OpenRouter 응답 키: {list(result.keys())}")
+        if result.get("choices"):
+            msg = result["choices"][0].get("message", {})
+            print(f"[THUMBNAIL-AI][DEBUG] message 키: {list(msg.keys())}")
+            content = msg.get("content")
+            if isinstance(content, list):
+                for i, item in enumerate(content):
+                    if isinstance(item, dict):
+                        print(f"[THUMBNAIL-AI][DEBUG] content[{i}] 타입: {item.get('type')}, 키: {list(item.keys())}")
+                    else:
+                        print(f"[THUMBNAIL-AI][DEBUG] content[{i}]: {type(item).__name__}")
+            elif content:
+                print(f"[THUMBNAIL-AI][DEBUG] content 타입: {type(content).__name__}, 길이: {len(str(content)[:100])}")
+
         # 이미지 추출
         image_url = None
         base64_image_data = None
@@ -13422,18 +13437,53 @@ Style requirements:
                             base64_image_data = img
                         break
 
-            # content 배열 확인
+            # content 배열 확인 (다양한 형식 지원)
             if not base64_image_data:
                 content = message.get("content", [])
                 if isinstance(content, list):
                     for item in content:
                         if isinstance(item, dict):
-                            if item.get("type") == "image_url":
+                            item_type = item.get("type", "")
+
+                            # 형식 1: image_url
+                            if item_type == "image_url":
                                 img_data = item.get("image_url", {})
                                 url = img_data.get("url", "")
                                 if url.startswith("data:"):
                                     base64_image_data = url.split(",", 1)[1]
+                                    print(f"[THUMBNAIL-AI][DEBUG] image_url 형식에서 이미지 추출")
                                     break
+
+                            # 형식 2: inline_data (Gemini 네이티브)
+                            if item_type == "image" or "inline_data" in item:
+                                inline = item.get("inline_data") or item.get("image", {})
+                                if isinstance(inline, dict):
+                                    data = inline.get("data") or inline.get("b64_json") or inline.get("base64")
+                                    if data:
+                                        base64_image_data = data
+                                        print(f"[THUMBNAIL-AI][DEBUG] inline_data 형식에서 이미지 추출")
+                                        break
+
+                            # 형식 3: b64_json 직접
+                            if "b64_json" in item:
+                                base64_image_data = item["b64_json"]
+                                print(f"[THUMBNAIL-AI][DEBUG] b64_json 형식에서 이미지 추출")
+                                break
+
+                            # 형식 4: data 직접
+                            if "data" in item and item.get("type") != "text":
+                                base64_image_data = item["data"]
+                                print(f"[THUMBNAIL-AI][DEBUG] data 필드에서 이미지 추출")
+                                break
+
+                elif isinstance(content, str) and len(content) > 1000:
+                    # 긴 문자열이면 base64일 가능성
+                    try:
+                        if content.startswith("data:image"):
+                            base64_image_data = content.split(",", 1)[1]
+                            print(f"[THUMBNAIL-AI][DEBUG] content 문자열에서 data URI 추출")
+                    except:
+                        pass
 
         if base64_image_data:
             # 파일로 저장
@@ -13451,7 +13501,11 @@ Style requirements:
             print(f"[THUMBNAIL-AI] 이미지 저장 완료: {image_url}")
 
         if not image_url:
-            return jsonify({"ok": False, "error": "이미지 생성 결과를 찾을 수 없습니다"}), 200
+            # 디버그: 응답 전체 구조 출력
+            import json
+            print(f"[THUMBNAIL-AI][DEBUG] 이미지 추출 실패 - 전체 응답:")
+            print(json.dumps(result, indent=2, ensure_ascii=False, default=str)[:2000])
+            return jsonify({"ok": False, "error": "이미지 생성 결과를 찾을 수 없습니다. 서버 로그를 확인하세요."}), 200
 
         return jsonify({
             "ok": True,
