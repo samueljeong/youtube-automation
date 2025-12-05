@@ -13750,11 +13750,18 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                                 base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
                                 print(f"[THUMBNAIL-AI][{variant}] images 배열(str)에서 추출 성공")
                             elif isinstance(img, dict):
-                                # dict 형식: {data: ..., url: ..., b64_json: ...}
-                                data = img.get("data") or img.get("b64_json") or img.get("url", "")
-                                if data:
-                                    base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
-                                    print(f"[THUMBNAIL-AI][{variant}] images 배열(dict)에서 추출 성공")
+                                # 형식 1: {'type': 'image_url', 'image_url': {'url': 'data:...'}} (OpenRouter/GPT-5.1 형식)
+                                if img.get("type") == "image_url" and "image_url" in img:
+                                    url = img.get("image_url", {}).get("url", "")
+                                    if url:
+                                        base64_image_data = url.split(",", 1)[1] if url.startswith("data:") else url
+                                        print(f"[THUMBNAIL-AI][{variant}] images 배열(image_url dict)에서 추출 성공")
+                                else:
+                                    # 형식 2: {data: ..., url: ..., b64_json: ...}
+                                    data = img.get("data") or img.get("b64_json") or img.get("url", "")
+                                    if data:
+                                        base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
+                                        print(f"[THUMBNAIL-AI][{variant}] images 배열(dict)에서 추출 성공")
                         # 문자열인 경우
                         elif isinstance(images, str):
                             base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
