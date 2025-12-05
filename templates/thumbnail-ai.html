@@ -148,8 +148,11 @@
 
     .thumbnail-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 20px;
+    }
+    @media (max-width: 1200px) {
+      .thumbnail-grid { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 768px) {
       .thumbnail-grid { grid-template-columns: 1fr; }
@@ -363,7 +366,7 @@
 
     <header>
       <h1>AI 썸네일 생성기</h1>
-      <p>GPT-5.1이 대본을 분석하고, Gemini 3 Pro가 클릭률 높은 썸네일을 생성합니다</p>
+      <p>GPT-5.1이 대본을 분석하고, Gemini 3 Pro가 YouTube Test & Compare용 썸네일 3개를 생성합니다</p>
     </header>
 
     <div class="main-grid">
@@ -391,7 +394,7 @@
         <div class="form-group">
           <label>대본</label>
           <textarea id="script" placeholder="대본 내용을 입력하세요. AI가 분석하여 최적의 썸네일 컨셉을 제안합니다."></textarea>
-          <small>대본의 핵심 내용을 바탕으로 A/B 두 가지 썸네일 프롬프트가 생성됩니다.</small>
+          <small>대본의 핵심 내용을 바탕으로 A/B/C 3가지 썸네일 프롬프트가 생성됩니다. (YouTube Test & Compare용)</small>
         </div>
 
         <button class="btn btn-primary" id="btn-analyze" onclick="analyzeThumbnail()">
@@ -411,13 +414,20 @@
         <div id="initial-state">
           <p style="color: #888; text-align: center; padding: 60px 0;">
             왼쪽에서 대본을 입력하고 AI 분석을 시작하세요.<br>
-            두 가지 스타일의 썸네일이 생성됩니다.
+            YouTube Test & Compare용 썸네일 3개가 생성됩니다.
           </p>
         </div>
 
         <div class="thumbnail-preview" id="thumbnail-preview">
-          <h3>A/B 썸네일 비교</h3>
+          <h3>A/B/C 썸네일 비교 (YouTube Test & Compare)</h3>
           <div class="thumbnail-grid" id="thumbnail-grid"></div>
+
+          <!-- ZIP 다운로드 버튼 -->
+          <div style="margin-top: 20px; text-align: center;">
+            <button class="btn btn-primary" id="btn-download-zip" onclick="downloadAllAsZip()" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+              <span>📦</span> 3개 모두 ZIP 다운로드 (YouTube Test & Compare용)
+            </button>
+          </div>
 
           <div class="success-message" id="success-message">
             ✅ 선택이 저장되었습니다! 학습 데이터로 활용됩니다.
@@ -426,7 +436,7 @@
 
         <div class="stats-panel" id="stats-panel" style="display: none;">
           <h3>📊 학습 통계</h3>
-          <div class="stats-grid">
+          <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
             <div class="stat-item">
               <div class="stat-value" id="stat-total">0</div>
               <div class="stat-label">총 선택 수</div>
@@ -438,6 +448,10 @@
             <div class="stat-item">
               <div class="stat-value" id="stat-b">0</div>
               <div class="stat-label">B 선택</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="stat-c">0</div>
+              <div class="stat-label">C 선택</div>
             </div>
           </div>
         </div>
@@ -526,10 +540,11 @@
           throw new Error(generateData.error || '이미지 생성 실패');
         }
 
-        // 결과 저장
+        // 결과 저장 (A/B/C)
         currentImageUrls = {
           A: generateData.results.A?.image_url,
-          B: generateData.results.B?.image_url
+          B: generateData.results.B?.image_url,
+          C: generateData.results.C?.image_url
         };
 
         // UI 업데이트
@@ -544,7 +559,7 @@
       }
     }
 
-    // 썸네일 렌더링
+    // 썸네일 렌더링 (A/B/C)
     function renderThumbnails(results) {
       document.getElementById('initial-state').style.display = 'none';
       document.getElementById('thumbnail-preview').classList.add('active');
@@ -552,7 +567,10 @@
       const grid = document.getElementById('thumbnail-grid');
       grid.innerHTML = '';
 
-      ['A', 'B'].forEach(variant => {
+      // C가 있으면 A/B/C, 없으면 A/B만
+      const variants = results.C ? ['A', 'B', 'C'] : ['A', 'B'];
+
+      variants.forEach(variant => {
         const result = results[variant];
         const promptData = currentPrompts[variant];
 
@@ -662,6 +680,46 @@
       a.click();
     }
 
+    // 3개 모두 ZIP 다운로드
+    async function downloadAllAsZip() {
+      if (!currentImageUrls || Object.keys(currentImageUrls).length === 0) {
+        alert('다운로드할 이미지가 없습니다.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-download-zip');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> ZIP 생성 중...';
+
+      try {
+        const res = await fetch('/api/thumbnail-ai/download-zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSession,
+            image_urls: currentImageUrls
+          })
+        });
+        const data = await res.json();
+
+        if (data.ok && data.zip_url) {
+          // 다운로드 실행
+          const a = document.createElement('a');
+          a.href = data.zip_url;
+          a.download = data.filename || 'thumbnails.zip';
+          a.click();
+        } else {
+          alert('ZIP 생성 실패: ' + (data.error || '알 수 없는 오류'));
+        }
+      } catch (error) {
+        console.error('ZIP download error:', error);
+        alert('ZIP 다운로드 오류: ' + error.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>📦</span> 3개 모두 ZIP 다운로드 (YouTube Test & Compare용)';
+      }
+    }
+
     // 통계 로드
     async function loadStats() {
       try {
@@ -673,6 +731,7 @@
           document.getElementById('stat-total').textContent = data.stats.total;
           document.getElementById('stat-a').textContent = data.stats.a_selected;
           document.getElementById('stat-b').textContent = data.stats.b_selected;
+          document.getElementById('stat-c').textContent = data.stats.c_selected || 0;
         }
       } catch (error) {
         console.error('Stats error:', error);

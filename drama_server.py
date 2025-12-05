@@ -13182,7 +13182,8 @@ def api_thumbnail_ai_analyze():
 """
 
         system_prompt = f"""당신은 유튜브 썸네일 전문 디자이너입니다.
-사용자의 대본을 분석하여 클릭률이 높은 썸네일 이미지 프롬프트 2개를 생성합니다.
+사용자의 대본을 분석하여 클릭률이 높은 썸네일 이미지 프롬프트 3개를 생성합니다.
+(YouTube Test & Compare 기능용 - 3개 썸네일 A/B/C 테스트)
 
 [핵심 원칙]
 1. 유튜브 썸네일은 "호기심"과 "감정"을 자극해야 합니다
@@ -13198,6 +13199,11 @@ def api_thumbnail_ai_analyze():
 - 구체적인 색상, 스타일, 구도 명시
 - 만화/일러스트 스타일 권장 (저작권 안전)
 {examples_text}
+
+[3개 썸네일 차별화 전략]
+- A: 감정/표정 중심 (놀람, 충격, 기쁨 등)
+- B: 스토리/상황 중심 (Before vs After, 대비 구도)
+- C: 텍스트/타이포 중심 (강렬한 문구, 숫자 강조)
 
 [응답 형식]
 반드시 다음 JSON 형식으로만 응답하세요:
@@ -13222,6 +13228,15 @@ def api_thumbnail_ai_analyze():
         "sub": "서브 텍스트 (한글, 선택)"
       }},
       "style": "스타일 키워드"
+    }},
+    "C": {{
+      "description": "프롬프트 C 설명 (한글)",
+      "prompt": "영문 이미지 생성 프롬프트",
+      "text_overlay": {{
+        "main": "메인 텍스트 (한글)",
+        "sub": "서브 텍스트 (한글, 선택)"
+      }},
+      "style": "스타일 키워드"
     }}
   }}
 }}"""
@@ -13232,8 +13247,8 @@ def api_thumbnail_ai_analyze():
 [대본]
 {script[:3000]}
 
-위 대본을 분석하여 클릭률 높은 유튜브 썸네일 프롬프트 2개를 생성해주세요.
-두 프롬프트는 서로 다른 스타일/구도여야 합니다."""
+위 대본을 분석하여 클릭률 높은 유튜브 썸네일 프롬프트 3개(A/B/C)를 생성해주세요.
+YouTube Test & Compare용이므로 세 프롬프트는 서로 확실히 다른 스타일/구도여야 합니다."""
 
         # GPT-5.1 Responses API 호출
         response = client.responses.create(
@@ -13635,6 +13650,7 @@ def api_thumbnail_ai_history():
             "total": len(all_selections),
             "a_selected": sum(1 for s in all_selections if s.get("selected") == "A"),
             "b_selected": sum(1 for s in all_selections if s.get("selected") == "B"),
+            "c_selected": sum(1 for s in all_selections if s.get("selected") == "C"),
             "genres": {}
         }
 
@@ -13658,9 +13674,10 @@ def api_thumbnail_ai_history():
 
 
 @app.route('/api/thumbnail-ai/generate-both', methods=['POST'])
+@app.route('/api/thumbnail-ai/generate-all', methods=['POST'])
 def api_thumbnail_ai_generate_both():
     """
-    A/B 두 개의 썸네일을 한 번에 생성
+    A/B/C 3개의 썸네일을 한 번에 생성 (YouTube Test & Compare용)
     """
     try:
         import requests as req
@@ -13672,10 +13689,12 @@ def api_thumbnail_ai_generate_both():
         prompts = data.get('prompts', {})
         session_id = data.get('session_id', '')
 
+        # A/B는 필수, C는 선택 (하위 호환성)
         if not prompts.get('A') or not prompts.get('B'):
             return jsonify({"ok": False, "error": "A/B 프롬프트가 모두 필요합니다"}), 400
 
-        print(f"[THUMBNAIL-AI] A/B 동시 생성 - 세션: {session_id}")
+        has_c = prompts.get('C') is not None
+        print(f"[THUMBNAIL-AI] A/B/C 동시 생성 - 세션: {session_id}, C포함: {has_c}")
 
         openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         if not openrouter_api_key:
@@ -13865,19 +13884,30 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
             except Exception as e:
                 return {"variant": variant, "ok": False, "error": str(e)}
 
-        # 병렬 생성
-        results = {"A": None, "B": None}
-        with ThreadPoolExecutor(max_workers=2) as executor:
+        # 병렬 생성 (A/B/C)
+        results = {"A": None, "B": None, "C": None}
+        max_workers = 3 if has_c else 2
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(generate_single, "A", prompts["A"]): "A",
                 executor.submit(generate_single, "B", prompts["B"]): "B"
             }
+            if has_c:
+                futures[executor.submit(generate_single, "C", prompts["C"])] = "C"
 
             for future in as_completed(futures):
                 result = future.result()
                 results[result["variant"]] = result
 
-        print(f"[THUMBNAIL-AI] A/B 생성 완료 - A: {results['A'].get('ok')}, B: {results['B'].get('ok')}")
+        # C가 없으면 결과에서 제거
+        if not has_c:
+            del results["C"]
+
+        status_msg = f"A: {results['A'].get('ok')}, B: {results['B'].get('ok')}"
+        if has_c:
+            status_msg += f", C: {results['C'].get('ok')}"
+        print(f"[THUMBNAIL-AI] A/B/C 생성 완료 - {status_msg}")
 
         return jsonify({
             "ok": True,
@@ -13887,6 +13917,67 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
 
     except Exception as e:
         print(f"[THUMBNAIL-AI][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/thumbnail-ai/download-zip', methods=['POST'])
+def api_thumbnail_ai_download_zip():
+    """
+    생성된 썸네일들을 ZIP 파일로 다운로드
+    YouTube Test & Compare용 3개 썸네일
+    """
+    try:
+        import zipfile
+        from io import BytesIO
+
+        data = request.get_json() or {}
+        image_urls = data.get('image_urls', {})
+        session_id = data.get('session_id', 'thumbnails')
+
+        if not image_urls:
+            return jsonify({"ok": False, "error": "이미지 URL이 필요합니다"}), 400
+
+        # ZIP 파일 생성
+        zip_buffer = BytesIO()
+        output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for variant, url in image_urls.items():
+                if not url:
+                    continue
+
+                # /output/xxx.png → outputs/xxx.png
+                if url.startswith('/output/'):
+                    filename = url.replace('/output/', '')
+                    filepath = os.path.join(output_dir, filename)
+
+                    if os.path.exists(filepath):
+                        # 파일명을 간단하게 변경 (thumbnail_A.png, thumbnail_B.png, thumbnail_C.png)
+                        zip_filename = f"thumbnail_{variant}.png"
+                        zip_file.write(filepath, zip_filename)
+                        print(f"[THUMBNAIL-ZIP] Added: {zip_filename}")
+
+        zip_buffer.seek(0)
+
+        # ZIP 파일 저장
+        zip_filename = f"thumbnails_{session_id}_{int(time.time())}.zip"
+        zip_filepath = os.path.join(output_dir, zip_filename)
+
+        with open(zip_filepath, 'wb') as f:
+            f.write(zip_buffer.getvalue())
+
+        print(f"[THUMBNAIL-ZIP] ZIP 생성 완료: {zip_filename}")
+
+        return jsonify({
+            "ok": True,
+            "zip_url": f"/output/{zip_filename}",
+            "filename": zip_filename
+        })
+
+    except Exception as e:
+        print(f"[THUMBNAIL-ZIP][ERROR] {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
