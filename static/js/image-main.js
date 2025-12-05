@@ -17,6 +17,8 @@ const ImageMain = {
   sceneMetadata: null,   // 영상 생성용 씬 메타데이터
   detectedLanguage: 'ko', // 감지된 언어
   videoUrl: null,        // 생성된 영상 URL (YouTube 업로드용)
+  selectedTitle: '',     // 선택된 유튜브 제목
+  selectedThumbnailIdx: null,  // 선택된 썸네일 인덱스 (YouTube 업로드용)
 
   /**
    * 초기화
@@ -244,19 +246,24 @@ const ImageMain = {
       return;
     }
 
-    // 제목 옵션 렌더링
+    // 제목 옵션 렌더링 (수정 가능 + 선택 버튼)
     const titles = youtube.titles || [];
     let titlesHtml = '';
     titles.forEach((title, idx) => {
+      const isSelected = idx === 0;
       titlesHtml += `
-        <div class="title-option${idx === 0 ? ' selected' : ''}" onclick="ImageMain.selectTitle(${idx})">
-          <input type="radio" name="youtube-title" value="${idx}" ${idx === 0 ? 'checked' : ''}>
-          <span class="title-text">${this.escapeHtml(title)}</span>
-          <button class="btn-copy-small" onclick="event.stopPropagation(); ImageMain.copyText('${this.escapeHtml(title).replace(/'/g, "\\'")}')">복사</button>
+        <div class="title-option${isSelected ? ' selected' : ''}" data-idx="${idx}">
+          <input type="text" class="title-input" id="title-input-${idx}" value="${this.escapeHtml(title)}" placeholder="제목 입력...">
+          <button class="btn-select-title${isSelected ? ' active' : ''}" onclick="ImageMain.selectTitle(${idx})">선택</button>
         </div>
       `;
     });
     titlesContainer.innerHTML = titlesHtml;
+
+    // 첫 번째 제목 자동 선택
+    if (titles.length > 0) {
+      this.selectedTitle = titles[0];
+    }
 
     // 설명란 렌더링
     descriptionEl.value = youtube.description || '';
@@ -268,10 +275,20 @@ const ImageMain = {
    * 제목 선택
    */
   selectTitle(idx) {
+    // 입력된 제목 값 가져오기
+    const inputEl = document.getElementById(`title-input-${idx}`);
+    if (inputEl) {
+      this.selectedTitle = inputEl.value.trim();
+    }
+
+    // UI 업데이트
     document.querySelectorAll('.title-option').forEach((el, i) => {
-      el.classList.toggle('selected', i === idx);
-      el.querySelector('input').checked = (i === idx);
+      const isSelected = i === idx;
+      el.classList.toggle('selected', isSelected);
+      el.querySelector('.btn-select-title').classList.toggle('active', isSelected);
     });
+
+    this.showStatus(`제목 선택: "${this.selectedTitle.substring(0, 30)}..."`, 'success');
   },
 
   /**
@@ -463,7 +480,27 @@ const ImageMain = {
     const promises = [0, 1].map(idx => this.generateSingleThumbnail(idx, prompt, textLines, model, outlineColor, position, lineStyles));
     await Promise.all(promises);
 
-    this.showStatus('썸네일 2개 생성 완료!', 'success');
+    this.showStatus('썸네일 2개 생성 완료! 원하는 썸네일을 선택하세요.', 'success');
+  },
+
+  /**
+   * 썸네일 선택 (YouTube 업로드용)
+   */
+  selectThumbnail(idx) {
+    this.selectedThumbnailIdx = idx;
+
+    // UI 업데이트
+    document.querySelectorAll('.thumbnail-card').forEach((card, i) => {
+      const isSelected = i === idx;
+      card.classList.toggle('selected', isSelected);
+      const btn = card.querySelector('.btn-select-thumbnail');
+      if (btn) {
+        btn.classList.toggle('active', isSelected);
+        btn.textContent = isSelected ? '✓ 선택됨' : '선택';
+      }
+    });
+
+    this.showStatus(`썸네일 ${idx + 1} 선택됨`, 'success');
   },
 
   /**
@@ -1112,15 +1149,26 @@ const ImageMain = {
     btn.textContent = '⏳ 업로드 중...';
 
     try {
-      // 유튜브 메타데이터 수집
-      const titleEl = document.querySelector('.title-option.selected .title-text');
-      const title = titleEl?.textContent?.trim() || `영상_${this.sessionId}`;
+      // 선택된 제목 사용 (없으면 현재 선택된 input에서 가져오기)
+      let title = this.selectedTitle;
+      if (!title) {
+        const selectedOption = document.querySelector('.title-option.selected .title-input');
+        title = selectedOption?.value?.trim() || `영상_${this.sessionId}`;
+      }
+
       const description = document.getElementById('youtube-description')?.value?.trim() || '';
 
       // videoUrl에서 서버 경로 추출 (예: /outputs/img_xxx/video.mp4 → outputs/img_xxx/video.mp4)
       const videoPath = this.videoUrl.startsWith('/') ? this.videoUrl.substring(1) : this.videoUrl;
 
+      // 선택된 썸네일 경로 (있으면 추가)
+      let thumbnailUrl = null;
+      if (this.selectedThumbnailIdx !== null && this.thumbnailImages[this.selectedThumbnailIdx]) {
+        thumbnailUrl = this.thumbnailImages[this.selectedThumbnailIdx];
+      }
+
       this.showStatus('YouTube 업로드 중...', 'info');
+      console.log('[ImageMain] Uploading to YouTube:', { title, thumbnailUrl });
 
       const response = await fetch('/api/youtube/upload', {
         method: 'POST',
@@ -1131,7 +1179,8 @@ const ImageMain = {
           description: description,
           tags: ['AI영상', '자동생성'],
           categoryId: '22',  // People & Blogs
-          privacyStatus: 'private'  // 비공개로 업로드
+          privacyStatus: 'private',  // 비공개로 업로드
+          thumbnailUrl: thumbnailUrl  // 선택한 썸네일
         })
       });
 
