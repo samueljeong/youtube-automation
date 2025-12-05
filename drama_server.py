@@ -10151,18 +10151,86 @@ def api_image_generate_assets_zip():
         def get_language_code(lang):
             return {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP'}.get(lang, 'en-US')
 
+        def split_sentences_with_gpt(text, lang='ko'):
+            """GPT-5.1을 사용해 자연스러운 자막 단위로 분리"""
+            try:
+                openai_api_key = os.getenv("OPENAI_API_KEY")
+                if not openai_api_key:
+                    print("[SUBTITLE-SPLIT] OpenAI API 키 없음, 폴백 사용")
+                    return split_korean_semantic_fallback(text)
+
+                from openai import OpenAI
+                client = OpenAI(api_key=openai_api_key)
+
+                prompt = f"""다음 나레이션을 TTS 자막용으로 자연스럽게 분리해주세요.
+
+규칙:
+1. 한 줄은 10~20자 사이로 (의미가 끊기지 않으면 15자도 OK)
+2. 말의 흐름이 자연스럽게 끊어지는 곳에서 분리 (조사 뒤, 쉼표 뒤 등)
+3. 절대로 단어 중간에서 끊지 마세요
+4. 문장이 진행 중인데 강제로 20자에서 자르지 마세요
+5. 의미 단위로 자연스럽게 끊으세요
+
+예시:
+입력: "오늘은 그 시절 우리 동네 작은 구멍가게 이야기를 나눠보려고 합니다."
+출력:
+오늘은 그 시절
+우리 동네
+작은 구멍가게 이야기를
+나눠보려고 합니다.
+
+나레이션:
+{text}
+
+분리된 자막 (한 줄에 하나씩, 다른 설명 없이):"""
+
+                response = client.responses.create(
+                    model="gpt-5.1",
+                    input=[
+                        {
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": prompt}]
+                        }
+                    ],
+                    temperature=0.3
+                )
+
+                # 응답 추출
+                result_text = ""
+                if getattr(response, "output_text", None):
+                    result_text = response.output_text.strip()
+                else:
+                    for item in getattr(response, "output", []) or []:
+                        for content in getattr(item, "content", []) or []:
+                            if getattr(content, "type", "") == "text":
+                                result_text += getattr(content, "text", "")
+
+                # 줄 단위로 분리
+                lines = [line.strip() for line in result_text.strip().split('\n') if line.strip()]
+
+                if lines:
+                    print(f"[SUBTITLE-SPLIT] GPT-5.1 분리 완료: {len(lines)}줄")
+                    return lines
+                else:
+                    print("[SUBTITLE-SPLIT] GPT 응답 비어있음, 폴백 사용")
+                    return split_korean_semantic_fallback(text)
+
+            except Exception as e:
+                print(f"[SUBTITLE-SPLIT] GPT 오류: {e}, 폴백 사용")
+                return split_korean_semantic_fallback(text)
+
         def split_sentences(text, lang='en'):
             """텍스트를 자막 단위로 분리 (언어별 다른 처리)"""
             if lang == 'ko':
-                # 한국어: 의미 기준 분리, 최대 20자
-                return split_korean_semantic(text, max_chars=20)
+                # 한국어: GPT-5.1로 자연스러운 분리
+                return split_sentences_with_gpt(text, lang)
             else:
                 # 영어/일본어: 문장 단위 유지
                 sentences = re.split(r'(?<=[.!?])\s+', text.strip())
                 return [s.strip() for s in sentences if s.strip()]
 
-        def split_korean_semantic(text, max_chars=20):
-            """한국어 의미 기준 분리 (최대 글자 수 제한)"""
+        def split_korean_semantic_fallback(text, max_chars=20):
+            """GPT 실패 시 폴백: 한국어 의미 기준 분리"""
             # 먼저 문장 단위로 분리
             sentences = re.split(r'(?<=[.!?])\s*', text.strip())
             sentences = [s.strip() for s in sentences if s.strip()]
@@ -10173,13 +10241,13 @@ def api_image_generate_assets_zip():
                     result.append(sentence)
                 else:
                     # 의미 단위로 분리 (조사, 접속사, 쉼표 등)
-                    chunks = split_by_meaning(sentence, max_chars)
+                    chunks = split_by_meaning_fallback(sentence, max_chars)
                     result.extend(chunks)
 
             return result
 
-        def split_by_meaning(text, max_chars=20):
-            """의미 단위로 텍스트 분리"""
+        def split_by_meaning_fallback(text, max_chars=20):
+            """GPT 실패 시 폴백: 의미 단위로 텍스트 분리"""
             # 분리 우선순위: 쉼표 > 조사+공백 > 접속부사 > 강제 분리
             chunks = []
             remaining = text.strip()
@@ -10706,28 +10774,27 @@ def _update_job_status(job_id, **kwargs):
 
 def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식)"""
-    # 유튜브 스타일: 흰색 텍스트 + 노란색 테두리 + 검은색 그림자
-    # OutlineColour: &H0000D4FF = 골드 옐로우 (BGR 형식)
+    # 유튜브 스타일: 흰색 텍스트 + 검은색 두꺼운 테두리 + 검은색 그림자
     if lang == 'ko':
         # NanumGothic Bold - 나눔고딕 굵은체 (한글 전용)
         # MarginV=60: 화면 하단에 자막 배치
         return (
             "FontName=NanumGothicBold,FontSize=42,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H0000D4FF,BackColour=&H80000000,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=4,Shadow=3,MarginV=60,Bold=1"
         )
     elif lang == 'ja':
         # 일본어 - NanumGothicBold 사용 (CJK 지원)
         return (
             "FontName=NanumGothicBold,FontSize=40,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H0000D4FF,BackColour=&H80000000,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=4,Shadow=3,MarginV=60,Bold=1"
         )
     else:
         # 영어/기타 언어
         return (
             "FontName=Arial,FontSize=32,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H0000D4FF,BackColour=&H80000000,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=3,Shadow=2,MarginV=60,Bold=1"
         )
 
