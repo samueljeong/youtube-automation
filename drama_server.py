@@ -55,6 +55,15 @@ def serve_uploads(filename):
     return send_from_directory(upload_dir, filename)
 
 
+# ===== outputs 폴더 정적 파일 서빙 =====
+@app.route('/output/<path:filename>')
+def serve_output(filename):
+    """outputs 폴더의 파일을 제공 (썸네일, 이미지 등)"""
+    output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+    os.makedirs(output_dir, exist_ok=True)
+    return send_from_directory(output_dir, filename)
+
+
 # ===== 비동기 영상 생성 작업 큐 시스템 =====
 video_job_queue = queue.Queue()
 video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
