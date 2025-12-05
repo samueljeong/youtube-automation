@@ -6736,6 +6736,10 @@ def generate_thumbnail():
 
 🎯 목표: 시청자가 클릭하고 싶게 만드는 썸네일
 
+⚠️ 중요: 주인공은 반드시 한국인 할머니(halmeoni)로 설정하세요!
+- 할아버지/노인 남성은 절대 주인공으로 사용하지 마세요!
+- 대본에 할아버지가 나와도 할머니로 변경해주세요.
+
 대본:
 {script[:3000]}
 
@@ -6743,9 +6747,9 @@ def generate_thumbnail():
 
 【필수 형식】으로 응답해주세요:
 
-1. 주인공 정보: (대본의 주인공 - 나이, 성별, 직업, 현재 상황/감정)
+1. 주인공 정보: (대본의 주인공 - 나이, 성별, 직업, 현재 상황/감정) ※ 반드시 할머니로!
 2. 이미지 프롬프트: (영어로, 아래 조건 포함)
-   - 주인공의 나이와 외모 반영 (60~80대 한국인)
+   - 주인공의 나이와 외모 반영 (60~80대 한국인 할머니)
    - 현재 감정 상태 (슬픔, 분노, 눈물, 기쁨 등)
    - 클로즈업 또는 미디엄 샷
    - 시네마틱 조명, 드라마틱한 분위기
@@ -6757,9 +6761,9 @@ def generate_thumbnail():
 4. 강조 줄 번호: (3줄 중 강조할 줄 번호, 예: 3)
 
 【예시】
-1. 주인공 정보: 76세 남성 목사, 교회 문을 닫으려던 절망적 순간
-2. 이미지 프롬프트: Dramatic close-up portrait of a 76-year-old Korean elderly man pastor, tears streaming down wrinkled face, wearing simple clothes, emotional expression of despair turning to hope, cinematic golden hour lighting, church interior blurred background, high quality photograph
-3. 썸네일 텍스트: 1년간 혼자 예배드리던\\n76세 목사님\\n교회 문 닫으려던 그날\\n한 청년이 나타났습니다
+1. 주인공 정보: 76세 여성 할머니, 교회 문을 닫으려던 절망적 순간
+2. 이미지 프롬프트: Dramatic close-up portrait of a 76-year-old Korean grandmother (halmeoni), tears streaming down wrinkled face, permed gray hair, wearing simple hanbok, emotional expression of despair turning to hope, cinematic golden hour lighting, church interior blurred background, high quality photograph
+3. 썸네일 텍스트: 1년간 혼자 예배드리던\\n76세 할머니\\n교회 문 닫으려던 그날\\n한 청년이 나타났습니다
 4. 강조 줄 번호: 3"""
 
         response = req.post(
@@ -7329,7 +7333,7 @@ def youtube_callback():
                     <p><strong>오류:</strong> {error}</p>
                     <p>{error_description}</p>
                 </div>
-                <a href="/drama" class="back-btn">← Drama Lab으로 돌아가기</a>
+                <a href="/image" class="back-btn">← Image Lab으로 돌아가기</a>
             </body>
             </html>
             """, 400
@@ -7353,7 +7357,7 @@ def youtube_callback():
                     <p>인증 세션이 만료되었습니다.</p>
                     <p>다시 시도해주세요.</p>
                 </div>
-                <a href="/drama" class="back-btn">← 다시 시도</a>
+                <a href="/image" class="back-btn">← 다시 시도</a>
             </body>
             </html>
             """, 400
@@ -7393,9 +7397,9 @@ def youtube_callback():
 
         save_youtube_token_to_db(token_data)
 
-        print(f"[YOUTUBE-CALLBACK] 인증 완료, /drama 페이지로 리다이렉트")
-        # Drama Lab 페이지로 리다이렉트 (Step 1 유지 - 인증만 완료)
-        return redirect('/drama?youtube_auth=success')
+        print(f"[YOUTUBE-CALLBACK] 인증 완료, /image 페이지로 리다이렉트")
+        # Image Lab 페이지로 리다이렉트 (인증 완료)
+        return redirect('/image?youtube_auth=success')
 
     except Exception as e:
         print(f"[YOUTUBE-CALLBACK][ERROR] {str(e)}")
@@ -7413,7 +7417,7 @@ def youtube_callback():
                 <p>인증 처리 중 오류가 발생했습니다.</p>
                 <p style="font-size:12px;color:#666;">{str(e)[:200]}</p>
             </div>
-            <a href="/drama" class="back-btn">← 다시 시도</a>
+            <a href="/image" class="back-btn">← 다시 시도</a>
         </body>
         </html>
         """, 500
@@ -9098,7 +9102,7 @@ def api_youtube_auth_page():
                     <p>YouTube API 인증 정보가 설정되지 않았습니다.</p>
                     <p>Render 환경 변수에 <code>GOOGLE_CLIENT_ID</code>와 <code>GOOGLE_CLIENT_SECRET</code>을 설정해주세요.</p>
                 </div>
-                <a href="/drama" class="back-btn">← Drama Lab으로 돌아가기</a>
+                <a href="/image" class="back-btn">← Image Lab으로 돌아가기</a>
             </body>
             </html>
             """
@@ -9134,7 +9138,7 @@ def api_youtube_auth_page():
 
                     if token_data:  # 갱신 성공 또는 아직 유효한 경우
                         print("[YOUTUBE-AUTH-GET] 기존 토큰 유효 - 바로 리다이렉트")
-                        return redirect('/drama?youtube_auth=success')
+                        return redirect('/image?youtube_auth=success')
             except Exception as e:
                 print(f"[YOUTUBE-AUTH-GET] 기존 토큰 검증 실패 (재인증 진행): {e}")
 
@@ -9188,7 +9192,7 @@ def api_youtube_auth_page():
         <body>
             <h1>⚠️ 라이브러리 오류</h1>
             <div class="error"><p>Google 인증 라이브러리가 설치되지 않았습니다.</p><p>{str(e)}</p></div>
-            <a href="/drama">← 돌아가기</a>
+            <a href="/image">← Image Lab으로 돌아가기</a>
         </body>
         </html>
         """
@@ -9205,7 +9209,7 @@ def api_youtube_auth_page():
         <body>
             <h1>⚠️ 연결 오류</h1>
             <div class="error"><p>{str(e)}</p></div>
-            <a href="/drama">← 돌아가기</a>
+            <a href="/image">← Image Lab으로 돌아가기</a>
         </body>
         </html>
         """
@@ -9867,6 +9871,12 @@ Output Language: {lang_config['name']} ({lang_config['native']})
 
 Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
+## ⚠️ CRITICAL: CHARACTER RESTRICTION ⚠️
+- NEVER generate elderly grandfather/old man as the main character!
+- Main characters should be: Korean grandmother (halmeoni), middle-aged woman, or young adult
+- If the script mentions elderly male, CONVERT to elderly grandmother (halmeoni) instead
+- Background/supporting characters can include various ages, but MAIN CHARACTER must NOT be grandfather/harabeoji/elderly man
+
 ## Core Tasks
 1. Extract protagonist's age, gender, occupation, appearance from the script.
 2. Generate consistent image prompts based on extracted character info.
@@ -9877,6 +9887,7 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 - Korean: use "Korean" or "South Korean"
 - Japanese: use "Japanese"
 - American/Western: use "American", "Caucasian", etc.
+- IMPORTANT: If Korean elderly character needed, use GRANDMOTHER (halmeoni), NOT grandfather
 
 {thumbnail_rules}
 
@@ -9986,7 +9997,8 @@ Rules:
 1. Generate exactly {image_count} scenes (no more, no less)
 2. {thumbnail_instruction}
 3. image_prompt MUST be in English, following the prompt writing principles above.
-4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!"""
+4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
+5. ⚠️ NO GRANDFATHER/ELDERLY MAN as main character! If elderly character needed, use Korean GRANDMOTHER (halmeoni) only."""
 
         print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 

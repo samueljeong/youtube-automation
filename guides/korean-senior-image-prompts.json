@@ -6,11 +6,11 @@
   "koreanEthnicityPrefix": {
     "description": "모든 인물 프롬프트 맨 앞에 반드시 포함할 한국인 특징",
     "critical": true,
-    "note": "프롬프트 시작 부분에 위치해야 AI 모델이 정확히 인식",
+    "note": "프롬프트 시작 부분에 위치해야 AI 모델이 정확히 인식. ⚠️ 할아버지(grandfather)는 주인공으로 사용 금지!",
 
     "elderly_grandmother": "Authentic Korean grandmother (halmeoni) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: round face shape, single eyelids (monolid) or narrow double eyelids typical of Korean elderly, flat nose bridge, Korean skin tone (light to medium beige with warm undertones), natural Korean aging patterns with laugh lines, permed short gray/white hair typical of Korean grandmothers",
 
-    "elderly_grandfather": "Authentic Korean grandfather (harabeoji) from South Korea, pure Korean ethnicity, distinct Korean elderly facial features: angular Korean face shape, single eyelids or hooded eyes typical of Korean elderly men, Korean skin tone, weathered face with Korean aging characteristics, balding or short gray hair typical of Korean grandfathers",
+    "elderly_grandfather_DEPRECATED": "⚠️ DO NOT USE AS MAIN CHARACTER - Use elderly_grandmother instead. (Authentic Korean grandfather (harabeoji) from South Korea - only for background characters)",
 
     "middle_aged_woman": "Authentic Korean woman from South Korea, pure Korean ethnicity, Korean facial features: oval face, Korean eye shape with single or double eyelids, Korean skin tone, neat short permed hair typical of Korean middle-aged women",
 
