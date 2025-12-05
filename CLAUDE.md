@@ -160,6 +160,14 @@ Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
   - AI 분석에서 썸네일 제안 데이터는 이미 생성됨
   - 이미지 생성 API로 썸네일 이미지 자동 생성 구현 필요
 
+## 호스팅 환경
+- **Render Standard 플랜** (무료 아님!)
+  - 메모리: 2GB
+  - CPU: 1 vCPU
+  - 요청 타임아웃: 충분함
+- URL: https://drama-s2ns.onrender.com
+- 영상 업로드 용량: 14MB (8분 영상) 정도는 문제없음
+
 ## 참고 사항
 - 이미지 생성: Gemini (기본) / FLUX.1 Pro / DALL-E 3 지원
 - TTS: Google Cloud TTS (기본) / 네이버 클로바 지원

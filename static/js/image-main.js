@@ -16,6 +16,11 @@ const ImageMain = {
   assetZipUrl: null,     // 생성된 ZIP 다운로드 URL
   sceneMetadata: null,   // 영상 생성용 씬 메타데이터
   detectedLanguage: 'ko', // 감지된 언어
+  videoUrl: null,        // 생성된 영상 URL (YouTube 업로드용)
+  selectedTitle: '',     // 선택된 유튜브 제목
+  selectedThumbnailIdx: null,  // 선택된 썸네일 인덱스 (YouTube 업로드용)
+  privacyStatus: 'private',    // 공개 설정 (private, unlisted, public)
+  scheduledTime: null,         // 예약 업로드 시간 (ISO 8601)
 
   /**
    * 초기화
@@ -243,19 +248,24 @@ const ImageMain = {
       return;
     }
 
-    // 제목 옵션 렌더링
+    // 제목 옵션 렌더링 (수정 가능 + 선택 버튼)
     const titles = youtube.titles || [];
     let titlesHtml = '';
     titles.forEach((title, idx) => {
+      const isSelected = idx === 0;
       titlesHtml += `
-        <div class="title-option${idx === 0 ? ' selected' : ''}" onclick="ImageMain.selectTitle(${idx})">
-          <input type="radio" name="youtube-title" value="${idx}" ${idx === 0 ? 'checked' : ''}>
-          <span class="title-text">${this.escapeHtml(title)}</span>
-          <button class="btn-copy-small" onclick="event.stopPropagation(); ImageMain.copyText('${this.escapeHtml(title).replace(/'/g, "\\'")}')">복사</button>
+        <div class="title-option${isSelected ? ' selected' : ''}" data-idx="${idx}">
+          <input type="text" class="title-input" id="title-input-${idx}" value="${this.escapeHtml(title)}" placeholder="제목 입력...">
+          <button class="btn-select-title${isSelected ? ' active' : ''}" onclick="ImageMain.selectTitle(${idx})">선택</button>
         </div>
       `;
     });
     titlesContainer.innerHTML = titlesHtml;
+
+    // 첫 번째 제목 자동 선택
+    if (titles.length > 0) {
+      this.selectedTitle = titles[0];
+    }
 
     // 설명란 렌더링
     descriptionEl.value = youtube.description || '';
@@ -267,10 +277,20 @@ const ImageMain = {
    * 제목 선택
    */
   selectTitle(idx) {
+    // 입력된 제목 값 가져오기
+    const inputEl = document.getElementById(`title-input-${idx}`);
+    if (inputEl) {
+      this.selectedTitle = inputEl.value.trim();
+    }
+
+    // UI 업데이트
     document.querySelectorAll('.title-option').forEach((el, i) => {
-      el.classList.toggle('selected', i === idx);
-      el.querySelector('input').checked = (i === idx);
+      const isSelected = i === idx;
+      el.classList.toggle('selected', isSelected);
+      el.querySelector('.btn-select-title').classList.toggle('active', isSelected);
     });
+
+    this.showStatus(`제목 선택: "${this.selectedTitle.substring(0, 30)}..."`, 'success');
   },
 
   /**
@@ -462,7 +482,27 @@ const ImageMain = {
     const promises = [0, 1].map(idx => this.generateSingleThumbnail(idx, prompt, textLines, model, outlineColor, position, lineStyles));
     await Promise.all(promises);
 
-    this.showStatus('썸네일 2개 생성 완료!', 'success');
+    this.showStatus('썸네일 2개 생성 완료! 원하는 썸네일을 선택하세요.', 'success');
+  },
+
+  /**
+   * 썸네일 선택 (YouTube 업로드용)
+   */
+  selectThumbnail(idx) {
+    this.selectedThumbnailIdx = idx;
+
+    // UI 업데이트
+    document.querySelectorAll('.thumbnail-card').forEach((card, i) => {
+      const isSelected = i === idx;
+      card.classList.toggle('selected', isSelected);
+      const btn = card.querySelector('.btn-select-thumbnail');
+      if (btn) {
+        btn.classList.toggle('active', isSelected);
+        btn.textContent = isSelected ? '✓ 선택됨' : '선택';
+      }
+    });
+
+    this.showStatus(`썸네일 ${idx + 1} 선택됨`, 'success');
   },
 
   /**
@@ -1041,8 +1081,19 @@ const ImageMain = {
 
             this.showStatus(`영상 생성 완료! (${statusData.duration}, 자막 ${statusData.subtitle_count}개)`, 'success');
 
-            // 다운로드
+            // 영상 URL 저장 및 YouTube 업로드 섹션 표시
             if (statusData.video_url) {
+              this.videoUrl = statusData.video_url;
+
+              // YouTube 업로드 섹션 표시
+              const ytSection = document.getElementById('youtube-upload-section');
+              if (ytSection) {
+                ytSection.classList.remove('hidden');
+                // 기본 예약 시간 설정 (내일 오전 9시)
+                this.setDefaultScheduleTime();
+              }
+
+              // 자동 다운로드
               const a = document.createElement('a');
               a.href = statusData.video_url;
               a.download = `video_${this.sessionId}.mp4`;
@@ -1083,6 +1134,187 @@ const ImageMain = {
       btn.disabled = false;
       btn.textContent = '🎬 영상 생성';
       progressDiv.classList.add('hidden');
+    }
+  },
+
+  // ========== YouTube 업로드 ==========
+
+  /**
+   * 공개 설정 변경
+   */
+  setPrivacy(privacy) {
+    this.privacyStatus = privacy;
+
+    // UI 업데이트
+    document.querySelectorAll('.privacy-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.privacy === privacy);
+    });
+
+    // 예약 업로드는 비공개 상태에서만 가능
+    const scheduleCheckbox = document.getElementById('schedule-upload');
+    if (privacy !== 'private') {
+      scheduleCheckbox.checked = false;
+      this.toggleSchedule();
+      scheduleCheckbox.disabled = true;
+    } else {
+      scheduleCheckbox.disabled = false;
+    }
+
+    console.log('[ImageMain] Privacy set to:', privacy);
+  },
+
+  /**
+   * 예약 업로드 토글
+   */
+  toggleSchedule() {
+    const checkbox = document.getElementById('schedule-upload');
+    const wrapper = document.getElementById('schedule-datetime-wrapper');
+
+    if (checkbox.checked) {
+      wrapper.classList.remove('hidden');
+      // 기본 시간 설정
+      this.setDefaultScheduleTime();
+    } else {
+      wrapper.classList.add('hidden');
+      this.scheduledTime = null;
+    }
+  },
+
+  /**
+   * 기본 예약 시간 설정 (내일 오전 9시)
+   */
+  setDefaultScheduleTime() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+
+    // datetime-local 형식으로 변환 (YYYY-MM-DDTHH:mm)
+    const dateStr = tomorrow.toISOString().slice(0, 16);
+    const input = document.getElementById('schedule-datetime');
+    if (input && !input.value) {
+      input.value = dateStr;
+    }
+  },
+
+  /**
+   * YouTube 업로드
+   */
+  async uploadToYouTube() {
+    if (!this.videoUrl) {
+      this.showStatus('업로드할 영상이 없습니다. 먼저 영상을 생성해주세요.', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btn-youtube-upload');
+    btn.disabled = true;
+    btn.textContent = '⏳ 업로드 중...';
+
+    try {
+      // 선택된 제목 사용 (없으면 현재 선택된 input에서 가져오기)
+      let title = this.selectedTitle;
+      if (!title) {
+        const selectedOption = document.querySelector('.title-option.selected .title-input');
+        title = selectedOption?.value?.trim() || `영상_${this.sessionId}`;
+      }
+
+      const description = document.getElementById('youtube-description')?.value?.trim() || '';
+
+      // videoUrl에서 서버 경로 추출 (예: /outputs/img_xxx/video.mp4 → outputs/img_xxx/video.mp4)
+      const videoPath = this.videoUrl.startsWith('/') ? this.videoUrl.substring(1) : this.videoUrl;
+
+      // 선택된 썸네일 경로 (있으면 추가)
+      let thumbnailUrl = null;
+      if (this.selectedThumbnailIdx !== null && this.thumbnailImages[this.selectedThumbnailIdx]) {
+        thumbnailUrl = this.thumbnailImages[this.selectedThumbnailIdx];
+      }
+
+      // 예약 업로드 시간 확인
+      let publishAt = null;
+      const scheduleCheckbox = document.getElementById('schedule-upload');
+      if (scheduleCheckbox?.checked) {
+        const datetimeInput = document.getElementById('schedule-datetime');
+        if (datetimeInput?.value) {
+          // ISO 8601 형식으로 변환
+          const localDate = new Date(datetimeInput.value);
+          publishAt = localDate.toISOString();
+
+          // 과거 시간 체크
+          if (localDate <= new Date()) {
+            this.showStatus('예약 시간은 현재보다 미래여야 합니다.', 'warning');
+            btn.disabled = false;
+            btn.textContent = '📺 YouTube 업로드';
+            return;
+          }
+        }
+      }
+
+      // 상태 메시지
+      if (publishAt) {
+        const scheduleDate = new Date(publishAt);
+        const dateStr = scheduleDate.toLocaleDateString('ko-KR', {
+          month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        this.showStatus(`YouTube 예약 업로드 중... (${dateStr} 공개 예정)`, 'info');
+      } else {
+        this.showStatus('YouTube 업로드 중...', 'info');
+      }
+
+      console.log('[ImageMain] Uploading to YouTube:', {
+        title, thumbnailUrl, privacy: this.privacyStatus, publishAt
+      });
+
+      const response = await fetch('/api/youtube/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoPath: videoPath,
+          title: title,
+          description: description,
+          tags: ['AI영상', '자동생성'],
+          categoryId: '22',  // People & Blogs
+          privacyStatus: publishAt ? 'private' : this.privacyStatus,  // 예약 시 비공개 필수
+          publish_at: publishAt,  // 예약 시간 (ISO 8601) - 백엔드 snake_case
+          thumbnailUrl: thumbnailUrl  // 선택한 썸네일
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        const videoUrl = result.videoUrl || `https://www.youtube.com/watch?v=${result.videoId}`;
+        btn.textContent = '✅ 업로드 완료';
+
+        if (publishAt) {
+          const scheduleDate = new Date(publishAt);
+          const dateStr = scheduleDate.toLocaleDateString('ko-KR', {
+            month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          });
+          this.showStatus(`예약 업로드 완료! ${dateStr}에 공개됩니다.`, 'success');
+        } else {
+          this.showStatus(`YouTube 업로드 완료! ${videoUrl}`, 'success');
+        }
+
+        // 링크 열기
+        if (confirm('YouTube에 업로드되었습니다!\n영상 페이지를 열까요?')) {
+          window.open(videoUrl, '_blank');
+        }
+      } else {
+        throw new Error(result.error || 'YouTube 업로드 실패');
+      }
+
+    } catch (error) {
+      console.error('[ImageMain] YouTube upload error:', error);
+      btn.disabled = false;
+      btn.textContent = '📺 YouTube 업로드';
+
+      // 인증 필요한 경우
+      if (error.message.includes('인증') || error.message.includes('auth')) {
+        if (confirm('YouTube 계정 연결이 필요합니다.\n연결 페이지로 이동하시겠습니까?')) {
+          window.location.href = '/api/youtube/auth';
+        }
+      } else {
+        this.showStatus('업로드 실패: ' + error.message, 'error');
+      }
     }
   }
 };

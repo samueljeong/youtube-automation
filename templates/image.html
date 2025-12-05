@@ -596,6 +596,34 @@
       overflow: hidden;
     }
 
+    .btn-select-thumbnail {
+      width: 100%;
+      margin-top: 8px;
+      padding: 8px 16px;
+      background: #e5e7eb;
+      border: none;
+      border-radius: 6px;
+      color: #666;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-select-thumbnail:hover {
+      background: #d1d5db;
+    }
+
+    .btn-select-thumbnail.active {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    .thumbnail-card.selected {
+      border: 3px solid #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+
     /* 유튜브 메타데이터 섹션 */
     .youtube-meta-section {
       margin-top: 20px;
@@ -638,45 +666,58 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
+      padding: 8px;
       background: #fff;
       border: 1px solid #ddd;
       border-radius: 8px;
-      cursor: pointer;
       transition: all 0.2s;
     }
 
-    .title-option:hover {
-      border-color: #3b82f6;
-      background: #f0f7ff;
-    }
-
     .title-option.selected {
-      border-color: #3b82f6;
-      background: #eff6ff;
+      border-color: #10b981;
+      background: #ecfdf5;
     }
 
-    .title-option input[type="radio"] {
-      margin: 0;
-    }
-
-    .title-option .title-text {
+    .title-option .title-input {
       flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
       font-size: 13px;
       color: #333;
+      background: #f9fafb;
     }
 
-    .title-option .btn-copy-small {
-      padding: 4px 8px;
-      font-size: 11px;
+    .title-option .title-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: #fff;
+    }
+
+    .title-option.selected .title-input {
+      border-color: #10b981;
+      background: #fff;
+    }
+
+    .btn-select-title {
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
       background: #e5e7eb;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
+      transition: all 0.2s;
+      color: #666;
     }
 
-    .title-option .btn-copy-small:hover {
+    .btn-select-title:hover {
       background: #d1d5db;
+    }
+
+    .btn-select-title.active {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
     }
 
     .meta-content-box {
@@ -1131,6 +1172,137 @@
       transform: none;
     }
 
+    .btn-youtube-upload {
+      flex: 1;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-youtube-upload:hover {
+      background: linear-gradient(135deg, #f87171, #ef4444);
+      transform: translateY(-1px);
+    }
+
+    .btn-youtube-upload:disabled {
+      background: #475569;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* YouTube 업로드 섹션 */
+    .youtube-upload-section {
+      margin-top: 20px;
+      padding: 20px;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border-radius: 12px;
+      border: 1px solid #334155;
+    }
+
+    .youtube-upload-section.hidden {
+      display: none;
+    }
+
+    .youtube-upload-section h4 {
+      margin: 0 0 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .upload-option-group {
+      margin-bottom: 16px;
+    }
+
+    .upload-option-group > label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .upload-option-group > label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #ef4444;
+    }
+
+    .privacy-options {
+      display: flex;
+      gap: 8px;
+    }
+
+    .privacy-btn {
+      flex: 1;
+      padding: 10px 12px;
+      background: #334155;
+      border: 1px solid #475569;
+      border-radius: 8px;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .privacy-btn:hover {
+      background: #475569;
+      color: #e2e8f0;
+    }
+
+    .privacy-btn.active {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      border-color: #ef4444;
+      color: white;
+    }
+
+    .schedule-datetime-wrapper {
+      margin-top: 12px;
+      padding: 12px;
+      background: #334155;
+      border-radius: 8px;
+    }
+
+    .schedule-datetime-wrapper.hidden {
+      display: none;
+    }
+
+    .schedule-datetime-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+    }
+
+    .schedule-datetime-input:focus {
+      outline: none;
+      border-color: #ef4444;
+    }
+
+    .schedule-hint {
+      display: block;
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    .youtube-upload-section .btn-youtube-upload {
+      width: 100%;
+      margin-top: 16px;
+    }
+
     .asset-preview {
       display: flex;
       gap: 20px;
@@ -1379,12 +1551,14 @@
                   <div class="placeholder">썸네일 1</div>
                 </div>
                 <div class="thumbnail-text-preview" id="thumbnail-text-0"></div>
+                <button class="btn-select-thumbnail" id="btn-select-thumb-0" onclick="ImageMain.selectThumbnail(0)">선택</button>
               </div>
               <div class="thumbnail-card" id="thumbnail-card-1">
                 <div class="thumbnail-image-box">
                   <div class="placeholder">썸네일 2</div>
                 </div>
                 <div class="thumbnail-text-preview" id="thumbnail-text-1"></div>
+                <button class="btn-select-thumbnail" id="btn-select-thumb-1" onclick="ImageMain.selectThumbnail(1)">선택</button>
               </div>
             </div>
           </div>
@@ -1432,6 +1606,44 @@
               </button>
               <button id="btn-generate-video" class="btn-generate-video hidden" onclick="ImageMain.generateVideo()">
                 🎬 영상 생성
+              </button>
+            </div>
+
+            <!-- YouTube 업로드 섹션 -->
+            <div id="youtube-upload-section" class="youtube-upload-section hidden">
+              <h4>📺 YouTube 업로드</h4>
+
+              <!-- 공개 설정 -->
+              <div class="upload-option-group">
+                <label>공개 설정</label>
+                <div class="privacy-options">
+                  <button type="button" class="privacy-btn active" data-privacy="private" onclick="ImageMain.setPrivacy('private')">
+                    🔒 비공개
+                  </button>
+                  <button type="button" class="privacy-btn" data-privacy="unlisted" onclick="ImageMain.setPrivacy('unlisted')">
+                    🔗 일부공개
+                  </button>
+                  <button type="button" class="privacy-btn" data-privacy="public" onclick="ImageMain.setPrivacy('public')">
+                    🌐 공개
+                  </button>
+                </div>
+              </div>
+
+              <!-- 예약 설정 -->
+              <div class="upload-option-group">
+                <label>
+                  <input type="checkbox" id="schedule-upload" onchange="ImageMain.toggleSchedule()">
+                  예약 업로드
+                </label>
+                <div id="schedule-datetime-wrapper" class="schedule-datetime-wrapper hidden">
+                  <input type="datetime-local" id="schedule-datetime" class="schedule-datetime-input">
+                  <span class="schedule-hint">선택한 시간에 자동 공개됩니다</span>
+                </div>
+              </div>
+
+              <!-- 업로드 버튼 -->
+              <button id="btn-youtube-upload" class="btn-youtube-upload" onclick="ImageMain.uploadToYouTube()">
+                📺 YouTube 업로드
               </button>
             </div>
 
