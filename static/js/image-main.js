@@ -1609,8 +1609,11 @@ const ImageMain = {
       const videoPath = this.videoUrl.startsWith('/') ? this.videoUrl.substring(1) : this.videoUrl;
 
       // 선택된 썸네일 경로 (있으면 추가)
+      // AI 모드 썸네일 우선, 없으면 직접 입력 모드 썸네일 사용
       let thumbnailUrl = null;
-      if (this.selectedThumbnailIdx !== null && this.thumbnailImages[this.selectedThumbnailIdx]) {
+      if (this.selectedAIThumbnailUrl) {
+        thumbnailUrl = this.selectedAIThumbnailUrl;
+      } else if (this.selectedThumbnailIdx !== null && this.thumbnailImages[this.selectedThumbnailIdx]) {
         thumbnailUrl = this.thumbnailImages[this.selectedThumbnailIdx];
       }
 
