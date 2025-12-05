@@ -24,12 +24,24 @@ const ImageMain = {
   selectedChannelId: null,     // 선택된 YouTube 채널 ID
   channels: [],                // 사용 가능한 채널 목록
 
+  // 세션 저장 관련
+  STORAGE_KEY: 'imagelab_session',
+  pendingVideoJobId: null,     // 진행 중인 영상 생성 작업 ID
+
   /**
    * 초기화
    */
   init() {
     console.log('[ImageMain] Initializing...');
-    this.sessionId = this.generateSessionId();
+
+    // 이전 세션 복구 시도
+    const restored = this.loadSession();
+
+    if (!restored) {
+      // 새 세션 생성
+      this.sessionId = this.generateSessionId();
+    }
+
     this.updateSessionInfo();
 
     // 폰트 크기 슬라이더 이벤트
@@ -41,7 +53,250 @@ const ImageMain = {
       });
     }
 
-    console.log('[ImageMain] Ready. Session:', this.sessionId);
+    console.log('[ImageMain] Ready. Session:', this.sessionId, restored ? '(복구됨)' : '(새 세션)');
+  },
+
+  // ========== 세션 저장/복구 ==========
+
+  /**
+   * 세션 데이터를 localStorage에 저장
+   */
+  saveSession() {
+    try {
+      const sessionData = {
+        sessionId: this.sessionId,
+        analyzedData: this.analyzedData,
+        sceneImages: this.sceneImages,
+        thumbnailImages: this.thumbnailImages,
+        selectedAIThumbnailUrl: this.selectedAIThumbnailUrl,
+        videoUrl: this.videoUrl,
+        selectedTitle: this.selectedTitle,
+        audience: this.audience,
+        selectedVoice: this.selectedVoice,
+        sceneMetadata: this.sceneMetadata,
+        detectedLanguage: this.detectedLanguage,
+        pendingVideoJobId: this.pendingVideoJobId,
+        savedAt: new Date().toISOString()
+      };
+
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(sessionData));
+      console.log('[ImageMain] 세션 저장됨:', this.sessionId);
+    } catch (e) {
+      console.warn('[ImageMain] 세션 저장 실패:', e);
+    }
+  },
+
+  /**
+   * localStorage에서 세션 복구
+   * @returns {boolean} 복구 성공 여부
+   */
+  loadSession() {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (!saved) return false;
+
+      const data = JSON.parse(saved);
+
+      // 24시간 이상 된 세션은 무시
+      const savedAt = new Date(data.savedAt);
+      const hoursSinceSave = (Date.now() - savedAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceSave > 24) {
+        console.log('[ImageMain] 세션이 24시간 이상 지남, 새 세션 시작');
+        this.clearSession();
+        return false;
+      }
+
+      // 데이터가 있는지 확인
+      if (!data.analyzedData && !data.videoUrl) {
+        return false;
+      }
+
+      // 상태 복구
+      this.sessionId = data.sessionId;
+      this.analyzedData = data.analyzedData;
+      this.sceneImages = data.sceneImages || {};
+      this.thumbnailImages = data.thumbnailImages || [];
+      this.selectedAIThumbnailUrl = data.selectedAIThumbnailUrl;
+      this.videoUrl = data.videoUrl;
+      this.selectedTitle = data.selectedTitle || '';
+      this.audience = data.audience || 'senior';
+      this.selectedVoice = data.selectedVoice || 'ko-KR-Neural2-C';
+      this.sceneMetadata = data.sceneMetadata;
+      this.detectedLanguage = data.detectedLanguage || 'ko';
+      this.pendingVideoJobId = data.pendingVideoJobId;
+
+      console.log('[ImageMain] 세션 복구됨:', this.sessionId);
+
+      // UI 복구
+      this.restoreUI();
+
+      // 진행 중인 영상 작업이 있으면 폴링 재개
+      if (this.pendingVideoJobId) {
+        console.log('[ImageMain] 진행 중인 영상 작업 재연결:', this.pendingVideoJobId);
+        this.resumeVideoPolling(this.pendingVideoJobId);
+      }
+
+      return true;
+
+    } catch (e) {
+      console.warn('[ImageMain] 세션 복구 실패:', e);
+      return false;
+    }
+  },
+
+  /**
+   * 저장된 세션 삭제
+   */
+  clearSession() {
+    localStorage.removeItem(this.STORAGE_KEY);
+    console.log('[ImageMain] 세션 삭제됨');
+  },
+
+  /**
+   * 복구된 데이터로 UI 재구성
+   */
+  restoreUI() {
+    // 타겟 시청자 버튼 상태
+    document.querySelectorAll('.audience-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.audience === this.audience);
+    });
+
+    // 분석 데이터가 있으면 씬 카드 렌더링
+    if (this.analyzedData) {
+      // 대본 복구
+      const scriptEl = document.getElementById('full-script');
+      if (scriptEl && this.analyzedData.originalScript) {
+        scriptEl.value = this.analyzedData.originalScript;
+      }
+
+      // 씬 카드 렌더링
+      if (this.analyzedData.scenes) {
+        this.renderSceneCards(this.analyzedData.scenes);
+
+        // 저장된 이미지 복구
+        Object.entries(this.sceneImages).forEach(([idx, url]) => {
+          const container = document.getElementById(`scene-img-${idx}`);
+          if (container && url) {
+            container.innerHTML = `<img src="${url}" alt="씬 ${parseInt(idx) + 1}" onclick="ImageMain.openImageModal('${url}')">`;
+          }
+        });
+      }
+
+      // 유튜브 메타데이터 복구
+      if (this.analyzedData.youtube) {
+        this.renderYoutubeMetadata(this.analyzedData.youtube);
+      }
+
+      // 썸네일 섹션 표시
+      if (this.analyzedData.thumbnail) {
+        this.renderThumbnailTextOptions(this.analyzedData.thumbnail);
+      }
+
+      // 에셋 섹션 표시
+      this.showAssetSection();
+    }
+
+    // 영상 URL이 있으면 YouTube 업로드 섹션 표시
+    if (this.videoUrl) {
+      const ytSection = document.getElementById('youtube-upload-section');
+      if (ytSection) {
+        ytSection.classList.remove('hidden');
+        this.loadYouTubeChannels();
+      }
+    }
+
+    this.showStatus('🔄 이전 세션이 복구되었습니다!', 'success');
+  },
+
+  /**
+   * 진행 중인 영상 작업 폴링 재개
+   */
+  async resumeVideoPolling(jobId) {
+    const btn = document.getElementById('btn-generate-video');
+    const progressDiv = document.getElementById('asset-progress');
+    const progressFill = document.getElementById('asset-progress-fill');
+    const progressText = document.getElementById('asset-progress-text');
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ 재연결 중...';
+    }
+    if (progressDiv) progressDiv.classList.remove('hidden');
+
+    this.showStatus('🔄 진행 중인 영상 작업에 재연결 중...', 'info');
+
+    const pollInterval = 2000;
+    const maxPolls = 900;
+    let polls = 0;
+
+    const pollStatus = async () => {
+      try {
+        const response = await fetch(`/api/image/video-status/${jobId}`);
+        const data = await response.json();
+
+        if (!data.ok) {
+          // 작업을 찾을 수 없음 - 이미 완료되었거나 실패
+          this.pendingVideoJobId = null;
+          this.saveSession();
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🎬 영상 생성';
+          }
+          if (progressDiv) progressDiv.classList.add('hidden');
+          this.showStatus('이전 작업이 종료되었습니다. 새로 시작해주세요.', 'warning');
+          return;
+        }
+
+        // 진행률 업데이트
+        if (progressFill) progressFill.style.width = `${data.progress}%`;
+        if (progressText) progressText.textContent = data.message;
+        if (btn) btn.textContent = `⏳ ${data.progress}%`;
+
+        if (data.status === 'completed') {
+          this.pendingVideoJobId = null;
+          if (progressFill) progressFill.style.width = '100%';
+          if (progressText) progressText.textContent = '완료!';
+          if (btn) btn.textContent = '✅ 영상 완료';
+
+          if (data.video_url) {
+            this.videoUrl = data.video_url;
+            this.saveSession();
+
+            const ytSection = document.getElementById('youtube-upload-section');
+            if (ytSection) {
+              ytSection.classList.remove('hidden');
+              this.loadYouTubeChannels();
+            }
+          }
+
+          this.showStatus(`✅ 영상 생성 완료!`, 'success');
+
+        } else if (data.status === 'failed') {
+          this.pendingVideoJobId = null;
+          this.saveSession();
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🎬 영상 생성';
+          }
+          this.showStatus('영상 생성 실패: ' + (data.error || '알 수 없는 오류'), 'error');
+
+        } else {
+          polls++;
+          if (polls < maxPolls) {
+            setTimeout(pollStatus, pollInterval);
+          }
+        }
+
+      } catch (error) {
+        console.error('[ImageMain] Poll error:', error);
+        polls++;
+        if (polls < maxPolls) {
+          setTimeout(pollStatus, pollInterval);
+        }
+      }
+    };
+
+    pollStatus();
   },
 
   /**
@@ -103,7 +358,8 @@ const ImageMain = {
    * 새 프로젝트
    */
   newSession() {
-    if (confirm('새 프로젝트를 시작하시겠습니까?')) {
+    if (confirm('새 프로젝트를 시작하시겠습니까?\n(현재 작업 내용이 삭제됩니다)')) {
+      this.clearSession();  // 저장된 세션 삭제
       location.reload();
     }
   },
@@ -149,10 +405,14 @@ const ImageMain = {
 
       const data = await response.json();
       this.analyzedData = data;
+      this.analyzedData.originalScript = script;  // 원본 대본 저장 (세션 복구용)
 
       console.log('[ImageMain] API Response:', data);
       console.log('[ImageMain] Scenes count:', data.scenes?.length || 0);
       console.log('[ImageMain] Thumbnail:', data.thumbnail);
+
+      // 세션 저장
+      this.saveSession();
 
       // 유튜브 메타데이터 렌더링
       this.renderYoutubeMetadata(data.youtube || {});
@@ -700,6 +960,7 @@ const ImageMain = {
     if (selectedUrl) {
       this.selectedAIThumbnailUrl = selectedUrl;
       this.selectedThumbnailIdx = variant === 'A' ? 0 : 1;
+      this.saveSession();  // 썸네일 선택 저장
     }
 
     try {
@@ -855,6 +1116,7 @@ const ImageMain = {
       if (data.imageUrl) {
         container.innerHTML = `<img src="${data.imageUrl}" alt="씬 ${idx + 1}" onclick="ImageMain.openImageModal('${data.imageUrl}')">`;
         this.sceneImages[idx] = data.imageUrl;
+        this.saveSession();  // 이미지 생성 후 세션 저장
         return true;  // 성공
       }
       throw new Error('이미지 URL 없음');
@@ -1220,6 +1482,9 @@ const ImageMain = {
       this.sceneMetadata = data.scene_metadata;  // 영상 생성용 메타데이터 저장
       this.detectedLanguage = data.detected_language || 'ko';  // 감지된 언어 저장
 
+      // 세션 저장
+      this.saveSession();
+
       document.getElementById('asset-image-count').textContent = `이미지 ${data.image_count}개`;
       document.getElementById('asset-audio-info').textContent = `오디오 ${data.audio_duration}`;
       document.getElementById('asset-preview').classList.remove('hidden');
@@ -1312,6 +1577,10 @@ const ImageMain = {
       const startData = await startResponse.json();
       const jobId = startData.job_id;
 
+      // 진행 중인 작업 ID 저장 (세션 복구용)
+      this.pendingVideoJobId = jobId;
+      this.saveSession();
+
       console.log('[ImageMain] Job started:', jobId, startData.estimated_time);
       btn.textContent = '⏳ 처리 중...';
       progressText.textContent = `작업 시작됨 (${startData.estimated_time})`;
@@ -1337,6 +1606,7 @@ const ImageMain = {
 
           if (statusData.status === 'completed') {
             // 완료!
+            this.pendingVideoJobId = null;  // 작업 완료
             progressFill.style.width = '100%';
             progressText.textContent = '완료!';
             btn.textContent = '✅ 영상 완료';
@@ -1346,6 +1616,7 @@ const ImageMain = {
             // 영상 URL 저장 및 YouTube 업로드 섹션 표시
             if (statusData.video_url) {
               this.videoUrl = statusData.video_url;
+              this.saveSession();  // 영상 URL 저장
 
               // YouTube 업로드 섹션 표시
               const ytSection = document.getElementById('youtube-upload-section');

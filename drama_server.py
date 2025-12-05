@@ -9242,6 +9242,7 @@ def youtube_upload():
         print(f"  - 공개 설정: {privacy_status}")
         print(f"  - 예약 시간: {publish_at}")
         print(f"  - 채널 ID: {channel_id}")
+        print(f"  - 썸네일: {thumbnail_path}")
 
         # 영상 파일 경로 처리
         if video_path and not video_path.startswith('http'):
@@ -9366,6 +9367,12 @@ def youtube_upload():
                             thumb_full_path = thumbnail_path[1:]  # 앞의 / 제거
                         else:
                             thumb_full_path = thumbnail_path
+
+                        # /output/ → outputs/ 경로 변환 (AI 썸네일용)
+                        if thumb_full_path.startswith('output/'):
+                            thumb_full_path = 'outputs/' + thumb_full_path[7:]  # output/ 제거 후 outputs/ 추가
+
+                        print(f"[YOUTUBE-UPLOAD] 썸네일 경로 변환: {thumbnail_path} → {thumb_full_path}")
 
                         # 파일 존재 확인
                         if os.path.exists(thumb_full_path):
