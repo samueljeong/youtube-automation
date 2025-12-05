@@ -13726,6 +13726,11 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                     message = choices[0].get("message", {})
                     print(f"[THUMBNAIL-AI][{variant}] message 키: {list(message.keys())}")
                     print(f"[THUMBNAIL-AI][{variant}] content 타입: {type(message.get('content'))}")
+
+                    # images 배열 직접 확인
+                    images_raw = message.get("images")
+                    print(f"[THUMBNAIL-AI][{variant}] images 값: 타입={type(images_raw)}, 내용={str(images_raw)[:500] if images_raw else 'None/Empty'}")
+
                     content_preview = str(message.get('content', ''))[:300]
                     print(f"[THUMBNAIL-AI][{variant}] content 미리보기: {content_preview}")
 
@@ -13735,13 +13740,31 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                 if choices:
                     message = choices[0].get("message", {})
 
-                    # 방법 1: images 배열 확인
-                    images = message.get("images", [])
+                    # 방법 1: images 필드 확인 (다양한 형식 지원)
+                    images = message.get("images")
                     if images:
-                        img = images[0]
-                        if isinstance(img, str):
-                            base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
-                            print(f"[THUMBNAIL-AI][{variant}] images 배열에서 추출 성공")
+                        # 배열인 경우
+                        if isinstance(images, list) and len(images) > 0:
+                            img = images[0]
+                            if isinstance(img, str):
+                                base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
+                                print(f"[THUMBNAIL-AI][{variant}] images 배열(str)에서 추출 성공")
+                            elif isinstance(img, dict):
+                                # dict 형식: {data: ..., url: ..., b64_json: ...}
+                                data = img.get("data") or img.get("b64_json") or img.get("url", "")
+                                if data:
+                                    base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
+                                    print(f"[THUMBNAIL-AI][{variant}] images 배열(dict)에서 추출 성공")
+                        # 문자열인 경우
+                        elif isinstance(images, str):
+                            base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
+                            print(f"[THUMBNAIL-AI][{variant}] images 문자열에서 추출 성공")
+                        # dict인 경우
+                        elif isinstance(images, dict):
+                            data = images.get("data") or images.get("b64_json") or images.get("url", "")
+                            if data:
+                                base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
+                                print(f"[THUMBNAIL-AI][{variant}] images dict에서 추출 성공")
 
                     # 방법 2: content 배열에서 image_url 타입 확인
                     if not base64_image_data:
