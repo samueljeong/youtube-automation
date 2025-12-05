@@ -10221,9 +10221,17 @@ def api_image_generate_assets_zip():
 
         def split_sentences(text, lang='en'):
             """텍스트를 자막 단위로 분리 - 문장 부호 기준 (모든 언어 동일)"""
-            # 문장 부호(. ! ?)로 분리 - 대본 작성 시 문장 길이 조절로 컨트롤
-            sentences = re.split(r'(?<=[.!?。])\s*', text.strip())
-            return [s.strip() for s in sentences if s.strip()]
+            # 소수점(7.5)은 문장 끝이 아니므로 임시로 치환
+            # 숫자.숫자 패턴을 임시 마커로 교체
+            decimal_pattern = r'(\d)\.(\d)'
+            text_safe = re.sub(decimal_pattern, r'\1<DECIMAL>\2', text.strip())
+
+            # 문장 부호(. ! ?)로 분리
+            sentences = re.split(r'(?<=[.!?。])\s*', text_safe)
+
+            # 임시 마커를 다시 소수점으로 복원
+            sentences = [s.replace('<DECIMAL>', '.').strip() for s in sentences if s.strip()]
+            return sentences
 
         def split_korean_semantic_fallback(text, max_chars=20):
             """GPT 실패 시 폴백: 한국어 의미 기준 분리"""
@@ -10428,6 +10436,28 @@ def api_image_generate_assets_zip():
             # 곱하기/나누기 표현
             text = re.sub(r'(\d+)\s*[xX×]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 곱하기 ' + num_to_sino(int(m.group(2))), text)
             text = re.sub(r'(\d+)\s*[/÷]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 나누기 ' + num_to_sino(int(m.group(2))), text)
+
+            # 소수점 숫자 (7.5 → 칠점오, 3.14 → 삼점일사)
+            def convert_decimal(match):
+                integer_part = match.group(1)
+                decimal_part = match.group(2)
+                unit = match.group(3) if match.lastindex >= 3 else ''
+
+                # 정수 부분 변환
+                result = num_to_sino(int(integer_part)) + '점'
+
+                # 소수점 이하 각 자릿수 변환 (0.5 → 영점오)
+                decimal_digits = ['영', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+                for digit in decimal_part:
+                    result += decimal_digits[int(digit)]
+
+                return result + unit
+
+            # 소수점 + 단위 패턴 (7.5일, 3.5kg 등)
+            text = re.sub(r'(\d+)\.(\d+)(일|시간|분|초|km|m|kg|g|cm|mm|%|퍼센트|배|도|리터|L|ml)', convert_decimal, text)
+
+            # 단위 없는 소수점 (그냥 7.5 등)
+            text = re.sub(r'(\d+)\.(\d+)(?![가-힣a-zA-Z])', lambda m: convert_decimal(m), text)
 
             return text
 
