@@ -10517,16 +10517,26 @@ def _update_job_status(job_id, **kwargs):
 def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식)"""
     if lang == 'ko':
+        # WenQuanYi Zen Hei - 서버에 설치된 CJK 폰트 (한글 지원)
+        # MarginV=180 으로 자막을 화면 위쪽으로 이동
         return (
-            "FontName=Noto Sans KR,FontSize=42,PrimaryColour=&H00FFFFFF,"
+            "FontName=WenQuanYi Zen Hei,FontSize=38,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=3,Shadow=2,MarginV=25"
+            "BorderStyle=1,Outline=3,Shadow=2,MarginV=180"
+        )
+    elif lang == 'ja':
+        # 일본어도 WenQuanYi Zen Hei 사용
+        return (
+            "FontName=WenQuanYi Zen Hei,FontSize=36,PrimaryColour=&H00FFFFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=3,Shadow=2,MarginV=180"
         )
     else:
+        # 영어/기타 언어
         return (
             "FontName=Arial,FontSize=28,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=60"
+            "BorderStyle=1,Outline=2,Shadow=1,MarginV=150"
         )
 
 def _generate_video_worker(job_id, session_id, scenes, detected_lang):
