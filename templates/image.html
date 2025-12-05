@@ -1760,6 +1760,308 @@
     .asset-icon {
       font-size: 1.2rem;
     }
+
+    /* ========== AI 썸네일 모드 스타일 ========== */
+    .thumb-mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 4px;
+      background: #f3f4f6;
+      border-radius: 8px;
+    }
+
+    .thumb-mode-toggle .mode-btn {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #6b7280;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .thumb-mode-toggle .mode-btn:hover {
+      color: #374151;
+    }
+
+    .thumb-mode-toggle .mode-btn.active {
+      background: #fff;
+      color: #111;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .thumb-mode-toggle .badge-new {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .thumb-mode-content {
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* AI 모드 인트로 */
+    .ai-mode-intro {
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+      border-radius: 8px;
+      margin-bottom: 16px;
+      border-left: 3px solid #667eea;
+    }
+
+    .ai-mode-intro p {
+      margin: 0;
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+
+    /* AI 분석 버튼 */
+    .btn-ai-analyze {
+      width: 100%;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+
+    .btn-ai-analyze:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-ai-analyze:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* AI 컨셉 프리뷰 */
+    .ai-concept-preview {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ai-concept-preview h5 {
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .concept-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .concept-item {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .concept-label {
+      flex: 0 0 60px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+
+    .concept-value {
+      flex: 1;
+      color: #374151;
+    }
+
+    /* AI 생성 버튼 */
+    .btn-ai-generate {
+      width: 100%;
+      padding: 14px 20px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+
+    .btn-ai-generate:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-ai-generate:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* AI 로딩 */
+    .ai-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px;
+      background: #f9fafb;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .ai-spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* AI 썸네일 그리드 */
+    .ai-thumbnail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ai-thumbnail-card {
+      background: #fff;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .ai-thumbnail-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+
+    .ai-thumbnail-card.selected {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+
+    .ai-thumb-badge {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      padding: 4px 10px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .ai-thumb-image {
+      position: relative;
+      aspect-ratio: 16/9;
+      background: #f3f4f6;
+    }
+
+    .ai-thumb-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .ai-thumb-info {
+      padding: 12px;
+    }
+
+    .ai-thumb-desc {
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+
+    .ai-thumb-text {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .btn-select-ai-thumb {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-select-ai-thumb:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+
+    /* AI 성공 메시지 */
+    .ai-success-message {
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    /* AI 통계 */
+    .ai-stats {
+      padding: 10px 14px;
+      background: #f3f4f6;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .ai-stats span {
+      color: #374151;
+      font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+      .ai-thumbnail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1945,55 +2247,150 @@
             <div id="thumbnail-section" class="section-card thumbnail-section hidden">
               <h4>🎨 썸네일</h4>
 
-              <!-- 텍스트 언어 선택 -->
-              <div class="thumb-text-language">
-                <label>🌐 텍스트 언어</label>
-                <div class="language-toggle">
-                  <label class="lang-option">
-                    <input type="radio" name="thumb-text-lang" value="ko" checked onchange="ImageMain.onTextLanguageChange()">
-                    <span>한국어</span>
-                  </label>
-                  <label class="lang-option">
-                    <input type="radio" name="thumb-text-lang" value="en" onchange="ImageMain.onTextLanguageChange()">
-                    <span>English</span>
-                  </label>
-                </div>
-                <small class="lang-hint">AI 이미지에 텍스트 삽입 시 영어 권장 (한글 깨짐 방지)</small>
+              <!-- 모드 토글 (직접 입력 vs AI) -->
+              <div class="thumb-mode-toggle">
+                <button type="button" class="mode-btn active" data-mode="manual" onclick="ImageMain.setThumbnailMode('manual')">
+                  ✏️ 직접 입력
+                </button>
+                <button type="button" class="mode-btn" data-mode="ai" onclick="ImageMain.setThumbnailMode('ai')">
+                  🤖 AI 생성 <span class="badge-new">GPT-5.1 + Gemini 3</span>
+                </button>
               </div>
 
-              <!-- 직접 입력 -->
-              <div class="thumb-text-input">
-                <label>✏️ 썸네일 텍스트 (줄바꿈으로 여러 줄)</label>
-                <textarea id="thumbnail-custom-text" rows="3" placeholder="예:&#10;4시간의 배신&#10;그날 밤 일어난 일" oninput="ImageMain.updateLineStyles()"></textarea>
+              <!-- ========== 직접 입력 모드 ========== -->
+              <div id="manual-mode-section" class="thumb-mode-content">
+                <!-- 텍스트 언어 선택 -->
+                <div class="thumb-text-language">
+                  <label>🌐 텍스트 언어</label>
+                  <div class="language-toggle">
+                    <label class="lang-option">
+                      <input type="radio" name="thumb-text-lang" value="ko" checked onchange="ImageMain.onTextLanguageChange()">
+                      <span>한국어</span>
+                    </label>
+                    <label class="lang-option">
+                      <input type="radio" name="thumb-text-lang" value="en" onchange="ImageMain.onTextLanguageChange()">
+                      <span>English</span>
+                    </label>
+                  </div>
+                  <small class="lang-hint">AI 이미지에 텍스트 삽입 시 영어 권장 (한글 깨짐 방지)</small>
+                </div>
+
+                <!-- 직접 입력 -->
+                <div class="thumb-text-input">
+                  <label>✏️ 썸네일 텍스트 (줄바꿈으로 여러 줄)</label>
+                  <textarea id="thumbnail-custom-text" rows="3" placeholder="예:&#10;4시간의 배신&#10;그날 밤 일어난 일" oninput="ImageMain.updateLineStyles()"></textarea>
+                </div>
+
+                <!-- 줄별 스타일 설정 -->
+                <div class="thumb-line-styles">
+                  <label>🎨 줄별 색상/크기</label>
+                  <div id="line-styles-list" class="line-styles-list">
+                    <div class="line-style-hint">텍스트 입력하면 줄별 설정 가능</div>
+                  </div>
+                </div>
+
+                <!-- 공통 옵션 -->
+                <div class="thumb-common-options">
+                  <div class="option-item">
+                    <label>외곽선</label>
+                    <input type="color" id="thumb-outline-color" value="#000000">
+                  </div>
+                  <div class="option-item">
+                    <label>배치</label>
+                    <select id="thumb-position">
+                      <option value="left">왼쪽</option>
+                      <option value="center">가운데</option>
+                      <option value="right">오른쪽</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button id="btn-generate-with-text" class="btn-generate-thumb" onclick="ImageMain.generateThumbnailsWithText()">🎨 썸네일 생성</button>
               </div>
 
-              <!-- 줄별 스타일 설정 -->
-              <div class="thumb-line-styles">
-                <label>🎨 줄별 색상/크기</label>
-                <div id="line-styles-list" class="line-styles-list">
-                  <div class="line-style-hint">텍스트 입력하면 줄별 설정 가능</div>
+              <!-- ========== AI 모드 ========== -->
+              <div id="ai-mode-section" class="thumb-mode-content" style="display: none;">
+                <div class="ai-mode-intro">
+                  <p>🤖 GPT-5.1이 대본을 분석하여 클릭률 높은 썸네일을 제안하고,<br>
+                  Gemini 3 Pro가 <strong>한글 텍스트가 포함된</strong> 이미지를 생성합니다.</p>
+                </div>
+
+                <!-- AI 분석 버튼 -->
+                <button id="btn-ai-analyze" class="btn-ai-analyze" onclick="ImageMain.analyzeForThumbnail()">
+                  🧠 AI 썸네일 분석 시작
+                </button>
+
+                <!-- AI 분석 결과 (컨셉 프리뷰) -->
+                <div id="ai-concept-preview" class="ai-concept-preview" style="display: none;">
+                  <h5>📌 AI 분석 결과</h5>
+                  <div class="concept-summary">
+                    <div class="concept-item">
+                      <span class="concept-label">요약</span>
+                      <span id="ai-script-summary" class="concept-value">-</span>
+                    </div>
+                    <div class="concept-item">
+                      <span class="concept-label">컨셉</span>
+                      <span id="ai-thumbnail-concept" class="concept-value">-</span>
+                    </div>
+                    <div class="concept-item">
+                      <span class="concept-label">학습 데이터</span>
+                      <span id="ai-learning-count" class="concept-value">-</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- AI 이미지 생성 버튼 -->
+                <button id="btn-ai-generate" class="btn-ai-generate" style="display: none;" onclick="ImageMain.generateAIThumbnails()">
+                  🎨 A/B 썸네일 생성 (Gemini 3 Pro)
+                </button>
+
+                <!-- AI 생성 로딩 -->
+                <div id="ai-loading" class="ai-loading" style="display: none;">
+                  <div class="ai-spinner"></div>
+                  <span id="ai-loading-text">AI가 분석 중입니다...</span>
+                </div>
+
+                <!-- AI 생성된 A/B 썸네일 -->
+                <div id="ai-thumbnail-grid" class="ai-thumbnail-grid" style="display: none;">
+                  <div class="ai-thumbnail-card" data-variant="A">
+                    <div class="ai-thumb-badge">옵션 A</div>
+                    <div class="ai-thumb-image">
+                      <img id="ai-thumb-img-A" src="" alt="썸네일 A">
+                    </div>
+                    <div class="ai-thumb-info">
+                      <div class="ai-thumb-desc" id="ai-thumb-desc-A">-</div>
+                      <div class="ai-thumb-text" id="ai-thumb-text-A">-</div>
+                    </div>
+                    <button class="btn-select-ai-thumb" onclick="ImageMain.selectAIThumbnail('A')">이 썸네일 선택</button>
+                  </div>
+                  <div class="ai-thumbnail-card" data-variant="B">
+                    <div class="ai-thumb-badge">옵션 B</div>
+                    <div class="ai-thumb-image">
+                      <img id="ai-thumb-img-B" src="" alt="썸네일 B">
+                    </div>
+                    <div class="ai-thumb-info">
+                      <div class="ai-thumb-desc" id="ai-thumb-desc-B">-</div>
+                      <div class="ai-thumb-text" id="ai-thumb-text-B">-</div>
+                    </div>
+                    <button class="btn-select-ai-thumb" onclick="ImageMain.selectAIThumbnail('B')">이 썸네일 선택</button>
+                  </div>
+                </div>
+
+                <!-- 선택 성공 메시지 -->
+                <div id="ai-success-message" class="ai-success-message" style="display: none;">
+                  ✅ 선택이 저장되었습니다! 학습 데이터로 활용됩니다.
+                </div>
+
+                <!-- 학습 통계 -->
+                <div id="ai-stats" class="ai-stats" style="display: none;">
+                  <span>📊 학습 통계:</span>
+                  <span id="ai-stat-total">0</span>개 데이터 |
+                  A 선택 <span id="ai-stat-a">0</span>회 |
+                  B 선택 <span id="ai-stat-b">0</span>회
                 </div>
               </div>
 
-              <!-- 공통 옵션 -->
-              <div class="thumb-common-options">
-                <div class="option-item">
-                  <label>외곽선</label>
-                  <input type="color" id="thumb-outline-color" value="#000000">
-                </div>
-                <div class="option-item">
-                  <label>배치</label>
-                  <select id="thumb-position">
-                    <option value="left">왼쪽</option>
-                    <option value="center">가운데</option>
-                    <option value="right">오른쪽</option>
-                  </select>
-                </div>
-              </div>
-
-              <button id="btn-generate-with-text" class="btn-generate-thumb" onclick="ImageMain.generateThumbnailsWithText()">🎨 썸네일 생성</button>
-
-              <!-- 생성된 썸네일 -->
+              <!-- 생성된 썸네일 (직접 입력 모드용) -->
               <div id="thumbnail-grid" class="thumbnail-grid" style="display: none;">
                 <div class="thumbnail-card" id="thumbnail-card-0">
                   <div class="thumbnail-image-box"><div class="placeholder">1</div></div>

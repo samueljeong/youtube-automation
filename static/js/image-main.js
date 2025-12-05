@@ -490,6 +490,269 @@ const ImageMain = {
     this.showStatus(`썸네일 ${idx + 1} 선택됨`, 'success');
   },
 
+  // ========== AI 썸네일 모드 ==========
+
+  // AI 모드 상태
+  thumbnailMode: 'manual',  // 'manual' or 'ai'
+  aiThumbnailSession: null,
+  aiThumbnailPrompts: null,
+  aiThumbnailImageUrls: {},
+
+  /**
+   * 썸네일 모드 전환 (직접 입력 / AI)
+   */
+  setThumbnailMode(mode) {
+    this.thumbnailMode = mode;
+
+    // 버튼 상태 업데이트
+    document.querySelectorAll('.thumb-mode-toggle .mode-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+
+    // 섹션 표시/숨기기
+    document.getElementById('manual-mode-section').style.display = mode === 'manual' ? 'block' : 'none';
+    document.getElementById('ai-mode-section').style.display = mode === 'ai' ? 'block' : 'none';
+
+    // AI 모드일 때 통계 로드
+    if (mode === 'ai') {
+      this.loadAIThumbnailStats();
+    }
+
+    console.log('[ImageMain] Thumbnail mode changed to:', mode);
+  },
+
+  /**
+   * AI 썸네일 분석 (GPT-5.1)
+   */
+  async analyzeForThumbnail() {
+    if (!this.analyzedData) {
+      this.showStatus('먼저 대본을 분석해주세요.', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btn-ai-analyze');
+    const loading = document.getElementById('ai-loading');
+    const loadingText = document.getElementById('ai-loading-text');
+
+    try {
+      btn.disabled = true;
+      loading.style.display = 'flex';
+      loadingText.textContent = 'GPT-5.1이 대본을 분석하고 있습니다...';
+
+      // 대본 텍스트 수집
+      const scenes = this.analyzedData.scenes || [];
+      const script = scenes.map(s => s.narration || '').join('\n\n');
+      const title = document.getElementById('video-title')?.value || this.analyzedData.thumbnail?.title || '제목 없음';
+
+      console.log('[ImageMain] AI Thumbnail analyze - title:', title, 'script length:', script.length);
+
+      const response = await fetch('/api/thumbnail-ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: script,
+          title: title,
+          genre: '일반'
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'AI 분석 실패');
+      }
+
+      // 세션 및 프롬프트 저장
+      this.aiThumbnailSession = data.session_id;
+      this.aiThumbnailPrompts = data.prompts;
+
+      // 컨셉 프리뷰 표시
+      document.getElementById('ai-script-summary').textContent = data.script_summary || '-';
+      document.getElementById('ai-thumbnail-concept').textContent = data.thumbnail_concept || '-';
+      document.getElementById('ai-learning-count').textContent = `${data.learning_examples_used || 0}개 활용됨`;
+
+      document.getElementById('ai-concept-preview').style.display = 'block';
+      document.getElementById('btn-ai-generate').style.display = 'block';
+
+      this.showStatus('AI 분석 완료! 이제 썸네일을 생성하세요.', 'success');
+
+    } catch (error) {
+      console.error('[ImageMain] AI analyze error:', error);
+      this.showStatus('AI 분석 실패: ' + error.message, 'error');
+    } finally {
+      btn.disabled = false;
+      loading.style.display = 'none';
+    }
+  },
+
+  /**
+   * AI 썸네일 생성 (Gemini 3 Pro Image)
+   */
+  async generateAIThumbnails() {
+    if (!this.aiThumbnailSession || !this.aiThumbnailPrompts) {
+      this.showStatus('먼저 AI 분석을 실행해주세요.', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('btn-ai-generate');
+    const loading = document.getElementById('ai-loading');
+    const loadingText = document.getElementById('ai-loading-text');
+
+    try {
+      btn.disabled = true;
+      loading.style.display = 'flex';
+      loadingText.textContent = 'Gemini 3 Pro가 썸네일을 생성하고 있습니다... (약 30초)';
+
+      const response = await fetch('/api/thumbnail-ai/generate-both', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.aiThumbnailSession,
+          prompts: this.aiThumbnailPrompts
+        })
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || '썸네일 생성 실패');
+      }
+
+      // 결과 저장
+      this.aiThumbnailImageUrls = {
+        A: data.results.A?.image_url,
+        B: data.results.B?.image_url
+      };
+
+      // UI 업데이트
+      this.renderAIThumbnails(data.results);
+
+      this.showStatus('A/B 썸네일 생성 완료! 마음에 드는 것을 선택하세요.', 'success');
+
+    } catch (error) {
+      console.error('[ImageMain] AI generate error:', error);
+      this.showStatus('썸네일 생성 실패: ' + error.message, 'error');
+    } finally {
+      btn.disabled = false;
+      loading.style.display = 'none';
+    }
+  },
+
+  /**
+   * AI 썸네일 렌더링
+   */
+  renderAIThumbnails(results) {
+    const grid = document.getElementById('ai-thumbnail-grid');
+    grid.style.display = 'grid';
+
+    ['A', 'B'].forEach(variant => {
+      const result = results[variant];
+      const promptData = this.aiThumbnailPrompts[variant];
+
+      const imgEl = document.getElementById(`ai-thumb-img-${variant}`);
+      const descEl = document.getElementById(`ai-thumb-desc-${variant}`);
+      const textEl = document.getElementById(`ai-thumb-text-${variant}`);
+
+      if (result?.ok && result?.image_url) {
+        imgEl.src = result.image_url;
+        imgEl.style.display = 'block';
+      } else {
+        imgEl.style.display = 'none';
+      }
+
+      descEl.textContent = promptData?.description || '옵션 ' + variant;
+      textEl.textContent = '텍스트: ' + (promptData?.text_overlay?.main || '-');
+    });
+
+    // 카드 선택 상태 초기화
+    document.querySelectorAll('.ai-thumbnail-card').forEach(card => {
+      card.classList.remove('selected');
+    });
+  },
+
+  /**
+   * AI 썸네일 선택 및 학습 데이터 저장
+   */
+  async selectAIThumbnail(variant) {
+    if (!this.aiThumbnailSession) {
+      this.showStatus('세션 정보가 없습니다.', 'error');
+      return;
+    }
+
+    // 카드 선택 표시
+    document.querySelectorAll('.ai-thumbnail-card').forEach(card => {
+      card.classList.toggle('selected', card.dataset.variant === variant);
+    });
+
+    // 선택된 썸네일 URL 저장 (YouTube 업로드용)
+    const selectedUrl = this.aiThumbnailImageUrls[variant];
+    if (selectedUrl) {
+      this.selectedAIThumbnailUrl = selectedUrl;
+      this.selectedThumbnailIdx = variant === 'A' ? 0 : 1;
+    }
+
+    try {
+      // 학습 데이터 저장
+      const title = document.getElementById('video-title')?.value || '';
+      const scriptSummary = document.getElementById('ai-script-summary')?.textContent || '';
+
+      const response = await fetch('/api/thumbnail-ai/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.aiThumbnailSession,
+          selected: variant,
+          prompts: this.aiThumbnailPrompts,
+          script_summary: scriptSummary,
+          genre: '일반',
+          title: title,
+          selection_reason: '',  // 간단 모드에서는 이유 생략
+          image_urls: this.aiThumbnailImageUrls
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        // 성공 메시지 표시
+        const successEl = document.getElementById('ai-success-message');
+        successEl.style.display = 'block';
+        setTimeout(() => {
+          successEl.style.display = 'none';
+        }, 3000);
+
+        // 통계 업데이트
+        this.loadAIThumbnailStats();
+
+        this.showStatus(`옵션 ${variant} 선택됨! 학습 데이터가 저장되었습니다.`, 'success');
+      }
+
+    } catch (error) {
+      console.error('[ImageMain] AI select error:', error);
+      // 선택은 완료, 저장만 실패
+      this.showStatus(`옵션 ${variant} 선택됨 (학습 데이터 저장 실패)`, 'warning');
+    }
+  },
+
+  /**
+   * AI 썸네일 학습 통계 로드
+   */
+  async loadAIThumbnailStats() {
+    try {
+      const response = await fetch('/api/thumbnail-ai/history?limit=100');
+      const data = await response.json();
+
+      if (data.ok && data.stats) {
+        document.getElementById('ai-stat-total').textContent = data.stats.total || 0;
+        document.getElementById('ai-stat-a').textContent = data.stats.a_selected || 0;
+        document.getElementById('ai-stat-b').textContent = data.stats.b_selected || 0;
+        document.getElementById('ai-stats').style.display = 'block';
+      }
+    } catch (error) {
+      console.error('[ImageMain] Load stats error:', error);
+    }
+  },
+
   /**
    * 씬 카드 렌더링 (UI 개선)
    */
