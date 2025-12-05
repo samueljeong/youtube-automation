@@ -13664,30 +13664,61 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                 )
 
                 if response.status_code != 200:
+                    print(f"[THUMBNAIL-AI][{variant}] API 오류: {response.status_code} - {response.text[:500]}")
                     return {"variant": variant, "ok": False, "error": response.text[:200]}
 
                 result = response.json()
+
+                # 디버그: 전체 응답 구조 출력
+                print(f"[THUMBNAIL-AI][{variant}] 응답 키: {list(result.keys())}")
+                choices = result.get("choices", [])
+                if choices:
+                    message = choices[0].get("message", {})
+                    print(f"[THUMBNAIL-AI][{variant}] message 키: {list(message.keys())}")
+                    print(f"[THUMBNAIL-AI][{variant}] content 타입: {type(message.get('content'))}")
+                    content_preview = str(message.get('content', ''))[:300]
+                    print(f"[THUMBNAIL-AI][{variant}] content 미리보기: {content_preview}")
 
                 # 이미지 추출
                 base64_image_data = None
                 choices = result.get("choices", [])
                 if choices:
                     message = choices[0].get("message", {})
+
+                    # 방법 1: images 배열 확인
                     images = message.get("images", [])
                     if images:
                         img = images[0]
                         if isinstance(img, str):
                             base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
+                            print(f"[THUMBNAIL-AI][{variant}] images 배열에서 추출 성공")
 
+                    # 방법 2: content 배열에서 image_url 타입 확인
                     if not base64_image_data:
                         content = message.get("content", [])
                         if isinstance(content, list):
                             for item in content:
-                                if isinstance(item, dict) and item.get("type") == "image_url":
-                                    url = item.get("image_url", {}).get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1]
-                                        break
+                                if isinstance(item, dict):
+                                    item_type = item.get("type", "")
+                                    if item_type == "image_url":
+                                        url = item.get("image_url", {}).get("url", "")
+                                        if url.startswith("data:"):
+                                            base64_image_data = url.split(",", 1)[1]
+                                            print(f"[THUMBNAIL-AI][{variant}] content.image_url에서 추출 성공")
+                                            break
+                                    elif item_type == "image":
+                                        # 대안: type이 "image"일 수도 있음
+                                        img_data = item.get("data") or item.get("image") or item.get("url", "")
+                                        if img_data:
+                                            if img_data.startswith("data:"):
+                                                base64_image_data = img_data.split(",", 1)[1]
+                                            else:
+                                                base64_image_data = img_data
+                                            print(f"[THUMBNAIL-AI][{variant}] content.image에서 추출 성공")
+                                            break
+                        elif isinstance(content, str):
+                            # content가 문자열인 경우 (텍스트 응답만)
+                            print(f"[THUMBNAIL-AI][{variant}] content가 문자열임 (이미지 없음)")
 
                 if base64_image_data:
                     timestamp = int(time.time() * 1000)
@@ -13701,7 +13732,8 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
 
                     return {"variant": variant, "ok": True, "image_url": f'/output/{filename}'}
 
-                return {"variant": variant, "ok": False, "error": "이미지 추출 실패"}
+                print(f"[THUMBNAIL-AI][{variant}] 이미지 추출 실패 - base64 데이터 없음")
+                return {"variant": variant, "ok": False, "error": "이미지 추출 실패 - API 응답에 이미지가 없습니다"}
 
             except Exception as e:
                 return {"variant": variant, "ok": False, "error": str(e)}
