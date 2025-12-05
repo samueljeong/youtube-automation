@@ -1175,6 +1175,10 @@ const ImageMain = {
           <button class="btn-refresh-channels" onclick="ImageMain.loadYouTubeChannels()" title="채널 목록 새로고침">🔄 새로고침</button>
           <a href="/api/youtube/auth?force=1" target="_blank" class="btn-add-account">➕ 다른 계정 연결</a>
         </div>
+        <div class="brand-channel-hint">
+          💡 브랜드 채널로 업로드하려면 "다른 계정 연결" 클릭 후<br>
+          Google 계정 선택 화면에서 브랜드 채널을 직접 선택하세요.
+        </div>
         <div class="channel-options">
       `;
 

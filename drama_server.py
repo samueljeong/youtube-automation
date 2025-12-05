@@ -9352,13 +9352,57 @@ def youtube_upload():
 
                 print(f"[YOUTUBE-UPLOAD] 업로드 성공: {video_url}")
 
+                # 썸네일 업로드 (썸네일 경로가 있는 경우)
+                thumbnail_uploaded = False
+                if thumbnail_path:
+                    try:
+                        # 썸네일 전체 경로 (상대 경로인 경우 처리)
+                        if thumbnail_path.startswith('/'):
+                            thumb_full_path = thumbnail_path[1:]  # 앞의 / 제거
+                        else:
+                            thumb_full_path = thumbnail_path
+
+                        # 파일 존재 확인
+                        if os.path.exists(thumb_full_path):
+                            print(f"[YOUTUBE-UPLOAD] 썸네일 업로드 시작: {thumb_full_path}")
+
+                            # 썸네일 MIME 타입 결정
+                            thumb_ext = os.path.splitext(thumb_full_path)[1].lower()
+                            thumb_mime = {
+                                '.jpg': 'image/jpeg',
+                                '.jpeg': 'image/jpeg',
+                                '.png': 'image/png',
+                                '.gif': 'image/gif'
+                            }.get(thumb_ext, 'image/jpeg')
+
+                            thumb_media = MediaFileUpload(
+                                thumb_full_path,
+                                mimetype=thumb_mime,
+                                resumable=True
+                            )
+
+                            thumb_request = youtube.thumbnails().set(
+                                videoId=video_id,
+                                media_body=thumb_media
+                            )
+                            thumb_response = thumb_request.execute()
+                            thumbnail_uploaded = True
+                            print(f"[YOUTUBE-UPLOAD] 썸네일 업로드 성공!")
+                        else:
+                            print(f"[YOUTUBE-UPLOAD] 썸네일 파일 없음: {thumb_full_path}")
+                    except Exception as thumb_error:
+                        print(f"[YOUTUBE-UPLOAD] 썸네일 업로드 실패: {thumb_error}")
+                        import traceback
+                        traceback.print_exc()
+
                 return jsonify({
                     "ok": True,
                     "mode": "live",
                     "videoId": video_id,
                     "videoUrl": video_url,
                     "status": "uploaded",
-                    "message": "YouTube 업로드 완료!",
+                    "thumbnailUploaded": thumbnail_uploaded,
+                    "message": "YouTube 업로드 완료!" + (" (썸네일 포함)" if thumbnail_uploaded else ""),
                     "metadata": {
                         "title": title,
                         "privacyStatus": privacy_status
