@@ -13750,14 +13750,35 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                             for item in content:
                                 if isinstance(item, dict):
                                     item_type = item.get("type", "")
+
+                                    # OpenAI 형식: image_url
                                     if item_type == "image_url":
                                         url = item.get("image_url", {}).get("url", "")
                                         if url.startswith("data:"):
                                             base64_image_data = url.split(",", 1)[1]
                                             print(f"[THUMBNAIL-AI][{variant}] content.image_url에서 추출 성공")
                                             break
+
+                                    # Gemini 형식: inline_data
+                                    elif "inline_data" in item:
+                                        inline = item.get("inline_data", {})
+                                        data = inline.get("data")
+                                        if data:
+                                            base64_image_data = data
+                                            print(f"[THUMBNAIL-AI][{variant}] inline_data에서 추출 성공")
+                                            break
+
+                                    # 대안: type이 "image"일 경우
                                     elif item_type == "image":
-                                        # 대안: type이 "image"일 수도 있음
+                                        # inline_data 내부 확인
+                                        if "inline_data" in item:
+                                            inline = item.get("inline_data", {})
+                                            data = inline.get("data")
+                                            if data:
+                                                base64_image_data = data
+                                                print(f"[THUMBNAIL-AI][{variant}] image.inline_data에서 추출 성공")
+                                                break
+                                        # 직접 data 필드
                                         img_data = item.get("data") or item.get("image") or item.get("url", "")
                                         if img_data:
                                             if img_data.startswith("data:"):
@@ -13766,9 +13787,16 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                                                 base64_image_data = img_data
                                             print(f"[THUMBNAIL-AI][{variant}] content.image에서 추출 성공")
                                             break
+
+                                    # 기타: data 필드 직접 확인
+                                    elif "data" in item and item_type != "text":
+                                        base64_image_data = item["data"]
+                                        print(f"[THUMBNAIL-AI][{variant}] data 필드에서 추출 성공")
+                                        break
+
                         elif isinstance(content, str):
                             # content가 문자열인 경우 (텍스트 응답만)
-                            print(f"[THUMBNAIL-AI][{variant}] content가 문자열임 (이미지 없음)")
+                            print(f"[THUMBNAIL-AI][{variant}] content가 문자열임 (이미지 없음): {content[:200]}")
 
                 if base64_image_data:
                     timestamp = int(time.time() * 1000)
@@ -13782,7 +13810,10 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
 
                     return {"variant": variant, "ok": True, "image_url": f'/output/{filename}'}
 
-                print(f"[THUMBNAIL-AI][{variant}] 이미지 추출 실패 - base64 데이터 없음")
+                # 디버그: 전체 응답 구조 출력
+                import json
+                print(f"[THUMBNAIL-AI][{variant}] 이미지 추출 실패 - 전체 응답:")
+                print(json.dumps(result, indent=2, ensure_ascii=False, default=str)[:3000])
                 return {"variant": variant, "ok": False, "error": "이미지 추출 실패 - API 응답에 이미지가 없습니다"}
 
             except Exception as e:
