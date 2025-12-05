@@ -10708,25 +10708,25 @@ def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식)"""
     if lang == 'ko':
         # NanumGothic - 나눔고딕 폰트 (한글 전용)
-        # MarginV=180 으로 자막을 화면 위쪽으로 이동
+        # MarginV=60: 화면 하단 분홍색 박스 영역에 자막 배치
         return (
             "FontName=NanumGothic,FontSize=38,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=3,Shadow=2,MarginV=180"
+            "BorderStyle=1,Outline=3,Shadow=2,MarginV=60"
         )
     elif lang == 'ja':
         # 일본어 - NanumGothic 사용 (CJK 지원)
         return (
             "FontName=NanumGothic,FontSize=36,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=3,Shadow=2,MarginV=180"
+            "BorderStyle=1,Outline=3,Shadow=2,MarginV=60"
         )
     else:
         # 영어/기타 언어
         return (
             "FontName=Arial,FontSize=28,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=150"
+            "BorderStyle=1,Outline=2,Shadow=1,MarginV=60"
         )
 
 def _generate_video_worker(job_id, session_id, scenes, detected_lang):
@@ -10897,7 +10897,13 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
 
             subtitle_style = _get_subtitle_style(detected_lang)
             final_path = os.path.join(work_dir, "final.mp4")
-            vf_filter = f"subtitles={srt_path}:force_style='{subtitle_style}'"
+
+            # 폰트 디렉토리 절대 경로 설정 (NanumGothic 폰트 위치)
+            fonts_dir = os.path.abspath("fonts")
+            vf_filter = f"subtitles={srt_path}:fontsdir={fonts_dir}:force_style='{subtitle_style}'"
+
+            print(f"[VIDEO-WORKER] Subtitle filter: {vf_filter}")
+            print(f"[VIDEO-WORKER] Fonts directory: {fonts_dir}")
 
             result = subprocess.run([
                 "ffmpeg", "-y", "-i", merged_path,
