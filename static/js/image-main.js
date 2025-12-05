@@ -250,14 +250,15 @@ const ImageMain = {
       return;
     }
 
-    // 제목 옵션 렌더링 (수정 가능 + 선택 버튼)
+    // 제목 옵션 렌더링 (수정 가능 + 선택 버튼 + 자동 저장)
     const titles = youtube.titles || [];
     let titlesHtml = '';
     titles.forEach((title, idx) => {
       const isSelected = idx === 0;
       titlesHtml += `
         <div class="title-option${isSelected ? ' selected' : ''}" data-idx="${idx}">
-          <input type="text" class="title-input" id="title-input-${idx}" value="${this.escapeHtml(title)}" placeholder="제목 입력...">
+          <input type="text" class="title-input" id="title-input-${idx}" value="${this.escapeHtml(title)}" placeholder="제목 입력..."
+                 oninput="ImageMain.onTitleInputChange(${idx})">
           <button class="btn-select-title${isSelected ? ' active' : ''}" onclick="ImageMain.selectTitle(${idx})">선택</button>
         </div>
       `;
@@ -293,6 +294,20 @@ const ImageMain = {
     });
 
     this.showStatus(`제목 선택: "${this.selectedTitle.substring(0, 30)}..."`, 'success');
+  },
+
+  /**
+   * 제목 입력 변경 시 자동 저장 (선택된 옵션만)
+   */
+  onTitleInputChange(idx) {
+    const titleOption = document.querySelector(`.title-option[data-idx="${idx}"]`);
+    if (titleOption && titleOption.classList.contains('selected')) {
+      const inputEl = document.getElementById(`title-input-${idx}`);
+      if (inputEl) {
+        this.selectedTitle = inputEl.value.trim();
+        console.log('[ImageMain] Title auto-saved:', this.selectedTitle.substring(0, 30));
+      }
+    }
   },
 
   /**
@@ -1165,14 +1180,14 @@ const ImageMain = {
           container.innerHTML = `
             <div class="channel-error">
               <p>YouTube 인증이 필요합니다.</p>
-              <a href="/api/youtube/auth" target="_blank">🔗 YouTube 연결하기</a>
+              <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 YouTube 연결하기</a>
             </div>
           `;
         } else {
           container.innerHTML = `
             <div class="channel-error">
               <p>${data.error || '채널을 불러올 수 없습니다.'}</p>
-              <a href="/api/youtube/auth" target="_blank">🔗 다시 연결하기</a>
+              <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 다시 연결하기</a>
             </div>
           `;
         }
@@ -1186,12 +1201,24 @@ const ImageMain = {
         return;
       }
 
-      // 채널 옵션 렌더링
-      let html = '<div class="channel-options">';
+      // 헤더: 새로고침 버튼 + 다른 계정 연결
+      let html = `
+        <div class="channel-header">
+          <button class="btn-refresh-channels" onclick="ImageMain.loadYouTubeChannels()" title="채널 목록 새로고침">🔄 새로고침</button>
+          <a href="/api/youtube/auth" target="_blank" class="btn-add-account">➕ 다른 계정 연결</a>
+        </div>
+        <div class="channel-options">
+      `;
+
+      // 이전에 선택된 채널 유지, 없으면 첫 번째 선택
+      const previousSelectedId = this.selectedChannelId;
+      let foundPrevious = false;
+
       this.channels.forEach((channel, idx) => {
-        const isSelected = idx === 0;
+        const isSelected = previousSelectedId ? (channel.id === previousSelectedId) : (idx === 0);
         if (isSelected) {
           this.selectedChannelId = channel.id;
+          foundPrevious = true;
         }
         html += `
           <label class="channel-option${isSelected ? ' selected' : ''}" data-channel-id="${channel.id}">
@@ -1204,6 +1231,12 @@ const ImageMain = {
           </label>
         `;
       });
+
+      // 이전 선택이 없으면 첫 번째 선택
+      if (!foundPrevious && this.channels.length > 0) {
+        this.selectedChannelId = this.channels[0].id;
+      }
+
       html += '</div>';
       container.innerHTML = html;
 
@@ -1220,7 +1253,8 @@ const ImageMain = {
       container.innerHTML = `
         <div class="channel-error">
           <p>채널 정보를 불러오는 데 실패했습니다.</p>
-          <a href="/api/youtube/auth" target="_blank">🔗 YouTube 연결하기</a>
+          <button onclick="ImageMain.loadYouTubeChannels()" class="btn-retry">🔄 다시 시도</button>
+          <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 YouTube 연결하기</a>
         </div>
       `;
     }
@@ -1365,8 +1399,14 @@ const ImageMain = {
         this.showStatus('YouTube 업로드 중...', 'info');
       }
 
+      // 썸네일 경로 변환 (URL → 서버 경로)
+      let thumbnailPath = null;
+      if (thumbnailUrl) {
+        thumbnailPath = thumbnailUrl.startsWith('/') ? thumbnailUrl.substring(1) : thumbnailUrl;
+      }
+
       console.log('[ImageMain] Uploading to YouTube:', {
-        title, thumbnailUrl, privacy: this.privacyStatus, publishAt, channelId: this.selectedChannelId
+        title, thumbnailPath, privacy: this.privacyStatus, publishAt, channelId: this.selectedChannelId
       });
 
       const response = await fetch('/api/youtube/upload', {
@@ -1380,7 +1420,7 @@ const ImageMain = {
           categoryId: '22',  // People & Blogs
           privacyStatus: publishAt ? 'private' : this.privacyStatus,  // 예약 시 비공개 필수
           publish_at: publishAt,  // 예약 시간 (ISO 8601) - 백엔드 snake_case
-          thumbnailUrl: thumbnailUrl,  // 선택한 썸네일
+          thumbnailPath: thumbnailPath,  // 선택한 썸네일 (서버 경로)
           channelId: this.selectedChannelId  // 선택한 채널 ID
         })
       });
