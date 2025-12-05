@@ -3873,8 +3873,9 @@ def api_generate_image():
         prompt = data.get("prompt", "")
         size = data.get("size", "1024x1024")
         image_provider = data.get("imageProvider", "gemini")  # gemini, flux, dalle
+        image_style = data.get("style", "realistic")  # realistic, animation
 
-        print(f"[DRAMA-STEP4-IMAGE] 요청 수신 - Provider: {image_provider}, Size: {size}")
+        print(f"[DRAMA-STEP4-IMAGE] 요청 수신 - Provider: {image_provider}, Size: {size}, Style: {image_style}")
         print(f"[DRAMA-STEP4-IMAGE] 프롬프트 길이: {len(prompt)} 글자")
 
         if not prompt:
@@ -3904,8 +3905,11 @@ def api_generate_image():
             # 한국인 캐릭터인 경우 인종적 특징을 프롬프트 맨 앞에 배치하여 강조
             prompt_lower = prompt.lower()
 
-            # 스틱맨 스타일 감지 - 스틱맨이면 실사 인물 강화 건너뛰기
-            is_stickman_style = any(kw in prompt_lower for kw in ['stickman', 'stick man', 'stick figure', 'no realistic', 'only stickman'])
+            # 스틱맨 스타일 감지 - 프론트엔드에서 style='animation' 또는 프롬프트에 스틱맨 키워드
+            is_stickman_style = (
+                image_style == 'animation' or
+                any(kw in prompt_lower for kw in ['stickman', 'stick man', 'stick figure', 'no realistic', 'only stickman'])
+            )
 
             if is_stickman_style:
                 # 스틱맨 스타일 - 실사 인물 생성 방지
