@@ -1028,6 +1028,44 @@ def init_db():
             )
         ''')
 
+    # Video Jobs 테이블 생성 (영상 생성 작업 상태 추적 - 서버 재시작에도 유지됨)
+    if USE_POSTGRES:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS video_jobs (
+                job_id VARCHAR(100) PRIMARY KEY,
+                status VARCHAR(50) DEFAULT 'pending',
+                progress INTEGER DEFAULT 0,
+                message TEXT,
+                video_url TEXT,
+                error TEXT,
+                session_id VARCHAR(100),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_video_jobs_created_at
+            ON video_jobs(created_at DESC)
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS video_jobs (
+                job_id TEXT PRIMARY KEY,
+                status TEXT DEFAULT 'pending',
+                progress INTEGER DEFAULT 0,
+                message TEXT,
+                video_url TEXT,
+                error TEXT,
+                session_id TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_video_jobs_created_at
+            ON video_jobs(created_at DESC)
+        ''')
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -10538,30 +10576,133 @@ def format_srt_time(seconds):
 
 # ===== Image Lab 영상 생성 API (백그라운드 처리) =====
 
-# 영상 생성 작업 상태 저장 (파일 기반 - 멀티워커 지원)
+# 영상 생성 작업 상태 저장 (PostgreSQL 또는 파일 기반)
+# PostgreSQL: 서버 재시작에도 작업 상태 유지됨
+# 파일: 로컬 개발용 폴백
 VIDEO_JOBS_DIR = "uploads/video_jobs"
 os.makedirs(VIDEO_JOBS_DIR, exist_ok=True)
 
 def _save_job_status(job_id, status_data):
-    """작업 상태를 파일로 저장"""
-    job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
-    with open(job_file, 'w', encoding='utf-8') as f:
-        json.dump(status_data, f, ensure_ascii=False)
+    """작업 상태를 DB 또는 파일로 저장"""
+    if USE_POSTGRES:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO video_jobs (job_id, status, progress, message, video_url, error, session_id, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (job_id) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    progress = EXCLUDED.progress,
+                    message = EXCLUDED.message,
+                    video_url = EXCLUDED.video_url,
+                    error = EXCLUDED.error,
+                    session_id = EXCLUDED.session_id,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (
+                job_id,
+                status_data.get('status', 'pending'),
+                status_data.get('progress', 0),
+                status_data.get('message', ''),
+                status_data.get('video_url', ''),
+                status_data.get('error', ''),
+                status_data.get('session_id', '')
+            ))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"[VIDEO-JOB-DB] Saved job {job_id} to PostgreSQL")
+        except Exception as e:
+            print(f"[VIDEO-JOB-DB] Error saving to PostgreSQL: {e}, falling back to file")
+            # 폴백: 파일 저장
+            job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+            with open(job_file, 'w', encoding='utf-8') as f:
+                json.dump(status_data, f, ensure_ascii=False)
+    else:
+        job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+        with open(job_file, 'w', encoding='utf-8') as f:
+            json.dump(status_data, f, ensure_ascii=False)
 
 def _load_job_status(job_id):
-    """작업 상태를 파일에서 로드"""
-    job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
-    if os.path.exists(job_file):
-        with open(job_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return None
+    """작업 상태를 DB 또는 파일에서 로드"""
+    if USE_POSTGRES:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT job_id, status, progress, message, video_url, error, session_id
+                FROM video_jobs WHERE job_id = %s
+            ''', (job_id,))
+            row = cursor.fetchone()
+            cursor.close()
+            conn.close()
+
+            if row:
+                return {
+                    'job_id': row['job_id'],
+                    'status': row['status'],
+                    'progress': row['progress'],
+                    'message': row['message'],
+                    'video_url': row['video_url'],
+                    'error': row['error'],
+                    'session_id': row['session_id']
+                }
+            return None
+        except Exception as e:
+            print(f"[VIDEO-JOB-DB] Error loading from PostgreSQL: {e}, falling back to file")
+            # 폴백: 파일에서 로드
+            job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+            if os.path.exists(job_file):
+                with open(job_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            return None
+    else:
+        job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+        if os.path.exists(job_file):
+            with open(job_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return None
 
 def _update_job_status(job_id, **kwargs):
     """작업 상태 부분 업데이트"""
-    status = _load_job_status(job_id)
-    if status:
-        status.update(kwargs)
-        _save_job_status(job_id, status)
+    if USE_POSTGRES:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # 동적 UPDATE 쿼리 생성
+            update_fields = []
+            values = []
+            for key, value in kwargs.items():
+                if key in ['status', 'progress', 'message', 'video_url', 'error', 'session_id']:
+                    update_fields.append(f"{key} = %s")
+                    values.append(value)
+
+            if update_fields:
+                update_fields.append("updated_at = CURRENT_TIMESTAMP")
+                values.append(job_id)
+                query = f"UPDATE video_jobs SET {', '.join(update_fields)} WHERE job_id = %s"
+                cursor.execute(query, values)
+                conn.commit()
+
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            print(f"[VIDEO-JOB-DB] Error updating PostgreSQL: {e}, falling back to file")
+            # 폴백: 파일 업데이트
+            status = _load_job_status(job_id)
+            if status:
+                status.update(kwargs)
+                job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+                with open(job_file, 'w', encoding='utf-8') as f:
+                    json.dump(status, f, ensure_ascii=False)
+    else:
+        status = _load_job_status(job_id)
+        if status:
+            status.update(kwargs)
+            job_file = os.path.join(VIDEO_JOBS_DIR, f"{job_id}.json")
+            with open(job_file, 'w', encoding='utf-8') as f:
+                json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식)"""
