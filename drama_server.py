@@ -10319,8 +10319,125 @@ def api_image_generate_assets_zip():
             # 폴백: MP3 128kbps 기준 추정 (16KB/초)
             return len(audio_bytes) / 16000
 
+        def convert_numbers_to_korean(text):
+            """숫자를 한글로 변환 (TTS 자연스러운 읽기용)
+
+            - 고유어 단위 (번, 개, 명, 살, 시, 마리, 잔, 병, 권, 대, 채, 장, 벌, 켤레, 그루, 송이):
+              15번 → 열다섯번, 3개 → 세개
+            - 한자어 단위 (원, 층, 년, 월, 일, 분, 초, 도, 호, 회, 배, km, m, kg, g):
+              200원 → 이백원, 15층 → 십오층
+            """
+            import re
+
+            # 고유어 숫자 (1~99)
+            native_units = ['번', '개', '명', '살', '시', '마리', '잔', '병', '권', '대', '채', '장', '벌', '켤레', '그루', '송이', '군데', '가지', '줄', '쌍']
+            native_ones = ['', '한', '두', '세', '네', '다섯', '여섯', '일곱', '여덟', '아홉']
+            native_tens = ['', '열', '스물', '서른', '마흔', '쉰', '예순', '일흔', '여든', '아흔']
+
+            def num_to_native(n):
+                """숫자를 고유어로 변환 (1~99)"""
+                if n <= 0 or n >= 100:
+                    return str(n)
+                tens = n // 10
+                ones = n % 10
+                return native_tens[tens] + native_ones[ones]
+
+            # 한자어 숫자
+            sino_digits = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+
+            def num_to_sino(n):
+                """숫자를 한자어로 변환"""
+                if n == 0:
+                    return '영'
+                if n < 0:
+                    return '마이너스 ' + num_to_sino(-n)
+
+                result = ''
+
+                # 억 단위
+                if n >= 100000000:
+                    result += num_to_sino(n // 100000000) + '억'
+                    n %= 100000000
+
+                # 만 단위
+                if n >= 10000:
+                    man = n // 10000
+                    if man == 1:
+                        result += '만'
+                    else:
+                        result += num_to_sino(man) + '만'
+                    n %= 10000
+
+                # 천 단위
+                if n >= 1000:
+                    cheon = n // 1000
+                    if cheon == 1:
+                        result += '천'
+                    else:
+                        result += sino_digits[cheon] + '천'
+                    n %= 1000
+
+                # 백 단위
+                if n >= 100:
+                    baek = n // 100
+                    if baek == 1:
+                        result += '백'
+                    else:
+                        result += sino_digits[baek] + '백'
+                    n %= 100
+
+                # 십 단위
+                if n >= 10:
+                    sip = n // 10
+                    if sip == 1:
+                        result += '십'
+                    else:
+                        result += sino_digits[sip] + '십'
+                    n %= 10
+
+                # 일 단위
+                if n > 0:
+                    result += sino_digits[n]
+
+                return result
+
+            # 고유어 단위 패턴 (숫자 + 고유어단위)
+            for unit in native_units:
+                pattern = r'(\d+)' + re.escape(unit)
+                def replace_native(match, u=unit):
+                    num = int(match.group(1))
+                    if 1 <= num <= 99:
+                        return num_to_native(num) + u
+                    else:
+                        return num_to_sino(num) + u
+                text = re.sub(pattern, replace_native, text)
+
+            # 한자어 단위 패턴 (숫자 + 한자어단위) - 남은 숫자+단위
+            sino_units = ['원', '층', '년', '월', '일', '분', '초', '도', '호', '회', '배', '위', '등', '점', '퍼센트', '%', 'km', 'm', 'kg', 'g', 'cm', 'mm', '원짜리', '달러', '엔', '유로']
+            for unit in sino_units:
+                pattern = r'(\d+)' + re.escape(unit)
+                def replace_sino(match, u=unit):
+                    num = int(match.group(1))
+                    converted = num_to_sino(num)
+                    # % → 퍼센트로 읽기
+                    if u == '%':
+                        u = '퍼센트'
+                    return converted + u
+                text = re.sub(pattern, replace_sino, text)
+
+            # 곱하기/나누기 표현
+            text = re.sub(r'(\d+)\s*[xX×]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 곱하기 ' + num_to_sino(int(m.group(2))), text)
+            text = re.sub(r'(\d+)\s*[/÷]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 나누기 ' + num_to_sino(int(m.group(2))), text)
+
+            return text
+
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
             """단일 문장에 대한 TTS 생성"""
+            # 숫자 → 한글 변환 (자연스러운 읽기)
+            if language_code.startswith('ko'):
+                text = convert_numbers_to_korean(text)
+                print(f"[TTS] 숫자 변환 후: {text[:50]}...")
+
             tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
             payload = {
                 "input": {"text": text},
