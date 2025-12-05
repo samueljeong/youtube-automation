@@ -10220,14 +10220,10 @@ def api_image_generate_assets_zip():
                 return split_korean_semantic_fallback(text)
 
         def split_sentences(text, lang='en'):
-            """텍스트를 자막 단위로 분리 (언어별 다른 처리)"""
-            if lang == 'ko':
-                # 한국어: GPT-5.1로 자연스러운 분리
-                return split_sentences_with_gpt(text, lang)
-            else:
-                # 영어/일본어: 문장 단위 유지
-                sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-                return [s.strip() for s in sentences if s.strip()]
+            """텍스트를 자막 단위로 분리 - 문장 부호 기준 (모든 언어 동일)"""
+            # 문장 부호(. ! ?)로 분리 - 대본 작성 시 문장 길이 조절로 컨트롤
+            sentences = re.split(r'(?<=[.!?。])\s*', text.strip())
+            return [s.strip() for s in sentences if s.strip()]
 
         def split_korean_semantic_fallback(text, max_chars=20):
             """GPT 실패 시 폴백: 한국어 의미 기준 분리"""
