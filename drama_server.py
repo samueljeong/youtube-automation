@@ -1294,11 +1294,7 @@ def get_system_prompt_for_step(step_name):
 
 @app.route("/")
 def home():
-    return render_template("drama.html")
-
-@app.route("/drama")
-def drama():
-    return render_template("drama.html")
+    return render_template("image.html")
 
 @app.route("/product")
 def product():
