@@ -357,6 +357,41 @@ def load_all_youtube_channels_from_db():
         traceback.print_exc()
         return []
 
+
+def delete_youtube_channel_from_db(channel_id):
+    """데이터베이스에서 특정 YouTube 채널 토큰 삭제
+
+    Args:
+        channel_id: 삭제할 채널 ID
+
+    Returns:
+        bool: 삭제 성공 여부
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM youtube_tokens WHERE user_id = %s', (channel_id,))
+        else:
+            cursor.execute('DELETE FROM youtube_tokens WHERE user_id = ?', (channel_id,))
+
+        conn.commit()
+        deleted = cursor.rowcount > 0
+        conn.close()
+
+        if deleted:
+            print(f"[YOUTUBE-TOKEN] 채널 삭제됨: {channel_id}")
+        else:
+            print(f"[YOUTUBE-TOKEN] 삭제할 채널 없음: {channel_id}")
+
+        return deleted
+    except Exception as e:
+        print(f"[YOUTUBE-TOKEN] 채널 삭제 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 # Job 파일 저장/로드 함수 (Render 재시작 대비)
 def save_video_jobs():
     """video_jobs를 파일에 저장"""
@@ -7658,6 +7693,35 @@ def youtube_channels():
                 "error": f"채널 목록을 가져오는 데 실패했습니다: {str(e)}",
                 "channels": []
             })
+
+
+@app.route('/api/youtube/channel/<channel_id>', methods=['DELETE'])
+def delete_youtube_channel(channel_id):
+    """YouTube 채널 토큰 삭제"""
+    try:
+        print(f"[YOUTUBE-DELETE] 채널 삭제 요청: {channel_id}")
+
+        deleted = delete_youtube_channel_from_db(channel_id)
+
+        if deleted:
+            return jsonify({
+                "ok": True,
+                "message": f"채널 {channel_id} 삭제됨"
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": "삭제할 채널을 찾을 수 없습니다."
+            }), 404
+
+    except Exception as e:
+        print(f"[YOUTUBE-DELETE] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route('/api/drama/upload-youtube', methods=['POST'])

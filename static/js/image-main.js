@@ -2023,10 +2023,13 @@ const ImageMain = {
         const chipClass = `channel-chip${isSelected ? ' selected' : ''}${isExpired ? ' expired' : ''}`;
 
         html += `
-          <div class="${chipClass}" data-channel-id="${channel.id}" onclick="ImageMain.selectChannel('${channel.id}')">
-            <img class="chip-thumb" src="${channel.thumbnail || ''}" alt="" onerror="this.style.display='none'">
-            <span class="chip-name">${this.escapeHtml(channel.title)}</span>
-            ${isExpired ? '<span class="chip-expired">⚠️</span>' : ''}
+          <div class="${chipClass}" data-channel-id="${channel.id}">
+            <div class="chip-content" onclick="ImageMain.selectChannel('${channel.id}')">
+              <img class="chip-thumb" src="${channel.thumbnail || ''}" alt="" onerror="this.style.display='none'">
+              <span class="chip-name">${this.escapeHtml(channel.title)}</span>
+              ${isExpired ? '<span class="chip-expired">⚠️</span>' : ''}
+            </div>
+            <button class="chip-delete" onclick="event.stopPropagation(); ImageMain.deleteChannel('${channel.id}')" title="삭제">×</button>
           </div>
         `;
       });
@@ -2100,6 +2103,37 @@ const ImageMain = {
         return;
       }
       this.showStatus(`채널: ${channel.title}`, 'success');
+    }
+  },
+
+  /**
+   * 채널 삭제
+   */
+  async deleteChannel(channelId) {
+    const channel = this.channels.find(c => c.id === channelId);
+    const channelName = channel ? channel.title : channelId;
+
+    if (!confirm(`"${channelName}" 채널을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/youtube/channel/${channelId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        this.showStatus(`"${channelName}" 채널 삭제됨`, 'success');
+        // 채널 목록 새로고침
+        await this.loadYouTubeChannels();
+      } else {
+        this.showStatus(`삭제 실패: ${data.error || '알 수 없는 오류'}`, 'error');
+      }
+    } catch (error) {
+      console.error('[ImageMain] Delete channel error:', error);
+      this.showStatus('채널 삭제 중 오류 발생', 'error');
     }
   },
 

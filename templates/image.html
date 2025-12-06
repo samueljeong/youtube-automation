@@ -195,6 +195,40 @@
       object-fit: cover;
     }
 
+    .youtube-channel-area .channel-chip .chip-content {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .youtube-channel-area .channel-chip .chip-delete {
+      display: none;
+      width: 18px;
+      height: 18px;
+      padding: 0;
+      margin-left: 4px;
+      background: rgba(239, 68, 68, 0.8);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .youtube-channel-area .channel-chip:hover .chip-delete {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .youtube-channel-area .channel-chip .chip-delete:hover {
+      background: #dc2626;
+      transform: scale(1.1);
+    }
+
     .youtube-channel-area .channel-chip.add-channel {
       background: #fff;
       border-style: dashed;
