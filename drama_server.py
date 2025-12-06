@@ -14529,6 +14529,7 @@ def run_automation_pipeline(row_data, row_index):
                 if 0 <= idx < len(scenes):
                     scenes[idx]['audio_url'] = sm.get('audio_url')
                     scenes[idx]['duration'] = sm.get('duration', 5)
+                    scenes[idx]['subtitles'] = sm.get('subtitles', [])
 
             # 비용: Google TTS (~$4/1M chars = $0.000004/char)
             tts_cost = len(script) * 0.000004
