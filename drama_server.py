@@ -176,16 +176,34 @@ def korean_number_to_arabic(text):
     return result
 
 # YouTube 토큰 DB 저장/로드 함수
-def save_youtube_token_to_db(token_data, user_id='default'):
-    """YouTube 토큰을 데이터베이스에 저장"""
+def save_youtube_token_to_db(token_data, channel_id=None, channel_info=None):
+    """YouTube 토큰을 데이터베이스에 저장 (채널별로 저장)
+
+    Args:
+        token_data: OAuth 토큰 데이터
+        channel_id: YouTube 채널 ID (없으면 'default')
+        channel_info: 채널 정보 dict (title, thumbnail)
+    """
+    user_id = channel_id or 'default'
+    channel_name = channel_info.get('title', '') if channel_info else ''
+    channel_thumbnail = channel_info.get('thumbnail', '') if channel_info else ''
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         if USE_POSTGRES:
+            # channel_name, channel_thumbnail 컬럼이 없을 수 있으므로 먼저 추가 시도
+            try:
+                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN IF NOT EXISTS channel_name TEXT')
+                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN IF NOT EXISTS channel_thumbnail TEXT')
+                conn.commit()
+            except:
+                pass
+
             cursor.execute('''
-                INSERT INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                INSERT INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, channel_name, channel_thumbnail, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (user_id) DO UPDATE SET
                     token = EXCLUDED.token,
                     refresh_token = EXCLUDED.refresh_token,
@@ -193,6 +211,8 @@ def save_youtube_token_to_db(token_data, user_id='default'):
                     client_id = EXCLUDED.client_id,
                     client_secret = EXCLUDED.client_secret,
                     scopes = EXCLUDED.scopes,
+                    channel_name = EXCLUDED.channel_name,
+                    channel_thumbnail = EXCLUDED.channel_thumbnail,
                     updated_at = CURRENT_TIMESTAMP
             ''', (
                 user_id,
@@ -201,12 +221,24 @@ def save_youtube_token_to_db(token_data, user_id='default'):
                 token_data.get('token_uri'),
                 token_data.get('client_id'),
                 token_data.get('client_secret'),
-                ','.join(token_data.get('scopes', []))
+                ','.join(token_data.get('scopes', [])),
+                channel_name,
+                channel_thumbnail
             ))
         else:
+            # SQLite - 컬럼 추가 시도
+            try:
+                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN channel_name TEXT')
+            except:
+                pass
+            try:
+                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN channel_thumbnail TEXT')
+            except:
+                pass
+
             cursor.execute('''
-                INSERT OR REPLACE INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                INSERT OR REPLACE INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, channel_name, channel_thumbnail, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             ''', (
                 user_id,
                 token_data.get('token'),
@@ -214,28 +246,36 @@ def save_youtube_token_to_db(token_data, user_id='default'):
                 token_data.get('token_uri'),
                 token_data.get('client_id'),
                 token_data.get('client_secret'),
-                ','.join(token_data.get('scopes', []))
+                ','.join(token_data.get('scopes', [])),
+                channel_name,
+                channel_thumbnail
             ))
 
         conn.commit()
         conn.close()
-        print(f"[YOUTUBE-TOKEN] 데이터베이스에 저장 완료 (user_id: {user_id})")
+        print(f"[YOUTUBE-TOKEN] 데이터베이스에 저장 완료 (channel_id: {user_id}, name: {channel_name})")
         return True
     except Exception as e:
         print(f"[YOUTUBE-TOKEN] 데이터베이스 저장 실패: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
-def load_youtube_token_from_db(user_id='default'):
-    """YouTube 토큰을 데이터베이스에서 로드"""
+def load_youtube_token_from_db(channel_id='default'):
+    """YouTube 토큰을 데이터베이스에서 로드
+
+    Args:
+        channel_id: YouTube 채널 ID (없으면 'default')
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
         if USE_POSTGRES:
-            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = %s', (user_id,))
+            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = %s', (channel_id,))
         else:
-            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = ?', (user_id,))
+            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = ?', (channel_id,))
 
         row = cursor.fetchone()
         conn.close()
@@ -249,10 +289,10 @@ def load_youtube_token_from_db(user_id='default'):
                 'client_secret': row['client_secret'] if USE_POSTGRES else row[6],
                 'scopes': (row['scopes'] if USE_POSTGRES else row[7]).split(',') if (row['scopes'] if USE_POSTGRES else row[7]) else []
             }
-            print(f"[YOUTUBE-TOKEN] 데이터베이스에서 로드 완료 (user_id: {user_id})")
+            print(f"[YOUTUBE-TOKEN] 데이터베이스에서 로드 완료 (channel_id: {channel_id})")
             return token_data
         else:
-            print(f"[YOUTUBE-TOKEN] 데이터베이스에 토큰 없음 (user_id: {user_id})")
+            print(f"[YOUTUBE-TOKEN] 데이터베이스에 토큰 없음 (channel_id: {channel_id})")
             return None
     except Exception as e:
         print(f"[YOUTUBE-TOKEN] 데이터베이스 로드 실패: {e}")
@@ -263,11 +303,59 @@ def load_youtube_token_from_db(user_id='default'):
                 with open(YOUTUBE_TOKEN_FILE, 'r') as f:
                     token_data = json_module.load(f)
                 print("[YOUTUBE-TOKEN] 레거시 파일에서 로드 성공, DB로 마이그레이션 시도")
-                save_youtube_token_to_db(token_data, user_id)
+                save_youtube_token_to_db(token_data, channel_id)
                 return token_data
             except Exception as file_error:
                 print(f"[YOUTUBE-TOKEN] 레거시 파일 로드도 실패: {file_error}")
         return None
+
+
+def load_all_youtube_channels_from_db():
+    """데이터베이스에 저장된 모든 YouTube 채널 목록 반환
+
+    Returns:
+        list: [{'id': channel_id, 'title': name, 'thumbnail': url}, ...]
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT user_id, channel_name, channel_thumbnail, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
+        else:
+            cursor.execute('SELECT user_id, channel_name, channel_thumbnail, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        channels = []
+        for row in rows:
+            if USE_POSTGRES:
+                channel_id = row['user_id']
+                channel_name = row['channel_name'] or channel_id
+                channel_thumbnail = row['channel_thumbnail'] or ''
+            else:
+                channel_id = row[0]
+                channel_name = row[1] or channel_id
+                channel_thumbnail = row[2] or ''
+
+            # 'default'는 레거시 데이터이므로 표시하지 않음 (채널 정보가 없는 경우)
+            if channel_id == 'default' and not channel_name:
+                continue
+
+            channels.append({
+                'id': channel_id,
+                'title': channel_name,
+                'thumbnail': channel_thumbnail
+            })
+
+        print(f"[YOUTUBE-TOKEN] 저장된 채널 {len(channels)}개 로드")
+        return channels
+    except Exception as e:
+        print(f"[YOUTUBE-TOKEN] 채널 목록 로드 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 # Job 파일 저장/로드 함수 (Render 재시작 대비)
 def save_video_jobs():
@@ -7376,7 +7464,7 @@ def youtube_callback():
         flow.fetch_token(code=code)
         credentials = flow.credentials
 
-        # 토큰 저장
+        # 토큰 데이터 준비
         token_data = {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
@@ -7386,7 +7474,31 @@ def youtube_callback():
             'scopes': list(credentials.scopes) if credentials.scopes else []
         }
 
-        save_youtube_token_to_db(token_data)
+        # 채널 정보 조회
+        channel_id = None
+        channel_info = None
+        try:
+            from googleapiclient.discovery import build
+            youtube = build('youtube', 'v3', credentials=credentials)
+            channels_response = youtube.channels().list(
+                part='snippet',
+                mine=True
+            ).execute()
+
+            items = channels_response.get('items', [])
+            if items:
+                channel = items[0]
+                channel_id = channel['id']
+                channel_info = {
+                    'title': channel['snippet']['title'],
+                    'thumbnail': channel['snippet']['thumbnails'].get('default', {}).get('url', '')
+                }
+                print(f"[YOUTUBE-CALLBACK] 채널 정보: {channel_id} - {channel_info['title']}")
+        except Exception as channel_error:
+            print(f"[YOUTUBE-CALLBACK] 채널 정보 조회 실패 (토큰은 저장): {channel_error}")
+
+        # 채널별로 토큰 저장
+        save_youtube_token_to_db(token_data, channel_id=channel_id, channel_info=channel_info)
 
         print(f"[YOUTUBE-CALLBACK] 인증 완료, /image 페이지로 리다이렉트")
         # Image Lab 페이지로 리다이렉트 (인증 완료)
@@ -7441,18 +7553,51 @@ def youtube_auth_status():
 
 @app.route('/api/drama/youtube-channels')
 def youtube_channels():
-    """YouTube 채널 목록 가져오기"""
+    """YouTube 채널 목록 가져오기 (저장된 모든 채널 반환)"""
     try:
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
 
-        # 데이터베이스에서 토큰 로드
+        # 데이터베이스에 저장된 모든 채널 가져오기
+        saved_channels = load_all_youtube_channels_from_db()
+
+        # 저장된 채널이 있으면 각 채널의 토큰 유효성 검사
+        valid_channels = []
+        for ch in saved_channels:
+            channel_id = ch['id']
+            token_data = load_youtube_token_from_db(channel_id)
+            if token_data:
+                try:
+                    credentials = Credentials.from_authorized_user_info(token_data)
+                    # 토큰 갱신 필요시
+                    if credentials.expired and credentials.refresh_token:
+                        credentials.refresh(Request())
+                        token_data['token'] = credentials.token
+                        save_youtube_token_to_db(token_data, channel_id=channel_id, channel_info={
+                            'title': ch['title'],
+                            'thumbnail': ch['thumbnail']
+                        })
+                    valid_channels.append(ch)
+                except Exception as token_error:
+                    print(f"[YOUTUBE-CHANNELS] 채널 {channel_id} 토큰 만료/무효: {token_error}")
+                    # 만료된 채널도 목록에는 표시 (재인증 유도)
+                    ch['expired'] = True
+                    valid_channels.append(ch)
+
+        if valid_channels:
+            return jsonify({
+                "success": True,
+                "channels": valid_channels
+            })
+
+        # 저장된 채널이 없으면 기존 방식으로 시도 (레거시 호환)
         token_data = load_youtube_token_from_db()
         if not token_data:
             return jsonify({
                 "success": False,
-                "error": "YouTube 인증이 필요합니다."
+                "error": "YouTube 인증이 필요합니다.",
+                "channels": []
             })
 
         credentials = Credentials.from_authorized_user_info(token_data)
@@ -7460,7 +7605,6 @@ def youtube_channels():
         # 토큰 갱신 필요시
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
-            # 갱신된 토큰 저장 (데이터베이스에)
             token_data['token'] = credentials.token
             save_youtube_token_to_db(token_data)
 
@@ -7498,18 +7642,21 @@ def youtube_channels():
             return jsonify({
                 "success": False,
                 "error": "YouTube 인증이 만료되었습니다. 다시 인증해주세요.",
-                "need_reauth": True
+                "need_reauth": True,
+                "channels": []
             })
         elif "credentials" in str(e).lower():
             return jsonify({
                 "success": False,
                 "error": "YouTube 인증 정보가 올바르지 않습니다. 다시 인증해주세요.",
-                "need_reauth": True
+                "need_reauth": True,
+                "channels": []
             })
         else:
             return jsonify({
                 "success": False,
-                "error": f"채널 목록을 가져오는 데 실패했습니다: {str(e)}"
+                "error": f"채널 목록을 가져오는 데 실패했습니다: {str(e)}",
+                "channels": []
             })
 
 
@@ -7535,11 +7682,10 @@ def upload_youtube():
         if not video_data:
             return jsonify({"success": False, "error": "비디오 데이터가 없습니다."})
 
-        if channel_id:
-            print(f"[YOUTUBE-UPLOAD] 선택된 채널 ID: {channel_id}")
+        print(f"[YOUTUBE-UPLOAD] 선택된 채널 ID: {channel_id or 'default'}")
 
-        # 데이터베이스에서 토큰 로드
-        token_data = load_youtube_token_from_db()
+        # 선택된 채널의 토큰 로드 (없으면 default)
+        token_data = load_youtube_token_from_db(channel_id) if channel_id else load_youtube_token_from_db()
         if not token_data:
             return jsonify({"success": False, "error": "YouTube 인증이 필요합니다."})
 
@@ -7550,7 +7696,7 @@ def upload_youtube():
             credentials.refresh(Request())
             # 갱신된 토큰 저장 (데이터베이스에)
             token_data['token'] = credentials.token
-            save_youtube_token_to_db(token_data)
+            save_youtube_token_to_db(token_data, channel_id=channel_id)
 
         # 비디오 파일 임시 저장
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -9278,11 +9424,11 @@ def youtube_upload():
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
 
-            # DB에서 토큰 로드
-            token_data = load_youtube_token_from_db()
+            # DB에서 토큰 로드 (선택된 채널의 토큰 우선)
+            token_data = load_youtube_token_from_db(channel_id) if channel_id else load_youtube_token_from_db()
 
             if not token_data or not token_data.get('refresh_token'):
-                print(f"[YOUTUBE-UPLOAD] 테스트 모드 - DB에 토큰 없음")
+                print(f"[YOUTUBE-UPLOAD] 테스트 모드 - DB에 토큰 없음 (channel_id: {channel_id})")
             else:
                 # Credentials 객체 생성
                 creds = Credentials(
@@ -9307,7 +9453,7 @@ def youtube_upload():
                         'client_secret': creds.client_secret,
                         'scopes': list(creds.scopes) if creds.scopes else []
                     }
-                    save_youtube_token_to_db(updated_token)
+                    save_youtube_token_to_db(updated_token, channel_id=channel_id)
 
                 # YouTube API 클라이언트 생성
                 youtube = build('youtube', 'v3', credentials=creds)
@@ -9786,12 +9932,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
   "youtube": {{
-    "titles": [
-      "Title 1 in {lang_config['name']} (click-inducing, max 50 chars)",
-      "Title 2 in {lang_config['name']} (emotional)",
-      "Title 3 in {lang_config['name']} (curiosity-driven)",
-      "Title 4 in {lang_config['name']} (experience-sharing)"
-    ],
+    "title": "ONE SEO-optimized YouTube title in {lang_config['name']} (click-inducing, 30-50 chars, include keywords for searchability)",
     "description": "Description in {lang_config['name']} (video summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{
@@ -9964,12 +10105,7 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 ## Output Format (MUST be valid JSON)
 {{
   "youtube": {{
-    "titles": [
-      "Title 1 in {lang_config['name']} (click-inducing, max 50 chars)",
-      "Title 2 in {lang_config['name']} (emotional)",
-      "Title 3 in {lang_config['name']} (curiosity-driven)",
-      "Title 4 in {lang_config['name']} (experience-sharing)"
-    ],
+    "title": "ONE SEO-optimized YouTube title in {lang_config['name']} (click-inducing, 30-50 chars, include keywords for searchability)",
     "description": "Description in {lang_config['name']} (summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{

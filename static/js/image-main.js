@@ -53,6 +53,9 @@ const ImageMain = {
       });
     }
 
+    // ★★★ 페이지 로드 시 YouTube 채널 미리 로드 ★★★
+    this.loadYouTubeChannels();
+
     console.log('[ImageMain] Ready. Session:', this.sessionId, restored ? '(복구됨)' : '(새 세션)');
   },
 
@@ -443,8 +446,10 @@ const ImageMain = {
   },
 
   /**
-   * ★★★ 모든 이미지 자동 생성 (썸네일 + 씬 이미지) ★★★
-   * 완료 후 자동으로 TTS 생성 시작
+   * ★★★ 병렬 처리: 이미지 + TTS 동시 생성 ★★★
+   * 1단계: 이미지 생성 + TTS 생성 동시 시작
+   * 2단계: 영상 생성 + AI 썸네일 생성 동시 시작
+   * 3단계: YouTube 자동 업로드
    */
   async generateAllImages() {
     if (!this.analyzedData) return;
@@ -452,9 +457,8 @@ const ImageMain = {
     const scenes = this.analyzedData.scenes || [];
     const thumbnail = this.analyzedData.thumbnail || {};
 
-    // 썸네일 텍스트 옵션 준비 (자동 선택하지 않음 - 사용자가 직접 선택)
+    // 썸네일 텍스트 옵션 준비
     if (thumbnail.text_options && thumbnail.text_options.length > 0) {
-      // 첫 번째 옵션 UI만 선택 상태로 표시 (실제 생성은 안함)
       const firstOption = document.querySelector('.text-option');
       if (firstOption) {
         firstOption.classList.add('selected');
@@ -462,38 +466,345 @@ const ImageMain = {
         if (radio) radio.checked = true;
       }
       this.selectedThumbnailText = thumbnail.text_options[0];
-      document.getElementById('btn-generate-with-text').disabled = false;
+      const btn = document.getElementById('btn-generate-with-text');
+      if (btn) btn.disabled = false;
     }
 
-    // 씬 이미지 생성 (한 번에 2개씩 병렬 처리, 실패 시 3회 재시도)
-    this.showStatus(`${scenes.length}개 씬 이미지 생성 중...`, 'info');
+    // ★★★ 1단계: 이미지 + TTS 병렬 시작 ★★★
+    this.showStatus(`🚀 이미지 + TTS 병렬 생성 시작...`, 'info');
 
-    const BATCH_SIZE = 2;  // 한 번에 2개씩만 생성
-    let allSuccess = true;
+    // 이미지 생성 Promise
+    const imagePromise = this.generateAllSceneImages(scenes);
+
+    // TTS 생성 Promise (이미지 URL 없이 먼저 시작)
+    const ttsPromise = this.generateTTSOnly(scenes);
+
+    // 둘 다 완료 대기
+    const [imageResult, ttsResult] = await Promise.all([imagePromise, ttsPromise]);
+
+    console.log('[ImageMain] 병렬 1단계 완료 - 이미지:', imageResult, 'TTS:', ttsResult);
+
+    if (!imageResult || !ttsResult) {
+      this.showStatus('⚠️ 이미지 또는 TTS 생성 실패. 확인해주세요.', 'warning');
+      return;
+    }
+
+    // scene_metadata에 이미지 URL 매핑
+    if (this.sceneMetadata) {
+      this.sceneMetadata.forEach((meta, idx) => {
+        meta.image_url = this.sceneImages[idx] || '';
+      });
+    }
+
+    this.showStatus(`✅ 1단계 완료! 영상 + AI 썸네일 생성 시작...`, 'success');
+
+    // ★★★ 2단계: 영상 + AI 썸네일 병렬 시작 ★★★
+    await this.sleep(500);
+
+    const videoPromise = this.generateVideoOnly();
+    const thumbnailPromise = this.generateAIThumbnailsAuto();
+
+    const [videoResult, thumbResult] = await Promise.all([videoPromise, thumbnailPromise]);
+
+    console.log('[ImageMain] 병렬 2단계 완료 - 영상:', videoResult, '썸네일:', thumbResult);
+
+    if (videoResult && this.videoUrl) {
+      // ★★★ 3단계: YouTube 자동 업로드 ★★★
+      this.showStatus(`✅ 영상 완료! YouTube 자동 업로드 중...`, 'success');
+      await this.sleep(500);
+      await this.autoUploadToYouTube();
+    }
+  },
+
+  /**
+   * 모든 씬 이미지 생성 (병렬용)
+   */
+  async generateAllSceneImages(scenes) {
+    const BATCH_SIZE = 2;
 
     for (let i = 0; i < scenes.length; i += BATCH_SIZE) {
       const batch = scenes.slice(i, i + BATCH_SIZE);
       const batchPromises = batch.map((_, batchIdx) => this.generateSceneImage(i + batchIdx));
-      const results = await Promise.all(batchPromises);
-
-      // 실패한 이미지가 있는지 확인
-      if (results.some(r => r === false)) {
-        allSuccess = false;
-      }
-
-      this.showStatus(`씬 이미지 생성 중... (${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length})`, 'info');
+      await Promise.all(batchPromises);
+      this.showStatus(`이미지 생성 중... (${Math.min(i + BATCH_SIZE, scenes.length)}/${scenes.length})`, 'info');
     }
 
-    // 모든 이미지 생성 성공 시 자동으로 TTS 생성 시작
     const successCount = Object.keys(this.sceneImages).length;
-    if (successCount === scenes.length) {
-      this.showStatus(`✅ 씬 이미지 ${successCount}개 완료! TTS 생성 시작...`, 'success');
+    return successCount === scenes.length;
+  },
 
-      // 1초 후 TTS 자동 시작
-      await this.sleep(1000);
-      await this.generateAssets();
-    } else {
-      this.showStatus(`⚠️ 이미지 ${successCount}/${scenes.length}개 완료. 실패한 이미지를 확인해주세요.`, 'warning');
+  /**
+   * TTS만 생성 (이미지 URL 없이)
+   */
+  async generateTTSOnly(scenes) {
+    try {
+      const narrations = scenes.map((s, idx) => ({
+        scene_number: idx + 1,
+        text: s.narration,
+        image_url: ''  // 이미지 URL은 나중에 매핑
+      }));
+
+      const response = await fetch('/api/image/generate-assets-zip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          voice: this.selectedVoice,
+          scenes: narrations
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('TTS API 오류');
+      }
+
+      const data = await response.json();
+      this.assetZipUrl = data.zip_url;
+      this.sceneMetadata = data.scene_metadata;
+      this.detectedLanguage = data.detected_language || 'ko';
+      this.saveSession();
+
+      console.log('[ImageMain] TTS 완료:', this.sceneMetadata?.length, 'scenes');
+      return true;
+    } catch (error) {
+      console.error('[ImageMain] TTS 생성 오류:', error);
+      return false;
+    }
+  },
+
+  /**
+   * 영상만 생성 (병렬용)
+   */
+  async generateVideoOnly() {
+    if (!this.sceneMetadata || this.sceneMetadata.length === 0) {
+      console.error('[ImageMain] sceneMetadata 없음');
+      return false;
+    }
+
+    try {
+      const scenes = this.sceneMetadata.map(sm => ({
+        image_url: sm.image_url,
+        audio_url: sm.audio_url,
+        duration: sm.duration,
+        subtitles: sm.subtitles
+      }));
+
+      const startResponse = await fetch('/api/image/generate-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          scenes: scenes,
+          language: this.detectedLanguage
+        })
+      });
+
+      if (!startResponse.ok) {
+        throw new Error('영상 생성 시작 실패');
+      }
+
+      const startData = await startResponse.json();
+      const jobId = startData.job_id;
+      this.pendingVideoJobId = jobId;
+      this.saveSession();
+
+      // 폴링으로 완료 대기
+      return await this.waitForVideoCompletion(jobId);
+    } catch (error) {
+      console.error('[ImageMain] 영상 생성 오류:', error);
+      return false;
+    }
+  },
+
+  /**
+   * 영상 완료 대기 (폴링)
+   */
+  async waitForVideoCompletion(jobId) {
+    const pollInterval = 2000;
+    const maxPolls = 300;
+    let polls = 0;
+
+    while (polls < maxPolls) {
+      try {
+        const response = await fetch(`/api/image/video-status/${jobId}`);
+        const data = await response.json();
+
+        if (data.status === 'completed') {
+          this.pendingVideoJobId = null;
+          this.videoUrl = data.video_url;
+          this.saveSession();
+          this.showStatus(`✅ 영상 생성 완료!`, 'success');
+          return true;
+        } else if (data.status === 'failed') {
+          throw new Error(data.error || '영상 생성 실패');
+        }
+
+        this.showStatus(`영상 생성 중... ${data.progress}%`, 'info');
+        await this.sleep(pollInterval);
+        polls++;
+      } catch (error) {
+        console.error('[ImageMain] 영상 폴링 오류:', error);
+        return false;
+      }
+    }
+
+    return false;
+  },
+
+  /**
+   * AI 썸네일 자동 생성 (병렬용)
+   */
+  async generateAIThumbnailsAuto() {
+    try {
+      // AI 분석
+      const scenes = this.analyzedData?.scenes || [];
+      const script = scenes.map(s => s.narration || '').join('\n\n');
+      const title = this.selectedTitle || '제목 없음';
+
+      const analyzeResponse = await fetch('/api/thumbnail-ai/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script, title, genre: '일반' })
+      });
+
+      const analyzeData = await analyzeResponse.json();
+      if (!analyzeData.ok) {
+        console.warn('[ImageMain] AI 썸네일 분석 실패');
+        return false;
+      }
+
+      this.aiThumbnailSession = analyzeData.session_id;
+      this.aiThumbnailPrompts = analyzeData.prompts;
+
+      // AI 썸네일 생성 (A/B/C 3개)
+      const generateResponse = await fetch('/api/thumbnail-ai/generate-both', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.aiThumbnailSession,
+          prompts: this.aiThumbnailPrompts
+        })
+      });
+
+      const generateData = await generateResponse.json();
+      if (!generateData.ok) {
+        console.warn('[ImageMain] AI 썸네일 생성 실패');
+        return false;
+      }
+
+      // 결과 저장 (첫 번째 썸네일 자동 선택)
+      this.aiThumbnailImageUrls = {
+        A: generateData.results.A?.image_url,
+        B: generateData.results.B?.image_url
+      };
+
+      // 첫 번째 썸네일 자동 선택 (업로드용)
+      if (this.aiThumbnailImageUrls.A) {
+        this.selectedAIThumbnailUrl = this.aiThumbnailImageUrls.A;
+        this.selectedThumbnailIdx = 0;
+        this.saveSession();
+      }
+
+      // 나머지 썸네일 다운로드
+      this.downloadRemainingThumbnails();
+
+      console.log('[ImageMain] AI 썸네일 완료 - A:', !!this.aiThumbnailImageUrls.A, 'B:', !!this.aiThumbnailImageUrls.B);
+      return true;
+    } catch (error) {
+      console.error('[ImageMain] AI 썸네일 오류:', error);
+      return false;
+    }
+  },
+
+  /**
+   * 나머지 썸네일 다운로드
+   */
+  downloadRemainingThumbnails() {
+    // B, C 썸네일 다운로드 (A는 업로드용)
+    ['B'].forEach((variant, idx) => {
+      const url = this.aiThumbnailImageUrls[variant];
+      if (url) {
+        setTimeout(() => {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `thumbnail_${variant}_${this.sessionId}.png`;
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }, (idx + 1) * 1000);
+      }
+    });
+  },
+
+  /**
+   * YouTube 자동 업로드
+   */
+  async autoUploadToYouTube() {
+    if (!this.videoUrl) {
+      console.error('[ImageMain] 업로드할 영상 없음');
+      return;
+    }
+
+    if (!this.selectedChannelId) {
+      this.showStatus('⚠️ YouTube 채널을 선택해주세요.', 'warning');
+      return;
+    }
+
+    try {
+      const title = this.selectedTitle || `영상_${this.sessionId}`;
+      const description = document.getElementById('youtube-description')?.value?.trim() || '';
+      const videoPath = this.videoUrl.startsWith('/') ? this.videoUrl.substring(1) : this.videoUrl;
+
+      // 선택된 AI 썸네일 경로
+      let thumbnailPath = null;
+      if (this.selectedAIThumbnailUrl) {
+        thumbnailPath = this.selectedAIThumbnailUrl.startsWith('/')
+          ? this.selectedAIThumbnailUrl.substring(1)
+          : this.selectedAIThumbnailUrl;
+      }
+
+      this.showStatus('📺 YouTube 자동 업로드 중...', 'info');
+
+      const response = await fetch('/api/youtube/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoPath: videoPath,
+          title: title,
+          description: description,
+          tags: ['AI영상', '자동생성'],
+          categoryId: '22',
+          privacyStatus: 'private',
+          thumbnailPath: thumbnailPath,
+          channelId: this.selectedChannelId
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        const videoUrl = result.videoUrl || `https://www.youtube.com/watch?v=${result.videoId}`;
+        this.showStatus(`✅ YouTube 업로드 완료! ${videoUrl}`, 'success');
+
+        // 영상 다운로드
+        const a = document.createElement('a');
+        a.href = this.videoUrl;
+        a.download = `video_${this.sessionId}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // 완료 알림
+        if (confirm('YouTube 업로드 완료!\n영상 페이지를 열까요?')) {
+          window.open(videoUrl, '_blank');
+        }
+      } else {
+        throw new Error(result.error || 'YouTube 업로드 실패');
+      }
+    } catch (error) {
+      console.error('[ImageMain] YouTube 자동 업로드 오류:', error);
+      this.showStatus('⚠️ YouTube 업로드 실패: ' + error.message, 'error');
     }
   },
 
@@ -505,30 +816,27 @@ const ImageMain = {
     const titlesContainer = document.getElementById('youtube-titles');
     const descriptionEl = document.getElementById('youtube-description');
 
-    if (!youtube || (!youtube.titles && !youtube.description)) {
+    // title (단일) 또는 titles (배열) 호환성 처리
+    const title = youtube.title || (youtube.titles && youtube.titles[0]) || '';
+
+    if (!youtube || (!title && !youtube.description)) {
       section.classList.add('hidden');
       return;
     }
 
-    // 제목 옵션 렌더링 (수정 가능 + 선택 버튼 + 자동 저장)
-    const titles = youtube.titles || [];
-    let titlesHtml = '';
-    titles.forEach((title, idx) => {
-      const isSelected = idx === 0;
-      titlesHtml += `
-        <div class="title-option${isSelected ? ' selected' : ''}" data-idx="${idx}">
-          <input type="text" class="title-input" id="title-input-${idx}" value="${this.escapeHtml(title)}" placeholder="제목 입력..."
-                 oninput="ImageMain.onTitleInputChange(${idx})">
-          <button class="btn-select-title${isSelected ? ' active' : ''}" onclick="ImageMain.selectTitle(${idx})">선택</button>
-        </div>
-      `;
-    });
-    titlesContainer.innerHTML = titlesHtml;
+    // SEO 최적화된 단일 제목 렌더링 (수정 가능)
+    titlesContainer.innerHTML = `
+      <div class="title-option selected" data-idx="0">
+        <input type="text" class="title-input" id="youtube-title-input"
+               value="${this.escapeHtml(title)}"
+               placeholder="YouTube 제목 입력..."
+               oninput="ImageMain.onTitleInputChange()">
+        <span class="title-badge">SEO 최적화</span>
+      </div>
+    `;
 
-    // 첫 번째 제목 자동 선택
-    if (titles.length > 0) {
-      this.selectedTitle = titles[0];
-    }
+    // 제목 자동 설정
+    this.selectedTitle = title;
 
     // 설명란 렌더링
     descriptionEl.value = youtube.description || '';
@@ -537,36 +845,13 @@ const ImageMain = {
   },
 
   /**
-   * 제목 선택
+   * 제목 입력 변경 시 자동 저장
    */
-  selectTitle(idx) {
-    // 입력된 제목 값 가져오기
-    const inputEl = document.getElementById(`title-input-${idx}`);
+  onTitleInputChange() {
+    const inputEl = document.getElementById('youtube-title-input');
     if (inputEl) {
       this.selectedTitle = inputEl.value.trim();
-    }
-
-    // UI 업데이트
-    document.querySelectorAll('.title-option').forEach((el, i) => {
-      const isSelected = i === idx;
-      el.classList.toggle('selected', isSelected);
-      el.querySelector('.btn-select-title').classList.toggle('active', isSelected);
-    });
-
-    this.showStatus(`제목 선택: "${this.selectedTitle.substring(0, 30)}..."`, 'success');
-  },
-
-  /**
-   * 제목 입력 변경 시 자동 저장 (선택된 옵션만)
-   */
-  onTitleInputChange(idx) {
-    const titleOption = document.querySelector(`.title-option[data-idx="${idx}"]`);
-    if (titleOption && titleOption.classList.contains('selected')) {
-      const inputEl = document.getElementById(`title-input-${idx}`);
-      if (inputEl) {
-        this.selectedTitle = inputEl.value.trim();
-        console.log('[ImageMain] Title auto-saved:', this.selectedTitle.substring(0, 30));
-      }
+      console.log('[ImageMain] Title auto-saved:', this.selectedTitle.substring(0, 30));
     }
   },
 
@@ -1687,45 +1972,30 @@ const ImageMain = {
       const response = await fetch('/api/drama/youtube-channels');
       const data = await response.json();
 
-      if (!data.success) {
-        // 인증 필요
-        if (data.need_reauth || data.error?.includes('인증')) {
-          container.innerHTML = `
-            <div class="channel-error">
-              <p>YouTube 인증이 필요합니다.</p>
-              <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 YouTube 연결하기</a>
-            </div>
-          `;
-        } else {
-          container.innerHTML = `
-            <div class="channel-error">
-              <p>${data.error || '채널을 불러올 수 없습니다.'}</p>
-              <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 다시 연결하기</a>
-            </div>
-          `;
-        }
-        return;
-      }
-
+      // 채널 목록 (성공이든 실패든 channels 배열 확인)
       this.channels = data.channels || [];
 
-      if (this.channels.length === 0) {
-        container.innerHTML = '<div class="no-channels">연결된 채널이 없습니다.</div>';
+      if (!data.success && this.channels.length === 0) {
+        // 인증 필요
+        container.innerHTML = `
+          <div class="channel-chips-row">
+            <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ YouTube 연결</a>
+          </div>
+        `;
         return;
       }
 
-      // 헤더: 새로고침 버튼 + 다른 계정 연결
-      let html = `
-        <div class="channel-header">
-          <button class="btn-refresh-channels" onclick="ImageMain.loadYouTubeChannels()" title="채널 목록 새로고침">🔄 새로고침</button>
-          <a href="/api/youtube/auth?force=1" target="_blank" class="btn-add-account">➕ 다른 계정 연결</a>
-        </div>
-        <div class="brand-channel-hint">
-          💡 브랜드 채널로 업로드하려면 "다른 계정 연결" 클릭 후<br>
-          Google 계정 선택 화면에서 브랜드 채널을 직접 선택하세요.
-        </div>
-        <div class="channel-options">
-      `;
+      if (this.channels.length === 0) {
+        container.innerHTML = `
+          <div class="channel-chips-row">
+            <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ YouTube 연결</a>
+          </div>
+        `;
+        return;
+      }
+
+      // 칩 형태로 채널 표시 (한 줄에)
+      let html = '<div class="channel-chips-row">';
 
       // 이전에 선택된 채널 유지, 없으면 첫 번째 선택
       const previousSelectedId = this.selectedChannelId;
@@ -1737,15 +2007,15 @@ const ImageMain = {
           this.selectedChannelId = channel.id;
           foundPrevious = true;
         }
+        const isExpired = channel.expired;
+        const chipClass = `channel-chip${isSelected ? ' selected' : ''}${isExpired ? ' expired' : ''}`;
+
         html += `
-          <label class="channel-option${isSelected ? ' selected' : ''}" data-channel-id="${channel.id}">
-            <input type="radio" name="youtube-channel" value="${channel.id}" ${isSelected ? 'checked' : ''}>
-            <img class="channel-thumbnail" src="${channel.thumbnail || ''}" alt="${this.escapeHtml(channel.title)}" onerror="this.style.display='none'">
-            <div class="channel-info">
-              <div class="channel-name">${this.escapeHtml(channel.title)}</div>
-              <div class="channel-id">${channel.id}</div>
-            </div>
-          </label>
+          <div class="${chipClass}" data-channel-id="${channel.id}" onclick="ImageMain.selectChannel('${channel.id}')">
+            <img class="chip-thumb" src="${channel.thumbnail || ''}" alt="" onerror="this.style.display='none'">
+            <span class="chip-name">${this.escapeHtml(channel.title)}</span>
+            ${isExpired ? '<span class="chip-expired">⚠️</span>' : ''}
+          </div>
         `;
       });
 
@@ -1754,24 +2024,19 @@ const ImageMain = {
         this.selectedChannelId = this.channels[0].id;
       }
 
+      // 계정 추가 버튼
+      html += `<a href="/api/youtube/auth?force=1" target="_blank" class="channel-chip channel-chip-add">➕</a>`;
       html += '</div>';
-      container.innerHTML = html;
 
-      // 클릭 이벤트 바인딩
-      container.querySelectorAll('.channel-option').forEach(el => {
-        el.addEventListener('click', () => {
-          const channelId = el.dataset.channelId;
-          this.selectChannel(channelId);
-        });
-      });
+      container.innerHTML = html;
 
     } catch (error) {
       console.error('[ImageMain] Load channels error:', error);
       container.innerHTML = `
-        <div class="channel-error">
-          <p>채널 정보를 불러오는 데 실패했습니다.</p>
-          <button onclick="ImageMain.loadYouTubeChannels()" class="btn-retry">🔄 다시 시도</button>
-          <a href="/api/youtube/auth" target="_blank" class="btn-youtube-auth">🔗 YouTube 연결하기</a>
+        <div class="channel-chips-row">
+          <span class="channel-error-text">로드 실패</span>
+          <button onclick="ImageMain.loadYouTubeChannels()" class="channel-chip">🔄</button>
+          <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ 연결</a>
         </div>
       `;
     }
@@ -1784,15 +2049,21 @@ const ImageMain = {
     this.selectedChannelId = channelId;
 
     // UI 업데이트
-    document.querySelectorAll('.channel-option').forEach(el => {
+    document.querySelectorAll('.channel-chip[data-channel-id]').forEach(el => {
       const isSelected = el.dataset.channelId === channelId;
       el.classList.toggle('selected', isSelected);
-      el.querySelector('input').checked = isSelected;
     });
 
     const channel = this.channels.find(c => c.id === channelId);
     if (channel) {
-      this.showStatus(`채널 선택: ${channel.title}`, 'success');
+      // 만료된 채널이면 재인증 유도
+      if (channel.expired) {
+        if (confirm(`"${channel.title}" 채널의 인증이 만료되었습니다.\n다시 연결하시겠습니까?`)) {
+          window.open('/api/youtube/auth?force=1', '_blank');
+        }
+        return;
+      }
+      this.showStatus(`채널: ${channel.title}`, 'success');
     }
   },
 
