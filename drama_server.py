@@ -10081,10 +10081,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 }}
 
 ## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
-The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing:
-- A: Emotion/expression focused - show stickman emotion (surprise, shock, joy)
-- B: Story/situation focused - show before/after contrast or key scene moment
-- C: Typography focused - bold text with minimal background, stickman small/silhouette
+The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
+⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
+- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
+- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
+- C: Typography focused - bold text with minimal background, graphic design style
+- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
 - All 3 prompts MUST be different styles/compositions!
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
@@ -10294,12 +10296,14 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 }}
 
 ## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
-The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing:
-- A: Emotion/expression focused - show character emotion (surprise, shock, joy) in cartoon/illustration style
-- B: Story/situation focused - show before/after contrast or key scene moment
+The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
+⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
+- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
+- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
 - C: Typography focused - bold text with minimal background, graphic design style
+- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
 - All 3 prompts MUST be different styles/compositions!
-- NEVER use realistic human faces - use cartoon/illustration/stickman style only!
+- NEVER use realistic human faces or stickman - use Korean webtoon/manhwa cartoon style only!
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
 The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
