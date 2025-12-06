@@ -14512,14 +14512,15 @@ def run_automation_pipeline(row_data, row_index):
             if not assets_data.get('ok'):
                 return {"ok": False, "error": f"TTS 생성 실패: {assets_data.get('error')}", "video_url": None}
 
-            # TTS 결과를 scenes에 적용
-            tts_results = assets_data.get('tts_results', [])
-            for i, scene in enumerate(scenes):
-                if i < len(tts_results) and tts_results[i]:
-                    scene['audio_url'] = tts_results[i].get('audio_url')
-                    scene['duration'] = tts_results[i].get('duration', 5)
+            # TTS 결과를 scenes에 적용 (API는 scene_metadata로 반환)
+            scene_metadata = assets_data.get('scene_metadata', [])
+            for sm in scene_metadata:
+                idx = sm.get('scene_idx', -1)
+                if 0 <= idx < len(scenes):
+                    scenes[idx]['audio_url'] = sm.get('audio_url')
+                    scenes[idx]['duration'] = sm.get('duration', 5)
 
-            print(f"[AUTOMATION] 3. 완료: TTS 생성")
+            print(f"[AUTOMATION] 3. 완료: TTS 생성 ({len(scene_metadata)}개 씬)")
         except Exception as e:
             import traceback
             traceback.print_exc()
