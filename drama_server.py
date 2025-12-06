@@ -10089,6 +10089,32 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 - All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
 - All 3 prompts MUST be different styles/compositions!
 
+## ⚠️ CRITICAL: TEXT_OVERLAY RULES (한글 텍스트 규칙) ⚠️
+The "text_overlay" field contains Korean text that will be rendered ON the thumbnail image.
+⚠️ IMAGE GENERATION MODELS STRUGGLE WITH LONG TEXT! Keep it SHORT!
+
+**MAIN TEXT RULES:**
+- MAXIMUM 6 Korean characters (e.g., "그날의 선택", "운명의 순간", "충격 반전")
+- Use SIMPLE, COMMON Korean words only
+- NO typos, NO made-up words
+- Must be grammatically correct Korean
+
+**SUB TEXT RULES:**
+- MAXIMUM 15 Korean characters
+- Can be a short phrase or subtitle
+- Use proper Korean spacing (띄어쓰기)
+- NO English, NO special characters
+
+**GOOD EXAMPLES:**
+- main: "운명의 선택" (4자), sub: "그 날의 결정이 모든 걸 바꿨다"
+- main: "충격 결말" (4자), sub: "아무도 예상 못한 반전"
+- main: "눈물의 재회" (5자), sub: "10년 만에 다시 만난 그 사람"
+
+**BAD EXAMPLES (절대 금지):**
+- main: "쫓이 쫓아가던" ❌ (오타, 너무 김)
+- main: "그날을 잊지 못해요 정말로" ❌ (너무 김)
+- sub: "투자, 그 후의 이야..." ❌ (불완전한 문장)
+
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
 The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
 - DO NOT summarize or paraphrase
@@ -10304,6 +10330,32 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 - All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
 - All 3 prompts MUST be different styles/compositions!
 - NEVER use realistic human faces or stickman - use Korean webtoon/manhwa cartoon style only!
+
+## ⚠️ CRITICAL: TEXT_OVERLAY RULES (한글 텍스트 규칙) ⚠️
+The "text_overlay" field contains Korean text that will be rendered ON the thumbnail image.
+⚠️ IMAGE GENERATION MODELS STRUGGLE WITH LONG TEXT! Keep it SHORT!
+
+**MAIN TEXT RULES:**
+- MAXIMUM 6 Korean characters (e.g., "그날의 선택", "운명의 순간", "충격 반전")
+- Use SIMPLE, COMMON Korean words only
+- NO typos, NO made-up words
+- Must be grammatically correct Korean
+
+**SUB TEXT RULES:**
+- MAXIMUM 15 Korean characters
+- Can be a short phrase or subtitle
+- Use proper Korean spacing (띄어쓰기)
+- NO English, NO special characters
+
+**GOOD EXAMPLES:**
+- main: "운명의 선택" (4자), sub: "그 날의 결정이 모든 걸 바꿨다"
+- main: "충격 결말" (4자), sub: "아무도 예상 못한 반전"
+- main: "눈물의 재회" (5자), sub: "10년 만에 다시 만난 그 사람"
+
+**BAD EXAMPLES (절대 금지):**
+- main: "쫓이 쫓아가던" ❌ (오타, 너무 김)
+- main: "그날을 잊지 못해요 정말로" ❌ (너무 김)
+- sub: "투자, 그 후의 이야..." ❌ (불완전한 문장)
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
 The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
