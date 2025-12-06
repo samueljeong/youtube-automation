@@ -14392,11 +14392,11 @@ def run_automation_pipeline(row_data, row_index):
 
     try:
         # 시트 컬럼 구조:
-        # A(0): 상태, B(1): 예약시간, C(2): 채널ID, D(3): 대본, E(4): 제목
+        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 대본, E(4): 제목
         # F(5): 공개설정, G(6): 영상URL(출력), H(7): 에러메시지(출력)
-        # I(8): 음성(선택), J(9): 타겟(선택)
+        # I(8): 음성(선택), J(9): 타겟(선택), K(10): 예약시간(YouTube 공개)
         status = row_data[0] if len(row_data) > 0 else ''
-        scheduled_time = row_data[1] if len(row_data) > 1 else ''
+        work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = row_data[2] if len(row_data) > 2 else ''
         script = row_data[3] if len(row_data) > 3 else ''
         title = row_data[4] if len(row_data) > 4 else ''
@@ -14404,16 +14404,18 @@ def run_automation_pipeline(row_data, row_index):
         # G(6), H(7)은 출력 컬럼이므로 스킵
         voice = row_data[8] if len(row_data) > 8 else 'ko-KR-Neural2-C'  # I컬럼: 음성 (기본: 남성)
         audience = row_data[9] if len(row_data) > 9 else 'senior'  # J컬럼: 타겟 시청자
+        publish_time = row_data[10] if len(row_data) > 10 else ''  # K컬럼: 예약시간 (YouTube 공개용)
 
         print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
-        print(f"  - 예약시간: {scheduled_time}")
+        print(f"  - 작업시간: {work_time}")
         print(f"  - 채널ID: {channel_id}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
         print(f"  - 공개설정: {visibility}")
         print(f"  - 음성: {voice}")
         print(f"  - 타겟: {audience}")
+        print(f"  - 예약시간: {publish_time or '(없음 - 즉시 공개)'}")
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
@@ -14593,18 +14595,18 @@ def run_automation_pipeline(row_data, row_index):
             if thumbnail_url:
                 upload_payload["thumbnailPath"] = thumbnail_url
 
-            # 예약시간이 있으면 ISO 8601 형식으로 변환하여 추가
-            if scheduled_time:
+            # 예약시간(K열)이 있으면 ISO 8601 형식으로 변환하여 추가
+            if publish_time:
                 try:
                     from datetime import datetime
                     import re
 
                     # 다양한 형식 지원: "2024-12-06 15:00", "2024/12/06 15:00", "12/06 15:00" 등
-                    scheduled_time_str = str(scheduled_time).strip()
+                    publish_time_str = str(publish_time).strip()
 
                     # 이미 ISO 8601 형식이면 그대로 사용
-                    if 'T' in scheduled_time_str and scheduled_time_str.endswith('Z'):
-                        publish_at_iso = scheduled_time_str
+                    if 'T' in publish_time_str and publish_time_str.endswith('Z'):
+                        publish_at_iso = publish_time_str
                     else:
                         # 일반적인 날짜 형식 파싱 시도
                         parsed_dt = None
@@ -14619,7 +14621,7 @@ def run_automation_pipeline(row_data, row_index):
 
                         for fmt in formats_to_try:
                             try:
-                                parsed_dt = datetime.strptime(scheduled_time_str, fmt)
+                                parsed_dt = datetime.strptime(publish_time_str, fmt)
                                 # 연도가 없는 형식이면 현재 연도 추가
                                 if parsed_dt.year == 1900:
                                     parsed_dt = parsed_dt.replace(year=datetime.now().year)
@@ -14634,13 +14636,13 @@ def run_automation_pipeline(row_data, row_index):
                             utc_dt = parsed_dt - timedelta(hours=9)
                             publish_at_iso = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                         else:
-                            print(f"[AUTOMATION] 예약시간 파싱 실패, 원본: {scheduled_time_str}")
+                            print(f"[AUTOMATION] 예약시간 파싱 실패, 원본: {publish_time_str}")
                             publish_at_iso = None
 
                     if publish_at_iso:
                         upload_payload["publish_at"] = publish_at_iso
                         # 예약 업로드 시 privacyStatus는 API에서 자동으로 private로 설정됨
-                        print(f"[AUTOMATION] 예약 업로드 설정: {scheduled_time_str} -> {publish_at_iso}")
+                        print(f"[AUTOMATION] 예약 업로드 설정: {publish_time_str} -> {publish_at_iso}")
                 except Exception as parse_err:
                     print(f"[AUTOMATION] 예약시간 처리 오류: {parse_err}")
 
@@ -15518,8 +15520,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:J까지 - 음성/타겟 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:J')
+        # 시트 데이터 읽기 (A:K까지 - 예약시간 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:K')
         if not rows:
             return jsonify({
                 "ok": True,
@@ -15539,22 +15541,22 @@ def api_sheets_check_and_process():
                 continue
 
             status = row[0] if len(row) > 0 else ''
-            scheduled_time = row[1] if len(row) > 1 else ''
+            work_time = row[1] if len(row) > 1 else ''  # B열: 작업시간 (파이프라인 실행 시점)
 
-            # '대기' 상태이고 예약시간이 지났으면 처리
+            # '대기' 상태이고 작업시간이 지났으면 처리
             if status == '대기':
-                # 예약시간 파싱
+                # 작업시간 파싱
                 should_process = False
-                if scheduled_time:
+                if work_time:
                     try:
-                        scheduled_dt = datetime.strptime(scheduled_time, '%Y-%m-%d %H:%M')
-                        if now >= scheduled_dt:
+                        work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M')
+                        if now >= work_dt:
                             should_process = True
                     except ValueError:
-                        # 예약시간 형식이 잘못되면 즉시 처리
+                        # 작업시간 형식이 잘못되면 즉시 처리
                         should_process = True
                 else:
-                    # 예약시간이 없으면 즉시 처리
+                    # 작업시간이 없으면 즉시 처리
                     should_process = True
 
                 if should_process:
