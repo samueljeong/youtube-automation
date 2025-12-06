@@ -9497,11 +9497,8 @@ def youtube_upload():
 
         # 영상 파일 경로 처리
         if video_path and not video_path.startswith('http'):
-            # 상대 경로를 절대 경로로 변환
-            if video_path.startswith('/static/'):
-                full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
-            else:
-                full_path = os.path.join(os.path.dirname(__file__), video_path)
+            # 상대 경로를 절대 경로로 변환 (앞에 /가 있으면 제거)
+            full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
 
             if not os.path.exists(full_path):
                 print(f"[YOUTUBE-UPLOAD][WARN] 영상 파일 없음: {full_path}")
@@ -9515,12 +9512,11 @@ def youtube_upload():
         # 썸네일 경로 처리
         full_thumbnail_path = None
         if thumbnail_path:
-            if thumbnail_path.startswith('/static/'):
-                full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path.lstrip('/'))
-            elif not thumbnail_path.startswith('http'):
-                full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path)
-            else:
+            if thumbnail_path.startswith('http'):
                 full_thumbnail_path = thumbnail_path
+            else:
+                # 상대 경로를 절대 경로로 변환 (앞에 /가 있으면 제거)
+                full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path.lstrip('/'))
 
         # 실제 업로드 시도 (DB 토큰 직접 사용)
         try:
@@ -14392,25 +14388,26 @@ def run_automation_pipeline(row_data, row_index):
 
     try:
         # 시트 컬럼 구조:
-        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 예약시간
-        # E(4): 대본, F(5): 제목, G(6): 공개설정
-        # H(7): 영상URL(출력), I(8): 에러메시지(출력)
-        # J(9): 음성(선택), K(10): 타겟(선택)
+        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 채널명(참고용)
+        # E(4): 예약시간, F(5): 대본, G(6): 제목, H(7): 공개설정
+        # I(8): 영상URL(출력), J(9): 에러메시지(출력)
+        # K(10): 음성(선택), L(11): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = row_data[2] if len(row_data) > 2 else ''
-        publish_time = row_data[3] if len(row_data) > 3 else ''  # D: 예약시간 (YouTube 공개용)
-        script = row_data[4] if len(row_data) > 4 else ''
-        title = row_data[5] if len(row_data) > 5 else ''
-        visibility = row_data[6] if len(row_data) > 6 else 'private'
-        # H(7), I(8)은 출력 컬럼이므로 스킵
-        voice = row_data[9] if len(row_data) > 9 else 'ko-KR-Neural2-C'  # J컬럼: 음성 (기본: 남성)
-        audience = row_data[10] if len(row_data) > 10 else 'senior'  # K컬럼: 타겟 시청자
+        channel_name = row_data[3] if len(row_data) > 3 else ''  # D: 채널명 (참고용, 코드에서 미사용)
+        publish_time = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
+        script = row_data[5] if len(row_data) > 5 else ''
+        title = row_data[6] if len(row_data) > 6 else ''
+        visibility = row_data[7] if len(row_data) > 7 else 'private'
+        # I(8), J(9)은 출력 컬럼이므로 스킵
+        voice = row_data[10] if len(row_data) > 10 else 'ko-KR-Neural2-C'  # K컬럼: 음성 (기본: 남성)
+        audience = row_data[11] if len(row_data) > 11 else 'senior'  # L컬럼: 타겟 시청자
 
         print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
         print(f"  - 작업시간: {work_time}")
-        print(f"  - 채널ID: {channel_id}")
+        print(f"  - 채널: {channel_name or channel_id}")
         print(f"  - 예약시간: {publish_time or '(없음 - 즉시 공개)'}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
@@ -15521,8 +15518,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:K까지 - 예약시간 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:K')
+        # 시트 데이터 읽기 (A:L까지 - 채널명, 타겟 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:L')
         if not rows:
             return jsonify({
                 "ok": True,
@@ -15570,15 +15567,15 @@ def api_sheets_check_and_process():
                     result = run_automation_pipeline(row, i)
 
                     if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록 (H열)
+                        # 성공 - 상태: 완료, 영상URL 기록 (I열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
                         if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', result['video_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', result['video_url'])
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록 (I열)
+                        # 실패 - 상태: 실패, 에러메시지 기록 (J열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
                         error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', error_msg)
+                        sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', error_msg)
 
                     processed_count += 1
                     results.append({
