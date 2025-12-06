@@ -4419,9 +4419,9 @@ def get_gsheets_service():
 
 @assistant_bp.route('/assistant/api/gsheets/auth-status', methods=['GET'])
 def gsheets_auth_status():
-    """Google Sheets 인증 상태 확인"""
+    """Google Sheets 인증 상태 확인 (Calendar와 동일한 인증 사용)"""
     try:
-        creds = load_gsheets_credentials()
+        creds = get_gcal_credentials()
         if creds:
             return jsonify({'authenticated': True, 'success': True})
         return jsonify({'authenticated': False, 'success': True})
