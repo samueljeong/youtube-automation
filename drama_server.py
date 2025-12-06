@@ -10006,31 +10006,31 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [pose/action]. Character face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage style.",
     "ai_prompts": {{
       "A": {{
-        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 스틱맨의 감정 표현 강조",
-        "prompt": "Anime background, slice-of-life style, Ghibli-inspired. Simple white stickman with round head, two black dot eyes, [emotional expression mouth], [expressive eyebrows], black outline body, [emotional pose]. Face prominently featured. NO realistic humans, ONLY stickman. Contrast collage, YouTube thumbnail composition.",
+        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
+        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']}, {thumb_length})",
+          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {thumb_length})",
           "sub": "서브 텍스트 (optional)"
         }},
-        "style": "emotional, expressive"
+        "style": "emotional, expressive, cartoon"
       }},
       "B": {{
-        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before/After 대비 구도",
-        "prompt": "Split composition anime background, detailed slice-of-life setting. Simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows. Story contrast scene, dramatic composition. NO realistic humans, ONLY stickman. Contrast collage, YouTube thumbnail.",
+        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
+        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']})",
+          "main": "대비 강조 텍스트 ({lang_config['name']})",
           "sub": "서브 텍스트 (optional)"
         }},
-        "style": "narrative, contrast"
+        "style": "narrative, contrast, split-screen"
       }},
       "C": {{
-        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구와 미니멀 배경",
-        "prompt": "Minimalist anime-style gradient background, soft colors. Simple white stickman silhouette in corner, small scale. Large text space in center. Clean graphic design composition. YouTube thumbnail optimized.",
+        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
+        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
         "text_overlay": {{
           "main": "강렬한 메인 문구 ({lang_config['name']}, {thumb_length})",
           "sub": "서브 텍스트 (optional)"
         }},
-        "style": "typography, bold"
+        "style": "typography, bold, graphic-design"
       }}
     }}
   }},
@@ -10219,31 +10219,31 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
     "prompt": "English prompt for thumbnail image...",
     "ai_prompts": {{
       "A": {{
-        "description": "프롬프트 A 설명 ({lang_config['name']}): 감정/표정 중심 (놀람, 충격, 기쁨 등)",
-        "prompt": "English thumbnail image prompt (emotion/expression focused, cartoon/illustration style, NO realistic humans)",
+        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
+        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
-          "sub": "서브 텍스트 ({lang_config['name']}, optional)"
+          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
+          "sub": "서브 텍스트 (optional)"
         }},
-        "style": "emotional, expressive"
+        "style": "emotional, expressive, cartoon"
       }},
       "B": {{
-        "description": "프롬프트 B 설명 ({lang_config['name']}): 스토리/상황 중심 (Before vs After, 대비 구도)",
-        "prompt": "English thumbnail image prompt (story/situation focused, contrast composition, cartoon style)",
+        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
+        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']})",
+          "main": "대비 강조 텍스트 ({lang_config['name']})",
           "sub": "서브 텍스트 (optional)"
         }},
-        "style": "narrative, contrast"
+        "style": "narrative, contrast, split-screen"
       }},
       "C": {{
-        "description": "프롬프트 C 설명 ({lang_config['name']}): 텍스트/타이포 중심 (강렬한 문구, 숫자 강조)",
-        "prompt": "English thumbnail image prompt (typography focused, bold text emphasis, graphic design style)",
+        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
+        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']}, 강렬한 문구)",
+          "main": "강렬한 메인 문구 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
           "sub": "서브 텍스트 (optional)"
         }},
-        "style": "typography, bold"
+        "style": "typography, bold, graphic-design"
       }}
     }}
   }},

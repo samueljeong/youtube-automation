@@ -2487,71 +2487,10 @@
 
             <!-- 썸네일 영역 (오른쪽 절반) -->
             <div id="thumbnail-section" class="section-card thumbnail-section hidden">
-              <h4>🎨 썸네일</h4>
+              <h4>🎨 AI 썸네일 (자동 생성)</h4>
 
-              <!-- 모드 토글 (직접 입력 vs AI) -->
-              <div class="thumb-mode-toggle">
-                <button type="button" class="mode-btn active" data-mode="manual" onclick="ImageMain.setThumbnailMode('manual')">
-                  ✏️ 직접 입력
-                </button>
-                <button type="button" class="mode-btn" data-mode="ai" onclick="ImageMain.setThumbnailMode('ai')">
-                  🤖 AI 생성 <span class="badge-new">GPT-5.1 + Gemini 3</span>
-                </button>
-              </div>
-
-              <!-- ========== 직접 입력 모드 ========== -->
-              <div id="manual-mode-section" class="thumb-mode-content">
-                <!-- 텍스트 언어 선택 -->
-                <div class="thumb-text-language">
-                  <label>🌐 텍스트 언어</label>
-                  <div class="language-toggle">
-                    <label class="lang-option">
-                      <input type="radio" name="thumb-text-lang" value="ko" checked onchange="ImageMain.onTextLanguageChange()">
-                      <span>한국어</span>
-                    </label>
-                    <label class="lang-option">
-                      <input type="radio" name="thumb-text-lang" value="en" onchange="ImageMain.onTextLanguageChange()">
-                      <span>English</span>
-                    </label>
-                  </div>
-                  <small class="lang-hint">AI 이미지에 텍스트 삽입 시 영어 권장 (한글 깨짐 방지)</small>
-                </div>
-
-                <!-- 직접 입력 -->
-                <div class="thumb-text-input">
-                  <label>✏️ 썸네일 텍스트 (줄바꿈으로 여러 줄)</label>
-                  <textarea id="thumbnail-custom-text" rows="3" placeholder="예:&#10;4시간의 배신&#10;그날 밤 일어난 일" oninput="ImageMain.updateLineStyles()"></textarea>
-                </div>
-
-                <!-- 줄별 스타일 설정 -->
-                <div class="thumb-line-styles">
-                  <label>🎨 줄별 색상/크기</label>
-                  <div id="line-styles-list" class="line-styles-list">
-                    <div class="line-style-hint">텍스트 입력하면 줄별 설정 가능</div>
-                  </div>
-                </div>
-
-                <!-- 공통 옵션 -->
-                <div class="thumb-common-options">
-                  <div class="option-item">
-                    <label>외곽선</label>
-                    <input type="color" id="thumb-outline-color" value="#000000">
-                  </div>
-                  <div class="option-item">
-                    <label>배치</label>
-                    <select id="thumb-position">
-                      <option value="left">왼쪽</option>
-                      <option value="center">가운데</option>
-                      <option value="right">오른쪽</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button id="btn-generate-with-text" class="btn-generate-thumb" onclick="ImageMain.generateThumbnailsWithText()">🎨 썸네일 생성</button>
-              </div>
-
-              <!-- ========== AI 모드 ========== -->
-              <div id="ai-mode-section" class="thumb-mode-content" style="display: none;">
+              <!-- AI 썸네일 모드 (기본) -->
+              <div id="ai-mode-section" class="thumb-mode-content">
                 <div class="ai-mode-intro">
                   <p>🤖 GPT-5.1이 대본을 분석하여 클릭률 높은 썸네일을 제안하고,<br>
                   Gemini 3 Pro가 <strong>한글 텍스트가 포함된</strong> 이미지를 생성합니다.</p>
@@ -2632,17 +2571,6 @@
                 </div>
               </div>
 
-              <!-- 생성된 썸네일 (직접 입력 모드용) -->
-              <div id="thumbnail-grid" class="thumbnail-grid" style="display: none;">
-                <div class="thumbnail-card" id="thumbnail-card-0">
-                  <div class="thumbnail-image-box"><div class="placeholder">1</div></div>
-                  <button class="btn-select-thumbnail" onclick="ImageMain.selectThumbnail(0)">선택</button>
-                </div>
-                <div class="thumbnail-card" id="thumbnail-card-1">
-                  <div class="thumbnail-image-box"><div class="placeholder">2</div></div>
-                  <button class="btn-select-thumbnail" onclick="ImageMain.selectThumbnail(1)">선택</button>
-                </div>
-              </div>
             </div>
 
             <!-- YouTube 업로드 섹션 (전체 너비) -->

@@ -858,22 +858,29 @@ const ImageMain = {
   },
 
   /**
-   * 썸네일 섹션 표시 (AI 추천 텍스트 없이 직접 입력만)
+   * 썸네일 섹션 표시 (AI 모드)
    */
   renderThumbnailTextOptions(thumbnail) {
     const section = document.getElementById('thumbnail-section');
-    const generateBtn = document.getElementById('btn-generate-with-text');
 
     // 썸네일 프롬프트 저장 (이미지 생성 시 사용)
     if (thumbnail?.prompt) {
       this.thumbnailPrompt = thumbnail.prompt;
     }
 
+    // AI 프롬프트 저장
+    if (thumbnail?.ai_prompts) {
+      this.aiThumbnailPrompts = thumbnail.ai_prompts;
+      console.log('[ImageMain] AI thumbnail prompts loaded from analysis');
+    }
+
     // 썸네일 섹션 표시
     section.classList.remove('hidden');
-    generateBtn.disabled = false;
 
-    console.log('[ImageMain] Thumbnail section shown (직접 입력 모드)');
+    // AI 모드 설정
+    this.setThumbnailMode('ai');
+
+    console.log('[ImageMain] Thumbnail section shown (AI 모드)');
   },
 
   /**
@@ -1049,23 +1056,19 @@ const ImageMain = {
    * 썸네일 모드 전환 (직접 입력 / AI)
    */
   setThumbnailMode(mode) {
-    this.thumbnailMode = mode;
+    // AI 모드만 지원 (직접 입력 모드 삭제됨)
+    this.thumbnailMode = 'ai';
 
-    // 버튼 상태 업데이트
-    document.querySelectorAll('.thumb-mode-toggle .mode-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.mode === mode);
-    });
-
-    // 섹션 표시/숨기기
-    document.getElementById('manual-mode-section').style.display = mode === 'manual' ? 'block' : 'none';
-    document.getElementById('ai-mode-section').style.display = mode === 'ai' ? 'block' : 'none';
-
-    // AI 모드일 때 통계 로드
-    if (mode === 'ai') {
-      this.loadAIThumbnailStats();
+    // AI 모드 섹션 표시
+    const aiSection = document.getElementById('ai-mode-section');
+    if (aiSection) {
+      aiSection.style.display = 'block';
     }
 
-    console.log('[ImageMain] Thumbnail mode changed to:', mode);
+    // 통계 로드
+    this.loadAIThumbnailStats();
+
+    console.log('[ImageMain] Thumbnail mode: AI only');
   },
 
   /**
