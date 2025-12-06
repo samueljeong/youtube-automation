@@ -14593,6 +14593,57 @@ def run_automation_pipeline(row_data, row_index):
             if thumbnail_url:
                 upload_payload["thumbnailPath"] = thumbnail_url
 
+            # 예약시간이 있으면 ISO 8601 형식으로 변환하여 추가
+            if scheduled_time:
+                try:
+                    from datetime import datetime
+                    import re
+
+                    # 다양한 형식 지원: "2024-12-06 15:00", "2024/12/06 15:00", "12/06 15:00" 등
+                    scheduled_time_str = str(scheduled_time).strip()
+
+                    # 이미 ISO 8601 형식이면 그대로 사용
+                    if 'T' in scheduled_time_str and scheduled_time_str.endswith('Z'):
+                        publish_at_iso = scheduled_time_str
+                    else:
+                        # 일반적인 날짜 형식 파싱 시도
+                        parsed_dt = None
+                        formats_to_try = [
+                            "%Y-%m-%d %H:%M:%S",
+                            "%Y-%m-%d %H:%M",
+                            "%Y/%m/%d %H:%M:%S",
+                            "%Y/%m/%d %H:%M",
+                            "%m/%d %H:%M",  # 월/일만 있으면 현재 연도 사용
+                            "%m-%d %H:%M",
+                        ]
+
+                        for fmt in formats_to_try:
+                            try:
+                                parsed_dt = datetime.strptime(scheduled_time_str, fmt)
+                                # 연도가 없는 형식이면 현재 연도 추가
+                                if parsed_dt.year == 1900:
+                                    parsed_dt = parsed_dt.replace(year=datetime.now().year)
+                                break
+                            except ValueError:
+                                continue
+
+                        if parsed_dt:
+                            # UTC로 변환 (한국 시간은 UTC+9)
+                            # 시트에 입력된 시간이 한국 시간이라고 가정
+                            from datetime import timedelta
+                            utc_dt = parsed_dt - timedelta(hours=9)
+                            publish_at_iso = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                        else:
+                            print(f"[AUTOMATION] 예약시간 파싱 실패, 원본: {scheduled_time_str}")
+                            publish_at_iso = None
+
+                    if publish_at_iso:
+                        upload_payload["publish_at"] = publish_at_iso
+                        # 예약 업로드 시 privacyStatus는 API에서 자동으로 private로 설정됨
+                        print(f"[AUTOMATION] 예약 업로드 설정: {scheduled_time_str} -> {publish_at_iso}")
+                except Exception as parse_err:
+                    print(f"[AUTOMATION] 예약시간 처리 오류: {parse_err}")
+
             upload_resp = req.post(f"{base_url}/api/youtube/upload", json=upload_payload, timeout=600)
 
             upload_data = upload_resp.json()
