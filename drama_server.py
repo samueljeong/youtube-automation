@@ -14393,9 +14393,10 @@ def run_automation_pipeline(row_data, row_index):
     try:
         # 시트 컬럼 구조:
         # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 채널명(참고용)
-        # E(4): 예약시간, F(5): 대본, G(6): 제목, H(7): 공개설정
-        # I(8): 영상URL(출력), J(9): 에러메시지(출력)
-        # K(10): 음성(선택), L(11): 타겟(선택)
+        # E(4): 예약시간, F(5): 대본, G(6): 제목
+        # H(7): 비용(출력), I(8): 공개설정
+        # J(9): 영상URL(출력), K(10): 에러메시지(출력)
+        # L(11): 음성(선택), M(12): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = row_data[2] if len(row_data) > 2 else ''
@@ -14403,10 +14404,14 @@ def run_automation_pipeline(row_data, row_index):
         publish_time = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
         script = row_data[5] if len(row_data) > 5 else ''
         title = row_data[6] if len(row_data) > 6 else ''
-        visibility = row_data[7] if len(row_data) > 7 else 'private'
-        # I(8), J(9)은 출력 컬럼이므로 스킵
-        voice = row_data[10] if len(row_data) > 10 else 'ko-KR-Neural2-C'  # K컬럼: 음성 (기본: 남성)
-        audience = row_data[11] if len(row_data) > 11 else 'senior'  # L컬럼: 타겟 시청자
+        # H(7)은 비용 출력 컬럼
+        visibility = row_data[8] if len(row_data) > 8 else 'private'  # I열로 이동
+        # J(9), K(10)은 출력 컬럼이므로 스킵
+        voice = row_data[11] if len(row_data) > 11 else 'ko-KR-Neural2-C'  # L컬럼: 음성 (기본: 남성)
+        audience = row_data[12] if len(row_data) > 12 else 'senior'  # M컬럼: 타겟 시청자
+
+        # 비용 추적 변수 초기화
+        total_cost = 0.0
 
         print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
@@ -14452,11 +14457,13 @@ def run_automation_pipeline(row_data, row_index):
             if not title:
                 title = generated_title or f"자동 생성 영상 #{row_index}"
 
-            print(f"[AUTOMATION] 1. 완료: {len(scenes)}개 씬, 제목: {title[:40]}...")
+            # 비용: GPT-5.1 대본 분석 (~$0.03)
+            total_cost += 0.03
+            print(f"[AUTOMATION] 1. 완료: {len(scenes)}개 씬, 제목: {title[:40]}... (비용: $0.03)")
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None}
+            return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
         # ========== 2. 이미지 생성 (/api/drama/generate-image) ==========
         print(f"[AUTOMATION] 2. 이미지 생성 시작 ({len(scenes)}개)...")
@@ -14483,7 +14490,10 @@ def run_automation_pipeline(row_data, row_index):
                 time_module.sleep(1)  # API 부하 방지
 
             success_count = len([s for s in scenes if s.get('image_url')])
-            print(f"[AUTOMATION] 2. 완료: {success_count}/{len(scenes)}개 이미지 생성")
+            # 비용: Gemini 이미지 (~$0.02/장)
+            image_cost = success_count * 0.02
+            total_cost += image_cost
+            print(f"[AUTOMATION] 2. 완료: {success_count}/{len(scenes)}개 이미지 생성 (비용: ${image_cost:.2f})")
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -14510,7 +14520,7 @@ def run_automation_pipeline(row_data, row_index):
 
             assets_data = assets_resp.json()
             if not assets_data.get('ok'):
-                return {"ok": False, "error": f"TTS 생성 실패: {assets_data.get('error')}", "video_url": None}
+                return {"ok": False, "error": f"TTS 생성 실패: {assets_data.get('error')}", "video_url": None, "cost": total_cost}
 
             # TTS 결과를 scenes에 적용 (API는 scene_metadata로 반환)
             scene_metadata = assets_data.get('scene_metadata', [])
@@ -14520,11 +14530,14 @@ def run_automation_pipeline(row_data, row_index):
                     scenes[idx]['audio_url'] = sm.get('audio_url')
                     scenes[idx]['duration'] = sm.get('duration', 5)
 
-            print(f"[AUTOMATION] 3. 완료: TTS 생성 ({len(scene_metadata)}개 씬)")
+            # 비용: Google TTS (~$4/1M chars = $0.000004/char)
+            tts_cost = len(script) * 0.000004
+            total_cost += tts_cost
+            print(f"[AUTOMATION] 3. 완료: TTS 생성 ({len(scene_metadata)}개 씬, 비용: ${tts_cost:.3f})")
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None}
+            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
         # ========== 4. 썸네일 생성 (/api/thumbnail-ai/generate-all) ==========
         print(f"[AUTOMATION] 4. 썸네일 생성 시작...")
@@ -14539,7 +14552,9 @@ def run_automation_pipeline(row_data, row_index):
                 thumb_data = thumb_resp.json()
                 if thumb_data.get('ok') and thumb_data.get('results', {}).get('A', {}).get('image_url'):
                     thumbnail_url = thumb_data['results']['A']['image_url']
-                    print(f"[AUTOMATION] 4. 완료: 썸네일 생성 ({thumbnail_url[:50]}...)")
+                    # 비용: Gemini 썸네일 (~$0.03/장)
+                    total_cost += 0.03
+                    print(f"[AUTOMATION] 4. 완료: 썸네일 생성 (비용: $0.03)")
                 else:
                     print(f"[AUTOMATION] 4. 썸네일 생성 실패 (계속 진행)")
             else:
@@ -14572,16 +14587,16 @@ def run_automation_pipeline(row_data, row_index):
                     video_url_local = status_data.get('video_url')
                     break
                 elif status_data.get('status') == 'failed':
-                    return {"ok": False, "error": f"영상 생성 실패: {status_data.get('error')}", "video_url": None}
+                    return {"ok": False, "error": f"영상 생성 실패: {status_data.get('error')}", "video_url": None, "cost": total_cost}
 
             if not video_url_local:
-                return {"ok": False, "error": "영상 생성 타임아웃", "video_url": None}
+                return {"ok": False, "error": "영상 생성 타임아웃", "video_url": None, "cost": total_cost}
 
-            print(f"[AUTOMATION] 5. 완료: {video_url_local}")
+            print(f"[AUTOMATION] 5. 완료: {video_url_local} (영상 생성은 무료)")
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None}
+            return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
         # ========== 6. YouTube 업로드 (/api/youtube/upload) ==========
         print(f"[AUTOMATION] 6. YouTube 업로드 시작...")
@@ -14654,14 +14669,14 @@ def run_automation_pipeline(row_data, row_index):
             upload_data = upload_resp.json()
             if upload_data.get('ok'):
                 youtube_url = upload_data.get('videoUrl', '')  # camelCase로 반환됨
-                print(f"[AUTOMATION] 6. 완료: {youtube_url}")
-                return {"ok": True, "video_url": youtube_url, "error": None}
+                print(f"[AUTOMATION] 6. 완료: {youtube_url} (총 비용: ${total_cost:.2f})")
+                return {"ok": True, "video_url": youtube_url, "error": None, "cost": total_cost}
             else:
-                return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None}
+                return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None, "cost": total_cost}
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"ok": False, "error": f"YouTube 업로드 오류: {str(e)}", "video_url": None}
+            return {"ok": False, "error": f"YouTube 업로드 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
     except Exception as e:
         print(f"[AUTOMATION] 파이프라인 오류: {e}")
@@ -14670,7 +14685,8 @@ def run_automation_pipeline(row_data, row_index):
         return {
             "ok": False,
             "error": str(e),
-            "video_url": None
+            "video_url": None,
+            "cost": 0.0
         }
 
 
@@ -15523,8 +15539,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:L까지 - 채널명, 타겟 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:L')
+        # 시트 데이터 읽기 (A:M까지 - 비용, 채널명, 타겟 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:M')
         if not rows:
             return jsonify({
                 "ok": True,
@@ -15571,16 +15587,20 @@ def api_sheets_check_and_process():
                     # 파이프라인 실행
                     result = run_automation_pipeline(row, i)
 
+                    # 비용 기록 (H열) - 성공/실패 모두
+                    cost = result.get('cost', 0.0)
+                    sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', f'${cost:.2f}')
+
                     if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록 (I열)
+                        # 성공 - 상태: 완료, 영상URL 기록 (J열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
                         if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', result['video_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', result['video_url'])
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록 (J열)
+                        # 실패 - 상태: 실패, 에러메시지 기록 (K열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
                         error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', error_msg)
+                        sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', error_msg)
 
                     processed_count += 1
                     results.append({
