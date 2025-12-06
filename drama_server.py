@@ -14390,9 +14390,17 @@ def run_automation_pipeline(row_data, row_index):
     row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
     row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
 
-    TODO: 실제 파이프라인 연결
-    - 대본 분석 → 이미지 생성 → TTS → 영상 → 썸네일 → YouTube 업로드
+    파이프라인:
+    1. 대본 분석 → 씬/이미지 프롬프트/나레이션 추출
+    2. 이미지 생성 (각 씬)
+    3. TTS 음성 생성
+    4. 영상 생성 (이미지 + 오디오)
+    5. YouTube 업로드
     """
+    import subprocess
+    import base64
+    import time as time_module
+
     try:
         status = row_data[0] if len(row_data) > 0 else ''
         scheduled_time = row_data[1] if len(row_data) > 1 else ''
@@ -14401,27 +14409,112 @@ def run_automation_pipeline(row_data, row_index):
         title = row_data[4] if len(row_data) > 4 else ''
         visibility = row_data[5] if len(row_data) > 5 else 'private'
 
-        print(f"[AUTOMATION] 파이프라인 시작 - 행 {row_index}")
+        print(f"[AUTOMATION] ========== 파이프라인 시작 ==========")
+        print(f"[AUTOMATION] 행 {row_index}")
         print(f"  - 예약시간: {scheduled_time}")
         print(f"  - 채널ID: {channel_id}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
         print(f"  - 공개설정: {visibility}")
 
-        # TODO: 여기에 실제 파이프라인 로직 구현
-        # 1. /api/image/analyze-script 호출 → 씬/샷 분석
-        # 2. /api/image/generate 호출 → 이미지 생성
-        # 3. /api/drama/step3/tts 호출 → TTS 생성
-        # 4. /api/drama/generate-scene-clips-zip 호출 → 영상 클립 생성
-        # 5. /api/thumbnail-ai/analyze + generate 호출 → 썸네일 생성
-        # 6. /api/youtube/upload 호출 → YouTube 업로드
+        if not script or len(script.strip()) < 10:
+            return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
 
-        # 임시: 파이프라인 미구현 알림
-        return {
-            "ok": False,
-            "error": "파이프라인 미구현 - 다음 세션에서 연결 예정",
-            "video_url": None
-        }
+        episode_id = f"auto_{row_index}_{int(time_module.time())}"
+        output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+        os.makedirs(output_dir, exist_ok=True)
+
+        # ========== STEP 1: 대본 분석 ==========
+        print(f"[AUTOMATION] Step 1: 대본 분석 시작...")
+        try:
+            analysis_result = _automation_analyze_script(script, episode_id)
+            if not analysis_result.get('ok'):
+                return {"ok": False, "error": f"대본 분석 실패: {analysis_result.get('error')}", "video_url": None}
+
+            scenes = analysis_result.get('scenes', [])
+            generated_title = analysis_result.get('title', '')
+            description = analysis_result.get('description', '')
+
+            if not title:
+                title = generated_title or f"자동 생성 영상 #{row_index}"
+
+            print(f"[AUTOMATION] Step 1 완료: {len(scenes)}개 씬 추출")
+        except Exception as e:
+            return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None}
+
+        # ========== STEP 2: 이미지 생성 ==========
+        print(f"[AUTOMATION] Step 2: 이미지 생성 시작...")
+        try:
+            for i, scene in enumerate(scenes):
+                prompt = scene.get('image_prompt', '')
+                if not prompt:
+                    continue
+
+                print(f"[AUTOMATION] 이미지 생성 {i+1}/{len(scenes)}")
+                image_result = _automation_generate_image(prompt, episode_id, i)
+
+                if image_result.get('ok'):
+                    scene['image_url'] = image_result.get('image_url')
+                    scene['image_path'] = image_result.get('image_path')
+                else:
+                    print(f"[AUTOMATION] 이미지 생성 실패: {image_result.get('error')}")
+                    scene['image_url'] = None
+
+                time_module.sleep(1)  # API 부하 방지
+
+            print(f"[AUTOMATION] Step 2 완료")
+        except Exception as e:
+            return {"ok": False, "error": f"이미지 생성 오류: {str(e)}", "video_url": None}
+
+        # ========== STEP 3: TTS 생성 ==========
+        print(f"[AUTOMATION] Step 3: TTS 생성 시작...")
+        try:
+            tts_result = _automation_generate_tts(scenes, episode_id)
+            if not tts_result.get('ok'):
+                return {"ok": False, "error": f"TTS 생성 실패: {tts_result.get('error')}", "video_url": None}
+
+            # TTS 결과에서 타임라인 정보 업데이트
+            timeline = tts_result.get('timeline', [])
+            for i, scene in enumerate(scenes):
+                if i < len(timeline):
+                    scene['audio_url'] = timeline[i].get('audio_url')
+                    scene['duration'] = timeline[i].get('duration', 5)
+
+            print(f"[AUTOMATION] Step 3 완료")
+        except Exception as e:
+            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None}
+
+        # ========== STEP 4: 영상 생성 ==========
+        print(f"[AUTOMATION] Step 4: 영상 생성 시작...")
+        try:
+            video_result = _automation_generate_video(scenes, episode_id, output_dir)
+            if not video_result.get('ok'):
+                return {"ok": False, "error": f"영상 생성 실패: {video_result.get('error')}", "video_url": None}
+
+            video_path = video_result.get('video_path')
+            print(f"[AUTOMATION] Step 4 완료: {video_path}")
+        except Exception as e:
+            return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None}
+
+        # ========== STEP 5: YouTube 업로드 ==========
+        print(f"[AUTOMATION] Step 5: YouTube 업로드 시작...")
+        try:
+            upload_result = _automation_youtube_upload(
+                video_path=video_path,
+                title=title,
+                description=description,
+                visibility=visibility,
+                channel_id=channel_id
+            )
+
+            if upload_result.get('ok'):
+                video_url = upload_result.get('video_url', '')
+                print(f"[AUTOMATION] Step 5 완료: {video_url}")
+                return {"ok": True, "video_url": video_url, "error": None}
+            else:
+                return {"ok": False, "error": f"YouTube 업로드 실패: {upload_result.get('error')}", "video_url": None}
+        except Exception as e:
+            return {"ok": False, "error": f"YouTube 업로드 오류: {str(e)}", "video_url": None}
 
     except Exception as e:
         print(f"[AUTOMATION] 파이프라인 오류: {e}")
@@ -14432,6 +14525,360 @@ def run_automation_pipeline(row_data, row_index):
             "error": str(e),
             "video_url": None
         }
+
+
+def _automation_analyze_script(script, episode_id):
+    """대본 분석 - 씬 분리 + 프롬프트/나레이션 생성"""
+    try:
+        from openai import OpenAI
+        client = OpenAI()
+
+        # 이미지 수 계산 (250자 = 1분 = 1장)
+        image_count = max(3, min(10, len(script) // 250))
+
+        system_prompt = """You are an AI that analyzes scripts and generates image prompts for video production.
+
+Given a script, extract:
+1. A catchy YouTube title (Korean)
+2. A brief description (Korean)
+3. Scenes with image prompts (English) and narrations (Korean)
+
+Output JSON format:
+{
+    "title": "YouTube 제목",
+    "description": "영상 설명",
+    "scenes": [
+        {
+            "scene_id": "scene_1",
+            "image_prompt": "English prompt for image generation...",
+            "narration": "한국어 나레이션..."
+        }
+    ]
+}
+
+Image prompt rules:
+- Write in English for AI image generation
+- Include style: "detailed anime background, Ghibli-inspired, warm colors"
+- Add character: "simple white stickman with round head, two black dot eyes"
+- Specify scene details clearly
+"""
+
+        user_prompt = f"""다음 대본을 분석하여 {image_count}개의 씬으로 나누고, 각 씬에 대한 이미지 프롬프트와 나레이션을 생성해주세요.
+
+대본:
+{script}
+
+반드시 JSON 형식으로만 응답해주세요."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # JSON 파싱
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+        result_text = result_text.strip()
+
+        result = json.loads(result_text)
+        return {
+            "ok": True,
+            "title": result.get("title", ""),
+            "description": result.get("description", ""),
+            "scenes": result.get("scenes", [])
+        }
+
+    except Exception as e:
+        print(f"[AUTOMATION] 대본 분석 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def _automation_generate_image(prompt, episode_id, scene_index):
+    """이미지 생성 - OpenRouter Gemini 사용"""
+    try:
+        import requests as req
+
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not openrouter_api_key:
+            return {"ok": False, "error": "OPENROUTER_API_KEY 없음"}
+
+        # 프롬프트 강화
+        enhanced_prompt = f"""CRITICAL: Generate image in 16:9 WIDESCREEN LANDSCAPE aspect ratio (1280x720).
+
+{prompt}
+
+Style: detailed anime background, Ghibli-inspired, warm colors, soft lighting.
+Character: simple white stickman with round head, two black dot eyes, small mouth.
+NO realistic humans, NO elderly people. ONLY stickman character."""
+
+        headers = {
+            "Authorization": f"Bearer {openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://drama-generator.app",
+            "X-Title": "Drama Automation"
+        }
+
+        payload = {
+            "model": "google/gemini-2.5-flash-image-preview",
+            "modalities": ["text", "image"],
+            "messages": [{"role": "user", "content": [{"type": "text", "text": enhanced_prompt}]}]
+        }
+
+        response = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+
+        if response.status_code != 200:
+            return {"ok": False, "error": f"API 오류: {response.status_code}"}
+
+        result = response.json()
+
+        # 이미지 추출
+        choices = result.get("choices", [])
+        if choices:
+            message = choices[0].get("message", {})
+            content = message.get("content", [])
+
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "image_url":
+                        image_data = item.get("image_url", {})
+                        url = image_data.get("url", "")
+                        if url.startswith("data:image"):
+                            # Base64 이미지 저장
+                            output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+                            os.makedirs(output_dir, exist_ok=True)
+
+                            filename = f"{episode_id}_scene_{scene_index}.png"
+                            filepath = os.path.join(output_dir, filename)
+
+                            header, encoded = url.split(',', 1)
+                            import base64
+                            with open(filepath, 'wb') as f:
+                                f.write(base64.b64decode(encoded))
+
+                            return {
+                                "ok": True,
+                                "image_url": f"/output/{filename}",
+                                "image_path": filepath
+                            }
+
+        return {"ok": False, "error": "이미지 생성 실패"}
+
+    except Exception as e:
+        print(f"[AUTOMATION] 이미지 생성 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def _automation_generate_tts(scenes, episode_id):
+    """TTS 생성"""
+    try:
+        from step3_tts_and_subtitles import run_tts_pipeline
+
+        # 씬 데이터 준비
+        tts_scenes = []
+        for i, scene in enumerate(scenes):
+            narration = scene.get('narration', '')
+            if narration:
+                tts_scenes.append({
+                    "id": scene.get('scene_id', f'scene_{i+1}'),
+                    "narration": narration
+                })
+
+        if not tts_scenes:
+            return {"ok": False, "error": "나레이션이 없습니다"}
+
+        data = {
+            "episode_id": episode_id,
+            "language": "ko-KR",
+            "voice": {"gender": "FEMALE", "name": "ko-KR-Neural2-A", "speaking_rate": 0.95},
+            "scenes": tts_scenes
+        }
+
+        result = run_tts_pipeline(data)
+        return result
+
+    except Exception as e:
+        print(f"[AUTOMATION] TTS 생성 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def _automation_generate_video(scenes, episode_id, output_dir):
+    """영상 생성 - FFmpeg로 이미지 + 오디오 결합"""
+    import subprocess
+    import tempfile
+
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clip_paths = []
+
+            for i, scene in enumerate(scenes):
+                image_path = scene.get('image_path')
+                audio_url = scene.get('audio_url', '')
+
+                if not image_path or not os.path.exists(image_path):
+                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 이미지 없음")
+                    continue
+
+                # 오디오 파일 경로
+                if audio_url.startswith('/'):
+                    audio_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
+                else:
+                    audio_path = audio_url
+
+                if not audio_path or not os.path.exists(audio_path):
+                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 오디오 없음")
+                    continue
+
+                # 오디오 길이 확인
+                probe_cmd = [
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+                ]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                duration = float(result.stdout.strip()) if result.stdout.strip() else 5.0
+
+                # 씬 클립 생성
+                clip_path = os.path.join(temp_dir, f"clip_{i}.mp4")
+                ffmpeg_cmd = [
+                    'ffmpeg', '-y',
+                    '-loop', '1', '-i', image_path,
+                    '-i', audio_path,
+                    '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                    '-c:a', 'aac', '-b:a', '128k',
+                    '-r', '24', '-t', str(duration), '-shortest',
+                    '-pix_fmt', 'yuv420p',
+                    clip_path
+                ]
+
+                subprocess.run(ffmpeg_cmd, capture_output=True, timeout=120)
+
+                if os.path.exists(clip_path):
+                    clip_paths.append(clip_path)
+                    print(f"[AUTOMATION] 클립 생성: {clip_path}")
+
+            if not clip_paths:
+                return {"ok": False, "error": "생성된 클립이 없습니다"}
+
+            # 클립 병합
+            concat_file = os.path.join(temp_dir, "concat.txt")
+            with open(concat_file, 'w') as f:
+                for clip_path in clip_paths:
+                    f.write(f"file '{clip_path}'\n")
+
+            final_video = os.path.join(output_dir, f"{episode_id}_final.mp4")
+            concat_cmd = [
+                'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+                '-i', concat_file,
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-c:a', 'aac', '-b:a', '192k',
+                final_video
+            ]
+
+            subprocess.run(concat_cmd, capture_output=True, timeout=300)
+
+            if os.path.exists(final_video):
+                return {"ok": True, "video_path": final_video}
+            else:
+                return {"ok": False, "error": "최종 영상 생성 실패"}
+
+    except Exception as e:
+        print(f"[AUTOMATION] 영상 생성 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def _automation_youtube_upload(video_path, title, description, visibility, channel_id):
+    """YouTube 업로드"""
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+
+        if not os.path.exists(video_path):
+            return {"ok": False, "error": f"영상 파일 없음: {video_path}"}
+
+        # DB에서 토큰 로드
+        token_data = load_youtube_token_from_db(channel_id) if channel_id else load_youtube_token_from_db()
+
+        if not token_data or not token_data.get('refresh_token'):
+            return {"ok": False, "error": "YouTube 인증이 필요합니다"}
+
+        # Credentials 생성
+        creds = Credentials(
+            token=token_data.get('token'),
+            refresh_token=token_data.get('refresh_token'),
+            token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
+            client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
+            client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
+            scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
+        )
+
+        # 토큰 갱신
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            updated_token = {
+                'token': creds.token,
+                'refresh_token': creds.refresh_token,
+                'token_uri': creds.token_uri,
+                'client_id': creds.client_id,
+                'client_secret': creds.client_secret,
+                'scopes': list(creds.scopes) if creds.scopes else []
+            }
+            save_youtube_token_to_db(updated_token, channel_id=channel_id)
+
+        youtube = build('youtube', 'v3', credentials=creds)
+
+        body = {
+            'snippet': {
+                'title': title[:100],
+                'description': description[:5000] if description else '',
+                'tags': ['자동생성', '드라마', 'AI'],
+                'categoryId': '22'
+            },
+            'status': {
+                'privacyStatus': visibility or 'private',
+                'selfDeclaredMadeForKids': False
+            }
+        }
+
+        media = MediaFileUpload(video_path, chunksize=1024*1024, resumable=True, mimetype='video/mp4')
+
+        request = youtube.videos().insert(
+            part='snippet,status',
+            body=body,
+            media_body=media
+        )
+
+        response = None
+        while response is None:
+            status, response = request.next_chunk()
+            if status:
+                print(f"[AUTOMATION] 업로드 진행: {int(status.progress() * 100)}%")
+
+        video_id = response.get('id')
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+
+        print(f"[AUTOMATION] YouTube 업로드 완료: {video_url}")
+        return {"ok": True, "video_url": video_url, "video_id": video_id}
+
+    except Exception as e:
+        print(f"[AUTOMATION] YouTube 업로드 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
 
 
 @app.route('/api/sheets/auth-status', methods=['GET'])
