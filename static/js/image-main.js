@@ -53,6 +53,9 @@ const ImageMain = {
       });
     }
 
+    // ★★★ 분석 버튼 초기 비활성화 (YouTube 로그인 전) ★★★
+    this.updateAnalyzeButtonState(false);
+
     // ★★★ 페이지 로드 시 YouTube 채널 미리 로드 ★★★
     this.loadYouTubeChannels();
 
@@ -1963,10 +1966,13 @@ const ImageMain = {
    * YouTube 채널 목록 로드
    */
   async loadYouTubeChannels() {
-    const container = document.getElementById('channel-select-area');
-    if (!container) return;
+    // 상단 채널 영역 (메인) + 하단 업로드 섹션 (서브)
+    const topContainer = document.getElementById('youtube-channel-area');
+    const bottomContainer = document.getElementById('channel-select-area');
 
-    container.innerHTML = '<div class="channel-loading">채널 정보 로딩 중...</div>';
+    if (topContainer) {
+      topContainer.innerHTML = '<div class="channel-loading">채널 정보 확인 중...</div>';
+    }
 
     try {
       const response = await fetch('/api/drama/youtube-channels');
@@ -1976,21 +1982,27 @@ const ImageMain = {
       this.channels = data.channels || [];
 
       if (!data.success && this.channels.length === 0) {
-        // 인증 필요
-        container.innerHTML = `
-          <div class="channel-chips-row">
-            <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ YouTube 연결</a>
+        // 인증 필요 - 로그인 버튼 표시
+        const loginHtml = `
+          <div class="login-prompt">
+            <a href="/api/youtube/auth" class="btn-youtube-login">▶ YouTube 로그인</a>
+            <span class="login-hint">로그인 후 자동 업로드가 가능합니다</span>
           </div>
         `;
+        if (topContainer) topContainer.innerHTML = loginHtml;
+        this.updateAnalyzeButtonState(false);
         return;
       }
 
       if (this.channels.length === 0) {
-        container.innerHTML = `
-          <div class="channel-chips-row">
-            <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ YouTube 연결</a>
+        const loginHtml = `
+          <div class="login-prompt">
+            <a href="/api/youtube/auth" class="btn-youtube-login">▶ YouTube 로그인</a>
+            <span class="login-hint">로그인 후 자동 업로드가 가능합니다</span>
           </div>
         `;
+        if (topContainer) topContainer.innerHTML = loginHtml;
+        this.updateAnalyzeButtonState(false);
         return;
       }
 
@@ -2025,20 +2037,44 @@ const ImageMain = {
       }
 
       // 계정 추가 버튼
-      html += `<a href="/api/youtube/auth?force=1" target="_blank" class="channel-chip channel-chip-add">➕</a>`;
+      html += `<a href="/api/youtube/auth?force=1" class="channel-chip add-channel">➕ 추가</a>`;
       html += '</div>';
 
-      container.innerHTML = html;
+      // 상단, 하단 둘 다 업데이트
+      if (topContainer) topContainer.innerHTML = html;
+      if (bottomContainer) bottomContainer.innerHTML = html;
+
+      // 채널 선택됨 → 분석 버튼 활성화
+      this.updateAnalyzeButtonState(true);
 
     } catch (error) {
       console.error('[ImageMain] Load channels error:', error);
-      container.innerHTML = `
-        <div class="channel-chips-row">
-          <span class="channel-error-text">로드 실패</span>
-          <button onclick="ImageMain.loadYouTubeChannels()" class="channel-chip">🔄</button>
-          <a href="/api/youtube/auth" class="channel-chip channel-chip-add">➕ 연결</a>
+      const errorHtml = `
+        <div class="login-prompt">
+          <button onclick="ImageMain.loadYouTubeChannels()" class="btn-youtube-login" style="background: #6b7280;">🔄 다시 시도</button>
+          <a href="/api/youtube/auth" class="btn-youtube-login">▶ YouTube 로그인</a>
         </div>
       `;
+      if (topContainer) topContainer.innerHTML = errorHtml;
+      this.updateAnalyzeButtonState(false);
+    }
+  },
+
+  /**
+   * 분석 버튼 상태 업데이트
+   */
+  updateAnalyzeButtonState(enabled) {
+    const analyzeBtn = document.getElementById('btn-analyze');
+    if (!analyzeBtn) return;
+
+    if (enabled) {
+      analyzeBtn.disabled = false;
+      analyzeBtn.classList.remove('disabled');
+      analyzeBtn.title = '';
+    } else {
+      analyzeBtn.disabled = true;
+      analyzeBtn.classList.add('disabled');
+      analyzeBtn.title = 'YouTube 로그인 후 사용 가능합니다';
     }
   },
 
