@@ -3759,9 +3759,31 @@ def gcal_callback():
     try:
         from google_auth_oauthlib.flow import Flow
 
-        flow = _gcal_credentials.get('flow')
-        if not flow:
-            return '<script>alert("인증 세션이 만료되었습니다. 다시 시도해주세요."); window.close();</script>'
+        # 환경변수에서 OAuth 클라이언트 정보 가져오기
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+
+        if not client_id or not client_secret:
+            return '<script>alert("Google OAuth 환경변수가 설정되지 않았습니다."); window.close();</script>'
+
+        # Flow 재생성 (서버 재시작 대응)
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [request.host_url.rstrip('/') + '/assistant/api/gcal/callback']
+            }
+        }
+
+        scopes = [
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events'
+        ]
+
+        flow = Flow.from_client_config(client_config, scopes=scopes)
+        flow.redirect_uri = request.host_url.rstrip('/') + '/assistant/api/gcal/callback'
 
         # authorization response에서 토큰 가져오기
         flow.fetch_token(authorization_response=request.url)
@@ -3774,7 +3796,7 @@ def gcal_callback():
             'token_uri': credentials.token_uri,
             'client_id': credentials.client_id,
             'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
+            'scopes': list(credentials.scopes) if credentials.scopes else scopes
         })
 
         # 성공 메시지와 함께 창 닫기
@@ -3797,6 +3819,8 @@ def gcal_callback():
         '''
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return f'<script>alert("인증 오류: {str(e)}"); window.close();</script>'
 
 
@@ -4462,9 +4486,36 @@ def gsheets_auth():
 def gsheets_callback():
     """Google Sheets OAuth 콜백"""
     try:
-        flow = _gsheets_credentials.get('flow')
-        if not flow:
-            return '<script>alert("인증 세션이 만료되었습니다."); window.close();</script>'
+        from google_auth_oauthlib.flow import Flow
+
+        # 환경변수에서 OAuth 클라이언트 정보 가져오기
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+
+        if not client_id or not client_secret:
+            return '<script>alert("Google OAuth 환경변수가 설정되지 않았습니다."); window.close();</script>'
+
+        # Flow 재생성 (서버 재시작 대응)
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [request.host_url.rstrip('/') + '/assistant/api/gsheets/callback']
+            }
+        }
+
+        # Calendar + Sheets 스코프 통합
+        scopes = [
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events',
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/spreadsheets.readonly'
+        ]
+
+        flow = Flow.from_client_config(client_config, scopes=scopes)
+        flow.redirect_uri = request.host_url.rstrip('/') + '/assistant/api/gsheets/callback'
 
         flow.fetch_token(authorization_response=request.url)
         credentials = flow.credentials
@@ -4476,7 +4527,7 @@ def gsheets_callback():
             'token_uri': credentials.token_uri,
             'client_id': credentials.client_id,
             'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
+            'scopes': list(credentials.scopes) if credentials.scopes else scopes
         })
 
         return '''
@@ -4495,6 +4546,8 @@ def gsheets_callback():
         </html>
         '''
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return f'<script>alert("인증 오류: {str(e)}"); window.close();</script>'
 
 
