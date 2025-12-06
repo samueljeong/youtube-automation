@@ -659,6 +659,8 @@ const ImageMain = {
    */
   async generateAIThumbnailsAuto() {
     try {
+      this.showStatus('🎨 AI 썸네일 분석 중...', 'info');
+
       // AI 분석
       const scenes = this.analyzedData?.scenes || [];
       const script = scenes.map(s => s.narration || '').join('\n\n');
@@ -672,15 +674,17 @@ const ImageMain = {
 
       const analyzeData = await analyzeResponse.json();
       if (!analyzeData.ok) {
-        console.warn('[ImageMain] AI 썸네일 분석 실패');
+        console.warn('[ImageMain] AI 썸네일 분석 실패:', analyzeData.error);
         return false;
       }
 
       this.aiThumbnailSession = analyzeData.session_id;
       this.aiThumbnailPrompts = analyzeData.prompts;
 
+      this.showStatus('🎨 AI 썸네일 3개 생성 중...', 'info');
+
       // AI 썸네일 생성 (A/B/C 3개)
-      const generateResponse = await fetch('/api/thumbnail-ai/generate-both', {
+      const generateResponse = await fetch('/api/thumbnail-ai/generate-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -691,27 +695,29 @@ const ImageMain = {
 
       const generateData = await generateResponse.json();
       if (!generateData.ok) {
-        console.warn('[ImageMain] AI 썸네일 생성 실패');
+        console.warn('[ImageMain] AI 썸네일 생성 실패:', generateData.error);
         return false;
       }
 
-      // 결과 저장 (첫 번째 썸네일 자동 선택)
+      // 결과 저장 (A/B/C 3개)
       this.aiThumbnailImageUrls = {
         A: generateData.results.A?.image_url,
-        B: generateData.results.B?.image_url
+        B: generateData.results.B?.image_url,
+        C: generateData.results.C?.image_url
       };
 
-      // 첫 번째 썸네일 자동 선택 (업로드용)
+      // 첫 번째 썸네일(A) 자동 선택 (YouTube 업로드용)
       if (this.aiThumbnailImageUrls.A) {
         this.selectedAIThumbnailUrl = this.aiThumbnailImageUrls.A;
         this.selectedThumbnailIdx = 0;
         this.saveSession();
       }
 
-      // 나머지 썸네일 다운로드
+      // 나머지 썸네일(B, C) 다운로드 (테스트용)
       this.downloadRemainingThumbnails();
 
-      console.log('[ImageMain] AI 썸네일 완료 - A:', !!this.aiThumbnailImageUrls.A, 'B:', !!this.aiThumbnailImageUrls.B);
+      this.showStatus('✅ AI 썸네일 3개 생성 완료!', 'success');
+      console.log('[ImageMain] AI 썸네일 완료 - A:', !!this.aiThumbnailImageUrls.A, 'B:', !!this.aiThumbnailImageUrls.B, 'C:', !!this.aiThumbnailImageUrls.C);
       return true;
     } catch (error) {
       console.error('[ImageMain] AI 썸네일 오류:', error);
@@ -720,11 +726,11 @@ const ImageMain = {
   },
 
   /**
-   * 나머지 썸네일 다운로드
+   * 나머지 썸네일 다운로드 (B, C - 테스트용)
    */
   downloadRemainingThumbnails() {
-    // B, C 썸네일 다운로드 (A는 업로드용)
-    ['B'].forEach((variant, idx) => {
+    // B, C 썸네일 다운로드 (A는 YouTube 업로드용)
+    ['B', 'C'].forEach((variant, idx) => {
       const url = this.aiThumbnailImageUrls[variant];
       if (url) {
         setTimeout(() => {
@@ -735,7 +741,8 @@ const ImageMain = {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-        }, (idx + 1) * 1000);
+          console.log(`[ImageMain] 썸네일 ${variant} 다운로드 시작`);
+        }, (idx + 1) * 1500);
       }
     });
   },
