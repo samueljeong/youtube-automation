@@ -9267,6 +9267,59 @@ def api_youtube_auth_status_test():
         })
 
 
+@app.route('/api/openrouter/credits', methods=['GET'])
+def api_openrouter_credits():
+    """
+    OpenRouter 크레딧 잔액 조회
+    """
+    try:
+        import requests as req
+
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not openrouter_api_key:
+            return jsonify({
+                "ok": False,
+                "error": "OpenRouter API 키가 설정되지 않았습니다."
+            })
+
+        # OpenRouter API로 크레딧 조회
+        response = req.get(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers={
+                "Authorization": f"Bearer {openrouter_api_key}"
+            },
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            # data.data.limit (총 크레딧), data.data.usage (사용량)
+            credit_data = data.get("data", {})
+            limit = credit_data.get("limit", 0)  # 총 크레딧
+            usage = credit_data.get("usage", 0)  # 사용량
+            balance = limit - usage  # 잔액
+
+            return jsonify({
+                "ok": True,
+                "balance": round(balance, 2),
+                "limit": round(limit, 2),
+                "usage": round(usage, 2),
+                "formatted": f"${balance:.2f}"
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": f"OpenRouter API 오류: {response.status_code}"
+            })
+
+    except Exception as e:
+        print(f"[OPENROUTER-CREDITS] 오류: {e}")
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        })
+
+
 @app.route('/api/youtube/auth', methods=['GET'])
 def api_youtube_auth_page():
     """

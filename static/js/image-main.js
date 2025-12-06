@@ -59,6 +59,9 @@ const ImageMain = {
     // ★★★ 페이지 로드 시 YouTube 채널 미리 로드 ★★★
     this.loadYouTubeChannels();
 
+    // ★★★ OpenRouter 크레딧 잔액 로드 ★★★
+    this.loadOpenRouterCredits();
+
     console.log('[ImageMain] Ready. Session:', this.sessionId, restored ? '(복구됨)' : '(새 세션)');
   },
 
@@ -1947,6 +1950,42 @@ const ImageMain = {
       btn.disabled = false;
       btn.textContent = '🎬 영상 생성';
       progressDiv.classList.add('hidden');
+    }
+  },
+
+  // ========== OpenRouter 크레딧 ==========
+
+  /**
+   * OpenRouter 크레딧 잔액 로드 및 표시
+   */
+  async loadOpenRouterCredits() {
+    const badge = document.getElementById('openrouter-credits');
+    if (!badge) return;
+
+    try {
+      const response = await fetch('/api/openrouter/credits');
+      const data = await response.json();
+
+      if (data.ok) {
+        const balance = data.balance;
+        badge.textContent = `💰 $${balance.toFixed(2)}`;
+        badge.title = `OpenRouter 크레딧 잔액: $${balance.toFixed(2)} (총 $${data.limit.toFixed(2)}, 사용 $${data.usage.toFixed(2)})`;
+
+        // 잔액에 따른 색상 변경
+        badge.classList.remove('low', 'medium');
+        if (balance < 5) {
+          badge.classList.add('low');
+        } else if (balance < 15) {
+          badge.classList.add('medium');
+        }
+      } else {
+        badge.textContent = '💰 -';
+        badge.title = data.error || 'API 키 없음';
+      }
+    } catch (error) {
+      console.error('[ImageMain] 크레딧 조회 오류:', error);
+      badge.textContent = '💰 -';
+      badge.title = '크레딧 조회 실패';
     }
   },
 

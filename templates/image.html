@@ -7,6 +7,27 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect fill='%23f59e0b' width='32' height='32' rx='6'/><text x='16' y='22' font-size='18' fill='white' text-anchor='middle' font-weight='bold'>I</text></svg>">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/drama.css') }}?v=20241203">
   <style>
+    /* 크레딧 배지 스타일 */
+    .credits-badge {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: default;
+      margin-right: 10px;
+    }
+    .credits-badge.low {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+    .credits-badge.medium {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
     /* 이미지 제작 페이지 전용 스타일 */
     .image-workspace {
       display: grid;
@@ -2296,6 +2317,7 @@
   <div class="auth-header">
     <h1>Creator Lab</h1>
     <div class="auth-links">
+      <span id="openrouter-credits" class="credits-badge" title="OpenRouter 크레딧 잔액">💰 로딩...</span>
       <span id="session-info" class="session-info"></span>
       <button id="btn-new-session" class="btn-header" onclick="ImageMain.newSession()">새 프로젝트</button>
       <a href="/" class="btn-home">홈</a>
