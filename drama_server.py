@@ -4454,6 +4454,7 @@ def merge_audio_chunks_ffmpeg(audio_data_list):
     import tempfile
     import subprocess
     import shutil
+    import gc  # 메모리 정리용
 
     if not audio_data_list:
         return b''
@@ -11470,6 +11471,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
     import subprocess
     import shutil
     import urllib.request
+    import gc  # 메모리 정리용
 
     try:
         _update_job_status(job_id, status='processing', message='영상 생성 시작...')
@@ -15644,6 +15646,7 @@ def _automation_generate_video(scenes, episode_id, output_dir):
     import subprocess
     import tempfile
     import re
+    import gc  # 메모리 정리용
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
