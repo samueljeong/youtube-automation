@@ -10627,6 +10627,7 @@ def api_image_generate_assets_zip():
         import base64
         import uuid
         import subprocess
+        import gc  # 메모리 정리용
         from datetime import datetime
 
         def detect_language(text):
