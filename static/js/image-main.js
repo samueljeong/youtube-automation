@@ -655,31 +655,23 @@ const ImageMain = {
   },
 
   /**
-   * AI 썸네일 자동 생성 (병렬용)
+   * AI 썸네일 자동 생성 (병렬용) - 초기 분석 데이터에서 프롬프트 직접 사용
    */
   async generateAIThumbnailsAuto() {
     try {
-      this.showStatus('🎨 AI 썸네일 분석 중...', 'info');
+      // 초기 분석에서 이미 생성된 ai_prompts 사용 (중복 GPT 호출 제거!)
+      const aiPrompts = this.analyzedData?.thumbnail?.ai_prompts;
 
-      // AI 분석
-      const scenes = this.analyzedData?.scenes || [];
-      const script = scenes.map(s => s.narration || '').join('\n\n');
-      const title = this.selectedTitle || '제목 없음';
-
-      const analyzeResponse = await fetch('/api/thumbnail-ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, title, genre: '일반' })
-      });
-
-      const analyzeData = await analyzeResponse.json();
-      if (!analyzeData.ok) {
-        console.warn('[ImageMain] AI 썸네일 분석 실패:', analyzeData.error);
+      if (!aiPrompts || !aiPrompts.A) {
+        console.warn('[ImageMain] AI 썸네일 프롬프트 없음 - 초기 분석에서 생성되지 않음');
+        this.showStatus('⚠️ AI 썸네일 프롬프트 없음', 'warning');
         return false;
       }
 
-      this.aiThumbnailSession = analyzeData.session_id;
-      this.aiThumbnailPrompts = analyzeData.prompts;
+      console.log('[ImageMain] 초기 분석의 ai_prompts 사용 (중복 GPT 호출 제거)');
+
+      this.aiThumbnailSession = `thumb_${this.sessionId}`;
+      this.aiThumbnailPrompts = aiPrompts;
 
       this.showStatus('🎨 AI 썸네일 3개 생성 중...', 'info');
 
