@@ -2154,11 +2154,11 @@ const AssistantMain = (() => {
         document.getElementById('project-detail-name').textContent = project.name;
 
         const infoHtml = `
-          <div><strong>Status:</strong> <span class="project-status-badge ${project.status}">${project.status}</span></div>
-          ${project.description ? `<div><strong>Description:</strong> ${escapeHtml(project.description)}</div>` : ''}
-          ${project.priority ? `<div><strong>Priority:</strong> ${project.priority}</div>` : ''}
-          ${project.start_date ? `<div><strong>Start:</strong> ${project.start_date}</div>` : ''}
-          ${project.end_date ? `<div><strong>End:</strong> ${project.end_date}</div>` : ''}
+          <div><strong>상태:</strong> <span class="project-status-badge ${project.status}">${project.status}</span></div>
+          ${project.description ? `<div><strong>설명:</strong> ${escapeHtml(project.description)}</div>` : ''}
+          ${project.priority ? `<div><strong>우선순위:</strong> ${project.priority}</div>` : ''}
+          ${project.start_date ? `<div><strong>시작:</strong> ${formatKoreanDate(project.start_date)}</div>` : ''}
+          ${project.end_date ? `<div><strong>종료:</strong> ${formatKoreanDate(project.end_date)}</div>` : ''}
         `;
         document.getElementById('project-info').innerHTML = infoHtml;
 
