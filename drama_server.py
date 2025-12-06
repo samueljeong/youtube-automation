@@ -14386,20 +14386,22 @@ def sheets_update_cell(service, sheet_id, cell_range, value):
 
 def run_automation_pipeline(row_data, row_index):
     """
-    자동화 파이프라인 실행
+    자동화 파이프라인 실행 (/image 페이지 구조 기반)
     row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
     row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
 
-    파이프라인:
-    1. 대본 분석 → 씬/이미지 프롬프트/나레이션 추출
-    2. 이미지 생성 (각 씬)
-    3. TTS 음성 생성
-    4. 영상 생성 (이미지 + 오디오)
-    5. YouTube 업로드
+    파이프라인 구조:
+    [분석] GPT-5.1로 대본 분석 → 씬/이미지 프롬프트/나레이션/YouTube 메타데이터/썸네일 프롬프트
+    [생성] 분석 완료 후 병렬 진행:
+           - 씬 이미지 생성 (Gemini 2.5 Flash via OpenRouter)
+           - TTS 생성 (Google TTS Neural2)
+    [영상] FFmpeg로 영상 생성
+    [업로드] YouTube 업로드
     """
     import subprocess
     import base64
     import time as time_module
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     try:
         status = row_data[0] if len(row_data) > 0 else ''
@@ -14422,82 +14424,100 @@ def run_automation_pipeline(row_data, row_index):
 
         episode_id = f"auto_{row_index}_{int(time_module.time())}"
         output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+        uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
         os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(uploads_dir, exist_ok=True)
 
-        # ========== STEP 1: 대본 분석 ==========
-        print(f"[AUTOMATION] Step 1: 대본 분석 시작...")
+        # ========== STEP 1: 대본 분석 (GPT-5.1) ==========
+        print(f"[AUTOMATION] Step 1: 대본 분석 시작 (GPT-5.1)...")
         try:
-            analysis_result = _automation_analyze_script(script, episode_id)
+            analysis_result = _automation_analyze_script_gpt5(script, episode_id)
             if not analysis_result.get('ok'):
                 return {"ok": False, "error": f"대본 분석 실패: {analysis_result.get('error')}", "video_url": None}
 
             scenes = analysis_result.get('scenes', [])
-            generated_title = analysis_result.get('title', '')
-            description = analysis_result.get('description', '')
+            youtube_meta = analysis_result.get('youtube', {})
+            thumbnail_data = analysis_result.get('thumbnail', {})
+
+            generated_title = youtube_meta.get('title', '')
+            description = youtube_meta.get('description', '')
 
             if not title:
                 title = generated_title or f"자동 생성 영상 #{row_index}"
 
             print(f"[AUTOMATION] Step 1 완료: {len(scenes)}개 씬 추출")
+            print(f"  - YouTube 제목: {title[:50]}...")
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None}
 
-        # ========== STEP 2: 이미지 생성 ==========
-        print(f"[AUTOMATION] Step 2: 이미지 생성 시작...")
+        # ========== STEP 2: 병렬 생성 (이미지 + TTS) ==========
+        print(f"[AUTOMATION] Step 2: 이미지 + TTS 병렬 생성 시작...")
         try:
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                # 이미지 생성 작업
+                image_future = executor.submit(
+                    _automation_generate_all_images,
+                    scenes, episode_id, output_dir
+                )
+
+                # TTS 생성 작업
+                tts_future = executor.submit(
+                    _automation_generate_tts_neural2,
+                    scenes, episode_id, uploads_dir
+                )
+
+                # 결과 수집
+                image_result = image_future.result(timeout=300)  # 5분 타임아웃
+                tts_result = tts_future.result(timeout=300)
+
+            # 이미지 결과 적용
+            if not image_result.get('ok'):
+                print(f"[AUTOMATION] 이미지 생성 실패: {image_result.get('error')}")
+                # 이미지 실패해도 일부는 성공했을 수 있음, 계속 진행
+
+            image_paths = image_result.get('image_paths', [])
             for i, scene in enumerate(scenes):
-                prompt = scene.get('image_prompt', '')
-                if not prompt:
-                    continue
+                if i < len(image_paths) and image_paths[i]:
+                    scene['image_path'] = image_paths[i]
+                    scene['image_url'] = f"/output/{os.path.basename(image_paths[i])}"
 
-                print(f"[AUTOMATION] 이미지 생성 {i+1}/{len(scenes)}")
-                image_result = _automation_generate_image(prompt, episode_id, i)
-
-                if image_result.get('ok'):
-                    scene['image_url'] = image_result.get('image_url')
-                    scene['image_path'] = image_result.get('image_path')
-                else:
-                    print(f"[AUTOMATION] 이미지 생성 실패: {image_result.get('error')}")
-                    scene['image_url'] = None
-
-                time_module.sleep(1)  # API 부하 방지
-
-            print(f"[AUTOMATION] Step 2 완료")
-        except Exception as e:
-            return {"ok": False, "error": f"이미지 생성 오류: {str(e)}", "video_url": None}
-
-        # ========== STEP 3: TTS 생성 ==========
-        print(f"[AUTOMATION] Step 3: TTS 생성 시작...")
-        try:
-            tts_result = _automation_generate_tts(scenes, episode_id)
+            # TTS 결과 적용
             if not tts_result.get('ok'):
                 return {"ok": False, "error": f"TTS 생성 실패: {tts_result.get('error')}", "video_url": None}
 
-            # TTS 결과에서 타임라인 정보 업데이트
-            timeline = tts_result.get('timeline', [])
+            audio_data = tts_result.get('audio_data', [])
             for i, scene in enumerate(scenes):
-                if i < len(timeline):
-                    scene['audio_url'] = timeline[i].get('audio_url')
-                    scene['duration'] = timeline[i].get('duration', 5)
+                if i < len(audio_data) and audio_data[i]:
+                    scene['audio_path'] = audio_data[i].get('path')
+                    scene['audio_url'] = audio_data[i].get('url')
+                    scene['duration'] = audio_data[i].get('duration', 5)
 
-            print(f"[AUTOMATION] Step 3 완료")
+            print(f"[AUTOMATION] Step 2 완료")
+            print(f"  - 이미지: {len([s for s in scenes if s.get('image_path')])}개 생성")
+            print(f"  - TTS: {len([s for s in scenes if s.get('audio_path')])}개 생성")
         except Exception as e:
-            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None}
+            import traceback
+            traceback.print_exc()
+            return {"ok": False, "error": f"병렬 생성 오류: {str(e)}", "video_url": None}
 
-        # ========== STEP 4: 영상 생성 ==========
-        print(f"[AUTOMATION] Step 4: 영상 생성 시작...")
+        # ========== STEP 3: 영상 생성 (FFmpeg) ==========
+        print(f"[AUTOMATION] Step 3: 영상 생성 시작...")
         try:
             video_result = _automation_generate_video(scenes, episode_id, output_dir)
             if not video_result.get('ok'):
                 return {"ok": False, "error": f"영상 생성 실패: {video_result.get('error')}", "video_url": None}
 
             video_path = video_result.get('video_path')
-            print(f"[AUTOMATION] Step 4 완료: {video_path}")
+            print(f"[AUTOMATION] Step 3 완료: {video_path}")
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None}
 
-        # ========== STEP 5: YouTube 업로드 ==========
-        print(f"[AUTOMATION] Step 5: YouTube 업로드 시작...")
+        # ========== STEP 4: YouTube 업로드 ==========
+        print(f"[AUTOMATION] Step 4: YouTube 업로드 시작...")
         try:
             upload_result = _automation_youtube_upload(
                 video_path=video_path,
@@ -14509,11 +14529,13 @@ def run_automation_pipeline(row_data, row_index):
 
             if upload_result.get('ok'):
                 video_url = upload_result.get('video_url', '')
-                print(f"[AUTOMATION] Step 5 완료: {video_url}")
+                print(f"[AUTOMATION] Step 4 완료: {video_url}")
                 return {"ok": True, "video_url": video_url, "error": None}
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_result.get('error')}", "video_url": None}
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"ok": False, "error": f"YouTube 업로드 오류: {str(e)}", "video_url": None}
 
     except Exception as e:
@@ -14527,8 +14549,8 @@ def run_automation_pipeline(row_data, row_index):
         }
 
 
-def _automation_analyze_script(script, episode_id):
-    """대본 분석 - 씬 분리 + 프롬프트/나레이션 생성"""
+def _automation_analyze_script_gpt5(script, episode_id):
+    """대본 분석 - GPT-5.1 Responses API 사용"""
     try:
         from openai import OpenAI
         client = OpenAI()
@@ -14538,66 +14560,241 @@ def _automation_analyze_script(script, episode_id):
 
         system_prompt = """You are an AI that analyzes scripts and generates image prompts for video production.
 
-Given a script, extract:
-1. A catchy YouTube title (Korean)
-2. A brief description (Korean)
-3. Scenes with image prompts (English) and narrations (Korean)
+## CORE CONCEPT
+The visual style is:
+1. Background = DETAILED ANIME STYLE (slice-of-life anime, Ghibli-inspired, warm colors, soft lighting)
+2. Character = SIMPLE WHITE STICKMAN (round head, TWO DOT EYES, small mouth, thin eyebrows, black outline body)
 
-Output JSON format:
+## Output Format (MUST be valid JSON)
 {
-    "title": "YouTube 제목",
-    "description": "영상 설명",
+    "youtube": {
+        "title": "SEO-optimized YouTube title in Korean (click-inducing, 30-50 chars)",
+        "description": "Description in Korean (summary + hashtags, 500+ chars)"
+    },
+    "thumbnail": {
+        "text_options": ["썸네일 텍스트 1", "썸네일 텍스트 2", "썸네일 텍스트 3"],
+        "text_color": "#FFD700",
+        "outline_color": "#000000",
+        "ai_prompts": {
+            "A": {
+                "description": "감정/표정 중심",
+                "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Simple white stickman with exaggerated emotional expression. Detailed anime background. Vibrant colors, high contrast."
+            },
+            "B": {
+                "description": "스토리/상황 중심",
+                "prompt": "Split screen composition YouTube thumbnail, 16:9 aspect ratio. Before/After contrast. Simple white stickman against detailed anime background."
+            },
+            "C": {
+                "description": "텍스트/타이포 중심",
+                "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text. Gradient background with simple stickman illustration."
+            }
+        }
+    },
     "scenes": [
         {
-            "scene_id": "scene_1",
-            "image_prompt": "English prompt for image generation...",
-            "narration": "한국어 나레이션..."
+            "scene_number": 1,
+            "narration": "원본 대본의 정확한 문장 (요약 금지)",
+            "image_prompt": "English prompt: detailed anime background, Ghibli-inspired, warm colors. Simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows. [scene description]. NO realistic humans."
         }
     ]
 }
 
-Image prompt rules:
-- Write in English for AI image generation
-- Include style: "detailed anime background, Ghibli-inspired, warm colors"
-- Add character: "simple white stickman with round head, two black dot eyes"
-- Specify scene details clearly
-"""
+## CRITICAL RULES
+1. narration = 원본 대본의 정확한 문장을 그대로 복사. 요약하거나 줄이지 마세요!
+2. image_prompt = 영어로 작성. 반드시 "detailed anime background" + "simple white stickman" 포함
+3. NO realistic human faces - ONLY stickman character!"""
 
-        user_prompt = f"""다음 대본을 분석하여 {image_count}개의 씬으로 나누고, 각 씬에 대한 이미지 프롬프트와 나레이션을 생성해주세요.
+        user_prompt = f"""다음 대본을 분석하여 {image_count}개의 씬으로 나누세요.
 
 대본:
 {script}
 
-반드시 JSON 형식으로만 응답해주세요."""
+IMPORTANT:
+- 나레이션은 원본 대본을 그대로 사용 (요약 금지)
+- image_prompt는 영어로, "detailed anime background" + "simple white stickman" 포함
+- 반드시 JSON 형식으로만 응답"""
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+        print(f"[AUTOMATION] GPT-5.1 Responses API 호출 중...")
+
+        # GPT-5.1은 Responses API 사용
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": system_prompt
+                        }
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": user_prompt
+                        }
+                    ]
+                }
             ],
             temperature=0.7
         )
 
-        result_text = response.choices[0].message.content.strip()
+        print(f"[AUTOMATION] GPT-5.1 응답 완료")
 
-        # JSON 파싱
+        # Responses API 결과 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱 (마크다운 코드블록 제거)
         if result_text.startswith("```"):
             result_text = result_text.split("```")[1]
             if result_text.startswith("json"):
                 result_text = result_text[4:]
         result_text = result_text.strip()
 
+        # Trailing comma 제거 (LLM이 자주 실수하는 패턴)
+        import re
+        result_text = re.sub(r',\s*\]', ']', result_text)
+        result_text = re.sub(r',\s*\}', '}', result_text)
+
         result = json.loads(result_text)
         return {
             "ok": True,
-            "title": result.get("title", ""),
-            "description": result.get("description", ""),
+            "youtube": result.get("youtube", {}),
+            "thumbnail": result.get("thumbnail", {}),
             "scenes": result.get("scenes", [])
         }
 
     except Exception as e:
         print(f"[AUTOMATION] 대본 분석 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
+def _automation_generate_all_images(scenes, episode_id, output_dir):
+    """모든 씬 이미지 병렬 생성 - Gemini 2.5 Flash via OpenRouter"""
+    import time as time_module
+
+    try:
+        image_paths = []
+
+        for i, scene in enumerate(scenes):
+            prompt = scene.get('image_prompt', '')
+            if not prompt:
+                image_paths.append(None)
+                continue
+
+            print(f"[AUTOMATION] 이미지 생성 {i+1}/{len(scenes)}")
+            image_result = _automation_generate_image(prompt, episode_id, i)
+
+            if image_result.get('ok'):
+                image_paths.append(image_result.get('image_path'))
+            else:
+                print(f"[AUTOMATION] 이미지 생성 실패 {i+1}: {image_result.get('error')}")
+                image_paths.append(None)
+
+            time_module.sleep(1)  # API 부하 방지
+
+        return {"ok": True, "image_paths": image_paths}
+
+    except Exception as e:
+        print(f"[AUTOMATION] 이미지 생성 전체 오류: {e}")
+        return {"ok": False, "error": str(e), "image_paths": []}
+
+
+def _automation_generate_tts_neural2(scenes, episode_id, uploads_dir):
+    """TTS 생성 - Google Cloud TTS Neural2 직접 호출"""
+    import requests
+    import base64
+    import subprocess
+    import tempfile
+
+    try:
+        api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+        if not api_key:
+            return {"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}
+
+        voice_name = "ko-KR-Neural2-A"  # 여성 Neural2 음성 (고품질)
+        language_code = "ko-KR"
+
+        audio_data = []
+
+        for i, scene in enumerate(scenes):
+            narration = scene.get('narration', '')
+            if not narration:
+                audio_data.append(None)
+                continue
+
+            print(f"[AUTOMATION] TTS 생성 {i+1}/{len(scenes)}: {narration[:30]}...")
+
+            # Google TTS API 호출
+            tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+            payload = {
+                "input": {"text": narration},
+                "voice": {"languageCode": language_code, "name": voice_name},
+                "audioConfig": {"audioEncoding": "MP3", "speakingRate": 0.95, "pitch": 0}
+            }
+
+            response = requests.post(tts_url, json=payload, timeout=60)
+
+            if response.status_code != 200:
+                print(f"[AUTOMATION] TTS API 오류 {i+1}: {response.status_code}")
+                audio_data.append(None)
+                continue
+
+            result = response.json()
+            audio_content = result.get("audioContent", "")
+
+            if not audio_content:
+                audio_data.append(None)
+                continue
+
+            # MP3 파일 저장
+            audio_bytes = base64.b64decode(audio_content)
+            audio_filename = f"{episode_id}_scene_{i+1}.mp3"
+            audio_path = os.path.join(uploads_dir, audio_filename)
+
+            with open(audio_path, 'wb') as f:
+                f.write(audio_bytes)
+
+            # 오디오 길이 측정
+            duration = 5.0  # 기본값
+            try:
+                probe_cmd = [
+                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+                ]
+                result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+                if result.stdout.strip():
+                    duration = float(result.stdout.strip())
+            except Exception as e:
+                print(f"[AUTOMATION] 오디오 길이 측정 실패 {i+1}: {e}")
+
+            audio_data.append({
+                "path": audio_path,
+                "url": f"/uploads/{audio_filename}",
+                "duration": duration
+            })
+
+            print(f"[AUTOMATION] TTS 완료 {i+1}: {duration:.1f}초")
+
+        return {"ok": True, "audio_data": audio_data}
+
+    except Exception as e:
+        print(f"[AUTOMATION] TTS 생성 오류: {e}")
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 
@@ -14681,39 +14878,6 @@ NO realistic humans, NO elderly people. ONLY stickman character."""
         return {"ok": False, "error": str(e)}
 
 
-def _automation_generate_tts(scenes, episode_id):
-    """TTS 생성"""
-    try:
-        from step3_tts_and_subtitles import run_tts_pipeline
-
-        # 씬 데이터 준비
-        tts_scenes = []
-        for i, scene in enumerate(scenes):
-            narration = scene.get('narration', '')
-            if narration:
-                tts_scenes.append({
-                    "id": scene.get('scene_id', f'scene_{i+1}'),
-                    "narration": narration
-                })
-
-        if not tts_scenes:
-            return {"ok": False, "error": "나레이션이 없습니다"}
-
-        data = {
-            "episode_id": episode_id,
-            "language": "ko-KR",
-            "voice": {"gender": "FEMALE", "name": "ko-KR-Neural2-A", "speaking_rate": 0.95},
-            "scenes": tts_scenes
-        }
-
-        result = run_tts_pipeline(data)
-        return result
-
-    except Exception as e:
-        print(f"[AUTOMATION] TTS 생성 오류: {e}")
-        return {"ok": False, "error": str(e)}
-
-
 def _automation_generate_video(scenes, episode_id, output_dir):
     """영상 생성 - FFmpeg로 이미지 + 오디오 결합"""
     import subprocess
@@ -14725,29 +14889,18 @@ def _automation_generate_video(scenes, episode_id, output_dir):
 
             for i, scene in enumerate(scenes):
                 image_path = scene.get('image_path')
-                audio_url = scene.get('audio_url', '')
+                audio_path = scene.get('audio_path', '')  # audio_path 직접 사용
 
                 if not image_path or not os.path.exists(image_path):
-                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 이미지 없음")
+                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 이미지 없음: {image_path}")
                     continue
-
-                # 오디오 파일 경로
-                if audio_url.startswith('/'):
-                    audio_path = os.path.join(os.path.dirname(__file__), audio_url.lstrip('/'))
-                else:
-                    audio_path = audio_url
 
                 if not audio_path or not os.path.exists(audio_path):
-                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 오디오 없음")
+                    print(f"[AUTOMATION] 씬 {i+1} 스킵 - 오디오 없음: {audio_path}")
                     continue
 
-                # 오디오 길이 확인
-                probe_cmd = [
-                    'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
-                ]
-                result = subprocess.run(probe_cmd, capture_output=True, text=True)
-                duration = float(result.stdout.strip()) if result.stdout.strip() else 5.0
+                # 오디오 길이 (scene에서 가져오거나 측정)
+                duration = scene.get('duration', 5.0)
 
                 # 씬 클립 생성
                 clip_path = os.path.join(temp_dir, f"clip_{i}.mp4")
@@ -14763,11 +14916,12 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                     clip_path
                 ]
 
+                print(f"[AUTOMATION] 클립 생성 중 {i+1}/{len(scenes)}: {duration:.1f}초")
                 subprocess.run(ffmpeg_cmd, capture_output=True, timeout=120)
 
                 if os.path.exists(clip_path):
                     clip_paths.append(clip_path)
-                    print(f"[AUTOMATION] 클립 생성: {clip_path}")
+                    print(f"[AUTOMATION] 클립 생성 완료: {clip_path}")
 
             if not clip_paths:
                 return {"ok": False, "error": "생성된 클립이 없습니다"}
@@ -14787,6 +14941,7 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                 final_video
             ]
 
+            print(f"[AUTOMATION] 최종 영상 병합 중... ({len(clip_paths)}개 클립)")
             subprocess.run(concat_cmd, capture_output=True, timeout=300)
 
             if os.path.exists(final_video):
@@ -14796,6 +14951,8 @@ def _automation_generate_video(scenes, episode_id, output_dir):
 
     except Exception as e:
         print(f"[AUTOMATION] 영상 생성 오류: {e}")
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 
