@@ -14135,13 +14135,27 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
             # 방법 1: images 필드 확인 (다양한 형식 지원)
             images = message.get("images")
             if images:
-                print(f"[THUMBNAIL-AI] images 발견: 타입={type(images)}")
+                print(f"[THUMBNAIL-AI] images 발견: 타입={type(images)}, 길이={len(images) if isinstance(images, list) else 'N/A'}")
                 if isinstance(images, list) and len(images) > 0:
                     img = images[0]
+                    print(f"[THUMBNAIL-AI] images[0] 타입={type(img)}, 내용={str(img)[:200] if img else 'None'}")
                     if isinstance(img, str):
                         base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
                     elif isinstance(img, dict):
-                        base64_image_data = img.get("b64_json") or img.get("base64") or img.get("data")
+                        # 다양한 키 시도
+                        base64_image_data = (
+                            img.get("b64_json") or
+                            img.get("base64") or
+                            img.get("data") or
+                            img.get("image_data") or
+                            img.get("bytes")
+                        )
+                        # url 형식 (data:image/... 포함)
+                        if not base64_image_data:
+                            url = img.get("url") or img.get("source") or img.get("src")
+                            if url and isinstance(url, str) and url.startswith("data:image"):
+                                base64_image_data = url.split(",", 1)[1]
+                                print(f"[THUMBNAIL-AI] images[0].url에서 추출 성공")
                 elif isinstance(images, str):
                     base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
 
