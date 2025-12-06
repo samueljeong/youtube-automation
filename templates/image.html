@@ -149,6 +149,8 @@
 
     .youtube-channel-area {
       min-height: 40px;
+      max-height: 200px;
+      overflow-y: auto;
     }
 
     .youtube-channel-area .channel-loading {
@@ -156,88 +158,119 @@
       font-size: 13px;
     }
 
-    .youtube-channel-area .channel-chips-row {
+    .youtube-channel-area .channel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .youtube-channel-area .channel-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .youtube-channel-area .channel-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: 10px;
+      padding: 8px 12px;
       background: #fff;
-      border: 2px solid #e5e7eb;
-      border-radius: 20px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s;
-      font-size: 13px;
-      font-weight: 500;
     }
 
-    .youtube-channel-area .channel-chip:hover {
+    .youtube-channel-area .channel-item:hover {
       border-color: #f59e0b;
       background: #fffbeb;
     }
 
-    .youtube-channel-area .channel-chip.selected {
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      border-color: #d97706;
-      color: white;
+    .youtube-channel-area .channel-item.selected {
+      background: #fef3c7;
+      border-color: #f59e0b;
     }
 
-    .youtube-channel-area .channel-chip .chip-thumb {
-      width: 20px;
-      height: 20px;
+    .youtube-channel-area .channel-item .channel-radio {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #d1d5db;
       border-radius: 50%;
-      object-fit: cover;
-    }
-
-    .youtube-channel-area .channel-chip .chip-content {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-    }
-
-    .youtube-channel-area .channel-chip .chip-delete {
-      display: none;
-      width: 18px;
-      height: 18px;
-      padding: 0;
-      margin-left: 4px;
-      background: rgba(239, 68, 68, 0.8);
-      color: white;
-      border: none;
-      border-radius: 50%;
-      font-size: 14px;
-      line-height: 1;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .youtube-channel-area .channel-chip:hover .chip-delete {
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
 
-    .youtube-channel-area .channel-chip .chip-delete:hover {
+    .youtube-channel-area .channel-item.selected .channel-radio {
+      border-color: #f59e0b;
+    }
+
+    .youtube-channel-area .channel-item.selected .channel-radio::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #f59e0b;
+      border-radius: 50%;
+    }
+
+    .youtube-channel-area .channel-item .channel-thumb {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+
+    .youtube-channel-area .channel-item .channel-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 500;
+      color: #333;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .youtube-channel-area .channel-item .channel-delete {
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      background: #fee2e2;
+      color: #dc2626;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      opacity: 0;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .youtube-channel-area .channel-item:hover .channel-delete {
+      opacity: 1;
+    }
+
+    .youtube-channel-area .channel-item .channel-delete:hover {
       background: #dc2626;
-      transform: scale(1.1);
+      color: white;
     }
 
-    .youtube-channel-area .channel-chip.add-channel {
-      background: #fff;
-      border-style: dashed;
-      color: #666;
+    .youtube-channel-area .btn-add-channel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px;
+      background: transparent;
+      border: 1px dashed #d1d5db;
+      border-radius: 8px;
+      color: #6b7280;
+      font-size: 13px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
     }
 
-    .youtube-channel-area .channel-chip.add-channel:hover {
-      background: #f3f4f6;
-      border-color: #9ca3af;
+    .youtube-channel-area .btn-add-channel:hover {
+      border-color: #f59e0b;
+      color: #f59e0b;
+      background: #fffbeb;
     }
 
     .youtube-channel-area .login-prompt {

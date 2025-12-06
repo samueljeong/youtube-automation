@@ -2006,8 +2006,8 @@ const ImageMain = {
         return;
       }
 
-      // 칩 형태로 채널 표시 (한 줄에)
-      let html = '<div class="channel-chips-row">';
+      // 리스트 형태로 채널 표시 (세로)
+      let html = '<div class="channel-list">';
 
       // 이전에 선택된 채널 유지, 없으면 첫 번째 선택
       const previousSelectedId = this.selectedChannelId;
@@ -2020,16 +2020,14 @@ const ImageMain = {
           foundPrevious = true;
         }
         const isExpired = channel.expired;
-        const chipClass = `channel-chip${isSelected ? ' selected' : ''}${isExpired ? ' expired' : ''}`;
+        const itemClass = `channel-item${isSelected ? ' selected' : ''}${isExpired ? ' expired' : ''}`;
 
         html += `
-          <div class="${chipClass}" data-channel-id="${channel.id}">
-            <div class="chip-content" onclick="ImageMain.selectChannel('${channel.id}')">
-              <img class="chip-thumb" src="${channel.thumbnail || ''}" alt="" onerror="this.style.display='none'">
-              <span class="chip-name">${this.escapeHtml(channel.title)}</span>
-              ${isExpired ? '<span class="chip-expired">⚠️</span>' : ''}
-            </div>
-            <button class="chip-delete" onclick="event.stopPropagation(); ImageMain.deleteChannel('${channel.id}')" title="삭제">×</button>
+          <div class="${itemClass}" data-channel-id="${channel.id}" onclick="ImageMain.selectChannel('${channel.id}')">
+            <div class="channel-radio"></div>
+            <img class="channel-thumb" src="${channel.thumbnail || ''}" alt="" onerror="this.style.display='none'">
+            <span class="channel-name">${this.escapeHtml(channel.title)}${isExpired ? ' ⚠️' : ''}</span>
+            <button class="channel-delete" onclick="event.stopPropagation(); ImageMain.deleteChannel('${channel.id}')" title="삭제">×</button>
           </div>
         `;
       });
@@ -2040,12 +2038,11 @@ const ImageMain = {
       }
 
       // 계정 추가 버튼
-      html += `<a href="/api/youtube/auth?force=1" class="channel-chip add-channel">➕ 추가</a>`;
+      html += `<a href="/api/youtube/auth?force=1" class="btn-add-channel">➕ 채널 추가</a>`;
       html += '</div>';
 
-      // 상단, 하단 둘 다 업데이트
+      // 상단 영역만 업데이트 (하단은 더 이상 사용 안함)
       if (topContainer) topContainer.innerHTML = html;
-      if (bottomContainer) bottomContainer.innerHTML = html;
 
       // 채널 선택됨 → 분석 버튼 활성화
       this.updateAnalyzeButtonState(true);
@@ -2088,7 +2085,7 @@ const ImageMain = {
     this.selectedChannelId = channelId;
 
     // UI 업데이트
-    document.querySelectorAll('.channel-chip[data-channel-id]').forEach(el => {
+    document.querySelectorAll('.channel-item[data-channel-id]').forEach(el => {
       const isSelected = el.dataset.channelId === channelId;
       el.classList.toggle('selected', isSelected);
     });
