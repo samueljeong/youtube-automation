@@ -14502,6 +14502,22 @@ def run_automation_pipeline(row_data, row_index):
             traceback.print_exc()
             return {"ok": False, "error": f"병렬 생성 오류: {str(e)}", "video_url": None}
 
+        # ========== STEP 2.5: 썸네일 생성 ==========
+        thumbnail_path = None
+        if thumbnail_data and thumbnail_data.get('prompt'):
+            print(f"[AUTOMATION] Step 2.5: 썸네일 생성 시작...")
+            try:
+                thumb_result = _automation_generate_thumbnail(thumbnail_data, episode_id, output_dir)
+                if thumb_result.get('ok'):
+                    thumbnail_path = thumb_result.get('path')
+                    print(f"[AUTOMATION] Step 2.5 완료: {thumbnail_path}")
+                else:
+                    print(f"[AUTOMATION] 썸네일 생성 실패 (계속 진행): {thumb_result.get('error')}")
+            except Exception as e:
+                print(f"[AUTOMATION] 썸네일 생성 오류 (계속 진행): {e}")
+        else:
+            print(f"[AUTOMATION] 썸네일 데이터 없음 - 스킵")
+
         # ========== STEP 3: 영상 생성 (FFmpeg) ==========
         print(f"[AUTOMATION] Step 3: 영상 생성 시작...")
         try:
@@ -14524,12 +14540,14 @@ def run_automation_pipeline(row_data, row_index):
                 title=title,
                 description=description,
                 visibility=visibility,
-                channel_id=channel_id
+                channel_id=channel_id,
+                thumbnail_path=thumbnail_path
             )
 
             if upload_result.get('ok'):
                 video_url = upload_result.get('video_url', '')
-                print(f"[AUTOMATION] Step 4 완료: {video_url}")
+                thumb_status = " (썸네일 포함)" if upload_result.get('thumbnail_uploaded') else ""
+                print(f"[AUTOMATION] Step 4 완료: {video_url}{thumb_status}")
                 return {"ok": True, "video_url": video_url, "error": None}
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_result.get('error')}", "video_url": None}
@@ -14721,7 +14739,7 @@ def _automation_generate_tts_neural2(scenes, episode_id, uploads_dir):
         if not api_key:
             return {"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}
 
-        voice_name = "ko-KR-Neural2-A"  # 여성 Neural2 음성 (고품질)
+        voice_name = "ko-KR-Neural2-C"  # 남성 Neural2 음성 (고품질)
         language_code = "ko-KR"
 
         audio_data = []
@@ -14794,6 +14812,100 @@ def _automation_generate_tts_neural2(scenes, episode_id, uploads_dir):
         return {"ok": False, "error": str(e)}
 
 
+def _automation_generate_thumbnail(thumbnail_data, episode_id, output_dir):
+    """썸네일 이미지 생성 - OpenRouter Gemini 사용"""
+    try:
+        import requests as req
+        import base64
+
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not openrouter_api_key:
+            return {"ok": False, "error": "OPENROUTER_API_KEY 없음"}
+
+        prompt = thumbnail_data.get('prompt', '')
+        if not prompt:
+            return {"ok": False, "error": "썸네일 프롬프트 없음"}
+
+        print(f"[AUTOMATION] 썸네일 생성 시작...")
+
+        headers = {
+            "Authorization": f"Bearer {openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://drama-generator.app",
+            "X-Title": "Drama Automation Thumbnail"
+        }
+
+        payload = {
+            "model": "google/gemini-2.5-flash-image-preview",
+            "modalities": ["text", "image"],
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+        }
+
+        response = req.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=120
+        )
+
+        if response.status_code != 200:
+            return {"ok": False, "error": f"API 오류: {response.status_code}"}
+
+        result = response.json()
+        choices = result.get("choices", [])
+        if not choices:
+            return {"ok": False, "error": "응답에 choices 없음"}
+
+        message = choices[0].get("message", {})
+
+        # 이미지 추출
+        images = message.get("images", [])
+        base64_data = None
+
+        if images:
+            for img in images:
+                if isinstance(img, str):
+                    if img.startswith("data:"):
+                        base64_data = img.split(",", 1)[1] if "," in img else img
+                    else:
+                        base64_data = img
+                elif isinstance(img, dict):
+                    if img.get("type") == "image_url":
+                        url = img.get("image_url", {}).get("url", "")
+                        if url.startswith("data:"):
+                            base64_data = url.split(",", 1)[1] if "," in url else url
+                if base64_data:
+                    break
+
+        if not base64_data:
+            # content에서 찾기
+            content = message.get("content", [])
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "image":
+                        base64_data = item.get("data", "")
+                        if base64_data:
+                            break
+
+        if not base64_data:
+            return {"ok": False, "error": "이미지 데이터 없음"}
+
+        # 파일 저장
+        image_bytes = base64.b64decode(base64_data)
+        filename = f"thumbnail_{episode_id}.png"
+        filepath = os.path.join(output_dir, filename)
+
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+
+        print(f"[AUTOMATION] 썸네일 생성 완료: {filepath}")
+        return {"ok": True, "path": filepath}
+
+    except Exception as e:
+        print(f"[AUTOMATION] 썸네일 생성 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def _automation_generate_image(prompt, episode_id, scene_index):
     """이미지 생성 - OpenRouter Gemini 사용"""
     try:
@@ -14808,9 +14920,10 @@ def _automation_generate_image(prompt, episode_id, scene_index):
 
 {prompt}
 
-Style: detailed anime background, Ghibli-inspired, warm colors, soft lighting.
-Character: simple white stickman with round head, two black dot eyes, small mouth.
-NO realistic humans, NO elderly people. ONLY stickman character."""
+Style: Korean webtoon/manhwa illustration style. Clean vector-like artwork with bold outlines.
+Character: Cartoon/webtoon style character with EXAGGERATED facial expressions. Simple but expressive features.
+Colors: Vibrant, saturated colors with dramatic lighting.
+NO realistic humans, NO photorealistic style. Webtoon art style only."""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
@@ -14986,17 +15099,23 @@ NO realistic humans, NO elderly people. ONLY stickman character."""
 
 
 def _automation_generate_video(scenes, episode_id, output_dir):
-    """영상 생성 - FFmpeg로 이미지 + 오디오 결합"""
+    """영상 생성 - FFmpeg로 이미지 + 오디오 + 자막 결합"""
     import subprocess
     import tempfile
+    import re
 
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             clip_paths = []
 
+            # 전체 자막 데이터 수집 (전체 영상용)
+            all_subtitles = []
+            current_time = 0.0
+
             for i, scene in enumerate(scenes):
                 image_path = scene.get('image_path')
-                audio_path = scene.get('audio_path', '')  # audio_path 직접 사용
+                audio_path = scene.get('audio_path', '')
+                narration = scene.get('narration', '')
 
                 if not image_path or not os.path.exists(image_path):
                     print(f"[AUTOMATION] 씬 {i+1} 스킵 - 이미지 없음: {image_path}")
@@ -15006,10 +15125,18 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                     print(f"[AUTOMATION] 씬 {i+1} 스킵 - 오디오 없음: {audio_path}")
                     continue
 
-                # 오디오 길이 (scene에서 가져오거나 측정)
                 duration = scene.get('duration', 5.0)
 
-                # 씬 클립 생성
+                # 자막 타이밍 추가
+                if narration:
+                    all_subtitles.append({
+                        'start': current_time,
+                        'end': current_time + duration - 0.2,
+                        'text': narration
+                    })
+                current_time += duration
+
+                # 씬 클립 생성 (자막은 나중에 전체 영상에 합성)
                 clip_path = os.path.join(temp_dir, f"clip_{i}.mp4")
                 ffmpeg_cmd = [
                     'ffmpeg', '-y',
@@ -15024,7 +15151,6 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                 ]
 
                 print(f"[AUTOMATION] 클립 생성 중 {i+1}/{len(scenes)}: {duration:.1f}초")
-                # 타임아웃을 동적으로 설정 (최소 180초, 또는 duration + 60초)
                 clip_timeout = max(180, int(duration) + 60)
                 subprocess.run(ffmpeg_cmd, capture_output=True, timeout=clip_timeout)
 
@@ -15035,25 +15161,77 @@ def _automation_generate_video(scenes, episode_id, output_dir):
             if not clip_paths:
                 return {"ok": False, "error": "생성된 클립이 없습니다"}
 
-            # 클립 병합
+            # 클립 병합 (자막 없이)
             concat_file = os.path.join(temp_dir, "concat.txt")
             with open(concat_file, 'w') as f:
                 for clip_path in clip_paths:
                     f.write(f"file '{clip_path}'\n")
 
-            final_video = os.path.join(output_dir, f"{episode_id}_final.mp4")
+            merged_video = os.path.join(temp_dir, "merged.mp4")
             concat_cmd = [
                 'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
                 '-i', concat_file,
                 '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
                 '-c:a', 'aac', '-b:a', '192k',
-                final_video
+                merged_video
             ]
 
-            print(f"[AUTOMATION] 최종 영상 병합 중... ({len(clip_paths)}개 클립)")
+            print(f"[AUTOMATION] 클립 병합 중... ({len(clip_paths)}개 클립)")
             subprocess.run(concat_cmd, capture_output=True, timeout=300)
 
+            if not os.path.exists(merged_video):
+                return {"ok": False, "error": "클립 병합 실패"}
+
+            final_video = os.path.join(output_dir, f"{episode_id}_final.mp4")
+
+            # 자막이 있으면 하드코딩
+            if all_subtitles:
+                print(f"[AUTOMATION] 자막 하드코딩 중... ({len(all_subtitles)}개 자막)")
+
+                # SRT 형식 생성
+                def format_srt_time(seconds):
+                    hours = int(seconds // 3600)
+                    minutes = int((seconds % 3600) // 60)
+                    secs = int(seconds % 60)
+                    millis = int((seconds - int(seconds)) * 1000)
+                    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+                srt_path = os.path.join(temp_dir, "subtitles.srt")
+                with open(srt_path, 'w', encoding='utf-8') as f:
+                    for i, sub in enumerate(all_subtitles, 1):
+                        f.write(f"{i}\n")
+                        f.write(f"{format_srt_time(sub['start'])} --> {format_srt_time(sub['end'])}\n")
+                        f.write(f"{sub['text']}\n\n")
+
+                # 자막 스타일 (한글 최적화)
+                subtitle_style = "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=30"
+
+                # FFmpeg 자막 필터
+                escaped_srt = srt_path.replace('\\', '\\\\').replace(':', '\\:')
+                vf_filter = f"subtitles={escaped_srt}:force_style='{subtitle_style}'"
+
+                subtitle_cmd = [
+                    'ffmpeg', '-y',
+                    '-i', merged_video,
+                    '-vf', vf_filter,
+                    '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                    '-c:a', 'copy',
+                    final_video
+                ]
+
+                result = subprocess.run(subtitle_cmd, capture_output=True, timeout=600)
+                if result.returncode != 0:
+                    print(f"[AUTOMATION] 자막 하드코딩 실패: {result.stderr.decode()[:500]}")
+                    # 자막 실패시 병합 영상 사용
+                    import shutil
+                    shutil.copy(merged_video, final_video)
+            else:
+                # 자막 없으면 병합 영상 그대로 사용
+                import shutil
+                shutil.copy(merged_video, final_video)
+
             if os.path.exists(final_video):
+                print(f"[AUTOMATION] 최종 영상 생성 완료: {final_video}")
                 return {"ok": True, "video_path": final_video}
             else:
                 return {"ok": False, "error": "최종 영상 생성 실패"}
@@ -15065,8 +15243,8 @@ def _automation_generate_video(scenes, episode_id, output_dir):
         return {"ok": False, "error": str(e)}
 
 
-def _automation_youtube_upload(video_path, title, description, visibility, channel_id):
-    """YouTube 업로드"""
+def _automation_youtube_upload(video_path, title, description, visibility, channel_id, thumbnail_path=None):
+    """YouTube 업로드 (썸네일 포함)"""
     try:
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
@@ -15138,7 +15316,29 @@ def _automation_youtube_upload(video_path, title, description, visibility, chann
         video_url = f"https://www.youtube.com/watch?v={video_id}"
 
         print(f"[AUTOMATION] YouTube 업로드 완료: {video_url}")
-        return {"ok": True, "video_url": video_url, "video_id": video_id}
+
+        # 썸네일 업로드
+        thumbnail_uploaded = False
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            try:
+                print(f"[AUTOMATION] 썸네일 업로드 시작: {thumbnail_path}")
+                thumb_request = youtube.thumbnails().set(
+                    videoId=video_id,
+                    media_body=MediaFileUpload(thumbnail_path, mimetype='image/png')
+                )
+                thumb_request.execute()
+                thumbnail_uploaded = True
+                print(f"[AUTOMATION] 썸네일 업로드 완료!")
+            except Exception as thumb_error:
+                print(f"[AUTOMATION] 썸네일 업로드 실패: {thumb_error}")
+                # 썸네일 실패해도 영상 업로드는 성공한 것으로 처리
+
+        return {
+            "ok": True,
+            "video_url": video_url,
+            "video_id": video_id,
+            "thumbnail_uploaded": thumbnail_uploaded
+        }
 
     except Exception as e:
         print(f"[AUTOMATION] YouTube 업로드 오류: {e}")

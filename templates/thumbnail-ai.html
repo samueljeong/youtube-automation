@@ -32,6 +32,37 @@
     }
     header p { color: #888; font-size: 1.1rem; }
 
+    .btn-generate-variant {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      color: #fff;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+    }
+    .btn-generate-variant:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 15px rgba(240, 147, 251, 0.4);
+    }
+    .btn-generate-variant:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .pending-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 200px;
+      color: #888;
+      text-align: center;
+      padding: 20px;
+    }
+    .pending-placeholder p {
+      margin-bottom: 15px;
+      font-size: 0.95rem;
+    }
+
     .main-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -366,7 +397,7 @@
 
     <header>
       <h1>AI 썸네일 생성기</h1>
-      <p>GPT-5.1이 대본을 분석하고, Gemini 3 Pro가 YouTube Test & Compare용 썸네일 3개를 생성합니다</p>
+      <p>GPT-5.1이 대본을 분석하고, Gemini 3 Pro가 최적화된 썸네일을 생성합니다</p>
     </header>
 
     <div class="main-grid">
@@ -394,7 +425,7 @@
         <div class="form-group">
           <label>대본</label>
           <textarea id="script" placeholder="대본 내용을 입력하세요. AI가 분석하여 최적의 썸네일 컨셉을 제안합니다."></textarea>
-          <small>대본의 핵심 내용을 바탕으로 A/B/C 3가지 썸네일 프롬프트가 생성됩니다. (YouTube Test & Compare용)</small>
+          <small>대본의 핵심 내용을 바탕으로 최적화된 썸네일 A가 생성됩니다. B/C는 필요시 추가 생성 가능합니다.</small>
         </div>
 
         <button class="btn btn-primary" id="btn-analyze" onclick="analyzeThumbnail()">
@@ -414,18 +445,18 @@
         <div id="initial-state">
           <p style="color: #888; text-align: center; padding: 60px 0;">
             왼쪽에서 대본을 입력하고 AI 분석을 시작하세요.<br>
-            YouTube Test & Compare용 썸네일 3개가 생성됩니다.
+            최적화된 썸네일 A가 생성됩니다.
           </p>
         </div>
 
         <div class="thumbnail-preview" id="thumbnail-preview">
-          <h3>A/B/C 썸네일 비교 (YouTube Test & Compare)</h3>
+          <h3>썸네일 미리보기</h3>
           <div class="thumbnail-grid" id="thumbnail-grid"></div>
 
-          <!-- ZIP 다운로드 버튼 -->
-          <div style="margin-top: 20px; text-align: center;">
+          <!-- ZIP 다운로드 버튼 (생성된 것만) -->
+          <div style="margin-top: 20px; text-align: center;" id="zip-download-section" style="display:none;">
             <button class="btn btn-primary" id="btn-download-zip" onclick="downloadAllAsZip()" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
-              <span>📦</span> 3개 모두 ZIP 다운로드 (YouTube Test & Compare용)
+              <span>📦</span> 생성된 썸네일 ZIP 다운로드
             </button>
           </div>
 
@@ -484,7 +515,7 @@
     let currentImageUrls = {};
     let pendingSelection = null;
 
-    // 썸네일 분석 시작
+    // 썸네일 분석 시작 (A만 생성)
     async function analyzeThumbnail() {
       const title = document.getElementById('title').value.trim();
       const genre = document.getElementById('genre').value;
@@ -523,32 +554,34 @@
         `;
         conceptPreview.classList.add('active');
 
-        // 2. Gemini 3 Pro로 A/B 이미지 생성
-        showLoading('썸네일 이미지를 생성하고 있습니다... (약 30초 소요)');
+        // 2. Gemini 3 Pro로 A만 생성
+        showLoading('썸네일 A를 생성하고 있습니다... (약 20초 소요)');
 
-        const generateRes = await fetch('/api/thumbnail-ai/generate-both', {
+        const promptA = currentPrompts.A;
+        const generateRes = await fetch('/api/thumbnail-ai/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             session_id: currentSession,
-            prompts: currentPrompts
+            variant: 'A',
+            prompt: promptA.prompt,
+            text_overlay: promptA.text_overlay,
+            style: promptA.style
           })
         });
         const generateData = await generateRes.json();
 
-        if (!generateData.ok) {
-          throw new Error(generateData.error || '이미지 생성 실패');
-        }
-
-        // 결과 저장 (A/B/C)
+        // 결과 저장 (A만)
         currentImageUrls = {
-          A: generateData.results.A?.image_url,
-          B: generateData.results.B?.image_url,
-          C: generateData.results.C?.image_url
+          A: generateData.ok ? generateData.image_url : null,
+          B: null,
+          C: null
         };
 
-        // UI 업데이트
-        renderThumbnails(generateData.results);
+        // UI 업데이트 (A 생성됨, B/C는 대기)
+        renderThumbnails({
+          A: generateData
+        });
         loadStats();
 
       } catch (error) {
@@ -559,7 +592,84 @@
       }
     }
 
-    // 썸네일 렌더링 (A/B/C)
+    // 개별 썸네일 생성 (B 또는 C)
+    async function generateVariant(variant) {
+      if (!currentSession || !currentPrompts || !currentPrompts[variant]) {
+        alert('먼저 AI 분석을 실행해주세요.');
+        return;
+      }
+
+      const btn = document.getElementById(`btn-generate-${variant}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '생성 중...';
+      }
+
+      try {
+        const promptData = currentPrompts[variant];
+        const res = await fetch('/api/thumbnail-ai/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSession,
+            variant: variant,
+            prompt: promptData.prompt,
+            text_overlay: promptData.text_overlay,
+            style: promptData.style
+          })
+        });
+        const data = await res.json();
+
+        if (data.ok && data.image_url) {
+          currentImageUrls[variant] = data.image_url;
+          updateVariantCard(variant, data);
+        } else {
+          alert(`썸네일 ${variant} 생성 실패: ` + (data.error || '알 수 없는 오류'));
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = `${variant} 생성하기`;
+          }
+        }
+      } catch (error) {
+        console.error('Generate error:', error);
+        alert(`썸네일 ${variant} 생성 오류: ` + error.message);
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = `${variant} 생성하기`;
+        }
+      }
+    }
+
+    // 개별 카드 업데이트 (생성 완료 시)
+    function updateVariantCard(variant, result) {
+      const card = document.querySelector(`.thumbnail-card[data-variant="${variant}"]`);
+      if (!card) return;
+
+      const promptData = currentPrompts[variant];
+      card.innerHTML = `
+        <div class="image-wrapper">
+          <img src="${result.image_url}" alt="썸네일 ${variant}">
+          <span class="variant-badge">옵션 ${variant}</span>
+        </div>
+        <div class="card-info">
+          <h4>${promptData?.description || '썸네일 ' + variant}</h4>
+          <p><strong>텍스트:</strong> ${promptData?.text_overlay?.main || '-'}</p>
+          <p><strong>스타일:</strong> ${promptData?.style || '-'}</p>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-select" onclick="selectThumbnail('${variant}')">이 썸네일 선택</button>
+          <button class="btn btn-secondary" onclick="downloadThumbnail('${variant}', '${result.image_url}')">다운로드</button>
+        </div>
+      `;
+
+      // ZIP 다운로드 섹션 표시 (2개 이상 생성 시)
+      const generatedCount = Object.values(currentImageUrls).filter(u => u).length;
+      if (generatedCount >= 2) {
+        document.getElementById('zip-download-section').style.display = 'block';
+      }
+    }
+
+    // 썸네일 렌더링 (A만 생성, B/C는 대기)
     function renderThumbnails(results) {
       document.getElementById('initial-state').style.display = 'none';
       document.getElementById('thumbnail-preview').classList.add('active');
@@ -567,8 +677,8 @@
       const grid = document.getElementById('thumbnail-grid');
       grid.innerHTML = '';
 
-      // C가 있으면 A/B/C, 없으면 A/B만
-      const variants = results.C ? ['A', 'B', 'C'] : ['A', 'B'];
+      // A/B/C 모두 표시 (B/C는 생성 버튼)
+      const variants = ['A', 'B', 'C'];
 
       variants.forEach(variant => {
         const result = results[variant];
@@ -579,6 +689,7 @@
         card.dataset.variant = variant;
 
         if (result?.ok && result?.image_url) {
+          // 생성 완료된 썸네일 (A)
           card.innerHTML = `
             <div class="image-wrapper">
               <img src="${result.image_url}" alt="썸네일 ${variant}">
@@ -594,20 +705,33 @@
               <button class="btn btn-secondary" onclick="downloadThumbnail('${variant}', '${result.image_url}')">다운로드</button>
             </div>
           `;
-        } else {
+        } else if (promptData) {
+          // 아직 생성 안됨 (B/C) - 생성 버튼 표시
           card.innerHTML = `
-            <div class="image-wrapper" style="display:flex;align-items:center;justify-content:center;color:#888;">
-              <span>이미지 생성 실패</span>
+            <div class="image-wrapper">
+              <div class="pending-placeholder">
+                <p>옵션 ${variant}<br><small>${promptData?.description || ''}</small></p>
+                <button class="btn btn-generate-variant" id="btn-generate-${variant}" onclick="generateVariant('${variant}')">
+                  ${variant} 생성하기
+                </button>
+              </div>
             </div>
             <div class="card-info">
-              <h4>옵션 ${variant}</h4>
-              <p style="color:#ff6b6b;">${result?.error || '알 수 없는 오류'}</p>
+              <h4>${promptData?.description || '썸네일 ' + variant}</h4>
+              <p><strong>텍스트:</strong> ${promptData?.text_overlay?.main || '-'}</p>
+              <p><strong>스타일:</strong> ${promptData?.style || '-'}</p>
             </div>
           `;
+        } else {
+          // 프롬프트 없음 (표시 안함)
+          card.style.display = 'none';
         }
 
         grid.appendChild(card);
       });
+
+      // ZIP 다운로드는 2개 이상 생성 시만 표시
+      document.getElementById('zip-download-section').style.display = 'none';
     }
 
     // 썸네일 선택
