@@ -14392,23 +14392,26 @@ def run_automation_pipeline(row_data, row_index):
 
     try:
         # 시트 컬럼 구조:
-        # A(0): 상태, B(1): 예약시간, C(2): 채널ID, D(3): 대본, E(4): 제목
-        # F(5): 공개설정, G(6): 영상URL(출력), H(7): 에러메시지(출력)
-        # I(8): 음성(선택), J(9): 타겟(선택)
+        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 예약시간
+        # E(4): 대본, F(5): 제목, G(6): 공개설정
+        # H(7): 영상URL(출력), I(8): 에러메시지(출력)
+        # J(9): 음성(선택), K(10): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
-        scheduled_time = row_data[1] if len(row_data) > 1 else ''
+        work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = row_data[2] if len(row_data) > 2 else ''
-        script = row_data[3] if len(row_data) > 3 else ''
-        title = row_data[4] if len(row_data) > 4 else ''
-        visibility = row_data[5] if len(row_data) > 5 else 'private'
-        # G(6), H(7)은 출력 컬럼이므로 스킵
-        voice = row_data[8] if len(row_data) > 8 else 'ko-KR-Neural2-C'  # I컬럼: 음성 (기본: 남성)
-        audience = row_data[9] if len(row_data) > 9 else 'senior'  # J컬럼: 타겟 시청자
+        publish_time = row_data[3] if len(row_data) > 3 else ''  # D: 예약시간 (YouTube 공개용)
+        script = row_data[4] if len(row_data) > 4 else ''
+        title = row_data[5] if len(row_data) > 5 else ''
+        visibility = row_data[6] if len(row_data) > 6 else 'private'
+        # H(7), I(8)은 출력 컬럼이므로 스킵
+        voice = row_data[9] if len(row_data) > 9 else 'ko-KR-Neural2-C'  # J컬럼: 음성 (기본: 남성)
+        audience = row_data[10] if len(row_data) > 10 else 'senior'  # K컬럼: 타겟 시청자
 
         print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
-        print(f"  - 예약시간: {scheduled_time}")
+        print(f"  - 작업시간: {work_time}")
         print(f"  - 채널ID: {channel_id}")
+        print(f"  - 예약시간: {publish_time or '(없음 - 즉시 공개)'}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
         print(f"  - 공개설정: {visibility}")
@@ -14592,6 +14595,57 @@ def run_automation_pipeline(row_data, row_index):
             # 썸네일이 있으면 추가
             if thumbnail_url:
                 upload_payload["thumbnailPath"] = thumbnail_url
+
+            # 예약시간(K열)이 있으면 ISO 8601 형식으로 변환하여 추가
+            if publish_time:
+                try:
+                    from datetime import datetime
+                    import re
+
+                    # 다양한 형식 지원: "2024-12-06 15:00", "2024/12/06 15:00", "12/06 15:00" 등
+                    publish_time_str = str(publish_time).strip()
+
+                    # 이미 ISO 8601 형식이면 그대로 사용
+                    if 'T' in publish_time_str and publish_time_str.endswith('Z'):
+                        publish_at_iso = publish_time_str
+                    else:
+                        # 일반적인 날짜 형식 파싱 시도
+                        parsed_dt = None
+                        formats_to_try = [
+                            "%Y-%m-%d %H:%M:%S",
+                            "%Y-%m-%d %H:%M",
+                            "%Y/%m/%d %H:%M:%S",
+                            "%Y/%m/%d %H:%M",
+                            "%m/%d %H:%M",  # 월/일만 있으면 현재 연도 사용
+                            "%m-%d %H:%M",
+                        ]
+
+                        for fmt in formats_to_try:
+                            try:
+                                parsed_dt = datetime.strptime(publish_time_str, fmt)
+                                # 연도가 없는 형식이면 현재 연도 추가
+                                if parsed_dt.year == 1900:
+                                    parsed_dt = parsed_dt.replace(year=datetime.now().year)
+                                break
+                            except ValueError:
+                                continue
+
+                        if parsed_dt:
+                            # UTC로 변환 (한국 시간은 UTC+9)
+                            # 시트에 입력된 시간이 한국 시간이라고 가정
+                            from datetime import timedelta
+                            utc_dt = parsed_dt - timedelta(hours=9)
+                            publish_at_iso = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                        else:
+                            print(f"[AUTOMATION] 예약시간 파싱 실패, 원본: {publish_time_str}")
+                            publish_at_iso = None
+
+                    if publish_at_iso:
+                        upload_payload["publish_at"] = publish_at_iso
+                        # 예약 업로드 시 privacyStatus는 API에서 자동으로 private로 설정됨
+                        print(f"[AUTOMATION] 예약 업로드 설정: {publish_time_str} -> {publish_at_iso}")
+                except Exception as parse_err:
+                    print(f"[AUTOMATION] 예약시간 처리 오류: {parse_err}")
 
             upload_resp = req.post(f"{base_url}/api/youtube/upload", json=upload_payload, timeout=600)
 
@@ -15467,8 +15521,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:J까지 - 음성/타겟 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:J')
+        # 시트 데이터 읽기 (A:K까지 - 예약시간 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:K')
         if not rows:
             return jsonify({
                 "ok": True,
@@ -15488,22 +15542,22 @@ def api_sheets_check_and_process():
                 continue
 
             status = row[0] if len(row) > 0 else ''
-            scheduled_time = row[1] if len(row) > 1 else ''
+            work_time = row[1] if len(row) > 1 else ''  # B열: 작업시간 (파이프라인 실행 시점)
 
-            # '대기' 상태이고 예약시간이 지났으면 처리
+            # '대기' 상태이고 작업시간이 지났으면 처리
             if status == '대기':
-                # 예약시간 파싱
+                # 작업시간 파싱
                 should_process = False
-                if scheduled_time:
+                if work_time:
                     try:
-                        scheduled_dt = datetime.strptime(scheduled_time, '%Y-%m-%d %H:%M')
-                        if now >= scheduled_dt:
+                        work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M')
+                        if now >= work_dt:
                             should_process = True
                     except ValueError:
-                        # 예약시간 형식이 잘못되면 즉시 처리
+                        # 작업시간 형식이 잘못되면 즉시 처리
                         should_process = True
                 else:
-                    # 예약시간이 없으면 즉시 처리
+                    # 작업시간이 없으면 즉시 처리
                     should_process = True
 
                 if should_process:
@@ -15516,15 +15570,15 @@ def api_sheets_check_and_process():
                     result = run_automation_pipeline(row, i)
 
                     if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록
+                        # 성공 - 상태: 완료, 영상URL 기록 (H열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
                         if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!G{i}', result['video_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', result['video_url'])
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록
+                        # 실패 - 상태: 실패, 에러메시지 기록 (I열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
                         error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', error_msg)
+                        sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', error_msg)
 
                     processed_count += 1
                     results.append({
