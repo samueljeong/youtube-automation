@@ -14653,11 +14653,16 @@ def run_automation_pipeline(row_data, row_index):
         # ========== 1. 대본 분석 (/api/image/analyze-script) ==========
         print(f"[AUTOMATION] 1. 대본 분석 시작...")
         try:
+            # 1분당 1개 이미지 (한국어 약 150자 = 1분 분량)
+            # 최소 3개, 상한 없음 (대본 길이에 따라 동적)
+            calculated_image_count = max(3, len(script) // 150)
+            print(f"[AUTOMATION] 대본 길이: {len(script)}자 → 이미지 {calculated_image_count}개 (1분당 1개)")
+
             analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
                 "script": script,
                 "content_type": "drama",
                 "image_style": "animation",  # 스틱맨 스타일
-                "image_count": max(3, min(10, len(script) // 250)),
+                "image_count": calculated_image_count,
                 "audience": audience,
                 "output_language": "auto"
             }, timeout=120)
@@ -14923,8 +14928,8 @@ def _automation_analyze_script_gpt5(script, episode_id):
         from openai import OpenAI
         client = OpenAI()
 
-        # 이미지 수 계산 (250자 = 1분 = 1장)
-        image_count = max(3, min(10, len(script) // 250))
+        # 이미지 수 계산 (150자 = 1분 = 1장, 상한 없음)
+        image_count = max(3, len(script) // 150)
 
         system_prompt = """You are an AI that analyzes scripts and generates image prompts for video production.
 
