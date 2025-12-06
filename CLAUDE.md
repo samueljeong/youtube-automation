@@ -1,201 +1,115 @@
-# Drama Page 재구축 프로젝트
+# Google Sheets 자동화 파이프라인
 
 ## 현재 브랜치
-`claude/continue-drama-session-01UA73Rm8DTaYNdoLjaZGFiA`
+`claude/continue-image-feature-01TKLum1D1TXAq62rsae92vZ`
 
 ## 프로젝트 개요
-Drama Lab - AI 기반 드라마 영상 자동 생성 시스템
-
-## 작업 진행 상황
-
-### 완료된 작업 (백엔드 파이프라인)
-- [x] Step1: 공식 스펙 확정 - 스키마 및 프롬프트
-- [x] Step2: 이미지 생성 스펙 및 뼈대 코드
-- [x] Step3: TTS & 자막 생성 모듈 구축
-- [x] Step4: 영상 조립 모듈 구축
-- [x] Step5: YouTube 업로드 자동화 모듈 구축
-- [x] 전체 파이프라인 통합 컨트롤러 구현
-
-### 완료된 작업 (프론트엔드 UI) - 2024-11-29
-- [x] drama.html - 전체 5스텝 UI 완성
-- [x] drama-main.js - 메인 모듈 (스텝 전환, 세션 관리)
-- [x] drama-step1.js - 대본 생성 모듈
-- [x] drama-step2.js - 이미지 생성 모듈 (캐릭터/씬 분석)
-- [x] drama-step3.js - TTS 음성합성 모듈
-- [x] drama-step4.js - 영상 제작 모듈
-- [x] drama-step5.js - YouTube 업로드 모듈
-- [x] drama-session.js - 세션 및 Q&A 기록 관리
-- [x] drama-utils.js - 유틸리티 함수
-- [x] drama.css - 전체 스타일 완성 (character-card, scene-card 스타일 포함)
-
-## 파일 구조
-
-### 백엔드
-- `drama_server.py` (6241줄) - 메인 서버, 모든 API 엔드포인트 포함
-
-### 프론트엔드 (완성됨)
-- `templates/drama.html` - 메인 템플릿 (5스텝 UI)
-- `static/css/drama.css` - 스타일시트 (1100줄+)
-- `static/js/drama-main.js` - 메인 모듈 (348줄)
-- `static/js/drama-step1.js` - 대본 생성 (275줄)
-- `static/js/drama-step2.js` - 이미지 생성 (332줄)
-- `static/js/drama-step3.js` - TTS 음성합성 (289줄)
-- `static/js/drama-step4.js` - 영상 제작 (275줄)
-- `static/js/drama-step5.js` - YouTube 업로드 (379줄)
-- `static/js/drama-utils.js` - 유틸리티 함수 (194줄)
-- `static/js/drama-session.js` - 세션 관리 (250줄)
-
-### 가이드/설정
-- `guides/drama.json` - 드라마 설정
-- `guides/nostalgia-drama-prompts.json` - 향수 드라마 프롬프트
-- `guides/nostalgia-drama-sample.json` - 샘플 데이터
-- `guides/korean-senior-image-prompts.json` - **한국인 시니어 이미지 프롬프트 가이드 (NEW)**
-
-## 알려진 이슈 (drama_issue_code.md 참조)
-
-### 1. ~~TTS 음성 생성 오류~~ ✅ 해결됨 (2024-11-29)
-- ~~Google TTS API 5000바이트 제한 초과 문제~~
-- **해결책**: 새 TTS 파이프라인 구현
-  - `tts_chunking.py`: 문장 단위 분리 + 바이트 제한 청킹
-  - `tts_service.py`: 청크별 TTS + FFmpeg 병합 + SRT 자막 생성
-  - 새 API: `POST /api/drama/step3/tts`
-
-### 2. ~~한국인 이미지 생성 문제~~ ✅ 개선됨 (2024-11-29)
-- ~~한국 할머니/할아버지 생성 시 외국인 이미지 출력~~
-- **해결책**: 상세한 한국인 시니어 프롬프트 가이드 추가
-  - `guides/korean-senior-image-prompts.json`: 한국인 시니어 이미지 프롬프트 가이드
-  - 할머니(halmeoni)/할아버지(harabeoji) 별도 프롬프트 정의
-  - 한국인 얼굴 특징 상세 명시: 둥근 얼굴, 홑꺼풀/속쌍꺼풀, 한국인 피부톤
-  - 1970~80년대 빈티지 필름 스타일 적용: film grain, faded warm colors
-
-### 3. ~~Step2 캐릭터 일관성 문제~~ ✅ 해결됨 (2024-11-29)
-- ~~주인공 카드와 씬 이미지의 인물이 분리됨~~
-- **해결책**: 씬 프롬프트에 main_character 정보 강제 포함
-  - `drama-step2.js`: `buildCharacterConsistencyPrompt()` 함수 추가
-  - 씬 이미지 생성 시 주인공 정보를 프롬프트 맨 앞에 배치
-  - 한국인 할머니/할아버지 전용 일관성 프롬프트 적용
-
-### 4. ~~Step3 TTS 설명문 읽기 문제~~ ✅ 해결됨 (2024-11-29)
-- ~~TTS가 "1. 주인공 설정 – 이름: 이순자..." 같은 메타 설명을 읽음~~
-- **해결책**: 순수 나레이션만 추출하도록 수정
-  - `drama-step3.js`: `getScriptTexts()` 함수 개선
-  - 메타 설명 패턴 필터링 추가 (주인공 설정, 스토리 컨셉, 배경 등)
-  - `extractNarrationFromScene()` 함수로 순수 나레이션만 추출
-
-### 5. ~~Step4 500 에러~~ ✅ 디버깅 강화 (2024-11-29)
-- ~~`/api/drama/generate-video` 500 에러 발생~~
-- **해결책**: 상세 디버깅 로그 추가
-  - 요청 데이터 구조 출력
-  - cuts 배열 상세 정보 출력
-  - traceback 출력 추가
-
-### 6. ~~Step4 영상 생성 타임아웃~~ ✅ 병렬 처리로 해결 (2024-12-01)
-- ~~씬별 순차 처리로 300초 타임아웃 발생~~
-- **해결책**: ThreadPoolExecutor를 사용한 병렬 처리 도입
-  - `_create_scene_clip()`: 개별 씬 클립 생성 함수 분리
-  - `_generate_video_with_cuts()`: 병렬 처리 적용
-  - 최대 4개 워커로 씬 클립 동시 생성
-  - 모든 클립 생성 후 순서대로 concat 병합
-  - 예상 속도 향상: 4배 (10개 씬 기준)
-
-## 주요 API 엔드포인트 (drama_server.py)
-- `/api/drama/gpt-plan-step1` - 대본 생성
-- `/api/drama/analyze-script` - **AI 대본 분석 (씬/샷 자동 분리) (NEW)**
-- `/api/drama/analyze-characters` - 캐릭터/씬 분석
-- `/api/drama/generate-image` - 이미지 생성
-- `/api/drama/generate-tts` - TTS 음성 생성 (기존)
-- `/api/drama/step3/tts` - **새 TTS 파이프라인 (5000바이트 제한 해결 + SRT 자막)**
-- `/api/drama/generate-scene-clips-zip` - **씬별 MP4 클립 ZIP 생성 (NEW)**
-- `/api/drama/generate-video` - 영상 제작 (레거시)
-- `/api/drama/video-status/{jobId}` - 영상 작업 상태 확인
-- `/api/youtube/auth-status` - YouTube 인증 상태
-- `/api/youtube/upload` - YouTube 업로드
-
-## 다음 세션에서 할 일
-1. ~~drama.html UI 완성~~ ✅ 완료
-2. ~~각 step별 JS 모듈 구현~~ ✅ 완료
-3. ~~TTS 5000바이트 제한 해결~~ ✅ 완료
-4. ~~이미지 프롬프트 튜닝 - 한국인/70-80년대 감도~~ ✅ 완료
-5. ~~실제 동작 테스트~~ ✅ 완료 (2024-12-01)
-6. ~~전체 파이프라인 통합 테스트~~ ✅ 완료 - YouTube 업로드 성공!
-
-## 🎉 프로젝트 완료 (2024-12-01)
-- 전체 5스텝 파이프라인 정상 동작 확인
-- Step1(대본) → Step2(이미지) → Step3(TTS) → Step4(영상) → Step5(YouTube 업로드) 완주
-
-## 🆕 AI 대본 분석 모드 (2024-12-01)
-- Step1 UI 대폭 변경: 전체 대본 1개 입력창 + AI 분석 버튼
-- `/api/drama/analyze-script` API 추가 (GPT-4o-mini 사용)
-  - 전체 대본 → 씬(Scene) + 샷(Shot) 자동 분리
-  - 각 샷별 이미지 프롬프트(영문) + 나레이션(한글) 생성
-  - 썸네일 텍스트 제안 기능 포함
-- 씬/샷 트리 구조 UI
-  - 씬별 접기/펼치기 토글
-  - 각 샷의 프롬프트/나레이션 수정 가능
-- Step2 다중 샷 이미지 생성 지원
-  - 플랫한 샷 배열로 이미지 생성
-  - 그리드 레이아웃으로 많은 샷 표시
-- Step3 AI 분석 모드 나레이션 추출 지원
-
-## 🆕 씬별 클립 다운로드 (2024-12-01)
-- Step4 변경: 전체 영상 생성 → 씬별 MP4 클립 다운로드
-- `/api/drama/generate-scene-clips-zip` API 추가
-  - 각 씬(이미지+오디오)를 개별 MP4로 생성
-  - ZIP 파일로 묶어 다운로드
-- CapCut 등 외부 편집기에서 자유롭게 편집 가능
-
-## 🆕 TTS 음성 선택 UI (2024-12-01)
-- 6개 음성 카드 UI (여성 3개, 남성 3개)
-- Neural2 음성 기본 선택 (최고 품질)
-- 미리듣기 버튼으로 음성 확인 가능
-- 음성 목록:
-  - 여성: Neural2-A (차분), Neural2-B (밝은), Wavenet-A (표준)
-  - 남성: Neural2-C (중후), Wavenet-C (표준), Wavenet-D (젊은)
-
-## 알려진 이슈 (진행 중)
-- ~~영상에 소리/자막 누락 문제~~ → 씬별 클립 다운로드로 전환
-
-## 다음 작업
-- [ ] 썸네일 생성 기능 추가
-  - AI 분석에서 썸네일 제안 데이터는 이미 생성됨
-  - 이미지 생성 API로 썸네일 이미지 자동 생성 구현 필요
-
-## 호스팅 환경
-- **Render Standard 플랜** (무료 아님!)
-  - 메모리: 2GB
-  - CPU: 1 vCPU
-  - 요청 타임아웃: 충분함
-- URL: https://drama-s2ns.onrender.com
-- 영상 업로드 용량: 14MB (8분 영상) 정도는 문제없음
-
-## 참고 사항
-- 이미지 생성: Gemini (기본) / FLUX.1 Pro / DALL-E 3 지원
-- TTS: Google Cloud TTS (기본) / 네이버 클로바 지원
-- 백엔드/프론트엔드 파이프라인 모두 완성 상태
-- 실행을 위해 필요한 환경 변수: OPENAI_API_KEY, GOOGLE_API_KEY 등
+Google Sheets 기반 YouTube 영상 자동 생성 시스템
 
 ---
 
-## ⚠️ GPT-5.1 API 사용 가이드 (중요!)
+## ⚠️ 자동화 파이프라인 흐름 (중요!)
 
-GPT-5.1은 기존 Chat Completions API가 아닌 **Responses API**를 사용해야 합니다.
-
-### ❌ 잘못된 방식 (Chat Completions API - 작동 안함)
-```python
-from openai import OpenAI
-client = OpenAI()
-
-response = client.chat.completions.create(
-    model="gpt-5.1",  # 이 방식은 안됨!
-    messages=[
-        {"role": "system", "content": "..."},
-        {"role": "user", "content": "..."}
-    ]
-)
-result = response.choices[0].message.content
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. GPT-5.1 대본 분석 (한 번의 API 호출로 모두 생성)      │
+│     ├── 유튜브 메타데이터 (제목, 설명)                   │
+│     ├── 썸네일 프롬프트 (ai_prompts)                    │
+│     ├── 씬별 이미지 프롬프트                            │
+│     └── 씬별 나레이션 (TTS용)                           │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  2. 병렬 처리 (동시 실행)                                │
+│     ├── Gemini 3 Pro → 썸네일 이미지 생성               │
+│     ├── Gemini 2.5 Flash → 씬 배경 이미지 생성          │
+│     └── Google TTS → 음성 + 자막 생성                   │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼ (모두 완료 후)
+┌─────────────────────────────────────────────────────────┐
+│  3. FFmpeg 영상 생성                                     │
+│     - 이미지 + 오디오 + 자막 합성                        │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  4. YouTube 업로드                                       │
+│     - 썸네일 설정                                        │
+│     - 예약 공개 (있는 경우)                              │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### ✅ 올바른 방식 (Responses API)
+**주의:** "Step1-6" 같은 UI 용어 사용 금지. 위 흐름이 자동화 파이프라인의 정확한 구조임.
+
+---
+
+## Google Sheets 컬럼 구조
+
+| 열 | 필드명 | 설명 |
+|---|--------|------|
+| A | 상태 | 대기중/처리중/완료/실패 |
+| B | 작업시간 | 파이프라인 실행 시간 |
+| C | 채널ID | YouTube 채널 ID |
+| D | 채널명 | 참고용 (코드에서 미사용) |
+| E | 예약시간 | YouTube 공개 예약 시간 |
+| F | 대본 | 영상 대본 전문 |
+| G | 제목 | YouTube 제목 |
+| H | 비용 | 생성 비용 (출력) |
+| I | 공개설정 | public/private/unlisted |
+| J | 영상URL | 업로드된 URL (출력) |
+| K | 에러메시지 | 실패 시 에러 (출력) |
+| L | 음성 | TTS 음성 선택 (선택) |
+| M | 타겟 | general/senior (선택) |
+
+---
+
+## 이미지 개수 계산
+
+```python
+# 1분당 1개 이미지 (한국어 150자 ≈ 1분)
+image_count = max(3, len(script) // 150)
+```
+
+- 최소 3개
+- 상한 없음 (대본 길이에 따라 동적)
+
+---
+
+## 주요 API 엔드포인트
+
+### 자동화용
+- `POST /api/sheets/check-and-process` - cron job 트리거
+- `POST /api/image/analyze-script` - GPT-5.1 대본 분석
+- `POST /api/drama/generate-image` - Gemini 이미지 생성
+- `POST /api/image/generate-assets-zip` - TTS + 자막 생성
+- `POST /api/thumbnail-ai/generate-single` - 단일 썸네일 생성
+- `POST /api/image/generate-video` - FFmpeg 영상 생성
+- `POST /api/youtube/upload` - YouTube 업로드
+
+### 상태 확인
+- `GET /api/image/video-status/{job_id}` - 영상 생성 상태
+
+---
+
+## 타임아웃 설정
+
+| 작업 | 타임아웃 |
+|-----|---------|
+| 대본 분석 | 120초 |
+| 이미지 생성 (개당) | 60초 |
+| TTS 생성 | 300초 |
+| 썸네일 생성 | 180초 |
+| 영상 생성 폴링 | 20분 (600 * 2초) |
+| YouTube 업로드 | 300초 |
+
+---
+
+## GPT-5.1 API 사용 가이드
+
+GPT-5.1은 **Responses API** 사용 필수:
+
 ```python
 from openai import OpenAI
 client = OpenAI()
@@ -203,24 +117,8 @@ client = OpenAI()
 response = client.responses.create(
     model="gpt-5.1",
     input=[
-        {
-            "role": "system",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": "시스템 프롬프트"
-                }
-            ]
-        },
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": "사용자 프롬프트"
-                }
-            ]
-        }
+        {"role": "system", "content": [{"type": "input_text", "text": "시스템 프롬프트"}]},
+        {"role": "user", "content": [{"type": "input_text", "text": "사용자 프롬프트"}]}
     ],
     temperature=0.7
 )
@@ -237,26 +135,29 @@ else:
     result = "\n".join(text_chunks).strip()
 ```
 
-### 참고 예시 코드
-- `drama_server.py` 내 `/api/drama/gpt-pro` 엔드포인트 (약 1740줄)
-- `drama_server.py` 내 `/api/image/analyze-script` 엔드포인트 (약 9760줄)
+---
 
-### GPT-5.1 모델 종류
-- `gpt-5.1` - 기본 모델 (Thinking 모드)
-- `gpt-5.1-chat-latest` - Instant 모드
-- `gpt-5.1-codex` - 코딩 특화 (400K 컨텍스트)
-- `gpt-5.1-codex-mini` - 코딩 특화 경량 버전
+## 호스팅 환경
 
-### JSON 응답 받기
-Responses API는 `response_format={"type": "json_object"}` 옵션을 지원하지 않을 수 있습니다.
-대신 프롬프트에 "반드시 JSON 형식으로만 응답하세요"를 추가하고, 응답에서 마크다운 코드블록을 제거 후 파싱하세요.
+- **Render Standard 플랜**
+- 메모리: 2GB
+- CPU: 1 vCPU
+- URL: https://drama-s2ns.onrender.com
 
-```python
-# JSON 파싱 (마크다운 코드블록 제거)
-if result_text.startswith("```"):
-    result_text = result_text.split("```")[1]
-    if result_text.startswith("json"):
-        result_text = result_text[4:]
-result_text = result_text.strip()
-result = json.loads(result_text)
-```
+---
+
+## 비용 추적
+
+| 항목 | 단가 |
+|-----|------|
+| 대본 분석 (GPT-5.1) | ~$0.03 |
+| 이미지 생성 (Gemini 2.5) | ~$0.02/장 |
+| 썸네일 생성 (Gemini 3 Pro) | ~$0.03 |
+| TTS (Google) | ~$0.000004/글자 |
+
+---
+
+## 참고 파일
+
+- `drama_server.py` - 메인 서버 (모든 API)
+- `run_automation_pipeline()` - 자동화 파이프라인 메인 함수
