@@ -655,32 +655,28 @@ const ImageMain = {
   },
 
   /**
-   * AI 썸네일 자동 생성 (병렬용)
+   * AI 썸네일 자동 생성 (병렬용) - 초기 분석 데이터에서 프롬프트 직접 사용
    */
   async generateAIThumbnailsAuto() {
     try {
-      // AI 분석
-      const scenes = this.analyzedData?.scenes || [];
-      const script = scenes.map(s => s.narration || '').join('\n\n');
-      const title = this.selectedTitle || '제목 없음';
+      // 초기 분석에서 이미 생성된 ai_prompts 사용 (중복 GPT 호출 제거!)
+      const aiPrompts = this.analyzedData?.thumbnail?.ai_prompts;
 
-      const analyzeResponse = await fetch('/api/thumbnail-ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ script, title, genre: '일반' })
-      });
-
-      const analyzeData = await analyzeResponse.json();
-      if (!analyzeData.ok) {
-        console.warn('[ImageMain] AI 썸네일 분석 실패');
+      if (!aiPrompts || !aiPrompts.A) {
+        console.warn('[ImageMain] AI 썸네일 프롬프트 없음 - 초기 분석에서 생성되지 않음');
+        this.showStatus('⚠️ AI 썸네일 프롬프트 없음', 'warning');
         return false;
       }
 
-      this.aiThumbnailSession = analyzeData.session_id;
-      this.aiThumbnailPrompts = analyzeData.prompts;
+      console.log('[ImageMain] 초기 분석의 ai_prompts 사용 (중복 GPT 호출 제거)');
+
+      this.aiThumbnailSession = `thumb_${this.sessionId}`;
+      this.aiThumbnailPrompts = aiPrompts;
+
+      this.showStatus('🎨 AI 썸네일 3개 생성 중...', 'info');
 
       // AI 썸네일 생성 (A/B/C 3개)
-      const generateResponse = await fetch('/api/thumbnail-ai/generate-both', {
+      const generateResponse = await fetch('/api/thumbnail-ai/generate-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -691,27 +687,29 @@ const ImageMain = {
 
       const generateData = await generateResponse.json();
       if (!generateData.ok) {
-        console.warn('[ImageMain] AI 썸네일 생성 실패');
+        console.warn('[ImageMain] AI 썸네일 생성 실패:', generateData.error);
         return false;
       }
 
-      // 결과 저장 (첫 번째 썸네일 자동 선택)
+      // 결과 저장 (A/B/C 3개)
       this.aiThumbnailImageUrls = {
         A: generateData.results.A?.image_url,
-        B: generateData.results.B?.image_url
+        B: generateData.results.B?.image_url,
+        C: generateData.results.C?.image_url
       };
 
-      // 첫 번째 썸네일 자동 선택 (업로드용)
+      // 첫 번째 썸네일(A) 자동 선택 (YouTube 업로드용)
       if (this.aiThumbnailImageUrls.A) {
         this.selectedAIThumbnailUrl = this.aiThumbnailImageUrls.A;
         this.selectedThumbnailIdx = 0;
         this.saveSession();
       }
 
-      // 나머지 썸네일 다운로드
+      // 나머지 썸네일(B, C) 다운로드 (테스트용)
       this.downloadRemainingThumbnails();
 
-      console.log('[ImageMain] AI 썸네일 완료 - A:', !!this.aiThumbnailImageUrls.A, 'B:', !!this.aiThumbnailImageUrls.B);
+      this.showStatus('✅ AI 썸네일 3개 생성 완료!', 'success');
+      console.log('[ImageMain] AI 썸네일 완료 - A:', !!this.aiThumbnailImageUrls.A, 'B:', !!this.aiThumbnailImageUrls.B, 'C:', !!this.aiThumbnailImageUrls.C);
       return true;
     } catch (error) {
       console.error('[ImageMain] AI 썸네일 오류:', error);
@@ -720,11 +718,11 @@ const ImageMain = {
   },
 
   /**
-   * 나머지 썸네일 다운로드
+   * 나머지 썸네일 다운로드 (B, C - 테스트용)
    */
   downloadRemainingThumbnails() {
-    // B, C 썸네일 다운로드 (A는 업로드용)
-    ['B'].forEach((variant, idx) => {
+    // B, C 썸네일 다운로드 (A는 YouTube 업로드용)
+    ['B', 'C'].forEach((variant, idx) => {
       const url = this.aiThumbnailImageUrls[variant];
       if (url) {
         setTimeout(() => {
@@ -735,7 +733,8 @@ const ImageMain = {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-        }, (idx + 1) * 1000);
+          console.log(`[ImageMain] 썸네일 ${variant} 다운로드 시작`);
+        }, (idx + 1) * 1500);
       }
     });
   },
@@ -1070,7 +1069,7 @@ const ImageMain = {
   },
 
   /**
-   * AI 썸네일 분석 (GPT-5.1)
+   * AI 썸네일 분석 - 초기 분석에서 생성된 ai_prompts 사용 (GPT-5.1 중복 호출 제거)
    */
   async analyzeForThumbnail() {
     if (!this.analyzedData) {
@@ -1085,44 +1084,32 @@ const ImageMain = {
     try {
       btn.disabled = true;
       loading.style.display = 'flex';
-      loadingText.textContent = 'GPT-5.1이 대본을 분석하고 있습니다...';
+      loadingText.textContent = 'AI 썸네일 프롬프트 로딩 중...';
 
-      // 대본 텍스트 수집
-      const scenes = this.analyzedData.scenes || [];
-      const script = scenes.map(s => s.narration || '').join('\n\n');
-      const title = document.getElementById('video-title')?.value || this.analyzedData.thumbnail?.title || '제목 없음';
+      // 초기 분석에서 이미 생성된 ai_prompts 사용 (중복 GPT 호출 제거!)
+      const aiPrompts = this.analyzedData?.thumbnail?.ai_prompts;
 
-      console.log('[ImageMain] AI Thumbnail analyze - title:', title, 'script length:', script.length);
-
-      const response = await fetch('/api/thumbnail-ai/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          script: script,
-          title: title,
-          genre: '일반'
-        })
-      });
-
-      const data = await response.json();
-
-      if (!data.ok) {
-        throw new Error(data.error || 'AI 분석 실패');
+      if (!aiPrompts || !aiPrompts.A) {
+        throw new Error('초기 분석에서 AI 썸네일 프롬프트가 생성되지 않았습니다. 대본을 다시 분석해주세요.');
       }
 
+      console.log('[ImageMain] AI Thumbnail - 초기 분석의 ai_prompts 사용');
+
       // 세션 및 프롬프트 저장
-      this.aiThumbnailSession = data.session_id;
-      this.aiThumbnailPrompts = data.prompts;
+      this.aiThumbnailSession = `thumb_${this.sessionId}`;
+      this.aiThumbnailPrompts = aiPrompts;
 
       // 컨셉 프리뷰 표시
-      document.getElementById('ai-script-summary').textContent = data.script_summary || '-';
-      document.getElementById('ai-thumbnail-concept').textContent = data.thumbnail_concept || '-';
-      document.getElementById('ai-learning-count').textContent = `${data.learning_examples_used || 0}개 활용됨`;
+      const title = document.getElementById('video-title')?.value || this.analyzedData.youtube?.title || '제목 없음';
+      document.getElementById('ai-script-summary').textContent = title;
+      document.getElementById('ai-thumbnail-concept').textContent =
+        `A: ${aiPrompts.A?.description || '-'}\nB: ${aiPrompts.B?.description || '-'}\nC: ${aiPrompts.C?.description || '-'}`;
+      document.getElementById('ai-learning-count').textContent = '초기 분석에서 로드됨';
 
       document.getElementById('ai-concept-preview').style.display = 'block';
       document.getElementById('btn-ai-generate').style.display = 'block';
 
-      this.showStatus('AI 분석 완료! 이제 썸네일을 생성하세요.', 'success');
+      this.showStatus('AI 프롬프트 준비 완료! 이제 썸네일을 생성하세요.', 'success');
 
     } catch (error) {
       console.error('[ImageMain] AI analyze error:', error);
@@ -1991,6 +1978,7 @@ const ImageMain = {
         `;
         if (topContainer) topContainer.innerHTML = loginHtml;
         this.updateAnalyzeButtonState(false);
+        this.showUploadSettings(false);
         return;
       }
 
@@ -2003,6 +1991,7 @@ const ImageMain = {
         `;
         if (topContainer) topContainer.innerHTML = loginHtml;
         this.updateAnalyzeButtonState(false);
+        this.showUploadSettings(false);
         return;
       }
 
@@ -2044,8 +2033,9 @@ const ImageMain = {
       // 상단 영역만 업데이트 (하단은 더 이상 사용 안함)
       if (topContainer) topContainer.innerHTML = html;
 
-      // 채널 선택됨 → 분석 버튼 활성화
+      // 채널 선택됨 → 분석 버튼 활성화 + 업로드 설정 표시
       this.updateAnalyzeButtonState(true);
+      this.showUploadSettings(true);
 
     } catch (error) {
       console.error('[ImageMain] Load channels error:', error);
@@ -2057,6 +2047,7 @@ const ImageMain = {
       `;
       if (topContainer) topContainer.innerHTML = errorHtml;
       this.updateAnalyzeButtonState(false);
+      this.showUploadSettings(false);
     }
   },
 
@@ -2075,6 +2066,16 @@ const ImageMain = {
       analyzeBtn.disabled = true;
       analyzeBtn.classList.add('disabled');
       analyzeBtn.title = 'YouTube 로그인 후 사용 가능합니다';
+    }
+  },
+
+  /**
+   * 업로드 설정 표시/숨김
+   */
+  showUploadSettings(show) {
+    const settingsEl = document.getElementById('youtube-upload-settings');
+    if (settingsEl) {
+      settingsEl.style.display = show ? 'block' : 'none';
     }
   },
 

@@ -10003,7 +10003,36 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "text_options": ["Thumbnail text 1 in {lang_config['name']}", "Thumbnail text 2 in {lang_config['name']}", "Thumbnail text 3 in {lang_config['name']}"],
     "text_color": "{thumb_color}",
     "outline_color": "{thumb_outline}",
-    "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [pose/action]. Character face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage style."
+    "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [pose/action]. Character face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage style.",
+    "ai_prompts": {{
+      "A": {{
+        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 스틱맨의 감정 표현 강조",
+        "prompt": "Anime background, slice-of-life style, Ghibli-inspired. Simple white stickman with round head, two black dot eyes, [emotional expression mouth], [expressive eyebrows], black outline body, [emotional pose]. Face prominently featured. NO realistic humans, ONLY stickman. Contrast collage, YouTube thumbnail composition.",
+        "text_overlay": {{
+          "main": "메인 텍스트 ({lang_config['name']}, {thumb_length})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "emotional, expressive"
+      }},
+      "B": {{
+        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before/After 대비 구도",
+        "prompt": "Split composition anime background, detailed slice-of-life setting. Simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows. Story contrast scene, dramatic composition. NO realistic humans, ONLY stickman. Contrast collage, YouTube thumbnail.",
+        "text_overlay": {{
+          "main": "메인 텍스트 ({lang_config['name']})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "narrative, contrast"
+      }},
+      "C": {{
+        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구와 미니멀 배경",
+        "prompt": "Minimalist anime-style gradient background, soft colors. Simple white stickman silhouette in corner, small scale. Large text space in center. Clean graphic design composition. YouTube thumbnail optimized.",
+        "text_overlay": {{
+          "main": "강렬한 메인 문구 ({lang_config['name']}, {thumb_length})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "typography, bold"
+      }}
+    }}
   }},
   "scenes": [
     {{
@@ -10013,6 +10042,13 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     }}
   ]
 }}
+
+## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
+The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing:
+- A: Emotion/expression focused - show stickman emotion (surprise, shock, joy)
+- B: Story/situation focused - show before/after contrast or key scene moment
+- C: Typography focused - bold text with minimal background, stickman small/silhouette
+- All 3 prompts MUST be different styles/compositions!
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
 The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
@@ -10180,7 +10216,36 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
     ],
     "text_color": "{thumbnail_color}",
     "outline_color": "{outline_color}",
-    "prompt": "English prompt for thumbnail image..."
+    "prompt": "English prompt for thumbnail image...",
+    "ai_prompts": {{
+      "A": {{
+        "description": "프롬프트 A 설명 ({lang_config['name']}): 감정/표정 중심 (놀람, 충격, 기쁨 등)",
+        "prompt": "English thumbnail image prompt (emotion/expression focused, cartoon/illustration style, NO realistic humans)",
+        "text_overlay": {{
+          "main": "메인 텍스트 ({lang_config['name']}, ({'4-7자' if audience == 'general' else '8-12자'}})",
+          "sub": "서브 텍스트 ({lang_config['name']}, optional)"
+        }},
+        "style": "emotional, expressive"
+      }},
+      "B": {{
+        "description": "프롬프트 B 설명 ({lang_config['name']}): 스토리/상황 중심 (Before vs After, 대비 구도)",
+        "prompt": "English thumbnail image prompt (story/situation focused, contrast composition, cartoon style)",
+        "text_overlay": {{
+          "main": "메인 텍스트 ({lang_config['name']})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "narrative, contrast"
+      }},
+      "C": {{
+        "description": "프롬프트 C 설명 ({lang_config['name']}): 텍스트/타이포 중심 (강렬한 문구, 숫자 강조)",
+        "prompt": "English thumbnail image prompt (typography focused, bold text emphasis, graphic design style)",
+        "text_overlay": {{
+          "main": "메인 텍스트 ({lang_config['name']}, 강렬한 문구)",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "typography, bold"
+      }}
+    }}
   }},
   "scenes": [
     {{
@@ -10190,6 +10255,14 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
     }}
   ]
 }}
+
+## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
+The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing:
+- A: Emotion/expression focused - show character emotion (surprise, shock, joy) in cartoon/illustration style
+- B: Story/situation focused - show before/after contrast or key scene moment
+- C: Typography focused - bold text with minimal background, graphic design style
+- All 3 prompts MUST be different styles/compositions!
+- NEVER use realistic human faces - use cartoon/illustration/stickman style only!
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
 The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!

@@ -304,6 +304,56 @@
       font-size: 12px;
     }
 
+    /* YouTube 업로드 설정 */
+    .youtube-upload-settings {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .youtube-upload-settings .upload-setting-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .youtube-upload-settings .upload-setting-row label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      white-space: nowrap;
+    }
+
+    .youtube-upload-settings .privacy-toggle {
+      display: flex;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .youtube-upload-settings .privacy-btn {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #666;
+    }
+
+    .youtube-upload-settings .privacy-btn:hover {
+      border-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .youtube-upload-settings .privacy-btn.active {
+      background: #f59e0b;
+      border-color: #d97706;
+      color: white;
+    }
+
     /* 설정 행 */
     .config-row {
       display: flex;
@@ -2288,6 +2338,17 @@
             <h4>📺 YouTube 채널</h4>
             <div id="youtube-channel-area" class="youtube-channel-area">
               <div class="channel-loading">채널 정보 확인 중...</div>
+            </div>
+            <!-- 업로드 설정 -->
+            <div id="youtube-upload-settings" class="youtube-upload-settings" style="display: none;">
+              <div class="upload-setting-row">
+                <label>공개 설정</label>
+                <div class="privacy-toggle">
+                  <button type="button" class="privacy-btn active" data-privacy="private" onclick="ImageMain.setPrivacy('private')">🔒 비공개</button>
+                  <button type="button" class="privacy-btn" data-privacy="unlisted" onclick="ImageMain.setPrivacy('unlisted')">🔗 일부공개</button>
+                  <button type="button" class="privacy-btn" data-privacy="public" onclick="ImageMain.setPrivacy('public')">🌐 공개</button>
+                </div>
+              </div>
             </div>
           </div>
 
