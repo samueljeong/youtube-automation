@@ -14653,16 +14653,15 @@ def run_automation_pipeline(row_data, row_index):
         # ========== 1. 대본 분석 (/api/image/analyze-script) ==========
         print(f"[AUTOMATION] 1. 대본 분석 시작...")
         try:
-            # 1분당 1개 이미지 (한국어 약 150자 = 1분 분량)
-            # 최소 3개, 상한 없음 (대본 길이에 따라 동적)
-            calculated_image_count = max(3, len(script) // 150)
-            print(f"[AUTOMATION] 대본 길이: {len(script)}자 → 이미지 {calculated_image_count}개 (1분당 1개)")
+            # 이미지 개수 8개 고정 (추후 지시 있을때까지)
+            fixed_image_count = 8
+            print(f"[AUTOMATION] 이미지 {fixed_image_count}개 고정 생성")
 
             analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
                 "script": script,
                 "content_type": "drama",
                 "image_style": "animation",  # 스틱맨 스타일
-                "image_count": calculated_image_count,
+                "image_count": fixed_image_count,
                 "audience": audience,
                 "output_language": "auto"
             }, timeout=120)
@@ -14705,28 +14704,34 @@ def run_automation_pipeline(row_data, row_index):
             print(f"[AUTOMATION][IMAGE] 이미지 생성 시작 ({len(scenes)}개, 4개씩 병렬)...")
 
             def generate_single_image(idx, scene):
-                """단일 이미지 생성"""
+                """단일 이미지 생성 (실패 시 3회 재시도)"""
                 prompt = scene.get('image_prompt', '')
                 if not prompt:
                     return idx, None
 
-                try:
-                    img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
-                        "prompt": prompt,
-                        "size": "1280x720",  # 용량 축소 (기존 1792x1024)
-                        "imageProvider": "gemini"
-                    }, timeout=120)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
+                            "prompt": prompt,
+                            "size": "1280x720",
+                            "imageProvider": "gemini"
+                        }, timeout=120)
 
-                    img_data = img_resp.json()
-                    if img_data.get('ok') and img_data.get('imageUrl'):
-                        print(f"[AUTOMATION][IMAGE] {idx+1}/{len(scenes)} 완료")
-                        return idx, img_data['imageUrl']
-                    else:
-                        print(f"[AUTOMATION][IMAGE] {idx+1}/{len(scenes)} 실패")
-                        return idx, None
-                except Exception as e:
-                    print(f"[AUTOMATION][IMAGE] {idx+1} 오류: {e}")
-                    return idx, None
+                        img_data = img_resp.json()
+                        if img_data.get('ok') and img_data.get('imageUrl'):
+                            print(f"[AUTOMATION][IMAGE] {idx+1}/{len(scenes)} 완료")
+                            return idx, img_data['imageUrl']
+                        else:
+                            print(f"[AUTOMATION][IMAGE] {idx+1} 실패 (시도 {attempt+1}/{max_retries})")
+                    except Exception as e:
+                        print(f"[AUTOMATION][IMAGE] {idx+1} 오류 (시도 {attempt+1}/{max_retries}): {e}")
+
+                    if attempt < max_retries - 1:
+                        time_module.sleep(2)  # 재시도 전 대기
+
+                print(f"[AUTOMATION][IMAGE] {idx+1} 최종 실패 (3회 시도)")
+                return idx, None
 
             # 4개씩 병렬 처리
             with ImgExecutor(max_workers=4) as img_executor:
