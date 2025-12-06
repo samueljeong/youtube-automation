@@ -4022,22 +4022,10 @@ def api_generate_image():
                 aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. Target dimensions: 1920x1080 or 1280x720 pixels. MANDATORY for YouTube."
                 target_width, target_height = 1280, 720
 
-            # 프롬프트에 스타일 가이드 추가 및 한국 인종 강조
-            # 한국인 캐릭터인 경우 인종적 특징을 프롬프트 맨 앞에 배치하여 강조
-            prompt_lower = prompt.lower()
-
-            # ⚠️ 실사 인물(노인, 할아버지, 할머니 등) 감지 → 스틱맨으로 변환
-            has_realistic_human = any(kw in prompt_lower for kw in ['elderly', 'grandmother', 'grandfather', 'halmeoni', 'harabeoji', 'old man', 'old woman', '할아버지', '할머니', 'korean woman', 'korean man', 'portrait', 'face', 'realistic'])
-
-            if has_realistic_human:
-                # 실사 인물 → 스틱맨 스타일로 강제 변환
-                print(f"[IMAGE-GEN] ⚠️ 실사 인물 감지 → 스틱맨 스타일로 변환")
-                stickman_style = "Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body. NO realistic human faces, NO elderly people, NO grandmother, NO grandfather!"
-                background_style = "Detailed anime-style background, Ghibli-inspired, warm colors, slice-of-life environment"
-                style_suffix = "Contrast collage style - simple stickman against detailed anime background"
-                enhanced_prompt = f"{aspect_instruction} {stickman_style} {background_style}. The stickman is performing the action described: {prompt}. Style: {style_suffix}"
-            else:
-                enhanced_prompt = f"{aspect_instruction} Generate a high quality image: {prompt}. Style: cinematic lighting, professional photography, detailed, wide shot composition"
+            # 프롬프트에 16:9 비율 지시만 추가
+            # 스타일은 /api/image/analyze-script에서 이미 지정됨 (스틱맨+애니배경)
+            enhanced_prompt = f"{aspect_instruction}\n\n{prompt}"
+            print(f"[IMAGE-GEN] 프롬프트 그대로 사용 (분석 API에서 스타일 지정됨)")
 
             # OpenRouter API 호출 (Chat Completions 형식)
             headers = {
@@ -14594,16 +14582,16 @@ def run_automation_pipeline(row_data, row_index):
         print(f"[AUTOMATION] 6. YouTube 업로드 시작...")
         try:
             upload_payload = {
-                "video_url": video_url_local,
+                "videoPath": video_url_local,
                 "title": title,
                 "description": description,
-                "privacy_status": visibility,
-                "channel_id": channel_id
+                "privacyStatus": visibility,
+                "channelId": channel_id
             }
 
             # 썸네일이 있으면 추가
             if thumbnail_url:
-                upload_payload["thumbnail_url"] = thumbnail_url
+                upload_payload["thumbnailPath"] = thumbnail_url
 
             upload_resp = req.post(f"{base_url}/api/youtube/upload", json=upload_payload, timeout=600)
 
