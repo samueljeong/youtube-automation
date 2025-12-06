@@ -1991,6 +1991,7 @@ const ImageMain = {
         `;
         if (topContainer) topContainer.innerHTML = loginHtml;
         this.updateAnalyzeButtonState(false);
+        this.showUploadSettings(false);
         return;
       }
 
@@ -2003,6 +2004,7 @@ const ImageMain = {
         `;
         if (topContainer) topContainer.innerHTML = loginHtml;
         this.updateAnalyzeButtonState(false);
+        this.showUploadSettings(false);
         return;
       }
 
@@ -2044,8 +2046,9 @@ const ImageMain = {
       // 상단 영역만 업데이트 (하단은 더 이상 사용 안함)
       if (topContainer) topContainer.innerHTML = html;
 
-      // 채널 선택됨 → 분석 버튼 활성화
+      // 채널 선택됨 → 분석 버튼 활성화 + 업로드 설정 표시
       this.updateAnalyzeButtonState(true);
+      this.showUploadSettings(true);
 
     } catch (error) {
       console.error('[ImageMain] Load channels error:', error);
@@ -2057,6 +2060,7 @@ const ImageMain = {
       `;
       if (topContainer) topContainer.innerHTML = errorHtml;
       this.updateAnalyzeButtonState(false);
+      this.showUploadSettings(false);
     }
   },
 
@@ -2075,6 +2079,16 @@ const ImageMain = {
       analyzeBtn.disabled = true;
       analyzeBtn.classList.add('disabled');
       analyzeBtn.title = 'YouTube 로그인 후 사용 가능합니다';
+    }
+  },
+
+  /**
+   * 업로드 설정 표시/숨김
+   */
+  showUploadSettings(show) {
+    const settingsEl = document.getElementById('youtube-upload-settings');
+    if (settingsEl) {
+      settingsEl.style.display = show ? 'block' : 'none';
     }
   },
 
