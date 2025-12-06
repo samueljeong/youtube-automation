@@ -4496,12 +4496,23 @@ def merge_audio_chunks_ffmpeg(audio_data_list):
                 output_path
             ]
 
-            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=60
+            )
 
             if result.returncode != 0:
-                print(f"[TTS-MERGE][ERROR] FFmpeg 실패: {result.stderr.decode()[:200]}")
+                stderr_msg = result.stderr[:200].decode('utf-8', errors='ignore') if result.stderr else '(stderr 없음)'
+                print(f"[TTS-MERGE][ERROR] FFmpeg 실패: {stderr_msg}")
+                del result
+                gc.collect()
                 # 폴백: 단순 바이트 결합
                 return b''.join(audio_data_list)
+            del result
+            gc.collect()
 
             # 병합된 파일 읽기
             with open(output_path, 'rb') as f:
@@ -5425,13 +5436,23 @@ def _create_scene_clip(args):
 
     try:
         print(f"[DRAMA-PARALLEL] 씬 {cut_id} FFmpeg 시작...")
-        process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=180)
+        # 메모리 최적화: stdout DEVNULL, stderr만 PIPE로 캡처 (OOM 방지)
+        process = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=180
+        )
         if process.returncode == 0 and os.path.exists(segment_path):
             print(f"[DRAMA-PARALLEL] 씬 {cut_id} 클립 생성 완료: {actual_duration:.1f}초")
+            del process  # 명시적 해제
             gc.collect()
             return (idx, segment_path, actual_duration)
         else:
-            stderr_msg = process.stderr[:500] if process.stderr else '(stderr 없음)'
+            # 에러 시에만 stderr 읽기 (최대 500바이트)
+            stderr_msg = process.stderr[:500].decode('utf-8', errors='ignore') if process.stderr else '(stderr 없음)'
+            del process
+            gc.collect()
             print(f"[DRAMA-PARALLEL] 씬 {cut_id} FFmpeg 오류: {stderr_msg[:200]}")
             return (idx, None, 0)
     except subprocess.TimeoutExpired:
@@ -5555,11 +5576,21 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
             print(f"[DRAMA-CUTS-VIDEO] concat.txt 내용:")
             with open(concat_list_path, 'r') as f:
                 print(f.read())
-            process = subprocess.run(concat_cmd, capture_output=True, text=True, timeout=600)
+            # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+            process = subprocess.run(
+                concat_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=600
+            )
             if process.returncode != 0:
-                stderr_msg = process.stderr[:500] if process.stderr else '(stderr 없음)'
+                stderr_msg = process.stderr[:500].decode('utf-8', errors='ignore') if process.stderr else '(stderr 없음)'
                 print(f"[DRAMA-CUTS-VIDEO] Concat 오류 (returncode={process.returncode}): {stderr_msg}")
+                del process
+                gc.collect()
                 raise Exception(f"영상 병합 실패: {stderr_msg[:200]}")
+            del process
+            gc.collect()
             print(f"[DRAMA-CUTS-VIDEO] Concat 완료, 파일 존재: {os.path.exists(output_path)}")
         except subprocess.TimeoutExpired:
             raise Exception("영상 병합 타임아웃 (10분)")
@@ -5582,8 +5613,9 @@ def _generate_video_with_cuts(cuts, subtitle_data, burn_subtitle, resolution, fp
 
         video_url = f"/static/videos/{video_filename}"
 
-        # Base64 인코딩 (20MB 이하만)
-        if file_size_mb <= 20:
+        # Base64 인코딩 (10MB 이하만 - 2GB 환경 메모리 최적화)
+        # 10MB 영상 + Base64 오버헤드(33%) = ~13MB 메모리 사용
+        if file_size_mb <= 10:
             with open(final_video_path, 'rb') as f:
                 video_data = f.read()
             video_base64 = base64.b64encode(video_data).decode('utf-8')
@@ -5967,15 +5999,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         update_progress(50, "영상 인코딩 중...")
 
         # FFmpeg 실행 (타임아웃 30분 - 10분 이상 영상 지원)
+        # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지 - 30분 인코딩 시 수백MB 출력 가능)
         try:
-            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=1800)
+            process = subprocess.run(
+                ffmpeg_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=1800
+            )
         except subprocess.TimeoutExpired:
             print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 타임아웃 (30분)")
             raise Exception("영상 인코딩 시간 초과 (30분). 이미지 수를 줄이거나 해상도를 낮춰주세요.")
 
         if process.returncode != 0:
-            error_msg = process.stderr.strip()
+            # 에러 시에만 stderr 읽기 (최대 1000바이트)
+            error_msg = process.stderr[:1000].decode('utf-8', errors='ignore').strip() if process.stderr else ''
             print(f"[DRAMA-STEP6-VIDEO][ERROR] FFmpeg 오류: {error_msg}")
+            del process
+            gc.collect()
 
             # 일반적인 오류 메시지 개선
             if "No such file or directory" in error_msg:
@@ -5986,6 +6027,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 raise Exception("파일 권한 오류. 서버 관리자에게 문의하세요.")
             else:
                 raise Exception(f"영상 인코딩 실패: {error_msg[:300]}")
+
+        del process
+        gc.collect()
 
         update_progress(80, "영상 저장 중...")
 
@@ -6005,9 +6049,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         file_size = os.path.getsize(final_video_path)
         file_size_mb = file_size / (1024 * 1024)
 
-        # 메모리 최적화: Base64 인코딩 제한을 20MB로 낮춤 (512MB 환경)
+        # 메모리 최적화: Base64 인코딩 제한을 10MB로 낮춤 (2GB 환경)
+        # 10MB 영상 + Base64 오버헤드(33%) = ~13MB 메모리 사용
         video_url = f"/static/videos/{video_filename}"
-        if file_size_mb <= 20:
+        if file_size_mb <= 10:
             with open(final_video_path, 'rb') as f:
                 video_data = f.read()
             video_base64 = base64.b64encode(video_data).decode('utf-8')
@@ -6116,11 +6161,22 @@ def api_generate_scene_clip():
                 output_path
             ]
 
-            process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+            # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+            process = subprocess.run(
+                ffmpeg_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=120
+            )
 
             if process.returncode != 0 or not os.path.exists(output_path):
-                print(f"[SCENE-CLIP] FFmpeg 오류: {process.stderr[:300]}")
+                stderr_msg = process.stderr[:300].decode('utf-8', errors='ignore') if process.stderr else '(stderr 없음)'
+                print(f"[SCENE-CLIP] FFmpeg 오류: {stderr_msg}")
+                del process
+                gc.collect()
                 return jsonify({"ok": False, "error": "클립 생성 실패"}), 500
+            del process
+            gc.collect()
 
             # 5. 결과 반환 (Base64)
             with open(output_path, 'rb') as f:
@@ -6248,15 +6304,23 @@ def api_generate_scene_clips_zip():
                     clip_path
                 ]
 
-                process = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=180)
+                # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+                process = subprocess.run(
+                    ffmpeg_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=180
+                )
 
                 if process.returncode == 0 and os.path.exists(clip_path):
                     clip_paths.append((scene_id, clip_path))
                     print(f"[SCENE-ZIP] {scene_id} 완료: {duration:.1f}초")
                 else:
-                    print(f"[SCENE-ZIP] {scene_id} 실패: {process.stderr[:200]}")
+                    stderr_msg = process.stderr[:200].decode('utf-8', errors='ignore') if process.stderr else '(stderr 없음)'
+                    print(f"[SCENE-ZIP] {scene_id} 실패: {stderr_msg}")
 
                 # 메모리 정리
+                del process
                 gc.collect()
 
             if not clip_paths:
@@ -11085,7 +11149,15 @@ def api_image_generate_assets_zip():
 
                         merged_path = tempfile.mktemp(suffix='.mp3')
                         cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", merged_path]
-                        subprocess.run(cmd, capture_output=True, timeout=60)
+                        # 메모리 최적화: stdout/stderr DEVNULL (OOM 방지)
+                        merge_result = subprocess.run(
+                            cmd,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=60
+                        )
+                        del merge_result
+                        gc.collect()
 
                         if os.path.exists(merged_path):
                             with open(merged_path, 'rb') as f:
@@ -11134,7 +11206,15 @@ def api_image_generate_assets_zip():
 
                     full_merged_path = tempfile.mktemp(suffix='.mp3')
                     cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", full_merged_path]
-                    subprocess.run(cmd, capture_output=True, timeout=120)
+                    # 메모리 최적화: stdout/stderr DEVNULL (OOM 방지)
+                    full_merge_result = subprocess.run(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=120
+                    )
+                    del full_merge_result
+                    gc.collect()
 
                     if os.path.exists(full_merged_path):
                         with open(full_merged_path, 'rb') as f:
@@ -11490,13 +11570,23 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                         clip_path
                     ]
 
-                result = subprocess.run(cmd, capture_output=True, timeout=600)
+                # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=600
+                )
                 if result.returncode == 0 and os.path.exists(clip_path):
                     scene_videos.append(clip_path)
                     print(f"[VIDEO-WORKER] Clip {idx+1} created successfully")
+                    del result
+                    gc.collect()
                 else:
-                    stderr = result.stderr.decode('utf-8', errors='ignore') if result.stderr else 'no stderr'
-                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode}): {stderr[:300]}")
+                    stderr = result.stderr[:300].decode('utf-8', errors='ignore') if result.stderr else 'no stderr'
+                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode}): {stderr}")
+                    del result
+                    gc.collect()
 
             print(f"[VIDEO-WORKER] Total clips created: {len(scene_videos)} / {total_scenes}")
 
@@ -15596,7 +15686,15 @@ def _automation_generate_video(scenes, episode_id, output_dir):
 
                 print(f"[AUTOMATION] 클립 생성 중 {i+1}/{len(scenes)}: {duration:.1f}초")
                 clip_timeout = max(180, int(duration) + 60)
-                subprocess.run(ffmpeg_cmd, capture_output=True, timeout=clip_timeout)
+                # 메모리 최적화: stdout/stderr DEVNULL (OOM 방지)
+                clip_result = subprocess.run(
+                    ffmpeg_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=clip_timeout
+                )
+                del clip_result
+                gc.collect()
 
                 if os.path.exists(clip_path):
                     clip_paths.append(clip_path)
@@ -15621,7 +15719,15 @@ def _automation_generate_video(scenes, episode_id, output_dir):
             ]
 
             print(f"[AUTOMATION] 클립 병합 중... ({len(clip_paths)}개 클립)")
-            subprocess.run(concat_cmd, capture_output=True, timeout=300)
+            # 메모리 최적화: stdout/stderr DEVNULL (OOM 방지)
+            concat_result = subprocess.run(
+                concat_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=300
+            )
+            del concat_result
+            gc.collect()
 
             if not os.path.exists(merged_video):
                 return {"ok": False, "error": "클립 병합 실패"}
@@ -15663,12 +15769,24 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                     final_video
                 ]
 
-                result = subprocess.run(subtitle_cmd, capture_output=True, timeout=600)
+                # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+                result = subprocess.run(
+                    subtitle_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=600
+                )
                 if result.returncode != 0:
-                    print(f"[AUTOMATION] 자막 하드코딩 실패: {result.stderr.decode()[:500]}")
+                    stderr_msg = result.stderr[:500].decode('utf-8', errors='ignore') if result.stderr else '(stderr 없음)'
+                    print(f"[AUTOMATION] 자막 하드코딩 실패: {stderr_msg}")
+                    del result
+                    gc.collect()
                     # 자막 실패시 병합 영상 사용
                     import shutil
                     shutil.copy(merged_video, final_video)
+                else:
+                    del result
+                    gc.collect()
             else:
                 # 자막 없으면 병합 영상 그대로 사용
                 import shutil
