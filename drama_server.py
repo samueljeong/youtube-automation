@@ -14309,6 +14309,322 @@ def api_thumbnail_ai_download_zip():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ===== Google Sheets 자동화 시스템 (서비스 계정 인증) =====
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+def get_sheets_service_account():
+    """서비스 계정을 사용하여 Google Sheets API 서비스 객체 반환"""
+    try:
+        # 환경변수에서 서비스 계정 JSON 로드
+        service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if not service_account_json:
+            print("[SHEETS] GOOGLE_SERVICE_ACCOUNT_JSON 환경변수가 설정되지 않음")
+            return None
+
+        # JSON 문자열을 dict로 파싱
+        service_account_info = json.loads(service_account_json)
+
+        # 서비스 계정 인증 정보 생성
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=[
+                'https://www.googleapis.com/auth/spreadsheets',
+                'https://www.googleapis.com/auth/spreadsheets.readonly'
+            ]
+        )
+
+        # Sheets API 서비스 빌드
+        service = build('sheets', 'v4', credentials=credentials)
+        return service
+    except json.JSONDecodeError as e:
+        print(f"[SHEETS] 서비스 계정 JSON 파싱 실패: {e}")
+        return None
+    except Exception as e:
+        print(f"[SHEETS] 서비스 계정 인증 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def sheets_read_rows(service, sheet_id, range_name='Sheet1!A:H'):
+    """
+    Google Sheets에서 행 읽기
+    반환: [[row1_values], [row2_values], ...]
+    """
+    try:
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=range_name
+        ).execute()
+        return result.get('values', [])
+    except Exception as e:
+        print(f"[SHEETS] 읽기 실패: {e}")
+        return []
+
+
+def sheets_update_cell(service, sheet_id, cell_range, value):
+    """
+    Google Sheets 특정 셀 업데이트
+    cell_range 예시: 'Sheet1!A2' 또는 'Sheet1!G2:H2'
+    """
+    try:
+        body = {
+            'values': [[value]] if not isinstance(value, list) else [value]
+        }
+        service.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=cell_range,
+            valueInputOption='RAW',
+            body=body
+        ).execute()
+        return True
+    except Exception as e:
+        print(f"[SHEETS] 셀 업데이트 실패: {e}")
+        return False
+
+
+def run_automation_pipeline(row_data, row_index):
+    """
+    자동화 파이프라인 실행
+    row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
+    row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
+
+    TODO: 실제 파이프라인 연결
+    - 대본 분석 → 이미지 생성 → TTS → 영상 → 썸네일 → YouTube 업로드
+    """
+    try:
+        status = row_data[0] if len(row_data) > 0 else ''
+        scheduled_time = row_data[1] if len(row_data) > 1 else ''
+        channel_id = row_data[2] if len(row_data) > 2 else ''
+        script = row_data[3] if len(row_data) > 3 else ''
+        title = row_data[4] if len(row_data) > 4 else ''
+        visibility = row_data[5] if len(row_data) > 5 else 'private'
+
+        print(f"[AUTOMATION] 파이프라인 시작 - 행 {row_index}")
+        print(f"  - 예약시간: {scheduled_time}")
+        print(f"  - 채널ID: {channel_id}")
+        print(f"  - 대본 길이: {len(script)} 글자")
+        print(f"  - 제목: {title or '(AI 생성 예정)'}")
+        print(f"  - 공개설정: {visibility}")
+
+        # TODO: 여기에 실제 파이프라인 로직 구현
+        # 1. /api/image/analyze-script 호출 → 씬/샷 분석
+        # 2. /api/image/generate 호출 → 이미지 생성
+        # 3. /api/drama/step3/tts 호출 → TTS 생성
+        # 4. /api/drama/generate-scene-clips-zip 호출 → 영상 클립 생성
+        # 5. /api/thumbnail-ai/analyze + generate 호출 → 썸네일 생성
+        # 6. /api/youtube/upload 호출 → YouTube 업로드
+
+        # 임시: 파이프라인 미구현 알림
+        return {
+            "ok": False,
+            "error": "파이프라인 미구현 - 다음 세션에서 연결 예정",
+            "video_url": None
+        }
+
+    except Exception as e:
+        print(f"[AUTOMATION] 파이프라인 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "ok": False,
+            "error": str(e),
+            "video_url": None
+        }
+
+
+@app.route('/api/sheets/auth-status', methods=['GET'])
+def api_sheets_auth_status():
+    """Google Sheets 서비스 계정 인증 상태 확인"""
+    try:
+        service = get_sheets_service_account()
+        if service:
+            # AUTOMATION_SHEET_ID 확인
+            sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+            return jsonify({
+                "ok": True,
+                "authenticated": True,
+                "sheet_id_configured": bool(sheet_id),
+                "message": "서비스 계정 인증 완료"
+            })
+        else:
+            return jsonify({
+                "ok": True,
+                "authenticated": False,
+                "sheet_id_configured": False,
+                "message": "GOOGLE_SERVICE_ACCOUNT_JSON 환경변수를 설정해주세요"
+            })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/sheets/check-and-process', methods=['POST'])
+def api_sheets_check_and_process():
+    """
+    Google Sheets에서 '대기' 상태인 행을 찾아 처리
+    Render Cron Job에서 5분마다 호출
+
+    시트 구조:
+    A: 상태 (대기/처리중/완료/실패)
+    B: 예약시간 (2025-12-07 09:00)
+    C: 채널ID
+    D: 대본
+    E: 제목 (선택)
+    F: 공개설정 (private/unlisted/public)
+    G: 영상URL (자동 입력)
+    H: 에러메시지 (자동 입력)
+    """
+    try:
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # 시트 ID
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
+            }), 400
+
+        # 시트 데이터 읽기
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:H')
+        if not rows:
+            return jsonify({
+                "ok": True,
+                "message": "시트가 비어있거나 읽기 실패",
+                "processed": 0
+            })
+
+        # 현재 시간
+        from datetime import datetime
+        now = datetime.now()
+        processed_count = 0
+        results = []
+
+        # 행 순회 (첫 번째 행은 헤더로 가정)
+        for i, row in enumerate(rows[1:], start=2):  # 2부터 시작 (1-based, 헤더 제외)
+            if len(row) < 1:
+                continue
+
+            status = row[0] if len(row) > 0 else ''
+            scheduled_time = row[1] if len(row) > 1 else ''
+
+            # '대기' 상태이고 예약시간이 지났으면 처리
+            if status == '대기':
+                # 예약시간 파싱
+                should_process = False
+                if scheduled_time:
+                    try:
+                        scheduled_dt = datetime.strptime(scheduled_time, '%Y-%m-%d %H:%M')
+                        if now >= scheduled_dt:
+                            should_process = True
+                    except ValueError:
+                        # 예약시간 형식이 잘못되면 즉시 처리
+                        should_process = True
+                else:
+                    # 예약시간이 없으면 즉시 처리
+                    should_process = True
+
+                if should_process:
+                    print(f"[SHEETS] 처리 시작 - 행 {i}")
+
+                    # 상태를 '처리중'으로 변경
+                    sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '처리중')
+
+                    # 파이프라인 실행
+                    result = run_automation_pipeline(row, i)
+
+                    if result.get('ok'):
+                        # 성공 - 상태: 완료, 영상URL 기록
+                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
+                        if result.get('video_url'):
+                            sheets_update_cell(service, sheet_id, f'Sheet1!G{i}', result['video_url'])
+                    else:
+                        # 실패 - 상태: 실패, 에러메시지 기록
+                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
+                        error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
+                        sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', error_msg)
+
+                    processed_count += 1
+                    results.append({
+                        "row": i,
+                        "ok": result.get('ok'),
+                        "error": result.get('error')
+                    })
+
+        return jsonify({
+            "ok": True,
+            "message": f"{processed_count}개 행 처리 완료",
+            "processed": processed_count,
+            "results": results
+        })
+
+    except Exception as e:
+        print(f"[SHEETS] check-and-process 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/sheets/read', methods=['GET'])
+def api_sheets_read():
+    """Google Sheets 데이터 읽기 (디버깅용)"""
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({"ok": False, "error": "서비스 계정 미설정"}), 400
+
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({"ok": False, "error": "AUTOMATION_SHEET_ID 미설정"}), 400
+
+        range_name = request.args.get('range', 'Sheet1!A:H')
+        rows = sheets_read_rows(service, sheet_id, range_name)
+
+        return jsonify({
+            "ok": True,
+            "rows": rows,
+            "count": len(rows)
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/sheets/update', methods=['POST'])
+def api_sheets_update():
+    """Google Sheets 셀 업데이트 (디버깅용)"""
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({"ok": False, "error": "서비스 계정 미설정"}), 400
+
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({"ok": False, "error": "AUTOMATION_SHEET_ID 미설정"}), 400
+
+        data = request.get_json() or {}
+        cell_range = data.get('range')  # 예: 'Sheet1!A2'
+        value = data.get('value')
+
+        if not cell_range or value is None:
+            return jsonify({"ok": False, "error": "range와 value 필수"}), 400
+
+        success = sheets_update_cell(service, sheet_id, cell_range, value)
+
+        return jsonify({
+            "ok": success,
+            "message": "업데이트 완료" if success else "업데이트 실패"
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Render 배포를 위한 설정 =====
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5059))
