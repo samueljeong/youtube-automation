@@ -3659,18 +3659,64 @@ def quick_add_project():
 
 # ===== Google Calendar API 연동 =====
 
-# Google Calendar 토큰 저장소 (메모리 - 실제 운영에서는 DB나 파일로 저장 권장)
+# Google Calendar 토큰 저장소 (메모리 캐시 + DB 영구 저장)
 _gcal_credentials = {}
 
 def get_gcal_credentials():
-    """저장된 Google Calendar 인증 정보 반환"""
+    """저장된 Google Calendar 인증 정보 반환 (메모리 → DB 순서로 확인)"""
     global _gcal_credentials
-    return _gcal_credentials.get('credentials')
+
+    # 1. 메모리 캐시 확인
+    if _gcal_credentials.get('credentials'):
+        return _gcal_credentials.get('credentials')
+
+    # 2. DB에서 로드
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute("SELECT value FROM settings WHERE key = %s", ('gcal_credentials',))
+        else:
+            cursor.execute("SELECT value FROM settings WHERE key = ?", ('gcal_credentials',))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            import json
+            creds = json.loads(row['value'] if isinstance(row, dict) else row[0])
+            _gcal_credentials['credentials'] = creds  # 메모리 캐시에 저장
+            return creds
+    except Exception as e:
+        print(f"[GCAL] credentials 로드 오류: {e}")
+
+    return None
 
 def save_gcal_credentials(credentials):
-    """Google Calendar 인증 정보 저장"""
+    """Google Calendar 인증 정보 저장 (메모리 + DB)"""
     global _gcal_credentials
+    import json
+
+    # 1. 메모리 캐시에 저장
     _gcal_credentials['credentials'] = credentials
+
+    # 2. DB에 영구 저장
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        creds_json = json.dumps(credentials)
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO settings (key, value) VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            ''', ('gcal_credentials', creds_json))
+        else:
+            cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                          ('gcal_credentials', creds_json))
+        conn.commit()
+        conn.close()
+        print("[GCAL] credentials DB 저장 완료")
+    except Exception as e:
+        print(f"[GCAL] credentials DB 저장 오류: {e}")
 
 
 @assistant_bp.route('/assistant/api/gcal/auth-status', methods=['GET'])
