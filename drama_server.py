@@ -14119,38 +14119,67 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
 
         result = response.json()
 
-        # 이미지 추출
-        base64_image_data = None
+        # 디버그: 응답 구조 출력
+        print(f"[THUMBNAIL-AI] 응답 키: {list(result.keys())}")
         choices = result.get("choices", [])
         if choices:
             message = choices[0].get("message", {})
+            print(f"[THUMBNAIL-AI] message 키: {list(message.keys())}")
 
-            # images 필드 확인
+        # 이미지 추출 (다양한 형식 지원)
+        base64_image_data = None
+        if choices:
+            message = choices[0].get("message", {})
+
+            # 방법 1: images 필드 확인 (다양한 형식 지원)
             images = message.get("images")
             if images:
+                print(f"[THUMBNAIL-AI] images 발견: 타입={type(images)}")
                 if isinstance(images, list) and len(images) > 0:
                     img = images[0]
                     if isinstance(img, str):
                         base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
                     elif isinstance(img, dict):
-                        base64_image_data = img.get("b64_json") or img.get("base64")
+                        base64_image_data = img.get("b64_json") or img.get("base64") or img.get("data")
                 elif isinstance(images, str):
                     base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
 
-            # content 필드 확인 (이미지가 없는 경우)
+            # 방법 2: content 배열에서 image_url 추출
             if not base64_image_data:
                 content = message.get("content")
                 if isinstance(content, list):
                     for item in content:
                         if isinstance(item, dict):
-                            if item.get("type") == "image_url":
+                            item_type = item.get("type", "")
+                            if item_type == "image_url":
                                 url_data = item.get("image_url", {})
                                 if isinstance(url_data, dict):
                                     url = url_data.get("url", "")
                                     if url.startswith("data:image"):
                                         base64_image_data = url.split(",", 1)[1]
+                                        print(f"[THUMBNAIL-AI] content.image_url에서 추출 성공")
+                                        break
+                            elif item_type == "image":
+                                # Gemini 3 Pro 형식
+                                img_data = item.get("image", {})
+                                if isinstance(img_data, dict):
+                                    base64_image_data = img_data.get("data") or img_data.get("b64_json")
+                                    if base64_image_data:
+                                        print(f"[THUMBNAIL-AI] content.image에서 추출 성공")
+                                        break
+
+            # 방법 3: content가 문자열인 경우 (data:image 포함 여부 확인)
+            if not base64_image_data:
+                content = message.get("content", "")
+                if isinstance(content, str) and "data:image" in content:
+                    import re
+                    match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', content)
+                    if match:
+                        base64_image_data = match.group(1)
+                        print(f"[THUMBNAIL-AI] content 문자열에서 추출 성공")
 
         if not base64_image_data:
+            print(f"[THUMBNAIL-AI] 이미지 추출 실패 - 전체 응답: {str(result)[:1000]}")
             return jsonify({"ok": False, "error": "이미지 데이터 추출 실패"})
 
         # 파일 저장
@@ -14624,11 +14653,16 @@ def run_automation_pipeline(row_data, row_index):
         # ========== 1. 대본 분석 (/api/image/analyze-script) ==========
         print(f"[AUTOMATION] 1. 대본 분석 시작...")
         try:
+            # 1분당 1개 이미지 (한국어 약 150자 = 1분 분량)
+            # 최소 3개, 상한 없음 (대본 길이에 따라 동적)
+            calculated_image_count = max(3, len(script) // 150)
+            print(f"[AUTOMATION] 대본 길이: {len(script)}자 → 이미지 {calculated_image_count}개 (1분당 1개)")
+
             analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
                 "script": script,
                 "content_type": "drama",
                 "image_style": "animation",  # 스틱맨 스타일
-                "image_count": max(3, min(10, len(script) // 250)),
+                "image_count": calculated_image_count,
                 "audience": audience,
                 "output_language": "auto"
             }, timeout=120)
@@ -14656,107 +14690,139 @@ def run_automation_pipeline(row_data, row_index):
             traceback.print_exc()
             return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
-        # ========== 2. 이미지 생성 (/api/drama/generate-image) ==========
-        print(f"[AUTOMATION] 2. 이미지 생성 시작 ({len(scenes)}개)...")
-        try:
+        # ========== 2. 병렬 처리: 이미지 + TTS + 썸네일 ==========
+        print(f"[AUTOMATION] 2. 병렬 처리 시작 (이미지 {len(scenes)}개 + TTS + 썸네일)...")
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        thumbnail_url = None
+        parallel_errors = []
+
+        def generate_images():
+            """이미지 생성 (병렬 작업 1)"""
+            nonlocal total_cost
+            print(f"[AUTOMATION][IMAGE] 이미지 생성 시작 ({len(scenes)}개)...")
             for i, scene in enumerate(scenes):
                 prompt = scene.get('image_prompt', '')
                 if not prompt:
                     continue
 
-                print(f"[AUTOMATION]   이미지 {i+1}/{len(scenes)} 생성 중...")
-                img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
-                    "prompt": prompt,
-                    "size": "1792x1024",  # 16:9
-                    "imageProvider": "gemini"
-                }, timeout=120)
+                try:
+                    img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
+                        "prompt": prompt,
+                        "size": "1792x1024",
+                        "imageProvider": "gemini"
+                    }, timeout=120)
 
-                img_data = img_resp.json()
-                if img_data.get('ok') and img_data.get('imageUrl'):
-                    scene['image_url'] = img_data['imageUrl']
-                    print(f"[AUTOMATION]   이미지 {i+1} 완료")
-                else:
-                    print(f"[AUTOMATION]   이미지 {i+1} 실패: {img_data.get('error', 'unknown')}")
+                    img_data = img_resp.json()
+                    if img_data.get('ok') and img_data.get('imageUrl'):
+                        scene['image_url'] = img_data['imageUrl']
+                        print(f"[AUTOMATION][IMAGE] {i+1}/{len(scenes)} 완료")
+                    else:
+                        print(f"[AUTOMATION][IMAGE] {i+1}/{len(scenes)} 실패")
+                except Exception as e:
+                    print(f"[AUTOMATION][IMAGE] {i+1} 오류: {e}")
 
-                time_module.sleep(1)  # API 부하 방지
+                time_module.sleep(1)
 
             success_count = len([s for s in scenes if s.get('image_url')])
-            # 비용: Gemini 이미지 (~$0.02/장)
             image_cost = success_count * 0.02
             total_cost += image_cost
-            print(f"[AUTOMATION] 2. 완료: {success_count}/{len(scenes)}개 이미지 생성 (비용: ${image_cost:.2f})")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"[AUTOMATION] 이미지 생성 중 오류 (계속 진행): {e}")
+            print(f"[AUTOMATION][IMAGE] 완료: {success_count}/{len(scenes)}개 (비용: ${image_cost:.2f})")
+            return success_count
 
-        # ========== 3. TTS + 자막 생성 (/api/image/generate-assets-zip) ==========
-        print(f"[AUTOMATION] 3. TTS 생성 시작...")
-        try:
-            # 씬 데이터를 API 형식으로 변환
-            scenes_for_tts = []
-            for i, scene in enumerate(scenes):
-                scenes_for_tts.append({
-                    "scene_number": i + 1,
-                    "text": scene.get('narration', ''),  # API는 'text' 필드를 기대함
-                    "image_url": scene.get('image_url', '')
-                })
+        def generate_tts():
+            """TTS 생성 (병렬 작업 2)"""
+            nonlocal total_cost
+            print(f"[AUTOMATION][TTS] TTS 생성 시작...")
+            try:
+                scenes_for_tts = []
+                for i, scene in enumerate(scenes):
+                    scenes_for_tts.append({
+                        "scene_number": i + 1,
+                        "text": scene.get('narration', ''),
+                        "image_url": scene.get('image_url', '')
+                    })
 
-            assets_resp = req.post(f"{base_url}/api/image/generate-assets-zip", json={
-                "session_id": session_id,
-                "scenes": scenes_for_tts,
-                "voice": voice,
-                "include_images": False  # 이미지는 이미 생성됨
-            }, timeout=300)
+                assets_resp = req.post(f"{base_url}/api/image/generate-assets-zip", json={
+                    "session_id": session_id,
+                    "scenes": scenes_for_tts,
+                    "voice": voice,
+                    "include_images": False
+                }, timeout=300)
 
-            assets_data = assets_resp.json()
-            if not assets_data.get('ok'):
-                return {"ok": False, "error": f"TTS 생성 실패: {assets_data.get('error')}", "video_url": None, "cost": total_cost}
+                assets_data = assets_resp.json()
+                if not assets_data.get('ok'):
+                    raise Exception(f"TTS 실패: {assets_data.get('error')}")
 
-            # TTS 결과를 scenes에 적용 (API는 scene_metadata로 반환)
-            scene_metadata = assets_data.get('scene_metadata', [])
-            for sm in scene_metadata:
-                idx = sm.get('scene_idx', -1)
-                if 0 <= idx < len(scenes):
-                    scenes[idx]['audio_url'] = sm.get('audio_url')
-                    scenes[idx]['duration'] = sm.get('duration', 5)
-                    scenes[idx]['subtitles'] = sm.get('subtitles', [])
+                scene_metadata = assets_data.get('scene_metadata', [])
+                for sm in scene_metadata:
+                    idx = sm.get('scene_idx', -1)
+                    if 0 <= idx < len(scenes):
+                        scenes[idx]['audio_url'] = sm.get('audio_url')
+                        scenes[idx]['duration'] = sm.get('duration', 5)
+                        scenes[idx]['subtitles'] = sm.get('subtitles', [])
 
-            # 비용: Google TTS (~$4/1M chars = $0.000004/char)
-            tts_cost = len(script) * 0.000004
-            total_cost += tts_cost
-            print(f"[AUTOMATION] 3. 완료: TTS 생성 ({len(scene_metadata)}개 씬, 비용: ${tts_cost:.3f})")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None, "cost": total_cost}
+                tts_cost = len(script) * 0.000004
+                total_cost += tts_cost
+                print(f"[AUTOMATION][TTS] 완료: {len(scene_metadata)}개 씬 (비용: ${tts_cost:.3f})")
+                return True
+            except Exception as e:
+                print(f"[AUTOMATION][TTS] 오류: {e}")
+                parallel_errors.append(f"TTS: {str(e)}")
+                return False
 
-        # ========== 4. 썸네일 생성 (/api/thumbnail-ai/generate-single) ==========
-        print(f"[AUTOMATION] 4. 썸네일 생성 시작...")
-        thumbnail_url = None
-        try:
-            if ai_prompts and ai_prompts.get('A'):
-                # 단일 썸네일 생성 (A 프롬프트만 사용)
+        def generate_thumbnail():
+            """썸네일 생성 (병렬 작업 3)"""
+            nonlocal thumbnail_url, total_cost
+            print(f"[AUTOMATION][THUMB] 썸네일 생성 시작...")
+            try:
+                if not ai_prompts or not ai_prompts.get('A'):
+                    print(f"[AUTOMATION][THUMB] 프롬프트 없음 (스킵)")
+                    return None
+
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
                     "session_id": f"thumb_{session_id}",
-                    "prompt": ai_prompts.get('A')  # A 프롬프트만 전달
+                    "prompt": ai_prompts.get('A')
                 }, timeout=180)
 
                 thumb_data = thumb_resp.json()
                 if thumb_data.get('ok') and thumb_data.get('image_url'):
                     thumbnail_url = thumb_data['image_url']
-                    # 비용: Gemini 썸네일 (~$0.03/장)
                     total_cost += 0.03
-                    print(f"[AUTOMATION] 4. 완료: 썸네일 1개 생성 (비용: $0.03)")
+                    print(f"[AUTOMATION][THUMB] 완료 (비용: $0.03)")
+                    return thumbnail_url
                 else:
-                    print(f"[AUTOMATION] 4. 썸네일 생성 실패: {thumb_data.get('error', '알 수 없음')} (계속 진행)")
-            else:
-                print(f"[AUTOMATION] 4. 썸네일 프롬프트 없음 (스킵)")
-        except Exception as e:
-            print(f"[AUTOMATION] 썸네일 생성 오류 (계속 진행): {e}")
+                    print(f"[AUTOMATION][THUMB] 실패: {thumb_data.get('error', '알 수 없음')}")
+                    return None
+            except Exception as e:
+                print(f"[AUTOMATION][THUMB] 오류: {e}")
+                return None
 
-        # ========== 5. 영상 생성 (/api/image/generate-video) ==========
-        print(f"[AUTOMATION] 5. 영상 생성 시작...")
+        # 병렬 실행
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = {
+                executor.submit(generate_images): "images",
+                executor.submit(generate_tts): "tts",
+                executor.submit(generate_thumbnail): "thumbnail"
+            }
+
+            for future in as_completed(futures):
+                task_name = futures[future]
+                try:
+                    result = future.result()
+                    print(f"[AUTOMATION] 병렬 작업 완료: {task_name}")
+                except Exception as e:
+                    print(f"[AUTOMATION] 병렬 작업 실패: {task_name} - {e}")
+                    parallel_errors.append(f"{task_name}: {str(e)}")
+
+        # TTS 실패 시 중단
+        if not any(s.get('audio_url') for s in scenes):
+            return {"ok": False, "error": f"TTS 생성 실패: {'; '.join(parallel_errors)}", "video_url": None, "cost": total_cost}
+
+        print(f"[AUTOMATION] 2. 병렬 처리 완료")
+
+        # ========== 3. 영상 생성 (/api/image/generate-video) ==========
+        print(f"[AUTOMATION] 3. 영상 생성 시작...")
         try:
             video_resp = req.post(f"{base_url}/api/image/generate-video", json={
                 "session_id": session_id,
@@ -14769,9 +14835,9 @@ def run_automation_pipeline(row_data, row_index):
 
             job_id = video_data.get('job_id')
 
-            # 영상 생성 완료 대기 (폴링)
+            # 영상 생성 완료 대기 (폴링) - 20분 대기
             video_url_local = None
-            for _ in range(150):  # 최대 5분 대기
+            for _ in range(600):  # 600 * 2초 = 20분
                 time_module.sleep(2)
                 status_resp = req.get(f"{base_url}/api/image/video-status/{job_id}", timeout=30)
                 status_data = status_resp.json()
@@ -14783,16 +14849,16 @@ def run_automation_pipeline(row_data, row_index):
                     return {"ok": False, "error": f"영상 생성 실패: {status_data.get('error')}", "video_url": None, "cost": total_cost}
 
             if not video_url_local:
-                return {"ok": False, "error": "영상 생성 타임아웃", "video_url": None, "cost": total_cost}
+                return {"ok": False, "error": "영상 생성 타임아웃 (20분 초과)", "video_url": None, "cost": total_cost}
 
-            print(f"[AUTOMATION] 5. 완료: {video_url_local} (영상 생성은 무료)")
+            print(f"[AUTOMATION] 3. 완료: {video_url_local} (영상 생성은 무료)")
         except Exception as e:
             import traceback
             traceback.print_exc()
             return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None, "cost": total_cost}
 
-        # ========== 6. YouTube 업로드 (/api/youtube/upload) ==========
-        print(f"[AUTOMATION] 6. YouTube 업로드 시작...")
+        # ========== 4. YouTube 업로드 ==========
+        print(f"[AUTOMATION] 4. YouTube 업로드 시작...")
         try:
             upload_payload = {
                 "videoPath": video_url_local,
@@ -14862,7 +14928,7 @@ def run_automation_pipeline(row_data, row_index):
             upload_data = upload_resp.json()
             if upload_data.get('ok'):
                 youtube_url = upload_data.get('videoUrl', '')  # camelCase로 반환됨
-                print(f"[AUTOMATION] 6. 완료: {youtube_url} (총 비용: ${total_cost:.2f})")
+                print(f"[AUTOMATION] 4. 완료: {youtube_url} (총 비용: ${total_cost:.2f})")
                 return {"ok": True, "video_url": youtube_url, "error": None, "cost": total_cost}
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None, "cost": total_cost}
@@ -14894,8 +14960,8 @@ def _automation_analyze_script_gpt5(script, episode_id):
         from openai import OpenAI
         client = OpenAI()
 
-        # 이미지 수 계산 (250자 = 1분 = 1장)
-        image_count = max(3, min(10, len(script) // 250))
+        # 이미지 수 계산 (150자 = 1분 = 1장, 상한 없음)
+        image_count = max(3, len(script) // 150)
 
         system_prompt = """You are an AI that analyzes scripts and generates image prompts for video production.
 
