@@ -14789,7 +14789,7 @@ def run_automation_pipeline(row_data, row_index):
                 "image_count": fixed_image_count,
                 "audience": audience,
                 "output_language": "auto"
-            }, timeout=120)
+            }, timeout=180)  # GPT-5.1 응답 대기 시간 증가 (120→180초)
 
             analyze_data = analyze_resp.json()
             if not analyze_data.get('ok'):
