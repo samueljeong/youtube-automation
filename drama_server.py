@@ -14392,30 +14392,31 @@ def run_automation_pipeline(row_data, row_index):
 
     try:
         # 시트 컬럼 구조:
-        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 대본, E(4): 제목
-        # F(5): 공개설정, G(6): 영상URL(출력), H(7): 에러메시지(출력)
-        # I(8): 음성(선택), J(9): 타겟(선택), K(10): 예약시간(YouTube 공개)
+        # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 예약시간
+        # E(4): 대본, F(5): 제목, G(6): 공개설정
+        # H(7): 영상URL(출력), I(8): 에러메시지(출력)
+        # J(9): 음성(선택), K(10): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = row_data[2] if len(row_data) > 2 else ''
-        script = row_data[3] if len(row_data) > 3 else ''
-        title = row_data[4] if len(row_data) > 4 else ''
-        visibility = row_data[5] if len(row_data) > 5 else 'private'
-        # G(6), H(7)은 출력 컬럼이므로 스킵
-        voice = row_data[8] if len(row_data) > 8 else 'ko-KR-Neural2-C'  # I컬럼: 음성 (기본: 남성)
-        audience = row_data[9] if len(row_data) > 9 else 'senior'  # J컬럼: 타겟 시청자
-        publish_time = row_data[10] if len(row_data) > 10 else ''  # K컬럼: 예약시간 (YouTube 공개용)
+        publish_time = row_data[3] if len(row_data) > 3 else ''  # D: 예약시간 (YouTube 공개용)
+        script = row_data[4] if len(row_data) > 4 else ''
+        title = row_data[5] if len(row_data) > 5 else ''
+        visibility = row_data[6] if len(row_data) > 6 else 'private'
+        # H(7), I(8)은 출력 컬럼이므로 스킵
+        voice = row_data[9] if len(row_data) > 9 else 'ko-KR-Neural2-C'  # J컬럼: 음성 (기본: 남성)
+        audience = row_data[10] if len(row_data) > 10 else 'senior'  # K컬럼: 타겟 시청자
 
         print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
         print(f"  - 작업시간: {work_time}")
         print(f"  - 채널ID: {channel_id}")
+        print(f"  - 예약시간: {publish_time or '(없음 - 즉시 공개)'}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
         print(f"  - 공개설정: {visibility}")
         print(f"  - 음성: {voice}")
         print(f"  - 타겟: {audience}")
-        print(f"  - 예약시간: {publish_time or '(없음 - 즉시 공개)'}")
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
@@ -15569,15 +15570,15 @@ def api_sheets_check_and_process():
                     result = run_automation_pipeline(row, i)
 
                     if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록
+                        # 성공 - 상태: 완료, 영상URL 기록 (H열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
                         if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!G{i}', result['video_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', result['video_url'])
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록
+                        # 실패 - 상태: 실패, 에러메시지 기록 (I열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
                         error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', error_msg)
+                        sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', error_msg)
 
                     processed_count += 1
                     results.append({
