@@ -14386,58 +14386,73 @@ def sheets_update_cell(service, sheet_id, cell_range, value):
 
 def run_automation_pipeline(row_data, row_index):
     """
-    자동화 파이프라인 실행 (/image 페이지 구조 기반)
+    자동화 파이프라인 실행 - 기존 /image 페이지 API 재사용
+
     row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
     row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
 
-    파이프라인 구조:
-    [분석] GPT-5.1로 대본 분석 → 씬/이미지 프롬프트/나레이션/YouTube 메타데이터/썸네일 프롬프트
-    [생성] 분석 완료 후 병렬 진행:
-           - 씬 이미지 생성 (Gemini 2.5 Flash via OpenRouter)
-           - TTS 생성 (Google TTS Neural2)
-    [영상] FFmpeg로 영상 생성
-    [업로드] YouTube 업로드
+    ★★★ 중요: 기존 /image 페이지와 동일한 API를 사용합니다 ★★★
+    - /api/image/analyze-script (대본 분석)
+    - /api/drama/generate-image (이미지 생성)
+    - /api/image/generate-assets-zip (TTS + 자막)
+    - /api/thumbnail-ai/generate-all (썸네일 생성)
+    - /api/image/generate-video (영상 생성)
+    - /api/youtube/upload (YouTube 업로드)
     """
-    import subprocess
-    import base64
+    import requests as req
     import time as time_module
-    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     try:
+        # 시트 컬럼 구조:
+        # A(0): 상태, B(1): 예약시간, C(2): 채널ID, D(3): 대본, E(4): 제목
+        # F(5): 공개설정, G(6): 영상URL(출력), H(7): 에러메시지(출력)
+        # I(8): 음성(선택), J(9): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         scheduled_time = row_data[1] if len(row_data) > 1 else ''
         channel_id = row_data[2] if len(row_data) > 2 else ''
         script = row_data[3] if len(row_data) > 3 else ''
         title = row_data[4] if len(row_data) > 4 else ''
         visibility = row_data[5] if len(row_data) > 5 else 'private'
+        # G(6), H(7)은 출력 컬럼이므로 스킵
+        voice = row_data[8] if len(row_data) > 8 else 'ko-KR-Neural2-C'  # I컬럼: 음성 (기본: 남성)
+        audience = row_data[9] if len(row_data) > 9 else 'senior'  # J컬럼: 타겟 시청자
 
-        print(f"[AUTOMATION] ========== 파이프라인 시작 ==========")
+        print(f"[AUTOMATION] ========== 파이프라인 시작 (API 재사용) ==========")
         print(f"[AUTOMATION] 행 {row_index}")
         print(f"  - 예약시간: {scheduled_time}")
         print(f"  - 채널ID: {channel_id}")
         print(f"  - 대본 길이: {len(script)} 글자")
         print(f"  - 제목: {title or '(AI 생성 예정)'}")
         print(f"  - 공개설정: {visibility}")
+        print(f"  - 음성: {voice}")
+        print(f"  - 타겟: {audience}")
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
 
-        episode_id = f"auto_{row_index}_{int(time_module.time())}"
-        output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
-        uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads')
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(uploads_dir, exist_ok=True)
+        session_id = f"auto_{row_index}_{int(time_module.time())}"
+        base_url = "http://127.0.0.1:" + str(os.environ.get("PORT", 5059))
 
-        # ========== STEP 1: 대본 분석 (GPT-5.1) ==========
-        print(f"[AUTOMATION] Step 1: 대본 분석 시작 (GPT-5.1)...")
+        # ========== 1. 대본 분석 (/api/image/analyze-script) ==========
+        print(f"[AUTOMATION] 1. 대본 분석 시작...")
         try:
-            analysis_result = _automation_analyze_script_gpt5(script, episode_id)
-            if not analysis_result.get('ok'):
-                return {"ok": False, "error": f"대본 분석 실패: {analysis_result.get('error')}", "video_url": None}
+            analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
+                "script": script,
+                "content_type": "drama",
+                "image_style": "animation",  # 스틱맨 스타일
+                "image_count": max(3, min(10, len(script) // 250)),
+                "audience": audience,
+                "output_language": "auto"
+            }, timeout=120)
 
-            scenes = analysis_result.get('scenes', [])
-            youtube_meta = analysis_result.get('youtube', {})
-            thumbnail_data = analysis_result.get('thumbnail', {})
+            analyze_data = analyze_resp.json()
+            if not analyze_data.get('ok'):
+                return {"ok": False, "error": f"대본 분석 실패: {analyze_data.get('error')}", "video_url": None}
+
+            scenes = analyze_data.get('scenes', [])
+            youtube_meta = analyze_data.get('youtube', {})
+            thumbnail_data = analyze_data.get('thumbnail', {})
+            ai_prompts = thumbnail_data.get('ai_prompts', {})
 
             generated_title = youtube_meta.get('title', '')
             description = youtube_meta.get('description', '')
@@ -14445,112 +14460,160 @@ def run_automation_pipeline(row_data, row_index):
             if not title:
                 title = generated_title or f"자동 생성 영상 #{row_index}"
 
-            print(f"[AUTOMATION] Step 1 완료: {len(scenes)}개 씬 추출")
-            print(f"  - YouTube 제목: {title[:50]}...")
+            print(f"[AUTOMATION] 1. 완료: {len(scenes)}개 씬, 제목: {title[:40]}...")
         except Exception as e:
             import traceback
             traceback.print_exc()
             return {"ok": False, "error": f"대본 분석 오류: {str(e)}", "video_url": None}
 
-        # ========== STEP 2: 병렬 생성 (이미지 + TTS) ==========
-        print(f"[AUTOMATION] Step 2: 이미지 + TTS 병렬 생성 시작...")
+        # ========== 2. 이미지 생성 (/api/drama/generate-image) ==========
+        print(f"[AUTOMATION] 2. 이미지 생성 시작 ({len(scenes)}개)...")
         try:
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                # 이미지 생성 작업
-                image_future = executor.submit(
-                    _automation_generate_all_images,
-                    scenes, episode_id, output_dir
-                )
-
-                # TTS 생성 작업
-                tts_future = executor.submit(
-                    _automation_generate_tts_neural2,
-                    scenes, episode_id, uploads_dir
-                )
-
-                # 결과 수집
-                image_result = image_future.result(timeout=300)  # 5분 타임아웃
-                tts_result = tts_future.result(timeout=300)
-
-            # 이미지 결과 적용
-            if not image_result.get('ok'):
-                print(f"[AUTOMATION] 이미지 생성 실패: {image_result.get('error')}")
-                # 이미지 실패해도 일부는 성공했을 수 있음, 계속 진행
-
-            image_paths = image_result.get('image_paths', [])
             for i, scene in enumerate(scenes):
-                if i < len(image_paths) and image_paths[i]:
-                    scene['image_path'] = image_paths[i]
-                    scene['image_url'] = f"/output/{os.path.basename(image_paths[i])}"
+                prompt = scene.get('image_prompt', '')
+                if not prompt:
+                    continue
 
-            # TTS 결과 적용
-            if not tts_result.get('ok'):
-                return {"ok": False, "error": f"TTS 생성 실패: {tts_result.get('error')}", "video_url": None}
+                print(f"[AUTOMATION]   이미지 {i+1}/{len(scenes)} 생성 중...")
+                img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
+                    "prompt": prompt,
+                    "size": "1792x1024",  # 16:9
+                    "imageProvider": "gemini"
+                }, timeout=120)
 
-            audio_data = tts_result.get('audio_data', [])
-            for i, scene in enumerate(scenes):
-                if i < len(audio_data) and audio_data[i]:
-                    scene['audio_path'] = audio_data[i].get('path')
-                    scene['audio_url'] = audio_data[i].get('url')
-                    scene['duration'] = audio_data[i].get('duration', 5)
+                img_data = img_resp.json()
+                if img_data.get('ok') and img_data.get('imageUrl'):
+                    scene['image_url'] = img_data['imageUrl']
+                    print(f"[AUTOMATION]   이미지 {i+1} 완료")
+                else:
+                    print(f"[AUTOMATION]   이미지 {i+1} 실패: {img_data.get('error', 'unknown')}")
 
-            print(f"[AUTOMATION] Step 2 완료")
-            print(f"  - 이미지: {len([s for s in scenes if s.get('image_path')])}개 생성")
-            print(f"  - TTS: {len([s for s in scenes if s.get('audio_path')])}개 생성")
+                time_module.sleep(1)  # API 부하 방지
+
+            success_count = len([s for s in scenes if s.get('image_url')])
+            print(f"[AUTOMATION] 2. 완료: {success_count}/{len(scenes)}개 이미지 생성")
         except Exception as e:
             import traceback
             traceback.print_exc()
-            return {"ok": False, "error": f"병렬 생성 오류: {str(e)}", "video_url": None}
+            print(f"[AUTOMATION] 이미지 생성 중 오류 (계속 진행): {e}")
 
-        # ========== STEP 2.5: 썸네일 생성 ==========
-        thumbnail_path = None
-        if thumbnail_data and thumbnail_data.get('prompt'):
-            print(f"[AUTOMATION] Step 2.5: 썸네일 생성 시작...")
-            try:
-                thumb_result = _automation_generate_thumbnail(thumbnail_data, episode_id, output_dir)
-                if thumb_result.get('ok'):
-                    thumbnail_path = thumb_result.get('path')
-                    print(f"[AUTOMATION] Step 2.5 완료: {thumbnail_path}")
-                else:
-                    print(f"[AUTOMATION] 썸네일 생성 실패 (계속 진행): {thumb_result.get('error')}")
-            except Exception as e:
-                print(f"[AUTOMATION] 썸네일 생성 오류 (계속 진행): {e}")
-        else:
-            print(f"[AUTOMATION] 썸네일 데이터 없음 - 스킵")
-
-        # ========== STEP 3: 영상 생성 (FFmpeg) ==========
-        print(f"[AUTOMATION] Step 3: 영상 생성 시작...")
+        # ========== 3. TTS + 자막 생성 (/api/image/generate-assets-zip) ==========
+        print(f"[AUTOMATION] 3. TTS 생성 시작...")
         try:
-            video_result = _automation_generate_video(scenes, episode_id, output_dir)
-            if not video_result.get('ok'):
-                return {"ok": False, "error": f"영상 생성 실패: {video_result.get('error')}", "video_url": None}
+            # 씬 데이터를 API 형식으로 변환
+            scenes_for_tts = []
+            for i, scene in enumerate(scenes):
+                scenes_for_tts.append({
+                    "scene_number": i + 1,
+                    "narration": scene.get('narration', ''),
+                    "image_url": scene.get('image_url', '')
+                })
 
-            video_path = video_result.get('video_path')
-            print(f"[AUTOMATION] Step 3 완료: {video_path}")
+            assets_resp = req.post(f"{base_url}/api/image/generate-assets-zip", json={
+                "session_id": session_id,
+                "scenes": scenes_for_tts,
+                "voice": voice,
+                "include_images": False  # 이미지는 이미 생성됨
+            }, timeout=300)
+
+            assets_data = assets_resp.json()
+            if not assets_data.get('ok'):
+                return {"ok": False, "error": f"TTS 생성 실패: {assets_data.get('error')}", "video_url": None}
+
+            # TTS 결과를 scenes에 적용
+            tts_results = assets_data.get('tts_results', [])
+            for i, scene in enumerate(scenes):
+                if i < len(tts_results) and tts_results[i]:
+                    scene['audio_url'] = tts_results[i].get('audio_url')
+                    scene['duration'] = tts_results[i].get('duration', 5)
+
+            print(f"[AUTOMATION] 3. 완료: TTS 생성")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"ok": False, "error": f"TTS 생성 오류: {str(e)}", "video_url": None}
+
+        # ========== 4. 썸네일 생성 (/api/thumbnail-ai/generate-all) ==========
+        print(f"[AUTOMATION] 4. 썸네일 생성 시작...")
+        thumbnail_url = None
+        try:
+            if ai_prompts and ai_prompts.get('A'):
+                thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-all", json={
+                    "session_id": f"thumb_{session_id}",
+                    "prompts": ai_prompts
+                }, timeout=180)
+
+                thumb_data = thumb_resp.json()
+                if thumb_data.get('ok') and thumb_data.get('results', {}).get('A', {}).get('image_url'):
+                    thumbnail_url = thumb_data['results']['A']['image_url']
+                    print(f"[AUTOMATION] 4. 완료: 썸네일 생성 ({thumbnail_url[:50]}...)")
+                else:
+                    print(f"[AUTOMATION] 4. 썸네일 생성 실패 (계속 진행)")
+            else:
+                print(f"[AUTOMATION] 4. 썸네일 프롬프트 없음 (스킵)")
+        except Exception as e:
+            print(f"[AUTOMATION] 썸네일 생성 오류 (계속 진행): {e}")
+
+        # ========== 5. 영상 생성 (/api/image/generate-video) ==========
+        print(f"[AUTOMATION] 5. 영상 생성 시작...")
+        try:
+            video_resp = req.post(f"{base_url}/api/image/generate-video", json={
+                "session_id": session_id,
+                "scenes": scenes
+            }, timeout=600)
+
+            video_data = video_resp.json()
+            if not video_data.get('ok') and not video_data.get('job_id'):
+                return {"ok": False, "error": f"영상 생성 시작 실패: {video_data.get('error')}", "video_url": None}
+
+            job_id = video_data.get('job_id')
+
+            # 영상 생성 완료 대기 (폴링)
+            video_url_local = None
+            for _ in range(150):  # 최대 5분 대기
+                time_module.sleep(2)
+                status_resp = req.get(f"{base_url}/api/image/video-status/{job_id}", timeout=30)
+                status_data = status_resp.json()
+
+                if status_data.get('status') == 'completed':
+                    video_url_local = status_data.get('video_url')
+                    break
+                elif status_data.get('status') == 'failed':
+                    return {"ok": False, "error": f"영상 생성 실패: {status_data.get('error')}", "video_url": None}
+
+            if not video_url_local:
+                return {"ok": False, "error": "영상 생성 타임아웃", "video_url": None}
+
+            print(f"[AUTOMATION] 5. 완료: {video_url_local}")
         except Exception as e:
             import traceback
             traceback.print_exc()
             return {"ok": False, "error": f"영상 생성 오류: {str(e)}", "video_url": None}
 
-        # ========== STEP 4: YouTube 업로드 ==========
-        print(f"[AUTOMATION] Step 4: YouTube 업로드 시작...")
+        # ========== 6. YouTube 업로드 (/api/youtube/upload) ==========
+        print(f"[AUTOMATION] 6. YouTube 업로드 시작...")
         try:
-            upload_result = _automation_youtube_upload(
-                video_path=video_path,
-                title=title,
-                description=description,
-                visibility=visibility,
-                channel_id=channel_id,
-                thumbnail_path=thumbnail_path
-            )
+            upload_payload = {
+                "video_url": video_url_local,
+                "title": title,
+                "description": description,
+                "privacy_status": visibility,
+                "channel_id": channel_id
+            }
 
-            if upload_result.get('ok'):
-                video_url = upload_result.get('video_url', '')
-                thumb_status = " (썸네일 포함)" if upload_result.get('thumbnail_uploaded') else ""
-                print(f"[AUTOMATION] Step 4 완료: {video_url}{thumb_status}")
-                return {"ok": True, "video_url": video_url, "error": None}
+            # 썸네일이 있으면 추가
+            if thumbnail_url:
+                upload_payload["thumbnail_url"] = thumbnail_url
+
+            upload_resp = req.post(f"{base_url}/api/youtube/upload", json=upload_payload, timeout=600)
+
+            upload_data = upload_resp.json()
+            if upload_data.get('ok'):
+                youtube_url = upload_data.get('video_url', '')
+                print(f"[AUTOMATION] 6. 완료: {youtube_url}")
+                return {"ok": True, "video_url": youtube_url, "error": None}
             else:
-                return {"ok": False, "error": f"YouTube 업로드 실패: {upload_result.get('error')}", "video_url": None}
+                return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None}
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -14565,6 +14628,11 @@ def run_automation_pipeline(row_data, row_index):
             "error": str(e),
             "video_url": None
         }
+
+
+# ===== 레거시 자동화 함수들 (더 이상 사용하지 않음 - 참조용으로 유지) =====
+# 아래 함수들은 run_automation_pipeline()에서 더 이상 호출하지 않습니다.
+# 기존 /image 페이지 API를 재사용하도록 변경되었습니다.
 
 
 def _automation_analyze_script_gpt5(script, episode_id):
@@ -15385,8 +15453,14 @@ def api_sheets_check_and_process():
     D: 대본
     E: 제목 (선택)
     F: 공개설정 (private/unlisted/public)
-    G: 영상URL (자동 입력)
-    H: 에러메시지 (자동 입력)
+    G: 영상URL (자동 입력 - 출력)
+    H: 에러메시지 (자동 입력 - 출력)
+    I: 음성 (선택, 기본: ko-KR-Neural2-C 남성)
+       - 여성: ko-KR-Neural2-A
+       - 남성: ko-KR-Neural2-C
+    J: 타겟 (선택, 기본: senior)
+       - senior: 시니어 (50-70대)
+       - general: 일반 (20-40대)
     """
     try:
         # 서비스 계정 인증
@@ -15405,8 +15479,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:H')
+        # 시트 데이터 읽기 (A:J까지 - 음성/타겟 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:J')
         if not rows:
             return jsonify({
                 "ok": True,
