@@ -10222,7 +10222,7 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
         "description": "프롬프트 A 설명 ({lang_config['name']}): 감정/표정 중심 (놀람, 충격, 기쁨 등)",
         "prompt": "English thumbnail image prompt (emotion/expression focused, cartoon/illustration style, NO realistic humans)",
         "text_overlay": {{
-          "main": "메인 텍스트 ({lang_config['name']}, ({'4-7자' if audience == 'general' else '8-12자'}})",
+          "main": "메인 텍스트 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
           "sub": "서브 텍스트 ({lang_config['name']}, optional)"
         }},
         "style": "emotional, expressive"
