@@ -34,6 +34,9 @@ const AssistantMain = (() => {
     checkGcalAuth();
     checkGsheetsAuth();
     checkWebhookStatus();
+
+    // Load video schedule from Google Sheets
+    loadVideoSchedule();
   }
 
   function updateGreeting() {
@@ -1165,9 +1168,91 @@ const AssistantMain = (() => {
       await checkGsheetsAuth();
       if (gsheetsAuthStatus) {
         alert('Google Sheets 연결 완료!');
+        // Sheets 연결되면 영상 일정도 로드
+        loadVideoSchedule();
       }
     }
   };
+
+  // ===== Video Schedule (Google Sheets) =====
+  async function loadVideoSchedule() {
+    const container = document.getElementById('video-schedule');
+    if (!container) return;
+
+    try {
+      const response = await fetch('/assistant/api/video-schedule');
+      const data = await response.json();
+
+      if (!data.success) {
+        container.innerHTML = `<div class="empty" style="font-size: 0.8rem; color: var(--text-muted);">
+          ${data.error || '데이터를 불러올 수 없습니다'}
+        </div>`;
+        return;
+      }
+
+      if (data.schedule.length === 0) {
+        container.innerHTML = '<div class="empty">예정된 영상이 없습니다</div>';
+        return;
+      }
+
+      container.innerHTML = data.schedule.map(item => {
+        // 상태에 따른 스타일
+        let statusClass = '';
+        let statusIcon = '⏳';
+        if (item.status === '완료') {
+          statusClass = 'completed';
+          statusIcon = '✅';
+        } else if (item.status === '에러') {
+          statusClass = 'error';
+          statusIcon = '❌';
+        } else if (item.status === '진행중') {
+          statusIcon = '🔄';
+        }
+
+        // 예약 시간 포맷팅
+        let timeDisplay = item.scheduled_time || '';
+        if (timeDisplay) {
+          try {
+            const date = new Date(timeDisplay);
+            if (!isNaN(date)) {
+              timeDisplay = date.toLocaleString('ko-KR', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+            }
+          } catch (e) {}
+        }
+
+        return `
+          <div class="schedule-item ${statusClass}" style="padding: 0.5rem; margin-bottom: 0.5rem; background: var(--bg-color); border-radius: 6px;">
+            <span style="margin-right: 0.5rem;">${statusIcon}</span>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 0.8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${item.name || '(제목 없음)'}
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">
+                ${timeDisplay}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+    } catch (error) {
+      console.error('[Assistant] Video schedule error:', error);
+      container.innerHTML = '<div class="empty">네트워크 오류</div>';
+    }
+  }
+
+  async function refreshVideoSchedule() {
+    const container = document.getElementById('video-schedule');
+    if (container) {
+      container.innerHTML = '<div class="empty">Loading...</div>';
+    }
+    await loadVideoSchedule();
+  }
 
   // ===== Section Navigation =====
   let currentSection = 'dashboard';
@@ -3003,6 +3088,8 @@ const AssistantMain = (() => {
     authGsheets,
     exportPeopleToSheets,
     exportEventsToSheets,
+    // Video Schedule (from Sheets)
+    refreshVideoSchedule,
     showSection,
     // News functions
     refreshNews,
