@@ -16019,11 +16019,33 @@ def api_sheets_check_and_process():
         processed_count = 0
         results = []
 
-        # ========== 처리중인 작업이 있는지 확인 ==========
+        # ========== 처리중인 작업이 있는지 확인 (20분 타임아웃) ==========
         # "처리중"인 행이 있으면 새 작업을 시작하지 않음 (한 번에 하나씩만 처리)
+        # 단, 20분 이상 처리중이면 실패로 변경
         for i, row in enumerate(rows[1:], start=2):
             if len(row) > 0 and row[0] == '처리중':
-                print(f"[SHEETS] 처리중인 작업 발견 (행 {i}) - 새 작업 시작 안함")
+                work_time = row[1] if len(row) > 1 else ''
+
+                # 처리 시작 시간 확인 (B열)
+                if work_time:
+                    try:
+                        work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M:%S')
+                        elapsed_minutes = (now - work_dt).total_seconds() / 60
+
+                        if elapsed_minutes > 20:
+                            # 20분 초과 → 실패로 변경
+                            print(f"[SHEETS] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리")
+                            sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
+                            sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', f'타임아웃: {elapsed_minutes:.0f}분 경과')
+                            continue  # 다음 행 확인
+                        else:
+                            print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, {elapsed_minutes:.1f}분 경과) - 새 작업 시작 안함")
+                    except ValueError:
+                        # 시간 형식 파싱 실패 시 기존 로직 유지
+                        print(f"[SHEETS] 처리중인 작업 발견 (행 {i}) - 새 작업 시작 안함")
+                else:
+                    print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, 시작시간 없음) - 새 작업 시작 안함")
+
                 return jsonify({
                     "ok": True,
                     "message": f"행 {i}에서 처리중인 작업이 있어 대기합니다",
@@ -16059,8 +16081,9 @@ def api_sheets_check_and_process():
                 if should_process:
                     print(f"[SHEETS] 처리 시작 - 행 {i}")
 
-                    # 상태를 '처리중'으로 변경
+                    # 상태를 '처리중'으로 변경 + 시작 시간 기록 (B열)
                     sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '처리중')
+                    sheets_update_cell(service, sheet_id, f'Sheet1!B{i}', now.strftime('%Y-%m-%d %H:%M:%S'))
 
                     # 파이프라인 실행
                     result = run_automation_pipeline(row, i)
