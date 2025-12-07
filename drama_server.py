@@ -5164,9 +5164,11 @@ def api_upload_bgm():
         if not mood:
             return jsonify({"ok": False, "error": "분위기(mood)를 선택하세요"}), 400
 
-        # BGM 디렉토리 확인/생성
-        bgm_dir = "static/audio/bgm"
+        # BGM 디렉토리 확인/생성 (스크립트 위치 기준 절대 경로)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
         os.makedirs(bgm_dir, exist_ok=True)
+        print(f"[BGM-UPLOAD] 디렉토리: {bgm_dir}")
 
         # 기존 파일 확인하여 번호 부여
         import glob
@@ -5177,6 +5179,16 @@ def api_upload_bgm():
 
         file.save(filepath)
         print(f"[BGM-UPLOAD] 저장됨: {filepath}")
+
+        # Git에 자동 커밋 (배포 후에도 파일 유지)
+        try:
+            import subprocess
+            subprocess.run(["git", "add", filepath], cwd=script_dir, timeout=30)
+            subprocess.run(["git", "commit", "-m", f"Add BGM: {filename}"], cwd=script_dir, timeout=30)
+            subprocess.run(["git", "push"], cwd=script_dir, timeout=60)
+            print(f"[BGM-UPLOAD] Git 커밋 완료: {filename}")
+        except Exception as git_err:
+            print(f"[BGM-UPLOAD] Git 커밋 실패 (파일은 저장됨): {git_err}")
 
         return jsonify({
             "ok": True,
@@ -5196,10 +5208,12 @@ def api_list_bgm():
     """업로드된 BGM 파일 목록"""
     try:
         import glob
-        bgm_dir = "static/audio/bgm"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
         os.makedirs(bgm_dir, exist_ok=True)
 
         files = glob.glob(os.path.join(bgm_dir, "*.mp3"))
+        print(f"[BGM-LIST] 디렉토리: {bgm_dir}, 파일 수: {len(files)}")
         moods = {}
 
         for f in files:
@@ -5347,9 +5361,11 @@ def api_upload_sfx():
         if not sfx_type:
             return jsonify({"ok": False, "error": "효과음 타입을 선택하세요"}), 400
 
-        # 효과음 디렉토리 확인/생성
-        sfx_dir = "static/audio/sfx"
+        # 효과음 디렉토리 확인/생성 (스크립트 위치 기준 절대 경로)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        sfx_dir = os.path.join(script_dir, "static", "audio", "sfx")
         os.makedirs(sfx_dir, exist_ok=True)
+        print(f"[SFX-UPLOAD] 디렉토리: {sfx_dir}")
 
         # 기존 파일 확인하여 번호 부여
         import glob
@@ -5360,6 +5376,16 @@ def api_upload_sfx():
 
         file.save(filepath)
         print(f"[SFX-UPLOAD] 저장됨: {filepath}")
+
+        # Git에 자동 커밋 (배포 후에도 파일 유지)
+        try:
+            import subprocess
+            subprocess.run(["git", "add", filepath], cwd=script_dir, timeout=30)
+            subprocess.run(["git", "commit", "-m", f"Add SFX: {filename}"], cwd=script_dir, timeout=30)
+            subprocess.run(["git", "push"], cwd=script_dir, timeout=60)
+            print(f"[SFX-UPLOAD] Git 커밋 완료: {filename}")
+        except Exception as git_err:
+            print(f"[SFX-UPLOAD] Git 커밋 실패 (파일은 저장됨): {git_err}")
 
         return jsonify({
             "ok": True,
@@ -5379,10 +5405,12 @@ def api_list_sfx():
     """업로드된 효과음 파일 목록"""
     try:
         import glob
-        sfx_dir = "static/audio/sfx"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        sfx_dir = os.path.join(script_dir, "static", "audio", "sfx")
         os.makedirs(sfx_dir, exist_ok=True)
 
         files = glob.glob(os.path.join(sfx_dir, "*.mp3"))
+        print(f"[SFX-LIST] 디렉토리: {sfx_dir}, 파일 수: {len(files)}")
         types = {}
 
         for f in files:
@@ -11902,75 +11930,47 @@ def api_image_generate_assets_zip():
             if not subtitle_sentences:
                 subtitle_sentences = [plain_narration]
 
-            if has_ssml:
-                # SSML 모드: TTS는 전체로, 자막은 분할
-                sentences = [narration]  # TTS용 (전체)
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: SSML 모드, TTS=전체, 자막={len(subtitle_sentences)}개")
-            else:
-                # 일반 모드: 문장별 분리
-                sentences = subtitle_sentences
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
+            # ★ 항상 문장별 TTS 생성 (정확한 싱크를 위해)
+            # SSML 모드에서도 문장별로 처리하여 실제 오디오 길이 측정
+            sentences = subtitle_sentences
+            print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}, SSML={has_ssml}")
 
             scene_audios = []
             scene_start_time = current_time  # 씬 시작 시간
             scene_subtitles = []  # 씬 내 상대적 자막 타이밍
             scene_relative_time = 0.0
 
-            if has_ssml:
-                # SSML 모드: TTS는 전체로 한 번, 자막은 분할
-                audio_bytes = generate_tts_for_sentence(sentences[0], voice_name, language_code, api_key)
+            # 문장별 TTS 생성 (정확한 싱크)
+            for sent_idx, sentence in enumerate(sentences):
+                # SSML이 있었다면 문장에도 기본 SSML 래핑 적용
+                tts_text = sentence
+                if has_ssml and not is_ssml_content(sentence):
+                    # 문장을 간단한 SSML로 래핑 (자연스러운 읽기)
+                    tts_text = f"<speak>{sentence}</speak>"
+
+                audio_bytes = generate_tts_for_sentence(tts_text, voice_name, language_code, api_key)
+
                 if audio_bytes:
-                    total_duration = get_mp3_duration(audio_bytes)
+                    duration = get_mp3_duration(audio_bytes)
                     scene_audios.append(audio_bytes)
-                    all_sentence_audios.append((scene_idx, 0, audio_bytes))
 
-                    # 자막 시간 배분 (글자 수 비례)
-                    total_chars = sum(len(s) for s in subtitle_sentences)
-                    for sub_idx, sub_text in enumerate(subtitle_sentences):
-                        # 글자 수에 비례하여 시간 배분
-                        char_ratio = len(sub_text) / total_chars if total_chars > 0 else 1 / len(subtitle_sentences)
-                        sub_duration = total_duration * char_ratio
+                    srt_entries.append({
+                        'index': len(srt_entries) + 1,
+                        'start': current_time,
+                        'end': current_time + duration,
+                        'text': sentence
+                    })
+                    scene_subtitles.append({
+                        'start': scene_relative_time,
+                        'end': scene_relative_time + duration,
+                        'text': sentence
+                    })
 
-                        srt_entries.append({
-                            'index': len(srt_entries) + 1,
-                            'start': current_time,
-                            'end': current_time + sub_duration,
-                            'text': sub_text
-                        })
-                        scene_subtitles.append({
-                            'start': scene_relative_time,
-                            'end': scene_relative_time + sub_duration,
-                            'text': sub_text
-                        })
-                        print(f"  Sub {sub_idx + 1}: {sub_duration:.2f}s - {sub_text[:30]}...")
-                        current_time += sub_duration
-                        scene_relative_time += sub_duration
-            else:
-                # 일반 모드: 문장별 TTS + 자막
-                for sent_idx, sentence in enumerate(sentences):
-                    audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
+                    print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                    current_time += duration
+                    scene_relative_time += duration
 
-                    if audio_bytes:
-                        duration = get_mp3_duration(audio_bytes)
-                        scene_audios.append(audio_bytes)
-
-                        srt_entries.append({
-                            'index': len(srt_entries) + 1,
-                            'start': current_time,
-                            'end': current_time + duration,
-                            'text': sentence
-                        })
-                        scene_subtitles.append({
-                            'start': scene_relative_time,
-                            'end': scene_relative_time + duration,
-                            'text': sentence
-                        })
-
-                        print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
-                        current_time += duration
-                        scene_relative_time += duration
-
-                        all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
+                    all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
 
             # 씬 메타데이터 저장
             scene_duration = current_time - scene_start_time
@@ -13811,6 +13811,9 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             subtitle_highlights = video_effects.get('subtitle_highlights', [])
             if subtitle_highlights:
                 print(f"[VIDEO-WORKER] 자막 강조 키워드: {[h.get('keyword') for h in subtitle_highlights]}")
+                print(f"[VIDEO-WORKER] 자막 강조 색상: {[h.get('color') for h in subtitle_highlights]}")
+            else:
+                print(f"[VIDEO-WORKER] ⚠️ 자막 강조 키워드 없음 - GPT가 subtitle_highlights를 생성하지 않음")
 
             # ASS 형식 사용 (색상 강조 지원)
             ass_path = os.path.join(work_dir, "subtitles.ass")
