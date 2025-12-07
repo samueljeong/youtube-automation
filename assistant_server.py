@@ -247,14 +247,16 @@ def init_assistant_db():
         # birthday 컬럼 추가 (기존 테이블 마이그레이션)
         try:
             cursor.execute('ALTER TABLE people ADD COLUMN IF NOT EXISTS birthday DATE')
-        except:
-            pass  # 이미 존재하면 무시
+            conn.commit()
+        except Exception as e:
+            conn.rollback()  # 트랜잭션 롤백 후 계속 진행
 
         # role 컬럼 추가 (직분/직책 - 권사, 집사, 장로 등)
         try:
             cursor.execute('ALTER TABLE people ADD COLUMN IF NOT EXISTS role VARCHAR(100)')
-        except:
-            pass  # 이미 존재하면 무시
+            conn.commit()
+        except Exception as e:
+            conn.rollback()  # 트랜잭션 롤백 후 계속 진행
 
         # People Notes 테이블 (인물별 누적 기록)
         cursor.execute('''
