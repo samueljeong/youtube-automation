@@ -10564,48 +10564,57 @@ def api_image_analyze_script():
                 thumb_outline = "#000000"
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
-            # 뉴스 스타일 썸네일 프롬프트 (55세+ 시청자 대상)
+            # 뉴스 스타일 썸네일 프롬프트 (50대+ 시청자 대상 - 큰 글씨, 단순 레이아웃, 신뢰감)
             if is_news_category:
                 ai_prompts_section = f'''    "ai_prompts": {{
       "A": {{
-        "description": "뉴스 스타일 A: 멀티 패널 뉴스 콜라주 - TV 뉴스 화면 캡처 느낌",
-        "prompt": "Korean TV news broadcast style YouTube thumbnail, 16:9 aspect ratio. Multiple image panels collage layout (3-4 panels). News anchor desk, interview screenshots, documentary footage style. Professional news graphics, Korean news channel aesthetic. Red and blue accent colors, '실제상황' or '단독' badge. Clean professional layout, NOT cartoon style, realistic news broadcast look. Yellow and cyan highlighted Korean text overlays.",
+        "description": "뉴스 스타일 A: 단독/속보 - 50대+ 시청자용 큰 글씨, 명확한 레이아웃",
+        "prompt": "Korean TV news exclusive report style thumbnail, 16:9 aspect ratio. LARGE CLEAR TEXT for senior viewers (50+). Dark navy or black background with RED '단독' or '속보' badge. Simple clean layout - NOT cluttered. Single powerful image with bold Korean headline. High contrast white/yellow text on dark background. KBS/MBC/SBS news style professional look. NO cartoon style, realistic news broadcast aesthetic. Minimal elements, maximum readability.",
         "text_overlay": {{
-          "main": "뉴스 헤드라인 (8-15자, 인용문 스타일 '...')",
-          "sub": "부제목 또는 출처"
+          "main": "굵은 헤드라인 (8-12자, 50대가 읽기 쉽게)",
+          "sub": "출처 또는 날짜"
         }},
-        "style": "news-broadcast, multi-panel, professional"
+        "style": "exclusive-news, senior-friendly, high-contrast"
       }},
       "B": {{
-        "description": "뉴스 스타일 B: 인터뷰/증언 스타일 - 실제 발언 강조",
-        "prompt": "Korean news interview style YouTube thumbnail, 16:9 aspect ratio. Split screen with speaker on one side, related imagery on other. Korean news lower-third graphics style. Professional documentary aesthetic. Bold Korean quote text with quotation marks. Yellow highlight on key phrases. News channel logo placement area. Serious, credible journalism look.",
+        "description": "뉴스 스타일 B: 인물 중심 - 인터뷰/발언 강조, 신뢰감 있는 레이아웃",
+        "prompt": "Korean news interview style thumbnail for senior audience (50+), 16:9 aspect ratio. LARGE READABLE Korean text with quotation marks. Single person silhouette or portrait on one side. Clean simple background - navy blue or dark gray. Bold white/yellow quote text centered. Professional credible look like TV news. Lower-third style name/title badge. NO busy backgrounds, NO multiple elements. Focus on one powerful message.",
         "text_overlay": {{
-          "main": "인용문 형식 ('...라고 말했다')",
-          "sub": "화자 또는 출처"
+          "main": "따옴표 인용문 ('...라고 했다', 8-15자)",
+          "sub": "발언자 이름/직책"
         }},
-        "style": "interview, quote, documentary"
+        "style": "interview, quote, trustworthy"
       }},
       "C": {{
-        "description": "뉴스 스타일 C: 속보/단독 스타일 - 긴급 뉴스 느낌",
-        "prompt": "Breaking news style Korean YouTube thumbnail, 16:9 aspect ratio. Urgent news banner design, red 'Breaking' or '속보' badge. Dark background with dramatic lighting. Bold white and yellow Korean headline text. News ticker style bottom bar. Professional broadcast graphics, high contrast. Sense of urgency and importance.",
+        "description": "뉴스 스타일 C: 숫자/통계 강조 - 충격적 수치로 시선 집중",
+        "prompt": "Statistics-focused Korean news thumbnail for senior viewers (50+), 16:9 aspect ratio. VERY LARGE NUMBER or percentage as main element (e.g., '87%', '5천만명'). Dark background with red/yellow accent. Simple infographic style - one key statistic highlighted. Professional news broadcast aesthetic. High contrast, easy to read at small size. NO complex charts, just ONE impactful number.",
         "text_overlay": {{
-          "main": "속보 헤드라인 (8-12자)",
-          "sub": "상세 내용"
+          "main": "충격적 숫자 + 설명 (예: '87% 모른다')",
+          "sub": "출처 또는 기간"
         }},
-        "style": "breaking-news, urgent, headline"
+        "style": "statistics, impactful-number, senior-readable"
       }}
     }}'''
-                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (뉴스 스타일) ⚠️
-The "ai_prompts" field generates 3 different NEWS-STYLE thumbnails for senior audience (55+).
+                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (뉴스 스타일 - 50대+ 타겟) ⚠️
+The "ai_prompts" field generates 3 different NEWS-STYLE thumbnails for senior audience (50+).
+
+🎯 **50대+ 시청자 최적화 규칙:**
+- 글씨는 크고 굵게! 작은 화면에서도 읽기 쉽게
+- 레이아웃은 단순하게! 요소 3개 이하
+- 색상 대비 높게! 어두운 배경 + 밝은 글씨
+- 신뢰감 있는 뉴스 스타일! 과장/자극 최소화
+- 한눈에 메시지 전달! 복잡한 구성 금지
+
 ⚠️ Use REALISTIC NEWS BROADCAST style, NOT cartoon/webtoon!
-- A: Multi-panel news collage - TV news screenshot compilation style
-- B: Interview/testimony style - quote emphasis with speaker
-- C: Breaking news style - urgent headline with news banner
-- All 3 prompts MUST look like Korean TV news broadcasts!
-- Use professional, credible journalism aesthetic
-- Include Korean text overlays with quotes ("...")
-- Yellow/cyan highlights for emphasis
-- '실제상황', '단독', '속보' badges where appropriate"""
+- A: 단독/속보 - 큰 헤드라인 + 심플 배경
+- B: 인터뷰/발언 - 따옴표 인용문 + 인물 실루엣
+- C: 숫자/통계 - 충격적 수치 강조
+
+**50대+ 시청자 특성:**
+- 작은 글씨 인식 어려움 → 큰 폰트 사용
+- 복잡한 이미지 피로 → 심플한 레이아웃
+- 자극적 표현 불신 → 신뢰감 있는 뉴스 스타일
+- 노란색/빨간색 잘 인식 → 강조색으로 활용"""
             else:
                 ai_prompts_section = f'''    "ai_prompts": {{
       "A": {{
@@ -10887,9 +10896,11 @@ Add source/speaker info when quoting or citing:
 - 대본의 핵심 포인트를 뉴스 헤드라인 스타일로 작성
 - 접두어 사용: "속보:", "이슈:", "핵심:", "주목:", "화제:"
 
-### Shorts (YouTube 쇼츠 자동 생성) - 신규!
+### ⚠️ Shorts (YouTube 쇼츠 자동 생성) - 필수! ⚠️
 메인 영상에서 가장 흥미로운 부분을 추출하여 60초 이하의 쇼츠를 자동 생성합니다.
 쇼츠 설명에 원본 영상 링크가 포함되어 본 영상으로 트래픽을 유도합니다.
+
+🚨 **반드시 생성해야 합니다!** 쇼츠는 유튜브 노출에 매우 중요합니다.
 
 **형식:**
 "shorts": {{
@@ -10899,7 +10910,7 @@ Add source/speaker info when quoting or citing:
 }}
 
 **규칙:**
-- highlight_scenes: 가장 임팩트 있는 1-3개 씬 번호 선택 (총 60초 이하가 되도록)
+- highlight_scenes: 🚨 **필수!** 가장 임팩트 있는 1-3개 씬 번호 선택 (총 60초 이하가 되도록). 비어있으면 안됨!
 - hook_text: 시청자를 사로잡는 첫 문장 (15자 이내, 궁금증 유발)
 - title: 쇼츠 전용 제목 (클릭 유도, 반드시 #Shorts 포함)
 
@@ -10908,6 +10919,9 @@ Add source/speaker info when quoting or citing:
 - 감정적 클라이맥스
 - 핵심 메시지가 담긴 씬
 - 시청자가 "더 보고 싶다"고 느낄 부분
+
+⚠️ **highlight_scenes가 비어있으면 쇼츠가 생성되지 않습니다!**
+⚠️ **무조건 1개 이상의 씬 번호를 선택하세요!**
 
 ### Transitions (장면 전환 효과) - 신규!
 씬과 씬 사이에 부드러운 전환 효과를 적용합니다.
@@ -12381,7 +12395,7 @@ def _apply_subtitle_highlights(text, highlights):
         highlights: [{"keyword": "단어", "color": "#FF0000"}, ...]
 
     Returns:
-        색상 태그가 적용된 텍스트
+        색상 태그가 적용된 텍스트 (ASS override tags)
     """
     if not highlights:
         return text
@@ -12397,6 +12411,79 @@ def _apply_subtitle_highlights(text, highlights):
             result = result.replace(keyword, colored_keyword)
 
     return result
+
+
+def _format_ass_time(seconds):
+    """초를 ASS 시간 형식으로 변환 (H:MM:SS.cc)"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    centisecs = int((seconds % 1) * 100)
+    return f"{hours}:{minutes:02d}:{secs:02d}.{centisecs:02d}"
+
+
+def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
+    """ASS 형식 자막 파일 생성 (색상 강조 지원)
+
+    Args:
+        subtitles: [{"start": 0.0, "end": 3.0, "text": "자막"}, ...]
+        highlights: [{"keyword": "단어", "color": "#FF0000"}, ...]
+        output_path: ASS 파일 출력 경로
+        lang: 언어 코드
+
+    Returns:
+        성공 여부
+    """
+    try:
+        # 언어별 폰트 설정
+        if lang == 'ko':
+            font_name = "NanumGothic"
+            font_size = 24
+        else:
+            font_name = "Arial"
+            font_size = 22
+
+        # ASS 헤더
+        ass_header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{font_name},{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,2,1,2,30,30,40,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+        # 이벤트 생성
+        events = []
+        for sub in subtitles:
+            start = _format_ass_time(sub['start'])
+            end = _format_ass_time(sub['end'])
+            text = sub.get('text', '')
+
+            # 색상 강조 적용
+            if highlights:
+                text = _apply_subtitle_highlights(text, highlights)
+
+            # ASS에서는 \N이 줄바꿈
+            text = text.replace('\n', '\\N')
+
+            events.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}")
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(ass_header)
+            f.write('\n'.join(events))
+
+        print(f"[ASS] 자막 생성 완료: {len(subtitles)}개 자막, {len(highlights)}개 강조 키워드")
+        return True
+
+    except Exception as e:
+        print(f"[ASS] 자막 생성 오류: {e}")
+        return False
 
 
 def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir):
@@ -12431,6 +12518,7 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir):
         style = overlay.get('style', 'impact')
 
         if not text or scene_num not in scene_start_times:
+            print(f"[OVERLAY] 스킵: text='{text}', scene={scene_num}, available_scenes={list(scene_start_times.keys())}")
             continue
 
         start_time = scene_start_times[scene_num]
@@ -12461,9 +12549,15 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir):
             fontsize = 70
             borderw = 3
 
+        # FFmpeg drawtext 텍스트 이스케이프
+        # 특수 문자 이스케이프: : = ' \ 를 백슬래시로 이스케이프
+        text_escaped = text.replace('\\', '\\\\').replace("'", "\\'").replace(':', '\\:').replace('=', '\\=')
+
+        print(f"[OVERLAY] 추가: scene={scene_num}, text='{text}', style={style}, time={start_time:.1f}-{end_time:.1f}s")
+
         # drawtext 필터 생성 (화면 중앙에 표시)
         drawtext = (
-            f"drawtext=text='{text}':"
+            f"drawtext=text='{text_escaped}':"
             f"fontfile='{font_escaped}':"
             f"fontsize={fontsize}:"
             f"fontcolor={fontcolor}:"
@@ -12635,7 +12729,15 @@ def _get_bgm_file(mood, bgm_dir="static/audio/bgm"):
     import glob
     import random
 
-    if not mood or not os.path.exists(bgm_dir):
+    print(f"[BGM] 검색 시작: mood='{mood}', dir='{bgm_dir}'")
+
+    if not mood:
+        print(f"[BGM] mood가 비어있음")
+        return None
+
+    if not os.path.exists(bgm_dir):
+        print(f"[BGM] 디렉토리 없음: {bgm_dir}")
+        print(f"[BGM] ⚠️ BGM 파일을 {bgm_dir}에 업로드하세요. 예: {mood}.mp3, {mood}_01.mp3")
         return None
 
     # 파일명 패턴: mood.mp3, mood_01.mp3, mood (1).mp3 등
@@ -12648,13 +12750,19 @@ def _get_bgm_file(mood, bgm_dir="static/audio/bgm"):
 
     matching_files = []
     for pattern in patterns:
-        matching_files.extend(glob.glob(pattern))
+        found = glob.glob(pattern)
+        matching_files.extend(found)
 
     # 중복 제거
     matching_files = list(set(matching_files))
 
+    # 디렉토리 내 모든 파일 출력 (디버그용)
+    all_files = glob.glob(os.path.join(bgm_dir, "*.mp3"))
+    print(f"[BGM] 디렉토리 내 전체 파일: {[os.path.basename(f) for f in all_files]}")
+
     if not matching_files:
         print(f"[BGM] '{mood}' 분위기 BGM 파일 없음")
+        print(f"[BGM] ⚠️ {bgm_dir}/{mood}.mp3 또는 {mood}_01.mp3 형식으로 파일을 업로드하세요")
         return None
 
     # 랜덤 선택
@@ -12737,7 +12845,15 @@ def _get_sfx_file(sfx_type, sfx_dir="static/audio/sfx"):
     import glob
     import random
 
-    if not sfx_type or not os.path.exists(sfx_dir):
+    print(f"[SFX] 검색 시작: type='{sfx_type}', dir='{sfx_dir}'")
+
+    if not sfx_type:
+        print(f"[SFX] sfx_type이 비어있음")
+        return None
+
+    if not os.path.exists(sfx_dir):
+        print(f"[SFX] 디렉토리 없음: {sfx_dir}")
+        print(f"[SFX] ⚠️ 효과음 파일을 {sfx_dir}에 업로드하세요. 예: {sfx_type}.mp3")
         return None
 
     patterns = [
@@ -12752,8 +12868,13 @@ def _get_sfx_file(sfx_type, sfx_dir="static/audio/sfx"):
 
     matching_files = list(set(matching_files))
 
+    # 디렉토리 내 모든 파일 출력 (디버그용)
+    all_files = glob.glob(os.path.join(sfx_dir, "*.mp3"))
+    print(f"[SFX] 디렉토리 내 전체 파일: {[os.path.basename(f) for f in all_files]}")
+
     if not matching_files:
         print(f"[SFX] '{sfx_type}' 효과음 파일 없음")
+        print(f"[SFX] ⚠️ {sfx_dir}/{sfx_type}.mp3 형식으로 파일을 업로드하세요")
         return None
 
     selected = random.choice(matching_files)
@@ -13337,7 +13458,7 @@ def _upload_youtube_captions(video_id, srt_path, language="ko", credentials=None
 
 
 def _get_ken_burns_filter(effect_type, duration, fps=24, output_size="1280x720"):
-    """Ken Burns 효과용 zoompan 필터 생성
+    """Ken Burns 효과용 zoompan 필터 생성 - 부드러운 sin/cos 모션
 
     Args:
         effect_type: zoom_in, zoom_out, pan_left, pan_right, pan_up, pan_down
@@ -13346,22 +13467,67 @@ def _get_ken_burns_filter(effect_type, duration, fps=24, output_size="1280x720")
         output_size: 출력 해상도
 
     Returns:
-        FFmpeg vf filter string
+        FFmpeg vf filter string (scale + zoompan + fade)
     """
     total_frames = int(duration * fps)
     w, h = map(int, output_size.split('x'))
 
-    # 각 효과별 zoompan 파라미터
-    effects = {
-        'zoom_in': f"zoompan=z='min(zoom+0.001,1.3)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={output_size}:fps={fps}",
-        'zoom_out': f"zoompan=z='if(lte(zoom,1.0),1.3,max(1.001,zoom-0.001))':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d={total_frames}:s={output_size}:fps={fps}",
-        'pan_left': f"zoompan=z='1.1':x='iw*0.05+iw*0.05*(1-on/{total_frames})':y='ih/2-(ih/zoom/2)':d={total_frames}:s={output_size}:fps={fps}",
-        'pan_right': f"zoompan=z='1.1':x='iw*0.05*on/{total_frames}':y='ih/2-(ih/zoom/2)':d={total_frames}:s={output_size}:fps={fps}",
-        'pan_up': f"zoompan=z='1.1':x='iw/2-(iw/zoom/2)':y='ih*0.05+ih*0.05*(1-on/{total_frames})':d={total_frames}:s={output_size}:fps={fps}",
-        'pan_down': f"zoompan=z='1.1':x='iw/2-(iw/zoom/2)':y='ih*0.05*on/{total_frames}':d={total_frames}:s={output_size}:fps={fps}",
-    }
+    # 부드러운 움직임을 위한 설정
+    # 이미지를 크게 스케일해서 패닝/줌 시 검정 테두리 방지
+    scale_w = int(w * 1.4)  # 40% 더 크게
+    scale_h = int(h * 1.4)
 
-    return effects.get(effect_type, effects['zoom_in'])  # 기본값: zoom_in
+    fade_in = min(0.5, duration * 0.1)  # 페이드인 (최대 0.5초)
+    fade_out = min(0.5, duration * 0.1)  # 페이드아웃 (최대 0.5초)
+    fade_out_start = max(0, duration - fade_out)
+
+    # 각 효과별 설정 (sin/cos로 부드러운 움직임)
+    # on: 현재 프레임 번호, total_frames: 전체 프레임 수
+    if effect_type == 'zoom_in':
+        # 천천히 줌인 + 미세한 패닝
+        zoom_expr = f"1.0+0.15*on/{total_frames}"  # 1.0 → 1.15로 부드럽게
+        x_expr = f"(iw-{w})/2+20*sin(on/60)"  # 좌우 미세 흔들림
+        y_expr = f"(ih-{h})/2+15*cos(on/80)"  # 상하 미세 흔들림
+    elif effect_type == 'zoom_out':
+        # 천천히 줌아웃 + 미세한 패닝
+        zoom_expr = f"1.15-0.15*on/{total_frames}"  # 1.15 → 1.0으로 부드럽게
+        x_expr = f"(iw-{w})/2-20*sin(on/60)"
+        y_expr = f"(ih-{h})/2-15*cos(on/80)"
+    elif effect_type == 'pan_left':
+        # 오른쪽에서 왼쪽으로 천천히 패닝
+        zoom_expr = "1.05"  # 약간 줌인 상태 유지
+        x_expr = f"(iw-{w})*0.7*(1-on/{total_frames})+10*sin(on/50)"  # 오른쪽→왼쪽
+        y_expr = f"(ih-{h})/2+10*cos(on/70)"
+    elif effect_type == 'pan_right':
+        # 왼쪽에서 오른쪽으로 천천히 패닝
+        zoom_expr = "1.05"
+        x_expr = f"(iw-{w})*0.3+(iw-{w})*0.4*on/{total_frames}+10*sin(on/50)"  # 왼쪽→오른쪽
+        y_expr = f"(ih-{h})/2+10*cos(on/70)"
+    elif effect_type == 'pan_up':
+        # 아래에서 위로 천천히 패닝
+        zoom_expr = "1.05"
+        x_expr = f"(iw-{w})/2+10*sin(on/60)"
+        y_expr = f"(ih-{h})*0.7*(1-on/{total_frames})+10*cos(on/50)"  # 아래→위
+    elif effect_type == 'pan_down':
+        # 위에서 아래로 천천히 패닝
+        zoom_expr = "1.05"
+        x_expr = f"(iw-{w})/2+10*sin(on/60)"
+        y_expr = f"(ih-{h})*0.3+(ih-{h})*0.4*on/{total_frames}+10*cos(on/50)"  # 위→아래
+    else:
+        # 기본: 줌인 + 미세한 움직임
+        zoom_expr = f"1.0+0.15*on/{total_frames}"
+        x_expr = f"(iw-{w})/2+20*sin(on/60)"
+        y_expr = f"(ih-{h})/2+15*cos(on/80)"
+
+    # 필터 체인: scale(크게) → zoompan(부드러운 움직임) → fade(페이드인/아웃)
+    vf_filter = (
+        f"scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase,"
+        f"crop={scale_w}:{scale_h},"
+        f"zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={output_size}:fps={fps},"
+        f"fade=t=in:st=0:d={fade_in},fade=t=out:st={fade_out_start}:d={fade_out}"
+    )
+
+    return vf_filter
 
 
 def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effects=None):
@@ -13385,6 +13551,19 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
 
     try:
         _update_job_status(job_id, status='processing', message='영상 생성 시작...')
+
+        # === video_effects 디버그 로깅 ===
+        print(f"[VIDEO-WORKER] ========== VIDEO EFFECTS 설정 ==========")
+        print(f"[VIDEO-WORKER] bgm_mood: {video_effects.get('bgm_mood', '(없음)')}")
+        print(f"[VIDEO-WORKER] subtitle_highlights: {len(video_effects.get('subtitle_highlights', []))}개")
+        print(f"[VIDEO-WORKER] screen_overlays: {len(video_effects.get('screen_overlays', []))}개")
+        print(f"[VIDEO-WORKER] sound_effects: {len(video_effects.get('sound_effects', []))}개")
+        print(f"[VIDEO-WORKER] lower_thirds: {len(video_effects.get('lower_thirds', []))}개")
+        print(f"[VIDEO-WORKER] news_ticker enabled: {video_effects.get('news_ticker', {}).get('enabled', False)}")
+        print(f"[VIDEO-WORKER] shorts highlight_scenes: {video_effects.get('shorts', {}).get('highlight_scenes', [])}")
+        print(f"[VIDEO-WORKER] transitions style: {video_effects.get('transitions', {}).get('style', 'none')}")
+        print(f"[VIDEO-WORKER] add_outro: {video_effects.get('add_outro', True)}")
+        print(f"[VIDEO-WORKER] ============================================")
 
         total_scenes = len(scenes)
         upload_dir = "uploads"
@@ -13579,7 +13758,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             if not os.path.exists(merged_path):
                 raise Exception("merged.mp4 파일이 생성되지 않음")
 
-            # 3. SRT 자막 생성 (색상 강조 적용)
+            # 3. ASS 자막 생성 (색상 강조 지원)
             _update_job_status(job_id, progress=85, message='자막 처리 중...')
 
             # 자막 강조 키워드 가져오기
@@ -13587,32 +13766,26 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             if subtitle_highlights:
                 print(f"[VIDEO-WORKER] 자막 강조 키워드: {[h.get('keyword') for h in subtitle_highlights]}")
 
-            srt_path = os.path.join(work_dir, "subtitles.srt")
-            with open(srt_path, 'w', encoding='utf-8') as f:
-                for i, sub in enumerate(all_subtitles, 1):
-                    start_str = format_srt_time(sub['start'])
-                    end_str = format_srt_time(sub['end'])
-                    # 키워드 색상 강조 적용
-                    highlighted_text = _apply_subtitle_highlights(sub['text'], subtitle_highlights)
-                    f.write(f"{i}\n{start_str} --> {end_str}\n{highlighted_text}\n\n")
+            # ASS 형식 사용 (색상 강조 지원)
+            ass_path = os.path.join(work_dir, "subtitles.ass")
+            _generate_ass_subtitles(all_subtitles, subtitle_highlights, ass_path, lang=detected_lang)
 
             # 4. 자막 burn-in + 화면 텍스트 오버레이
             _update_job_status(job_id, progress=90, message='자막 및 효과 삽입 중...')
 
-            subtitle_style = _get_subtitle_style(detected_lang)
             final_path = os.path.join(work_dir, "final.mp4")
 
             # 폰트 디렉토리 절대 경로 설정 (NanumGothic 폰트 위치)
             fonts_dir = os.path.abspath("fonts")
 
-            # SRT 파일 절대 경로로 변환하고 FFmpeg용 이스케이프
-            srt_abs_path = os.path.abspath(srt_path)
+            # ASS 파일 절대 경로로 변환하고 FFmpeg용 이스케이프
+            ass_abs_path = os.path.abspath(ass_path)
             # FFmpeg subtitle filter는 : \ ' 등을 이스케이프해야 함
-            srt_escaped = srt_abs_path.replace('\\', '/').replace(':', '\\:')
+            ass_escaped = ass_abs_path.replace('\\', '/').replace(':', '\\:')
             fonts_escaped = fonts_dir.replace('\\', '/').replace(':', '\\:')
 
-            # 기본 자막 필터
-            vf_filter = f"subtitles={srt_escaped}:fontsdir={fonts_escaped}:force_style='{subtitle_style}'"
+            # 기본 자막 필터 (ASS 형식은 force_style 불필요 - 파일에 스타일 포함)
+            vf_filter = f"ass={ass_escaped}:fontsdir={fonts_escaped}"
 
             # 화면 텍스트 오버레이 추가 (screen_overlays)
             screen_overlays = video_effects.get('screen_overlays', [])
@@ -13638,7 +13811,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                     vf_filter = f"{vf_filter},{ticker_filter}"
                     print(f"[VIDEO-WORKER] 뉴스 티커 추가 (헤드라인 {len(news_ticker.get('headlines', []))}개)")
 
-            print(f"[VIDEO-WORKER] SRT path: {srt_abs_path}")
+            print(f"[VIDEO-WORKER] ASS path: {ass_abs_path}")
             print(f"[VIDEO-WORKER] VF filter 길이: {len(vf_filter)} chars")
             print(f"[VIDEO-WORKER] Fonts directory: {fonts_dir}")
 
