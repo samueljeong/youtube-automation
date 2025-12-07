@@ -10569,8 +10569,8 @@ def api_image_analyze_script():
 
         style_desc = style_guides.get(image_style, 'photorealistic')
 
-        # 카테고리 기반 뉴스 스타일 여부 (기본값)
-        is_news_category = category.lower() in ['뉴스', 'news', '시사', '정치', '경제'] if category else False
+        # GPT-5.1이 대본 내용을 분석해서 카테고리를 자동 감지하도록 함
+        # (더 이상 Google Sheets의 category 컬럼에 의존하지 않음)
 
         # 애니메이션(스틱맨) 스타일 전용 시스템 프롬프트 - audience 반영
         if image_style == 'animation':
@@ -10586,92 +10586,94 @@ def api_image_analyze_script():
                 thumb_outline = "#000000"
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
-            # 뉴스 스타일 썸네일 프롬프트 (50대+ 시청자 대상 - 실제 뉴스 방송 스타일)
-            if is_news_category:
-                ai_prompts_section = f'''    "ai_prompts": {{
+            # GPT가 자동으로 카테고리를 감지하고 적절한 썸네일 스타일을 선택하도록 함
+            # 뉴스/시사 vs 일반 스토리 두 가지 스타일 모두 제공
+            ai_prompts_section = f'''    "detected_category": "news 또는 story 중 하나 선택 (대본 분석 결과)",
+    "ai_prompts": {{
+      // ★ detected_category가 "news"일 때 사용 (정치, 경제, 시사, 사회 이슈, 뉴스 보도 형식의 대본)
+      // 뉴스 스타일: KBS/MBC/SBS 뉴스 방송 썸네일처럼 실제 사진 + 뉴스 그래픽
       "A": {{
         "description": "뉴스 스타일 A: 실제 한국 뉴스 방송 썸네일 - KBS/MBC/SBS 스타일",
-        "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
-        "text_overlay": {{
-          "main": "큰 따옴표 헤드라인 (예: '충격 발언...')",
-          "sub": "핵심 내용 요약"
-        }},
+        "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look.",
+        "text_overlay": {{"main": "따옴표 헤드라인", "sub": "핵심 요약"}},
         "style": "korean-tv-news, broadcast, photorealistic"
       }},
       "B": {{
-        "description": "뉴스 스타일 B: 인터뷰/발언 강조 - 인물 사진 + 따옴표 인용문",
-        "prompt": "Korean news interview thumbnail with real person photo. 16:9 aspect ratio. Split layout - interviewee photo on left, large Korean quote text on right in quotation marks. White/yellow bold text on dark navy background. Red or orange accent color. Lower-third name tag showing speaker name and title. Professional credible broadcast news look like actual Korean TV news YouTube thumbnails. NO cartoon, photorealistic only.",
-        "text_overlay": {{
-          "main": "따옴표 인용문 ('...라고 말했다')",
-          "sub": "발언자 이름/직책"
-        }},
-        "style": "interview-quote, split-layout, broadcast"
+        "description": "뉴스 스타일 B: 인터뷰/발언 강조",
+        "prompt": "Korean news interview thumbnail with real person photo. 16:9 aspect ratio. Split layout - interviewee photo on left, large Korean quote text on right in quotation marks. White/yellow bold text on dark navy background. Red accent. Lower-third name tag. Professional broadcast news look. NO cartoon, photorealistic only.",
+        "text_overlay": {{"main": "인용문", "sub": "발언자"}},
+        "style": "interview-quote, broadcast"
       }},
       "C": {{
-        "description": "뉴스 스타일 C: 이슈/사건 중심 - 관련 사진 + 대형 헤드라인",
-        "prompt": "Korean breaking news style thumbnail with relevant event photo. 16:9 aspect ratio. Background photo related to news story (blurred or darkened). VERY LARGE white/yellow Korean headline text overlay. Red '속보' or '단독' badge prominent. News channel style graphics and borders. Multiple text sizes - big headline + smaller details. Exactly like Korean TV news channel YouTube thumbnails. Professional photojournalism aesthetic.",
-        "text_overlay": {{
-          "main": "대형 헤드라인 (핵심 사실)",
-          "sub": "추가 정보 또는 출처"
-        }},
-        "style": "breaking-news, event-photo, headline"
+        "description": "뉴스 스타일 C: 속보/이슈 중심",
+        "prompt": "Korean breaking news style thumbnail with event photo. 16:9 aspect ratio. Background photo (blurred/darkened). VERY LARGE white/yellow Korean headline. Red '속보' badge prominent. News channel style graphics. Photojournalism aesthetic.",
+        "text_overlay": {{"main": "대형 헤드라인", "sub": "추가 정보"}},
+        "style": "breaking-news, headline"
       }}
-    }}'''
-                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (실제 한국 뉴스 방송 스타일) ⚠️
-The "ai_prompts" field generates thumbnails that look EXACTLY like Korean TV news YouTube thumbnails.
 
-🎯 **실제 뉴스 방송 썸네일 필수 요소:**
-- 실제 뉴스 앵커/기자 사진 또는 관련 인물/사건 사진
-- 큰 따옴표("") 안에 핵심 발언/헤드라인
-- 빨간색 '단독' 또는 '속보' 배지
-- 진한 남색/검정 배경 + 흰색/노란색 텍스트
-- 하단 뉴스 티커 스타일 바
-- 여러 겹의 텍스트 (메인 헤드라인 + 서브)
-
-⚠️ 절대 만화/일러스트 스타일 금지! 실제 사진 + 뉴스 그래픽만!
-- A: 뉴스 앵커 + 헤드라인 (가장 일반적인 뉴스 썸네일)
-- B: 인터뷰 발언 + 인물 사진 (따옴표 인용문 강조)
-- C: 사건 사진 + 속보 스타일 (이슈/사건 중심)
-
-**참고 채널:** KBS 뉴스, MBC 뉴스, SBS 뉴스 유튜브 썸네일 스타일 그대로!"""
-            else:
-                ai_prompts_section = f'''    "ai_prompts": {{
+      // ★ detected_category가 "story"일 때 사용 (드라마, 감성, 인간관계, 일상 이야기)
+      // 스토리 스타일: 웹툰/만화 일러스트 + 감정 표현
       "A": {{
-        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
-        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
-        "text_overlay": {{
-          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {thumb_length})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "emotional, expressive, cartoon"
+        "description": "스토리 스타일 A: 감정/표정 중심",
+        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. NO realistic humans, comic/cartoon style only.",
+        "text_overlay": {{"main": "{thumb_length} 감정 텍스트", "sub": "optional"}},
+        "style": "emotional, cartoon"
       }},
       "B": {{
-        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
-        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
-        "text_overlay": {{
-          "main": "대비 강조 텍스트 ({lang_config['name']})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "narrative, contrast, split-screen"
+        "description": "스토리 스타일 B: Before/After 대비",
+        "prompt": "Split screen YouTube thumbnail, 16:9 aspect ratio. Before/After comparison layout. Cartoon style, vibrant contrasting colors. Clear visual storytelling. NO realistic photos.",
+        "text_overlay": {{"main": "대비 텍스트", "sub": "optional"}},
+        "style": "narrative, contrast"
       }},
       "C": {{
-        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
-        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
-        "text_overlay": {{
-          "main": "강렬한 메인 문구 ({lang_config['name']}, {thumb_length})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "typography, bold, graphic-design"
+        "description": "스토리 스타일 C: 타이포그래피 중심",
+        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text. Gradient background. Minimal illustration. High contrast colors.",
+        "text_overlay": {{"main": "{thumb_length} 메인 문구", "sub": "optional"}},
+        "style": "typography, bold"
       }}
     }}'''
-                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
-The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
-⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
-- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
-- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
-- C: Typography focused - bold text with minimal background, graphic design style
-- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
-- All 3 prompts MUST be different styles/compositions!"""
+
+            ai_prompts_rules = f"""## ⚠️ CRITICAL: 카테고리 자동 감지 및 썸네일 스타일 선택 ⚠️
+
+### 1단계: 대본 내용 분석하여 카테고리 감지
+대본을 읽고 아래 기준으로 "detected_category"를 결정하세요:
+
+**"news" 선택 기준** (하나라도 해당되면 news):
+- 정치인, 대통령, 국회, 정당 언급
+- 경제 지표, 주가, 환율, 부동산 언급
+- 사건/사고 보도 형식 (누가, 언제, 어디서, 무엇을)
+- 사회 이슈, 논쟁, 갈등 다룸
+- 인터뷰, 발언, 기자회견 형식
+- 법원, 검찰, 재판 관련
+
+**"story" 선택 기준**:
+- 개인의 감정, 경험, 회고
+- 인간관계, 가족, 사랑 이야기
+- 일상적인 에피소드
+- 교훈, 깨달음, 감동 스토리
+- 드라마/영화 같은 서사 구조
+
+### 2단계: 카테고리에 맞는 썸네일 생성
+
+**detected_category = "news"일 때:**
+- ai_prompts에 뉴스 스타일 A/B/C 사용
+- 실제 사진 + 뉴스 그래픽 (KBS/MBC/SBS 스타일)
+- 따옴표 헤드라인, 빨간 '속보' 배지
+- ⚠️ 절대 만화/일러스트 금지!
+
+**detected_category = "story"일 때:**
+- ai_prompts에 스토리 스타일 A/B/C 사용
+- 웹툰/만화 일러스트 스타일
+- 감정 표현, 캐릭터 중심
+- ⚠️ 실사 사진 금지!
+
+### 출력 형식 (중요!)
+"detected_category": "news" 또는 "story",
+"ai_prompts": {{
+  "A": {{ ... 선택된 스타일의 A ... }},
+  "B": {{ ... 선택된 스타일의 B ... }},
+  "C": {{ ... 선택된 스타일의 C ... }}
+}}"""
 
             system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
 
@@ -10740,6 +10742,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
+  "detected_category": "news 또는 story (대본 분석 결과 - 반드시 먼저 결정!)",
   "youtube": {{
     "title": "ONE SEO-optimized YouTube title in {lang_config['name']} (click-inducing, 30-50 chars, include keywords for searchability)",
     "description": "Description in {lang_config['name']} (video summary + hashtags, 500+ chars)"
@@ -10748,8 +10751,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "text_options": ["Thumbnail text 1 in {lang_config['name']}", "Thumbnail text 2 in {lang_config['name']}", "Thumbnail text 3 in {lang_config['name']}"],
     "text_color": "{thumb_color}",
     "outline_color": "{thumb_outline}",
-    "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [pose/action]. Character face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage style.",
-{ai_prompts_section}
+    "prompt": "[detected_category에 따라 뉴스 스타일 또는 스토리 스타일 프롬프트 작성]",
+    "ai_prompts": {{
+      "A": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}},
+      "B": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}},
+      "C": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}}
+    }}
   }},
   "video_effects": {{
     "bgm_mood": "ONE of: hopeful, sad, tense, dramatic, calm, inspiring, mysterious, nostalgic",
@@ -17061,6 +17068,10 @@ def run_automation_pipeline(row_data, row_index):
             ai_prompts = thumbnail_data.get('ai_prompts', {})
             video_effects = analyze_data.get('video_effects', {})  # 새 기능: BGM, 효과음, 자막 강조 등
 
+            # GPT-5.1이 대본 분석으로 자동 감지한 카테고리 (news 또는 story)
+            detected_category = analyze_data.get('detected_category', 'story')
+            print(f"[AUTOMATION] GPT 감지 카테고리: {detected_category}")
+
             generated_title = youtube_meta.get('title', '')
             description = youtube_meta.get('description', '')
 
@@ -17183,30 +17194,28 @@ def run_automation_pipeline(row_data, row_index):
             nonlocal thumbnail_url, total_cost
             print(f"[AUTOMATION][THUMB] 썸네일 생성 시작...")
             try:
-                # 뉴스 카테고리 체크
-                is_news = category.lower() in ['뉴스', 'news', '시사', '정치', '경제'] if category else False
+                # GPT-5.1이 대본 분석으로 자동 감지한 카테고리 사용 (Google Sheets 의존 제거)
+                is_news = detected_category == 'news'
+                print(f"[AUTOMATION][THUMB] GPT 감지 카테고리: {detected_category} → {'뉴스' if is_news else '스토리'} 스타일")
 
-                if is_news:
-                    # 뉴스 카테고리: 하드코딩된 뉴스 스타일 프롬프트 사용 (50대+ 시청자용)
-                    print(f"[AUTOMATION][THUMB] 뉴스 카테고리 감지 → 뉴스 스타일 썸네일 사용")
-                    # 뉴스 카테고리: GPT가 생성한 ai_prompts.A 사용 (이미 뉴스 스타일로 생성됨)
-                    # 만약 ai_prompts가 없으면 하드코딩된 프롬프트 사용
-                    if ai_prompts and ai_prompts.get('A'):
-                        print(f"[AUTOMATION][THUMB] GPT 생성 뉴스 스타일 프롬프트 사용")
-                        thumb_prompt = ai_prompts.get('A')
-                    else:
-                        # 폴백: 하드코딩된 뉴스 스타일 프롬프트
-                        print(f"[AUTOMATION][THUMB] 하드코딩된 뉴스 스타일 프롬프트 사용 (폴백)")
-                        thumb_prompt = {
-                            "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
-                            "text_overlay": {"main": "뉴스 헤드라인", "sub": ""}
-                        }
-                else:
-                    # 일반 카테고리: GPT가 생성한 ai_prompts 사용
-                    if not ai_prompts or not ai_prompts.get('A'):
-                        print(f"[AUTOMATION][THUMB] 프롬프트 없음 (스킵)")
-                        return None
+                # GPT가 생성한 ai_prompts.A 사용 (카테고리에 맞는 스타일로 이미 생성됨)
+                if ai_prompts and ai_prompts.get('A'):
                     thumb_prompt = ai_prompts.get('A')
+                    print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용")
+                elif is_news:
+                    # 폴백: 하드코딩된 뉴스 스타일 프롬프트
+                    print(f"[AUTOMATION][THUMB] 하드코딩된 뉴스 스타일 프롬프트 사용 (폴백)")
+                    thumb_prompt = {
+                        "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
+                        "text_overlay": {"main": "뉴스 헤드라인", "sub": ""}
+                    }
+                else:
+                    # 폴백: 기본 스토리 스타일 프롬프트
+                    print(f"[AUTOMATION][THUMB] 하드코딩된 스토리 스타일 프롬프트 사용 (폴백)")
+                    thumb_prompt = {
+                        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression. Vibrant colors, high contrast. NO realistic humans, comic/cartoon style only.",
+                        "text_overlay": {"main": "메인 텍스트", "sub": ""}
+                    }
 
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
                     "session_id": f"thumb_{session_id}",
