@@ -406,8 +406,56 @@ const AssistantMain = (() => {
     // Pending Tasks
     renderTasks('pending-tasks', data.pending_tasks);
 
+    // 심방/연락 필요 (AI 제안 + 인물 관련 일정)
+    renderPeopleToVisit('people-to-visit', data.people_to_visit || []);
+
+    // 프로젝트 진행
+    renderProjectTasks('project-tasks', data.active_projects || []);
+
     // Pending Sync
     renderPendingSync('pending-sync', data.pending_sync);
+  }
+
+  function renderPeopleToVisit(containerId, items) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!items || items.length === 0) {
+      container.innerHTML = `<div class="empty" style="color: #6b7280; font-size: 0.85rem;">심방 예정이 없습니다</div>`;
+      return;
+    }
+
+    container.innerHTML = items.map(item => `
+      <div class="visit-item" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb;">
+        <span style="font-size: 1.2rem;">${item.type === 'visit' ? '🏠' : item.type === 'prayer' ? '🙏' : '📞'}</span>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-weight: 500; font-size: 0.85rem;">${escapeHtml(item.person_name || item.title)}</div>
+          <div style="font-size: 0.75rem; color: #6b7280;">${escapeHtml(item.reason || item.notes || '')}</div>
+        </div>
+        ${item.due_date ? `<span style="font-size: 0.7rem; color: #059669; background: #d1fae5; padding: 0.2rem 0.5rem; border-radius: 4px;">${item.due_date}</span>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function renderProjectTasks(containerId, projects) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!projects || projects.length === 0) {
+      container.innerHTML = `<div class="empty" style="color: #6b7280; font-size: 0.85rem;">진행 중인 프로젝트가 없습니다</div>`;
+      return;
+    }
+
+    container.innerHTML = projects.map(project => `
+      <div class="project-item" style="padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.25rem;">
+          <span style="font-weight: 500; font-size: 0.85rem;">${escapeHtml(project.name)}</span>
+          <span style="font-size: 0.7rem; color: white; background: ${project.status === 'active' ? '#3b82f6' : '#f59e0b'}; padding: 0.15rem 0.4rem; border-radius: 4px;">${project.status === 'active' ? '진행중' : '계획중'}</span>
+        </div>
+        ${project.description ? `<div style="font-size: 0.75rem; color: #6b7280;">${escapeHtml(project.description)}</div>` : ''}
+        ${project.end_date ? `<div style="font-size: 0.7rem; color: #9ca3af; margin-top: 0.25rem;">마감: ${project.end_date}</div>` : ''}
+      </div>
+    `).join('');
   }
 
   function renderEvents(containerId, events) {
