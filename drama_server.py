@@ -10375,7 +10375,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     {{
       "scene_number": 1,
       "chapter_title": "Short chapter title for YouTube (5-15 chars)",
-      "narration": "⚠️ EXACT TEXT from the script - COPY-PASTE the original sentences, DO NOT summarize or paraphrase!",
+      "narration": "<speak>원본 대본의 정확한 문장.<break time='300ms'/><prosody rate='slow'>감정 표현이 필요한 부분</prosody>에 SSML 태그 추가.</speak>",
       "image_prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [action], face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage.",
       "ken_burns": "zoom_in / zoom_out / pan_left / pan_right / pan_up / pan_down"
     }}
@@ -10411,11 +10411,15 @@ The "text_overlay" field contains Korean text that will be rendered ON the thumb
 - sub: "투자, 그 후의 이야..." ❌ (불완전한 문장)
 
 ## ⚠️ CRITICAL: NARRATION RULE ⚠️
-The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
-- DO NOT summarize or paraphrase
-- DO NOT add your own words
+The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script + SSML emotion tags!
+- DO NOT summarize or paraphrase the actual content
 - COPY-PASTE the exact sentences from the script that this scene covers
-- This helps the user know EXACTLY where to place each image in the video timeline
+- ADD SSML tags (<speak>, <prosody>, <emphasis>, <break>) for emotional expression
+- Wrap the entire narration in <speak>...</speak> tags
+- Use SSML sparingly (20-30% of text) for natural delivery
+
+**Example with SSML:**
+"narration": "<speak>그날 아침, 평소와 같은 하루가 시작될 줄 알았습니다.<break time='300ms'/><prosody rate='slow'>하지만</prosody>...<emphasis level='strong'>충격적인</emphasis> 소식이 전해졌습니다.</speak>"
 
 ## ⚠️ VIDEO EFFECTS RULES ⚠️
 
@@ -10499,6 +10503,60 @@ Each scene needs a short chapter title for YouTube chapters:
 - Length: 5-15 characters in Korean
 - Style: 간결하고 흥미 유발
 - Examples: "충격적 발견", "반전의 시작", "눈물의 재회"
+
+### 🎭 SSML 감정 표현 (TTS 나레이션용) - 중요!
+나레이션 텍스트에 SSML 태그를 추가하여 TTS가 감정을 담아 읽도록 합니다.
+대본 텍스트는 그대로 유지하되, 감정 표현이 필요한 부분에 SSML 태그를 추가하세요.
+
+**사용 가능한 SSML 태그:**
+
+1. **<prosody> - 속도/높낮이 조절**
+   - rate: x-slow, slow, medium, fast, x-fast (또는 50%-200%)
+   - pitch: x-low, low, medium, high, x-high (또는 -20st~+20st)
+   ```
+   <prosody rate="slow" pitch="low">천천히 낮게</prosody>
+   <prosody rate="fast">빠르게 긴박하게</prosody>
+   <prosody pitch="high">높은 톤으로</prosody>
+   ```
+
+2. **<emphasis> - 강조**
+   - level: strong, moderate, reduced
+   ```
+   <emphasis level="strong">충격적인</emphasis> 사실이 밝혀졌습니다.
+   ```
+
+3. **<break> - 휴지(쉬기)**
+   - time: 100ms ~ 1000ms
+   ```
+   그리고...<break time="500ms"/>반전이 시작됩니다.
+   ```
+
+**감정별 SSML 패턴:**
+- 😨 긴장/충격: `<prosody rate="fast" pitch="high">긴박한 내용</prosody>`
+- 😢 슬픔: `<prosody rate="slow" pitch="low">슬픈 내용</prosody>`
+- 🎉 기쁨/희망: `<prosody rate="medium" pitch="high">밝은 내용</prosody>`
+- 🤔 생각/회상: `<prosody rate="slow">회상 내용</prosody><break time="300ms"/>`
+- ❗ 강조: `<emphasis level="strong">중요한 포인트</emphasis>`
+- 😲 반전: `<break time="500ms"/><prosody rate="slow" pitch="low">그런데...</prosody>`
+
+**⚠️ 주의사항:**
+- 모든 나레이션을 `<speak>` 태그로 감싸세요
+- 과도한 태그 사용 금지 - 자연스러움이 중요!
+- 매 문장마다 태그를 넣지 말고, 감정 변화가 필요한 핵심 순간에만 사용
+- 전체 나레이션의 20-30%에만 SSML 태그 적용
+
+**예시:**
+```
+<speak>
+그날 아침, 평소와 같은 하루가 시작될 줄 알았습니다.
+<break time="300ms"/>
+<prosody rate="slow">하지만</prosody>...
+<emphasis level="strong">충격적인</emphasis> 소식이 전해졌습니다.
+<prosody rate="fast" pitch="high">급히 달려간 그곳에서 본 것은</prosody>
+<break time="500ms"/>
+<prosody rate="slow" pitch="low">아무도 예상치 못한 광경이었습니다.</prosody>
+</speak>
+```
 
 ## EXAMPLE PROMPTS (스틱맨은 항상 동일한 얼굴: 점 눈 2개, 작은 입, 얇은 눈썹)
 
@@ -11285,22 +11343,56 @@ def api_image_generate_assets_zip():
             return text
 
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
-            """단일 문장에 대한 TTS 생성"""
-            # 숫자 → 한글 변환 (자연스러운 읽기)
-            if language_code.startswith('ko'):
-                text = convert_numbers_to_korean(text)
-                print(f"[TTS] 숫자 변환 후: {text[:50]}...")
+            """단일 문장에 대한 TTS 생성 (SSML 자동 감지)"""
+            # SSML 태그 감지
+            ssml_tags = ['<speak>', '<prosody', '<emphasis', '<break']
+            is_ssml = any(tag in text for tag in ssml_tags)
 
-            tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
-            payload = {
-                "input": {"text": text},
-                "voice": {"languageCode": language_code, "name": voice_name},
-                "audioConfig": {"audioEncoding": "MP3", "speakingRate": 0.95, "pitch": 0}
-            }
+            if is_ssml:
+                # SSML 모드: <speak> 태그가 없으면 추가
+                if not text.strip().startswith('<speak>'):
+                    text = f"<speak>{text}</speak>"
+                # SSML 내부의 텍스트에서 숫자 변환 (태그 바깥만)
+                if language_code.startswith('ko'):
+                    # SSML 태그를 보존하면서 텍스트만 변환
+                    def convert_text_in_ssml(ssml_text):
+                        import re
+                        # 태그를 플레이스홀더로 대체
+                        tag_pattern = r'(<[^>]+>)'
+                        parts = re.split(tag_pattern, ssml_text)
+                        converted_parts = []
+                        for part in parts:
+                            if part.startswith('<'):
+                                converted_parts.append(part)  # 태그는 그대로
+                            else:
+                                converted_parts.append(convert_numbers_to_korean(part))  # 텍스트만 변환
+                        return ''.join(converted_parts)
+                    text = convert_text_in_ssml(text)
+                print(f"[TTS-SSML] 감정 표현 TTS: {text[:80]}...")
+                tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+                payload = {
+                    "input": {"ssml": text},  # SSML 입력
+                    "voice": {"languageCode": language_code, "name": voice_name},
+                    "audioConfig": {"audioEncoding": "MP3"}  # SSML은 prosody로 속도/피치 제어
+                }
+            else:
+                # 일반 텍스트 모드
+                if language_code.startswith('ko'):
+                    text = convert_numbers_to_korean(text)
+                    print(f"[TTS] 숫자 변환 후: {text[:50]}...")
+                tts_url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+                payload = {
+                    "input": {"text": text},
+                    "voice": {"languageCode": language_code, "name": voice_name},
+                    "audioConfig": {"audioEncoding": "MP3", "speakingRate": 0.95, "pitch": 0}
+                }
+
             response = requests.post(tts_url, json=payload, timeout=60)
             if response.status_code == 200:
                 result = response.json()
                 return base64.b64decode(result.get("audioContent", ""))
+            else:
+                print(f"[TTS] 에러: {response.status_code} - {response.text[:200]}")
             return None
 
         data = request.get_json()
@@ -11326,6 +11418,20 @@ def api_image_generate_assets_zip():
         scene_metadata = []  # [{image_url, audio_url, duration, subtitles: [{start, end, text}], language}]
         detected_lang_global = 'ko'  # 전체 언어 (마지막 감지된 언어)
 
+        def strip_ssml_tags(text):
+            """SSML 태그를 제거하고 순수 텍스트만 추출"""
+            import re
+            # 모든 SSML 태그 제거
+            clean_text = re.sub(r'<[^>]+>', '', text)
+            # 연속 공백 정리
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+            return clean_text
+
+        def is_ssml_content(text):
+            """SSML 태그가 포함된 텍스트인지 확인"""
+            ssml_tags = ['<speak>', '<prosody', '<emphasis', '<break']
+            return any(tag in text for tag in ssml_tags)
+
         # 1. 각 씬의 문장별 TTS 생성
         for scene_idx, scene in enumerate(scenes):
             narration = scene.get('text', '')
@@ -11338,11 +11444,19 @@ def api_image_generate_assets_zip():
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
-            sentences = split_sentences(narration, detected_lang)
-            if not sentences:
-                sentences = [narration]
+            # SSML 감지: SSML이면 문장 분리 없이 전체 처리
+            has_ssml = is_ssml_content(narration)
 
-            print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
+            if has_ssml:
+                # SSML 모드: 전체 나레이션을 한 번에 처리
+                sentences = [narration]  # 전체를 하나로
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: SSML 감정 표현 모드, lang={detected_lang}")
+            else:
+                # 일반 모드: 문장별 분리
+                sentences = split_sentences(narration, detected_lang)
+                if not sentences:
+                    sentences = [narration]
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
 
             scene_audios = []
             scene_start_time = current_time  # 씬 시작 시간
@@ -11350,7 +11464,7 @@ def api_image_generate_assets_zip():
             scene_relative_time = 0.0
 
             for sent_idx, sentence in enumerate(sentences):
-                # 문장별 TTS 생성
+                # 문장별 TTS 생성 (SSML 자동 감지됨)
                 audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
 
                 if audio_bytes:
@@ -11358,22 +11472,25 @@ def api_image_generate_assets_zip():
                     duration = get_mp3_duration(audio_bytes)
                     scene_audios.append(audio_bytes)
 
+                    # 자막용 텍스트 (SSML 태그 제거)
+                    subtitle_text = strip_ssml_tags(sentence) if has_ssml else sentence
+
                     # SRT 엔트리 생성 (전체 타임라인)
                     srt_entries.append({
                         'index': len(srt_entries) + 1,
                         'start': current_time,
                         'end': current_time + duration,
-                        'text': sentence
+                        'text': subtitle_text
                     })
 
                     # 씬 내 상대적 자막 (영상 생성용)
                     scene_subtitles.append({
                         'start': scene_relative_time,
                         'end': scene_relative_time + duration,
-                        'text': sentence
+                        'text': subtitle_text
                     })
 
-                    print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                    print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {subtitle_text[:30]}...")
                     current_time += duration
                     scene_relative_time += duration
 
