@@ -80,6 +80,16 @@ except Exception as e:
     print(f"[Brandpipe] DB 초기화 오류: {e}")
 
 
+# ===== 공통 헤더 =====
+COMMON_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+}
+
+
 # ===== 서비스 레이어 =====
 
 def detect_platform(url: str) -> str:
@@ -102,47 +112,227 @@ def detect_platform(url: str) -> str:
         return "unknown"
 
 
-def parse_coupang_product(url: str) -> dict:
-    """쿠팡 상품 페이지 파싱"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+def extract_og_meta(soup: BeautifulSoup) -> dict:
+    """
+    OpenGraph 메타 태그에서 정보 추출 (우선순위 1)
+
+    Args:
+        soup: BeautifulSoup 객체
+
+    Returns:
+        dict with title, image_url, price, description
+    """
+    result = {
+        "title": None,
+        "image_url": None,
+        "price": None,
+        "description": None
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        # og:title
+        og_title = soup.select_one('meta[property="og:title"]')
+        if og_title and og_title.get('content'):
+            result["title"] = og_title['content'].strip()
+
+        # og:image
+        og_image = soup.select_one('meta[property="og:image"]')
+        if og_image and og_image.get('content'):
+            result["image_url"] = og_image['content'].strip()
+
+        # og:description
+        og_desc = soup.select_one('meta[property="og:description"]')
+        if og_desc and og_desc.get('content'):
+            result["description"] = og_desc['content'].strip()
+
+        # product:price:amount (일부 사이트에서 사용)
+        og_price = soup.select_one('meta[property="product:price:amount"]')
+        if og_price and og_price.get('content'):
+            try:
+                result["price"] = int(float(og_price['content']))
+            except (ValueError, TypeError):
+                pass
+
+    except Exception as e:
+        print(f"[Brandpipe] OG 메타 추출 오류: {e}")
+
+    return result
+
+
+def extract_json_ld(soup: BeautifulSoup) -> dict:
+    """
+    JSON-LD 구조화 데이터에서 Product 정보 추출 (우선순위 2)
+
+    Args:
+        soup: BeautifulSoup 객체
+
+    Returns:
+        dict with title, image_url, price, brand, description
+    """
+    result = {
+        "title": None,
+        "image_url": None,
+        "price": None,
+        "brand": None,
+        "description": None
+    }
+
+    try:
+        script_tags = soup.find_all('script', type='application/ld+json')
+
+        for script in script_tags:
+            if not script.string:
+                continue
+
+            try:
+                data = json.loads(script.string)
+            except json.JSONDecodeError:
+                continue
+
+            # 단일 객체 또는 리스트 처리
+            items = []
+            if isinstance(data, dict):
+                if data.get('@type') == 'Product':
+                    items = [data]
+                elif '@graph' in data:
+                    items = [d for d in data['@graph'] if isinstance(d, dict) and d.get('@type') == 'Product']
+            elif isinstance(data, list):
+                items = [d for d in data if isinstance(d, dict) and d.get('@type') == 'Product']
+
+            if not items:
+                continue
+
+            product = items[0]
+
+            # name → title
+            if product.get('name') and not result["title"]:
+                result["title"] = str(product['name']).strip()
+
+            # image → image_url
+            if product.get('image') and not result["image_url"]:
+                img = product['image']
+                if isinstance(img, list) and img:
+                    result["image_url"] = str(img[0])
+                elif isinstance(img, str):
+                    result["image_url"] = img
+                elif isinstance(img, dict) and img.get('url'):
+                    result["image_url"] = img['url']
+
+            # offers → price
+            if product.get('offers') and not result["price"]:
+                offers = product['offers']
+                if isinstance(offers, dict):
+                    price_val = offers.get('price') or offers.get('lowPrice')
+                    if price_val:
+                        try:
+                            result["price"] = int(float(str(price_val)))
+                        except (ValueError, TypeError):
+                            pass
+                elif isinstance(offers, list) and offers:
+                    price_val = offers[0].get('price') or offers[0].get('lowPrice')
+                    if price_val:
+                        try:
+                            result["price"] = int(float(str(price_val)))
+                        except (ValueError, TypeError):
+                            pass
+
+            # brand
+            if product.get('brand') and not result["brand"]:
+                brand = product['brand']
+                if isinstance(brand, dict):
+                    result["brand"] = brand.get('name', '')
+                elif isinstance(brand, str):
+                    result["brand"] = brand
+
+            # description
+            if product.get('description') and not result["description"]:
+                result["description"] = str(product['description']).strip()[:500]
+
+            # 하나 찾으면 종료
+            if result["title"]:
+                break
+
+    except Exception as e:
+        print(f"[Brandpipe] JSON-LD 추출 오류: {e}")
+
+    return result
+
+
+def parse_coupang_product(url: str) -> dict:
+    """
+    쿠팡 상품 페이지 파싱 (고도화 버전)
+
+    우선순위:
+    1. OpenGraph 메타 태그
+    2. JSON-LD 구조화 데이터
+    3. CSS Selector fallback
+    """
+    try:
+        response = requests.get(url, headers=COMMON_HEADERS, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 상품명 추출
+        # 결과 초기화
         title = None
-        title_elem = soup.select_one('h1.prod-buy-header__title') or soup.select_one('h2.prod-buy-header__title')
-        if title_elem:
-            title = title_elem.get_text(strip=True)
-
-        # 가격 추출
-        price = None
-        price_elem = soup.select_one('span.total-price strong') or soup.select_one('.prod-sale-price .total-price')
-        if price_elem:
-            price_text = price_elem.get_text(strip=True)
-            price_numbers = re.sub(r'[^\d]', '', price_text)
-            if price_numbers:
-                price = int(price_numbers)
-
-        # 이미지 URL 추출
-        image_url = None
-        img_elem = soup.select_one('.prod-image__detail img') or soup.select_one('.prod-image img')
-        if img_elem:
-            image_url = img_elem.get('src') or img_elem.get('data-src')
-            if image_url and image_url.startswith('//'):
-                image_url = 'https:' + image_url
-
-        # 브랜드 추출
         brand = None
-        brand_elem = soup.select_one('.prod-brand-name') or soup.select_one('a.prod-brand-name')
-        if brand_elem:
-            brand = brand_elem.get_text(strip=True)
+        price = None
+        image_url = None
+
+        # 1단계: OG 메타 태그
+        og_data = extract_og_meta(soup)
+        if og_data["title"]:
+            title = og_data["title"]
+        if og_data["image_url"]:
+            image_url = og_data["image_url"]
+        if og_data["price"]:
+            price = og_data["price"]
+
+        # 2단계: JSON-LD
+        ld_data = extract_json_ld(soup)
+        if not title and ld_data["title"]:
+            title = ld_data["title"]
+        if not image_url and ld_data["image_url"]:
+            image_url = ld_data["image_url"]
+        if not price and ld_data["price"]:
+            price = ld_data["price"]
+        if not brand and ld_data["brand"]:
+            brand = ld_data["brand"]
+
+        # 3단계: CSS Selector fallback
+        if not title:
+            title_elem = soup.select_one('h1.prod-buy-header__title') or soup.select_one('h2.prod-buy-header__title')
+            if title_elem:
+                title = title_elem.get_text(strip=True)
+
+        if not price:
+            # 다양한 가격 selector 시도
+            price_selectors = [
+                'span.total-price strong',
+                '.prod-sale-price .total-price',
+                '.prod-price .total-price',
+                'span.price-value',
+                '.prod-coupon-price .total-price'
+            ]
+            for selector in price_selectors:
+                price_elem = soup.select_one(selector)
+                if price_elem:
+                    price_text = price_elem.get_text(strip=True)
+                    price_numbers = re.sub(r'[^\d]', '', price_text)
+                    if price_numbers:
+                        price = int(price_numbers)
+                        break
+
+        if not image_url:
+            img_elem = soup.select_one('.prod-image__detail img') or soup.select_one('.prod-image img')
+            if img_elem:
+                image_url = img_elem.get('src') or img_elem.get('data-src')
+                if image_url and image_url.startswith('//'):
+                    image_url = 'https:' + image_url
+
+        if not brand:
+            brand_elem = soup.select_one('.prod-brand-name') or soup.select_one('a.prod-brand-name')
+            if brand_elem:
+                brand = brand_elem.get_text(strip=True)
 
         return {
             "title": title,
@@ -167,50 +357,90 @@ def parse_coupang_product(url: str) -> dict:
 
 
 def parse_naver_product(url: str) -> dict:
-    """네이버 스마트스토어/쇼핑 상품 페이지 파싱"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    }
+    """
+    네이버 스마트스토어/쇼핑 상품 페이지 파싱 (고도화 버전)
 
+    우선순위:
+    1. OpenGraph 메타 태그
+    2. JSON-LD 구조화 데이터
+    3. CSS Selector fallback
+    """
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=COMMON_HEADERS, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 상품명 추출
+        # 결과 초기화
         title = None
-        # 스마트스토어
-        title_elem = soup.select_one('._3oDjSvLwj1') or soup.select_one('h3._22kNQuEXmb')
-        if not title_elem:
-            # og:title 메타 태그에서 추출
-            og_title = soup.select_one('meta[property="og:title"]')
-            if og_title:
-                title = og_title.get('content')
-        else:
-            title = title_elem.get_text(strip=True)
-
-        # 가격 추출
-        price = None
-        price_elem = soup.select_one('._1LY7DqCnwR') or soup.select_one('span._1LY7DqCnwR')
-        if price_elem:
-            price_text = price_elem.get_text(strip=True)
-            price_numbers = re.sub(r'[^\d]', '', price_text)
-            if price_numbers:
-                price = int(price_numbers)
-
-        # og:image에서 이미지 URL 추출
-        image_url = None
-        og_image = soup.select_one('meta[property="og:image"]')
-        if og_image:
-            image_url = og_image.get('content')
-
-        # 브랜드 추출
         brand = None
-        brand_elem = soup.select_one('._1Ko5X6D3YR') or soup.select_one('a._1Ko5X6D3YR')
-        if brand_elem:
-            brand = brand_elem.get_text(strip=True)
+        price = None
+        image_url = None
+
+        # 1단계: OG 메타 태그 (네이버는 OG 태그가 잘 되어 있음)
+        og_data = extract_og_meta(soup)
+        if og_data["title"]:
+            title = og_data["title"]
+        if og_data["image_url"]:
+            image_url = og_data["image_url"]
+        if og_data["price"]:
+            price = og_data["price"]
+
+        # 2단계: JSON-LD
+        ld_data = extract_json_ld(soup)
+        if not title and ld_data["title"]:
+            title = ld_data["title"]
+        if not image_url and ld_data["image_url"]:
+            image_url = ld_data["image_url"]
+        if not price and ld_data["price"]:
+            price = ld_data["price"]
+        if not brand and ld_data["brand"]:
+            brand = ld_data["brand"]
+
+        # 3단계: CSS Selector fallback (스마트스토어/쇼핑 다양한 패턴)
+        if not title:
+            title_selectors = [
+                '._3oDjSvLwj1',
+                'h3._22kNQuEXmb',
+                '.product_title',
+                'h2.title',
+                '.goods_name'
+            ]
+            for selector in title_selectors:
+                title_elem = soup.select_one(selector)
+                if title_elem:
+                    title = title_elem.get_text(strip=True)
+                    break
+
+        if not price:
+            price_selectors = [
+                '._1LY7DqCnwR',
+                'span._1LY7DqCnwR',
+                '.price_num',
+                '.sale_price',
+                '.price span',
+                '._2pgHN-ntx6'
+            ]
+            for selector in price_selectors:
+                price_elem = soup.select_one(selector)
+                if price_elem:
+                    price_text = price_elem.get_text(strip=True)
+                    price_numbers = re.sub(r'[^\d]', '', price_text)
+                    if price_numbers:
+                        price = int(price_numbers)
+                        break
+
+        if not brand:
+            brand_selectors = [
+                '._1Ko5X6D3YR',
+                'a._1Ko5X6D3YR',
+                '.brand_name',
+                '.seller_name'
+            ]
+            for selector in brand_selectors:
+                brand_elem = soup.select_one(selector)
+                if brand_elem:
+                    brand = brand_elem.get_text(strip=True)
+                    break
 
         return {
             "title": title,
@@ -352,6 +582,136 @@ def search_from_naver_mock(keywords: list) -> list:
     ]
 
 
+def search_from_naver_shopping(keywords: list) -> list:
+    """
+    네이버 쇼핑 검색 페이지를 파싱해서 상품 정보 추출
+
+    주의:
+    - robots.txt, 약관을 검토하고 요청 횟수는 적절히 제한할 것
+    - 요청 실패/구조 변경 시 전체가 죽지 않게 try/except 처리
+    - 네이버 쇼핑은 "우리가 사오는 공급가격"이 아니라 "소비자 판매가"라서
+      시장 가격 참고용으로만 활용
+
+    Args:
+        keywords: 검색 키워드 리스트
+
+    Returns:
+        공급처 후보 형식의 리스트
+    """
+    results = []
+    base_url = "https://search.shopping.naver.com/search/all?query="
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+    }
+
+    # 가장 대표 키워드 1~2개만 사용 (과도한 요청 방지)
+    for kw in keywords[:2]:
+        try:
+            url = base_url + quote(kw)
+            resp = requests.get(url, headers=headers, timeout=10)
+
+            if resp.status_code != 200:
+                print(f"[Brandpipe] 네이버 쇼핑 검색 실패: HTTP {resp.status_code}")
+                continue
+
+            soup = BeautifulSoup(resp.text, 'html.parser')
+
+            # 네이버 쇼핑 검색 결과 파싱 (2024년 기준 구조)
+            # 상품 리스트는 script 태그 내 JSON으로 전달되는 경우가 많음
+            items_found = []
+
+            # 방법 1: 상품 카드 직접 파싱 시도
+            product_items = soup.select('div.product_item, li.product_item, div.basicList_item__0T9JD')
+
+            for item in product_items[:10]:
+                try:
+                    # 상품명
+                    title_elem = item.select_one('a.product_link, a.basicList_link__JLQJf, div.product_title a')
+                    if not title_elem:
+                        continue
+
+                    title = title_elem.get_text(strip=True)
+                    link = title_elem.get('href', '')
+
+                    # 가격
+                    price_elem = item.select_one('span.price_num, span.price, em.price_num')
+                    if not price_elem:
+                        continue
+
+                    price_text = price_elem.get_text(strip=True)
+                    price_numbers = re.sub(r'[^\d]', '', price_text)
+                    if not price_numbers:
+                        continue
+
+                    price = int(price_numbers)
+
+                    items_found.append({
+                        "source": "naver_shopping",
+                        "name": title[:100],
+                        "url": link if link.startswith('http') else f"https://search.shopping.naver.com{link}",
+                        "unit_price": price,
+                        "shipping_fee": 0,  # 배송비 정보는 상세 페이지에서만 확인 가능
+                        "moq": 1,
+                        "currency": "KRW"
+                    })
+                except Exception as e:
+                    print(f"[Brandpipe] 네이버 상품 파싱 오류: {e}")
+                    continue
+
+            # 방법 2: JSON 데이터에서 추출 시도 (SSR 데이터)
+            if not items_found:
+                script_tags = soup.find_all('script')
+                for script in script_tags:
+                    if script.string and 'products' in script.string:
+                        try:
+                            # __NEXT_DATA__ 또는 window.__PRELOADED_STATE__ 패턴 찾기
+                            json_match = re.search(r'(\{.*"products".*\})', script.string)
+                            if json_match:
+                                data = json.loads(json_match.group(1))
+                                products = data.get('products', [])
+
+                                for p in products[:10]:
+                                    if isinstance(p, dict):
+                                        items_found.append({
+                                            "source": "naver_shopping",
+                                            "name": p.get('name', p.get('productName', ''))[:100],
+                                            "url": p.get('link', p.get('productUrl', '')),
+                                            "unit_price": int(p.get('price', p.get('lowPrice', 0))),
+                                            "shipping_fee": 0,
+                                            "moq": 1,
+                                            "currency": "KRW"
+                                        })
+                        except Exception:
+                            pass
+
+            results.extend(items_found)
+
+            # 요청 간 딜레이 (rate limiting)
+            time.sleep(0.5)
+
+        except requests.RequestException as e:
+            print(f"[Brandpipe] 네이버 쇼핑 요청 오류: {e}")
+            continue
+        except Exception as e:
+            print(f"[Brandpipe] 네이버 쇼핑 파싱 오류: {e}")
+            continue
+
+    # 중복 제거 (URL 기준)
+    seen_urls = set()
+    unique_results = []
+    for item in results:
+        if item['url'] not in seen_urls:
+            seen_urls.add(item['url'])
+            unique_results.append(item)
+
+    return unique_results[:15]  # 최대 15개 반환
+
+
 def search_from_alibaba_mock(keywords: list) -> list:
     """
     알리바바 Mock 데이터 반환 (해외 도매용)
@@ -369,32 +729,45 @@ def search_from_alibaba_mock(keywords: list) -> list:
     ]
 
 
-def search_suppliers(keywords: list, include_overseas: bool = False) -> list:
+def search_suppliers(keywords: list, include_overseas: bool = False, use_real_search: bool = True) -> list:
     """
     모든 공급처에서 검색 후 결과 합치기
 
     Args:
         keywords: 검색 키워드 리스트
         include_overseas: 해외 도매(알리바바 등) 포함 여부
+        use_real_search: 실제 크롤링 사용 여부 (False면 mock만 사용)
 
     Returns:
         공급처 리스트
     """
     suppliers = []
 
-    # 국내 도매몰 검색
+    # 1. 국내 도매몰 검색 (현재 Mock)
     try:
         suppliers.extend(search_from_domemall_mock(keywords))
     except Exception as e:
         print(f"[Brandpipe] 도매몰 검색 오류: {e}")
 
-    # 네이버 쇼핑 검색
-    try:
-        suppliers.extend(search_from_naver_mock(keywords))
-    except Exception as e:
-        print(f"[Brandpipe] 네이버 검색 오류: {e}")
+    # 2. 네이버 쇼핑 검색 (실제 크롤링)
+    if use_real_search:
+        try:
+            naver_results = search_from_naver_shopping(keywords)
+            if naver_results:
+                suppliers.extend(naver_results)
+            else:
+                # 실제 검색 결과가 없으면 mock으로 폴백
+                suppliers.extend(search_from_naver_mock(keywords))
+        except Exception as e:
+            print(f"[Brandpipe] 네이버 실제 검색 오류, mock으로 폴백: {e}")
+            suppliers.extend(search_from_naver_mock(keywords))
+    else:
+        try:
+            suppliers.extend(search_from_naver_mock(keywords))
+        except Exception as e:
+            print(f"[Brandpipe] 네이버 mock 검색 오류: {e}")
 
-    # 해외 도매 (옵션)
+    # 3. 해외 도매 (옵션)
     if include_overseas:
         try:
             suppliers.extend(search_from_alibaba_mock(keywords))
@@ -550,8 +923,9 @@ def analyze_product():
             "meta": {
                 "keyword_used": keyword or product.get('title'),
                 "search_keywords": search_keywords,
-                "search_providers": ["domemall_mock", "naver_mock"] + (["alibaba_mock"] if include_overseas else []),
-                "analysis_time_ms": analysis_time_ms
+                "search_providers": ["domemall_mock", "naver_shopping"] + (["alibaba_mock"] if include_overseas else []),
+                "analysis_time_ms": analysis_time_ms,
+                "parsing_method": "og+jsonld+fallback"
             }
         }
 
@@ -708,5 +1082,11 @@ def test_endpoint():
     return jsonify({
         "ok": True,
         "message": "Brandpipe API is working!",
-        "version": "1.0.0-mvp"
+        "version": "2.0.0",
+        "features": [
+            "og_meta_parsing",
+            "json_ld_parsing",
+            "naver_shopping_search",
+            "margin_calculation"
+        ]
     })
