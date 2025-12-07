@@ -11882,18 +11882,22 @@ def api_image_generate_assets_zip():
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
-            # SSML 감지: SSML이면 문장 분리 없이 전체 처리
+            # SSML 감지: SSML이면 TTS는 전체로 처리하지만, 자막은 분할
             has_ssml = is_ssml_content(narration)
 
+            # 자막용 텍스트 분할 (SSML 태그 제거 후)
+            plain_narration = strip_ssml_tags(narration) if has_ssml else narration
+            subtitle_sentences = split_sentences(plain_narration, detected_lang)
+            if not subtitle_sentences:
+                subtitle_sentences = [plain_narration]
+
             if has_ssml:
-                # SSML 모드: 전체 나레이션을 한 번에 처리
-                sentences = [narration]  # 전체를 하나로
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: SSML 감정 표현 모드, lang={detected_lang}")
+                # SSML 모드: TTS는 전체로, 자막은 분할
+                sentences = [narration]  # TTS용 (전체)
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: SSML 모드, TTS=전체, 자막={len(subtitle_sentences)}개")
             else:
                 # 일반 모드: 문장별 분리
-                sentences = split_sentences(narration, detected_lang)
-                if not sentences:
-                    sentences = [narration]
+                sentences = subtitle_sentences
                 print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
 
             scene_audios = []
@@ -11901,38 +11905,61 @@ def api_image_generate_assets_zip():
             scene_subtitles = []  # 씬 내 상대적 자막 타이밍
             scene_relative_time = 0.0
 
-            for sent_idx, sentence in enumerate(sentences):
-                # 문장별 TTS 생성 (SSML 자동 감지됨)
-                audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
-
+            if has_ssml:
+                # SSML 모드: TTS는 전체로 한 번, 자막은 분할
+                audio_bytes = generate_tts_for_sentence(sentences[0], voice_name, language_code, api_key)
                 if audio_bytes:
-                    # 실제 오디오 길이 측정
-                    duration = get_mp3_duration(audio_bytes)
+                    total_duration = get_mp3_duration(audio_bytes)
                     scene_audios.append(audio_bytes)
+                    all_sentence_audios.append((scene_idx, 0, audio_bytes))
 
-                    # 자막용 텍스트 (SSML 태그 제거)
-                    subtitle_text = strip_ssml_tags(sentence) if has_ssml else sentence
+                    # 자막 시간 배분 (글자 수 비례)
+                    total_chars = sum(len(s) for s in subtitle_sentences)
+                    for sub_idx, sub_text in enumerate(subtitle_sentences):
+                        # 글자 수에 비례하여 시간 배분
+                        char_ratio = len(sub_text) / total_chars if total_chars > 0 else 1 / len(subtitle_sentences)
+                        sub_duration = total_duration * char_ratio
 
-                    # SRT 엔트리 생성 (전체 타임라인)
-                    srt_entries.append({
-                        'index': len(srt_entries) + 1,
-                        'start': current_time,
-                        'end': current_time + duration,
-                        'text': subtitle_text
-                    })
+                        srt_entries.append({
+                            'index': len(srt_entries) + 1,
+                            'start': current_time,
+                            'end': current_time + sub_duration,
+                            'text': sub_text
+                        })
+                        scene_subtitles.append({
+                            'start': scene_relative_time,
+                            'end': scene_relative_time + sub_duration,
+                            'text': sub_text
+                        })
+                        print(f"  Sub {sub_idx + 1}: {sub_duration:.2f}s - {sub_text[:30]}...")
+                        current_time += sub_duration
+                        scene_relative_time += sub_duration
+            else:
+                # 일반 모드: 문장별 TTS + 자막
+                for sent_idx, sentence in enumerate(sentences):
+                    audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
 
-                    # 씬 내 상대적 자막 (영상 생성용)
-                    scene_subtitles.append({
-                        'start': scene_relative_time,
-                        'end': scene_relative_time + duration,
-                        'text': subtitle_text
-                    })
+                    if audio_bytes:
+                        duration = get_mp3_duration(audio_bytes)
+                        scene_audios.append(audio_bytes)
 
-                    print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {subtitle_text[:30]}...")
-                    current_time += duration
-                    scene_relative_time += duration
+                        srt_entries.append({
+                            'index': len(srt_entries) + 1,
+                            'start': current_time,
+                            'end': current_time + duration,
+                            'text': sentence
+                        })
+                        scene_subtitles.append({
+                            'start': scene_relative_time,
+                            'end': scene_relative_time + duration,
+                            'text': sentence
+                        })
 
-                    all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
+                        print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                        current_time += duration
+                        scene_relative_time += duration
+
+                        all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
 
             # 씬 메타데이터 저장
             scene_duration = current_time - scene_start_time
