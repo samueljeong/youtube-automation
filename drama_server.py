@@ -10766,6 +10766,53 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 2. **solution** (해결형): 혼란을 정리해주는 느낌
 3. **authority** (권위형): 데이터/전문성 기반 느낌
 
+## 🎯 유튜브 설명란 생성 규칙 (중요!)
+
+### 목표
+- 검색·추천 노출에 유리한 설명란 작성
+- 알고리즘 정책 준수
+- 조회수와 시청 유지율 동시 향상
+- 낚시성, 과장, 허위 정보, 키워드 스팸 절대 금지
+
+### 첫 2-3줄 (프리뷰 영역 - 가장 중요!)
+- 검색 결과·추천 피드에 노출되는 구간
+- 반드시 포함할 내용:
+  - 이 영상이 다루는 핵심 주제
+  - 시청자가 얻는 "이득/결과" 한 줄
+  - main_keywords 중 1-2개를 자연스럽게 포함
+- 외부 링크 넣지 말고, 오직 내용과 후킹에만 집중
+
+### 본문 요약 (핵심 내용 설명)
+- 3-6문단, 한국어 기준 **600-1200자**
+- 영상에서 다루는 핵심 쟁점·데이터·결론을 정리·해석
+- 키워드를 자연스럽게 섞되 스팸처럼 반복 금지
+- "누가 보면 좋은지(타깃) + 어떤 상황에 유용한지" 언급
+- 감정 과장보다 **사실 + 해석 + 인사이트**에 집중
+- 출처가 있으면 짧게 명시
+
+### 타임스탬프·챕터 (5분 이상 영상)
+- 각 씬의 chapter_title을 활용해 자동 생성
+- "00:00 형식 타임스탬프 + 짧은 제목" 구조
+- 챕터 제목에 키워드 자연스럽게 포함
+
+### 톤 & 스타일
+- 과도한 유머, 속어, 자극적 표현 피함
+- "팩트 → 의미 → 시청자 액션" 순서
+- 마지막에 질문 1개 (댓글 유도용)
+
+### 해시태그 규칙 (3-5개)
+- 채널/브랜드 태그: 예) #채널명
+- 주제 태그: 예) #부동산세금, #세제개편
+- 카테고리 태그: 예) #경제뉴스, #시사해설
+- 영상 내용과 직접 관련 없는 태그 금지
+
+### 태그(Tags) 규칙 (5-12개)
+- broad_tags (넓은 키워드): 예) "부동산 세금", "경제 뉴스"
+- specific_tags (구체 키워드): 예) "2025 부동산 세제 개편"
+- variant_tags (표기/철자 변형): 예) "부동산세금", "부동산 세금 2025"
+- channel_tags (채널 고유 태그): 예) 채널명, 시리즈명
+- 영상과 무관한 인기 키워드 넣기 금지
+
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
   "detected_category": "news 또는 story (대본 분석 결과 - 반드시 먼저 결정!)",
@@ -10776,7 +10823,18 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       {{"style": "solution", "title": "해결형 제목 (18-32자)"}},
       {{"style": "authority", "title": "권위형 제목 (18-32자)"}}
     ],
-    "description": "Description in {lang_config['name']} (video summary + hashtags, 500+ chars)"
+    "description": {{
+      "full_text": "유튜브 설명란 전체 텍스트 (600-1200자, 프리뷰 + 본문 + 타임스탬프 + CTA)",
+      "preview_2_lines": "검색 결과에 노출되는 첫 2줄 요약",
+      "chapters": [
+        {{"time": "00:00", "title": "인트로 · 핵심 한 줄"}},
+        {{"time": "01:30", "title": "첫 번째 포인트"}},
+        {{"time": "03:00", "title": "두 번째 포인트"}}
+      ]
+    }},
+    "hashtags": ["#주제태그1", "#주제태그2", "#카테고리태그"],
+    "tags": ["넓은 키워드", "구체 키워드", "변형 키워드", "채널 태그"],
+    "pin_comment": "고정 댓글 문구 (핵심 요약 + 질문 1개)"
   }},
   "thumbnail": {{
     "text_options": ["Thumbnail text 1 in {lang_config['name']}", "Thumbnail text 2 in {lang_config['name']}", "Thumbnail text 3 in {lang_config['name']}"],
@@ -11220,6 +11278,14 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 - 타겟별: 시니어=회상형/감성적, 일반=정보형/해결형
 - **3가지 스타일**: curiosity(호기심), solution(해결), authority(권위)
 
+## 🎯 유튜브 설명란 생성 규칙
+- **첫 2줄**: 검색 노출 구간 - 핵심 주제 + 시청자 이득 + 키워드 포함
+- **본문**: 600-1200자, 사실 + 해석 + 인사이트 중심
+- **챕터**: 씬별 chapter_title 활용, "00:00 제목" 형식
+- **해시태그**: 3-5개 (주제태그 + 카테고리태그)
+- **태그**: 5-12개 (넓은/구체/변형/채널 키워드)
+- **톤**: 과장 금지, 팩트 → 의미 → 액션 순서
+
 ## Output Format (MUST be valid JSON)
 {{
   "youtube": {{
@@ -11229,7 +11295,14 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
       {{"style": "solution", "title": "해결형 제목"}},
       {{"style": "authority", "title": "권위형 제목"}}
     ],
-    "description": "Description in {lang_config['name']} (summary + hashtags, 500+ chars)"
+    "description": {{
+      "full_text": "유튜브 설명란 전체 텍스트 (600-1200자)",
+      "preview_2_lines": "검색 결과에 노출되는 첫 2줄 요약",
+      "chapters": [{{"time": "00:00", "title": "챕터 제목"}}]
+    }},
+    "hashtags": ["#주제태그1", "#주제태그2", "#카테고리태그"],
+    "tags": ["넓은 키워드", "구체 키워드", "변형 키워드"],
+    "pin_comment": "고정 댓글 (핵심 요약 + 질문)"
   }},
   "thumbnail": {{
     "text_options": [
@@ -11449,6 +11522,16 @@ Rules:
             print(f"[IMAGE-ANALYZE] screen_overlays: {len(video_effects.get('screen_overlays', []))}개")
             print(f"[IMAGE-ANALYZE] sound_effects: {len(video_effects.get('sound_effects', []))}개")
             print(f"[IMAGE-ANALYZE] shorts highlight_scenes: {video_effects.get('shorts', {}).get('highlight_scenes', [])}")
+
+        # 유튜브 메타데이터 로깅
+        youtube_meta = result.get("youtube", {})
+        desc = youtube_meta.get("description", {})
+        if isinstance(desc, dict):
+            print(f"[IMAGE-ANALYZE] description.full_text 길이: {len(desc.get('full_text', ''))}자")
+            print(f"[IMAGE-ANALYZE] description.chapters: {len(desc.get('chapters', []))}개")
+        print(f"[IMAGE-ANALYZE] hashtags: {youtube_meta.get('hashtags', [])}")
+        print(f"[IMAGE-ANALYZE] tags: {len(youtube_meta.get('tags', []))}개")
+        print(f"[IMAGE-ANALYZE] pin_comment: {'있음' if youtube_meta.get('pin_comment') else '없음'}")
 
         return jsonify({
             "ok": True,
@@ -17167,7 +17250,27 @@ def run_automation_pipeline(row_data, row_index):
 
             generated_title = youtube_meta.get('title', '')
             title_options = youtube_meta.get('title_options', [])
-            description = youtube_meta.get('description', '')
+
+            # description 처리: 새 구조(객체) 또는 기존 구조(문자열) 지원
+            desc_raw = youtube_meta.get('description', '')
+            if isinstance(desc_raw, dict):
+                description = desc_raw.get('full_text', '')
+                description_chapters = desc_raw.get('chapters', [])
+                description_preview = desc_raw.get('preview_2_lines', '')
+            else:
+                description = desc_raw
+                description_chapters = []
+                description_preview = ''
+
+            # 해시태그, 태그, 고정댓글 추출
+            hashtags = youtube_meta.get('hashtags', [])
+            tags = youtube_meta.get('tags', [])
+            pin_comment = youtube_meta.get('pin_comment', '')
+
+            # 로깅
+            print(f"[AUTOMATION] 설명란: {len(description)}자, 챕터: {len(description_chapters)}개")
+            print(f"[AUTOMATION] 해시태그: {hashtags}")
+            print(f"[AUTOMATION] 태그: {len(tags)}개")
 
             # title_options 로깅 (3가지 스타일 제목)
             if title_options:
@@ -17455,6 +17558,12 @@ def run_automation_pipeline(row_data, row_index):
         except Exception as chapter_err:
             print(f"[AUTOMATION] 챕터 생성 오류 (무시됨): {chapter_err}")
 
+        # 해시태그를 설명란 끝에 추가
+        if hashtags and len(hashtags) > 0:
+            hashtags_text = "\n\n" + " ".join(hashtags)
+            description = description + hashtags_text
+            print(f"[AUTOMATION] 해시태그 추가: {' '.join(hashtags)}")
+
         try:
             upload_payload = {
                 "videoPath": video_url_local,
@@ -17467,6 +17576,11 @@ def run_automation_pipeline(row_data, row_index):
             # 썸네일이 있으면 추가
             if thumbnail_url:
                 upload_payload["thumbnailPath"] = thumbnail_url
+
+            # GPT-5.1 생성 태그 추가
+            if tags and len(tags) > 0:
+                upload_payload["tags"] = tags
+                print(f"[AUTOMATION] YouTube 태그 {len(tags)}개 추가")
 
             # 예약시간(K열)이 있으면 ISO 8601 형식으로 변환하여 추가
             if publish_time:
@@ -17599,7 +17713,11 @@ def run_automation_pipeline(row_data, row_index):
                     "title_options": title_options,
                     "voice": voice,
                     "audience": audience,
-                    "detected_category": detected_category
+                    "detected_category": detected_category,
+                    # 유튜브 메타데이터 추가
+                    "hashtags": hashtags,
+                    "tags": tags,
+                    "pin_comment": pin_comment  # YouTube Studio에서 수동으로 고정 필요
                 }
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None, "shorts_url": None, "cost": total_cost}
@@ -18330,8 +18448,8 @@ def _automation_generate_video(scenes, episode_id, output_dir):
         return {"ok": False, "error": str(e)}
 
 
-def _automation_youtube_upload(video_path, title, description, visibility, channel_id, thumbnail_path=None):
-    """YouTube 업로드 (썸네일 포함)"""
+def _automation_youtube_upload(video_path, title, description, visibility, channel_id, thumbnail_path=None, tags=None):
+    """YouTube 업로드 (썸네일 포함, GPT-5.1 생성 태그 지원)"""
     try:
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
@@ -18372,11 +18490,16 @@ def _automation_youtube_upload(video_path, title, description, visibility, chann
 
         youtube = build('youtube', 'v3', credentials=creds)
 
+        # 태그: GPT-5.1 생성 태그 사용, 없으면 기본 태그
+        youtube_tags = tags if tags and len(tags) > 0 else ['자동생성', '드라마', 'AI']
+        # YouTube 태그 제한: 최대 500자, 각 태그 30자 이하
+        youtube_tags = [tag[:30] for tag in youtube_tags[:20]]
+
         body = {
             'snippet': {
                 'title': title[:100],
                 'description': description[:5000] if description else '',
-                'tags': ['자동생성', '드라마', 'AI'],
+                'tags': youtube_tags,
                 'categoryId': '22'
             },
             'status': {
