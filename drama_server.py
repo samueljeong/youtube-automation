@@ -14925,7 +14925,7 @@ def run_automation_pipeline(row_data, row_index):
         # L(11): 음성(선택), M(12): 타겟(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
-        channel_id = row_data[2] if len(row_data) > 2 else ''
+        channel_id = (row_data[2] if len(row_data) > 2 else '').strip()  # 공백 제거
         channel_name = row_data[3] if len(row_data) > 3 else ''  # D: 채널명 (참고용, 코드에서 미사용)
         publish_time = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
         script = row_data[5] if len(row_data) > 5 else ''
