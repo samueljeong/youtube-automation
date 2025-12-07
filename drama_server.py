@@ -11617,15 +11617,21 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                     print(f"[VIDEO-WORKER] Clip MISSING: {clip}")
 
             merged_path = os.path.join(work_dir, "merged.mp4")
+            # IMPORTANT: stdout=DEVNULL, stderr=PIPE to avoid OOM from buffering all FFmpeg output
             concat_result = subprocess.run(
                 ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path],
-                capture_output=True, timeout=600
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=600
             )
 
             if concat_result.returncode != 0:
-                stderr = concat_result.stderr.decode('utf-8', errors='ignore')
-                print(f"[VIDEO-WORKER] Concat FAILED (code {concat_result.returncode}): {stderr}")
+                stderr = concat_result.stderr.decode('utf-8', errors='ignore') if concat_result.stderr else ""
+                print(f"[VIDEO-WORKER] Concat FAILED (code {concat_result.returncode}): {stderr[:500]}")
+                del concat_result
+                gc.collect()
                 raise Exception(f"클립 병합 실패: {stderr[:200]}")
+
+            del concat_result
+            gc.collect()
 
             if not os.path.exists(merged_path):
                 raise Exception("merged.mp4 파일이 생성되지 않음")
@@ -11661,16 +11667,22 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
             print(f"[VIDEO-WORKER] Subtitle filter: {vf_filter}")
             print(f"[VIDEO-WORKER] Fonts directory: {fonts_dir}")
 
+            # IMPORTANT: stdout=DEVNULL, stderr=PIPE to avoid OOM from buffering FFmpeg output
+            # FFmpeg video encoding generates massive amounts of progress output to stderr
             result = subprocess.run([
                 "ffmpeg", "-y", "-i", merged_path,
                 "-vf", vf_filter,
                 "-c:v", "libx264", "-preset", "fast", "-c:a", "copy",
                 final_path
-            ], capture_output=True, timeout=1800)  # 30분 타임아웃
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=1800)  # 30분 타임아웃
 
             if result.returncode != 0:
-                print(f"[VIDEO-WORKER] Subtitle burn-in failed, using merged")
+                stderr_msg = result.stderr.decode('utf-8', errors='ignore')[:500] if result.stderr else ""
+                print(f"[VIDEO-WORKER] Subtitle burn-in failed (code {result.returncode}): {stderr_msg}")
                 final_path = merged_path
+
+            del result
+            gc.collect()
 
             # 5. 결과 저장
             output_filename = f"video_{session_id}.mp4"
