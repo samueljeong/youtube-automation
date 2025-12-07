@@ -250,6 +250,12 @@ def init_assistant_db():
         except:
             pass  # 이미 존재하면 무시
 
+        # role 컬럼 추가 (직분/직책 - 권사, 집사, 장로 등)
+        try:
+            cursor.execute('ALTER TABLE people ADD COLUMN IF NOT EXISTS role VARCHAR(100)')
+        except:
+            pass  # 이미 존재하면 무시
+
         # People Notes 테이블 (인물별 누적 기록)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS people_notes (
