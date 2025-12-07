@@ -180,13 +180,26 @@ else:
 - 11672-11677행 (subtitle burn-in): `capture_output=True` → `stdout=DEVNULL, stderr=PIPE`
 - subprocess 완료 후 `del` + `gc.collect()` 추가
 
-### 2025-12-07: YouTube 업로드 전 영상 검증 추가
+### 2025-12-07: YouTube 업로드 전 영상 검증 강화
 
 **증상**: YouTube 업로드 성공했으나 영상이 Studio에 표시되지 않음
 
-**원인**: 손상된 영상 파일이 업로드되어 YouTube 처리 중 자동 삭제됨
+**원인**:
+1. 손상된 영상 파일이 업로드되어 YouTube 처리 중 자동 삭제됨
+2. 검증 Exception 발생 시 업로드를 계속 진행하는 버그
 
-**수정** (`drama_server.py` 9575-9627행):
-- 업로드 전 ffprobe로 영상 유효성 검사
-- 검사 항목: duration, size, video/audio 스트림 존재 여부
-- 손상된 파일 발견 시 업로드 차단 및 명확한 에러 메시지 반환
+**수정** (`drama_server.py` 9575-9683행):
+- **1단계: ffprobe 메타데이터 검증**
+  - duration (최소 1초)
+  - size (최소 100KB)
+  - video/audio 스트림 존재 여부 (둘 다 필수)
+  - 해상도 (최소 100x100)
+  - 코덱 정보 로깅
+- **2단계: 실제 프레임 디코딩 테스트**
+  - ffmpeg로 첫 1초 디코딩 시도
+  - 디코딩 실패 시 업로드 차단
+- **3단계: YouTube 업로드 후 상태 확인**
+  - videos().list API로 uploadStatus/rejectionReason 확인
+  - 거부/실패 시 에러 반환
+- **Exception 처리 수정**: 검증 실패 시 업로드 차단 (이전: 계속 진행)
+- **이미지 생성 실패 체크 추가** (15104-15109행): 모든 이미지 생성 실패 시 중단
