@@ -10115,6 +10115,7 @@ def api_image_analyze_script():
         image_style = data.get('image_style', 'realistic')
         image_count = data.get('image_count', 4)  # 기본 4개
         audience = data.get('audience', 'senior')  # 시니어/일반 타겟
+        category = data.get('category', '').strip()  # 카테고리 (뉴스 등)
         output_language = data.get('output_language', 'ko')  # 출력 언어 (ko/en/ja/auto)
 
         # 언어 설정 매핑
@@ -10176,6 +10177,9 @@ def api_image_analyze_script():
 
         style_desc = style_guides.get(image_style, 'photorealistic')
 
+        # 카테고리 기반 뉴스 스타일 여부 (기본값)
+        is_news_category = category.lower() in ['뉴스', 'news', '시사', '정치', '경제'] if category else False
+
         # 애니메이션(스틱맨) 스타일 전용 시스템 프롬프트 - audience 반영
         if image_style == 'animation':
             # audience별 썸네일 규칙 설정
@@ -10189,6 +10193,87 @@ def api_image_analyze_script():
                 thumb_color = "#FFD700"
                 thumb_outline = "#000000"
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
+
+            # 뉴스 스타일 썸네일 프롬프트 (55세+ 시청자 대상)
+            if is_news_category:
+                ai_prompts_section = f'''    "ai_prompts": {{
+      "A": {{
+        "description": "뉴스 스타일 A: 멀티 패널 뉴스 콜라주 - TV 뉴스 화면 캡처 느낌",
+        "prompt": "Korean TV news broadcast style YouTube thumbnail, 16:9 aspect ratio. Multiple image panels collage layout (3-4 panels). News anchor desk, interview screenshots, documentary footage style. Professional news graphics, Korean news channel aesthetic. Red and blue accent colors, '실제상황' or '단독' badge. Clean professional layout, NOT cartoon style, realistic news broadcast look. Yellow and cyan highlighted Korean text overlays.",
+        "text_overlay": {{
+          "main": "뉴스 헤드라인 (8-15자, 인용문 스타일 '...')",
+          "sub": "부제목 또는 출처"
+        }},
+        "style": "news-broadcast, multi-panel, professional"
+      }},
+      "B": {{
+        "description": "뉴스 스타일 B: 인터뷰/증언 스타일 - 실제 발언 강조",
+        "prompt": "Korean news interview style YouTube thumbnail, 16:9 aspect ratio. Split screen with speaker on one side, related imagery on other. Korean news lower-third graphics style. Professional documentary aesthetic. Bold Korean quote text with quotation marks. Yellow highlight on key phrases. News channel logo placement area. Serious, credible journalism look.",
+        "text_overlay": {{
+          "main": "인용문 형식 ('...라고 말했다')",
+          "sub": "화자 또는 출처"
+        }},
+        "style": "interview, quote, documentary"
+      }},
+      "C": {{
+        "description": "뉴스 스타일 C: 속보/단독 스타일 - 긴급 뉴스 느낌",
+        "prompt": "Breaking news style Korean YouTube thumbnail, 16:9 aspect ratio. Urgent news banner design, red 'Breaking' or '속보' badge. Dark background with dramatic lighting. Bold white and yellow Korean headline text. News ticker style bottom bar. Professional broadcast graphics, high contrast. Sense of urgency and importance.",
+        "text_overlay": {{
+          "main": "속보 헤드라인 (8-12자)",
+          "sub": "상세 내용"
+        }},
+        "style": "breaking-news, urgent, headline"
+      }}
+    }}'''
+                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (뉴스 스타일) ⚠️
+The "ai_prompts" field generates 3 different NEWS-STYLE thumbnails for senior audience (55+).
+⚠️ Use REALISTIC NEWS BROADCAST style, NOT cartoon/webtoon!
+- A: Multi-panel news collage - TV news screenshot compilation style
+- B: Interview/testimony style - quote emphasis with speaker
+- C: Breaking news style - urgent headline with news banner
+- All 3 prompts MUST look like Korean TV news broadcasts!
+- Use professional, credible journalism aesthetic
+- Include Korean text overlays with quotes ("...")
+- Yellow/cyan highlights for emphasis
+- '실제상황', '단독', '속보' badges where appropriate"""
+            else:
+                ai_prompts_section = f'''    "ai_prompts": {{
+      "A": {{
+        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
+        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
+        "text_overlay": {{
+          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {thumb_length})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "emotional, expressive, cartoon"
+      }},
+      "B": {{
+        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
+        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
+        "text_overlay": {{
+          "main": "대비 강조 텍스트 ({lang_config['name']})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "narrative, contrast, split-screen"
+      }},
+      "C": {{
+        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
+        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
+        "text_overlay": {{
+          "main": "강렬한 메인 문구 ({lang_config['name']}, {thumb_length})",
+          "sub": "서브 텍스트 (optional)"
+        }},
+        "style": "typography, bold, graphic-design"
+      }}
+    }}'''
+                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
+The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
+⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
+- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
+- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
+- C: Typography focused - bold text with minimal background, graphic design style
+- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
+- All 3 prompts MUST be different styles/compositions!"""
 
             system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
 
@@ -10266,35 +10351,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "text_color": "{thumb_color}",
     "outline_color": "{thumb_outline}",
     "prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, warm colors]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [pose/action]. Character face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage style.",
-    "ai_prompts": {{
-      "A": {{
-        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
-        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
-        "text_overlay": {{
-          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {thumb_length})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "emotional, expressive, cartoon"
-      }},
-      "B": {{
-        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
-        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
-        "text_overlay": {{
-          "main": "대비 강조 텍스트 ({lang_config['name']})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "narrative, contrast, split-screen"
-      }},
-      "C": {{
-        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
-        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
-        "text_overlay": {{
-          "main": "강렬한 메인 문구 ({lang_config['name']}, {thumb_length})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "typography, bold, graphic-design"
-      }}
-    }}
+{ai_prompts_section}
   }},
   "scenes": [
     {{
@@ -10305,14 +10362,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
   ]
 }}
 
-## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
-The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
-⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
-- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
-- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
-- C: Typography focused - bold text with minimal background, graphic design style
-- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
-- All 3 prompts MUST be different styles/compositions!
+{ai_prompts_rules}
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (한글 텍스트 규칙) ⚠️
 The "text_overlay" field contains Korean text that will be rendered ON the thumbnail image.
@@ -10646,7 +10696,8 @@ Rules:
 4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 5. ⚠️ ALL CHARACTERS = STICKMAN ONLY! No realistic humans (no grandfather, grandmother, elderly people). Use simple stickman with anime background."""
 
-        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
+        thumb_style_log = "뉴스" if (image_style == 'animation' and is_news_category) else "일반"
+        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language}, 썸네일: {thumb_style_log})")
 
         # GPT-5.1은 Responses API 사용
         response = client.responses.create(
@@ -14922,7 +14973,7 @@ def run_automation_pipeline(row_data, row_index):
         # E(4): 예약시간, F(5): 대본, G(6): 제목
         # H(7): 비용(출력), I(8): 공개설정
         # J(9): 영상URL(출력), K(10): 에러메시지(출력)
-        # L(11): 음성(선택), M(12): 타겟(선택)
+        # L(11): 음성(선택), M(12): 타겟(선택), N(13): 카테고리(선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = (row_data[2] if len(row_data) > 2 else '').strip()  # 공백 제거
@@ -14935,6 +14986,7 @@ def run_automation_pipeline(row_data, row_index):
         # J(9), K(10)은 출력 컬럼이므로 스킵
         voice = row_data[11] if len(row_data) > 11 else 'ko-KR-Neural2-C'  # L컬럼: 음성 (기본: 남성)
         audience = row_data[12] if len(row_data) > 12 else 'senior'  # M컬럼: 타겟 시청자
+        category = (row_data[13] if len(row_data) > 13 else '').strip()  # N컬럼: 카테고리 (뉴스 등)
 
         # 비용 추적 변수 초기화
         total_cost = 0.0
@@ -14949,6 +15001,7 @@ def run_automation_pipeline(row_data, row_index):
         print(f"  - 공개설정: {visibility}")
         print(f"  - 음성: {voice}")
         print(f"  - 타겟: {audience}")
+        print(f"  - 카테고리: {category or '(일반)'}")
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
@@ -14969,6 +15022,7 @@ def run_automation_pipeline(row_data, row_index):
                 "image_style": "animation",  # 스틱맨 스타일
                 "image_count": fixed_image_count,
                 "audience": audience,
+                "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto"
             }, timeout=180)  # GPT-5.1 응답 대기 시간 증가 (120→180초)
 
