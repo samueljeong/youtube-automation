@@ -11829,33 +11829,17 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
 
             # IMPORTANT: stdout=DEVNULL, stderr=PIPE to avoid OOM from buffering FFmpeg output
             # FFmpeg video encoding generates massive amounts of progress output to stderr
-            # YouTube 호환 설정: movflags +faststart, AAC 오디오 재인코딩, high profile
             result = subprocess.run([
                 "ffmpeg", "-y", "-i", merged_path,
                 "-vf", vf_filter,
-                "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
-                "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-                "-movflags", "+faststart",
+                "-c:v", "libx264", "-preset", "fast", "-c:a", "copy",
                 final_path
             ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=1800)  # 30분 타임아웃
 
             if result.returncode != 0:
                 stderr_msg = result.stderr.decode('utf-8', errors='ignore')[:500] if result.stderr else ""
                 print(f"[VIDEO-WORKER] Subtitle burn-in failed (code {result.returncode}): {stderr_msg}")
-                # 자막 없이 YouTube 호환으로 재인코딩
-                print(f"[VIDEO-WORKER] Fallback: 자막 없이 YouTube 호환 재인코딩...")
-                fallback_result = subprocess.run([
-                    "ffmpeg", "-y", "-i", merged_path,
-                    "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
-                    "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-                    "-movflags", "+faststart",
-                    final_path
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=1800)
-                if fallback_result.returncode != 0:
-                    print(f"[VIDEO-WORKER] Fallback failed, using merged_path")
-                    final_path = merged_path
-                del fallback_result
-                gc.collect()
+                final_path = merged_path
 
             del result
             gc.collect()
