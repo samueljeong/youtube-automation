@@ -16192,9 +16192,10 @@ def api_sheets_check_and_process():
                 "processed": 0
             })
 
-        # 현재 시간
-        from datetime import datetime
-        now = datetime.now()
+        # 현재 시간 (한국 시간 KST = UTC+9)
+        from datetime import datetime, timedelta, timezone
+        kst = timezone(timedelta(hours=9))
+        now = datetime.now(kst).replace(tzinfo=None)  # naive datetime으로 변환 (시트의 작업시간과 비교용)
         processed_count = 0
         results = []
 
