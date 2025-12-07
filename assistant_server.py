@@ -1552,37 +1552,37 @@ def parse_input():
             # AI 제안사항(suggestions)을 tasks로 저장
             saved_suggestions = []
             for suggestion in result.get('suggestions', []):
-                suggestion_title = f"💡 {suggestion.get('title')}"
+                suggestion_type = suggestion.get('type', 'action')
+                type_emoji = {'reminder': '⏰', 'action': '✋', 'prayer': '🙏', 'visit': '🏠'}.get(suggestion_type, '💡')
+                suggestion_title = f"{type_emoji} {suggestion.get('title')}"
                 if suggestion.get('related_to'):
-                    suggestion_title = f"💡 [{suggestion.get('related_to')}] {suggestion.get('title')}"
+                    suggestion_title = f"{type_emoji} [{suggestion.get('related_to')}] {suggestion.get('title')}"
 
                 if USE_POSTGRES:
                     cursor.execute('''
-                        INSERT INTO tasks (title, due_date, priority, category, source, sync_status, notes)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO tasks (title, due_date, priority, category, source, sync_status)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id
-                    ''', (
-                        suggestion_title,
-                        suggestion.get('due_date'),
-                        suggestion.get('priority', 'normal'),
-                        '교회',  # 대부분 교회 관련 제안
-                        'ai_suggestion',
-                        'pending_to_mac',
-                        f"AI 제안 ({suggestion.get('type', 'action')})"
-                    ))
-                    suggestion_id = cursor.fetchone()['id']
-                else:
-                    cursor.execute('''
-                        INSERT INTO tasks (title, due_date, priority, category, source, sync_status, notes)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         suggestion_title,
                         suggestion.get('due_date'),
                         suggestion.get('priority', 'normal'),
                         '교회',
                         'ai_suggestion',
-                        'pending_to_mac',
-                        f"AI 제안 ({suggestion.get('type', 'action')})"
+                        'pending_to_mac'
+                    ))
+                    suggestion_id = cursor.fetchone()['id']
+                else:
+                    cursor.execute('''
+                        INSERT INTO tasks (title, due_date, priority, category, source, sync_status)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        suggestion_title,
+                        suggestion.get('due_date'),
+                        suggestion.get('priority', 'normal'),
+                        '교회',
+                        'ai_suggestion',
+                        'pending_to_mac'
                     ))
                     suggestion_id = cursor.lastrowid
 
