@@ -16021,7 +16021,7 @@ def api_sheets_check_and_process():
 
         # ========== 처리중인 작업이 있는지 확인 (20분 타임아웃) ==========
         # "처리중"인 행이 있으면 새 작업을 시작하지 않음 (한 번에 하나씩만 처리)
-        # 단, 20분 이상 처리중이면 실패로 변경
+        # 단, 20분 이상 처리중이거나 시작시간이 없으면 실패로 변경
         for i, row in enumerate(rows[1:], start=2):
             if len(row) > 0 and row[0] == '처리중':
                 work_time = row[1] if len(row) > 1 else ''
@@ -16041,10 +16041,17 @@ def api_sheets_check_and_process():
                         else:
                             print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, {elapsed_minutes:.1f}분 경과) - 새 작업 시작 안함")
                     except ValueError:
-                        # 시간 형식 파싱 실패 시 기존 로직 유지
-                        print(f"[SHEETS] 처리중인 작업 발견 (행 {i}) - 새 작업 시작 안함")
+                        # 시간 형식 파싱 실패 → 실패로 처리
+                        print(f"[SHEETS] 행 {i}: 시작시간 형식 오류 - 실패 처리")
+                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
+                        sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', '시작시간 형식 오류로 실패')
+                        continue  # 다음 행 확인
                 else:
-                    print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, 시작시간 없음) - 새 작업 시작 안함")
+                    # 시작시간 없음 → 실패로 처리 (배포 전 작업 등)
+                    print(f"[SHEETS] 행 {i}: 시작시간 없음 - 실패 처리")
+                    sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
+                    sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', '시작시간 없음 (서버 재시작)')
+                    continue  # 다음 행 확인
 
                 return jsonify({
                     "ok": True,
