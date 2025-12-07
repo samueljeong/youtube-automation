@@ -16019,6 +16019,19 @@ def api_sheets_check_and_process():
         processed_count = 0
         results = []
 
+        # ========== 처리중인 작업이 있는지 확인 ==========
+        # "처리중"인 행이 있으면 새 작업을 시작하지 않음 (한 번에 하나씩만 처리)
+        for i, row in enumerate(rows[1:], start=2):
+            if len(row) > 0 and row[0] == '처리중':
+                print(f"[SHEETS] 처리중인 작업 발견 (행 {i}) - 새 작업 시작 안함")
+                return jsonify({
+                    "ok": True,
+                    "message": f"행 {i}에서 처리중인 작업이 있어 대기합니다",
+                    "processing_row": i,
+                    "processed": 0
+                })
+
+        # ========== 대기 중인 첫 번째 행만 처리 ==========
         # 행 순회 (첫 번째 행은 헤더로 가정)
         for i, row in enumerate(rows[1:], start=2):  # 2부터 시작 (1-based, 헤더 제외)
             if len(row) < 1:
@@ -16073,6 +16086,9 @@ def api_sheets_check_and_process():
                         "ok": result.get('ok'),
                         "error": result.get('error')
                     })
+
+                    # ★ 한 번에 하나만 처리하고 종료
+                    break
 
         return jsonify({
             "ok": True,
