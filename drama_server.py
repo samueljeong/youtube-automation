@@ -9572,14 +9572,15 @@ def youtube_upload():
                     "error": f"영상 파일을 찾을 수 없습니다: {video_path}"
                 }), 200
 
-            # 영상 파일 유효성 검사 (ffprobe)
+            # 영상 파일 유효성 검사 (강화된 검증)
             try:
                 import subprocess
                 import json as json_module
 
+                # 1단계: ffprobe로 메타데이터 확인 (코덱 정보 포함)
                 probe_result = subprocess.run([
                     'ffprobe', '-v', 'error',
-                    '-show_entries', 'format=duration,size:stream=codec_type,width,height',
+                    '-show_entries', 'format=duration,size:stream=codec_type,codec_name,width,height',
                     '-of', 'json', full_path
                 ], capture_output=True, text=True, timeout=30)
 
@@ -9595,12 +9596,28 @@ def youtube_upload():
                 video_duration = float(probe_data.get('format', {}).get('duration', 0))
                 video_size = int(probe_data.get('format', {}).get('size', 0))
 
-                # 스트림 확인 (비디오/오디오 있는지)
+                # 스트림 확인 (비디오/오디오 있는지 + 코덱 정보)
                 streams = probe_data.get('streams', [])
-                has_video = any(s.get('codec_type') == 'video' for s in streams)
-                has_audio = any(s.get('codec_type') == 'audio' for s in streams)
+                video_stream = next((s for s in streams if s.get('codec_type') == 'video'), None)
+                audio_stream = next((s for s in streams if s.get('codec_type') == 'audio'), None)
+                has_video = video_stream is not None
+                has_audio = audio_stream is not None
 
-                print(f"[YOUTUBE-UPLOAD] 영상 검증: duration={video_duration:.1f}s, size={video_size/1024/1024:.1f}MB, video={has_video}, audio={has_audio}")
+                video_codec = video_stream.get('codec_name', 'unknown') if video_stream else 'none'
+                audio_codec = audio_stream.get('codec_name', 'unknown') if audio_stream else 'none'
+                video_width = video_stream.get('width', 0) if video_stream else 0
+                video_height = video_stream.get('height', 0) if video_stream else 0
+
+                print(f"[YOUTUBE-UPLOAD] 영상 검증: duration={video_duration:.1f}s, size={video_size/1024/1024:.1f}MB")
+                print(f"[YOUTUBE-UPLOAD] 영상 검증: video={has_video} ({video_codec}, {video_width}x{video_height}), audio={has_audio} ({audio_codec})")
+
+                # 파일 크기 최소값 검사 (100KB 미만은 손상 가능성)
+                if video_size < 100 * 1024:
+                    print(f"[YOUTUBE-UPLOAD][ERROR] 파일 크기가 너무 작음: {video_size/1024:.1f}KB")
+                    return jsonify({
+                        "ok": False,
+                        "error": f"영상 파일 크기가 너무 작습니다 ({video_size/1024:.1f}KB). 인코딩이 실패했을 수 있습니다."
+                    }), 200
 
                 if video_duration < 1:
                     print(f"[YOUTUBE-UPLOAD][ERROR] 영상 길이가 너무 짧음: {video_duration}초")
@@ -9616,15 +9633,54 @@ def youtube_upload():
                         "error": "영상에 비디오 스트림이 없습니다. 인코딩 오류가 발생했을 수 있습니다."
                     }), 200
 
+                if not has_audio:
+                    print(f"[YOUTUBE-UPLOAD][ERROR] 오디오 스트림 없음")
+                    return jsonify({
+                        "ok": False,
+                        "error": "영상에 오디오 스트림이 없습니다. YouTube 업로드에는 오디오가 필요합니다."
+                    }), 200
+
+                # 해상도 검사 (너무 작거나 0이면 문제)
+                if video_width < 100 or video_height < 100:
+                    print(f"[YOUTUBE-UPLOAD][ERROR] 비정상 해상도: {video_width}x{video_height}")
+                    return jsonify({
+                        "ok": False,
+                        "error": f"영상 해상도가 비정상입니다 ({video_width}x{video_height}). 인코딩 오류가 발생했을 수 있습니다."
+                    }), 200
+
+                # 2단계: 실제 프레임 디코딩 테스트 (ffmpeg로 첫 1초 읽기)
+                print(f"[YOUTUBE-UPLOAD] 프레임 디코딩 테스트 시작...")
+                decode_result = subprocess.run([
+                    'ffmpeg', '-v', 'error',
+                    '-i', full_path,
+                    '-t', '1',  # 첫 1초만
+                    '-f', 'null', '-'  # 출력 없이 디코딩만
+                ], capture_output=True, text=True, timeout=60)
+
+                if decode_result.returncode != 0:
+                    print(f"[YOUTUBE-UPLOAD][ERROR] 프레임 디코딩 실패")
+                    print(f"[YOUTUBE-UPLOAD][ERROR] ffmpeg stderr: {decode_result.stderr[:500]}")
+                    return jsonify({
+                        "ok": False,
+                        "error": f"영상 프레임 디코딩에 실패했습니다. 파일이 손상되었을 수 있습니다."
+                    }), 200
+
+                print(f"[YOUTUBE-UPLOAD] 영상 검증 통과!")
+
             except subprocess.TimeoutExpired:
-                print(f"[YOUTUBE-UPLOAD][ERROR] ffprobe 타임아웃")
+                print(f"[YOUTUBE-UPLOAD][ERROR] 영상 검증 타임아웃")
                 return jsonify({
                     "ok": False,
                     "error": "영상 파일 검증 타임아웃. 파일이 손상되었을 수 있습니다."
                 }), 200
             except Exception as e:
-                print(f"[YOUTUBE-UPLOAD][WARN] ffprobe 검증 실패 (계속 진행): {e}")
-                # 검증 실패해도 업로드 시도 (ffprobe 없는 환경 대비)
+                print(f"[YOUTUBE-UPLOAD][ERROR] 영상 검증 실패: {e}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({
+                    "ok": False,
+                    "error": f"영상 파일 검증 중 오류 발생: {str(e)}"
+                }), 200
         else:
             full_path = video_path
 
