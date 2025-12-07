@@ -10847,8 +10847,8 @@ GPT가 대본 흐름을 분석하여 자동으로 강조할 키워드를 선정�
 
 **출력 형식:**
 "screen_overlays": [
-  {"scene": 3, "text": "대박!", "duration": 3, "style": "impact"},
-  {"scene": 7, "text": "반전", "duration": 2, "style": "dramatic"}
+  {{"scene": 3, "text": "대박!", "duration": 3, "style": "impact"}},
+  {{"scene": 7, "text": "반전", "duration": 2, "style": "dramatic"}}
 ]
 
 **스타일 옵션:**
@@ -10892,11 +10892,11 @@ Add source/speaker info when quoting or citing:
 쇼츠 설명에 원본 영상 링크가 포함되어 본 영상으로 트래픽을 유도합니다.
 
 **형식:**
-"shorts": {
+"shorts": {{
   "highlight_scenes": [2, 3],
   "hook_text": "이 한마디가 모든 걸 바꿨다",
   "title": "충격적인 고백 #Shorts"
-}
+}}
 
 **규칙:**
 - highlight_scenes: 가장 임팩트 있는 1-3개 씬 번호 선택 (총 60초 이하가 되도록)
@@ -10913,10 +10913,10 @@ Add source/speaker info when quoting or citing:
 씬과 씬 사이에 부드러운 전환 효과를 적용합니다.
 
 **형식:**
-"transitions": {
+"transitions": {{
   "style": "crossfade",
   "duration": 0.5
-}
+}}
 
 **스타일 옵션:**
 - crossfade: 페이드 인/아웃 (기본값, 가장 자연스러움)
