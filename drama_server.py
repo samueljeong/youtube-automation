@@ -10876,10 +10876,10 @@ Add source/speaker info when quoting or citing:
 ⚠️ 뉴스, 시사, 정치, 경제 카테고리 영상에만 사용!
 
 **형식:**
-"news_ticker": {
+"news_ticker": {{
   "enabled": true,
   "headlines": ["속보: 핵심 내용 1", "이슈: 핵심 내용 2", "핵심: 핵심 내용 3"]
-}
+}}
 
 **규칙:**
 - enabled: 뉴스 스타일 영상에만 true, 그 외 false
