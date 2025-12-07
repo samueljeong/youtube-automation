@@ -153,8 +153,8 @@
     /* Main Content */
     .main-content {
       flex: 1;
-      padding: 1.5rem;
-      max-width: 1200px;
+      padding: 1rem 1.5rem;
+      max-width: 1600px;
       margin: 0 auto;
       width: 100%;
     }
@@ -551,17 +551,24 @@
       color: var(--text-secondary);
     }
 
-    /* Dashboard 2-Column Layout */
+    /* Dashboard 3-Column Layout */
     .dashboard-layout {
       display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 1.25rem;
+      grid-template-columns: 1fr 1fr 320px;
+      gap: 1rem;
       margin-bottom: 1.5rem;
     }
 
     .dashboard-schedule {
       display: flex;
       flex-direction: column;
+      gap: 1rem;
+    }
+
+    .dashboard-center {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
     }
 
     .dashboard-news {
@@ -1580,11 +1587,17 @@
       .dashboard-schedule .card { margin-top: 0 !important; }
     }
 
+    @media (max-width: 1200px) {
+      .dashboard-layout { grid-template-columns: 1fr 1fr; }
+      .dashboard-news { display: none; }
+    }
+
     @media (max-width: 768px) {
       .sidebar { display: none; }
       .mobile-nav { display: block; }
       .main-content { padding: 1rem; padding-bottom: 5rem; }
       .dashboard-grid { grid-template-columns: 1fr; }
+      .dashboard-layout { grid-template-columns: 1fr; }
       .dashboard-schedule { grid-template-columns: 1fr; }
       .hide-mobile { display: none !important; }
       .ai-input-top textarea { min-height: 100px; }
@@ -2173,69 +2186,92 @@
           </div>
         </div>
 
-        <!-- 2-Column Layout: Schedule Left, News Right (데스크탑) -->
+        <!-- 3-Column Layout: Schedule | Tasks & People | News -->
         <div class="dashboard-layout">
-          <!-- Left: Calendar & Schedule (모바일에서 먼저 표시) -->
+          <!-- Left: Calendar & Schedule -->
           <div class="dashboard-schedule">
             <!-- Today's Schedule -->
             <div class="card">
               <div class="card-header" style="padding: 0.75rem 1rem;">
                 <h3 style="font-size: 0.875rem;">📅 Today</h3>
               </div>
-              <div class="card-body" id="today-events" style="padding: 0.75rem 1rem; max-height: 180px; overflow-y: auto;">
+              <div class="card-body" id="today-events" style="padding: 0.75rem 1rem; max-height: 200px; overflow-y: auto;">
                 <div class="empty">Loading...</div>
               </div>
             </div>
 
             <!-- This Week -->
-            <div class="card" style="margin-top: 1rem;">
+            <div class="card">
               <div class="card-header" style="padding: 0.75rem 1rem;">
                 <h3 style="font-size: 0.875rem;">🗓 This Week</h3>
               </div>
-              <div class="card-body" id="week-events" style="padding: 0.75rem 1rem; max-height: 180px; overflow-y: auto;">
+              <div class="card-body" id="week-events" style="padding: 0.75rem 1rem; max-height: 200px; overflow-y: auto;">
                 <div class="empty">Loading...</div>
               </div>
             </div>
 
-            <!-- Tasks -->
-            <div class="card" style="margin-top: 1rem;">
-              <div class="card-header" style="padding: 0.75rem 1rem;">
-                <h3 style="font-size: 0.875rem;">✅ Tasks</h3>
-                <button class="btn btn-small btn-secondary" onclick="AssistantMain.addTask()" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">+ Add</button>
-              </div>
-              <div class="card-body" id="pending-tasks" style="padding: 0.75rem 1rem; max-height: 150px; overflow-y: auto;">
-                <div class="empty">Loading...</div>
-              </div>
-            </div>
-
-            <!-- Video Schedule (from Google Sheets) -->
-            <div class="card" style="margin-top: 1rem;">
+            <!-- Video Schedule -->
+            <div class="card">
               <div class="card-header" style="padding: 0.75rem 1rem;">
                 <h3 style="font-size: 0.875rem;">🎬 영상 예약</h3>
                 <button class="btn btn-small btn-secondary" onclick="AssistantMain.refreshVideoSchedule()" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">🔄</button>
               </div>
-              <div class="card-body" id="video-schedule" style="padding: 0.75rem 1rem; max-height: 200px; overflow-y: auto;">
+              <div class="card-body" id="video-schedule" style="padding: 0.75rem 1rem; max-height: 150px; overflow-y: auto;">
                 <div class="empty">Loading...</div>
               </div>
             </div>
           </div>
 
-          <!-- Right: News Section (모바일에서 숨김) -->
+          <!-- Center: Tasks & People -->
+          <div class="dashboard-center">
+            <!-- Tasks -->
+            <div class="card">
+              <div class="card-header" style="padding: 0.75rem 1rem;">
+                <h3 style="font-size: 0.875rem;">✅ Tasks</h3>
+                <button class="btn btn-small btn-secondary" onclick="AssistantMain.addTask()" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">+ Add</button>
+              </div>
+              <div class="card-body" id="pending-tasks" style="padding: 0.75rem 1rem; max-height: 180px; overflow-y: auto;">
+                <div class="empty">Loading...</div>
+              </div>
+            </div>
+
+            <!-- 인물 심방 -->
+            <div class="card">
+              <div class="card-header" style="padding: 0.75rem 1rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);">
+                <h3 style="font-size: 0.875rem;">🏠 심방/연락 필요</h3>
+              </div>
+              <div class="card-body" id="people-to-visit" style="padding: 0.75rem 1rem; max-height: 200px; overflow-y: auto;">
+                <div class="empty">심방 예정이 없습니다</div>
+              </div>
+            </div>
+
+            <!-- 프로젝트 할 일 -->
+            <div class="card">
+              <div class="card-header" style="padding: 0.75rem 1rem; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);">
+                <h3 style="font-size: 0.875rem;">📁 프로젝트 진행</h3>
+              </div>
+              <div class="card-body" id="project-tasks" style="padding: 0.75rem 1rem; max-height: 200px; overflow-y: auto;">
+                <div class="empty">진행 중인 프로젝트가 없습니다</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: News Section (compact) -->
           <div class="dashboard-news hide-mobile">
-            <div class="news-section">
-              <div class="news-header">
-                <h3>📰 Today's News & Issues</h3>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span class="time-badge" id="news-time">09:00 AM</span>
-                  <button class="refresh-btn" onclick="AssistantMain.refreshNews()" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;">
+            <div class="news-section" style="height: 100%;">
+              <div class="news-header" style="padding: 0.5rem 0.75rem;">
+                <h3 style="font-size: 0.8rem;">📰 News</h3>
+                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                  <span class="time-badge" id="news-time" style="font-size: 0.6rem;">09:00</span>
+                  <button class="refresh-btn" onclick="AssistantMain.refreshNews()" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">
                     <span id="refresh-icon">🔄</span>
                   </button>
                 </div>
               </div>
-              <div class="news-body" id="news-container">
+              <div class="news-body" id="news-container" style="max-height: calc(100vh - 400px);">
                 <div class="news-loading">
                   <div class="spinner"></div>
-                  <p>Loading today's news...</p>
+                  <p>Loading...</p>
                 </div>
               </div>
             </div>

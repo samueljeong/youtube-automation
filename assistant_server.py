@@ -2290,6 +2290,52 @@ def get_dashboard():
             ''')
         pending_tasks = [dict(row) for row in cursor.fetchall()]
 
+        # 심방/연락 필요 (AI 제안 중 visit, prayer, action 타입)
+        people_to_visit = []
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT id, title, due_date, priority, category, source
+                FROM tasks
+                WHERE is_completed = FALSE AND source = 'ai_suggestion'
+                ORDER BY due_date ASC NULLS LAST
+                LIMIT 10
+            ''')
+        else:
+            cursor.execute('''
+                SELECT id, title, due_date, priority, category, source
+                FROM tasks
+                WHERE is_completed = 0 AND source = 'ai_suggestion'
+                ORDER BY due_date ASC
+                LIMIT 10
+            ''')
+        ai_suggestions = cursor.fetchall()
+        for row in ai_suggestions:
+            item = dict(row)
+            title = item.get('title', '')
+            # 타입 추출 (🏠, 🙏, ⏰, ✋ 등)
+            if '🏠' in title:
+                item['type'] = 'visit'
+            elif '🙏' in title:
+                item['type'] = 'prayer'
+            else:
+                item['type'] = 'action'
+            people_to_visit.append(item)
+
+        # 진행 중인 프로젝트
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT * FROM projects WHERE status IN ('active', 'planning')
+                ORDER BY priority DESC, end_date ASC NULLS LAST
+                LIMIT 10
+            ''')
+        else:
+            cursor.execute('''
+                SELECT * FROM projects WHERE status IN ('active', 'planning')
+                ORDER BY priority DESC, end_date ASC
+                LIMIT 10
+            ''')
+        active_projects = [dict(row) for row in cursor.fetchall()]
+
         # Pending sync 카운트
         if USE_POSTGRES:
             cursor.execute('''
@@ -2327,6 +2373,8 @@ def get_dashboard():
             'today_events': convert_datetime(today_events),
             'week_events': convert_datetime(week_events),
             'pending_tasks': convert_datetime(pending_tasks),
+            'people_to_visit': convert_datetime(people_to_visit),
+            'active_projects': convert_datetime(active_projects),
             'pending_sync': {
                 'events': pending_events_count,
                 'tasks': pending_tasks_count,
