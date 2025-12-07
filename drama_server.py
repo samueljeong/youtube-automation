@@ -10740,11 +10740,42 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 - 놀람: open small mouth, raised eyebrows, arms up, leaning back
 - 중립: small neutral mouth, relaxed thin eyebrows, standing calmly
 
+## 🎯 유튜브 제목 생성 규칙 (중요!)
+
+### 기본 규칙
+- 길이: **18-32자** (공백 포함, 모바일에서 잘리지 않도록)
+- **숫자 1개 이상 필수** (연도, 개수, 기간, 금액 등)
+- 심리 트리거 **2개 이상** 사용
+- 낚시성/과장/선정성 **절대 금지** ("충격", "소름", "멸망", "난리" 금지)
+
+### 타겟별 스타일
+- **시니어 (50-70대)**: 회상형, 감성적, 신뢰감
+  - 예: "그때 알았더라면...", "60년 인생이 가르쳐준 3가지"
+- **일반 (20-40대)**: 정보형, 해결형, 구체적
+  - 예: "2025년 꼭 알아야 할 변화 3가지", "5분 만에 정리하는 핵심"
+
+### 심리 트리거 (2개 이상 조합)
+1. **호기심 갭**: "대부분이 놓치는", "뉴스에 안 나온"
+2. **긴급성/시의성**: "2025년 전에 알아야 할", "지금 바로"
+3. **구체적 숫자**: "3가지 변화", "7일 안에"
+4. **타깃 명시**: "직장인이라면", "40대 필수"
+5. **결과/이득**: "한 번에 정리", "헷갈림 끝"
+
+### 3가지 스타일 제목 생성
+1. **curiosity** (호기심형): 숨겨진 핵심/반전 느낌
+2. **solution** (해결형): 혼란을 정리해주는 느낌
+3. **authority** (권위형): 데이터/전문성 기반 느낌
+
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
   "detected_category": "news 또는 story (대본 분석 결과 - 반드시 먼저 결정!)",
   "youtube": {{
-    "title": "ONE SEO-optimized YouTube title in {lang_config['name']} (click-inducing, 30-50 chars, include keywords for searchability)",
+    "title": "메인 제목 (18-32자, 숫자 포함, 심리 트리거 2개 이상)",
+    "title_options": [
+      {{"style": "curiosity", "title": "호기심형 제목 (18-32자)"}},
+      {{"style": "solution", "title": "해결형 제목 (18-32자)"}},
+      {{"style": "authority", "title": "권위형 제목 (18-32자)"}}
+    ],
     "description": "Description in {lang_config['name']} (video summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{
@@ -11181,10 +11212,23 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 ## Image Style
 {style_desc}
 
+## 🎯 유튜브 제목 생성 규칙
+- 길이: **18-32자** (공백 포함)
+- **숫자 1개 이상 필수**
+- 심리 트리거 **2개 이상**: 호기심갭, 긴급성, 숫자, 타깃명시, 결과제시
+- 낚시성/과장 **금지** ("충격", "소름" 등 금지)
+- 타겟별: 시니어=회상형/감성적, 일반=정보형/해결형
+- **3가지 스타일**: curiosity(호기심), solution(해결), authority(권위)
+
 ## Output Format (MUST be valid JSON)
 {{
   "youtube": {{
-    "title": "ONE SEO-optimized YouTube title in {lang_config['name']} (click-inducing, 30-50 chars, include keywords for searchability)",
+    "title": "메인 제목 (18-32자, 숫자 포함, 심리 트리거 2개 이상)",
+    "title_options": [
+      {{"style": "curiosity", "title": "호기심형 제목"}},
+      {{"style": "solution", "title": "해결형 제목"}},
+      {{"style": "authority", "title": "권위형 제목"}}
+    ],
     "description": "Description in {lang_config['name']} (summary + hashtags, 500+ chars)"
   }},
   "thumbnail": {{
@@ -17122,7 +17166,14 @@ def run_automation_pipeline(row_data, row_index):
             print(f"[AUTOMATION] GPT 감지 카테고리: {detected_category}")
 
             generated_title = youtube_meta.get('title', '')
+            title_options = youtube_meta.get('title_options', [])
             description = youtube_meta.get('description', '')
+
+            # title_options 로깅 (3가지 스타일 제목)
+            if title_options:
+                print(f"[AUTOMATION] 제목 옵션 (3가지 스타일):")
+                for opt in title_options:
+                    print(f"  - [{opt.get('style', '?')}] {opt.get('title', '')}")
 
             if not title:
                 title = generated_title or f"자동 생성 영상 #{row_index}"
