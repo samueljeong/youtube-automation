@@ -161,3 +161,21 @@ else:
 
 - `drama_server.py` - 메인 서버 (모든 API)
 - `run_automation_pipeline()` - 자동화 파이프라인 메인 함수
+
+---
+
+## 버그 수정 이력
+
+### 2025-12-07: Worker OOM 크래시 수정
+
+**증상**: 영상 생성 3단계에서 Worker가 SIGKILL로 종료
+```
+[2025-12-07 04:25:06 +0000] [38] [ERROR] Worker (pid:58) was sent SIGKILL! Perhaps out of memory?
+```
+
+**원인**: `subprocess.run(capture_output=True)`가 FFmpeg의 모든 stdout/stderr를 메모리에 버퍼링. FFmpeg는 인코딩 중 수백MB의 출력을 생성하여 2GB 메모리 초과.
+
+**수정** (`drama_server.py`):
+- 11621-11623행 (concat): `capture_output=True` → `stdout=DEVNULL, stderr=PIPE`
+- 11672-11677행 (subtitle burn-in): `capture_output=True` → `stdout=DEVNULL, stderr=PIPE`
+- subprocess 완료 후 `del` + `gc.collect()` 추가
