@@ -18,6 +18,10 @@ app.register_blueprint(market_bp)
 from design_server import design_bp
 app.register_blueprint(design_bp)
 
+# Brandpipe Server Blueprint 등록
+from brandpipe_server import brandpipe_bp
+app.register_blueprint(brandpipe_bp)
+
 app.secret_key = os.urandom(24)  # Secret key for session management
 
 # OpenAI client setup

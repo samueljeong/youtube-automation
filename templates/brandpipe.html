@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>브랜드 파이프 - AI 공급처 탐색기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    /* 헤더 */
+    .header {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .version-badge {
+      padding: 0.3rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.2);
+    }
+    .home-link {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.2rem;
+    }
+
+    /* 메인 레이아웃 */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1600px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* 왼쪽 입력 패널 */
+    .input-panel {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      height: fit-content;
+      position: sticky;
+      top: 1rem;
+    }
+    .input-panel h2 {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      color: #475569;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 0.4rem;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+    .form-group input::placeholder {
+      color: #94a3b8;
+    }
+    .form-group .hint {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.3rem;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #8b5cf6;
+    }
+    .checkbox-group label {
+      font-size: 0.85rem;
+      color: #475569;
+      cursor: pointer;
+    }
+
+    .analyze-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .analyze-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(109, 40, 217, 0.3);
+    }
+    .analyze-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .analyze-btn.loading {
+      position: relative;
+      color: transparent;
+    }
+    .analyze-btn.loading::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      border: 2px solid white;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 오른쪽 결과 영역 */
+    .result-area {
+      min-width: 0;
+    }
+
+    /* 상품 정보 카드 */
+    .product-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .product-card.visible {
+      display: block;
+    }
+    .product-card h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      color: #475569;
+    }
+    .product-info {
+      display: flex;
+      gap: 1rem;
+    }
+    .product-image {
+      width: 120px;
+      height: 120px;
+      border-radius: 8px;
+      object-fit: cover;
+      background: #f1f5f9;
+      flex-shrink: 0;
+    }
+    .product-details {
+      flex: 1;
+      min-width: 0;
+    }
+    .product-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 0.5rem 0;
+      word-break: keep-all;
+    }
+    .product-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .product-meta span {
+      padding: 0.25rem 0.5rem;
+      background: #f1f5f9;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+    .product-price {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #8b5cf6;
+    }
+    .product-link {
+      display: inline-block;
+      margin-top: 0.5rem;
+      color: #6d28d9;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+    .product-link:hover {
+      text-decoration: underline;
+    }
+
+    /* 공급처 테이블 */
+    .suppliers-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .suppliers-card.visible {
+      display: block;
+    }
+    .suppliers-card h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .supplier-count {
+      background: #8b5cf6;
+      color: white;
+      padding: 0.2rem 0.5rem;
+      border-radius: 10px;
+      font-size: 0.75rem;
+    }
+    .suppliers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .suppliers-table th {
+      text-align: left;
+      padding: 0.75rem;
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+      color: #64748b;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .suppliers-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+    .suppliers-table tr:hover {
+      background: #faf5ff;
+    }
+    .supplier-name {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .supplier-source {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .margin-positive {
+      color: #10b981;
+      font-weight: 600;
+    }
+    .margin-negative {
+      color: #ef4444;
+      font-weight: 600;
+    }
+    .margin-rate {
+      font-size: 1rem;
+    }
+    .supplier-link {
+      color: #6d28d9;
+      text-decoration: none;
+      font-size: 0.8rem;
+    }
+    .supplier-link:hover {
+      text-decoration: underline;
+    }
+
+    /* 검색 기록 */
+    .history-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .history-card h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1rem;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 0.3rem;
+      border-radius: 4px;
+    }
+    .refresh-btn:hover {
+      background: #f1f5f9;
+    }
+    .history-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .history-item {
+      padding: 0.75rem;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .history-item:hover {
+      background: #faf5ff;
+    }
+    .history-item:last-child {
+      border-bottom: none;
+    }
+    .history-title {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    .history-margin {
+      color: #10b981;
+      font-weight: 600;
+    }
+    .history-empty {
+      text-align: center;
+      padding: 2rem;
+      color: #94a3b8;
+    }
+
+    /* 메타 정보 */
+    .meta-info {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: #64748b;
+      display: none;
+    }
+    .meta-info.visible {
+      display: block;
+    }
+    .meta-info span {
+      margin-right: 1rem;
+    }
+
+    /* 에러 메시지 */
+    .error-message {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .error-message.visible {
+      display: block;
+    }
+
+    /* 로딩 상태 */
+    .loading-state {
+      text-align: center;
+      padding: 3rem;
+      color: #64748b;
+      display: none;
+    }
+    .loading-state.visible {
+      display: block;
+    }
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    /* 반응형 */
+    @media (max-width: 900px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+      .input-panel {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <h1>🔗 브랜드 파이프 - AI 공급처 탐색기</h1>
+    <div class="header-actions">
+      <span class="version-badge">MVP v1.0</span>
+      <a href="/" class="home-link">🏠</a>
+    </div>
+  </header>
+
+  <main class="main-layout">
+    <!-- 왼쪽: 입력 패널 -->
+    <div class="input-panel">
+      <h2>📦 상품 분석</h2>
+
+      <form id="analyzeForm">
+        <div class="form-group">
+          <label for="productUrl">상품 URL</label>
+          <input type="url" id="productUrl" placeholder="쿠팡/네이버 상품 URL 입력">
+          <div class="hint">쿠팡, 네이버 스마트스토어 URL 지원</div>
+        </div>
+
+        <div class="form-group">
+          <label for="keyword">또는 키워드</label>
+          <input type="text" id="keyword" placeholder="예: 블루투스 이어폰">
+          <div class="hint">URL 없이 키워드로도 검색 가능</div>
+        </div>
+
+        <div class="checkbox-group">
+          <input type="checkbox" id="includeOverseas">
+          <label for="includeOverseas">해외 도매(알리바바) 포함</label>
+        </div>
+
+        <button type="submit" class="analyze-btn" id="analyzeBtn">
+          🔍 분석하기
+        </button>
+      </form>
+
+      <!-- 검색 기록 -->
+      <div class="history-card" style="margin-top: 1.5rem;">
+        <h3>
+          📋 최근 검색
+          <button class="refresh-btn" id="refreshHistory" title="새로고침">🔄</button>
+        </h3>
+        <div class="history-list" id="historyList">
+          <div class="history-empty">검색 기록이 없습니다</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 결과 영역 -->
+    <div class="result-area">
+      <!-- 에러 메시지 -->
+      <div class="error-message" id="errorMessage"></div>
+
+      <!-- 로딩 상태 -->
+      <div class="loading-state" id="loadingState">
+        <div class="loading-spinner"></div>
+        <p>상품 정보를 분석하고 있습니다...</p>
+      </div>
+
+      <!-- 상품 정보 카드 -->
+      <div class="product-card" id="productCard">
+        <h3>📦 상품 정보</h3>
+        <div class="product-info">
+          <img class="product-image" id="productImage" src="" alt="상품 이미지">
+          <div class="product-details">
+            <h4 class="product-title" id="productTitle"></h4>
+            <div class="product-meta" id="productMeta"></div>
+            <div class="product-price" id="productPrice"></div>
+            <a class="product-link" id="productLink" href="#" target="_blank">상품 페이지 열기 →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 공급처 테이블 -->
+      <div class="suppliers-card" id="suppliersCard">
+        <h3>
+          🏭 공급처 후보
+          <span class="supplier-count" id="supplierCount">0</span>
+        </h3>
+        <table class="suppliers-table">
+          <thead>
+            <tr>
+              <th>공급처</th>
+              <th>단가</th>
+              <th>배송비</th>
+              <th>MOQ</th>
+              <th>예상 마진율</th>
+              <th>예상 마진액</th>
+              <th>링크</th>
+            </tr>
+          </thead>
+          <tbody id="suppliersBody"></tbody>
+        </table>
+
+        <div class="meta-info" id="metaInfo">
+          <span id="metaTime"></span>
+          <span id="metaProviders"></span>
+        </div>
+      </div>
+
+      <!-- 초기 상태 안내 -->
+      <div id="initialState" style="text-align: center; padding: 4rem 2rem; color: #94a3b8;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🔍</div>
+        <h3 style="color: #64748b; margin: 0 0 0.5rem 0;">상품 URL 또는 키워드를 입력하세요</h3>
+        <p style="margin: 0;">쿠팡, 네이버 상품의 도매처를 찾고<br>예상 마진을 계산해 드립니다</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/js/brandpipe-main.js"></script>
+</body>
+</html>
