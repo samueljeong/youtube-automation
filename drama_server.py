@@ -13253,27 +13253,28 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
         font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
         # 그라데이션 배경 + 텍스트 아웃트로
-        # 검정 배경에 흰색/노란색 텍스트
+        # 메인 영상과 동일한 1920x1080 해상도 사용 (concat 호환성)
+        # 이모지 제거 (FFmpeg drawtext 호환성 문제)
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", f"color=c=0x1a1a2e:s=1280x720:d={duration}",
+            "-i", f"color=c=0x1a1a2e:s=1920x1080:d={duration}",
             "-f", "lavfi",
             "-i", f"anullsrc=r=44100:cl=stereo:d={duration}",
             "-vf", (
                 f"drawtext=text='시청해 주셔서 감사합니다':"
-                f"fontfile='{font_escaped}':fontsize=48:fontcolor=white:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2-60,"
-                f"drawtext=text='👍 좋아요와 구독 부탁드려요!':"
-                f"fontfile='{font_escaped}':fontsize=40:fontcolor=yellow:"
+                f"fontfile='{font_escaped}':fontsize=72:fontcolor=white:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2-100,"
+                f"drawtext=text='좋아요와 구독 부탁드려요':"
+                f"fontfile='{font_escaped}':fontsize=56:fontcolor=yellow:"
                 f"x=(w-text_w)/2:y=(h-text_h)/2+20,"
-                f"drawtext=text='🔔 알림 설정도 잊지 마세요':"
-                f"fontfile='{font_escaped}':fontsize=32:fontcolor=#aaaaaa:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2+80,"
+                f"drawtext=text='알림 설정도 잊지 마세요':"
+                f"fontfile='{font_escaped}':fontsize=44:fontcolor=#aaaaaa:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2+120,"
                 f"fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5"
             ),
             "-c:v", "libx264", "-preset", "fast",
-            "-c:a", "aac", "-b:a", "128k",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-t", str(duration),
             output_path
         ]
