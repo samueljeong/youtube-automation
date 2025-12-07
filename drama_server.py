@@ -10564,57 +10564,54 @@ def api_image_analyze_script():
                 thumb_outline = "#000000"
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
-            # 뉴스 스타일 썸네일 프롬프트 (50대+ 시청자 대상 - 큰 글씨, 단순 레이아웃, 신뢰감)
+            # 뉴스 스타일 썸네일 프롬프트 (50대+ 시청자 대상 - 실제 뉴스 방송 스타일)
             if is_news_category:
                 ai_prompts_section = f'''    "ai_prompts": {{
       "A": {{
-        "description": "뉴스 스타일 A: 단독/속보 - 50대+ 시청자용 큰 글씨, 명확한 레이아웃",
-        "prompt": "Korean TV news exclusive report style thumbnail, 16:9 aspect ratio. LARGE CLEAR TEXT for senior viewers (50+). Dark navy or black background with RED '단독' or '속보' badge. Simple clean layout - NOT cluttered. Single powerful image with bold Korean headline. High contrast white/yellow text on dark background. KBS/MBC/SBS news style professional look. NO cartoon style, realistic news broadcast aesthetic. Minimal elements, maximum readability.",
+        "description": "뉴스 스타일 A: 실제 한국 뉴스 방송 썸네일 - KBS/MBC/SBS 스타일",
+        "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
         "text_overlay": {{
-          "main": "굵은 헤드라인 (8-12자, 50대가 읽기 쉽게)",
-          "sub": "출처 또는 날짜"
+          "main": "큰 따옴표 헤드라인 (예: '충격 발언...')",
+          "sub": "핵심 내용 요약"
         }},
-        "style": "exclusive-news, senior-friendly, high-contrast"
+        "style": "korean-tv-news, broadcast, photorealistic"
       }},
       "B": {{
-        "description": "뉴스 스타일 B: 인물 중심 - 인터뷰/발언 강조, 신뢰감 있는 레이아웃",
-        "prompt": "Korean news interview style thumbnail for senior audience (50+), 16:9 aspect ratio. LARGE READABLE Korean text with quotation marks. Single person silhouette or portrait on one side. Clean simple background - navy blue or dark gray. Bold white/yellow quote text centered. Professional credible look like TV news. Lower-third style name/title badge. NO busy backgrounds, NO multiple elements. Focus on one powerful message.",
+        "description": "뉴스 스타일 B: 인터뷰/발언 강조 - 인물 사진 + 따옴표 인용문",
+        "prompt": "Korean news interview thumbnail with real person photo. 16:9 aspect ratio. Split layout - interviewee photo on left, large Korean quote text on right in quotation marks. White/yellow bold text on dark navy background. Red or orange accent color. Lower-third name tag showing speaker name and title. Professional credible broadcast news look like actual Korean TV news YouTube thumbnails. NO cartoon, photorealistic only.",
         "text_overlay": {{
-          "main": "따옴표 인용문 ('...라고 했다', 8-15자)",
+          "main": "따옴표 인용문 ('...라고 말했다')",
           "sub": "발언자 이름/직책"
         }},
-        "style": "interview, quote, trustworthy"
+        "style": "interview-quote, split-layout, broadcast"
       }},
       "C": {{
-        "description": "뉴스 스타일 C: 숫자/통계 강조 - 충격적 수치로 시선 집중",
-        "prompt": "Statistics-focused Korean news thumbnail for senior viewers (50+), 16:9 aspect ratio. VERY LARGE NUMBER or percentage as main element (e.g., '87%', '5천만명'). Dark background with red/yellow accent. Simple infographic style - one key statistic highlighted. Professional news broadcast aesthetic. High contrast, easy to read at small size. NO complex charts, just ONE impactful number.",
+        "description": "뉴스 스타일 C: 이슈/사건 중심 - 관련 사진 + 대형 헤드라인",
+        "prompt": "Korean breaking news style thumbnail with relevant event photo. 16:9 aspect ratio. Background photo related to news story (blurred or darkened). VERY LARGE white/yellow Korean headline text overlay. Red '속보' or '단독' badge prominent. News channel style graphics and borders. Multiple text sizes - big headline + smaller details. Exactly like Korean TV news channel YouTube thumbnails. Professional photojournalism aesthetic.",
         "text_overlay": {{
-          "main": "충격적 숫자 + 설명 (예: '87% 모른다')",
-          "sub": "출처 또는 기간"
+          "main": "대형 헤드라인 (핵심 사실)",
+          "sub": "추가 정보 또는 출처"
         }},
-        "style": "statistics, impactful-number, senior-readable"
+        "style": "breaking-news, event-photo, headline"
       }}
     }}'''
-                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (뉴스 스타일 - 50대+ 타겟) ⚠️
-The "ai_prompts" field generates 3 different NEWS-STYLE thumbnails for senior audience (50+).
+                ai_prompts_rules = """## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES (실제 한국 뉴스 방송 스타일) ⚠️
+The "ai_prompts" field generates thumbnails that look EXACTLY like Korean TV news YouTube thumbnails.
 
-🎯 **50대+ 시청자 최적화 규칙:**
-- 글씨는 크고 굵게! 작은 화면에서도 읽기 쉽게
-- 레이아웃은 단순하게! 요소 3개 이하
-- 색상 대비 높게! 어두운 배경 + 밝은 글씨
-- 신뢰감 있는 뉴스 스타일! 과장/자극 최소화
-- 한눈에 메시지 전달! 복잡한 구성 금지
+🎯 **실제 뉴스 방송 썸네일 필수 요소:**
+- 실제 뉴스 앵커/기자 사진 또는 관련 인물/사건 사진
+- 큰 따옴표("") 안에 핵심 발언/헤드라인
+- 빨간색 '단독' 또는 '속보' 배지
+- 진한 남색/검정 배경 + 흰색/노란색 텍스트
+- 하단 뉴스 티커 스타일 바
+- 여러 겹의 텍스트 (메인 헤드라인 + 서브)
 
-⚠️ Use REALISTIC NEWS BROADCAST style, NOT cartoon/webtoon!
-- A: 단독/속보 - 큰 헤드라인 + 심플 배경
-- B: 인터뷰/발언 - 따옴표 인용문 + 인물 실루엣
-- C: 숫자/통계 - 충격적 수치 강조
+⚠️ 절대 만화/일러스트 스타일 금지! 실제 사진 + 뉴스 그래픽만!
+- A: 뉴스 앵커 + 헤드라인 (가장 일반적인 뉴스 썸네일)
+- B: 인터뷰 발언 + 인물 사진 (따옴표 인용문 강조)
+- C: 사건 사진 + 속보 스타일 (이슈/사건 중심)
 
-**50대+ 시청자 특성:**
-- 작은 글씨 인식 어려움 → 큰 폰트 사용
-- 복잡한 이미지 피로 → 심플한 레이아웃
-- 자극적 표현 불신 → 신뢰감 있는 뉴스 스타일
-- 노란색/빨간색 잘 인식 → 강조색으로 활용"""
+**참고 채널:** KBS 뉴스, MBC 뉴스, SBS 뉴스 유튜브 썸네일 스타일 그대로!"""
             else:
                 ai_prompts_section = f'''    "ai_prompts": {{
       "A": {{
@@ -17194,14 +17191,18 @@ def run_automation_pipeline(row_data, row_index):
                 if is_news:
                     # 뉴스 카테고리: 하드코딩된 뉴스 스타일 프롬프트 사용 (50대+ 시청자용)
                     print(f"[AUTOMATION][THUMB] 뉴스 카테고리 감지 → 뉴스 스타일 썸네일 사용")
-                    # text_overlay는 ai_prompts.A에서 가져옴 (GPT가 생성한 텍스트)
-                    text_overlay_data = ai_prompts.get('A', {}).get('text_overlay', {}) if ai_prompts else {}
-                    print(f"[AUTOMATION][THUMB] text_overlay: {text_overlay_data}")
-                    news_prompt = {
-                        "prompt": "Korean TV news exclusive report style thumbnail, 16:9 aspect ratio. LARGE CLEAR TEXT for senior viewers (50+). Dark navy or black background with RED '단독' or '속보' badge. Simple clean layout - NOT cluttered. Single powerful image with bold Korean headline. High contrast white/yellow text on dark background. KBS/MBC/SBS news style professional look. NO cartoon style, realistic news broadcast aesthetic. Minimal elements, maximum readability. Breaking news feel with credible journalism aesthetic.",
-                        "text_overlay": text_overlay_data
-                    }
-                    thumb_prompt = news_prompt
+                    # 뉴스 카테고리: GPT가 생성한 ai_prompts.A 사용 (이미 뉴스 스타일로 생성됨)
+                    # 만약 ai_prompts가 없으면 하드코딩된 프롬프트 사용
+                    if ai_prompts and ai_prompts.get('A'):
+                        print(f"[AUTOMATION][THUMB] GPT 생성 뉴스 스타일 프롬프트 사용")
+                        thumb_prompt = ai_prompts.get('A')
+                    else:
+                        # 폴백: 하드코딩된 뉴스 스타일 프롬프트
+                        print(f"[AUTOMATION][THUMB] 하드코딩된 뉴스 스타일 프롬프트 사용 (폴백)")
+                        thumb_prompt = {
+                            "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
+                            "text_overlay": {"main": "뉴스 헤드라인", "sub": ""}
+                        }
                 else:
                     # 일반 카테고리: GPT가 생성한 ai_prompts 사용
                     if not ai_prompts or not ai_prompts.get('A'):
