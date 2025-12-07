@@ -11522,8 +11522,7 @@ Rules:
 4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 5. ⚠️ ALL CHARACTERS = STICKMAN ONLY! No realistic humans (no grandfather, grandmother, elderly people). Use simple stickman with anime background."""
 
-        thumb_style_log = "뉴스" if (image_style == 'animation' and is_news_category) else "일반"
-        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language}, 썸네일: {thumb_style_log})")
+        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
         # GPT-5.1은 Responses API 사용
         response = client.responses.create(
