@@ -17593,7 +17593,13 @@ def run_automation_pipeline(row_data, row_index):
                     "video_url": youtube_url,
                     "shorts_url": shorts_url,
                     "error": None,
-                    "cost": total_cost
+                    "cost": total_cost,
+                    # 새로 추가: 제목 옵션 및 사용된 설정 정보
+                    "title": title,
+                    "title_options": title_options,
+                    "voice": voice,
+                    "audience": audience,
+                    "detected_category": detected_category
                 }
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None, "shorts_url": None, "cost": total_cost}
@@ -18525,7 +18531,7 @@ def api_sheets_check_and_process():
                             # 20분 초과 → 실패로 변경
                             print(f"[SHEETS] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리")
                             sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                            sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', f'타임아웃: {elapsed_minutes:.0f}분 경과')
+                            sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', f'타임아웃: {elapsed_minutes:.0f}분 경과')
                             continue  # 다음 행 확인
                         else:
                             print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, {elapsed_minutes:.1f}분 경과) - 새 작업 시작 안함")
@@ -18533,13 +18539,13 @@ def api_sheets_check_and_process():
                         # 시간 형식 파싱 실패 → 실패로 처리
                         print(f"[SHEETS] 행 {i}: 시작시간 형식 오류 - 실패 처리")
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                        sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', '시작시간 형식 오류로 실패')
+                        sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', '시작시간 형식 오류로 실패')
                         continue  # 다음 행 확인
                 else:
                     # 시작시간 없음 → 실패로 처리 (배포 전 작업 등)
                     print(f"[SHEETS] 행 {i}: 시작시간 없음 - 실패 처리")
                     sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                    sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', '시작시간 없음 (서버 재시작)')
+                    sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', '시작시간 없음 (서버 재시작)')
                     continue  # 다음 행 확인
 
                 return jsonify({
@@ -18584,22 +18590,44 @@ def api_sheets_check_and_process():
                     # 파이프라인 실행
                     result = run_automation_pipeline(row, i)
 
-                    # 비용 기록 (H열) - 성공/실패 모두
+                    # ========== 새로운 컬럼 구조 (H,I 제목 추가로 2칸 밀림) ==========
+                    # G: 제목(메인), H: 제목2(대안1), I: 제목3(대안2)
+                    # J: 비용, K: 공개설정, L: 영상URL, M: 에러메시지
+                    # N: 음성, O: 타겟, P: 카테고리, Q: 쇼츠URL
+
+                    # 비용 기록 (J열) - 성공/실패 모두
                     cost = result.get('cost', 0.0)
-                    sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', f'${cost:.2f}')
+                    sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', f'${cost:.2f}')
+
+                    # 제목 기록 (G, H, I열) - GPT가 생성한 3가지 스타일 제목
+                    if result.get('title'):
+                        sheets_update_cell(service, sheet_id, f'Sheet1!G{i}', result['title'])
+                    title_options = result.get('title_options', [])
+                    if len(title_options) >= 1:
+                        sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', title_options[0].get('title', ''))
+                    if len(title_options) >= 2:
+                        sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', title_options[1].get('title', ''))
+
+                    # 사용된 설정 정보 기록 (N, O, P열)
+                    if result.get('voice'):
+                        sheets_update_cell(service, sheet_id, f'Sheet1!N{i}', result['voice'])
+                    if result.get('audience'):
+                        sheets_update_cell(service, sheet_id, f'Sheet1!O{i}', result['audience'])
+                    if result.get('detected_category'):
+                        sheets_update_cell(service, sheet_id, f'Sheet1!P{i}', result['detected_category'])
 
                     if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록 (J열), 쇼츠URL 기록 (O열)
+                        # 성공 - 상태: 완료, 영상URL 기록 (L열), 쇼츠URL 기록 (Q열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
                         if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', result['video_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!L{i}', result['video_url'])
                         if result.get('shorts_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!O{i}', result['shorts_url'])
+                            sheets_update_cell(service, sheet_id, f'Sheet1!Q{i}', result['shorts_url'])
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록 (K열)
+                        # 실패 - 상태: 실패, 에러메시지 기록 (M열)
                         sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
                         error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!K{i}', error_msg)
+                        sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', error_msg)
 
                     processed_count += 1
                     results.append({

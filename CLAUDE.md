@@ -63,15 +63,20 @@ Google Sheets 기반 YouTube 영상 자동 생성 시스템
 | D | 채널명 | 참고용 (코드에서 미사용) |
 | E | 예약시간 | YouTube 공개 예약 시간 |
 | F | 대본 | 영상 대본 전문 |
-| G | 제목 | YouTube 제목 |
-| H | 비용 | 생성 비용 (출력) |
-| I | 공개설정 | public/private/unlisted |
-| J | 영상URL | 업로드된 URL (출력) |
-| K | 에러메시지 | 실패 시 에러 (출력) |
-| L | 음성 | TTS 음성 선택 (선택) |
-| M | 타겟 | general/senior (선택) |
-| N | 카테고리 | 뉴스/시사/정치/경제 → 뉴스 스타일 썸네일 |
-| O | 쇼츠URL | 자동 생성된 쇼츠 URL (출력) |
+| G | 제목 | YouTube 제목 (GPT 생성 메인, 입력 시 우선) |
+| H | 제목2 | 대안 제목 1 - solution 스타일 (출력) |
+| I | 제목3 | 대안 제목 2 - authority 스타일 (출력) |
+| J | 비용 | 생성 비용 (출력) |
+| K | 공개설정 | public/private/unlisted |
+| L | 영상URL | 업로드된 URL (출력) |
+| M | 에러메시지 | 실패 시 에러 (출력) |
+| N | 음성 | TTS 음성 (입력/출력) |
+| O | 타겟 | general/senior (입력/출력) |
+| P | 카테고리 | GPT 감지 카테고리 - news/story (출력) |
+| Q | 쇼츠URL | 자동 생성된 쇼츠 URL (출력) |
+
+**제목 A/B 테스트**: G열에 메인 제목, H/I열에 대안 제목이 자동 저장됩니다.
+CTR이 낮을 경우 YouTube Studio에서 H 또는 I열의 제목으로 변경하여 테스트할 수 있습니다.
 
 ---
 
