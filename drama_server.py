@@ -11603,15 +11603,17 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                     })
                 current_time += duration
 
-                # 씬 클립 생성
+                # 씬 클립 생성 (해상도 1280x720 통일, 24fps 고정)
                 clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
                 if audio_path and os.path.exists(audio_path):
                     cmd = [
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", img_path,
                         "-i", audio_path,
-                        "-c:v", "libx264", "-tune", "stillimage",
+                        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                        "-c:v", "libx264", "-tune", "stillimage", "-preset", "ultrafast", "-crf", "28",
                         "-c:a", "aac", "-b:a", "128k",
+                        "-r", "24",
                         "-pix_fmt", "yuv420p",
                         "-shortest", "-t", str(duration),
                         clip_path
@@ -11621,7 +11623,10 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang):
                         "ffmpeg", "-y",
                         "-loop", "1", "-i", img_path,
                         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                        "-c:v", "libx264", "-tune", "stillimage",
+                        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+                        "-c:v", "libx264", "-tune", "stillimage", "-preset", "ultrafast", "-crf", "28",
+                        "-c:a", "aac",
+                        "-r", "24",
                         "-pix_fmt", "yuv420p",
                         "-t", str(duration), "-shortest",
                         clip_path
