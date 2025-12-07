@@ -10727,10 +10727,74 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 - seamless composition
 - CHARACTER FACE MUST BE CLEARLY VISIBLE
 
-## 썸네일 텍스트 규칙 (중요!)
-- 문구 길이: {thumb_length}
-- 문구 스타일: {thumb_style}
-- 색상: text_color에 "{thumb_color}" 사용
+## 🎨 썸네일 전략 규칙 (중요!)
+
+너는 유튜브 썸네일 전략가이자 카피라이터다.
+역할:
+1) 영상의 핵심 메시지를 가장 짧고 강하게 요약하는 썸네일 문구를 만든다.
+2) 썸네일 문구 + 영상 제목 + 영상 도입부가 하나의 스토리처럼 이어지도록 설계한다.
+3) 단순 클릭(CTR)뿐 아니라, 클릭 후 시청 지속 시간(watch time)까지 좋아지도록 돕는다.
+
+### 기본 원칙
+1. **어그로 금지**
+   - 썸네일이 약속한 내용은 영상 내용과 실제로 일치해야 한다.
+   - 썸네일에서 던진 메시지/질문/약속은 영상 초반 10초 안에 등장해야 한다.
+   - 시청자가 "속았다"는 느낌을 받으면 안 된다.
+
+2. **성과 기준**
+   - CTR은 5~10%면 보통~양호, 10% 이상이면 매우 좋다고 가정한다.
+   - 클릭률만이 아니라, "썸네일-제목-내용 일치"를 통해 시청 지속에도 도움을 줘야 한다.
+   - 목표: "정직한 어그로" = 시선을 잡되, 내용이 충분히 그 기대를 채우도록 설계.
+
+### 썸네일 문구(카피) 규칙
+1. **길이와 줄 수**
+   - 썸네일 문구는 **10~15자 이내** (한글 기준)
+   - 최대 2줄까지 허용
+   - 줄바꿈이 필요하면 "\\n"을 사용해 최대 1번까지만 줄을 나눈다.
+
+2. **문장 스타일** (우선 고려)
+   - 질문형: "왜 다 여기서 망하냐?"
+   - 문제제기형: "이 구간에서 다 털린다"
+   - 해결/이점형: "퇴근 후 3시간, 이걸로 버는 법"
+   - 숫자 + 위험/기회형: "3가지만 몰라서 손해 본다"
+
+3. **단어 선택**
+   - 감정을 자극하지만 과한 선정성은 피한다.
+   - 사용할 수 있는 강한 단어: "망한다", "손해 본다", "끝판왕", "미쳤다", "절대", "필수"
+   - 단, 실제 내용이 받쳐줄 때만 사용. 과장/왜곡 금지.
+
+4. **제목과의 관계**
+   - 썸네일 문구는 영상 제목과 똑같이 쓰지 않는다.
+   - 썸네일 문구 = 감정, 호기심, 위기감, 기회감을 압축적으로 표현
+   - 영상 제목 = 검색 키워드와 정보성을 포함한 설명형 문장
+   - 같은 의미를 다른 각도에서 말하도록 한다.
+
+### 레이아웃 패턴 (5가지 중 선택)
+1. **top_text_bottom_image**: 상단 텍스트, 하단 인물/핵심 장면
+2. **left_text_right_image**: 좌측 텍스트 1~2줄, 우측 인물/제품/장면
+3. **center_text_background_image**: 중앙 짧은 텍스트 크게, 전면 배경 분위기 강조
+4. **split_before_after**: 좌우 분할 Before vs After 또는 A vs B 비교
+5. **collage**: 인물 1명 + 그래프/아이콘/장면 2~3개 콜라주 형태
+
+### 이미지 프롬프트 규칙
+- 유튜브 썸네일용, **16:9 비율**, high resolution
+- **"no text", "without any words or letters"** 조건 명시
+- 배경은 썸네일 문구의 의미를 직관적으로 보여주는 장면
+  - 예: "망하는 시장" = 텅 빈 매장, 어두운 조명, 닫힌 셔터
+  - 예: "폭발적 성장" = 상승 그래프, 도시 야경, 강한 조명
+- 인물 사용 시: 감정이 분명한 표정(놀람, 충격, 안도, 분노, 기쁨 등)
+
+### 디자인 규칙
+- 폰트: 굵고 단순한 고딕 계열
+- 기본 텍스트: 흰색 또는 매우 밝은 색
+- 강조 단어: 노랑/빨강/형광 등 강한 색을 1~2개 단어에만 사용
+- 배경은 눌러주고 텍스트/인물만 튀게 만든다
+- 작게 축소했을 때도 글자가 읽히는지 기준으로 설계
+
+### 성과 체크 (JSON에 포함)
+- **ctr_score**: 클릭 유도 가능성 (1~10)
+- **watchtime_score**: 썸네일·제목·내용 일치 정도 (1~10)
+- **consistency_note**: 썸네일 문구가 영상 내용과 어떻게 연결되는지 설명
 
 ## EMOTION THROUGH FACE + POSTURE (얼굴 표정 + 자세로 감정 표현)
 - 긴장/걱정: worried small mouth, raised thin eyebrows, hunched shoulders
@@ -10837,14 +10901,31 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "pin_comment": "고정 댓글 문구 (핵심 요약 + 질문 1개)"
   }},
   "thumbnail": {{
-    "text_options": ["Thumbnail text 1 in {lang_config['name']}", "Thumbnail text 2 in {lang_config['name']}", "Thumbnail text 3 in {lang_config['name']}"],
-    "text_color": "{thumb_color}",
-    "outline_color": "{thumb_outline}",
-    "prompt": "[detected_category에 따라 뉴스 스타일 또는 스토리 스타일 프롬프트 작성]",
+    "thumbnail_text_candidates": [
+      "썸네일 문구 후보 1 (10~15자, 최대 2줄, 줄바꿈 시 \\n 사용)",
+      "썸네일 문구 후보 2",
+      "썸네일 문구 후보 3"
+    ],
+    "best_combo": {{
+      "chosen_title": "youtube.title_options 중 가장 적합한 제목",
+      "chosen_thumbnail_text": "thumbnail_text_candidates 중 가장 적합한 문구",
+      "reason": "이 조합을 선택한 이유를 2~4문장으로 설명"
+    }},
+    "layout_suggestion": {{
+      "layout_type": "top_text_bottom_image | left_text_right_image | center_text_background_image | split_before_after | collage 중 하나",
+      "layout_description": "텍스트 위치, 인물/이미지 위치, 사용할 아이콘 등을 3~6문장으로 구체적으로 설명"
+    }},
+    "image_prompt": "영어로 작성된 이미지 프롬프트 (16:9, high resolution, no text, without any words or letters 조건 포함)",
+    "design_notes": "폰트 굵기, 색상 대비, 강조 색, 그라데이션/비네팅 사용 등 디자이너에게 줄 구체적인 지침을 4~8문장으로",
+    "consistency_check": {{
+      "ctr_score": 7,
+      "watchtime_score": 8,
+      "consistency_note": "썸네일·제목·영상 내용의 연결성을 3~6문장으로 설명"
+    }},
     "ai_prompts": {{
-      "A": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}},
-      "B": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}},
-      "C": {{"description": "...", "prompt": "...", "text_overlay": {{}}, "style": "..."}}
+      "A": {{"description": "스타일 A 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트 (최대 6자)", "sub": "서브 텍스트 (최대 15자)"}}, "style": "news 또는 story"}},
+      "B": {{"description": "스타일 B 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트", "sub": "서브 텍스트"}}, "style": "news 또는 story"}},
+      "C": {{"description": "스타일 C 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트", "sub": "서브 텍스트"}}, "style": "news 또는 story"}}
     }}
   }},
   "video_effects": {{
@@ -11305,42 +11386,31 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
     "pin_comment": "고정 댓글 (핵심 요약 + 질문)"
   }},
   "thumbnail": {{
-    "text_options": [
-      "Thumbnail text 1 in {lang_config['name']} ({'4-7 chars' if audience == 'general' else '8-12 chars'})",
-      "Thumbnail text 2 in {lang_config['name']}",
-      "Thumbnail text 3 in {lang_config['name']}"
+    "thumbnail_text_candidates": [
+      "썸네일 문구 후보 1 (10~15자, 최대 2줄, 줄바꿈 시 \\n 사용)",
+      "썸네일 문구 후보 2",
+      "썸네일 문구 후보 3"
     ],
-    "text_color": "{thumbnail_color}",
-    "outline_color": "{outline_color}",
-    "prompt": "English prompt for thumbnail image...",
+    "best_combo": {{
+      "chosen_title": "youtube.title_options 중 가장 적합한 제목",
+      "chosen_thumbnail_text": "thumbnail_text_candidates 중 가장 적합한 문구",
+      "reason": "이 조합을 선택한 이유를 2~4문장으로 설명"
+    }},
+    "layout_suggestion": {{
+      "layout_type": "top_text_bottom_image | left_text_right_image | center_text_background_image | split_before_after | collage 중 하나",
+      "layout_description": "텍스트 위치, 인물/이미지 위치, 사용할 아이콘 등을 3~6문장으로 구체적으로 설명"
+    }},
+    "image_prompt": "영어로 작성된 이미지 프롬프트 (16:9, high resolution, no text, without any words or letters 조건 포함)",
+    "design_notes": "폰트 굵기, 색상 대비, 강조 색, 그라데이션/비네팅 사용 등 디자이너에게 줄 구체적인 지침을 4~8문장으로",
+    "consistency_check": {{
+      "ctr_score": 7,
+      "watchtime_score": 8,
+      "consistency_note": "썸네일·제목·영상 내용의 연결성을 3~6문장으로 설명"
+    }},
     "ai_prompts": {{
-      "A": {{
-        "description": "프롬프트 A ({lang_config['name']}): 감정/표정 중심 - 놀람, 충격, 기쁨 등 강렬한 감정",
-        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. Bold composition suitable for thumbnail. NO realistic humans, comic/cartoon style only. Clean background with focus on character emotion.",
-        "text_overlay": {{
-          "main": "강렬한 감정 텍스트 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "emotional, expressive, cartoon"
-      }},
-      "B": {{
-        "description": "프롬프트 B ({lang_config['name']}): 스토리/상황 중심 - Before vs After, 대비 구도",
-        "prompt": "Split screen or contrast composition YouTube thumbnail, 16:9 aspect ratio. Before/After or comparison layout. Cartoon/illustration style, vibrant contrasting colors. Clear visual storytelling, dramatic difference shown. NO realistic photos, comic art style.",
-        "text_overlay": {{
-          "main": "대비 강조 텍스트 ({lang_config['name']})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "narrative, contrast, split-screen"
-      }},
-      "C": {{
-        "description": "프롬프트 C ({lang_config['name']}): 텍스트/타이포 중심 - 강렬한 문구, 큰 텍스트 강조",
-        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text as main element. Gradient or solid color background. Minimal illustration elements. High contrast colors (red/yellow/white on dark). Eye-catching graphic design style.",
-        "text_overlay": {{
-          "main": "강렬한 메인 문구 ({lang_config['name']}, {'4-7자' if audience == 'general' else '8-12자'})",
-          "sub": "서브 텍스트 (optional)"
-        }},
-        "style": "typography, bold, graphic-design"
-      }}
+      "A": {{"description": "스타일 A 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트 (최대 6자)", "sub": "서브 텍스트 (최대 15자)"}}, "style": "news 또는 story"}},
+      "B": {{"description": "스타일 B 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트", "sub": "서브 텍스트"}}, "style": "news 또는 story"}},
+      "C": {{"description": "스타일 C 설명", "prompt": "영문 이미지 프롬프트", "text_overlay": {{"main": "메인 텍스트", "sub": "서브 텍스트"}}, "style": "news 또는 story"}}
     }}
   }},
   "scenes": [
@@ -17626,9 +17696,27 @@ def run_automation_pipeline(row_data, row_index):
             ai_prompts = thumbnail_data.get('ai_prompts', {})
             video_effects = analyze_data.get('video_effects', {})  # 새 기능: BGM, 효과음, 자막 강조 등
 
+            # 썸네일 전략 데이터 추출 (새 구조)
+            thumbnail_text_candidates = thumbnail_data.get('thumbnail_text_candidates', [])
+            best_combo = thumbnail_data.get('best_combo', {})
+            layout_suggestion = thumbnail_data.get('layout_suggestion', {})
+            consistency_check = thumbnail_data.get('consistency_check', {})
+            design_notes = thumbnail_data.get('design_notes', '')
+
             # GPT-5.1이 대본 분석으로 자동 감지한 카테고리 (news 또는 story)
             detected_category = analyze_data.get('detected_category', 'story')
             print(f"[AUTOMATION] GPT 감지 카테고리: {detected_category}")
+
+            # 썸네일 전략 로깅
+            if best_combo:
+                print(f"[AUTOMATION] 썸네일 전략:")
+                print(f"  - 선택된 제목: {best_combo.get('chosen_title', '')[:50]}")
+                print(f"  - 선택된 문구: {best_combo.get('chosen_thumbnail_text', '')}")
+                print(f"  - 선택 이유: {best_combo.get('reason', '')[:80]}")
+            if layout_suggestion:
+                print(f"  - 레이아웃: {layout_suggestion.get('layout_type', '')}")
+            if consistency_check:
+                print(f"  - CTR 점수: {consistency_check.get('ctr_score', 0)}/10, Watch Time 점수: {consistency_check.get('watchtime_score', 0)}/10")
 
             generated_title = youtube_meta.get('title', '')
             title_options = youtube_meta.get('title_options', [])
@@ -17785,21 +17873,40 @@ def run_automation_pipeline(row_data, row_index):
 
                 # GPT가 생성한 ai_prompts.A 사용 (카테고리에 맞는 스타일로 이미 생성됨)
                 if ai_prompts and ai_prompts.get('A'):
-                    thumb_prompt = ai_prompts.get('A')
+                    thumb_prompt = ai_prompts.get('A').copy() if isinstance(ai_prompts.get('A'), dict) else ai_prompts.get('A')
+                    # best_combo에서 선택된 텍스트가 있으면 text_overlay에 적용
+                    if best_combo and best_combo.get('chosen_thumbnail_text'):
+                        chosen_text = best_combo.get('chosen_thumbnail_text', '')
+                        if isinstance(thumb_prompt, dict):
+                            # 줄바꿈이 있으면 첫 줄은 main, 나머지는 sub로 분리
+                            if '\\n' in chosen_text:
+                                parts = chosen_text.split('\\n', 1)
+                                thumb_prompt['text_overlay'] = {'main': parts[0], 'sub': parts[1] if len(parts) > 1 else ''}
+                            else:
+                                thumb_prompt['text_overlay'] = {'main': chosen_text, 'sub': ''}
+                            print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
                     print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용")
                 elif is_news:
                     # 폴백: 하드코딩된 뉴스 스타일 프롬프트
                     print(f"[AUTOMATION][THUMB] 하드코딩된 뉴스 스타일 프롬프트 사용 (폴백)")
+                    # best_combo 텍스트가 있으면 사용
+                    fallback_text = "뉴스 헤드라인"
+                    if best_combo and best_combo.get('chosen_thumbnail_text'):
+                        fallback_text = best_combo.get('chosen_thumbnail_text', fallback_text)
                     thumb_prompt = {
                         "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look. High contrast text readable at small size.",
-                        "text_overlay": {"main": "뉴스 헤드라인", "sub": ""}
+                        "text_overlay": {"main": fallback_text, "sub": ""}
                     }
                 else:
                     # 폴백: 기본 스토리 스타일 프롬프트
                     print(f"[AUTOMATION][THUMB] 하드코딩된 스토리 스타일 프롬프트 사용 (폴백)")
+                    # best_combo 텍스트가 있으면 사용
+                    fallback_text = "메인 텍스트"
+                    if best_combo and best_combo.get('chosen_thumbnail_text'):
+                        fallback_text = best_combo.get('chosen_thumbnail_text', fallback_text)
                     thumb_prompt = {
                         "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression. Vibrant colors, high contrast. NO realistic humans, comic/cartoon style only.",
-                        "text_overlay": {"main": "메인 텍스트", "sub": ""}
+                        "text_overlay": {"main": fallback_text, "sub": ""}
                     }
 
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
