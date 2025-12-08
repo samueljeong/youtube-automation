@@ -13738,7 +13738,10 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                                 print(f"[SHORTS-V2] Beat {beat_id} 이미지 완료")
                 except Exception as img_err:
                     print(f"[SHORTS-V2] Beat {beat_id} 이미지 실패: {img_err}")
-                    # 이미지 실패 시 단색 배경 생성
+
+                # 이미지 파일이 없으면 fallback 단색 배경 생성
+                if not os.path.exists(image_path):
+                    print(f"[SHORTS-V2] Beat {beat_id} 이미지 없음, 단색 배경 생성")
                     subprocess.run([
                         "ffmpeg", "-y", "-f", "lavfi",
                         "-i", "color=c=0x1a1a2e:s=1080x1920:d=1",
@@ -13807,12 +13810,20 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                     clip_path
                 ]
 
+                # 파일 존재 확인
+                if not os.path.exists(bd['image_path']):
+                    print(f"[SHORTS-V2] 클립 {bd['beat_id']} 이미지 파일 없음: {bd['image_path']}")
+                    continue
+                if not os.path.exists(bd['audio_path']):
+                    print(f"[SHORTS-V2] 클립 {bd['beat_id']} 오디오 파일 없음: {bd['audio_path']}")
+                    continue
+
                 result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
                 if result.returncode == 0 and os.path.exists(clip_path):
                     clip_paths.append(clip_path)
                     print(f"[SHORTS-V2] 클립 {bd['beat_id']} 완료 ({bd['duration']:.1f}초)")
                 else:
-                    stderr = result.stderr.decode('utf-8', errors='ignore')[:200]
+                    stderr = result.stderr.decode('utf-8', errors='ignore')[-500:]  # 마지막 500자 (에러 메시지가 끝에 있음)
                     print(f"[SHORTS-V2] 클립 {bd['beat_id']} 실패: {stderr}")
 
             if not clip_paths:
