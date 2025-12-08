@@ -13335,27 +13335,27 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
         font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
         # 그라데이션 배경 + 텍스트 아웃트로
-        # 메인 영상과 동일한 1920x1080 해상도 사용 (concat 호환성)
+        # 메인 영상과 동일한 1280x720 해상도 사용 (concat 호환성)
         # 이모지 제거 (FFmpeg drawtext 호환성 문제)
         ffmpeg_cmd = [
             "ffmpeg", "-y",
             "-f", "lavfi",
-            "-i", f"color=c=0x1a1a2e:s=1920x1080:d={duration}",
+            "-i", f"color=c=0x1a1a2e:s=1280x720:d={duration}",
             "-f", "lavfi",
             "-i", f"anullsrc=r=44100:cl=stereo:d={duration}",
             "-vf", (
                 f"drawtext=text='시청해 주셔서 감사합니다':"
-                f"fontfile='{font_escaped}':fontsize=72:fontcolor=white:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2-100,"
+                f"fontfile='{font_escaped}':fontsize=48:fontcolor=white:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2-70,"
                 f"drawtext=text='좋아요와 구독 부탁드려요':"
-                f"fontfile='{font_escaped}':fontsize=56:fontcolor=yellow:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2+20,"
+                f"fontfile='{font_escaped}':fontsize=38:fontcolor=yellow:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2+15,"
                 f"drawtext=text='알림 설정도 잊지 마세요':"
-                f"fontfile='{font_escaped}':fontsize=44:fontcolor=#aaaaaa:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2+120,"
+                f"fontfile='{font_escaped}':fontsize=30:fontcolor=#aaaaaa:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2+80,"
                 f"fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5"
             ),
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-t", str(duration),
             output_path
@@ -14347,6 +14347,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                 if audio_path and os.path.exists(audio_path):
                     cmd = [
                         "ffmpeg", "-y",
+                        "-loop", "1",  # 이미지 루프 (zoompan 필터가 여러 프레임 생성 필요)
                         "-i", img_path,
                         "-i", audio_path,
                         "-vf", ken_burns_filter,
@@ -14359,6 +14360,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                 else:
                     cmd = [
                         "ffmpeg", "-y",
+                        "-loop", "1",  # 이미지 루프 (zoompan 필터가 여러 프레임 생성 필요)
                         "-i", img_path,
                         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
                         "-vf", ken_burns_filter,
