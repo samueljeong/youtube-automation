@@ -1070,6 +1070,265 @@
       text-decoration: line-through;
     }
 
+    /* Rising Badge */
+    .rising-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .rising-badge.rising-hot {
+      background: linear-gradient(135deg, #f56565, #e53e3e);
+      color: #fff;
+    }
+
+    .rising-badge.rising-up {
+      background: linear-gradient(135deg, #48bb78, #38a169);
+      color: #fff;
+    }
+
+    .rising-badge.rising-normal {
+      background: linear-gradient(135deg, #ed8936, #dd6b20);
+      color: #fff;
+    }
+
+    /* AI Analysis Buttons */
+    .ai-buttons {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .btn-ai {
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-ai:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-ai.ideas {
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+    }
+
+    .btn-ai svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Action Buttons in Table Row */
+    .action-buttons {
+      display: flex;
+      gap: 4px;
+    }
+
+    .btn-action {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .btn-action.bookmark {
+      background: #fef3c7;
+      color: #d97706;
+    }
+    .btn-action.bookmark:hover {
+      background: #fcd34d;
+    }
+
+    .btn-action.ab {
+      background: #dbeafe;
+      color: #2563eb;
+      font-weight: 700;
+      font-size: 10px;
+    }
+    .btn-action.ab:hover {
+      background: #93c5fd;
+    }
+
+    .btn-action.sentiment {
+      background: #f3e8ff;
+      color: #7c3aed;
+    }
+    .btn-action.sentiment:hover {
+      background: #c4b5fd;
+    }
+
+    .btn-action.compare {
+      background: #fce7f3;
+      color: #db2777;
+    }
+    .btn-action.compare:hover {
+      background: #f9a8d4;
+    }
+
+    /* Analysis Modal Styles */
+    .analysis-content, .ideas-content {
+      line-height: 1.6;
+    }
+
+    .analysis-summary, .trend-analysis {
+      background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+
+    .analysis-section {
+      margin-bottom: 24px;
+    }
+
+    .analysis-section h4 {
+      font-size: 1rem;
+      color: #333;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e1e5eb;
+    }
+
+    .analysis-section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .analysis-section li {
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    .title-suggestion, .recommendation-item {
+      background: #f0fdf4;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      border-left: 4px solid #48bb78;
+    }
+
+    .title-suggestion strong, .recommendation-item strong {
+      color: #166534;
+    }
+
+    .keyword-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .keyword-tag {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    /* Ideas Styles */
+    .ideas-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .idea-card {
+      background: #fff;
+      border: 1px solid #e1e5eb;
+      border-radius: 16px;
+      padding: 20px;
+      transition: all 0.2s;
+    }
+
+    .idea-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+    }
+
+    .idea-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .idea-number {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .viral-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .viral-badge.viral-상 { background: #dcfce7; color: #166534; }
+    .viral-badge.viral-중 { background: #fef3c7; color: #92400e; }
+    .viral-badge.viral-하 { background: #fee2e2; color: #991b1b; }
+
+    .idea-title {
+      font-size: 1.1rem;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+    }
+
+    .idea-hook, .idea-outline, .idea-emotion {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .ideas-keywords, .ideas-avoid {
+      margin-top: 24px;
+    }
+
+    .ideas-avoid ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .ideas-avoid li {
+      padding: 8px 12px;
+      background: #fef2f2;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      color: #991b1b;
+      font-size: 0.9rem;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .main-tabs {
@@ -1424,6 +1683,74 @@
       <div class="results-header">
         <h3>검색 결과</h3>
         <span class="results-count" id="results-count">0개 영상</span>
+        <div class="ai-buttons">
+          <button class="btn-ai" onclick="TubeLens.analyzeTitles()" title="제목 패턴 분석">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            제목 분석
+          </button>
+          <button class="btn-ai" onclick="TubeLens.analyzeThumbnails()" title="썸네일 패턴 분석">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+            </svg>
+            썸네일 분석
+          </button>
+          <button class="btn-ai" onclick="TubeLens.analyzeTags()" title="태그/해시태그 분석" style="background:linear-gradient(135deg,#f093fb,#f5576c);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"/>
+            </svg>
+            태그 분석
+          </button>
+          <button class="btn-ai ideas" onclick="TubeLens.generateIdeas('story')" title="콘텐츠 아이디어 생성">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            아이디어
+          </button>
+          <button class="btn-ai" onclick="TubeLens.analyzeKeywordTrend()" title="키워드 트렌드 분석" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            트렌드
+          </button>
+          <button class="btn-ai" onclick="TubeLens.showCompareChannels()" title="경쟁 채널 비교" style="background:linear-gradient(135deg,#fa709a,#fee140);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/>
+            </svg>
+            채널 비교
+          </button>
+          <button class="btn-ai" onclick="TubeLens.showBookmarks()" title="북마크 보기" style="background:linear-gradient(135deg,#a8edea,#fed6e3);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2v16z"/>
+            </svg>
+            북마크
+          </button>
+          <button class="btn-ai" onclick="TubeLens.analyzeUploadPattern()" title="채널 업로드 패턴 분석" style="background:linear-gradient(135deg,#667eea,#764ba2);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            패턴 분석
+          </button>
+          <button class="btn-ai" onclick="TubeLens.findSimilarChannels()" title="유사 채널 찾기" style="background:linear-gradient(135deg,#11998e,#38ef7d);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/>
+            </svg>
+            유사 채널
+          </button>
+          <button class="btn-ai" onclick="TubeLens.showWatchlist()" title="경쟁채널 워치리스트" style="background:linear-gradient(135deg,#f56565,#ed64a6);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+            워치리스트
+          </button>
+          <button class="btn-ai" onclick="TubeLens.generateDescription()" title="설명란 템플릿 생성" style="background:linear-gradient(135deg,#834d9b,#d04ed6);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+            </svg>
+            설명란 생성
+          </button>
+        </div>
       </div>
       <div class="results-body" id="results-body">
         <div class="empty-state">
@@ -1459,6 +1786,7 @@
                 <th>참여율</th>
                 <th>총 영상 수</th>
                 <th>설명</th>
+                <th>액션</th>
               </tr>
             </thead>
             <tbody id="results-tbody"></tbody>
@@ -1570,6 +1898,22 @@
       <div class="modal-footer">
         <button class="btn btn-success" onclick="TubeLens.copyDescription()">설명 복사</button>
         <button class="btn btn-secondary" onclick="TubeLens.closeDescriptionModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Analysis Modal -->
+  <div class="modal" id="analysis-modal">
+    <div class="modal-content xl">
+      <div class="modal-header">
+        <h3 id="analysis-modal-title">AI 분석</h3>
+        <button class="modal-close" onclick="TubeLens.closeAnalysisModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="analysis-modal-content">
+        <!-- Dynamic content -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="TubeLens.closeAnalysisModal()">닫기</button>
       </div>
     </div>
   </div>
