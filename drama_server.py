@@ -18634,6 +18634,11 @@ def run_automation_pipeline(row_data, row_index):
                                 "channelId": channel_id
                             }
 
+                            # 메인 영상과 같은 예약시간 적용 (있는 경우)
+                            if publish_at_iso:
+                                shorts_upload_payload["publish_at"] = publish_at_iso
+                                print(f"[SHORTS-BG] 쇼츠 예약 공개 설정: {publish_at_iso}")
+
                             shorts_resp = bg_req.post(f"{base_url}/api/youtube/upload", json=shorts_upload_payload, timeout=300)
                             shorts_data = shorts_resp.json()
 
