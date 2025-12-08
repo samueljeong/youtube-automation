@@ -17320,11 +17320,12 @@ def api_thumbnail_ai_generate_single():
         data = request.get_json() or {}
         prompt_data = data.get('prompt', {})
         session_id = data.get('session_id', '')
+        category = data.get('category', '')  # GPT가 감지한 카테고리 (news/story)
 
         if not prompt_data.get('prompt'):
             return jsonify({"ok": False, "error": "prompt 필드가 필요합니다"}), 400
 
-        print(f"[THUMBNAIL-AI] 단일 썸네일 생성 - 세션: {session_id}")
+        print(f"[THUMBNAIL-AI] 단일 썸네일 생성 - 세션: {session_id}, 카테고리: {category}")
 
         openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
         if not openrouter_api_key:
@@ -17332,7 +17333,7 @@ def api_thumbnail_ai_generate_single():
 
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
-        style = prompt_data.get('style', 'comic')
+        style = prompt_data.get('style', '')
 
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
@@ -17347,13 +17348,30 @@ IMPORTANT TEXT OVERLAY:
             if sub_text:
                 text_instruction += f'- Subtitle: "{sub_text}"\n'
 
+        # 뉴스 스타일 감지 (우선순위):
+        # 1. category 파라미터가 'news'인 경우 (GPT가 대본 분석으로 감지)
+        # 2. style에 news/person/scene/split 키워드가 있는 경우
+        # 3. prompt에 news/photorealistic 키워드가 있는 경우
+        is_news_style = category == 'news'
+        if not is_news_style and style:
+            is_news_style = any(kw in style.lower() for kw in ['news', 'person', 'scene', 'split', 'interview', 'event'])
+        if not is_news_style:
+            is_news_style = any(kw in prompt.lower() for kw in ['news', 'photorealistic', 'korean politician', 'korean businessman', 'korean anchor', 'national assembly', 'dramatic lighting'])
+
+        if is_news_style:
+            style_instruction = f"Style: {style if style else 'photorealistic'}, news photography, dramatic lighting, high contrast"
+            print(f"[THUMBNAIL-AI] 뉴스 스타일 적용 - category: '{category}', style: '{style}'")
+        else:
+            style_instruction = f"Style: {style if style else 'comic'}, comic/illustration, eye-catching, high contrast"
+            print(f"[THUMBNAIL-AI] 스토리 스타일 적용 - category: '{category}', style: '{style}'")
+
         enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
 
 {prompt}
 
 {text_instruction}
 
-Style: {style}, comic/illustration, eye-catching, high contrast"""
+{style_instruction}"""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
@@ -18268,7 +18286,8 @@ def run_automation_pipeline(row_data, row_index):
 
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
                     "session_id": f"thumb_{session_id}",
-                    "prompt": thumb_prompt
+                    "prompt": thumb_prompt,
+                    "category": detected_category  # 뉴스/스토리 카테고리 명시적 전달
                 }, timeout=180)
 
                 thumb_data = thumb_resp.json()
