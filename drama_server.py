@@ -10597,29 +10597,36 @@ def api_image_analyze_script():
                 thumb_outline = "#000000"
                 thumb_style = "회상형/후회형 (그날을 잊지 않는다, 하는게 아니었다, 늦게 알았다)"
 
-            # GPT가 자동으로 카테고리를 감지하고 적절한 썸네일 스타일을 선택하도록 함
-            # 뉴스/시사 vs 일반 스토리 두 가지 스타일 모두 제공
+            # GPT가 자동으로 카테고리를 감지하고 대본 내용 기반 구체적 썸네일 생성
+            # 뉴스: 대본 내용을 시각화 / 스토리: 감정 표현
             ai_prompts_section = f'''    "detected_category": "news 또는 story 중 하나 선택 (대본 분석 결과)",
+    "visual_elements": {{
+      // ★ 대본에서 추출한 핵심 시각 요소 (뉴스일 때 필수!)
+      "main_subject": "대본의 핵심 주제 (예: 쿠팡 개인정보 유출, 환율 상승, 누리호 발사)",
+      "key_visuals": ["시각화할 요소1", "시각화할 요소2", "시각화할 요소3"],
+      "emotion": "충격/분노/기쁨/슬픔/긴장 중 하나",
+      "color_mood": "red-danger/blue-trust/green-money/orange-warning 중 하나"
+    }},
     "ai_prompts": {{
-      // ★ detected_category가 "news"일 때 사용 (정치, 경제, 시사, 사회 이슈, 뉴스 보도 형식의 대본)
-      // 뉴스 스타일: KBS/MBC/SBS 뉴스 방송 썸네일처럼 실제 사진 + 뉴스 그래픽
+      // ★ detected_category가 "news"일 때: 대본 내용을 직접 시각화!
+      // 앵커가 아닌, 뉴스 내용 자체를 보여주는 이미지
       "A": {{
-        "description": "뉴스 스타일 A: 실제 한국 뉴스 방송 썸네일 - KBS/MBC/SBS 스타일",
-        "prompt": "Korean TV news broadcast YouTube thumbnail exactly like KBS MBC SBS news. 16:9 aspect ratio. Real photo of news anchor or reporter in professional attire on one side. Large bold Korean headline text in WHITE or YELLOW with quotation marks. Dark blue or navy gradient background. RED accent bar with '단독' or '속보' badge at top. Multiple text layers - main headline + sub headline. News ticker style bar at bottom. Professional broadcast journalism aesthetic. Photorealistic news studio look.",
-        "text_overlay": {{"main": "따옴표 헤드라인", "sub": "핵심 요약"}},
-        "style": "korean-tv-news, broadcast, photorealistic"
+        "description": "뉴스 콘텐츠 시각화 A: 대본 핵심 내용을 직접 보여주는 이미지",
+        "prompt": "★ 대본 내용 기반으로 작성! 예시 참고: 쿠팡 유출 → 'Korean e-commerce app interface screenshot style, orange shopping app with red WARNING popup, personal data icons (ID card, phone, address) floating, hacker silhouette in background, digital data breach visualization, 16:9, photorealistic, news infographic style' / 환율 → 'Korean won vs US dollar exchange rate graph sharply rising to 1500, red upward arrow, Korean currency coins falling, financial crisis mood, stock market display, 16:9, photorealistic' / 누리호 → 'Korean Nuri rocket launching with flames, Korean flag overlay, space exploration success, blue sky with rocket trail, 16:9, photorealistic news photo style'",
+        "text_overlay": {{"main": "핵심 키워드 (4-6자)", "sub": "충격적 사실 요약"}},
+        "style": "content-visualization, news-infographic"
       }},
       "B": {{
-        "description": "뉴스 스타일 B: 인터뷰/발언 강조",
-        "prompt": "Korean news interview thumbnail with real person photo. 16:9 aspect ratio. Split layout - interviewee photo on left, large Korean quote text on right in quotation marks. White/yellow bold text on dark navy background. Red accent. Lower-third name tag. Professional broadcast news look. NO cartoon, photorealistic only.",
-        "text_overlay": {{"main": "인용문", "sub": "발언자"}},
-        "style": "interview-quote, broadcast"
+        "description": "뉴스 콘텐츠 시각화 B: 대비/비교 강조",
+        "prompt": "★ 대본 내용 기반 비교 시각화! 예시: 쿠팡 → 'Split screen: left side happy shopping customer, right side shocked person seeing data breach alert, before/after contrast, 16:9' / 환율 → 'Split screen: left 1200 won calm green, right 1500 won panic red, Korean won coin shrinking vs dollar growing, 16:9' / 일본반응 → 'Split screen: left Korean rocket success celebration, right Japanese news commentator shocked reaction, 16:9, news broadcast style'",
+        "text_overlay": {{"main": "대비 키워드", "sub": "변화 설명"}},
+        "style": "comparison, split-screen"
       }},
       "C": {{
-        "description": "뉴스 스타일 C: 속보/이슈 중심",
-        "prompt": "Korean breaking news style thumbnail with event photo. 16:9 aspect ratio. Background photo (blurred/darkened). VERY LARGE white/yellow Korean headline. Red '속보' badge prominent. News channel style graphics. Photojournalism aesthetic.",
-        "text_overlay": {{"main": "대형 헤드라인", "sub": "추가 정보"}},
-        "style": "breaking-news, headline"
+        "description": "뉴스 콘텐츠 시각화 C: 데이터/통계 강조",
+        "prompt": "★ 대본의 숫자/통계를 시각화! 예시: 쿠팡 → 'Infographic showing 33.7 million people affected, data leak visualization with numbers, personal info icons scattered, red alert theme, 16:9' / 환율 → 'Financial chart showing won-dollar rate hitting 1500, big red numbers, downward Korean economy indicators, 16:9' / 정보유출 → 'Data breach infographic, millions of user profiles exposed, security lock broken, 16:9, dark theme with red accents'",
+        "text_overlay": {{"main": "핵심 숫자", "sub": "데이터 설명"}},
+        "style": "infographic, data-visualization"
       }}
 
       // ★ detected_category가 "story"일 때 사용 (드라마, 감성, 인간관계, 일상 이야기)
@@ -10644,7 +10651,7 @@ def api_image_analyze_script():
       }}
     }}'''
 
-            ai_prompts_rules = f"""## ⚠️ CRITICAL: 카테고리 자동 감지 및 썸네일 스타일 선택 ⚠️
+            ai_prompts_rules = f"""## ⚠️ CRITICAL: 대본 내용 기반 썸네일 이미지 생성 ⚠️
 
 ### 1단계: 대본 내용 분석하여 카테고리 감지
 대본을 읽고 아래 기준으로 "detected_category"를 결정하세요:
@@ -10654,36 +10661,48 @@ def api_image_analyze_script():
 - 경제 지표, 주가, 환율, 부동산 언급
 - 사건/사고 보도 형식 (누가, 언제, 어디서, 무엇을)
 - 사회 이슈, 논쟁, 갈등 다룸
-- 인터뷰, 발언, 기자회견 형식
+- 기업, 브랜드, 서비스 관련 뉴스 (쿠팡, 삼성 등)
 - 법원, 검찰, 재판 관련
 
 **"story" 선택 기준**:
 - 개인의 감정, 경험, 회고
 - 인간관계, 가족, 사랑 이야기
 - 일상적인 에피소드
-- 교훈, 깨달음, 감동 스토리
 - 드라마/영화 같은 서사 구조
 
-### 2단계: 카테고리에 맞는 썸네일 생성
+### 2단계: 핵심 시각 요소 추출 (visual_elements) - 뉴스일 때 매우 중요!
 
-**detected_category = "news"일 때:**
-- ai_prompts에 뉴스 스타일 A/B/C 사용
-- 실제 사진 + 뉴스 그래픽 (KBS/MBC/SBS 스타일)
-- 따옴표 헤드라인, 빨간 '속보' 배지
-- ⚠️ 절대 만화/일러스트 금지!
+대본에서 다음을 추출하세요:
+- **main_subject**: 뉴스의 핵심 주제 (예: "쿠팡 개인정보 3370만명 유출", "원달러 환율 1500원 돌파")
+- **key_visuals**: 이미지로 표현할 시각 요소 3개 (예: ["쇼핑앱 화면", "해킹 경고창", "개인정보 아이콘"])
+- **emotion**: 시청자가 느낄 감정
+- **color_mood**: 적절한 색상 톤
 
-**detected_category = "story"일 때:**
-- ai_prompts에 스토리 스타일 A/B/C 사용
-- 웹툰/만화 일러스트 스타일
-- 감정 표현, 캐릭터 중심
-- ⚠️ 실사 사진 금지!
+### 3단계: 대본 내용을 직접 시각화하는 프롬프트 작성
 
-### 출력 형식 (중요!)
+**⚠️ 중요: 뉴스 앵커가 아닌, 뉴스 내용 자체를 보여주세요!**
+
+예시:
+| 대본 주제 | ❌ 잘못된 프롬프트 | ✅ 올바른 프롬프트 |
+|----------|------------------|------------------|
+| 쿠팡 유출 | "news anchor in studio" | "e-commerce app with data breach warning, personal info icons floating" |
+| 환율 1500원 | "reporter explaining economy" | "won-dollar exchange graph hitting 1500, red arrows, currency coins" |
+| 누리호 발사 | "news broadcast about rocket" | "Korean Nuri rocket launching, flames, Korean flag, blue sky" |
+| 일본 반응 | "Japanese person interviewed" | "split screen: Korean rocket success vs Japanese commentator shocked" |
+
+### 4단계: A/B/C 세 가지 스타일로 생성
+
+**A = 콘텐츠 직접 시각화**: 대본의 핵심 장면을 그대로 이미지화
+**B = 대비/비교 시각화**: Before/After, 좌우 비교, 반응 대비
+**C = 데이터/숫자 시각화**: 통계, 그래프, 인포그래픽 스타일
+
+### 출력 형식
 "detected_category": "news" 또는 "story",
+"visual_elements": {{ ... 추출된 시각 요소 ... }},
 "ai_prompts": {{
-  "A": {{ ... 선택된 스타일의 A ... }},
-  "B": {{ ... 선택된 스타일의 B ... }},
-  "C": {{ ... 선택된 스타일의 C ... }}
+  "A": {{ "prompt": "대본 내용 기반 구체적 영문 프롬프트", ... }},
+  "B": {{ "prompt": "대비/비교 스타일 영문 프롬프트", ... }},
+  "C": {{ "prompt": "데이터/통계 스타일 영문 프롬프트", ... }}
 }}"""
 
             system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
@@ -13039,14 +13058,14 @@ def _get_bgm_file(mood, bgm_dir=None):
     return selected
 
 
-def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.25):
+def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.23):
     """비디오에 BGM 믹싱 (나레이션 유지, BGM은 작게)
 
     Args:
         video_path: 원본 비디오 경로
         bgm_path: BGM 오디오 경로
         output_path: 출력 비디오 경로
-        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.25 = 25%)
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.23 = 23%)
 
     Returns:
         성공 여부 (bool)
@@ -13719,7 +13738,10 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                                 print(f"[SHORTS-V2] Beat {beat_id} 이미지 완료")
                 except Exception as img_err:
                     print(f"[SHORTS-V2] Beat {beat_id} 이미지 실패: {img_err}")
-                    # 이미지 실패 시 단색 배경 생성
+
+                # 이미지 파일이 없으면 fallback 단색 배경 생성
+                if not os.path.exists(image_path):
+                    print(f"[SHORTS-V2] Beat {beat_id} 이미지 없음, 단색 배경 생성")
                     subprocess.run([
                         "ffmpeg", "-y", "-f", "lavfi",
                         "-i", "color=c=0x1a1a2e:s=1080x1920:d=1",
@@ -13788,12 +13810,20 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                     clip_path
                 ]
 
+                # 파일 존재 확인
+                if not os.path.exists(bd['image_path']):
+                    print(f"[SHORTS-V2] 클립 {bd['beat_id']} 이미지 파일 없음: {bd['image_path']}")
+                    continue
+                if not os.path.exists(bd['audio_path']):
+                    print(f"[SHORTS-V2] 클립 {bd['beat_id']} 오디오 파일 없음: {bd['audio_path']}")
+                    continue
+
                 result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
                 if result.returncode == 0 and os.path.exists(clip_path):
                     clip_paths.append(clip_path)
                     print(f"[SHORTS-V2] 클립 {bd['beat_id']} 완료 ({bd['duration']:.1f}초)")
                 else:
-                    stderr = result.stderr.decode('utf-8', errors='ignore')[:200]
+                    stderr = result.stderr.decode('utf-8', errors='ignore')[-500:]  # 마지막 500자 (에러 메시지가 끝에 있음)
                     print(f"[SHORTS-V2] 클립 {bd['beat_id']} 실패: {stderr}")
 
             if not clip_paths:
