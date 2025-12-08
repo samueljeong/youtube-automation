@@ -297,6 +297,39 @@ def init_assistant_db():
             )
         ''')
 
+        # YouTube Channels 테이블 (채널 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_channels (
+                id SERIAL PRIMARY KEY,
+                channel_id VARCHAR(100) UNIQUE NOT NULL,
+                channel_title VARCHAR(300),
+                channel_handle VARCHAR(100),
+                thumbnail_url TEXT,
+                alias VARCHAR(200),
+                category VARCHAR(50) DEFAULT 'reference',
+                subscribers BIGINT DEFAULT 0,
+                total_views BIGINT DEFAULT 0,
+                video_count INTEGER DEFAULT 0,
+                last_fetched_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # YouTube Channel History 테이블 (일별 통계 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_channel_history (
+                id SERIAL PRIMARY KEY,
+                channel_id VARCHAR(100) NOT NULL,
+                record_date DATE NOT NULL,
+                subscribers BIGINT DEFAULT 0,
+                total_views BIGINT DEFAULT 0,
+                video_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(channel_id, record_date)
+            )
+        ''')
+
     else:
         # SQLite 스키마
         cursor.execute('''
@@ -422,6 +455,39 @@ def init_assistant_db():
                 category TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # YouTube Channels 테이블 (채널 관리)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_channels (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT UNIQUE NOT NULL,
+                channel_title TEXT,
+                channel_handle TEXT,
+                thumbnail_url TEXT,
+                alias TEXT,
+                category TEXT DEFAULT 'reference',
+                subscribers INTEGER DEFAULT 0,
+                total_views INTEGER DEFAULT 0,
+                video_count INTEGER DEFAULT 0,
+                last_fetched_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # YouTube Channel History 테이블 (일별 통계 기록)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS youtube_channel_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id TEXT NOT NULL,
+                record_date DATE NOT NULL,
+                subscribers INTEGER DEFAULT 0,
+                total_views INTEGER DEFAULT 0,
+                video_count INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(channel_id, record_date)
             )
         ''')
 
@@ -5055,6 +5121,518 @@ def get_video_schedule():
             'count': len(schedule)
         })
 
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===== YouTube 채널 관리 API =====
+
+def get_youtube_api_key_assistant():
+    """YouTube API 키 가져오기"""
+    return os.getenv("YOUTUBE_API_KEY")
+
+
+def resolve_youtube_channel_id(channel_input: str, api_key: str) -> dict:
+    """
+    채널 URL, 핸들(@name), 또는 채널 ID를 실제 채널 ID로 변환
+    """
+    import requests
+
+    channel_input = channel_input.strip()
+    channel_id = None
+
+    # 이미 채널 ID 형식인 경우 (UC로 시작)
+    if channel_input.startswith('UC') and len(channel_input) == 24:
+        channel_id = channel_input
+
+    # @핸들 형식
+    elif channel_input.startswith('@'):
+        handle = channel_input[1:]  # @ 제거
+        url = f"https://www.googleapis.com/youtube/v3/channels?part=id,snippet&forHandle={handle}&key={api_key}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        if 'items' in data and len(data['items']) > 0:
+            channel_id = data['items'][0]['id']
+
+    # YouTube URL 형식
+    elif 'youtube.com' in channel_input or 'youtu.be' in channel_input:
+        # /channel/UCxxxx 형식
+        if '/channel/' in channel_input:
+            channel_id = channel_input.split('/channel/')[-1].split('/')[0].split('?')[0]
+        # /@handle 형식
+        elif '/@' in channel_input:
+            handle = channel_input.split('/@')[-1].split('/')[0].split('?')[0]
+            url = f"https://www.googleapis.com/youtube/v3/channels?part=id,snippet&forHandle={handle}&key={api_key}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if 'items' in data and len(data['items']) > 0:
+                channel_id = data['items'][0]['id']
+        # /c/customname 또는 /user/username 형식
+        elif '/c/' in channel_input or '/user/' in channel_input:
+            # 커스텀 URL은 검색으로 찾아야 함
+            if '/c/' in channel_input:
+                custom_name = channel_input.split('/c/')[-1].split('/')[0].split('?')[0]
+            else:
+                custom_name = channel_input.split('/user/')[-1].split('/')[0].split('?')[0]
+
+            # 검색 API로 찾기
+            url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={custom_name}&key={api_key}"
+            response = requests.get(url, timeout=10)
+            data = response.json()
+            if 'items' in data and len(data['items']) > 0:
+                channel_id = data['items'][0]['snippet']['channelId']
+
+    # 검색어로 시도
+    else:
+        url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q={channel_input}&key={api_key}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        if 'items' in data and len(data['items']) > 0:
+            channel_id = data['items'][0]['snippet']['channelId']
+
+    if not channel_id:
+        return {'success': False, 'error': '채널을 찾을 수 없습니다'}
+
+    return {'success': True, 'channel_id': channel_id}
+
+
+def fetch_youtube_channel_stats(channel_id: str, api_key: str) -> dict:
+    """YouTube API로 채널 통계 가져오기"""
+    import requests
+
+    url = f"https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id={channel_id}&key={api_key}"
+    response = requests.get(url, timeout=10)
+    data = response.json()
+
+    if 'items' not in data or len(data['items']) == 0:
+        return {'success': False, 'error': '채널 정보를 가져올 수 없습니다'}
+
+    channel = data['items'][0]
+    snippet = channel.get('snippet', {})
+    stats = channel.get('statistics', {})
+
+    return {
+        'success': True,
+        'channel_id': channel_id,
+        'channel_title': snippet.get('title', ''),
+        'channel_handle': snippet.get('customUrl', ''),
+        'thumbnail_url': snippet.get('thumbnails', {}).get('default', {}).get('url', ''),
+        'description': snippet.get('description', ''),
+        'subscribers': int(stats.get('subscriberCount', 0)),
+        'total_views': int(stats.get('viewCount', 0)),
+        'video_count': int(stats.get('videoCount', 0))
+    }
+
+
+@assistant_bp.route('/assistant/api/youtube/channels', methods=['GET'])
+def get_youtube_channels():
+    """등록된 YouTube 채널 목록 조회"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT id, channel_id, channel_title, channel_handle, thumbnail_url,
+                       alias, category, subscribers, total_views, video_count,
+                       last_fetched_at, created_at
+                FROM youtube_channels
+                ORDER BY category, channel_title
+            ''')
+        else:
+            cursor.execute('''
+                SELECT id, channel_id, channel_title, channel_handle, thumbnail_url,
+                       alias, category, subscribers, total_views, video_count,
+                       last_fetched_at, created_at
+                FROM youtube_channels
+                ORDER BY category, channel_title
+            ''')
+
+        rows = cursor.fetchall()
+
+        channels = []
+        for row in rows:
+            channel = {
+                'id': row[0],
+                'channel_id': row[1],
+                'channel_title': row[2],
+                'channel_handle': row[3],
+                'thumbnail_url': row[4],
+                'alias': row[5],
+                'category': row[6],
+                'subscribers': row[7],
+                'total_views': row[8],
+                'video_count': row[9],
+                'last_fetched_at': row[10].isoformat() if row[10] else None,
+                'created_at': row[11].isoformat() if row[11] else None
+            }
+
+            # 최근 7일간 변화량 조회
+            if USE_POSTGRES:
+                cursor.execute('''
+                    SELECT record_date, subscribers, total_views
+                    FROM youtube_channel_history
+                    WHERE channel_id = %s
+                    ORDER BY record_date DESC
+                    LIMIT 7
+                ''', (row[1],))
+            else:
+                cursor.execute('''
+                    SELECT record_date, subscribers, total_views
+                    FROM youtube_channel_history
+                    WHERE channel_id = ?
+                    ORDER BY record_date DESC
+                    LIMIT 7
+                ''', (row[1],))
+
+            history = cursor.fetchall()
+            if len(history) >= 2:
+                # 어제와 오늘 비교
+                today_subs = history[0][1]
+                yesterday_subs = history[1][1]
+                today_views = history[0][2]
+                yesterday_views = history[1][2]
+
+                channel['subscribers_change'] = today_subs - yesterday_subs
+                channel['views_change'] = today_views - yesterday_views
+            else:
+                channel['subscribers_change'] = 0
+                channel['views_change'] = 0
+
+            # 7일간 변화량
+            if len(history) >= 7:
+                channel['subscribers_change_7d'] = history[0][1] - history[6][1]
+                channel['views_change_7d'] = history[0][2] - history[6][2]
+            else:
+                channel['subscribers_change_7d'] = 0
+                channel['views_change_7d'] = 0
+
+            channels.append(channel)
+
+        conn.close()
+
+        # 요약 통계
+        total_subs = sum(c['subscribers'] for c in channels)
+        total_views = sum(c['total_views'] for c in channels)
+        total_subs_change = sum(c.get('subscribers_change', 0) for c in channels)
+
+        return jsonify({
+            'success': True,
+            'channels': channels,
+            'summary': {
+                'total_channels': len(channels),
+                'total_subscribers': total_subs,
+                'total_views': total_views,
+                'subscribers_change_today': total_subs_change
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/youtube/channels', methods=['POST'])
+def add_youtube_channel():
+    """YouTube 채널 추가"""
+    try:
+        data = request.json
+        channel_input = data.get('channel_input', '').strip()
+        alias = data.get('alias', '').strip()
+        category = data.get('category', 'reference')
+
+        if not channel_input:
+            return jsonify({'success': False, 'error': '채널 URL 또는 ID를 입력해주세요'}), 400
+
+        api_key = get_youtube_api_key_assistant()
+        if not api_key:
+            return jsonify({'success': False, 'error': 'YouTube API 키가 설정되지 않았습니다'}), 500
+
+        # 채널 ID 확인
+        resolve_result = resolve_youtube_channel_id(channel_input, api_key)
+        if not resolve_result['success']:
+            return jsonify(resolve_result), 400
+
+        channel_id = resolve_result['channel_id']
+
+        # 채널 통계 가져오기
+        stats_result = fetch_youtube_channel_stats(channel_id, api_key)
+        if not stats_result['success']:
+            return jsonify(stats_result), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        now = datetime.now()
+        today = date.today()
+
+        # 채널 저장 (중복 시 업데이트)
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO youtube_channels
+                (channel_id, channel_title, channel_handle, thumbnail_url, alias, category,
+                 subscribers, total_views, video_count, last_fetched_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (channel_id) DO UPDATE SET
+                    channel_title = EXCLUDED.channel_title,
+                    channel_handle = EXCLUDED.channel_handle,
+                    thumbnail_url = EXCLUDED.thumbnail_url,
+                    alias = COALESCE(EXCLUDED.alias, youtube_channels.alias),
+                    category = COALESCE(EXCLUDED.category, youtube_channels.category),
+                    subscribers = EXCLUDED.subscribers,
+                    total_views = EXCLUDED.total_views,
+                    video_count = EXCLUDED.video_count,
+                    last_fetched_at = EXCLUDED.last_fetched_at,
+                    updated_at = EXCLUDED.updated_at
+                RETURNING id
+            ''', (
+                channel_id, stats_result['channel_title'], stats_result['channel_handle'],
+                stats_result['thumbnail_url'], alias or None, category,
+                stats_result['subscribers'], stats_result['total_views'], stats_result['video_count'],
+                now, now
+            ))
+            new_id = cursor.fetchone()[0]
+
+            # 히스토리 기록
+            cursor.execute('''
+                INSERT INTO youtube_channel_history (channel_id, record_date, subscribers, total_views, video_count)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (channel_id, record_date) DO UPDATE SET
+                    subscribers = EXCLUDED.subscribers,
+                    total_views = EXCLUDED.total_views,
+                    video_count = EXCLUDED.video_count
+            ''', (channel_id, today, stats_result['subscribers'], stats_result['total_views'], stats_result['video_count']))
+        else:
+            cursor.execute('''
+                INSERT OR REPLACE INTO youtube_channels
+                (channel_id, channel_title, channel_handle, thumbnail_url, alias, category,
+                 subscribers, total_views, video_count, last_fetched_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                channel_id, stats_result['channel_title'], stats_result['channel_handle'],
+                stats_result['thumbnail_url'], alias or None, category,
+                stats_result['subscribers'], stats_result['total_views'], stats_result['video_count'],
+                now, now
+            ))
+            new_id = cursor.lastrowid
+
+            # 히스토리 기록
+            cursor.execute('''
+                INSERT OR REPLACE INTO youtube_channel_history (channel_id, record_date, subscribers, total_views, video_count)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (channel_id, today, stats_result['subscribers'], stats_result['total_views'], stats_result['video_count']))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'{stats_result["channel_title"]} 채널이 추가되었습니다',
+            'channel': {
+                'id': new_id,
+                'channel_id': channel_id,
+                'channel_title': stats_result['channel_title'],
+                'channel_handle': stats_result['channel_handle'],
+                'thumbnail_url': stats_result['thumbnail_url'],
+                'alias': alias,
+                'category': category,
+                'subscribers': stats_result['subscribers'],
+                'total_views': stats_result['total_views'],
+                'video_count': stats_result['video_count']
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/youtube/channels/<int:channel_db_id>', methods=['DELETE'])
+def delete_youtube_channel(channel_db_id):
+    """YouTube 채널 삭제"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT channel_id FROM youtube_channels WHERE id = %s', (channel_db_id,))
+        else:
+            cursor.execute('SELECT channel_id FROM youtube_channels WHERE id = ?', (channel_db_id,))
+
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
+
+        channel_id = row[0]
+
+        # 히스토리도 함께 삭제
+        if USE_POSTGRES:
+            cursor.execute('DELETE FROM youtube_channel_history WHERE channel_id = %s', (channel_id,))
+            cursor.execute('DELETE FROM youtube_channels WHERE id = %s', (channel_db_id,))
+        else:
+            cursor.execute('DELETE FROM youtube_channel_history WHERE channel_id = ?', (channel_id,))
+            cursor.execute('DELETE FROM youtube_channels WHERE id = ?', (channel_db_id,))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'success': True, 'message': '채널이 삭제되었습니다'})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/youtube/channels/refresh', methods=['POST'])
+def refresh_youtube_channels():
+    """모든 채널의 최신 통계 업데이트"""
+    try:
+        api_key = get_youtube_api_key_assistant()
+        if not api_key:
+            return jsonify({'success': False, 'error': 'YouTube API 키가 설정되지 않았습니다'}), 500
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 등록된 모든 채널 조회
+        cursor.execute('SELECT id, channel_id FROM youtube_channels')
+        channels = cursor.fetchall()
+
+        updated_count = 0
+        now = datetime.now()
+        today = date.today()
+
+        for db_id, channel_id in channels:
+            try:
+                stats = fetch_youtube_channel_stats(channel_id, api_key)
+                if stats['success']:
+                    if USE_POSTGRES:
+                        cursor.execute('''
+                            UPDATE youtube_channels SET
+                                channel_title = %s,
+                                channel_handle = %s,
+                                thumbnail_url = %s,
+                                subscribers = %s,
+                                total_views = %s,
+                                video_count = %s,
+                                last_fetched_at = %s,
+                                updated_at = %s
+                            WHERE id = %s
+                        ''', (
+                            stats['channel_title'], stats['channel_handle'], stats['thumbnail_url'],
+                            stats['subscribers'], stats['total_views'], stats['video_count'],
+                            now, now, db_id
+                        ))
+
+                        cursor.execute('''
+                            INSERT INTO youtube_channel_history (channel_id, record_date, subscribers, total_views, video_count)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT (channel_id, record_date) DO UPDATE SET
+                                subscribers = EXCLUDED.subscribers,
+                                total_views = EXCLUDED.total_views,
+                                video_count = EXCLUDED.video_count
+                        ''', (channel_id, today, stats['subscribers'], stats['total_views'], stats['video_count']))
+                    else:
+                        cursor.execute('''
+                            UPDATE youtube_channels SET
+                                channel_title = ?,
+                                channel_handle = ?,
+                                thumbnail_url = ?,
+                                subscribers = ?,
+                                total_views = ?,
+                                video_count = ?,
+                                last_fetched_at = ?,
+                                updated_at = ?
+                            WHERE id = ?
+                        ''', (
+                            stats['channel_title'], stats['channel_handle'], stats['thumbnail_url'],
+                            stats['subscribers'], stats['total_views'], stats['video_count'],
+                            now, now, db_id
+                        ))
+
+                        cursor.execute('''
+                            INSERT OR REPLACE INTO youtube_channel_history (channel_id, record_date, subscribers, total_views, video_count)
+                            VALUES (?, ?, ?, ?, ?)
+                        ''', (channel_id, today, stats['subscribers'], stats['total_views'], stats['video_count']))
+
+                    updated_count += 1
+            except Exception as e:
+                print(f"[YouTube] 채널 {channel_id} 업데이트 실패: {e}")
+                continue
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'{updated_count}개 채널이 업데이트되었습니다',
+            'updated_count': updated_count
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/youtube/channels/<int:channel_db_id>/history', methods=['GET'])
+def get_youtube_channel_history(channel_db_id):
+    """채널의 일별 통계 히스토리 조회"""
+    try:
+        days = int(request.args.get('days', 30))
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT channel_id, channel_title FROM youtube_channels WHERE id = %s', (channel_db_id,))
+        else:
+            cursor.execute('SELECT channel_id, channel_title FROM youtube_channels WHERE id = ?', (channel_db_id,))
+
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
+
+        channel_id, channel_title = row
+
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT record_date, subscribers, total_views, video_count
+                FROM youtube_channel_history
+                WHERE channel_id = %s
+                ORDER BY record_date DESC
+                LIMIT %s
+            ''', (channel_id, days))
+        else:
+            cursor.execute('''
+                SELECT record_date, subscribers, total_views, video_count
+                FROM youtube_channel_history
+                WHERE channel_id = ?
+                ORDER BY record_date DESC
+                LIMIT ?
+            ''', (channel_id, days))
+
+        history_rows = cursor.fetchall()
+        conn.close()
+
+        history = []
+        for h in history_rows:
+            history.append({
+                'date': h[0].isoformat() if hasattr(h[0], 'isoformat') else str(h[0]),
+                'subscribers': h[1],
+                'total_views': h[2],
+                'video_count': h[3]
+            })
+
+        return jsonify({
+            'success': True,
+            'channel_id': channel_id,
+            'channel_title': channel_title,
+            'history': list(reversed(history))  # 날짜 오름차순으로 반환
+        })
     except Exception as e:
         import traceback
         traceback.print_exc()
