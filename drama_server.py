@@ -14427,17 +14427,17 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                 concat_result = subprocess.run(
                     ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list, "-c", "copy", merged_path],
                     stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=600
-            )
+                )
 
-            if concat_result.returncode != 0:
-                stderr = concat_result.stderr.decode('utf-8', errors='ignore') if concat_result.stderr else ""
-                print(f"[VIDEO-WORKER] Concat FAILED (code {concat_result.returncode}): {stderr[:500]}")
+                if concat_result.returncode != 0:
+                    stderr = concat_result.stderr.decode('utf-8', errors='ignore') if concat_result.stderr else ""
+                    print(f"[VIDEO-WORKER] Concat FAILED (code {concat_result.returncode}): {stderr[:500]}")
+                    del concat_result
+                    gc.collect()
+                    raise Exception(f"클립 병합 실패: {stderr[:200]}")
+
                 del concat_result
                 gc.collect()
-                raise Exception(f"클립 병합 실패: {stderr[:200]}")
-
-            del concat_result
-            gc.collect()
 
             if not os.path.exists(merged_path):
                 raise Exception("merged.mp4 파일이 생성되지 않음")
