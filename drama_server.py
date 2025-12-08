@@ -18541,6 +18541,7 @@ def run_automation_pipeline(row_data, row_index):
                 print(f"[AUTOMATION] YouTube 태그 {len(tags)}개 추가")
 
             # 예약시간(K열)이 있으면 ISO 8601 형식으로 변환하여 추가
+            publish_at_iso = None  # 클로저에서 접근할 수 있도록 미리 초기화
             if publish_time:
                 try:
                     from datetime import datetime
