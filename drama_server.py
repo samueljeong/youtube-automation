@@ -10520,6 +10520,7 @@ def api_image_analyze_script():
         audience = data.get('audience', 'senior')  # 시니어/일반 타겟
         category = data.get('category', '').strip()  # 카테고리 (뉴스 등)
         output_language = data.get('output_language', 'ko')  # 출력 언어 (ko/en/ja/auto)
+        channel_style = data.get('channel_style', '')  # [TUBELENS] 채널별 스타일 정보
 
         # 언어 설정 매핑
         language_config = {
@@ -10657,7 +10658,21 @@ def api_image_analyze_script():
       }}
     }}'''
 
-            ai_prompts_rules = f"""## ⚠️ CRITICAL: 한국 뉴스 스타일 썸네일 생성 ⚠️
+            # [TUBELENS] 채널 스타일 정보가 있으면 프롬프트에 추가
+            channel_style_section = ""
+            if channel_style:
+                channel_style_section = f"""
+## 🎨 채널별 스타일 가이드 (TubeLens 분석 결과)
+
+이 채널의 기존 영상 분석 결과입니다. 일관된 브랜딩을 위해 이 스타일을 참고하세요:
+
+{channel_style}
+
+**중요**: 위 분석된 패턴을 썸네일 생성 시 반영하세요. 채널의 기존 성공 영상들과 일관된 스타일을 유지하면서 새로운 콘텐츠에 적용합니다.
+
+"""
+
+            ai_prompts_rules = f"""{channel_style_section}## ⚠️ CRITICAL: 한국 뉴스 스타일 썸네일 생성 ⚠️
 
 ### 1단계: 대본 내용 분석하여 카테고리 감지
 대본을 읽고 아래 기준으로 "detected_category"를 결정하세요:
@@ -18031,6 +18046,697 @@ def sheets_update_cell(service, sheet_id, cell_range, value, max_retries=3):
     return False
 
 
+# ========== TubeLens 통합 기능 (자동화 파이프라인용) ==========
+
+# 채널별 최적 업로드 시간 캐시 (메모리 + 파일)
+_channel_optimal_time_cache = {}
+
+
+def analyze_channel_best_time(channel_id: str) -> dict:
+    """
+    채널의 실제 업로드 성과 데이터를 분석하여 최적 시간대를 찾습니다.
+    YouTube API를 호출하여 최근 50개 영상의 성과를 분석합니다.
+
+    반환값:
+    {
+        "bestTime": "저녁 (18-24시)",
+        "bestHour": 19,  # 추천 시간 (정각)
+        "bestDay": "수",
+        "analyzed": True
+    }
+    """
+    import os
+    import json
+
+    # 1. 메모리 캐시 확인
+    if channel_id in _channel_optimal_time_cache:
+        cached = _channel_optimal_time_cache[channel_id]
+        print(f"[TUBELENS] 채널 최적 시간 캐시 히트: {channel_id} -> {cached.get('bestHour', 19)}:00")
+        return cached
+
+    # 2. 파일 캐시 확인 (7일간 유효)
+    cache_file = f"/tmp/tubelens_cache_{channel_id}.json"
+    try:
+        if os.path.exists(cache_file):
+            from datetime import datetime, timedelta
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(cache_file))
+            if datetime.now() - file_mtime < timedelta(days=7):
+                with open(cache_file, 'r') as f:
+                    cached = json.load(f)
+                    _channel_optimal_time_cache[channel_id] = cached
+                    print(f"[TUBELENS] 파일 캐시 로드: {channel_id} -> {cached.get('bestHour', 19)}:00")
+                    return cached
+    except Exception as e:
+        print(f"[TUBELENS] 캐시 파일 읽기 오류: {e}")
+
+    # 3. YouTube API로 실제 분석
+    try:
+        import requests
+        # TubeLens API 내부 호출
+        base_url = os.environ.get('BASE_URL', 'http://localhost:5002')
+        api_key = os.environ.get('YOUTUBE_API_KEY', '')
+
+        if not api_key:
+            print(f"[TUBELENS] YouTube API 키 없음, 기본값 사용")
+            return {"bestHour": 19, "bestTime": "저녁", "analyzed": False}
+
+        resp = requests.post(
+            f"{base_url}/api/tubelens/upload-pattern",
+            json={"channelId": channel_id, "apiKeys": [api_key]},
+            timeout=30
+        )
+
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("success"):
+                pattern_data = data.get("data", {})
+                time_pattern = pattern_data.get("timePattern", {})
+                best_time_str = time_pattern.get("bestTime", "저녁 (18-24시)")
+
+                # 시간대 문자열을 시간으로 변환
+                time_mapping = {
+                    "새벽 (0-6시)": 5,
+                    "오전 (6-12시)": 9,
+                    "오후 (12-18시)": 15,
+                    "저녁 (18-24시)": 20,
+                    "새벽": 5,
+                    "오전": 9,
+                    "오후": 15,
+                    "저녁": 20,
+                }
+                best_hour = time_mapping.get(best_time_str, 19)
+
+                result = {
+                    "bestTime": best_time_str,
+                    "bestHour": best_hour,
+                    "bestDay": pattern_data.get("dayPattern", {}).get("bestDay", ""),
+                    "analyzed": True
+                }
+
+                # 캐시 저장
+                _channel_optimal_time_cache[channel_id] = result
+                try:
+                    with open(cache_file, 'w') as f:
+                        json.dump(result, f)
+                except:
+                    pass
+
+                print(f"[TUBELENS] 채널 분석 완료: {channel_id} -> 최적 시간: {best_hour}:00 ({best_time_str})")
+                return result
+
+    except Exception as e:
+        print(f"[TUBELENS] 채널 분석 오류: {e}")
+
+    # 4. 실패 시 기본값
+    return {"bestHour": 19, "bestTime": "저녁", "analyzed": False}
+
+
+def get_optimal_publish_time(channel_id: str, date_str: str, category: str = "") -> str:
+    """
+    날짜만 입력되면 최적 업로드 시간을 자동 설정합니다.
+
+    우선순위:
+    1. 채널 데이터 분석 결과 (TubeLens API)
+    2. 카테고리별 기본값 (news: 08:00, story: 19:00)
+
+    입력: "2024-12-10" 또는 "12/10"
+    출력: "2024-12-10 20:00" (채널 분석 결과) 또는 "2024-12-10 08:00" (뉴스 카테고리)
+    """
+    from datetime import datetime
+
+    date_str = str(date_str).strip()
+    category = str(category).strip().lower() if category else ""
+
+    # 이미 시간이 포함되어 있으면 그대로 반환
+    if ':' in date_str:
+        return date_str
+
+    # 1. 채널 데이터 분석으로 최적 시간 결정
+    optimal_hour = 19  # 기본값
+    analysis_source = "기본값"
+
+    if channel_id:
+        try:
+            analysis = analyze_channel_best_time(channel_id)
+            if analysis.get("analyzed"):
+                optimal_hour = analysis.get("bestHour", 19)
+                analysis_source = f"채널분석({analysis.get('bestTime', '')})"
+        except Exception as e:
+            print(f"[TUBELENS] 채널 분석 실패, 카테고리 기본값 사용: {e}")
+
+    # 2. 채널 분석 실패 시 카테고리별 기본값 사용
+    if analysis_source == "기본값":
+        category_optimal_hours = {
+            "news": 8,       # 뉴스: 아침 8시
+            "뉴스": 8,
+            "story": 19,     # 스토리: 저녁 7시
+            "drama": 19,
+            "드라마": 19,
+        }
+        if category in category_optimal_hours:
+            optimal_hour = category_optimal_hours[category]
+            analysis_source = f"카테고리({category})"
+
+    optimal_time = f"{optimal_hour:02d}:00"
+
+    # 날짜만 있는 경우 파싱
+    date_only_formats = [
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%m/%d",
+        "%m-%d",
+    ]
+
+    for fmt in date_only_formats:
+        try:
+            parsed = datetime.strptime(date_str, fmt)
+            if parsed.year == 1900:
+                parsed = parsed.replace(year=datetime.now().year)
+
+            result = parsed.strftime("%Y-%m-%d") + f" {optimal_time}"
+            print(f"[TUBELENS] 최적 시간 설정: {date_str} -> {result} (KST, {analysis_source})")
+            return result
+        except ValueError:
+            continue
+
+    return date_str
+
+
+# 채널별 썸네일/쇼츠 스타일 캐시
+_channel_thumbnail_style_cache = {}
+_channel_shorts_style_cache = {}
+
+
+def analyze_channel_thumbnail_style(channel_id: str) -> dict:
+    """
+    채널의 롱폼 영상 썸네일 스타일을 분석합니다.
+    최근 성과 좋은 영상들의 썸네일 패턴을 추출합니다.
+
+    반환값:
+    {
+        "common_elements": ["충격 표정", "빨간 텍스트", ...],
+        "color_patterns": ["노란색 강조", "검정 배경", ...],
+        "text_usage": ["짧은 임팩트 문구", "숫자 강조", ...],
+        "composition": ["인물 클로즈업", "왼쪽 배치", ...],
+        "summary": "이 채널은 충격적인 표정과 노란색 텍스트를 주로 사용...",
+        "analyzed": True
+    }
+    """
+    import os
+    import json
+
+    # 1. 메모리 캐시 확인
+    if channel_id in _channel_thumbnail_style_cache:
+        cached = _channel_thumbnail_style_cache[channel_id]
+        print(f"[TUBELENS] 롱폼 썸네일 스타일 캐시 히트: {channel_id}")
+        return cached
+
+    # 2. 파일 캐시 확인 (7일간 유효)
+    cache_file = f"/tmp/tubelens_thumbnail_{channel_id}.json"
+    try:
+        if os.path.exists(cache_file):
+            from datetime import datetime, timedelta
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(cache_file))
+            if datetime.now() - file_mtime < timedelta(days=7):
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached = json.load(f)
+                    _channel_thumbnail_style_cache[channel_id] = cached
+                    print(f"[TUBELENS] 롱폼 썸네일 스타일 파일 캐시 로드: {channel_id}")
+                    return cached
+    except Exception as e:
+        print(f"[TUBELENS] 썸네일 캐시 파일 읽기 오류: {e}")
+
+    # 3. YouTube API + TubeLens 분석
+    try:
+        import requests
+        base_url = os.environ.get('BASE_URL', 'http://localhost:5002')
+        api_key = os.environ.get('YOUTUBE_API_KEY', '')
+
+        if not api_key:
+            print(f"[TUBELENS] YouTube API 키 없음, 기본 스타일 사용")
+            return {"analyzed": False, "summary": "채널 분석 불가"}
+
+        # 채널의 최근 영상 목록 가져오기 (롱폼만, 쇼츠 제외)
+        # 먼저 채널 정보 가져오기
+        channel_resp = requests.get(
+            f"https://www.googleapis.com/youtube/v3/channels",
+            params={
+                "part": "contentDetails",
+                "id": channel_id,
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if channel_resp.status_code != 200:
+            print(f"[TUBELENS] 채널 정보 조회 실패: {channel_resp.status_code}")
+            return {"analyzed": False, "summary": "채널 정보 조회 실패"}
+
+        channel_data = channel_resp.json()
+        items = channel_data.get("items", [])
+        if not items:
+            return {"analyzed": False, "summary": "채널을 찾을 수 없음"}
+
+        upload_playlist = items[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads", "")
+        if not upload_playlist:
+            return {"analyzed": False, "summary": "업로드 플레이리스트 없음"}
+
+        # 최근 영상 50개 가져오기
+        playlist_resp = requests.get(
+            f"https://www.googleapis.com/youtube/v3/playlistItems",
+            params={
+                "part": "contentDetails",
+                "playlistId": upload_playlist,
+                "maxResults": 50,
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if playlist_resp.status_code != 200:
+            return {"analyzed": False, "summary": "플레이리스트 조회 실패"}
+
+        video_ids = [item["contentDetails"]["videoId"] for item in playlist_resp.json().get("items", [])]
+        if not video_ids:
+            return {"analyzed": False, "summary": "영상 없음"}
+
+        # 영상 상세 정보 가져오기 (롱폼만 필터링)
+        videos_resp = requests.get(
+            f"https://www.googleapis.com/youtube/v3/videos",
+            params={
+                "part": "snippet,statistics,contentDetails",
+                "id": ",".join(video_ids[:25]),  # 최대 25개
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if videos_resp.status_code != 200:
+            return {"analyzed": False, "summary": "영상 정보 조회 실패"}
+
+        # 롱폼만 필터링 (60초 초과) + 조회수 상위 10개
+        longform_videos = []
+        for vid in videos_resp.json().get("items", []):
+            duration = vid.get("contentDetails", {}).get("duration", "PT0S")
+            # ISO 8601 duration 파싱 (간단 버전)
+            import re
+            match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+            if match:
+                hours = int(match.group(1) or 0)
+                minutes = int(match.group(2) or 0)
+                seconds = int(match.group(3) or 0)
+                total_seconds = hours * 3600 + minutes * 60 + seconds
+                if total_seconds > 60:  # 쇼츠 제외 (60초 초과만)
+                    view_count = int(vid.get("statistics", {}).get("viewCount", 0))
+                    longform_videos.append({
+                        "title": vid.get("snippet", {}).get("title", ""),
+                        "thumbnail": vid.get("snippet", {}).get("thumbnails", {}).get("high", {}).get("url", ""),
+                        "viewCount": view_count
+                    })
+
+        # 조회수 상위 10개 선택
+        longform_videos.sort(key=lambda x: x["viewCount"], reverse=True)
+        top_videos = longform_videos[:10]
+
+        if len(top_videos) < 3:
+            return {"analyzed": False, "summary": "분석할 롱폼 영상이 부족함"}
+
+        # TubeLens 썸네일 분석 API 호출
+        analysis_resp = requests.post(
+            f"{base_url}/api/tubelens/analyze-thumbnails",
+            json={"videos": top_videos},
+            timeout=60
+        )
+
+        if analysis_resp.status_code == 200:
+            analysis_data = analysis_resp.json()
+            if analysis_data.get("success"):
+                result = analysis_data.get("data", {})
+                result["analyzed"] = True
+                result["video_count"] = len(top_videos)
+
+                # 캐시 저장
+                _channel_thumbnail_style_cache[channel_id] = result
+                try:
+                    with open(cache_file, 'w', encoding='utf-8') as f:
+                        json.dump(result, f, ensure_ascii=False)
+                except:
+                    pass
+
+                print(f"[TUBELENS] 롱폼 썸네일 스타일 분석 완료: {channel_id} ({len(top_videos)}개 영상)")
+                return result
+
+    except Exception as e:
+        print(f"[TUBELENS] 썸네일 스타일 분석 오류: {e}")
+
+    return {"analyzed": False, "summary": "분석 실패"}
+
+
+def analyze_channel_shorts_style(channel_id: str) -> dict:
+    """
+    채널의 쇼츠 영상 스타일을 분석합니다.
+    세로 영상의 템플릿/구성 패턴을 추출합니다.
+
+    반환값:
+    {
+        "common_elements": ["후킹 텍스트 상단", "자막 하단", ...],
+        "text_style": ["큰 글씨", "노란색", ...],
+        "hook_patterns": ["질문형", "충격 숫자", ...],
+        "summary": "이 채널의 쇼츠는 상단에 후킹 텍스트...",
+        "analyzed": True
+    }
+    """
+    import os
+    import json
+
+    # 1. 메모리 캐시 확인
+    if channel_id in _channel_shorts_style_cache:
+        cached = _channel_shorts_style_cache[channel_id]
+        print(f"[TUBELENS] 쇼츠 스타일 캐시 히트: {channel_id}")
+        return cached
+
+    # 2. 파일 캐시 확인 (7일간 유효)
+    cache_file = f"/tmp/tubelens_shorts_{channel_id}.json"
+    try:
+        if os.path.exists(cache_file):
+            from datetime import datetime, timedelta
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(cache_file))
+            if datetime.now() - file_mtime < timedelta(days=7):
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached = json.load(f)
+                    _channel_shorts_style_cache[channel_id] = cached
+                    print(f"[TUBELENS] 쇼츠 스타일 파일 캐시 로드: {channel_id}")
+                    return cached
+    except Exception as e:
+        print(f"[TUBELENS] 쇼츠 캐시 파일 읽기 오류: {e}")
+
+    # 3. YouTube API로 쇼츠 검색
+    try:
+        import requests
+        api_key = os.environ.get('YOUTUBE_API_KEY', '')
+        base_url = os.environ.get('BASE_URL', 'http://localhost:5002')
+
+        if not api_key:
+            return {"analyzed": False, "summary": "API 키 없음"}
+
+        # 채널의 쇼츠 검색 (제목에 #shorts 또는 짧은 영상)
+        search_resp = requests.get(
+            f"https://www.googleapis.com/youtube/v3/search",
+            params={
+                "part": "snippet",
+                "channelId": channel_id,
+                "type": "video",
+                "videoDuration": "short",  # 4분 미만
+                "maxResults": 25,
+                "order": "viewCount",
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if search_resp.status_code != 200:
+            return {"analyzed": False, "summary": "쇼츠 검색 실패"}
+
+        video_ids = [item["id"]["videoId"] for item in search_resp.json().get("items", []) if "videoId" in item.get("id", {})]
+
+        if not video_ids:
+            return {"analyzed": False, "summary": "쇼츠 없음"}
+
+        # 영상 상세 정보
+        videos_resp = requests.get(
+            f"https://www.googleapis.com/youtube/v3/videos",
+            params={
+                "part": "snippet,statistics,contentDetails",
+                "id": ",".join(video_ids[:15]),
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if videos_resp.status_code != 200:
+            return {"analyzed": False, "summary": "영상 정보 조회 실패"}
+
+        # 60초 이하만 필터링 (진짜 쇼츠)
+        shorts_videos = []
+        for vid in videos_resp.json().get("items", []):
+            duration = vid.get("contentDetails", {}).get("duration", "PT0S")
+            import re
+            match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+            if match:
+                hours = int(match.group(1) or 0)
+                minutes = int(match.group(2) or 0)
+                seconds = int(match.group(3) or 0)
+                total_seconds = hours * 3600 + minutes * 60 + seconds
+                if total_seconds <= 60:  # 쇼츠만 (60초 이하)
+                    view_count = int(vid.get("statistics", {}).get("viewCount", 0))
+                    shorts_videos.append({
+                        "title": vid.get("snippet", {}).get("title", ""),
+                        "thumbnail": vid.get("snippet", {}).get("thumbnails", {}).get("high", {}).get("url", ""),
+                        "viewCount": view_count
+                    })
+
+        # 조회수 상위 선택
+        shorts_videos.sort(key=lambda x: x["viewCount"], reverse=True)
+        top_shorts = shorts_videos[:8]
+
+        if len(top_shorts) < 2:
+            return {"analyzed": False, "summary": "분석할 쇼츠가 부족함"}
+
+        # 쇼츠 썸네일 분석 (GPT-5.1 Responses API 사용)
+        from openai import OpenAI
+        client = OpenAI()
+
+        # GPT-5.1 Responses API용 input 구성
+        system_prompt = "당신은 YouTube Shorts 전문가입니다. 성공적인 쇼츠의 시각적 패턴을 분석합니다."
+
+        user_content = [
+            {"type": "input_text", "text": """다음 YouTube Shorts 썸네일들을 분석해주세요.
+
+쇼츠의 특성 (세로 9:16)을 고려하여 다음을 분석해주세요:
+1. 후킹 텍스트 스타일 (상단 배치, 글씨 크기, 색상)
+2. 자막 스타일
+3. 인물/이미지 배치
+4. 전체적인 템플릿 패턴
+
+JSON 형식으로 답변해주세요:
+{
+  "hook_text_style": ["스타일1", "스타일2"],
+  "text_colors": ["색상1", "색상2"],
+  "layout_pattern": ["패턴1", "패턴2"],
+  "common_elements": ["요소1", "요소2"],
+  "recommendations": ["추천1", "추천2"],
+  "summary": "전체 요약 (2문장)"
+}
+
+한국어로 답변해주세요."""}
+        ]
+
+        for i, v in enumerate(top_shorts[:6]):
+            thumbnail_url = v.get("thumbnail", "")
+            if thumbnail_url:
+                user_content.append({"type": "input_image", "image_url": thumbnail_url})
+                user_content.append({"type": "input_text", "text": f"[쇼츠 {i+1}] {v.get('title', '')} (조회수: {v.get('viewCount', 0):,})"})
+
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7
+        )
+
+        # GPT-5.1 응답 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content_item in getattr(item, "content", []) or []:
+                    if getattr(content_item, "type", "") == "text":
+                        text_chunks.append(getattr(content_item, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        result = json.loads(result_text)
+        result["analyzed"] = True
+        result["shorts_count"] = len(top_shorts)
+
+        # 캐시 저장
+        _channel_shorts_style_cache[channel_id] = result
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False)
+        except:
+            pass
+
+        print(f"[TUBELENS] 쇼츠 스타일 분석 완료: {channel_id} ({len(top_shorts)}개 쇼츠)")
+        return result
+
+    except json.JSONDecodeError as e:
+        print(f"[TUBELENS] 쇼츠 분석 JSON 파싱 오류: {e}")
+    except Exception as e:
+        print(f"[TUBELENS] 쇼츠 스타일 분석 오류: {e}")
+
+    return {"analyzed": False, "summary": "분석 실패"}
+
+
+def get_channel_style_for_prompt(channel_id: str) -> str:
+    """
+    채널의 썸네일/쇼츠 스타일을 GPT 프롬프트용 텍스트로 변환합니다.
+    """
+    result_parts = []
+
+    # 롱폼 썸네일 스타일
+    try:
+        thumb_style = analyze_channel_thumbnail_style(channel_id)
+        if thumb_style.get("analyzed"):
+            parts = []
+            if thumb_style.get("common_elements"):
+                parts.append(f"공통요소: {', '.join(thumb_style['common_elements'][:3])}")
+            if thumb_style.get("color_patterns"):
+                parts.append(f"색상: {', '.join(thumb_style['color_patterns'][:2])}")
+            if thumb_style.get("summary"):
+                parts.append(f"특징: {thumb_style['summary'][:100]}")
+            if parts:
+                result_parts.append(f"[롱폼 썸네일 스타일] {'; '.join(parts)}")
+    except Exception as e:
+        print(f"[TUBELENS] 롱폼 스타일 변환 오류: {e}")
+
+    # 쇼츠 스타일
+    try:
+        shorts_style = analyze_channel_shorts_style(channel_id)
+        if shorts_style.get("analyzed"):
+            parts = []
+            if shorts_style.get("hook_text_style"):
+                parts.append(f"후킹: {', '.join(shorts_style['hook_text_style'][:2])}")
+            if shorts_style.get("text_colors"):
+                parts.append(f"색상: {', '.join(shorts_style['text_colors'][:2])}")
+            if shorts_style.get("summary"):
+                parts.append(f"특징: {shorts_style['summary'][:100]}")
+            if parts:
+                result_parts.append(f"[쇼츠 스타일] {'; '.join(parts)}")
+    except Exception as e:
+        print(f"[TUBELENS] 쇼츠 스타일 변환 오류: {e}")
+
+    return "\n".join(result_parts) if result_parts else ""
+
+
+def calculate_seo_score_for_automation(title: str, description: str = "", tags: list = None) -> dict:
+    """
+    SEO 점수 계산 - 자동화 파이프라인용
+    (TubeLens calculate_seo_score 함수 기반)
+    """
+    import re
+
+    score = 0
+    details = []
+
+    # 제목 분석 (최대 40점)
+    title_len = len(title) if title else 0
+    if 30 <= title_len <= 60:
+        score += 20
+        details.append("✅ 제목 길이 적절 (30-60자)")
+    elif 20 <= title_len <= 70:
+        score += 10
+        details.append("⚠️ 제목 길이 보통")
+    else:
+        details.append("❌ 제목 너무 짧거나 김")
+
+    # 제목에 숫자 포함 (클릭률 향상)
+    if title and re.search(r'\d+', title):
+        score += 10
+        details.append("✅ 숫자 포함 (클릭률 ↑)")
+
+    # 제목에 감정 표현 포함
+    emotion_words = ['충격', '놀라운', '대박', '감동', '실화', '경악', '비밀', '반전', '최초', '드디어', '결국', '진실', '폭로']
+    if title and any(word in title for word in emotion_words):
+        score += 10
+        details.append("✅ 감정 유발 키워드 포함")
+
+    # 설명란 분석 (최대 30점)
+    desc_len = len(description) if description else 0
+    if desc_len >= 500:
+        score += 15
+        details.append("✅ 설명란 충분히 작성됨")
+    elif desc_len >= 200:
+        score += 8
+        details.append("⚠️ 설명란 보통")
+    else:
+        details.append("❌ 설명란 너무 짧음")
+
+    # 설명에 타임스탬프 포함
+    if description and re.search(r'\d{1,2}:\d{2}', description):
+        score += 10
+        details.append("✅ 타임스탬프 포함")
+
+    # 해시태그 분석
+    hashtags = re.findall(r'#\w+', title + (description or ''))
+    if 3 <= len(hashtags) <= 10:
+        score += 5
+        details.append("✅ 해시태그 적절")
+    elif len(hashtags) > 0:
+        score += 2
+        details.append("⚠️ 해시태그 부족하거나 과다")
+
+    # 태그 분석 (최대 30점)
+    if tags and len(tags) >= 10:
+        score += 15
+        details.append("✅ 태그 충분히 설정됨")
+    elif tags and len(tags) >= 5:
+        score += 8
+        details.append("⚠️ 태그 보통")
+    else:
+        score += 5  # 태그 정보 없으면 기본점
+
+    # 등급 결정
+    if score >= 80:
+        grade = "A+"
+    elif score >= 65:
+        grade = "A"
+    elif score >= 50:
+        grade = "B"
+    elif score >= 35:
+        grade = "C"
+    else:
+        grade = "D"
+
+    return {
+        "score": min(100, score),
+        "grade": grade,
+        "details": details
+    }
+
+
+def enhance_description_for_youtube(description: str, title: str, hashtags: list = None) -> str:
+    """
+    YouTube 설명란 SEO 최적화
+    - CTA (구독/좋아요 유도) 추가
+    - 해시태그 정리
+    """
+    if not description:
+        description = ""
+
+    # 이미 CTA가 있는지 확인
+    cta_keywords = ['구독', '좋아요', '알림', '댓글']
+    has_cta = any(keyword in description for keyword in cta_keywords)
+
+    # CTA가 없으면 추가
+    if not has_cta:
+        cta_text = "\n\n" + "=" * 30 + "\n"
+        cta_text += "👍 이 영상이 도움이 되셨다면 좋아요와 구독 부탁드립니다!\n"
+        cta_text += "🔔 알림 설정하시면 새로운 영상을 놓치지 않습니다.\n"
+        cta_text += "💬 궁금한 점은 댓글로 남겨주세요!"
+        description = description + cta_text
+
+    return description
+
+
 def run_automation_pipeline(row_data, row_index):
     """
     자동화 파이프라인 실행 - 기존 /image 페이지 API 재사용
@@ -18061,7 +18767,7 @@ def run_automation_pipeline(row_data, row_index):
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = (row_data[2] if len(row_data) > 2 else '').strip()  # 공백 제거
         channel_name = row_data[3] if len(row_data) > 3 else ''  # D: 채널명 (참고용, 코드에서 미사용)
-        publish_time = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
+        publish_time_raw = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
         script = row_data[5] if len(row_data) > 5 else ''
         title = row_data[6] if len(row_data) > 6 else ''
         # H(7), I(8), J(9)는 출력 컬럼 (제목2, 제목3, 비용)
@@ -18070,6 +18776,10 @@ def run_automation_pipeline(row_data, row_index):
         voice = (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C'  # N열: 음성
         audience = (row_data[14] if len(row_data) > 14 else '').strip() or 'senior'  # O열: 타겟 시청자
         category = (row_data[15] if len(row_data) > 15 else '').strip()  # P열: 카테고리 (뉴스 등)
+
+        # [TUBELENS] 날짜만 입력된 경우 카테고리별 최적 시간 자동 추가
+        # news -> 08:00, story/drama -> 19:00, 기본 -> 19:00
+        publish_time = get_optimal_publish_time(channel_id, publish_time_raw, category) if publish_time_raw else ''
 
         # 비용 추적 변수 초기화
         total_cost = 0.0
@@ -18095,6 +18805,18 @@ def run_automation_pipeline(row_data, row_index):
         # ========== 1. 대본 분석 (/api/image/analyze-script) ==========
         print(f"[AUTOMATION] 1. 대본 분석 시작...")
         try:
+            # [TUBELENS] 채널별 썸네일/쇼츠 스타일 분석 (7일 캐시)
+            channel_style = ""
+            if channel_id:
+                try:
+                    channel_style = get_channel_style_for_prompt(channel_id)
+                    if channel_style:
+                        print(f"[TUBELENS] 채널 스타일 분석 완료:")
+                        for line in channel_style.split('\n'):
+                            print(f"  {line}")
+                except Exception as style_err:
+                    print(f"[TUBELENS] 채널 스타일 분석 실패 (무시): {style_err}")
+
             # 이미지 개수 8개 고정 (추후 지시 있을때까지)
             fixed_image_count = 8
             print(f"[AUTOMATION] 이미지 {fixed_image_count}개 고정 생성")
@@ -18106,7 +18828,8 @@ def run_automation_pipeline(row_data, row_index):
                 "image_count": fixed_image_count,
                 "audience": audience,
                 "category": category,  # 뉴스 등 카테고리
-                "output_language": "auto"
+                "output_language": "auto",
+                "channel_style": channel_style  # [TUBELENS] 채널별 스타일 정보
             }, timeout=180)  # GPT-5.1 응답 대기 시간 증가 (120→180초)
 
             analyze_data = analyze_resp.json()
@@ -18173,6 +18896,15 @@ def run_automation_pipeline(row_data, row_index):
 
             if not title:
                 title = generated_title or f"자동 생성 영상 #{row_index}"
+
+            # [TUBELENS] SEO 점수 계산 및 로깅
+            try:
+                seo_result = calculate_seo_score_for_automation(title, description, tags)
+                print(f"[TUBELENS] SEO 점수: {seo_result['score']}점 ({seo_result['grade']})")
+                for detail in seo_result['details']:
+                    print(f"  {detail}")
+            except Exception as seo_err:
+                print(f"[TUBELENS] SEO 점수 계산 실패 (무시): {seo_err}")
 
             # 비용: GPT-5.1 대본 분석 (~$0.03)
             total_cost += 0.03
@@ -18522,14 +19254,41 @@ def run_automation_pipeline(row_data, row_index):
             description = description + hashtags_text
             print(f"[AUTOMATION] 해시태그 추가: {' '.join(hashtags)}")
 
+        # [TUBELENS] 설명란 SEO 최적화 (CTA 자동 추가)
         try:
+            description = enhance_description_for_youtube(description, title, hashtags)
+            print(f"[TUBELENS] 설명란 CTA 추가 완료 (총 {len(description)}자)")
+        except Exception as cta_err:
+            print(f"[TUBELENS] 설명란 CTA 추가 실패 (무시): {cta_err}")
+
+        try:
+            # [최적화] public + 예약시간 없음 = 15분 후 공개 (YouTube 처리 최적화 + 쇼츠 생성 대기)
+            delayed_publish = False
+            actual_visibility = visibility
+            publish_at_iso = None
+
+            if visibility.lower() == 'public' and not publish_time:
+                from datetime import datetime, timedelta
+                # 15분 후 공개로 설정
+                publish_later = datetime.utcnow() + timedelta(minutes=15)
+                publish_at_iso = publish_later.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                actual_visibility = 'private'  # 먼저 비공개로 업로드
+                delayed_publish = True
+                print(f"[AUTOMATION] 🕐 15분 후 공개 설정 (YouTube 최적화 + 쇼츠 대기)")
+                print(f"[AUTOMATION]    - 업로드: private -> 15분 후 public")
+                print(f"[AUTOMATION]    - 공개 예정: {publish_later.strftime('%Y-%m-%d %H:%M')} UTC")
+
             upload_payload = {
                 "videoPath": video_url_local,
                 "title": title,
                 "description": description,
-                "privacyStatus": visibility,
+                "privacyStatus": actual_visibility,
                 "channelId": channel_id
             }
+
+            # 15분 후 공개 설정
+            if delayed_publish and publish_at_iso:
+                upload_payload["publish_at"] = publish_at_iso
 
             # 썸네일이 있으면 추가
             if thumbnail_url:
@@ -18540,8 +19299,7 @@ def run_automation_pipeline(row_data, row_index):
                 upload_payload["tags"] = tags
                 print(f"[AUTOMATION] YouTube 태그 {len(tags)}개 추가")
 
-            # 예약시간(K열)이 있으면 ISO 8601 형식으로 변환하여 추가
-            publish_at_iso = None  # 클로저에서 접근할 수 있도록 미리 초기화
+            # 예약시간(E열)이 있으면 ISO 8601 형식으로 변환하여 추가 (15분 후 공개보다 우선)
             if publish_time:
                 try:
                     from datetime import datetime
@@ -18694,18 +19452,20 @@ def run_automation_pipeline(row_data, row_index):
 
 {' '.join(shorts_hashtags)}"""
 
+                            # 쇼츠도 메인 영상과 동일한 공개 설정 사용
+                            # (15분 후 공개 또는 예약시간이 있으면 동시 공개)
                             shorts_upload_payload = {
                                 "videoPath": shorts_output_path,
                                 "title": shorts_title,
                                 "description": shorts_description,
-                                "privacyStatus": visibility,
+                                "privacyStatus": actual_visibility,  # 메인과 동일 (private if 15분 후 공개)
                                 "channelId": channel_id
                             }
 
-                            # 메인 영상과 같은 예약시간 적용 (있는 경우)
+                            # 메인 영상과 같은 예약시간 적용 (15분 후 공개 또는 예약시간)
                             if publish_at_iso:
                                 shorts_upload_payload["publish_at"] = publish_at_iso
-                                print(f"[SHORTS-BG] 쇼츠 예약 공개 설정: {publish_at_iso}")
+                                print(f"[SHORTS-BG] 쇼츠도 메인 영상과 동시 공개 예정: {publish_at_iso}")
 
                             shorts_resp = bg_req.post(f"{base_url}/api/youtube/upload", json=shorts_upload_payload, timeout=300)
                             shorts_data = shorts_resp.json()

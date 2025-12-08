@@ -1253,9 +1253,11 @@ def api_analyze_thumbnails():
 
         client = OpenAI(api_key=openai_api_key)
 
-        # 멀티모달 분석을 위한 메시지 구성
-        content = [
-            {"type": "text", "text": """다음 YouTube 썸네일들을 분석해주세요. 이 영상들은 높은 성과를 기록한 급상승 영상들입니다.
+        # GPT-5.1 Responses API용 input 구성
+        system_prompt = "당신은 YouTube 썸네일 디자인 전문가입니다. 클릭률을 높이는 썸네일 패턴을 분석합니다."
+
+        user_content = [
+            {"type": "input_text", "text": """다음 YouTube 썸네일들을 분석해주세요. 이 영상들은 높은 성과를 기록한 급상승 영상들입니다.
 
 각 썸네일의 공통 패턴과 클릭을 유발하는 요소를 분석하고, 다음 형식의 JSON으로 결과를 제공해주세요:
 
@@ -1276,30 +1278,32 @@ def api_analyze_thumbnails():
 한국어로 답변해주세요."""}
         ]
 
-        # 썸네일 이미지 추가
+        # 썸네일 이미지 추가 (GPT-5.1 형식)
         for i, v in enumerate(videos[:6]):  # 최대 6개 이미지
             thumbnail_url = v.get("thumbnail", "")
             if thumbnail_url:
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": thumbnail_url}
-                })
-                content.append({
-                    "type": "text",
-                    "text": f"[영상 {i+1}] 제목: {v.get('title', '')} (조회수: {v.get('viewCount', 0):,})"
-                })
+                user_content.append({"type": "input_image", "image_url": thumbnail_url})
+                user_content.append({"type": "input_text", "text": f"[영상 {i+1}] 제목: {v.get('title', '')} (조회수: {v.get('viewCount', 0):,})"})
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "당신은 YouTube 썸네일 디자인 전문가입니다. 클릭률을 높이는 썸네일 패턴을 분석합니다."},
-                {"role": "user", "content": content}
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": user_content}
             ],
-            temperature=0.7,
-            max_tokens=2000
+            temperature=0.7
         )
 
-        result_text = response.choices[0].message.content.strip()
+        # GPT-5.1 응답 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content_item in getattr(item, "content", []) or []:
+                    if getattr(content_item, "type", "") == "text":
+                        text_chunks.append(getattr(content_item, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
 
         # JSON 파싱
         if "```json" in result_text:
