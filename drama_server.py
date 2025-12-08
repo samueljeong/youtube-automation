@@ -8198,7 +8198,7 @@ def upload_youtube():
         description = data.get('description', '')
         tags = data.get('tags', [])
         category_id = data.get('category_id', '22')  # 22 = People & Blogs
-        privacy_status = data.get('privacy_status', 'private')
+        privacy_status = data.get('privacy_status') or 'private'  # 빈 문자열도 기본값 처리
         publish_at = data.get('publish_at')  # ISO 8601 형식의 예약 공개 시간
         channel_id = data.get('channel_id')  # 선택된 채널 ID
 
@@ -9947,7 +9947,7 @@ def youtube_upload():
         description = data.get('description', '')
         tags = data.get('tags', [])
         category_id = data.get('categoryId', '22')  # People & Blogs
-        privacy_status = data.get('privacyStatus', 'private')
+        privacy_status = data.get('privacyStatus') or 'private'  # 빈 문자열도 기본값 처리
         thumbnail_path = data.get('thumbnailPath')
         publish_at = data.get('publish_at')  # ISO 8601 예약 공개 시간
         channel_id = data.get('channelId')  # 선택된 채널 ID
