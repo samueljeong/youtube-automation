@@ -13566,6 +13566,9 @@ JSON 형식으로만 출력해. 다른 텍스트 없이 순수 JSON만.'''
             result_text = "\n".join(text_chunks).strip()
 
         # JSON 파싱
+        print(f"[SHORTS-GPT] GPT 응답 길이: {len(result_text)}자")
+        print(f"[SHORTS-GPT] GPT 응답 (처음 500자): {result_text[:500]}")
+
         if result_text.startswith("```"):
             result_text = result_text.split("```")[1]
             if result_text.startswith("json"):
@@ -13576,10 +13579,17 @@ JSON 형식으로만 출력해. 다른 텍스트 없이 순수 JSON만.'''
         result_text = re.sub(r',\s*\]', ']', result_text)
         result_text = re.sub(r',\s*\}', '}', result_text)
 
-        result = json.loads(result_text)
+        try:
+            result = json.loads(result_text)
+        except json.JSONDecodeError as je:
+            print(f"[SHORTS-GPT] JSON 파싱 실패: {je}")
+            print(f"[SHORTS-GPT] 파싱 시도한 텍스트: {result_text[:1000]}")
+            return None
 
         beats = result.get("structure", {}).get("beats", [])
         print(f"[SHORTS-GPT] 분석 완료: {len(beats)}개 beats 생성")
+        if len(beats) == 0:
+            print(f"[SHORTS-GPT] 경고: beats 없음. result keys: {list(result.keys())}")
 
         return result
 
