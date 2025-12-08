@@ -13058,14 +13058,14 @@ def _get_bgm_file(mood, bgm_dir=None):
     return selected
 
 
-def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.25):
+def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.23):
     """비디오에 BGM 믹싱 (나레이션 유지, BGM은 작게)
 
     Args:
         video_path: 원본 비디오 경로
         bgm_path: BGM 오디오 경로
         output_path: 출력 비디오 경로
-        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.25 = 25%)
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.23 = 23%)
 
     Returns:
         성공 여부 (bool)
