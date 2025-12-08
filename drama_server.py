@@ -13355,8 +13355,11 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
                 f"x=(w-text_w)/2:y=(h-text_h)/2+80,"
                 f"fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5"
             ),
-            "-c:v", "libx264", "-preset", "fast", "-pix_fmt", "yuv420p",
+            # 메인 영상과 동일한 인코딩 설정 (concat demuxer 호환)
+            "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
+            "-pix_fmt", "yuv420p", "-r", "24",  # 24fps (메인 영상과 동일)
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-movflags", "+faststart",
             "-t", str(duration),
             output_path
         ]
@@ -13365,7 +13368,7 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
                                stderr=subprocess.PIPE, timeout=60)
 
         if result.returncode == 0:
-            print(f"[OUTRO] 아웃트로 생성 완료: {output_path}")
+            print(f"[OUTRO] 아웃트로 생성 완료 (1280x720, 24fps): {output_path}")
             return True
         else:
             stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
@@ -13378,7 +13381,7 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
 
 
 def _append_outro_to_video(video_path, outro_path, output_path):
-    """비디오에 아웃트로 연결
+    """비디오에 아웃트로 연결 (concat demuxer 사용 - 재인코딩 없이 빠름)
 
     Args:
         video_path: 원본 비디오 경로
@@ -13389,29 +13392,66 @@ def _append_outro_to_video(video_path, outro_path, output_path):
         성공 여부 (bool)
     """
     try:
-        # concat 필터 사용
+        # concat demuxer 방식 사용 (재인코딩 없이 스트림 복사 - 매우 빠름)
+        # 단, 두 파일의 코덱/해상도/프레임레이트가 동일해야 함
+        work_dir = os.path.dirname(output_path)
+        concat_list_path = os.path.join(work_dir, "concat_list.txt")
+
+        # concat 리스트 파일 생성
+        with open(concat_list_path, 'w', encoding='utf-8') as f:
+            f.write(f"file '{os.path.abspath(video_path)}'\n")
+            f.write(f"file '{os.path.abspath(outro_path)}'\n")
+
         ffmpeg_cmd = [
             "ffmpeg", "-y",
-            "-i", video_path,
-            "-i", outro_path,
-            "-filter_complex",
-            "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
-            "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264", "-preset", "fast",
-            "-c:a", "aac", "-b:a", "128k",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", concat_list_path,
+            "-c", "copy",  # 스트림 복사 (재인코딩 없음)
+            "-movflags", "+faststart",
             output_path
         ]
 
+        # concat demuxer + copy는 매우 빠름 (60초면 충분)
         result = subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL,
-                               stderr=subprocess.PIPE, timeout=600)
+                               stderr=subprocess.PIPE, timeout=60)
+
+        # 임시 파일 삭제
+        if os.path.exists(concat_list_path):
+            os.remove(concat_list_path)
 
         if result.returncode == 0:
-            print(f"[OUTRO] 아웃트로 연결 완료: {output_path}")
+            print(f"[OUTRO] 아웃트로 연결 완료 (concat demuxer): {output_path}")
             return True
         else:
-            stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
-            print(f"[OUTRO] 연결 실패: {stderr}")
-            return False
+            stderr = result.stderr.decode('utf-8', errors='ignore')[-500:]
+            print(f"[OUTRO] concat demuxer 실패: {stderr}")
+
+            # Fallback: concat filter 사용 (재인코딩 필요하지만 호환성 높음)
+            print(f"[OUTRO] Fallback: concat filter 사용...")
+            ffmpeg_cmd_fallback = [
+                "ffmpeg", "-y",
+                "-i", video_path,
+                "-i", outro_path,
+                "-filter_complex",
+                "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
+                "-map", "[outv]", "-map", "[outa]",
+                "-c:v", "libx264", "-preset", "ultrafast",  # 더 빠른 프리셋
+                "-c:a", "aac", "-b:a", "128k",
+                "-movflags", "+faststart",
+                output_path
+            ]
+
+            result_fallback = subprocess.run(ffmpeg_cmd_fallback, stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.PIPE, timeout=1200)  # 20분 타임아웃
+
+            if result_fallback.returncode == 0:
+                print(f"[OUTRO] 아웃트로 연결 완료 (concat filter fallback): {output_path}")
+                return True
+            else:
+                stderr_fb = result_fallback.stderr.decode('utf-8', errors='ignore')[-300:]
+                print(f"[OUTRO] concat filter도 실패: {stderr_fb}")
+                return False
 
     except Exception as e:
         print(f"[OUTRO] 연결 오류: {e}")
@@ -14591,8 +14631,12 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=1800)  # 30분 타임아웃
 
             if result.returncode != 0:
-                stderr_msg = result.stderr.decode('utf-8', errors='ignore')[:1500] if result.stderr else ""
-                print(f"[VIDEO-WORKER] Subtitle burn-in failed (code {result.returncode}): {stderr_msg}")
+                # stderr 전체에서 실제 에러 메시지 추출 (FFmpeg는 마지막에 에러 출력)
+                stderr_full = result.stderr.decode('utf-8', errors='ignore') if result.stderr else ""
+                # 마지막 800자 출력 (실제 에러 메시지 포함)
+                stderr_tail = stderr_full[-800:] if len(stderr_full) > 800 else stderr_full
+                print(f"[VIDEO-WORKER] Subtitle burn-in failed (code {result.returncode})")
+                print(f"[VIDEO-WORKER] stderr (마지막 800자): {stderr_tail}")
 
                 # 자막 burn-in 실패 시 자막 없이 YouTube 호환 인코딩 시도
                 print(f"[VIDEO-WORKER] 자막 없이 YouTube 호환 재인코딩 시도...")
