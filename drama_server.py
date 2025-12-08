@@ -8198,7 +8198,7 @@ def upload_youtube():
         description = data.get('description', '')
         tags = data.get('tags', [])
         category_id = data.get('category_id', '22')  # 22 = People & Blogs
-        privacy_status = data.get('privacy_status', 'private')
+        privacy_status = data.get('privacy_status') or 'private'  # 빈 문자열도 기본값 처리
         publish_at = data.get('publish_at')  # ISO 8601 형식의 예약 공개 시간
         channel_id = data.get('channel_id')  # 선택된 채널 ID
 
@@ -9947,7 +9947,7 @@ def youtube_upload():
         description = data.get('description', '')
         tags = data.get('tags', [])
         category_id = data.get('categoryId', '22')  # People & Blogs
-        privacy_status = data.get('privacyStatus', 'private')
+        privacy_status = data.get('privacyStatus') or 'private'  # 빈 문자열도 기본값 처리
         thumbnail_path = data.get('thumbnailPath')
         publish_at = data.get('publish_at')  # ISO 8601 예약 공개 시간
         channel_id = data.get('channelId')  # 선택된 채널 ID
@@ -17655,11 +17655,12 @@ def run_automation_pipeline(row_data, row_index):
 
     try:
         # 시트 컬럼 구조:
+        # ===== Google Sheets 컬럼 구조 (CLAUDE.md 기준) =====
         # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 채널명(참고용)
         # E(4): 예약시간, F(5): 대본, G(6): 제목
-        # H(7): 비용(출력), I(8): 공개설정
-        # J(9): 영상URL(출력), K(10): 에러메시지(출력)
-        # L(11): 음성(선택), M(12): 타겟(선택), N(13): 카테고리(선택)
+        # H(7): 제목2(출력), I(8): 제목3(출력), J(9): 비용(출력)
+        # K(10): 공개설정, L(11): 영상URL(출력), M(12): 에러메시지(출력)
+        # N(13): 음성, O(14): 타겟, P(15): 카테고리(출력), Q(16): 쇼츠URL(출력)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = (row_data[2] if len(row_data) > 2 else '').strip()  # 공백 제거
@@ -17667,12 +17668,12 @@ def run_automation_pipeline(row_data, row_index):
         publish_time = row_data[4] if len(row_data) > 4 else ''  # E: 예약시간 (YouTube 공개용)
         script = row_data[5] if len(row_data) > 5 else ''
         title = row_data[6] if len(row_data) > 6 else ''
-        # H(7)은 비용 출력 컬럼
-        visibility = row_data[8] if len(row_data) > 8 else 'private'  # I열로 이동
-        # J(9), K(10)은 출력 컬럼이므로 스킵
-        voice = row_data[11] if len(row_data) > 11 else 'ko-KR-Neural2-C'  # L컬럼: 음성 (기본: 남성)
-        audience = row_data[12] if len(row_data) > 12 else 'senior'  # M컬럼: 타겟 시청자
-        category = (row_data[13] if len(row_data) > 13 else '').strip()  # N컬럼: 카테고리 (뉴스 등)
+        # H(7), I(8), J(9)는 출력 컬럼 (제목2, 제목3, 비용)
+        visibility = (row_data[10] if len(row_data) > 10 else '').strip() or 'private'  # K열: 공개설정
+        # L(11), M(12)는 출력 컬럼 (영상URL, 에러메시지)
+        voice = (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C'  # N열: 음성
+        audience = (row_data[14] if len(row_data) > 14 else '').strip() or 'senior'  # O열: 타겟 시청자
+        category = (row_data[15] if len(row_data) > 15 else '').strip()  # P열: 카테고리 (뉴스 등)
 
         # 비용 추적 변수 초기화
         total_cost = 0.0
