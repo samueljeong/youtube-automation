@@ -17332,7 +17332,7 @@ def api_thumbnail_ai_generate_single():
 
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
-        style = prompt_data.get('style', 'comic')
+        style = prompt_data.get('style', '')
 
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
@@ -17347,13 +17347,24 @@ IMPORTANT TEXT OVERLAY:
             if sub_text:
                 text_instruction += f'- Subtitle: "{sub_text}"\n'
 
+        # 뉴스 스타일 감지: style에 news/person/scene/split 키워드가 있거나, prompt에 news/photorealistic 키워드가 있으면 뉴스 스타일
+        is_news_style = any(kw in style.lower() for kw in ['news', 'person', 'scene', 'split', 'interview', 'event']) if style else False
+        is_news_style = is_news_style or any(kw in prompt.lower() for kw in ['news', 'photorealistic', 'korean politician', 'korean businessman', 'korean anchor', 'national assembly', 'dramatic lighting'])
+
+        if is_news_style:
+            style_instruction = f"Style: {style if style else 'photorealistic'}, news photography, dramatic lighting, high contrast"
+            print(f"[THUMBNAIL-AI] 뉴스 스타일 감지됨 - style: '{style}'")
+        else:
+            style_instruction = f"Style: {style if style else 'comic'}, comic/illustration, eye-catching, high contrast"
+            print(f"[THUMBNAIL-AI] 스토리 스타일 적용 - style: '{style}'")
+
         enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
 
 {prompt}
 
 {text_instruction}
 
-Style: {style}, comic/illustration, eye-catching, high contrast"""
+{style_instruction}"""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
