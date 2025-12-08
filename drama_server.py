@@ -72,6 +72,11 @@ def serve_output(filename):
     return send_from_directory(output_dir, filename)
 
 
+# ===== FFmpeg 동시 실행 제한 (메모리 보호) =====
+# Render 2GB 메모리에서 동시에 2개 이상의 FFmpeg 프로세스 실행 시 OOM 위험
+# 세마포어로 최대 1개의 FFmpeg 작업만 동시 실행 허용
+ffmpeg_semaphore = threading.Semaphore(1)
+
 # ===== 비동기 영상 생성 작업 큐 시스템 =====
 video_job_queue = queue.Queue()
 video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
@@ -14233,6 +14238,11 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
     if video_effects is None:
         video_effects = {}
 
+    # FFmpeg 세마포어 획득 (다른 FFmpeg 작업과 동시 실행 방지 - 메모리 보호)
+    print(f"[VIDEO-WORKER] FFmpeg 세마포어 대기 중...")
+    ffmpeg_semaphore.acquire()
+    print(f"[VIDEO-WORKER] FFmpeg 세마포어 획득, 영상 생성 시작...")
+
     try:
         _update_job_status(job_id, status='processing', message='영상 생성 시작...')
 
@@ -14612,6 +14622,10 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
         import traceback
         traceback.print_exc()
         _update_job_status(job_id, status='failed', error=str(e), message=f'오류: {str(e)}')
+    finally:
+        # 세마포어 해제 (다음 FFmpeg 작업 허용)
+        ffmpeg_semaphore.release()
+        print(f"[VIDEO-WORKER] FFmpeg 세마포어 해제됨")
 
 
 @app.route('/api/image/generate-video', methods=['POST'])
@@ -18204,9 +18218,8 @@ def run_automation_pipeline(row_data, row_index):
                 video_id = upload_data.get('videoId', '')
                 print(f"[AUTOMATION] 4. 완료: {youtube_url} (총 비용: ${total_cost:.2f})")
 
-                # ========== 5. 쇼츠 자동 생성 및 업로드 (방법 2: 새 TTS + 새 이미지) ==========
-                shorts_url = None
-                shorts_cost = 0.0
+                # ========== 5. 쇼츠 백그라운드 생성 (롱폼 먼저 반환) ==========
+                # 롱폼이 더 중요하므로 먼저 결과를 반환하고, 쇼츠는 백그라운드에서 처리
                 shorts_info = video_effects.get('shorts', {})
                 highlight_scenes_nums = shorts_info.get('highlight_scenes', [])
 
@@ -18220,28 +18233,33 @@ def run_automation_pipeline(row_data, row_index):
                         highlight_scenes_nums = [1, total_scenes_count]
                     elif total_scenes_count == 1:
                         highlight_scenes_nums = [1]
-                    print(f"[AUTOMATION] 5. highlight_scenes 기본값 설정: {highlight_scenes_nums}")
 
                 if highlight_scenes_nums and len(highlight_scenes_nums) > 0:
-                    print(f"[AUTOMATION] 5. 쇼츠 생성 시작 (방법 2: 새 TTS + 새 이미지)...")
-                    try:
-                        # 5-1. 하이라이트 씬들의 나레이션 추출
-                        highlight_narrations = []
-                        for scene_num in highlight_scenes_nums:
-                            if 1 <= scene_num <= len(scenes):
-                                narration = scenes[scene_num - 1].get('narration', '')
-                                if narration:
-                                    # SSML 태그 제거
-                                    import re
-                                    clean_narration = re.sub(r'<[^>]+>', '', narration)
-                                    highlight_narrations.append(clean_narration)
+                    # 백그라운드 스레드에서 쇼츠 생성
+                    def generate_shorts_background():
+                        # FFmpeg 세마포어 획득 (다른 FFmpeg 작업과 동시 실행 방지)
+                        print(f"[SHORTS-BG] FFmpeg 세마포어 대기 중...")
+                        ffmpeg_semaphore.acquire()
+                        print(f"[SHORTS-BG] FFmpeg 세마포어 획득, 쇼츠 생성 시작...")
+                        try:
+                            import requests as bg_req
 
-                        if not highlight_narrations:
-                            print(f"[AUTOMATION] 5. 하이라이트 나레이션 없음, 쇼츠 생성 스킵")
-                        else:
-                            print(f"[AUTOMATION] 5-1. 하이라이트 나레이션 {len(highlight_narrations)}개 추출")
+                            # 하이라이트 나레이션 추출
+                            highlight_narrations = []
+                            for scene_num in highlight_scenes_nums:
+                                if 1 <= scene_num <= len(scenes):
+                                    narration = scenes[scene_num - 1].get('narration', '')
+                                    if narration:
+                                        clean_narration = re.sub(r'<[^>]+>', '', narration)
+                                        highlight_narrations.append(clean_narration)
 
-                            # 5-2. GPT-5.1로 쇼츠 콘텐츠 분석
+                            if not highlight_narrations:
+                                print(f"[SHORTS-BG] 하이라이트 나레이션 없음, 스킵")
+                                return
+
+                            print(f"[SHORTS-BG] 하이라이트 나레이션 {len(highlight_narrations)}개 추출")
+
+                            # GPT-5.1로 쇼츠 콘텐츠 분석
                             shorts_analysis = _analyze_shorts_content_gpt(
                                 highlight_narrations=highlight_narrations,
                                 title=title,
@@ -18250,68 +18268,87 @@ def run_automation_pipeline(row_data, row_index):
                                 duration_target=45
                             )
 
-                            if shorts_analysis:
-                                shorts_cost += 0.03  # GPT-5.1 비용
-                                beats = shorts_analysis.get("structure", {}).get("beats", [])
-                                print(f"[AUTOMATION] 5-2. 쇼츠 분석 완료: {len(beats)}개 beats")
+                            if not shorts_analysis:
+                                print(f"[SHORTS-BG] 쇼츠 분석 실패")
+                                return
 
-                                # 쇼츠 제목 및 해시태그 추출
-                                platform_info = shorts_analysis.get("platform_specific", {}).get("youtube_shorts", {})
-                                shorts_title = platform_info.get("title_suggestion", "") or shorts_info.get('title', f"{title} #Shorts")
-                                shorts_hashtags = platform_info.get("hashtags_hint", ["#Shorts", "#유튜브쇼츠"])
+                            beats = shorts_analysis.get("structure", {}).get("beats", [])
+                            print(f"[SHORTS-BG] 쇼츠 분석 완료: {len(beats)}개 beats")
 
-                                # 5-3. 쇼츠 영상 생성 (새 TTS + 새 이미지)
-                                shorts_output_path = os.path.join("uploads", f"shorts_{session_id}.mp4")
-                                shorts_result = _generate_shorts_video_v2(
-                                    shorts_analysis=shorts_analysis,
-                                    voice_name=voice,
-                                    output_path=shorts_output_path,
-                                    base_url=base_url
-                                )
+                            # 쇼츠 제목 및 해시태그 추출
+                            platform_info = shorts_analysis.get("platform_specific", {}).get("youtube_shorts", {})
+                            shorts_title = platform_info.get("title_suggestion", "") or shorts_info.get('title', f"{title} #Shorts")
+                            shorts_hashtags = platform_info.get("hashtags_hint", ["#Shorts", "#유튜브쇼츠"])
 
-                                if shorts_result.get("ok"):
-                                    shorts_cost += shorts_result.get("cost", 0)
-                                    shorts_duration = shorts_result.get("duration", 0)
-                                    print(f"[AUTOMATION] 5-3. 쇼츠 영상 생성 완료: {shorts_duration:.1f}초 (비용: ${shorts_cost:.2f})")
+                            # 쇼츠 영상 생성
+                            shorts_output_path = os.path.join("uploads", f"shorts_{session_id}.mp4")
+                            shorts_result = _generate_shorts_video_v2(
+                                shorts_analysis=shorts_analysis,
+                                voice_name=voice,
+                                output_path=shorts_output_path,
+                                base_url=base_url
+                            )
 
-                                    # 5-4. 쇼츠 업로드
-                                    shorts_description = f"""🎬 전체 영상 보기: {youtube_url}
+                            if not shorts_result.get("ok"):
+                                print(f"[SHORTS-BG] 쇼츠 영상 생성 실패: {shorts_result.get('error')}")
+                                return
+
+                            shorts_duration = shorts_result.get("duration", 0)
+                            print(f"[SHORTS-BG] 쇼츠 영상 생성 완료: {shorts_duration:.1f}초")
+
+                            # 쇼츠 업로드
+                            shorts_description = f"""🎬 전체 영상 보기: {youtube_url}
 
 {description[:200]}...
 
 {' '.join(shorts_hashtags)}"""
 
-                                    shorts_upload_payload = {
-                                        "videoPath": shorts_output_path,
-                                        "title": shorts_title,
-                                        "description": shorts_description,
-                                        "privacyStatus": visibility,
-                                        "channelId": channel_id
-                                    }
+                            shorts_upload_payload = {
+                                "videoPath": shorts_output_path,
+                                "title": shorts_title,
+                                "description": shorts_description,
+                                "privacyStatus": visibility,
+                                "channelId": channel_id
+                            }
 
-                                    shorts_resp = req.post(f"{base_url}/api/youtube/upload", json=shorts_upload_payload, timeout=300)
-                                    shorts_data = shorts_resp.json()
+                            shorts_resp = bg_req.post(f"{base_url}/api/youtube/upload", json=shorts_upload_payload, timeout=300)
+                            shorts_data = shorts_resp.json()
 
-                                    if shorts_data.get('ok'):
-                                        shorts_url = shorts_data.get('videoUrl', '')
-                                        total_cost += shorts_cost
-                                        print(f"[AUTOMATION] 5-4. 쇼츠 업로드 완료: {shorts_url}")
-                                    else:
-                                        print(f"[AUTOMATION] 5-4. 쇼츠 업로드 실패: {shorts_data.get('error')}")
-                                else:
-                                    print(f"[AUTOMATION] 5-3. 쇼츠 영상 생성 실패: {shorts_result.get('error')}")
+                            if shorts_data.get('ok'):
+                                shorts_url = shorts_data.get('videoUrl', '')
+                                print(f"[SHORTS-BG] 쇼츠 업로드 완료: {shorts_url}")
+
+                                # Google Sheets Q열에 쇼츠 URL 업데이트
+                                try:
+                                    service = get_sheets_service_account()
+                                    sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+                                    if service and sheet_id:
+                                        sheets_update_cell(service, sheet_id, f'Sheet1!Q{row_index}', shorts_url)
+                                        print(f"[SHORTS-BG] Google Sheets Q{row_index}에 쇼츠 URL 기록 완료")
+                                except Exception as sheets_err:
+                                    print(f"[SHORTS-BG] Sheets 업데이트 실패: {sheets_err}")
                             else:
-                                print(f"[AUTOMATION] 5-2. 쇼츠 분석 실패")
+                                print(f"[SHORTS-BG] 쇼츠 업로드 실패: {shorts_data.get('error')}")
 
-                    except Exception as shorts_err:
-                        print(f"[AUTOMATION] 5. 쇼츠 처리 오류: {shorts_err}")
-                        import traceback
-                        traceback.print_exc()
+                        except Exception as bg_err:
+                            print(f"[SHORTS-BG] 백그라운드 쇼츠 오류: {bg_err}")
+                            import traceback
+                            traceback.print_exc()
+                        finally:
+                            # 세마포어 해제 (다음 FFmpeg 작업 허용)
+                            ffmpeg_semaphore.release()
+                            print(f"[SHORTS-BG] FFmpeg 세마포어 해제됨")
 
+                    # 백그라운드 스레드 시작
+                    shorts_thread = threading.Thread(target=generate_shorts_background, daemon=True)
+                    shorts_thread.start()
+                    print(f"[AUTOMATION] 5. 쇼츠 생성 백그라운드 시작 (롱폼 먼저 반환)")
+
+                # 롱폼 결과 즉시 반환 (쇼츠는 백그라운드에서 진행)
                 return {
                     "ok": True,
                     "video_url": youtube_url,
-                    "shorts_url": shorts_url,
+                    "shorts_url": None,  # 백그라운드에서 처리 중
                     "error": None,
                     "cost": total_cost,
                     # 새로 추가: 제목 옵션 및 사용된 설정 정보
