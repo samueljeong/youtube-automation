@@ -12962,8 +12962,9 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
     scroll_speed = 100  # 초당 100픽셀 이동
 
     # 뉴스 티커 스타일: 하단에 빨간 배경 + 흰 텍스트
+    # 참고: drawbox에서 w=w는 순환 참조 에러 발생, iw(입력 너비) 사용
     ticker_filter = (
-        f"drawbox=x=0:y=h-40:w=w:h=40:color=red@0.9:t=fill,"
+        f"drawbox=x=0:y=ih-40:w=iw:h=40:color=red@0.9:t=fill,"
         f"drawtext=text='{ticker_text}':"
         f"fontfile='{font_escaped}':"
         f"fontsize=24:"
