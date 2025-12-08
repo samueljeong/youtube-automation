@@ -47,6 +47,13 @@ def handle_exception(e):
     }), 500
 
 
+# ===== favicon.ico 처리 (브라우저 자동 요청) =====
+@app.route('/favicon.ico')
+def favicon():
+    """파비콘 요청 처리 - 204 No Content 반환"""
+    return '', 204
+
+
 # ===== uploads 폴더 정적 파일 서빙 =====
 @app.route('/uploads/<path:filename>')
 def serve_uploads(filename):
