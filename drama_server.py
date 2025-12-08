@@ -13666,14 +13666,15 @@ JSON 형식으로만 출력해. 다른 텍스트 없이 순수 JSON만.'''
         return None
 
 
-def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url="http://localhost:5000"):
-    """쇼츠 전용 영상 생성 (새 TTS + 새 9:16 이미지 + 세로 자막)
+def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url="http://localhost:5000", scene_images=None):
+    """쇼츠 전용 영상 생성 (새 TTS + 메인 영상 이미지 크롭 + 한국 뉴스 스타일 텍스트)
 
     Args:
         shorts_analysis: GPT-5.1 쇼츠 분석 결과 (beats 포함)
         voice_name: TTS 음성 이름
         output_path: 출력 파일 경로
         base_url: API 서버 URL
+        scene_images: 메인 영상의 씬 이미지 URL 리스트 (16:9 → 9:16 크롭용)
 
     Returns:
         dict: {ok, shorts_path, duration, cost}
@@ -13682,7 +13683,7 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
     import tempfile
     import shutil
 
-    print(f"[SHORTS-V2] 쇼츠 영상 생성 시작 (방법 2: 새 TTS + 새 이미지)")
+    print(f"[SHORTS-V2] 쇼츠 영상 생성 시작 (메인 이미지 크롭 + 한국 뉴스 스타일)")
 
     try:
         # beats 위치: result.beats 또는 result.structure.beats
@@ -13750,43 +13751,61 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                         except:
                             pass
 
-                # 1-2. 9:16 세로 이미지 생성
+                # 1-2. 메인 영상 이미지를 9:16으로 크롭 (새 이미지 생성 대신)
                 image_path = os.path.join(temp_dir, f"beat_{beat_id:02d}_image.png")
-                try:
-                    # 세로 이미지용 프롬프트 구성
-                    image_prompt = broll_prompt if broll_prompt else f"Vertical 9:16 background for: {visual_direction}"
-                    image_prompt += ", vertical 9:16 aspect ratio, 1080x1920, mobile-optimized, high contrast"
 
-                    img_resp = req.post(f"{base_url}/api/drama/generate-image", json={
-                        "prompt": image_prompt,
-                        "size": "1080x1920",  # 세로 크기
-                        "imageProvider": "gemini"
-                    }, timeout=120)
+                # scene_images가 제공되면 해당 이미지를 크롭하여 사용
+                if scene_images and len(scene_images) > 0:
+                    # beat_id에 해당하는 이미지 선택 (순환)
+                    img_idx = (idx) % len(scene_images)
+                    source_img_url = scene_images[img_idx]
 
-                    if img_resp.status_code == 200:
-                        img_data = img_resp.json()
-                        if img_data.get("ok"):
-                            img_url = img_data.get("image_url", "")
-                            if img_url:
-                                if img_url.startswith("http"):
-                                    img_download = req.get(img_url, timeout=30)
-                                else:
-                                    img_download = req.get(f"{base_url}{img_url}", timeout=30)
-                                with open(image_path, "wb") as f:
-                                    f.write(img_download.content)
-                                total_cost += 0.02
-                                print(f"[SHORTS-V2] Beat {beat_id} 이미지 완료")
-                except Exception as img_err:
-                    print(f"[SHORTS-V2] Beat {beat_id} 이미지 실패: {img_err}")
+                    if source_img_url:
+                        try:
+                            # 원본 이미지 다운로드
+                            temp_source = os.path.join(temp_dir, f"source_{beat_id:02d}.png")
+                            if source_img_url.startswith("http"):
+                                img_download = req.get(source_img_url, timeout=30)
+                            else:
+                                img_download = req.get(f"{base_url}{source_img_url}", timeout=30)
 
-                # 이미지 파일이 없으면 fallback 단색 배경 생성
+                            with open(temp_source, "wb") as f:
+                                f.write(img_download.content)
+
+                            # 16:9 → 9:16 크롭 (중앙 기준, 세로로 확대 후 좌우 크롭)
+                            # scale=-1:1920 = 높이 1920으로 스케일 (비율 유지)
+                            # crop=1080:1920 = 중앙에서 1080x1920 크롭
+                            crop_cmd = [
+                                "ffmpeg", "-y", "-i", temp_source,
+                                "-vf", "scale=-1:1920,crop=1080:1920",
+                                "-frames:v", "1", image_path
+                            ]
+                            crop_result = subprocess.run(crop_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=30)
+
+                            if crop_result.returncode == 0 and os.path.exists(image_path):
+                                print(f"[SHORTS-V2] Beat {beat_id} 이미지 크롭 완료 (원본: {img_idx+1}번째)")
+                            else:
+                                print(f"[SHORTS-V2] Beat {beat_id} 크롭 실패: {crop_result.stderr.decode('utf-8', errors='ignore')[-200:]}")
+                        except Exception as crop_err:
+                            print(f"[SHORTS-V2] Beat {beat_id} 이미지 크롭 실패: {crop_err}")
+
+                # 이미지 파일이 없으면 fallback: 어두운 그라데이션 배경 생성
                 if not os.path.exists(image_path):
-                    print(f"[SHORTS-V2] Beat {beat_id} 이미지 없음, 단색 배경 생성")
+                    print(f"[SHORTS-V2] Beat {beat_id} 이미지 없음, 그라데이션 배경 생성")
+                    # 뉴스 스타일 어두운 그라데이션 배경 (상단 진한 파랑 → 하단 검정)
                     subprocess.run([
                         "ffmpeg", "-y", "-f", "lavfi",
-                        "-i", "color=c=0x1a1a2e:s=1080x1920:d=1",
+                        "-i", "gradients=s=1080x1920:c0=0x0a1628:c1=0x000000:x0=0:y0=0:x1=0:y1=1920:d=1",
                         "-frames:v", "1", image_path
                     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+                    # gradients 필터가 없는 FFmpeg 버전 fallback
+                    if not os.path.exists(image_path):
+                        subprocess.run([
+                            "ffmpeg", "-y", "-f", "lavfi",
+                            "-i", "color=c=0x0a1628:s=1080x1920:d=1",
+                            "-frames:v", "1", image_path
+                        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
                 # 자막 정보 저장
                 emphasis_words = caption_style.get("emphasis_words", [])
@@ -13808,33 +13827,52 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
             for bd in beat_data:
                 clip_path = os.path.join(temp_dir, f"clip_{bd['beat_id']:02d}.mp4")
 
-                # 이미지 + 오디오 + 자막 합성
-                # 자막 필터 (하단 safe zone)
-                voiceover_escaped = bd['voiceover'].replace("'", "'\\''").replace(":", "\\:")
+                # 이미지 + 오디오 + 자막 합성 (한국 뉴스 스타일)
+                voiceover_escaped = bd['voiceover'].replace("'", "'\\''").replace(":", "\\:").replace("\\", "\\\\")
 
-                # 폰트 경로 (NanumGothicBold 우선 - Pretendard는 한글 글리프 없음)
+                # 폰트 경로 (NanumGothicBold 우선)
                 font_path = "fonts/NanumGothicBold.ttf"
                 if not os.path.exists(font_path):
                     font_path = "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"
                 font_escaped = font_path.replace("\\", "/").replace(":", "\\:")
 
-                # 자막 필터 (하단 20% 영역)
+                # ========== 한국 뉴스 스타일 텍스트 오버레이 ==========
+                # 1. 하단 자막 영역: 반투명 검정 배경 박스 + 흰색 텍스트
                 subtitle_filter = (
+                    # 하단 반투명 검정 배경 박스 (하단 25%)
+                    f"drawbox=x=0:y=h*0.75:w=w:h=h*0.25:color=black@0.7:t=fill,"
+                    # 자막 텍스트 (하단 중앙)
                     f"drawtext=text='{voiceover_escaped}':"
-                    f"fontfile='{font_escaped}':fontsize=42:fontcolor=white:"
-                    f"borderw=3:bordercolor=black:"
-                    f"x=(w-text_w)/2:y=h*0.82:"
-                    f"line_spacing=10"
+                    f"fontfile='{font_escaped}':fontsize=44:fontcolor=white:"
+                    f"borderw=2:bordercolor=black:"
+                    f"x=(w-text_w)/2:y=h*0.83:"
+                    f"line_spacing=8"
                 )
 
-                # on_screen_text 오버레이 (상단 15% 영역)
+                # 2. 상단 헤드라인 (on_screen_text): 뉴스 스타일 - 노란색/청록색, 큰 폰트
                 if bd['on_screen_text']:
-                    text_escaped = bd['on_screen_text'].replace("'", "'\\''").replace(":", "\\:")
+                    text_escaped = bd['on_screen_text'].replace("'", "'\\''").replace(":", "\\:").replace("\\", "\\\\")
+
+                    # 텍스트 길이에 따라 폰트 크기 조절
+                    text_len = len(bd['on_screen_text'])
+                    if text_len <= 10:
+                        headline_fontsize = 72
+                    elif text_len <= 20:
+                        headline_fontsize = 60
+                    else:
+                        headline_fontsize = 48
+
+                    # 색상 선택: beat 번호에 따라 노란색/청록색 교대
+                    headline_color = "yellow" if bd['beat_id'] % 2 == 1 else "cyan"
+
                     subtitle_filter += (
-                        f",drawtext=text='{text_escaped}':"
-                        f"fontfile='{font_escaped}':fontsize=56:fontcolor=yellow:"
+                        # 상단 반투명 배경 (상단 18%)
+                        f",drawbox=x=0:y=0:w=w:h=h*0.18:color=black@0.6:t=fill,"
+                        # 헤드라인 텍스트 (노란색/청록색, 강한 테두리)
+                        f"drawtext=text='{text_escaped}':"
+                        f"fontfile='{font_escaped}':fontsize={headline_fontsize}:fontcolor={headline_color}:"
                         f"borderw=4:bordercolor=black:"
-                        f"x=(w-text_w)/2:y=h*0.08"
+                        f"x=(w-text_w)/2:y=h*0.06"
                     )
 
                 cmd = [
@@ -18560,13 +18598,18 @@ def run_automation_pipeline(row_data, row_index):
                             shorts_title = platform_info.get("title_suggestion", "") or shorts_info.get('title', f"{title} #Shorts")
                             shorts_hashtags = platform_info.get("hashtags_hint", ["#Shorts", "#유튜브쇼츠"])
 
+                            # 메인 영상의 씬 이미지 URL 추출 (쇼츠용 크롭에 사용)
+                            scene_image_urls = [s.get('image_url', '') for s in scenes if s.get('image_url')]
+                            print(f"[SHORTS-BG] 메인 영상 이미지 {len(scene_image_urls)}개 사용 가능")
+
                             # 쇼츠 영상 생성
                             shorts_output_path = os.path.join("uploads", f"shorts_{session_id}.mp4")
                             shorts_result = _generate_shorts_video_v2(
                                 shorts_analysis=shorts_analysis,
                                 voice_name=voice,
                                 output_path=shorts_output_path,
-                                base_url=base_url
+                                base_url=base_url,
+                                scene_images=scene_image_urls
                             )
 
                             if not shorts_result.get("ok"):
