@@ -12935,18 +12935,19 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir):
         end_time = start_time + scene_duration
 
         # 위치별 좌표 설정
+        # 자막과 겹치지 않도록 충분히 위로 (하단에서 180px)
         if position == 'bottom-left':
             x_pos = "30"
-            y_pos = "h-th-80"  # 하단에서 80px 위
+            y_pos = "h-th-180"  # 하단에서 180px 위 (자막 위)
         elif position == 'bottom-right':
             x_pos = "w-tw-30"
-            y_pos = "h-th-80"
+            y_pos = "h-th-180"
         elif position == 'bottom-center':
             x_pos = "(w-tw)/2"
-            y_pos = "h-th-80"
+            y_pos = "h-th-180"
         else:  # default: bottom-left
             x_pos = "30"
-            y_pos = "h-th-80"
+            y_pos = "h-th-180"
 
         # 반투명 배경 박스 + 텍스트 (뉴스 스타일)
         # 배경 박스 필터 (drawbox)
@@ -13828,8 +13829,25 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 clip_path = os.path.join(temp_dir, f"clip_{bd['beat_id']:02d}.mp4")
 
                 # 이미지 + 오디오 + 자막 합성 (한국 뉴스 스타일)
+                # 자막 텍스트 줄바꿈 처리 (16자마다, 최대 2줄)
+                voiceover_raw = bd['voiceover']
+                max_chars_per_line = 16
+                lines = []
+                current_line = ""
+                for char in voiceover_raw:
+                    current_line += char
+                    if len(current_line) >= max_chars_per_line:
+                        lines.append(current_line)
+                        current_line = ""
+                if current_line:
+                    lines.append(current_line)
+                # 최대 2줄만 표시 (너무 길면 잘림)
+                voiceover_wrapped = "\n".join(lines[:2])
+                if len(lines) > 2:
+                    voiceover_wrapped = voiceover_wrapped.rstrip() + "..."
+
                 # FFmpeg drawtext 이스케이프 순서: 백슬래시 → 콜론 → 따옴표
-                voiceover_escaped = bd['voiceover'].replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
+                voiceover_escaped = voiceover_wrapped.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
 
                 # 폰트 경로 (NanumGothicBold 우선)
                 font_path = "fonts/NanumGothicBold.ttf"
@@ -13843,14 +13861,14 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 subtitle_filter = (
                     # 먼저 해상도를 명시적으로 설정 (drawbox 'h' 평가 오류 방지)
                     f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,"
-                    # 하단 반투명 검정 배경 박스 (하단 25%)
-                    f"drawbox=x=0:y=ih*0.75:w=iw:h=ih*0.25:color=black@0.7:t=fill,"
-                    # 자막 텍스트 (하단 중앙)
+                    # 하단 반투명 검정 배경 박스 (하단 28%)
+                    f"drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.7:t=fill,"
+                    # 자막 텍스트 (더 크고 굵게, 중앙 정렬)
                     f"drawtext=text='{voiceover_escaped}':"
-                    f"fontfile='{font_escaped}':fontsize=44:fontcolor=white:"
-                    f"borderw=2:bordercolor=black:"
-                    f"x=(w-text_w)/2:y=h*0.83:"
-                    f"line_spacing=8"
+                    f"fontfile='{font_escaped}':fontsize=52:fontcolor=white:"
+                    f"borderw=3:bordercolor=black:"
+                    f"x=(w-text_w)/2:y=h*0.78:"
+                    f"line_spacing=12"
                 )
 
                 # 2. 상단 헤드라인 (on_screen_text): 뉴스 스타일 - 노란색/청록색, 큰 폰트
@@ -13858,26 +13876,26 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                     # FFmpeg drawtext 이스케이프 순서: 백슬래시 → 콜론 → 따옴표
                     text_escaped = bd['on_screen_text'].replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
 
-                    # 텍스트 길이에 따라 폰트 크기 조절
+                    # 텍스트 길이에 따라 폰트 크기 조절 (더 굵고 크게)
                     text_len = len(bd['on_screen_text'])
                     if text_len <= 10:
-                        headline_fontsize = 72
+                        headline_fontsize = 84  # 72 → 84
                     elif text_len <= 20:
-                        headline_fontsize = 60
+                        headline_fontsize = 72  # 60 → 72
                     else:
-                        headline_fontsize = 48
+                        headline_fontsize = 56  # 48 → 56
 
                     # 색상 선택: beat 번호에 따라 노란색/청록색 교대
                     headline_color = "yellow" if bd['beat_id'] % 2 == 1 else "cyan"
 
                     subtitle_filter += (
-                        # 상단 반투명 배경 (상단 18%)
-                        f",drawbox=x=0:y=0:w=iw:h=ih*0.18:color=black@0.6:t=fill,"
-                        # 헤드라인 텍스트 (노란색/청록색, 강한 테두리)
+                        # 상단 반투명 배경 (상단 20%)
+                        f",drawbox=x=0:y=0:w=iw:h=ih*0.20:color=black@0.6:t=fill,"
+                        # 헤드라인 텍스트 (불투명 영역 하단에 맞춤, 더 굵은 테두리)
                         f"drawtext=text='{text_escaped}':"
                         f"fontfile='{font_escaped}':fontsize={headline_fontsize}:fontcolor={headline_color}:"
-                        f"borderw=4:bordercolor=black:"
-                        f"x=(w-text_w)/2:y=h*0.06"
+                        f"borderw=5:bordercolor=black:"
+                        f"x=(w-text_w)/2:y=h*0.12"
                     )
 
                 cmd = [
