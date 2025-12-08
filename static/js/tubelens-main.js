@@ -1213,6 +1213,12 @@
       html += '<td>' + engagementRate.toFixed(2) + '%</td>';
       html += '<td>' + this.formatNumber(item.videoCount || 0) + '</td>';
       html += '<td style="cursor:pointer;color:#3182ce" onclick="TubeLens.showDescription(\'' + item.videoId + '\')">보기</td>';
+      html += '<td class="action-buttons" style="white-space:nowrap;">';
+      html += '<button class="btn-action bookmark" onclick="TubeLens.addBookmark(\'' + item.videoId + '\')" title="북마크">⭐</button>';
+      html += '<button class="btn-action ab" onclick="TubeLens.suggestTitles(\'' + item.videoId + '\')" title="제목 A/B 제안">AB</button>';
+      html += '<button class="btn-action sentiment" onclick="TubeLens.analyzeSentiment(\'' + item.videoId + '\')" title="댓글 감성 분석">💬</button>';
+      html += '<button class="btn-action compare" onclick="TubeLens.addToCompare(\'' + item.channelId + '\', \'' + item.channelTitle.replace(/'/g, "\\'") + '\')" title="채널 비교에 추가">⚖️</button>';
+      html += '</td>';
       html += '</tr>';
 
       return html;
@@ -1648,6 +1654,565 @@
 
     closeAnalysisModal: function() {
       document.getElementById('analysis-modal').classList.remove('show');
+    },
+
+    // ===== 북마크/관심목록 기능 =====
+
+    bookmarks: [],
+
+    loadBookmarks: function() {
+      var saved = localStorage.getItem('tubelens_bookmarks');
+      if (saved) {
+        try {
+          this.bookmarks = JSON.parse(saved);
+        } catch (e) {
+          this.bookmarks = [];
+        }
+      }
+    },
+
+    saveBookmarks: function() {
+      localStorage.setItem('tubelens_bookmarks', JSON.stringify(this.bookmarks));
+    },
+
+    addBookmark: function(videoId) {
+      var video = null;
+      for (var i = 0; i < this.currentResults.length; i++) {
+        if (this.currentResults[i].videoId === videoId) {
+          video = this.currentResults[i];
+          break;
+        }
+      }
+
+      if (!video) {
+        alert('영상을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 이미 북마크된 경우
+      var exists = this.bookmarks.some(function(b) { return b.videoId === videoId; });
+      if (exists) {
+        alert('이미 북마크에 추가된 영상입니다.');
+        return;
+      }
+
+      this.bookmarks.push({
+        videoId: video.videoId,
+        title: video.title,
+        thumbnail: video.thumbnail,
+        channelTitle: video.channelTitle,
+        viewCount: video.viewCount,
+        publishedAt: video.publishedAt,
+        savedAt: new Date().toISOString()
+      });
+
+      this.saveBookmarks();
+      this.updateStatus('북마크에 추가되었습니다.');
+      alert('북마크에 추가되었습니다!');
+    },
+
+    removeBookmark: function(videoId) {
+      this.bookmarks = this.bookmarks.filter(function(b) { return b.videoId !== videoId; });
+      this.saveBookmarks();
+      this.showBookmarks();
+      this.updateStatus('북마크에서 제거되었습니다.');
+    },
+
+    showBookmarks: function() {
+      this.loadBookmarks();
+
+      var html = '<div class="bookmarks-content">';
+
+      if (this.bookmarks.length === 0) {
+        html += '<div class="empty-list" style="padding:40px;text-align:center;color:#999;">저장된 북마크가 없습니다.</div>';
+      } else {
+        html += '<div class="bookmarks-list">';
+        var self = this;
+        this.bookmarks.forEach(function(b, idx) {
+          html += '<div class="bookmark-item" style="display:flex;gap:12px;padding:12px;border-bottom:1px solid #eee;align-items:center;">';
+          html += '<img src="' + b.thumbnail + '" style="width:100px;height:56px;border-radius:6px;object-fit:cover;" onerror="this.style.display=\'none\'">';
+          html += '<div style="flex:1;">';
+          html += '<div style="font-weight:600;margin-bottom:4px;">' + b.title + '</div>';
+          html += '<div style="font-size:0.85rem;color:#666;">' + b.channelTitle + ' · ' + self.formatNumber(b.viewCount) + '회</div>';
+          html += '</div>';
+          html += '<div style="display:flex;gap:8px;">';
+          html += '<button class="btn-sm success" onclick="TubeLens.openVideoModal(\'' + b.videoId + '\', \'' + self.escapeHtml(b.title).replace(/'/g, "\\'") + '\')">보기</button>';
+          html += '<button class="btn-sm danger" onclick="TubeLens.removeBookmark(\'' + b.videoId + '\')">삭제</button>';
+          html += '</div></div>';
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+
+      document.getElementById('analysis-modal-title').textContent = '북마크 (' + this.bookmarks.length + '개)';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
+    },
+
+    // ===== 경쟁 채널 비교 =====
+
+    compareChannels: [],
+
+    addToCompare: function(channelId, channelTitle) {
+      if (this.compareChannels.length >= 5) {
+        alert('최대 5개 채널까지 비교할 수 있습니다.');
+        return;
+      }
+
+      var exists = this.compareChannels.some(function(c) { return c.id === channelId; });
+      if (exists) {
+        alert('이미 비교 목록에 있는 채널입니다.');
+        return;
+      }
+
+      this.compareChannels.push({ id: channelId, title: channelTitle });
+      this.updateStatus('비교 목록에 추가됨: ' + channelTitle + ' (' + this.compareChannels.length + '/5)');
+      alert(channelTitle + '이(가) 비교 목록에 추가되었습니다.');
+    },
+
+    showCompareChannels: function() {
+      var self = this;
+
+      if (this.compareChannels.length < 2) {
+        alert('비교할 채널을 2개 이상 추가해주세요.\n채널명 옆 비교 버튼을 클릭하세요.');
+        return;
+      }
+
+      this.updateStatus('채널 비교 분석 중...');
+
+      var channelIds = this.compareChannels.map(function(c) { return c.id; });
+
+      fetch('/api/tubelens/compare-channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelIds: channelIds,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.showCompareModal(data.data);
+          self.updateStatus('채널 비교 분석 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Compare error:', error);
+        alert('채널 비교 실패: ' + error.message);
+        self.updateStatus('비교 실패: ' + error.message);
+      });
+    },
+
+    showCompareModal: function(channels) {
+      var self = this;
+      var html = '<div class="compare-content">';
+
+      // 비교 테이블
+      html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
+      html += '<thead><tr style="background:#f8f9fa;"><th style="padding:12px;text-align:left;">채널</th>';
+      channels.forEach(function(ch) {
+        html += '<th style="padding:12px;text-align:center;"><img src="' + ch.thumbnail + '" style="width:40px;height:40px;border-radius:50%;"><br>' + ch.channelTitle + '</th>';
+      });
+      html += '</tr></thead><tbody>';
+
+      var metrics = [
+        { label: '구독자 수', key: 'subscriberCount', format: 'number' },
+        { label: '총 조회수', key: 'viewCount', format: 'number' },
+        { label: '영상 수', key: 'videoCount', format: 'number' },
+        { label: '영상당 평균 조회수', key: 'avgViewsPerVideo', format: 'number' },
+        { label: '최근 10개 평균 조회수', key: 'recentAvgViews', format: 'number' },
+        { label: '최근 10개 평균 좋아요', key: 'recentAvgLikes', format: 'number' },
+        { label: '참여율', key: 'engagementRate', format: 'percent' },
+        { label: '개설일', key: 'publishedAt', format: 'date' }
+      ];
+
+      metrics.forEach(function(m) {
+        html += '<tr style="border-bottom:1px solid #eee;"><td style="padding:10px;font-weight:500;">' + m.label + '</td>';
+        channels.forEach(function(ch) {
+          var val = ch[m.key];
+          var formatted = val;
+          if (m.format === 'number') formatted = self.formatNumber(val);
+          else if (m.format === 'percent') formatted = val + '%';
+          html += '<td style="padding:10px;text-align:center;">' + formatted + '</td>';
+        });
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+
+      // 비교 목록 초기화 버튼
+      html += '<div style="margin-top:20px;text-align:center;">';
+      html += '<button class="btn btn-secondary" onclick="TubeLens.clearCompareChannels()">비교 목록 초기화</button>';
+      html += '</div>';
+
+      html += '</div>';
+
+      document.getElementById('analysis-modal-title').textContent = '경쟁 채널 비교 (' + channels.length + '개)';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
+    },
+
+    clearCompareChannels: function() {
+      this.compareChannels = [];
+      this.closeAnalysisModal();
+      this.updateStatus('비교 목록이 초기화되었습니다.');
+    },
+
+    // ===== 키워드 트렌드 =====
+
+    analyzeKeywordTrend: function() {
+      var self = this;
+      var keyword = prompt('트렌드를 분석할 키워드를 입력하세요:');
+
+      if (!keyword) return;
+
+      this.updateStatus('키워드 트렌드 분석 중: ' + keyword);
+
+      fetch('/api/tubelens/keyword-trend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.showTrendModal(data.data);
+          self.updateStatus('키워드 트렌드 분석 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Trend error:', error);
+        alert('트렌드 분석 실패: ' + error.message);
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    showTrendModal: function(data) {
+      var self = this;
+      var html = '<div class="trend-content">';
+
+      // 트렌드 방향
+      var trendIcon = data.trendDirection === '상승' ? '📈' : '📉';
+      var trendColor = data.trendDirection === '상승' ? '#48bb78' : '#f56565';
+
+      html += '<div style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);padding:20px;border-radius:12px;margin-bottom:20px;text-align:center;">';
+      html += '<h3 style="font-size:1.5rem;margin-bottom:8px;">' + trendIcon + ' ' + data.keyword + '</h3>';
+      html += '<div style="font-size:1.1rem;color:' + trendColor + ';font-weight:600;">' + data.trendDirection + ' 추세 (' + data.trendStrength + ')</div>';
+      html += '</div>';
+
+      // 기간별 데이터
+      html += '<div style="margin-bottom:20px;"><h4 style="margin-bottom:12px;">기간별 분석</h4>';
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">';
+
+      data.trendData.forEach(function(t) {
+        html += '<div style="background:#f8f9fa;padding:16px;border-radius:10px;text-align:center;">';
+        html += '<div style="font-size:0.85rem;color:#666;margin-bottom:8px;">최근 ' + t.period + '</div>';
+        html += '<div style="font-size:1.3rem;font-weight:700;color:#333;">' + t.videoCount + '개</div>';
+        html += '<div style="font-size:0.8rem;color:#888;">평균 ' + self.formatNumber(t.avgViews) + '회</div>';
+        html += '<div style="font-size:0.75rem;color:#aaa;">' + t.videosPerDay + '개/일</div>';
+        html += '</div>';
+      });
+
+      html += '</div></div>';
+
+      // 추천
+      html += '<div style="background:#f0fdf4;padding:16px;border-radius:10px;border-left:4px solid #48bb78;">';
+      html += '<strong>💡 분석 결과:</strong><br>' + data.recommendation;
+      html += '</div>';
+
+      html += '</div>';
+
+      document.getElementById('analysis-modal-title').textContent = '키워드 트렌드';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
+    },
+
+    // ===== 제목 A/B 테스트 제안 =====
+
+    suggestTitles: function(videoId) {
+      var self = this;
+      var video = null;
+
+      for (var i = 0; i < this.currentResults.length; i++) {
+        if (this.currentResults[i].videoId === videoId) {
+          video = this.currentResults[i];
+          break;
+        }
+      }
+
+      if (!video) {
+        alert('영상을 찾을 수 없습니다.');
+        return;
+      }
+
+      this.updateStatus('AI가 대안 제목을 생성 중...');
+
+      fetch('/api/tubelens/suggest-titles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: video.title,
+          description: video.description || ''
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.showTitleSuggestionsModal(video.title, data.data);
+          self.updateStatus('대안 제목 생성 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Title suggest error:', error);
+        alert('제목 제안 실패: ' + error.message);
+        self.updateStatus('제안 실패: ' + error.message);
+      });
+    },
+
+    showTitleSuggestionsModal: function(originalTitle, data) {
+      var html = '<div class="title-suggestions-content">';
+
+      // 원본 제목
+      html += '<div style="background:#f8f9fa;padding:16px;border-radius:10px;margin-bottom:20px;">';
+      html += '<div style="font-size:0.85rem;color:#666;margin-bottom:6px;">원본 제목</div>';
+      html += '<div style="font-size:1.1rem;font-weight:600;">' + originalTitle + '</div>';
+      html += '</div>';
+
+      // 분석
+      if (data.analysis) {
+        html += '<div style="background:#fff3cd;padding:12px 16px;border-radius:8px;margin-bottom:20px;font-size:0.9rem;">';
+        html += '<strong>📊 분석:</strong> ' + data.analysis;
+        html += '</div>';
+      }
+
+      // 대안 제목들
+      html += '<h4 style="margin-bottom:12px;">✨ 대안 제목 (A/B 테스트용)</h4>';
+      html += '<div style="display:grid;gap:12px;">';
+
+      if (data.suggestions) {
+        data.suggestions.forEach(function(s, idx) {
+          html += '<div style="background:#fff;border:1px solid #e1e5eb;padding:16px;border-radius:10px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">';
+          html += '<span style="background:#667eea;color:#fff;padding:4px 10px;border-radius:12px;font-size:0.75rem;">' + s.type + '</span>';
+          html += '<button class="btn-sm success" onclick="navigator.clipboard.writeText(\'' + s.title.replace(/'/g, "\\'") + '\');alert(\'복사되었습니다!\');">복사</button>';
+          html += '</div>';
+          html += '<div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;">' + s.title + '</div>';
+          html += '<div style="font-size:0.85rem;color:#666;">' + s.reason + '</div>';
+          html += '</div>';
+        });
+      }
+
+      html += '</div></div>';
+
+      document.getElementById('analysis-modal-title').textContent = '제목 A/B 제안';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
+    },
+
+    // ===== 댓글 감성 분석 =====
+
+    analyzeSentiment: function(videoId) {
+      var self = this;
+
+      this.updateStatus('AI가 댓글 감성을 분석 중...');
+
+      fetch('/api/tubelens/analyze-sentiment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: videoId,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.showSentimentModal(data.data);
+          self.updateStatus('댓글 감성 분석 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Sentiment error:', error);
+        alert('감성 분석 실패: ' + error.message);
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    showSentimentModal: function(data) {
+      var html = '<div class="sentiment-content">';
+
+      // 감성 비율 차트
+      var sentiment = data.sentiment || { positive: 0, neutral: 0, negative: 0 };
+      html += '<div style="margin-bottom:24px;">';
+      html += '<h4 style="margin-bottom:12px;">감성 분포 (' + (data.totalComments || 0) + '개 댓글)</h4>';
+      html += '<div style="display:flex;height:24px;border-radius:12px;overflow:hidden;background:#e1e5eb;">';
+      html += '<div style="width:' + sentiment.positive + '%;background:#48bb78;" title="긍정 ' + sentiment.positive + '%"></div>';
+      html += '<div style="width:' + sentiment.neutral + '%;background:#ed8936;" title="중립 ' + sentiment.neutral + '%"></div>';
+      html += '<div style="width:' + sentiment.negative + '%;background:#f56565;" title="부정 ' + sentiment.negative + '%"></div>';
+      html += '</div>';
+      html += '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:0.85rem;">';
+      html += '<span style="color:#48bb78;">😊 긍정 ' + sentiment.positive + '%</span>';
+      html += '<span style="color:#ed8936;">😐 중립 ' + sentiment.neutral + '%</span>';
+      html += '<span style="color:#f56565;">😞 부정 ' + sentiment.negative + '%</span>';
+      html += '</div></div>';
+
+      // 요약
+      if (data.summary) {
+        html += '<div style="background:linear-gradient(135deg,#e0e7ff,#c7d2fe);padding:16px;border-radius:12px;margin-bottom:20px;">';
+        html += '<strong>📊 요약:</strong> ' + data.summary;
+        html += '</div>';
+      }
+
+      // 긍정적인 점
+      if (data.positive_points && data.positive_points.length) {
+        html += '<div style="margin-bottom:16px;"><h4 style="margin-bottom:8px;">👍 시청자들이 좋아하는 점</h4><ul style="list-style:none;padding:0;">';
+        data.positive_points.forEach(function(p) {
+          html += '<li style="padding:8px 12px;background:#f0fdf4;border-radius:6px;margin-bottom:6px;font-size:0.9rem;">' + p + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 부정적인 점
+      if (data.negative_points && data.negative_points.length) {
+        html += '<div style="margin-bottom:16px;"><h4 style="margin-bottom:8px;">👎 아쉬운 점</h4><ul style="list-style:none;padding:0;">';
+        data.negative_points.forEach(function(p) {
+          html += '<li style="padding:8px 12px;background:#fef2f2;border-radius:6px;margin-bottom:6px;font-size:0.9rem;">' + p + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 키워드
+      if (data.keywords && data.keywords.length) {
+        html += '<div style="margin-bottom:16px;"><h4 style="margin-bottom:8px;">🏷️ 자주 언급된 키워드</h4>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        data.keywords.forEach(function(k) {
+          html += '<span style="background:#667eea;color:#fff;padding:6px 14px;border-radius:20px;font-size:0.85rem;">' + k + '</span>';
+        });
+        html += '</div></div>';
+      }
+
+      // 개선 제안
+      if (data.suggestions && data.suggestions.length) {
+        html += '<div><h4 style="margin-bottom:8px;">💡 개선 제안</h4><ul style="list-style:none;padding:0;">';
+        data.suggestions.forEach(function(s) {
+          html += '<li style="padding:10px 14px;background:#f0fdf4;border-left:4px solid #48bb78;border-radius:6px;margin-bottom:8px;font-size:0.9rem;">' + s + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      html += '</div>';
+
+      document.getElementById('analysis-modal-title').textContent = '댓글 감성 분석';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
+    },
+
+    // ===== 태그 분석 =====
+
+    analyzeTags: function() {
+      var self = this;
+
+      if (this.currentResults.length === 0) {
+        alert('먼저 영상을 검색하세요.');
+        return;
+      }
+
+      var videoIds = this.currentResults.slice(0, 20).map(function(v) { return v.videoId; });
+
+      this.updateStatus('태그 패턴 분석 중...');
+
+      fetch('/api/tubelens/analyze-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoIds: videoIds,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.showTagsModal(data.data);
+          self.updateStatus('태그 분석 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Tags error:', error);
+        alert('태그 분석 실패: ' + error.message);
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    showTagsModal: function(data) {
+      var html = '<div class="tags-content">';
+
+      // 통계 요약
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">';
+      html += '<div style="background:#f8f9fa;padding:16px;border-radius:10px;text-align:center;">';
+      html += '<div style="font-size:1.5rem;font-weight:700;color:#667eea;">' + data.totalTagsAnalyzed + '</div>';
+      html += '<div style="font-size:0.85rem;color:#666;">분석된 태그</div></div>';
+      html += '<div style="background:#f8f9fa;padding:16px;border-radius:10px;text-align:center;">';
+      html += '<div style="font-size:1.5rem;font-weight:700;color:#48bb78;">' + data.avgTagsPerVideo + '</div>';
+      html += '<div style="font-size:0.85rem;color:#666;">영상당 평균 태그</div></div>';
+      html += '<div style="background:#f8f9fa;padding:16px;border-radius:10px;text-align:center;">';
+      html += '<div style="font-size:1.5rem;font-weight:700;color:#ed8936;">' + data.totalHashtagsAnalyzed + '</div>';
+      html += '<div style="font-size:0.85rem;color:#666;">해시태그</div></div>';
+      html += '</div>';
+
+      // 인기 태그
+      if (data.topTags && data.topTags.length) {
+        html += '<div style="margin-bottom:20px;"><h4 style="margin-bottom:12px;">🏷️ 인기 태그 TOP 10</h4>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        data.topTags.slice(0, 10).forEach(function(t, idx) {
+          var bg = idx < 3 ? '#667eea' : '#a0aec0';
+          html += '<span style="background:' + bg + ';color:#fff;padding:8px 14px;border-radius:20px;font-size:0.9rem;cursor:pointer;" onclick="navigator.clipboard.writeText(\'' + t.tag + '\');alert(\'복사됨: ' + t.tag + '\');">' + t.tag + ' <small>(' + t.count + ')</small></span>';
+        });
+        html += '</div></div>';
+      }
+
+      // 인기 해시태그
+      if (data.topHashtags && data.topHashtags.length) {
+        html += '<div style="margin-bottom:20px;"><h4 style="margin-bottom:12px;"># 인기 해시태그</h4>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        data.topHashtags.forEach(function(h) {
+          html += '<span style="background:#f093fb;color:#fff;padding:8px 14px;border-radius:20px;font-size:0.9rem;cursor:pointer;" onclick="navigator.clipboard.writeText(\'#' + h.hashtag + '\');alert(\'복사됨: #' + h.hashtag + '\');">#' + h.hashtag + ' <small>(' + h.count + ')</small></span>';
+        });
+        html += '</div></div>';
+      }
+
+      // 추천
+      if (data.recommendations && data.recommendations.length) {
+        html += '<div style="background:#f0fdf4;padding:16px;border-radius:10px;border-left:4px solid #48bb78;"><h4 style="margin-bottom:8px;">💡 추천</h4><ul style="margin:0;padding-left:20px;">';
+        data.recommendations.forEach(function(r) {
+          html += '<li style="margin-bottom:6px;">' + r + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      html += '</div>';
+
+      document.getElementById('analysis-modal-title').textContent = '태그 분석';
+      document.getElementById('analysis-modal-content').innerHTML = html;
+      document.getElementById('analysis-modal').classList.add('show');
     }
   };
 

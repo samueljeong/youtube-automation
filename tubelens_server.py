@@ -1340,3 +1340,532 @@ def api_get_config():
             "maskedKey": masked_key
         }
     })
+
+
+# ===== 신규 기능: 경쟁 채널 비교 =====
+
+@tubelens_bp.route('/api/tubelens/compare-channels', methods=['POST'])
+def api_compare_channels():
+    """여러 채널 비교 분석"""
+    try:
+        data = request.get_json()
+        channel_ids = data.get("channelIds", [])  # 채널 ID 리스트
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not channel_ids or len(channel_ids) < 2:
+            return jsonify({"success": False, "message": "비교할 채널을 2개 이상 입력해주세요."}), 400
+
+        if len(channel_ids) > 5:
+            channel_ids = channel_ids[:5]  # 최대 5개
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+
+        if not api_key:
+            api_key = get_youtube_api_key()
+
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 채널 정보 일괄 조회
+        channels_data = make_youtube_request("channels", {
+            "part": "snippet,statistics,contentDetails,brandingSettings",
+            "id": ",".join(channel_ids)
+        }, api_key)
+
+        channels = []
+        for ch in channels_data.get("items", []):
+            stats = ch.get("statistics", {})
+            snippet = ch.get("snippet", {})
+
+            # 최근 10개 영상 성과 분석
+            upload_playlist = ch.get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads", "")
+            recent_videos = []
+            avg_views = 0
+            avg_likes = 0
+            avg_comments = 0
+
+            if upload_playlist:
+                playlist_data = make_youtube_request("playlistItems", {
+                    "part": "contentDetails",
+                    "playlistId": upload_playlist,
+                    "maxResults": 10
+                }, api_key)
+
+                video_ids = [item["contentDetails"]["videoId"] for item in playlist_data.get("items", [])]
+
+                if video_ids:
+                    videos_data = make_youtube_request("videos", {
+                        "part": "statistics,snippet",
+                        "id": ",".join(video_ids)
+                    }, api_key)
+
+                    for vid in videos_data.get("items", []):
+                        vid_stats = vid.get("statistics", {})
+                        recent_videos.append({
+                            "title": vid.get("snippet", {}).get("title", ""),
+                            "viewCount": int(vid_stats.get("viewCount", 0)),
+                            "likeCount": int(vid_stats.get("likeCount", 0)),
+                            "commentCount": int(vid_stats.get("commentCount", 0))
+                        })
+
+                    if recent_videos:
+                        avg_views = sum(v["viewCount"] for v in recent_videos) // len(recent_videos)
+                        avg_likes = sum(v["likeCount"] for v in recent_videos) // len(recent_videos)
+                        avg_comments = sum(v["commentCount"] for v in recent_videos) // len(recent_videos)
+
+            subscriber_count = int(stats.get("subscriberCount", 0))
+            view_count = int(stats.get("viewCount", 0))
+            video_count = int(stats.get("videoCount", 0))
+
+            # 영상당 평균 조회수
+            avg_views_per_video = view_count // video_count if video_count > 0 else 0
+
+            channels.append({
+                "channelId": ch.get("id"),
+                "channelTitle": snippet.get("title", ""),
+                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                "description": snippet.get("description", "")[:200],
+                "subscriberCount": subscriber_count,
+                "viewCount": view_count,
+                "videoCount": video_count,
+                "avgViewsPerVideo": avg_views_per_video,
+                "recentAvgViews": avg_views,
+                "recentAvgLikes": avg_likes,
+                "recentAvgComments": avg_comments,
+                "engagementRate": round((avg_likes + avg_comments) / avg_views * 100, 2) if avg_views > 0 else 0,
+                "recentVideos": recent_videos[:5],
+                "country": snippet.get("country", ""),
+                "publishedAt": snippet.get("publishedAt", "")[:10]
+            })
+
+        # 구독자수 기준 정렬
+        channels.sort(key=lambda x: x["subscriberCount"], reverse=True)
+
+        return jsonify({
+            "success": True,
+            "data": channels,
+            "message": f"{len(channels)}개 채널 비교 분석 완료"
+        })
+
+    except Exception as e:
+        print(f"채널 비교 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ===== 신규 기능: 제목 A/B 테스트 제안 =====
+
+@tubelens_bp.route('/api/tubelens/suggest-titles', methods=['POST'])
+def api_suggest_titles():
+    """AI로 대안 제목 생성 (A/B 테스트용)"""
+    try:
+        import json
+        from openai import OpenAI
+
+        data = request.get_json()
+        original_title = data.get("title", "")
+        description = data.get("description", "")
+        target_audience = data.get("targetAudience", "general")  # general, young, senior
+
+        if not original_title:
+            return jsonify({"success": False, "message": "원본 제목이 필요합니다."}), 400
+
+        openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        if not openai_api_key:
+            return jsonify({"success": False, "message": "OpenAI API 키가 설정되지 않았습니다."}), 400
+
+        client = OpenAI(api_key=openai_api_key)
+
+        audience_guide = {
+            "general": "일반 대중",
+            "young": "10-30대 젊은 층",
+            "senior": "40-60대 중장년층"
+        }
+
+        prompt = f"""다음 YouTube 영상 제목의 대안을 5개 생성해주세요.
+
+원본 제목: {original_title}
+{f'영상 설명: {description[:300]}...' if description else ''}
+타겟 시청자: {audience_guide.get(target_audience, "일반 대중")}
+
+각 대안은 다른 접근법을 사용해주세요:
+1. 호기심 유발형 (질문/의문)
+2. 숫자/리스트형 (구체적 수치)
+3. 감정 자극형 (놀라움/충격)
+4. 직접 화법형 (시청자에게 말하듯)
+5. 트렌드 키워드형 (검색 최적화)
+
+다음 형식의 JSON으로 응답해주세요:
+{{
+  "suggestions": [
+    {{
+      "type": "호기심 유발형",
+      "title": "대안 제목",
+      "reason": "이 제목이 효과적인 이유"
+    }}
+  ],
+  "analysis": "원본 제목 분석 (강점/약점)"
+}}
+
+한국어로 답변해주세요."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 YouTube 제목 최적화 전문가입니다. CTR을 높이는 제목을 제안합니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.8,
+            max_tokens=2000
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # JSON 파싱
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        suggestions = json.loads(result_text)
+
+        return jsonify({
+            "success": True,
+            "data": suggestions,
+            "message": "5개의 대안 제목이 생성되었습니다."
+        })
+
+    except json.JSONDecodeError as e:
+        print(f"제목 제안 JSON 파싱 오류: {e}")
+        return jsonify({"success": False, "message": "결과 파싱 실패"}), 500
+    except Exception as e:
+        print(f"제목 제안 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ===== 신규 기능: 댓글 감성 분석 =====
+
+@tubelens_bp.route('/api/tubelens/analyze-sentiment', methods=['POST'])
+def api_analyze_sentiment():
+    """댓글 감성 분석"""
+    try:
+        import json
+        from openai import OpenAI
+
+        data = request.get_json()
+        video_id = data.get("videoId", "")
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not video_id:
+            return jsonify({"success": False, "message": "비디오 ID가 필요합니다."}), 400
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+
+        if not api_key:
+            api_key = get_youtube_api_key()
+
+        if not api_key:
+            return jsonify({"success": False, "message": "YouTube API 키가 필요합니다."}), 400
+
+        openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        if not openai_api_key:
+            return jsonify({"success": False, "message": "OpenAI API 키가 설정되지 않았습니다."}), 400
+
+        # 댓글 가져오기
+        comments_data = make_youtube_request("commentThreads", {
+            "part": "snippet",
+            "videoId": video_id,
+            "order": "relevance",
+            "maxResults": 50
+        }, api_key)
+
+        comments = []
+        for item in comments_data.get("items", []):
+            comment = item["snippet"]["topLevelComment"]["snippet"]
+            comments.append({
+                "text": comment.get("textDisplay", ""),
+                "likeCount": comment.get("likeCount", 0)
+            })
+
+        if not comments:
+            return jsonify({
+                "success": True,
+                "data": {
+                    "summary": "댓글이 없습니다.",
+                    "sentiment": {"positive": 0, "neutral": 0, "negative": 0},
+                    "keywords": [],
+                    "suggestions": []
+                },
+                "message": "댓글이 없습니다."
+            })
+
+        # AI 분석
+        client = OpenAI(api_key=openai_api_key)
+
+        comments_text = "\n".join([f"- {c['text'][:200]}" for c in comments[:30]])
+
+        prompt = f"""다음 YouTube 영상 댓글들의 감성을 분석해주세요.
+
+댓글 목록:
+{comments_text}
+
+다음 형식의 JSON으로 분석 결과를 제공해주세요:
+{{
+  "sentiment": {{
+    "positive": 긍정 댓글 비율 (0-100),
+    "neutral": 중립 댓글 비율 (0-100),
+    "negative": 부정 댓글 비율 (0-100)
+  }},
+  "summary": "전체 댓글 분위기 요약 (2-3문장)",
+  "keywords": ["자주 언급된 키워드 1", "키워드 2", ...],
+  "positive_points": ["시청자들이 좋아하는 점 1", "점 2", ...],
+  "negative_points": ["시청자들이 아쉬워하는 점 1", "점 2", ...],
+  "suggestions": ["개선 제안 1", "제안 2", ...],
+  "sample_comments": {{
+    "positive": "대표 긍정 댓글",
+    "negative": "대표 부정 댓글 (있는 경우)"
+  }}
+}}
+
+한국어로 답변해주세요."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 소셜 미디어 감성 분석 전문가입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # JSON 파싱
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        analysis = json.loads(result_text)
+        analysis["totalComments"] = len(comments)
+
+        return jsonify({
+            "success": True,
+            "data": analysis,
+            "message": f"{len(comments)}개 댓글 감성 분석 완료"
+        })
+
+    except json.JSONDecodeError as e:
+        print(f"감성 분석 JSON 파싱 오류: {e}")
+        return jsonify({"success": False, "message": "분석 결과 파싱 실패"}), 500
+    except Exception as e:
+        print(f"감성 분석 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ===== 신규 기능: 태그 분석 =====
+
+@tubelens_bp.route('/api/tubelens/analyze-tags', methods=['POST'])
+def api_analyze_tags():
+    """인기 영상들의 태그/해시태그 패턴 분석"""
+    try:
+        import json
+        from collections import Counter
+
+        data = request.get_json()
+        video_ids = data.get("videoIds", [])
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not video_ids:
+            return jsonify({"success": False, "message": "분석할 영상이 없습니다."}), 400
+
+        if len(video_ids) > 20:
+            video_ids = video_ids[:20]
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+
+        if not api_key:
+            api_key = get_youtube_api_key()
+
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 영상 정보 가져오기 (태그 포함)
+        videos_data = make_youtube_request("videos", {
+            "part": "snippet,statistics",
+            "id": ",".join(video_ids)
+        }, api_key)
+
+        all_tags = []
+        all_hashtags = []
+        video_tag_data = []
+
+        for item in videos_data.get("items", []):
+            snippet = item.get("snippet", {})
+            stats = item.get("statistics", {})
+
+            tags = snippet.get("tags", [])
+            title = snippet.get("title", "")
+            description = snippet.get("description", "")
+
+            # 제목과 설명에서 해시태그 추출
+            import re
+            hashtags_in_title = re.findall(r'#(\w+)', title)
+            hashtags_in_desc = re.findall(r'#(\w+)', description)
+            hashtags = list(set(hashtags_in_title + hashtags_in_desc))
+
+            all_tags.extend(tags)
+            all_hashtags.extend(hashtags)
+
+            video_tag_data.append({
+                "title": title,
+                "viewCount": int(stats.get("viewCount", 0)),
+                "tags": tags[:10],
+                "hashtags": hashtags[:5]
+            })
+
+        # 태그 빈도 분석
+        tag_counter = Counter(all_tags)
+        hashtag_counter = Counter(all_hashtags)
+
+        # 가장 많이 사용된 태그
+        top_tags = [{"tag": tag, "count": count} for tag, count in tag_counter.most_common(20)]
+        top_hashtags = [{"hashtag": ht, "count": count} for ht, count in hashtag_counter.most_common(10)]
+
+        # 태그 길이 분석
+        avg_tag_count = len(all_tags) / len(video_ids) if video_ids else 0
+        avg_tag_length = sum(len(t) for t in all_tags) / len(all_tags) if all_tags else 0
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "topTags": top_tags,
+                "topHashtags": top_hashtags,
+                "totalTagsAnalyzed": len(all_tags),
+                "totalHashtagsAnalyzed": len(all_hashtags),
+                "avgTagsPerVideo": round(avg_tag_count, 1),
+                "avgTagLength": round(avg_tag_length, 1),
+                "videoTagData": video_tag_data,
+                "recommendations": [
+                    f"평균 {round(avg_tag_count)}개의 태그 사용 권장",
+                    f"인기 태그: {', '.join([t['tag'] for t in top_tags[:5]])}",
+                    f"인기 해시태그: {', '.join(['#' + h['hashtag'] for h in top_hashtags[:3]])}" if top_hashtags else "해시태그 활용 권장"
+                ]
+            },
+            "message": f"{len(video_ids)}개 영상의 태그 분석 완료"
+        })
+
+    except Exception as e:
+        print(f"태그 분석 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ===== 신규 기능: 키워드 트렌드 (YouTube 검색 기반) =====
+
+@tubelens_bp.route('/api/tubelens/keyword-trend', methods=['POST'])
+def api_keyword_trend():
+    """키워드 트렌드 분석 - 기간별 영상 수와 평균 조회수 비교"""
+    try:
+        data = request.get_json()
+        keyword = data.get("keyword", "")
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not keyword:
+            return jsonify({"success": False, "message": "키워드를 입력해주세요."}), 400
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+
+        if not api_key:
+            api_key = get_youtube_api_key()
+
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 기간별 검색 (최근 7일, 30일, 90일)
+        periods = [
+            {"name": "7일", "days": 7},
+            {"name": "30일", "days": 30},
+            {"name": "90일", "days": 90}
+        ]
+
+        trend_data = []
+
+        for period in periods:
+            published_after = get_time_filter("day" if period["days"] == 1 else
+                                              "week" if period["days"] == 7 else
+                                              "month" if period["days"] == 30 else
+                                              "3months")
+
+            search_result = make_youtube_request("search", {
+                "part": "snippet",
+                "q": keyword,
+                "type": "video",
+                "maxResults": 20,
+                "order": "date",
+                "publishedAfter": published_after,
+                "regionCode": "KR"
+            }, api_key)
+
+            video_count = len(search_result.get("items", []))
+
+            # 조회수 분석
+            avg_views = 0
+            if video_count > 0:
+                video_ids = [item["id"]["videoId"] for item in search_result.get("items", [])]
+                videos_data = make_youtube_request("videos", {
+                    "part": "statistics",
+                    "id": ",".join(video_ids)
+                }, api_key)
+
+                total_views = sum(int(v.get("statistics", {}).get("viewCount", 0))
+                                  for v in videos_data.get("items", []))
+                avg_views = total_views // video_count if video_count > 0 else 0
+
+            trend_data.append({
+                "period": period["name"],
+                "days": period["days"],
+                "videoCount": video_count,
+                "avgViews": avg_views,
+                "videosPerDay": round(video_count / period["days"], 2)
+            })
+
+        # 트렌드 분석
+        recent = trend_data[0]  # 7일
+        older = trend_data[2]   # 90일
+
+        trend_direction = "상승" if recent["videosPerDay"] > older["videosPerDay"] * 0.9 else "하락"
+        trend_strength = "강함" if abs(recent["videosPerDay"] - older["videosPerDay"]) > older["videosPerDay"] * 0.3 else "보통"
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "keyword": keyword,
+                "trendData": trend_data,
+                "trendDirection": trend_direction,
+                "trendStrength": trend_strength,
+                "recommendation": f"'{keyword}' 키워드는 현재 {trend_direction} 추세입니다. " +
+                                 (f"경쟁이 {'치열' if recent['videosPerDay'] > 3 else '보통'} 하며, " +
+                                  f"평균 조회수는 {recent['avgViews']:,}회 입니다.")
+            },
+            "message": f"'{keyword}' 키워드 트렌드 분석 완료"
+        })
+
+    except Exception as e:
+        print(f"키워드 트렌드 분석 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
