@@ -14289,6 +14289,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
 
                 # 이미지 다운로드
                 img_path = os.path.join(work_dir, f"scene_{idx:03d}.jpg")
+                print(f"[VIDEO-WORKER] Scene {idx + 1} image_url: {image_url[:100]}...")
                 try:
                     if image_url.startswith('http'):
                         req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -14300,10 +14301,18 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                         if os.path.exists(local_path):
                             shutil.copy(local_path, img_path)
                         else:
+                            print(f"[VIDEO-WORKER] Local image not found: {local_path}")
                             continue
                 except Exception as e:
                     print(f"[VIDEO-WORKER] Image download failed: {e}")
                     continue
+
+                # 이미지 파일 검증
+                if not os.path.exists(img_path):
+                    print(f"[VIDEO-WORKER] Image file not created: {img_path}")
+                    continue
+                img_size = os.path.getsize(img_path)
+                print(f"[VIDEO-WORKER] Scene {idx + 1} image saved: {img_size} bytes")
 
                 # 오디오 다운로드
                 audio_path = None
@@ -14341,13 +14350,15 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
 
                 ken_burns_filter = _get_ken_burns_filter(ken_burns_effect, duration)
                 print(f"[VIDEO-WORKER] Scene {idx + 1} Ken Burns: {ken_burns_effect}")
+                print(f"[VIDEO-WORKER] Scene {idx + 1} VF filter: {ken_burns_filter[:200]}...")
 
                 # 씬 클립 생성 (Ken Burns 효과 포함)
                 clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
                 if audio_path and os.path.exists(audio_path):
                     cmd = [
                         "ffmpeg", "-y",
-                        "-loop", "1",  # 이미지 루프 (zoompan 필터가 여러 프레임 생성 필요)
+                        "-loop", "1",  # 이미지 루프
+                        "-framerate", "24",  # 입력 프레임레이트 지정
                         "-i", img_path,
                         "-i", audio_path,
                         "-vf", ken_burns_filter,
@@ -14360,7 +14371,8 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                 else:
                     cmd = [
                         "ffmpeg", "-y",
-                        "-loop", "1",  # 이미지 루프 (zoompan 필터가 여러 프레임 생성 필요)
+                        "-loop", "1",  # 이미지 루프
+                        "-framerate", "24",  # 입력 프레임레이트 지정
                         "-i", img_path,
                         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
                         "-vf", ken_burns_filter,
@@ -14370,6 +14382,9 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                         "-t", str(duration), "-shortest",
                         clip_path
                     ]
+
+                # 디버깅: 실제 실행 명령어 출력
+                print(f"[VIDEO-WORKER] FFmpeg cmd: {' '.join(cmd[:15])}...")
 
                 # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
                 result = subprocess.run(
@@ -14384,8 +14399,9 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                     del result
                     gc.collect()
                 else:
-                    stderr = result.stderr[:300].decode('utf-8', errors='ignore') if result.stderr else 'no stderr'
-                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode}): {stderr}")
+                    stderr = result.stderr.decode('utf-8', errors='ignore')[:1500] if result.stderr else 'no stderr'
+                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode})")
+                    print(f"[VIDEO-WORKER] FFmpeg stderr: {stderr}")
                     del result
                     gc.collect()
 
