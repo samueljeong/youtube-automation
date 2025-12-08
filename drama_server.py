@@ -15133,8 +15133,11 @@ def api_generate_shorts_script():
 
 @app.route('/api/shorts/generate-tts', methods=['POST'])
 def api_generate_shorts_tts():
-    """쇼츠용 TTS 음성 생성"""
+    """쇼츠용 TTS 음성 생성 (REST API 사용)"""
     try:
+        import requests as req
+        import base64
+
         data = request.get_json()
         text = data.get('text', '').strip()
         voice = data.get('voice', 'ko-KR-Neural2-C')
@@ -15145,28 +15148,35 @@ def api_generate_shorts_tts():
 
         print(f"[SHORTS-TTS] 음성 생성: {len(text)}자, 속도: {speed}x")
 
-        from google.cloud import texttospeech
+        # Google Cloud TTS REST API 사용
+        google_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+        if not google_api_key:
+            return jsonify({'ok': False, 'error': 'GOOGLE_CLOUD_API_KEY 환경변수가 필요합니다.'}), 500
 
-        tts_client = texttospeech.TextToSpeechClient()
+        url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
 
-        synthesis_input = texttospeech.SynthesisInput(text=text)
+        payload = {
+            "input": {"text": text},
+            "voice": {
+                "languageCode": "ko-KR",
+                "name": voice
+            },
+            "audioConfig": {
+                "audioEncoding": "MP3",
+                "speakingRate": max(0.25, min(4.0, speed)),
+                "pitch": 0.0
+            }
+        }
 
-        voice_params = texttospeech.VoiceSelectionParams(
-            language_code="ko-KR",
-            name=voice
-        )
+        response = req.post(url, json=payload, timeout=60)
 
-        audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3,
-            speaking_rate=speed,
-            pitch=0.0
-        )
+        if response.status_code != 200:
+            error_text = response.text
+            print(f"[SHORTS-TTS] Google API 오류: {response.status_code} - {error_text}")
+            return jsonify({'ok': False, 'error': f'Google TTS 오류: {response.status_code}'}), 500
 
-        response = tts_client.synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config
-        )
+        result = response.json()
+        audio_content = base64.b64decode(result.get("audioContent", ""))
 
         # 오디오 파일 저장
         audio_dir = 'static/audio/shorts'
@@ -15175,7 +15185,7 @@ def api_generate_shorts_tts():
         audio_path = os.path.join(audio_dir, audio_filename)
 
         with open(audio_path, 'wb') as f:
-            f.write(response.audio_content)
+            f.write(audio_content)
 
         audio_url = f'/{audio_path}'
         print(f"[SHORTS-TTS] 저장 완료: {audio_path}")
