@@ -6294,29 +6294,27 @@ def _generate_video_sync(images, audio_url, subtitle_data, burn_subtitle, resolu
             srt_content = subtitle_data['srt']
 
             # 한글 폰트 확인 (ASS 자막은 폰트 이름만 사용)
+            # NanumGothic 사용 (Pretendard는 한글 글리프 없음)
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            project_font = os.path.join(base_dir, 'fonts', 'Pretendard-Bold.ttf')
 
             font_found = False
             font_location = None
-            if os.path.exists(project_font):
-                font_found = True
-                font_location = project_font
-            else:
-                # 시스템 폰트 폴백
-                system_fonts = [
-                    os.path.join(base_dir, 'fonts', 'Pretendard-SemiBold.ttf'),
-                    os.path.join(base_dir, 'fonts', 'NanumGothicBold.ttf'),
-                    '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
-                ]
-                for sf in system_fonts:
-                    if os.path.exists(sf):
-                        font_found = True
-                        font_location = sf
-                        break
+            # NanumGothic 폰트 우선 확인
+            korean_fonts = [
+                os.path.join(base_dir, 'fonts', 'NanumGothicBold.ttf'),
+                os.path.join(base_dir, 'fonts', 'NanumGothic.ttf'),
+                os.path.join(base_dir, 'fonts', 'NanumBarunGothicBold.ttf'),
+                '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf',
+            ]
+            for kf in korean_fonts:
+                if os.path.exists(kf):
+                    font_found = True
+                    font_location = kf
+                    break
 
             # ASS 자막에는 폰트 경로가 아닌 폰트 이름을 사용해야 함
-            subtitle_font = 'Pretendard' if font_found else 'Arial'
+            # Pretendard는 한글 글리프가 없으므로 NanumGothic 사용
+            subtitle_font = 'NanumGothic' if font_found else 'Arial'
 
             print(f"[VIDEO-SUBTITLE] 자막 폰트: {subtitle_font} (found: {font_found}, location: {font_location if font_found else 'N/A'})")
 
@@ -7629,14 +7627,14 @@ FINAL STYLE: Detailed anime background (Ghibli-inspired, warm colors) + Simple w
             width, height = img.size
             draw = ImageDraw.Draw(img)
 
-            # 폰트 로드
+            # 폰트 로드 (NanumGothicBold 우선 - Pretendard는 한글 글리프 없음)
             font_size = int(height * 0.08)  # 이미지 높이의 8%
             font = None
             font_paths = [
-                os.path.join(static_dir, 'fonts', 'Pretendard-Bold.ttf'),
-                os.path.join(static_dir, 'fonts', 'Pretendard-SemiBold.ttf'),
-                os.path.join(static_dir, 'fonts', 'NanumSquareRoundB.ttf'),
                 os.path.join(static_dir, 'fonts', 'NanumGothicBold.ttf'),
+                os.path.join(static_dir, 'fonts', 'NanumGothic.ttf'),
+                os.path.join(static_dir, 'fonts', 'NanumSquareRoundB.ttf'),
+                os.path.join(static_dir, 'fonts', 'NanumBarunGothicBold.ttf'),
                 "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
             ]
             for fp in font_paths:
@@ -8383,13 +8381,13 @@ def api_thumbnail_overlay():
         # 폰트 로드 (한글 지원 폰트)
         font = None
         base_dir = os_module.path.dirname(os_module.path.abspath(__file__))
+        # NanumGothicBold 우선 (Pretendard는 한글 글리프 없음)
         font_paths = [
-            # Pretendard (최우선)
-            os_module.path.join(base_dir, "fonts/Pretendard-Bold.ttf"),
-            os_module.path.join(base_dir, "fonts/Pretendard-SemiBold.ttf"),
-            # 프로젝트 로컬 폰트 (폴백)
-            os_module.path.join(base_dir, "fonts/NanumSquareB.ttf"),
+            # 한글 지원 폰트 (최우선)
             os_module.path.join(base_dir, "fonts/NanumGothicBold.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumGothic.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumSquareB.ttf"),
+            os_module.path.join(base_dir, "fonts/NanumBarunGothicBold.ttf"),
             # Linux (Render)
             "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -12609,25 +12607,26 @@ def _update_job_status(job_id, **kwargs):
 def _get_subtitle_style(lang):
     """언어별 자막 스타일 반환 (ASS 형식) - 폰트28 기준"""
     # 유튜브 스타일: 흰색 텍스트 + 검은색 외곽선 + 그림자
+    # NanumGothic 사용 (Pretendard는 한글 글리프 없음)
     if lang == 'ko':
-        # Pretendard - 프리텐다드 (한글 전용)
+        # NanumGothic - 나눔고딕 (한글 완벽 지원)
         # Outline=2 (두꺼운 외곽선), MarginV=40 (하단 여백)
         return (
-            "FontName=Pretendard,FontSize=28,PrimaryColour=&H00FFFFFF,"
+            "FontName=NanumGothic,FontSize=28,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
         )
     elif lang == 'ja':
-        # 일본어 - Pretendard 사용 (CJK 지원)
+        # 일본어 - NanumGothic 사용 (CJK 지원)
         return (
-            "FontName=Pretendard,FontSize=26,PrimaryColour=&H00FFFFFF,"
+            "FontName=NanumGothic,FontSize=26,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
         )
     else:
         # 영어/기타 언어
         return (
-            "FontName=Pretendard,FontSize=22,PrimaryColour=&H00FFFFFF,"
+            "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
         )
@@ -12692,11 +12691,12 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
     """
     try:
         # 언어별 폰트 설정 (큰 자막 - 50대+ 시청자 가독성)
+        # NanumGothic 사용 (Pretendard는 한글 글리프 없음)
         if lang == 'ko':
-            font_name = "Pretendard"
+            font_name = "NanumGothic"
             font_size = 48  # 24 → 48 (2배 크기)
         else:
-            font_name = "Pretendard"
+            font_name = "NanumGothic"
             font_size = 44  # 22 → 44 (2배 크기)
 
         # ASS 헤더 (큰 폰트, 두꺼운 테두리, 하단 중앙 정렬)
@@ -12767,7 +12767,8 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir):
         current_time += scene.get('duration', 0)
 
     filters = []
-    font_path = os.path.join(fonts_dir, "Pretendard-Bold.ttf")
+    # NanumGothicBold 사용 (Pretendard는 한글 글리프 없음)
+    font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
     for overlay in screen_overlays:
@@ -12857,7 +12858,8 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir):
         current_time += scene.get('duration', 0)
 
     filters = []
-    font_path = os.path.join(fonts_dir, "Pretendard-SemiBold.ttf")
+    # NanumGothicBold 사용 (Pretendard는 한글 글리프 없음)
+    font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
     for lt in lower_thirds:
@@ -12953,7 +12955,8 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
     ticker_text = "   ●   ".join(headlines) + "   ●   " + headlines[0]  # 반복을 위해 첫 번째 추가
     ticker_text = ticker_text.replace("'", "'\\''").replace(":", "\\:")
 
-    font_path = os.path.join(fonts_dir, "Pretendard-Bold.ttf")
+    # NanumGothicBold 사용 (Pretendard는 한글 글리프 없음)
+    font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
     # 스크롤 속도: 전체 영상 동안 텍스트가 2-3번 정도 지나가도록
@@ -13322,12 +13325,12 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
         print(f"[OUTRO] 폰트 디렉토리: {fonts_dir}")
         print(f"[OUTRO] 디렉토리 존재: {os.path.exists(fonts_dir)}")
 
-        # 폰트 우선순위: Pretendard-Bold > Pretendard-SemiBold > NanumGothicBold
-        font_path = os.path.join(fonts_dir, "Pretendard-Bold.ttf")
+        # 폰트 우선순위: NanumGothicBold (Pretendard는 한글 글리프 없음)
+        font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
         if not os.path.exists(font_path):
-            font_path = os.path.join(fonts_dir, "Pretendard-SemiBold.ttf")
+            font_path = os.path.join(fonts_dir, "NanumGothic.ttf")
         if not os.path.exists(font_path):
-            font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
+            font_path = os.path.join(fonts_dir, "NanumBarunGothicBold.ttf")
         if not os.path.exists(font_path):
             print(f"[OUTRO] 폰트 파일 없음: {fonts_dir}")
             return False
@@ -13649,17 +13652,17 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 # 1-1. TTS 생성
                 audio_path = os.path.join(temp_dir, f"beat_{beat_id:02d}_audio.mp3")
                 try:
-                    tts_resp = req.post(f"{base_url}/api/tts/generate", json={
+                    tts_resp = req.post(f"{base_url}/api/shorts/generate-tts", json={
                         "text": voiceover,
                         "voice": voice_name,
-                        "language": "ko"
+                        "speed": 1.2
                     }, timeout=60)
 
                     if tts_resp.status_code == 200:
                         tts_data = tts_resp.json()
                         if tts_data.get("ok"):
                             # 오디오 URL에서 다운로드
-                            audio_url = tts_data.get("audio_url", "")
+                            audio_url = tts_data.get("audioUrl", "")
                             if audio_url:
                                 audio_resp = req.get(f"{base_url}{audio_url}", timeout=30)
                                 with open(audio_path, "wb") as f:
@@ -13747,8 +13750,8 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 # 자막 필터 (하단 safe zone)
                 voiceover_escaped = bd['voiceover'].replace("'", "'\\''").replace(":", "\\:")
 
-                # 폰트 경로
-                font_path = "fonts/Pretendard-Bold.ttf"
+                # 폰트 경로 (NanumGothicBold 우선 - Pretendard는 한글 글리프 없음)
+                font_path = "fonts/NanumGothicBold.ttf"
                 if not os.path.exists(font_path):
                     font_path = "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"
                 font_escaped = font_path.replace("\\", "/").replace(":", "\\:")
@@ -13989,8 +13992,9 @@ def _generate_shorts_video(main_video_path, scenes, highlight_scenes, hook_text,
                 return False
 
             # 훅 텍스트 오버레이 추가 (처음 3초)
+            # NanumGothicBold 사용 (Pretendard는 한글 글리프 없음)
             if hook_text:
-                font_path = "fonts/Pretendard-Bold.ttf"
+                font_path = "fonts/NanumGothicBold.ttf"
                 font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
 
                 hook_filter = (
@@ -15685,12 +15689,12 @@ def generate_thumbnail_with_text():
         # 상품 이미지 합성
         bg_img.paste(product_img_resized, (img_x, img_y), product_img_resized)
 
-        # 폰트 로드 (프로젝트 로컬 Pretendard 우선)
+        # 폰트 로드 (NanumGothicBold 우선 - Pretendard는 한글 글리프 없음)
         base_dir = os.path.dirname(os.path.abspath(__file__))
         font_candidates = [
-            os.path.join(base_dir, "fonts/Pretendard-Bold.ttf"),
-            os.path.join(base_dir, "fonts/Pretendard-SemiBold.ttf"),
             os.path.join(base_dir, "fonts/NanumGothicBold.ttf"),
+            os.path.join(base_dir, "fonts/NanumGothic.ttf"),
+            os.path.join(base_dir, "fonts/NanumBarunGothicBold.ttf"),
             '/usr/share/fonts/truetype/noto/NotoSansCJK-Black.ttc',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         ]
@@ -17735,41 +17739,112 @@ def get_sheets_service_account():
         return None
 
 
-def sheets_read_rows(service, sheet_id, range_name='Sheet1!A:H'):
+def sheets_read_rows(service, sheet_id, range_name='Sheet1!A:H', max_retries=3):
     """
-    Google Sheets에서 행 읽기
-    반환: [[row1_values], [row2_values], ...]
+    Google Sheets에서 행 읽기 (재시도 로직 포함)
+    반환: [[row1_values], [row2_values], ...] 또는 None (API 실패 시)
+
+    Note: 빈 시트는 [] 반환, API 실패는 None 반환 (구분 필요)
     """
-    try:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id,
-            range=range_name
-        ).execute()
-        return result.get('values', [])
-    except Exception as e:
-        print(f"[SHEETS] 읽기 실패: {e}")
-        return []
+    import time as time_module
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=range_name
+            ).execute()
+            return result.get('values', [])
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+
+            # 재시도 가능한 일시적 오류 패턴
+            transient_errors = [
+                'authentication backend unknown error',
+                'backend error',
+                'internal error',
+                'service unavailable',
+                'deadline exceeded',
+                'connection reset',
+                'connection refused',
+                'timeout',
+                '500',
+                '502',
+                '503',
+                '504'
+            ]
+
+            is_transient = any(pattern in error_str for pattern in transient_errors)
+
+            if is_transient and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                print(f"[SHEETS] 일시적 오류 발생 (시도 {attempt + 1}/{max_retries}), {wait_time}초 후 재시도: {e}")
+                time_module.sleep(wait_time)
+            else:
+                print(f"[SHEETS] 읽기 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if not is_transient:
+                    break  # 재시도 불가능한 오류는 바로 종료
+
+    print(f"[SHEETS] 최종 읽기 실패 (모든 재시도 소진): {last_error}")
+    return None  # API 실패 시 None 반환 (빈 시트 []와 구분)
 
 
-def sheets_update_cell(service, sheet_id, cell_range, value):
+def sheets_update_cell(service, sheet_id, cell_range, value, max_retries=3):
     """
-    Google Sheets 특정 셀 업데이트
+    Google Sheets 특정 셀 업데이트 (재시도 로직 포함)
     cell_range 예시: 'Sheet1!A2' 또는 'Sheet1!G2:H2'
     """
-    try:
-        body = {
-            'values': [[value]] if not isinstance(value, list) else [value]
-        }
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range=cell_range,
-            valueInputOption='RAW',
-            body=body
-        ).execute()
-        return True
-    except Exception as e:
-        print(f"[SHEETS] 셀 업데이트 실패: {e}")
-        return False
+    import time as time_module
+
+    body = {
+        'values': [[value]] if not isinstance(value, list) else [value]
+    }
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=cell_range,
+                valueInputOption='RAW',
+                body=body
+            ).execute()
+            return True
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+
+            # 재시도 가능한 일시적 오류 패턴
+            transient_errors = [
+                'authentication backend unknown error',
+                'backend error',
+                'internal error',
+                'service unavailable',
+                'deadline exceeded',
+                'connection reset',
+                'connection refused',
+                'timeout',
+                '500',
+                '502',
+                '503',
+                '504'
+            ]
+
+            is_transient = any(pattern in error_str for pattern in transient_errors)
+
+            if is_transient and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                print(f"[SHEETS] 셀 업데이트 일시적 오류 (시도 {attempt + 1}/{max_retries}), {wait_time}초 후 재시도: {e}")
+                time_module.sleep(wait_time)
+            else:
+                print(f"[SHEETS] 셀 업데이트 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if not is_transient:
+                    break
+
+    print(f"[SHEETS] 셀 업데이트 최종 실패: {cell_range} - {last_error}")
+    return False
 
 
 def run_automation_pipeline(row_data, row_index):
@@ -19391,10 +19466,19 @@ def api_sheets_check_and_process():
 
         # 시트 데이터 읽기 (A:M까지 - 비용, 채널명, 타겟 컬럼 포함)
         rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:M')
-        if not rows:
+
+        # None = API 실패 (재시도 후에도 실패), [] = 빈 시트
+        if rows is None:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets API 호출 실패 (재시도 후에도 실패)",
+                "processed": 0
+            }), 503  # Service Unavailable
+
+        if len(rows) == 0:
             return jsonify({
                 "ok": True,
-                "message": "시트가 비어있거나 읽기 실패",
+                "message": "시트가 비어있습니다",
                 "processed": 0
             })
 
