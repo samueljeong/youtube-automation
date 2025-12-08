@@ -13039,14 +13039,14 @@ def _get_bgm_file(mood, bgm_dir=None):
     return selected
 
 
-def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.15):
+def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.25):
     """비디오에 BGM 믹싱 (나레이션 유지, BGM은 작게)
 
     Args:
         video_path: 원본 비디오 경로
         bgm_path: BGM 오디오 경로
         output_path: 출력 비디오 경로
-        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.15 = 15%)
+        bgm_volume: BGM 볼륨 (0.0~1.0, 기본 0.25 = 25%)
 
     Returns:
         성공 여부 (bool)
@@ -13074,7 +13074,7 @@ def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.15):
             "-stream_loop", "-1", "-i", bgm_path,      # BGM 루프
             "-filter_complex",
             f"[1:a]volume={bgm_volume},afade=t=in:st=0:d=2,afade=t=out:st={fade_start}:d=3[bgm];"  # BGM 볼륨+페이드
-            f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]",  # 믹싱
+            f"[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[aout]",  # 믹싱 (normalize=0: TTS 볼륨 유지)
             "-map", "0:v",                             # 비디오 스트림
             "-map", "[aout]",                          # 믹싱된 오디오
             "-c:v", "copy",                            # 비디오 재인코딩 안함
@@ -13267,7 +13267,7 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
         # amix로 모든 오디오 합치기
         sfx_labels = "".join([f"[sfx{i}]" for i in range(len(sfx_inputs))])
         mix_inputs = len(sfx_inputs) + 1  # 효과음 개수 + 원본 오디오
-        filter_parts.append(f"[0:a]{sfx_labels}amix=inputs={mix_inputs}:duration=first:dropout_transition=2[aout]")
+        filter_parts.append(f"[0:a]{sfx_labels}amix=inputs={mix_inputs}:duration=first:dropout_transition=2:normalize=0[aout]")
 
         filter_complex = ";".join(filter_parts)
 
