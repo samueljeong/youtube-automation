@@ -298,10 +298,16 @@ document.addEventListener('DOMContentLoaded', () => {
         simLabel = '보통';
       }
 
+      // 출처 배지
+      const sourceLabel = getSourceLabel(supplier.source);
+      const sourceBadgeClass = getSourceBadgeClass(supplier.source);
+
       row.innerHTML = `
         <td>
           <div class="supplier-name">${escapeHtml(supplier.name)}</div>
-          <div class="supplier-source">${escapeHtml(supplier.source)}</div>
+        </td>
+        <td>
+          <span class="source-badge ${sourceBadgeClass}">${sourceLabel}</span>
         </td>
         <td>
           <span class="similarity-badge ${simClass}">${simLabel} ${Math.round(simScore * 100)}%</span>
@@ -699,5 +705,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  /**
+   * 출처 코드를 한글 라벨로 변환
+   */
+  function getSourceLabel(source) {
+    const labels = {
+      'domeggook': '도매꾹',
+      'domeme': '도매매',
+      'naver_shopping': '네이버 쇼핑',
+      'alibaba': '알리바바',
+      'mock': '테스트'
+    };
+    return labels[source] || source || '기타';
+  }
+
+  /**
+   * 출처에 따른 배지 클래스 반환
+   */
+  function getSourceBadgeClass(source) {
+    const classes = {
+      'domeggook': 'source-domeggook',
+      'domeme': 'source-domeme',
+      'naver_shopping': 'source-naver',
+      'alibaba': 'source-alibaba',
+      'mock': 'source-default'
+    };
+    return classes[source] || 'source-default';
   }
 });

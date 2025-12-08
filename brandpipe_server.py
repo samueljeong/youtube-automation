@@ -148,6 +148,323 @@ COMMON_HEADERS = {
 }
 
 
+# ===== 도매 크롤러 설정 =====
+"""
+SupplierResult 공통 구조:
+{
+    "source": "domeggook" | "domeme" | "naver_shopping" | "mock" | ...,
+    "name": "상품명",
+    "url": "상품 상세 페이지 URL",
+    "unit_price": 2500,      # 1개 기준 가격 (원)
+    "original_price": 25000, # 묶음/박스 전체 가격 (있으면)
+    "unit_desc": "10개/박스", # 단위/구성 설명
+    "shipping_fee": 0,
+    "moq": 10,               # 최소 주문 수량
+    "currency": "KRW",
+}
+
+주의:
+- robots.txt, 이용약관을 반드시 사전에 확인할 것
+- 요청 빈도는 낮게 유지 (keyword당 1요청 + 0.5~1.0초 sleep)
+- 상업적 사용 시 각 사이트 약관 확인 필요
+"""
+
+import math
+
+# 공통 세션 (도매 크롤링용)
+CRAWLER_SESSION = requests.Session()
+CRAWLER_SESSION.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+})
+
+# 도매 사이트 URL
+DOMEGGOOK_BASE_URL = "https://domeggook.com"
+DOMEME_BASE_URL = "https://domeme.com"
+
+
+def fetch_with_delay(url: str, delay: float = 0.6) -> str:
+    """딜레이 적용 후 페이지 fetch"""
+    time.sleep(delay)
+    resp = CRAWLER_SESSION.get(url, timeout=10)
+    resp.raise_for_status()
+    return resp.text
+
+
+def parse_price_to_int(text: str) -> int:
+    """가격 문자열을 정수로 변환 (예: '25,000원' → 25000)"""
+    if not text:
+        return 0
+    numbers = re.sub(r'[^\d]', '', text)
+    return int(numbers) if numbers else 0
+
+
+def extract_quantity_from_text(text: str) -> int:
+    """
+    텍스트에서 수량 추출
+    예: "10개입" → 10, "1BOX(20개)" → 20, "30매" → 30
+    """
+    if not text:
+        return 1
+
+    patterns = [
+        r'\((\d+)개\)',      # (20개)
+        r'(\d+)개입',        # 10개입
+        r'(\d+)개',          # 10개
+        r'(\d+)매',          # 30매
+        r'(\d+)장',          # 100장
+        r'(\d+)ea',          # 10ea
+        r'(\d+)EA',          # 10EA
+        r'(\d+)p',           # 10p
+        r'(\d+)P',           # 10P
+        r'x(\d+)',           # x10
+        r'X(\d+)',           # X10
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return int(match.group(1))
+
+    return 1
+
+
+# ===== 도매꾹 크롤러 =====
+
+def build_domeggook_search_url(keyword: str) -> str:
+    """도매꾹 검색 URL 생성"""
+    encoded = quote(keyword)
+    return f"{DOMEGGOOK_BASE_URL}/main/searchProc.php?search={encoded}"
+
+
+def search_from_domeggook(keywords: list) -> list:
+    """
+    도매꾹 검색 결과 크롤링
+
+    주의:
+    - robots.txt, 이용약관을 반드시 사전에 확인할 것
+    - 요청 빈도는 낮게 유지 (keyword당 1요청 + 0.6초 delay)
+    """
+    results = []
+
+    for kw in keywords[:2]:  # 최대 2개 키워드만 사용
+        try:
+            url = build_domeggook_search_url(kw)
+            html = fetch_with_delay(url, delay=0.7)
+            parsed = parse_domeggook_list_page(html)
+            results.extend(parsed)
+        except Exception as e:
+            print(f"[Brandpipe] 도매꾹 검색 오류 ({kw}): {e}")
+            continue
+
+    # 중복 제거 (URL 기준)
+    unique = {}
+    for r in results:
+        key = r.get("url")
+        if key and key not in unique:
+            unique[key] = r
+
+    return list(unique.values())[:15]
+
+
+def parse_domeggook_list_page(html: str) -> list:
+    """도매꾹 검색 결과 페이지 파싱"""
+    soup = BeautifulSoup(html, 'html.parser')
+    results = []
+
+    # 도매꾹 상품 리스트 selector (실제 구조에 맞게 조정 필요)
+    # 일반적인 패턴: div.item, li.product, div.goods-item 등
+    items = soup.select('div.item_box, div.goods_item, li.prd_item, div.product-item')
+
+    # 대체 selector 시도
+    if not items:
+        items = soup.select('[class*="item"], [class*="product"], [class*="goods"]')
+
+    for item in items[:20]:
+        try:
+            # 제목/링크 추출
+            title_el = item.select_one('a[class*="name"], a[class*="title"], .item_name a, .goods_name a, a.prd_name')
+            if not title_el:
+                title_el = item.select_one('a')
+
+            if not title_el:
+                continue
+
+            title = title_el.get_text(strip=True)
+            if not title or len(title) < 2:
+                continue
+
+            link = title_el.get('href', '')
+            if link and not link.startswith('http'):
+                link = DOMEGGOOK_BASE_URL + ('/' if not link.startswith('/') else '') + link
+
+            # 가격 추출
+            price_el = item.select_one('[class*="price"], .item_price, .goods_price, .prd_price, span.price')
+            if not price_el:
+                price_el = item.select_one('strong, em, span')
+
+            price_text = price_el.get_text(strip=True) if price_el else '0'
+            total_price = parse_price_to_int(price_text)
+
+            if total_price <= 0:
+                continue
+
+            # 수량/단위 추출
+            unit_desc = ''
+            unit_el = item.select_one('[class*="unit"], [class*="qty"], .item_unit')
+            if unit_el:
+                unit_desc = unit_el.get_text(strip=True)
+
+            # 제목에서도 수량 추출 시도
+            qty = extract_quantity_from_text(unit_desc) or extract_quantity_from_text(title)
+            if qty <= 0:
+                qty = 1
+
+            unit_price = math.floor(total_price / qty)
+
+            results.append({
+                "source": "domeggook",
+                "name": title[:120],
+                "url": link,
+                "unit_price": unit_price,
+                "original_price": total_price,
+                "unit_desc": unit_desc or f"{qty}개",
+                "shipping_fee": 0,
+                "moq": qty,
+                "currency": "KRW"
+            })
+
+        except Exception as e:
+            print(f"[Brandpipe] 도매꾹 아이템 파싱 오류: {e}")
+            continue
+
+    return results
+
+
+# ===== 도매매 크롤러 =====
+
+def build_domeme_search_url(keyword: str) -> str:
+    """도매매 검색 URL 생성"""
+    encoded = quote(keyword)
+    return f"{DOMEME_BASE_URL}/search?keyword={encoded}"
+
+
+def search_from_domeme(keywords: list) -> list:
+    """
+    도매매 검색 결과 크롤링
+
+    주의:
+    - robots.txt, 이용약관을 반드시 사전에 확인할 것
+    - 요청 빈도는 낮게 유지 (keyword당 1요청 + 0.6초 delay)
+    """
+    results = []
+
+    for kw in keywords[:2]:  # 최대 2개 키워드만 사용
+        try:
+            url = build_domeme_search_url(kw)
+            html = fetch_with_delay(url, delay=0.7)
+            parsed = parse_domeme_list_page(html)
+            results.extend(parsed)
+        except Exception as e:
+            print(f"[Brandpipe] 도매매 검색 오류 ({kw}): {e}")
+            continue
+
+    # 중복 제거 (URL 기준)
+    unique = {}
+    for r in results:
+        key = r.get("url")
+        if key and key not in unique:
+            unique[key] = r
+
+    return list(unique.values())[:15]
+
+
+def parse_domeme_list_page(html: str) -> list:
+    """도매매 검색 결과 페이지 파싱"""
+    soup = BeautifulSoup(html, 'html.parser')
+    results = []
+
+    # 도매매 상품 리스트 selector (실제 구조에 맞게 조정 필요)
+    items = soup.select('div.item_box, div.goods_item, li.prd_item, div.product-item, .item-card')
+
+    # 대체 selector 시도
+    if not items:
+        items = soup.select('[class*="item"], [class*="product"], [class*="goods"]')
+
+    for item in items[:20]:
+        try:
+            # 제목/링크 추출
+            title_el = item.select_one('a[class*="name"], a[class*="title"], .item_name a, .goods_name a')
+            if not title_el:
+                title_el = item.select_one('a')
+
+            if not title_el:
+                continue
+
+            title = title_el.get_text(strip=True)
+            if not title or len(title) < 2:
+                continue
+
+            link = title_el.get('href', '')
+            if link and not link.startswith('http'):
+                link = DOMEME_BASE_URL + ('/' if not link.startswith('/') else '') + link
+
+            # 가격 추출
+            price_el = item.select_one('[class*="price"], .item_price, .goods_price, span.price')
+            if not price_el:
+                price_el = item.select_one('strong, em, span')
+
+            price_text = price_el.get_text(strip=True) if price_el else '0'
+            total_price = parse_price_to_int(price_text)
+
+            if total_price <= 0:
+                continue
+
+            # 수량/단위 추출
+            unit_desc = ''
+            unit_el = item.select_one('[class*="unit"], [class*="qty"], .item_unit')
+            if unit_el:
+                unit_desc = unit_el.get_text(strip=True)
+
+            qty = extract_quantity_from_text(unit_desc) or extract_quantity_from_text(title)
+            if qty <= 0:
+                qty = 1
+
+            unit_price = math.floor(total_price / qty)
+
+            results.append({
+                "source": "domeme",
+                "name": title[:120],
+                "url": link,
+                "unit_price": unit_price,
+                "original_price": total_price,
+                "unit_desc": unit_desc or f"{qty}개",
+                "shipping_fee": 0,
+                "moq": qty,
+                "currency": "KRW"
+            })
+
+        except Exception as e:
+            print(f"[Brandpipe] 도매매 아이템 파싱 오류: {e}")
+            continue
+
+    return results
+
+
+def get_source_label(source: str) -> str:
+    """소스 코드를 한글 라벨로 변환"""
+    labels = {
+        "domeggook": "도매꾹",
+        "domeme": "도매매",
+        "naver_shopping": "네이버 쇼핑",
+        "domemall_mock": "도매몰(테스트)",
+        "naver_shopping_mock": "네이버(테스트)",
+        "alibaba_mock": "알리바바(테스트)"
+    }
+    return labels.get(source, source)
+
+
 # ===== 서비스 레이어 =====
 
 def detect_platform(url: str) -> str:
@@ -927,31 +1244,47 @@ def search_suppliers(keywords: list, include_overseas: bool = False, use_real_se
     """
     suppliers = []
 
-    # 1. 국내 도매몰 검색 (현재 Mock)
-    try:
-        suppliers.extend(search_from_domemall_mock(keywords))
-    except Exception as e:
-        print(f"[Brandpipe] 도매몰 검색 오류: {e}")
-
-    # 2. 네이버 쇼핑 검색 (실제 크롤링)
     if use_real_search:
+        # 1. 네이버 쇼핑 검색 (소비자 가격 참고용)
         try:
             naver_results = search_from_naver_shopping(keywords)
             if naver_results:
                 suppliers.extend(naver_results)
-            else:
-                # 실제 검색 결과가 없으면 mock으로 폴백
-                suppliers.extend(search_from_naver_mock(keywords))
         except Exception as e:
-            print(f"[Brandpipe] 네이버 실제 검색 오류, mock으로 폴백: {e}")
-            suppliers.extend(search_from_naver_mock(keywords))
-    else:
-        try:
-            suppliers.extend(search_from_naver_mock(keywords))
-        except Exception as e:
-            print(f"[Brandpipe] 네이버 mock 검색 오류: {e}")
+            print(f"[Brandpipe] 네이버 쇼핑 검색 오류: {e}")
 
-    # 3. 해외 도매 (옵션)
+        # 2. 도매꾹 검색 (실제 도매 단가)
+        try:
+            domeggook_results = search_from_domeggook(keywords)
+            if domeggook_results:
+                suppliers.extend(domeggook_results)
+        except Exception as e:
+            print(f"[Brandpipe] 도매꾹 검색 오류: {e}")
+
+        # 3. 도매매 검색 (실제 도매 단가)
+        try:
+            domeme_results = search_from_domeme(keywords)
+            if domeme_results:
+                suppliers.extend(domeme_results)
+        except Exception as e:
+            print(f"[Brandpipe] 도매매 검색 오류: {e}")
+
+        # 실제 결과가 없으면 mock으로 폴백
+        if not suppliers:
+            try:
+                suppliers.extend(search_from_domemall_mock(keywords))
+                suppliers.extend(search_from_naver_mock(keywords))
+            except Exception as e:
+                print(f"[Brandpipe] Mock 폴백 오류: {e}")
+    else:
+        # Mock 데이터만 사용
+        try:
+            suppliers.extend(search_from_domemall_mock(keywords))
+            suppliers.extend(search_from_naver_mock(keywords))
+        except Exception as e:
+            print(f"[Brandpipe] Mock 검색 오류: {e}")
+
+    # 4. 해외 도매 (옵션)
     if include_overseas:
         try:
             suppliers.extend(search_from_alibaba_mock(keywords))
