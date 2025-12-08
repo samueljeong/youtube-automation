@@ -17735,41 +17735,112 @@ def get_sheets_service_account():
         return None
 
 
-def sheets_read_rows(service, sheet_id, range_name='Sheet1!A:H'):
+def sheets_read_rows(service, sheet_id, range_name='Sheet1!A:H', max_retries=3):
     """
-    Google Sheets에서 행 읽기
-    반환: [[row1_values], [row2_values], ...]
+    Google Sheets에서 행 읽기 (재시도 로직 포함)
+    반환: [[row1_values], [row2_values], ...] 또는 None (API 실패 시)
+
+    Note: 빈 시트는 [] 반환, API 실패는 None 반환 (구분 필요)
     """
-    try:
-        result = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id,
-            range=range_name
-        ).execute()
-        return result.get('values', [])
-    except Exception as e:
-        print(f"[SHEETS] 읽기 실패: {e}")
-        return []
+    import time as time_module
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range=range_name
+            ).execute()
+            return result.get('values', [])
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+
+            # 재시도 가능한 일시적 오류 패턴
+            transient_errors = [
+                'authentication backend unknown error',
+                'backend error',
+                'internal error',
+                'service unavailable',
+                'deadline exceeded',
+                'connection reset',
+                'connection refused',
+                'timeout',
+                '500',
+                '502',
+                '503',
+                '504'
+            ]
+
+            is_transient = any(pattern in error_str for pattern in transient_errors)
+
+            if is_transient and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                print(f"[SHEETS] 일시적 오류 발생 (시도 {attempt + 1}/{max_retries}), {wait_time}초 후 재시도: {e}")
+                time_module.sleep(wait_time)
+            else:
+                print(f"[SHEETS] 읽기 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if not is_transient:
+                    break  # 재시도 불가능한 오류는 바로 종료
+
+    print(f"[SHEETS] 최종 읽기 실패 (모든 재시도 소진): {last_error}")
+    return None  # API 실패 시 None 반환 (빈 시트 []와 구분)
 
 
-def sheets_update_cell(service, sheet_id, cell_range, value):
+def sheets_update_cell(service, sheet_id, cell_range, value, max_retries=3):
     """
-    Google Sheets 특정 셀 업데이트
+    Google Sheets 특정 셀 업데이트 (재시도 로직 포함)
     cell_range 예시: 'Sheet1!A2' 또는 'Sheet1!G2:H2'
     """
-    try:
-        body = {
-            'values': [[value]] if not isinstance(value, list) else [value]
-        }
-        service.spreadsheets().values().update(
-            spreadsheetId=sheet_id,
-            range=cell_range,
-            valueInputOption='RAW',
-            body=body
-        ).execute()
-        return True
-    except Exception as e:
-        print(f"[SHEETS] 셀 업데이트 실패: {e}")
-        return False
+    import time as time_module
+
+    body = {
+        'values': [[value]] if not isinstance(value, list) else [value]
+    }
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            service.spreadsheets().values().update(
+                spreadsheetId=sheet_id,
+                range=cell_range,
+                valueInputOption='RAW',
+                body=body
+            ).execute()
+            return True
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+
+            # 재시도 가능한 일시적 오류 패턴
+            transient_errors = [
+                'authentication backend unknown error',
+                'backend error',
+                'internal error',
+                'service unavailable',
+                'deadline exceeded',
+                'connection reset',
+                'connection refused',
+                'timeout',
+                '500',
+                '502',
+                '503',
+                '504'
+            ]
+
+            is_transient = any(pattern in error_str for pattern in transient_errors)
+
+            if is_transient and attempt < max_retries - 1:
+                wait_time = (2 ** attempt) * 2  # 2초, 4초, 8초
+                print(f"[SHEETS] 셀 업데이트 일시적 오류 (시도 {attempt + 1}/{max_retries}), {wait_time}초 후 재시도: {e}")
+                time_module.sleep(wait_time)
+            else:
+                print(f"[SHEETS] 셀 업데이트 실패 (시도 {attempt + 1}/{max_retries}): {e}")
+                if not is_transient:
+                    break
+
+    print(f"[SHEETS] 셀 업데이트 최종 실패: {cell_range} - {last_error}")
+    return False
 
 
 def run_automation_pipeline(row_data, row_index):
@@ -19391,10 +19462,19 @@ def api_sheets_check_and_process():
 
         # 시트 데이터 읽기 (A:M까지 - 비용, 채널명, 타겟 컬럼 포함)
         rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:M')
-        if not rows:
+
+        # None = API 실패 (재시도 후에도 실패), [] = 빈 시트
+        if rows is None:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets API 호출 실패 (재시도 후에도 실패)",
+                "processed": 0
+            }), 503  # Service Unavailable
+
+        if len(rows) == 0:
             return jsonify({
                 "ok": True,
-                "message": "시트가 비어있거나 읽기 실패",
+                "message": "시트가 비어있습니다",
                 "processed": 0
             })
 

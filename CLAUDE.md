@@ -258,6 +258,29 @@ else:
 - `_upload_youtube_captions()` 함수 추가
 - SRT 파일을 YouTube Captions API로 직접 업로드
 
+### 2025-12-08: Google Sheets API 재시도 로직 추가
+
+**증상**: 간헐적으로 Google Sheets API 호출 실패
+```
+[SHEETS] 읽기 실패: <HttpError 500 when requesting https://sheets.googleapis.com/v4/spreadsheets/... returned "Authentication backend unknown error.". Details: "Authentication backend unknown error.">
+```
+
+**원인**:
+1. Google API의 일시적 백엔드 오류 (Authentication backend unknown error)
+2. 재시도 로직 없이 즉시 실패 처리
+3. API 실패와 빈 시트를 구분하지 않음 (`[]` 반환으로 동일 처리)
+
+**수정** (`drama_server.py`):
+- **`sheets_read_rows()` (17738-17787행)**: 재시도 로직 추가
+  - 최대 3회 재시도
+  - 지수 백오프 (2초, 4초, 8초)
+  - 일시적 오류 패턴 자동 감지 (500, 502, 503, 504, timeout, backend error 등)
+  - API 실패 시 `None` 반환 (빈 시트 `[]`와 구분)
+- **`sheets_update_cell()` (17790-17843행)**: 동일한 재시도 로직 추가
+- **`api_sheets_check_and_process()` (19432-19444행)**: API 실패와 빈 시트 구분
+  - `None` (API 실패) → HTTP 503 에러 반환
+  - `[]` (빈 시트) → 정상 응답 (처리할 작업 없음)
+
 ---
 
 ## video_effects 구조
