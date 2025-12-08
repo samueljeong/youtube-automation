@@ -17364,19 +17364,44 @@ IMPORTANT TEXT OVERLAY:
             is_news_style = any(kw in prompt.lower() for kw in ['news', 'photorealistic', 'korean politician', 'korean businessman', 'korean anchor', 'national assembly', 'dramatic lighting'])
 
         if is_news_style:
-            style_instruction = f"Style: {style if style else 'photorealistic'}, news photography, dramatic lighting, high contrast"
             print(f"[THUMBNAIL-AI] 뉴스 스타일 적용 - category: '{category}', style: '{style}'")
-        else:
-            style_instruction = f"Style: {style if style else 'comic'}, comic/illustration, eye-catching, high contrast"
-            print(f"[THUMBNAIL-AI] 스토리 스타일 적용 - category: '{category}', style: '{style}'")
+            # 뉴스 스타일: 만화/스틱맨 금지, 실사 뉴스 스타일 강조
+            # GPT 프롬프트에서 스틱맨/만화 관련 키워드 제거
+            clean_prompt = prompt
+            for remove_kw in ['stickman', 'stick man', 'cartoon', 'comic', 'illustration', 'anime', 'animated', 'Ghibli', 'slice-of-life']:
+                clean_prompt = clean_prompt.replace(remove_kw, '').replace(remove_kw.lower(), '').replace(remove_kw.capitalize(), '')
 
-        enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
+            enhanced_prompt = f"""Create a Korean TV NEWS style YouTube thumbnail (16:9 landscape).
+
+CRITICAL STYLE REQUIREMENTS:
+- PHOTOREALISTIC news broadcast style like KBS, MBC, SBS, TV Chosun
+- Real human faces, NOT cartoon, NOT illustration, NOT anime, NOT stickman
+- Professional news photography aesthetic
+- Dramatic lighting, high contrast
+- Dark blue/navy gradient background typical of Korean news
+- Space for bold Korean text overlay at bottom
+
+Subject/Scene:
+{clean_prompt}
+
+{text_instruction}
+
+ABSOLUTE RESTRICTIONS:
+- NO cartoon style
+- NO comic style
+- NO anime style
+- NO stickman characters
+- NO illustration style
+- MUST be photorealistic news style"""
+        else:
+            print(f"[THUMBNAIL-AI] 스토리 스타일 적용 - category: '{category}', style: '{style}'")
+            enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
 
 {prompt}
 
 {text_instruction}
 
-{style_instruction}"""
+Style: {style if style else 'comic'}, comic/illustration, eye-catching, high contrast"""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
