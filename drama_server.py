@@ -12962,8 +12962,9 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
     scroll_speed = 100  # 초당 100픽셀 이동
 
     # 뉴스 티커 스타일: 하단에 빨간 배경 + 흰 텍스트
+    # 참고: drawbox에서 w=w는 순환 참조 에러 발생, iw(입력 너비) 사용
     ticker_filter = (
-        f"drawbox=x=0:y=h-40:w=w:h=40:color=red@0.9:t=fill,"
+        f"drawbox=x=0:y=ih-40:w=iw:h=40:color=red@0.9:t=fill,"
         f"drawtext=text='{ticker_text}':"
         f"fontfile='{font_escaped}':"
         f"fontsize=24:"
@@ -13586,10 +13587,13 @@ JSON 형식으로만 출력해. 다른 텍스트 없이 순수 JSON만.'''
             print(f"[SHORTS-GPT] 파싱 시도한 텍스트: {result_text[:1000]}")
             return None
 
-        beats = result.get("structure", {}).get("beats", [])
+        # beats 위치: result.beats 또는 result.structure.beats
+        beats = result.get("beats", []) or result.get("structure", {}).get("beats", [])
         print(f"[SHORTS-GPT] 분석 완료: {len(beats)}개 beats 생성")
         if len(beats) == 0:
             print(f"[SHORTS-GPT] 경고: beats 없음. result keys: {list(result.keys())}")
+            if "beats" in result:
+                print(f"[SHORTS-GPT] beats 타입: {type(result['beats'])}")
 
         return result
 
@@ -13619,7 +13623,8 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
     print(f"[SHORTS-V2] 쇼츠 영상 생성 시작 (방법 2: 새 TTS + 새 이미지)")
 
     try:
-        beats = shorts_analysis.get("structure", {}).get("beats", [])
+        # beats 위치: result.beats 또는 result.structure.beats
+        beats = shorts_analysis.get("beats", []) or shorts_analysis.get("structure", {}).get("beats", [])
         if not beats:
             return {"ok": False, "error": "beats 데이터 없음"}
 
@@ -14091,13 +14096,14 @@ def _apply_transitions(clip_paths, output_path, transition_style="crossfade", du
                 filter_complex = f"[0:v][1:v]xfade=transition=fade:duration={duration}:offset=0[outv];[0:a][1:a]acrossfade=d={duration}[outa]"
         else:
             # 3개 이상: 체인 xfade (복잡, 단순화)
-            # 간단하게 각 클립에 fade in/out 적용 후 concat
+            # 간단하게 각 클립에 fade in만 적용 후 concat
+            # 주의: fade out은 클립 길이를 모르면 st 계산 불가하므로 생략
             filter_parts = []
             for i in range(n):
                 if fade_color:
-                    filter_parts.append(f"[{i}:v]fade=t=in:st=0:d={duration/2}:color={fade_color},fade=t=out:st=0:d={duration/2}:color={fade_color}[v{i}]")
+                    filter_parts.append(f"[{i}:v]fade=t=in:st=0:d={duration/2}:color={fade_color}[v{i}]")
                 else:
-                    filter_parts.append(f"[{i}:v]fade=t=in:st=0:d={duration/2},fade=t=out:st=0:d={duration/2}[v{i}]")
+                    filter_parts.append(f"[{i}:v]fade=t=in:st=0:d={duration/2}[v{i}]")
 
             video_concat = "".join([f"[v{i}]" for i in range(n)]) + f"concat=n={n}:v=1:a=0[outv]"
             audio_concat = "".join([f"[{i}:a]" for i in range(n)]) + f"concat=n={n}:v=0:a=1[outa]"
@@ -18390,7 +18396,8 @@ def run_automation_pipeline(row_data, row_index):
                                 print(f"[SHORTS-BG] 쇼츠 분석 실패")
                                 return
 
-                            beats = shorts_analysis.get("structure", {}).get("beats", [])
+                            # beats 위치: result.beats 또는 result.structure.beats
+                            beats = shorts_analysis.get("beats", []) or shorts_analysis.get("structure", {}).get("beats", [])
                             print(f"[SHORTS-BG] 쇼츠 분석 완료: {len(beats)}개 beats")
 
                             # 쇼츠 제목 및 해시태그 추출
