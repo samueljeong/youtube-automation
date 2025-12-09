@@ -4144,6 +4144,53 @@ const AssistantMain = (() => {
         renderYoutubeChannels(youtubeChannels);
         const myChannels = youtubeChannels.filter(c => c.category === 'mine');
         renderYoutubeSummary(myChannels);
+
+        // 자동 갱신: 마지막 업데이트가 1시간 이상 지났으면 백그라운드에서 갱신
+        if (youtubeChannels.length > 0) {
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+          // 가장 최근 업데이트 시간 확인
+          let needsRefresh = false;
+          for (const channel of youtubeChannels) {
+            if (!channel.last_fetched_at) {
+              needsRefresh = true;
+              break;
+            }
+            const lastFetched = new Date(channel.last_fetched_at);
+            if (lastFetched < oneHourAgo) {
+              needsRefresh = true;
+              break;
+            }
+          }
+
+          if (needsRefresh) {
+            console.log('[Assistant] Auto-refreshing YouTube channels (data is stale)...');
+            // 백그라운드에서 갱신 (await 없이 비동기 실행)
+            (async () => {
+              try {
+                const refreshRes = await fetch('/assistant/api/youtube/channels/refresh', {
+                  method: 'POST'
+                });
+                const refreshData = await refreshRes.json();
+                if (refreshData.success) {
+                  console.log('[Assistant] Auto-refresh completed');
+                  // 갱신된 데이터로 UI 업데이트
+                  const newRes = await fetch('/assistant/api/youtube/channels');
+                  const newData = await newRes.json();
+                  if (newData.success) {
+                    youtubeChannels = newData.channels || [];
+                    renderYoutubeChannels(youtubeChannels);
+                    const newMyChannels = youtubeChannels.filter(c => c.category === 'mine');
+                    renderYoutubeSummary(newMyChannels);
+                  }
+                }
+              } catch (err) {
+                console.error('[Assistant] Auto-refresh failed:', err);
+              }
+            })();
+          }
+        }
       } else {
         listEl.innerHTML = `<div class="empty" style="text-align: center; padding: 2rem; color: #f44336;">오류: ${data.error}</div>`;
       }
