@@ -19568,7 +19568,20 @@ def run_automation_pipeline(row_data, row_index):
                             # 쇼츠 제목 및 해시태그 추출
                             platform_info = shorts_analysis.get("platform_specific", {}).get("youtube_shorts", {})
                             shorts_title = platform_info.get("title_suggestion", "") or shorts_info.get('title', f"{title} #Shorts")
-                            shorts_hashtags = platform_info.get("hashtags_hint", ["#Shorts", "#유튜브쇼츠"])
+
+                            # 쇼츠 해시태그: GPT 분석 결과 > 메인 영상 해시태그 > 기본값
+                            shorts_hashtags = platform_info.get("hashtags_hint", [])
+                            if not shorts_hashtags or shorts_hashtags == ["#Shorts", "#유튜브쇼츠"]:
+                                # 메인 영상의 해시태그 활용 + #Shorts 추가
+                                if hashtags and len(hashtags) > 0:
+                                    # 메인 영상 해시태그 중 최대 5개 + #Shorts
+                                    shorts_hashtags = ["#Shorts"] + [h for h in hashtags[:5] if h != "#Shorts"]
+                                    print(f"[SHORTS-BG] 메인 영상 해시태그 활용: {shorts_hashtags}")
+                                else:
+                                    # 제목에서 키워드 추출하여 해시태그 생성
+                                    title_keywords = [w for w in title.replace(",", " ").replace(".", " ").split() if len(w) >= 2][:3]
+                                    shorts_hashtags = ["#Shorts"] + [f"#{kw}" for kw in title_keywords if not kw.startswith("#")]
+                                    print(f"[SHORTS-BG] 제목 기반 해시태그 생성: {shorts_hashtags}")
 
                             # 메인 영상의 씬 이미지 URL 추출 (쇼츠용 크롭에 사용)
                             scene_image_urls = [s.get('image_url', '') for s in scenes if s.get('image_url')]

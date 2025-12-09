@@ -5774,10 +5774,11 @@ def get_youtube_channel_videos(channel_db_id):
 # YouTube OAuth 토큰 저장소 (메모리 캐시 + DB 영구 저장)
 _youtube_oauth_credentials = {}
 
-# YouTube API 스코프
+# YouTube API 스코프 (drama_server.py와 일치시킴)
 YOUTUBE_SCOPES = [
     'https://www.googleapis.com/auth/youtube.readonly',
-    'https://www.googleapis.com/auth/yt-analytics.readonly'
+    'https://www.googleapis.com/auth/yt-analytics.readonly',
+    'https://www.googleapis.com/auth/youtube.upload'  # 업로드 권한도 포함
 ]
 
 
