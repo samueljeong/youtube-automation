@@ -9954,6 +9954,7 @@ def youtube_upload():
         thumbnail_path = data.get('thumbnailPath')
         publish_at = data.get('publish_at')  # ISO 8601 예약 공개 시간
         channel_id = data.get('channelId')  # 선택된 채널 ID
+        playlist_id = data.get('playlistId')  # 플레이리스트 ID (선택)
 
         print(f"[YOUTUBE-UPLOAD] 업로드 요청 수신")
         print(f"  - 영상: {video_path}")
@@ -9961,6 +9962,7 @@ def youtube_upload():
         print(f"  - 공개 설정: {privacy_status}")
         print(f"  - 예약 시간: {publish_at}")
         print(f"  - 채널 ID: {channel_id}")
+        print(f"  - 플레이리스트 ID: {playlist_id}")
         print(f"  - 썸네일: {thumbnail_path}")
 
         # 영상 파일 경로 처리
@@ -10282,6 +10284,39 @@ def youtube_upload():
                         import traceback
                         traceback.print_exc()
 
+                # 플레이리스트에 영상 추가 (플레이리스트 ID가 있는 경우)
+                playlist_added = False
+                if playlist_id:
+                    try:
+                        print(f"[YOUTUBE-UPLOAD] 플레이리스트에 영상 추가 시작: {playlist_id}")
+                        playlist_request = youtube.playlistItems().insert(
+                            part="snippet",
+                            body={
+                                "snippet": {
+                                    "playlistId": playlist_id,
+                                    "resourceId": {
+                                        "kind": "youtube#video",
+                                        "videoId": video_id
+                                    }
+                                }
+                            }
+                        )
+                        playlist_response = playlist_request.execute()
+                        playlist_added = True
+                        print(f"[YOUTUBE-UPLOAD] 플레이리스트 추가 성공! playlistItemId: {playlist_response.get('id')}")
+                    except Exception as playlist_error:
+                        print(f"[YOUTUBE-UPLOAD] 플레이리스트 추가 실패: {playlist_error}")
+                        import traceback
+                        traceback.print_exc()
+                        # 플레이리스트 추가 실패해도 업로드는 성공한 것으로 처리
+
+                # 메시지 생성
+                upload_message = "YouTube 업로드 완료!"
+                if thumbnail_uploaded:
+                    upload_message += " (썸네일 포함)"
+                if playlist_added:
+                    upload_message += " (플레이리스트 추가됨)"
+
                 return jsonify({
                     "ok": True,
                     "mode": "live",
@@ -10289,7 +10324,9 @@ def youtube_upload():
                     "videoUrl": video_url,
                     "status": "uploaded",
                     "thumbnailUploaded": thumbnail_uploaded,
-                    "message": "YouTube 업로드 완료!" + (" (썸네일 포함)" if thumbnail_uploaded else ""),
+                    "playlistAdded": playlist_added,
+                    "playlistId": playlist_id if playlist_added else None,
+                    "message": upload_message,
                     "metadata": {
                         "title": title,
                         "privacyStatus": privacy_status
@@ -19175,6 +19212,7 @@ def run_automation_pipeline(row_data, row_index):
         # H(7): 제목2(출력), I(8): 제목3(출력), J(9): 비용(출력)
         # K(10): 공개설정, L(11): 영상URL(출력), M(12): 에러메시지(출력)
         # N(13): 음성, O(14): 타겟, P(15): 카테고리(출력), Q(16): 쇼츠URL(출력)
+        # R(17): 플레이리스트ID (입력, 선택)
         status = row_data[0] if len(row_data) > 0 else ''
         work_time = row_data[1] if len(row_data) > 1 else ''  # B: 작업시간 (파이프라인 실행용)
         channel_id = (row_data[2] if len(row_data) > 2 else '').strip()  # 공백 제거
@@ -19188,6 +19226,8 @@ def run_automation_pipeline(row_data, row_index):
         voice = (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C'  # N열: 음성
         audience = (row_data[14] if len(row_data) > 14 else '').strip() or 'senior'  # O열: 타겟 시청자
         category = (row_data[15] if len(row_data) > 15 else '').strip()  # P열: 카테고리 (뉴스 등)
+        # Q(16): 쇼츠URL(출력)
+        playlist_id = (row_data[17] if len(row_data) > 17 else '').strip()  # R열: 플레이리스트ID (선택)
 
         # [TUBELENS] 날짜만 입력된 경우 카테고리별 최적 시간 자동 추가
         # news -> 08:00, story/drama -> 19:00, 기본 -> 19:00
@@ -19207,6 +19247,7 @@ def run_automation_pipeline(row_data, row_index):
         print(f"  - 음성: {voice}")
         print(f"  - 타겟: {audience}")
         print(f"  - 카테고리: {category or '(일반)'}")
+        print(f"  - 플레이리스트: {playlist_id or '(없음)'}")
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
@@ -19724,6 +19765,11 @@ def run_automation_pipeline(row_data, row_index):
             # 썸네일이 있으면 추가
             if thumbnail_url:
                 upload_payload["thumbnailPath"] = thumbnail_url
+
+            # 플레이리스트 ID가 있으면 추가
+            if playlist_id:
+                upload_payload["playlistId"] = playlist_id
+                print(f"[AUTOMATION] 플레이리스트 추가 예정: {playlist_id}")
 
             # GPT-5.1 생성 태그 추가
             if tags and len(tags) > 0:
@@ -20874,8 +20920,8 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:M까지 - 비용, 채널명, 타겟 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:M')
+        # 시트 데이터 읽기 (A:R까지 - 플레이리스트ID 컬럼 포함)
+        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:R')
 
         # None = API 실패 (재시도 후에도 실패), [] = 빈 시트
         if rows is None:
