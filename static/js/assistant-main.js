@@ -3293,7 +3293,9 @@ const AssistantMain = (() => {
       if (data.success) {
         youtubeChannels = data.channels || [];
         renderYoutubeChannels(youtubeChannels);
-        renderYoutubeSummary(data.summary);
+        // 내 채널만 포함한 요약 계산
+        const myChannels = youtubeChannels.filter(c => c.category === 'mine');
+        renderYoutubeSummary(myChannels);
       } else {
         listEl.innerHTML = `<div class="empty" style="text-align: center; padding: 2rem; color: #f44336;">오류: ${data.error}</div>`;
       }
@@ -3303,9 +3305,9 @@ const AssistantMain = (() => {
     }
   }
 
-  function renderYoutubeSummary(summary) {
+  function renderYoutubeSummary(myChannels) {
     const summaryEl = document.getElementById('youtube-summary');
-    if (!summaryEl || !summary) return;
+    if (!summaryEl) return;
 
     const formatNumber = (num) => {
       if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -3316,21 +3318,26 @@ const AssistantMain = (() => {
     const changeSign = (num) => num > 0 ? '+' : '';
     const changeColor = (num) => num > 0 ? '#10b981' : (num < 0 ? '#ef4444' : '#64748b');
 
+    const totalChannels = myChannels.length;
+    const totalSubs = myChannels.reduce((sum, c) => sum + (c.subscribers || 0), 0);
+    const totalViews = myChannels.reduce((sum, c) => sum + (c.total_views || 0), 0);
+    const subsChange = myChannels.reduce((sum, c) => sum + (c.subscribers_change || 0), 0);
+
     summaryEl.innerHTML = `
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px;">
-        <div style="font-size: 0.8rem; opacity: 0.9;">총 채널</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">${summary.total_channels}개</div>
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 0.75rem 1rem; border-radius: 8px;">
+        <div style="font-size: 0.7rem; opacity: 0.9;">내 채널</div>
+        <div style="font-size: 1.25rem; font-weight: 700;">${totalChannels}개</div>
       </div>
-      <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
-        <div style="font-size: 0.8rem; color: var(--text-muted);">총 구독자</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">${formatNumber(summary.total_subscribers)}</div>
-        <div style="font-size: 0.75rem; color: ${changeColor(summary.subscribers_change_today)};">
-          ${changeSign(summary.subscribers_change_today)}${formatNumber(summary.subscribers_change_today)} 오늘
+      <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 8px;">
+        <div style="font-size: 0.7rem; color: var(--text-muted);">총 구독자</div>
+        <div style="font-size: 1.25rem; font-weight: 700;">${formatNumber(totalSubs)}</div>
+        <div style="font-size: 0.7rem; color: ${changeColor(subsChange)};">
+          ${changeSign(subsChange)}${formatNumber(subsChange)} 오늘
         </div>
       </div>
-      <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
-        <div style="font-size: 0.8rem; color: var(--text-muted);">총 조회수</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">${formatNumber(summary.total_views)}</div>
+      <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 0.75rem 1rem; border-radius: 8px;">
+        <div style="font-size: 0.7rem; color: var(--text-muted);">총 조회수</div>
+        <div style="font-size: 1.25rem; font-weight: 700;">${formatNumber(totalViews)}</div>
       </div>
     `;
   }
@@ -3355,7 +3362,6 @@ const AssistantMain = (() => {
       return num.toLocaleString();
     };
 
-    const changeSign = (num) => num > 0 ? '+' : '';
     const changeColor = (num) => num > 0 ? '#10b981' : (num < 0 ? '#ef4444' : '#64748b');
 
     const categoryLabels = {
@@ -3378,38 +3384,30 @@ const AssistantMain = (() => {
     categoryOrder.forEach(cat => {
       if (!grouped[cat] || grouped[cat].length === 0) return;
 
-      html += `<div style="margin-bottom: 1.5rem;">
-        <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color);">
+      html += `<div style="margin-bottom: 1rem;">
+        <h4 style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
           ${categoryLabels[cat]} (${grouped[cat].length})
         </h4>
-        <div style="display: grid; gap: 0.75rem;">`;
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem;">`;
 
       grouped[cat].forEach(ch => {
+        const subsChange = ch.subscribers_change || 0;
         html += `
-          <div class="youtube-channel-card" style="display: flex; align-items: center; gap: 1rem; padding: 1rem; background: var(--bg-color); border-radius: 8px; border: 1px solid var(--border-color);">
-            <img src="${ch.thumbnail_url}" alt="" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #e5e7eb;" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22><rect fill=%22%23e5e7eb%22 width=%2248%22 height=%2248%22 rx=%2224%22/><text x=%2224%22 y=%2230%22 font-size=%2220%22 fill=%22%2394a3b8%22 text-anchor=%22middle%22>📺</text></svg>'">
-            <div style="flex: 1; min-width: 0;">
-              <div style="font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          <div class="youtube-channel-card" onclick="AssistantMain.showYoutubeChannelDetail(${ch.id})"
+               style="padding: 0.5rem; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s;"
+               onmouseover="this.style.borderColor='var(--primary-color)'" onmouseout="this.style.borderColor='var(--border-color)'">
+            <div style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem;">
+              <img src="${ch.thumbnail_url}" alt="" style="width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;"
+                   onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect fill=%22%23e5e7eb%22 width=%2224%22 height=%2224%22 rx=%2212%22/></svg>'">
+              <div style="font-weight: 600; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 ${escapeHtml(ch.alias || ch.channel_title)}
               </div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(ch.channel_handle || '')}</div>
             </div>
-            <div style="text-align: right; min-width: 100px;">
-              <div style="font-weight: 600;">${formatNumber(ch.subscribers)}</div>
-              <div style="font-size: 0.75rem; color: ${changeColor(ch.subscribers_change)};">
-                ${changeSign(ch.subscribers_change)}${formatNumber(ch.subscribers_change)} 오늘
-              </div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+              <span style="font-weight: 500;">${formatNumber(ch.subscribers)}</span>
+              <span style="color: ${changeColor(subsChange)};">${subsChange > 0 ? '+' : ''}${subsChange !== 0 ? formatNumber(subsChange) : '-'}</span>
             </div>
-            <div style="text-align: right; min-width: 100px;">
-              <div style="font-size: 0.85rem; color: var(--text-secondary);">${formatNumber(ch.total_views)} 조회</div>
-              <div style="font-size: 0.75rem; color: ${changeColor(ch.views_change)};">
-                ${changeSign(ch.views_change)}${formatNumber(ch.views_change)}
-              </div>
-            </div>
-            <div style="display: flex; gap: 0.25rem;">
-              <button class="btn btn-small btn-secondary" onclick="AssistantMain.showYoutubeChannelDetail(${ch.id})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">📊</button>
-              <button class="btn btn-small" onclick="AssistantMain.deleteYoutubeChannel(${ch.id})" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #fee2e2; color: #dc2626;">🗑</button>
-            </div>
+            <div style="font-size: 0.65rem; color: var(--text-muted);">${formatNumber(ch.total_views)} 조회</div>
           </div>`;
       });
 
@@ -3422,7 +3420,7 @@ const AssistantMain = (() => {
   function addYoutubeChannel() {
     document.getElementById('youtube-channel-input').value = '';
     document.getElementById('youtube-channel-alias').value = '';
-    document.getElementById('youtube-channel-category').value = 'reference';
+    document.getElementById('youtube-channel-category').value = 'mine';
     document.getElementById('youtube-modal-title').textContent = '📺 YouTube 채널 추가';
     document.getElementById('youtube-channel-modal').style.display = 'flex';
   }
@@ -3510,107 +3508,169 @@ const AssistantMain = (() => {
   }
 
   async function showYoutubeChannelDetail(channelDbId) {
-    const detailPanel = document.getElementById('youtube-channel-detail');
-    const detailTitle = document.getElementById('youtube-detail-title');
+    const modal = document.getElementById('youtube-detail-modal');
+    const detailThumb = document.getElementById('youtube-detail-thumb');
+    const detailName = document.getElementById('youtube-detail-name');
     const detailContent = document.getElementById('youtube-detail-content');
 
-    if (!detailPanel) return;
+    if (!modal) return;
 
     const channel = youtubeChannels.find(c => c.id === channelDbId);
     if (!channel) return;
 
-    detailTitle.textContent = channel.alias || channel.channel_title;
-    detailContent.innerHTML = '<div style="text-align: center; padding: 2rem;">히스토리 로딩 중...</div>';
-    detailPanel.style.display = 'block';
+    detailThumb.src = channel.thumbnail_url || '';
+    detailName.textContent = channel.alias || channel.channel_title;
+    detailContent.innerHTML = '<div style="text-align: center; padding: 2rem;">로딩 중...</div>';
+    modal.style.display = 'flex';
 
+    // 히스토리와 영상 목록 동시에 로딩
     try {
-      const response = await fetch(`/assistant/api/youtube/channels/${channelDbId}/history?days=30`);
-      const data = await response.json();
+      const [historyRes, videosRes] = await Promise.all([
+        fetch(`/assistant/api/youtube/channels/${channelDbId}/history?days=30`),
+        fetch(`/assistant/api/youtube/channels/${channelDbId}/videos?max_results=5`)
+      ]);
 
-      if (data.success && data.history.length > 0) {
-        renderChannelDetailChart(channel, data.history);
-      } else {
-        detailContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">히스토리 데이터가 없습니다</div>';
-      }
+      const historyData = await historyRes.json();
+      const videosData = await videosRes.json();
+
+      renderChannelDetailModal(channel, historyData, videosData);
     } catch (error) {
-      console.error('[Assistant] Load channel history error:', error);
+      console.error('[Assistant] Load channel detail error:', error);
       detailContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: #f44336;">로딩 실패</div>';
     }
   }
 
-  function renderChannelDetailChart(channel, history) {
+  function closeYoutubeDetailModal() {
+    document.getElementById('youtube-detail-modal').style.display = 'none';
+  }
+
+  function renderChannelDetailModal(channel, historyData, videosData) {
     const detailContent = document.getElementById('youtube-detail-content');
 
     const formatNumber = (num) => {
+      if (!num) return '0';
       if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
       if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
       return num.toLocaleString();
     };
 
-    // 최근 데이터와 첫 데이터 비교
-    const first = history[0];
-    const last = history[history.length - 1];
-    const subsDiff = last.subscribers - first.subscribers;
-    const viewsDiff = last.total_views - first.total_views;
-
     const changeColor = (num) => num > 0 ? '#10b981' : (num < 0 ? '#ef4444' : '#64748b');
     const changeSign = (num) => num > 0 ? '+' : '';
 
-    // 간단한 차트 (텍스트 기반)
-    let html = `
-      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-        <div style="text-align: center; padding: 1rem; background: var(--bg-color); border-radius: 8px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">현재 구독자</div>
-          <div style="font-size: 1.25rem; font-weight: 700;">${formatNumber(channel.subscribers)}</div>
-        </div>
-        <div style="text-align: center; padding: 1rem; background: var(--bg-color); border-radius: 8px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">${history.length}일간 변화</div>
-          <div style="font-size: 1.25rem; font-weight: 700; color: ${changeColor(subsDiff)};">
-            ${changeSign(subsDiff)}${formatNumber(subsDiff)}
-          </div>
-        </div>
-        <div style="text-align: center; padding: 1rem; background: var(--bg-color); border-radius: 8px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">조회수 증가</div>
-          <div style="font-size: 1.25rem; font-weight: 700; color: ${changeColor(viewsDiff)};">
-            ${changeSign(viewsDiff)}${formatNumber(viewsDiff)}
-          </div>
-        </div>
-      </div>
+    const history = historyData.success ? historyData.history : [];
+    const videos = videosData.success ? videosData.videos : [];
+    const lastUpload = videosData.last_upload;
+    const uploadFreq = videosData.upload_frequency;
 
-      <h4 style="font-size: 0.9rem; margin-bottom: 0.75rem;">일별 구독자 변화</h4>
-      <div style="max-height: 300px; overflow-y: auto; font-size: 0.85rem;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="background: var(--bg-color); position: sticky; top: 0;">
-              <th style="padding: 0.5rem; text-align: left; border-bottom: 1px solid var(--border-color);">날짜</th>
-              <th style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color);">구독자</th>
-              <th style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color);">변화</th>
-              <th style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color);">조회수</th>
-            </tr>
-          </thead>
-          <tbody>`;
-
-    for (let i = history.length - 1; i >= 0; i--) {
-      const row = history[i];
-      const prevRow = i > 0 ? history[i - 1] : null;
-      const diff = prevRow ? row.subscribers - prevRow.subscribers : 0;
-
-      html += `
-        <tr>
-          <td style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">${row.date}</td>
-          <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color);">${formatNumber(row.subscribers)}</td>
-          <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color); color: ${changeColor(diff)};">
-            ${prevRow ? changeSign(diff) + formatNumber(diff) : '-'}
-          </td>
-          <td style="padding: 0.5rem; text-align: right; border-bottom: 1px solid var(--border-color);">${formatNumber(row.total_views)}</td>
-        </tr>`;
+    // 히스토리 변화 계산
+    let subsDiff = 0, viewsDiff = 0;
+    if (history.length >= 2) {
+      const first = history[0];
+      const last = history[history.length - 1];
+      subsDiff = last.subscribers - first.subscribers;
+      viewsDiff = last.total_views - first.total_views;
     }
 
-    html += `</tbody></table></div>
-      <div style="margin-top: 1rem; text-align: center;">
-        <a href="https://www.youtube.com/channel/${channel.channel_id}" target="_blank" class="btn btn-secondary btn-small">
-          YouTube에서 보기 ↗
-        </a>
+    // 마지막 업로드 시간 계산
+    let lastUploadText = '-';
+    if (lastUpload) {
+      const uploadDate = new Date(lastUpload);
+      const now = new Date();
+      const diffDays = Math.floor((now - uploadDate) / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) lastUploadText = '오늘';
+      else if (diffDays === 1) lastUploadText = '어제';
+      else lastUploadText = `${diffDays}일 전`;
+    }
+
+    let html = `
+      <!-- 통계 요약 -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">구독자</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.subscribers)}</div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">${history.length}일간</div>
+          <div style="font-size: 1rem; font-weight: 700; color: ${changeColor(subsDiff)};">${changeSign(subsDiff)}${formatNumber(subsDiff)}</div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">마지막 업로드</div>
+          <div style="font-size: 1rem; font-weight: 700;">${lastUploadText}</div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">업로드 빈도</div>
+          <div style="font-size: 1rem; font-weight: 700;">${uploadFreq ? `주 ${uploadFreq.per_week}회` : '-'}</div>
+        </div>
+      </div>`;
+
+    // 최근 영상 목록
+    if (videos.length > 0) {
+      html += `
+        <div style="margin-bottom: 1rem;">
+          <h4 style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-secondary);">📹 최근 영상</h4>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">`;
+
+      videos.forEach((v, idx) => {
+        const pubDate = new Date(v.published_at);
+        const dateStr = `${pubDate.getMonth()+1}/${pubDate.getDate()}`;
+        html += `
+          <a href="https://www.youtube.com/watch?v=${v.video_id}" target="_blank" style="text-decoration: none; color: inherit;">
+            <div style="display: flex; gap: 0.5rem; padding: 0.5rem; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border-color);">
+              <img src="${v.thumbnail}" style="width: 80px; height: 45px; object-fit: cover; border-radius: 4px; flex-shrink: 0;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 0.8rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(v.title)}</div>
+                <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; gap: 0.75rem; margin-top: 0.25rem;">
+                  <span>${dateStr}</span>
+                  <span>👁 ${formatNumber(v.views)}</span>
+                  <span>👍 ${formatNumber(v.likes)}</span>
+                  <span>💬 ${formatNumber(v.comments)}</span>
+                </div>
+              </div>
+            </div>
+          </a>`;
+      });
+
+      html += `</div></div>`;
+    }
+
+    // 일별 히스토리 (접이식)
+    if (history.length > 0) {
+      html += `
+        <details style="margin-bottom: 1rem;">
+          <summary style="cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); padding: 0.5rem 0;">📊 일별 통계 (${history.length}일)</summary>
+          <div style="max-height: 200px; overflow-y: auto; font-size: 0.75rem; margin-top: 0.5rem;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: var(--bg-color);">
+                  <th style="padding: 0.35rem; text-align: left;">날짜</th>
+                  <th style="padding: 0.35rem; text-align: right;">구독자</th>
+                  <th style="padding: 0.35rem; text-align: right;">변화</th>
+                  <th style="padding: 0.35rem; text-align: right;">조회수</th>
+                </tr>
+              </thead>
+              <tbody>`;
+
+      for (let i = history.length - 1; i >= 0; i--) {
+        const row = history[i];
+        const prevRow = i > 0 ? history[i - 1] : null;
+        const diff = prevRow ? row.subscribers - prevRow.subscribers : 0;
+        html += `
+          <tr>
+            <td style="padding: 0.35rem; border-top: 1px solid var(--border-color);">${row.date}</td>
+            <td style="padding: 0.35rem; text-align: right; border-top: 1px solid var(--border-color);">${formatNumber(row.subscribers)}</td>
+            <td style="padding: 0.35rem; text-align: right; border-top: 1px solid var(--border-color); color: ${changeColor(diff)};">${prevRow ? changeSign(diff) + formatNumber(diff) : '-'}</td>
+            <td style="padding: 0.35rem; text-align: right; border-top: 1px solid var(--border-color);">${formatNumber(row.total_views)}</td>
+          </tr>`;
+      }
+
+      html += `</tbody></table></div></details>`;
+    }
+
+    // 액션 버튼
+    html += `
+      <div style="display: flex; gap: 0.5rem; justify-content: center; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+        <a href="https://www.youtube.com/channel/${channel.channel_id}" target="_blank" class="btn btn-secondary btn-small">YouTube에서 보기</a>
+        <button class="btn btn-small" style="background: #fee2e2; color: #dc2626;" onclick="AssistantMain.deleteYoutubeChannel(${channel.id}); AssistantMain.closeYoutubeDetailModal();">삭제</button>
       </div>`;
 
     detailContent.innerHTML = html;
@@ -3723,6 +3783,7 @@ const AssistantMain = (() => {
     saveYoutubeChannel,
     deleteYoutubeChannel,
     refreshYoutubeChannels,
-    showYoutubeChannelDetail
+    showYoutubeChannelDetail,
+    closeYoutubeDetailModal
   };
 })();

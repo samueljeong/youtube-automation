@@ -5642,6 +5642,133 @@ def get_youtube_channel_history(channel_db_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@assistant_bp.route('/assistant/api/youtube/channels/<int:channel_db_id>/videos', methods=['GET'])
+def get_youtube_channel_videos(channel_db_id):
+    """채널의 최근 영상 목록 조회"""
+    import requests
+
+    try:
+        max_results = int(request.args.get('max_results', 10))
+
+        api_key = get_youtube_api_key_assistant()
+        if not api_key:
+            return jsonify({'success': False, 'error': 'YouTube API 키가 설정되지 않았습니다'}), 500
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT channel_id, channel_title FROM youtube_channels WHERE id = %s', (channel_db_id,))
+        else:
+            cursor.execute('SELECT channel_id, channel_title FROM youtube_channels WHERE id = ?', (channel_db_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
+
+        channel_id = row['channel_id']
+        channel_title = row['channel_title']
+
+        # 채널의 uploads 플레이리스트 ID 가져오기 (UC -> UU)
+        uploads_playlist_id = 'UU' + channel_id[2:]
+
+        # 최근 영상 목록 조회
+        url = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId={uploads_playlist_id}&maxResults={max_results}&key={api_key}"
+        response = requests.get(url, timeout=15)
+        data = response.json()
+
+        if 'error' in data:
+            return jsonify({'success': False, 'error': data['error'].get('message', 'API 오류')}), 400
+
+        videos = []
+        video_ids = []
+
+        for item in data.get('items', []):
+            snippet = item.get('snippet', {})
+            content_details = item.get('contentDetails', {})
+            video_id = content_details.get('videoId')
+
+            if video_id:
+                video_ids.append(video_id)
+                videos.append({
+                    'video_id': video_id,
+                    'title': snippet.get('title', ''),
+                    'published_at': snippet.get('publishedAt', ''),
+                    'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url', ''),
+                    'description': snippet.get('description', '')[:200] if snippet.get('description') else ''
+                })
+
+        # 영상별 통계 조회 (조회수, 좋아요, 댓글 수)
+        if video_ids:
+            stats_url = f"https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id={','.join(video_ids)}&key={api_key}"
+            stats_response = requests.get(stats_url, timeout=15)
+            stats_data = stats_response.json()
+
+            stats_map = {}
+            for item in stats_data.get('items', []):
+                vid = item.get('id')
+                stats = item.get('statistics', {})
+                content_details = item.get('contentDetails', {})
+                stats_map[vid] = {
+                    'views': int(stats.get('viewCount', 0)),
+                    'likes': int(stats.get('likeCount', 0)),
+                    'comments': int(stats.get('commentCount', 0)),
+                    'duration': content_details.get('duration', '')
+                }
+
+            # 영상 정보에 통계 추가
+            for video in videos:
+                vid = video['video_id']
+                if vid in stats_map:
+                    video.update(stats_map[vid])
+
+        # 마지막 업로드일 및 업로드 빈도 계산
+        last_upload = None
+        upload_frequency = None
+
+        if videos:
+            last_upload = videos[0]['published_at']
+
+            # 업로드 빈도 계산 (최근 영상들 기준)
+            if len(videos) >= 2:
+                from datetime import datetime
+                dates = []
+                for v in videos:
+                    try:
+                        dt = datetime.fromisoformat(v['published_at'].replace('Z', '+00:00'))
+                        dates.append(dt)
+                    except:
+                        pass
+
+                if len(dates) >= 2:
+                    dates.sort(reverse=True)
+                    total_days = (dates[0] - dates[-1]).days
+                    if total_days > 0:
+                        videos_per_week = (len(dates) - 1) / (total_days / 7)
+                        videos_per_month = (len(dates) - 1) / (total_days / 30)
+                        upload_frequency = {
+                            'per_week': round(videos_per_week, 1),
+                            'per_month': round(videos_per_month, 1)
+                        }
+
+        return jsonify({
+            'success': True,
+            'channel_id': channel_id,
+            'channel_title': channel_title,
+            'videos': videos,
+            'last_upload': last_upload,
+            'upload_frequency': upload_frequency,
+            'total_fetched': len(videos)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # 모듈 로드 시 DB 초기화
 try:
     init_assistant_db()

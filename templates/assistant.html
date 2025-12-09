@@ -2604,19 +2604,24 @@
             </div>
           </div>
         </div>
-
-        <!-- 채널 상세 패널 -->
-        <div class="card" id="youtube-channel-detail" style="display: none; margin-top: 1rem;">
-          <div class="card-header">
-            <h3 id="youtube-detail-title">채널명</h3>
-            <button class="btn btn-secondary btn-small" onclick="document.getElementById('youtube-channel-detail').style.display='none'">&times;</button>
-          </div>
-          <div class="card-body" id="youtube-detail-content">
-            <!-- 채널 상세 정보가 여기에 표시됩니다 -->
-          </div>
-        </div>
       </div>
     </main>
+  </div>
+
+  <!-- YouTube 채널 상세 모달 -->
+  <div class="modal-overlay" id="youtube-detail-modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px; max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="youtube-detail-title" style="display: flex; align-items: center; gap: 0.5rem;">
+          <img id="youtube-detail-thumb" src="" style="width: 32px; height: 32px; border-radius: 50%;">
+          <span id="youtube-detail-name">채널명</span>
+        </h3>
+        <button class="modal-close" onclick="AssistantMain.closeYoutubeDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="youtube-detail-content" style="overflow-y: auto; flex: 1;">
+        <!-- 채널 상세 정보가 여기에 표시됩니다 -->
+      </div>
+    </div>
   </div>
 
   <!-- Mobile Bottom Navigation -->
