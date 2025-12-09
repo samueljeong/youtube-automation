@@ -10845,7 +10845,14 @@ def api_image_analyze_script():
 5. **건강 카테고리 필수**: "doctor in white coat", "photorealistic", "medical" 키워드 포함
 6. **건강 썸네일 텍스트**: 여러 줄 (line1, line2, line3, line4)로 구성, highlight 필드에 강조할 키워드"""
 
-            system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
+            system_prompt = f"""You are an AI that generates:
+1. **SCENE IMAGE PROMPTS (scenes[].image_prompt)** = COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character
+2. **THUMBNAIL PROMPTS (ai_prompts)** = PHOTOREALISTIC STYLE: Real humans, news photography, NO stickman!
+
+⚠️ CRITICAL DISTINCTION:
+- scenes[].image_prompt → 스틱맨 + 애니메이션 배경 (영상 내부 이미지)
+- ai_prompts → 실사 스타일, 실제 인물, 뉴스/영화 포스터 스타일 (YouTube 썸네일)
+- 이 두 가지는 완전히 다른 스타일임!
 
 ## ⚠️ LANGUAGE RULE (CRITICAL!) ⚠️
 Output Language: {lang_config['name']} ({lang_config['native']})
@@ -11615,12 +11622,29 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 
 ## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
 The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
-⚠️ ALL THUMBNAILS MUST BE PHOTOREALISTIC! NO stickman, NO cartoon, NO webtoon, NO illustration!
-- A: Emotion/expression focused - Real Korean person with emotional expression, cinematic lighting
-- B: Scene/situation focused - Professional photography of the key moment/location
-- C: Atmospheric/silhouette focused - Dramatic backlit figure or mood shot
+
+### ★★★ 절대 규칙 (ABSOLUTE RULES) ★★★
+⚠️ ALL THUMBNAILS MUST BE PHOTOREALISTIC! NO stickman, NO cartoon, NO webtoon, NO illustration, NO silhouette, NO faceless!
+⚠️ 모든 썸네일은 실사 스타일이어야 함! 스틱맨, 만화, 실루엣, 얼굴 없는 인물 절대 금지!
+
+### ★★★ 인물/기업 규칙 (PERSON/COMPANY RULES) ★★★
+대본에 특정 인물이나 기업이 언급되면:
+1. **text_overlay.name 필드에 인물/기업명 추가** (예: "박나래", "삼성전자", "윤석열")
+2. **이미지 프롬프트에 해당 인물/기업이 연상되는 묘사 추가**
+   - 연예인: 그 사람의 특징적인 외모, 의상, 분위기 묘사
+   - 정치인: 정장, 연설 제스처, 공식적인 분위기
+   - 기업: 해당 기업의 로고 색상, 분위기, 관련 제품/서비스
+3. **얼굴이 명확하게 보이는 구도** - NO silhouette, NO hidden face!
+
+### 스타일 가이드
+- A: **인물 클로즈업** - 핵심 인물의 얼굴/상반신, CLEAR VISIBLE FACE, 감정 표현
+- B: **현장/상황** - 뉴스 현장, 관련 장소, 제품/서비스 시각화
+- C: **비교/대비** - 분할 화면, Before/After, 두 요소 대비
+
+### 기술 요구사항
 - All 3 prompts MUST use PHOTOREALISTIC cinematic style!
 - All 3 prompts MUST be different compositions!
+- All 3 prompts MUST show CLEAR VISIBLE FACE when person is involved!
 - ALWAYS use professional photography style - like movie posters or news thumbnails!
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (썸네일 텍스트 규칙) ⚠️
