@@ -1047,6 +1047,120 @@ def api_comments():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@tubelens_bp.route('/api/tubelens/analyzer', methods=['POST'])
+def api_analyzer():
+    """콘텐츠 분석기 - 키워드+필터로 터진 영상 찾기"""
+    try:
+        data = request.get_json()
+
+        keyword = data.get("keyword", "")
+        region_code = data.get("regionCode", "JP")
+        relevance_language = data.get("relevanceLanguage", "")
+        time_frame = data.get("timeFrame", "week")
+        duration = data.get("duration", "long")
+        min_views = int(data.get("minViews", 10000))
+        max_results = min(int(data.get("maxResults", 25)), 100)
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not keyword:
+            return jsonify({"success": False, "message": "검색 키워드가 필요합니다."}), 400
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+
+        if not api_key:
+            api_key = get_youtube_api_key()
+
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 검색 파라미터 설정
+        search_params = {
+            "part": "snippet",
+            "type": "video",
+            "maxResults": 50,
+            "regionCode": region_code,
+            "order": "viewCount",
+            "q": keyword,
+        }
+
+        # 언어 필터
+        if relevance_language:
+            search_params["relevanceLanguage"] = relevance_language
+
+        # 시간 필터
+        published_after = get_time_filter(time_frame)
+        if published_after:
+            search_params["publishedAfter"] = published_after
+
+        # 영상 길이 필터
+        if duration == "short":
+            search_params["videoDuration"] = "short"
+        elif duration in ["medium", "long"]:
+            search_params["videoDuration"] = "medium" if duration == "medium" else "long"
+
+        # 검색 실행 (여러 페이지)
+        all_video_ids = []
+        next_page_token = None
+        fetch_count = 0
+        max_fetch = 4  # 최대 4번 페이지네이션 (200개)
+
+        while len(all_video_ids) < max_results * 2 and fetch_count < max_fetch:
+            if next_page_token:
+                search_params["pageToken"] = next_page_token
+
+            search_data = make_youtube_request("search", search_params, api_key)
+
+            video_ids = [
+                item["id"]["videoId"]
+                for item in search_data.get("items", [])
+                if item.get("id", {}).get("videoId")
+            ]
+            all_video_ids.extend(video_ids)
+
+            next_page_token = search_data.get("nextPageToken")
+            if not next_page_token:
+                break
+            fetch_count += 1
+
+        # 비디오 상세 정보 가져오기
+        videos = get_video_details(all_video_ids, api_key)
+
+        # 영상 길이 필터링
+        if duration == "short":
+            videos = [v for v in videos if v["durationSeconds"] <= 60]
+        elif duration == "medium":
+            videos = [v for v in videos if 240 <= v["durationSeconds"] <= 1200]
+        elif duration == "long":
+            videos = [v for v in videos if v["durationSeconds"] > 1200]
+
+        # 조회수 필터링
+        videos = [v for v in videos if v["viewCount"] >= min_views]
+
+        # 조회수 순 정렬
+        videos.sort(key=lambda x: x["viewCount"], reverse=True)
+
+        # 결과 제한
+        videos = videos[:max_results]
+
+        # 인덱스 추가
+        for i, video in enumerate(videos):
+            video["index"] = i + 1
+
+        return jsonify({
+            "success": True,
+            "data": videos,
+            "message": f"콘텐츠 분석 완료: {len(videos)}개 영상"
+        })
+
+    except Exception as e:
+        print(f"콘텐츠 분석기 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 # ===== AI 분석 API =====
 
 @tubelens_bp.route('/api/tubelens/analyze-titles', methods=['POST'])

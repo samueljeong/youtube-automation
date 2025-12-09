@@ -119,6 +119,8 @@
         this.updateStatus('지금 뜨는 인기 영상을 확인하세요');
       } else if (tabName === 'rising') {
         this.updateStatus('구독자 대비 고성과 영상을 발굴하세요');
+      } else if (tabName === 'analyzer') {
+        this.updateStatus('키워드와 필터를 설정하고 분석을 시작하세요');
       }
 
       // Empty state 메시지 업데이트
@@ -143,6 +145,9 @@
       } else if (tabName === 'rising') {
         h4.textContent = '급상승 영상 발굴을 클릭하세요';
         p.textContent = '구독자 대비 고성과 영상을 발굴해보세요';
+      } else if (tabName === 'analyzer') {
+        h4.textContent = '콘텐츠 분석을 시작하세요';
+        p.textContent = '키워드로 터진 영상을 찾고 제목/설명/댓글을 분석하세요';
       }
     },
 
@@ -2695,6 +2700,284 @@
       html += '<button class="btn-action" onclick="TubeLens.addToWatchlist(\'' + item.channelId + '\', \'' + item.channelTitle.replace(/'/g, "\\'") + '\')" title="워치리스트에 추가" style="background:#f56565;color:#fff;">👁️</button>';
       html += '</td>';
       return html;
+    },
+
+    // ===== 콘텐츠 분석기 =====
+    analyzerResults: [],
+
+    setAnalyzerPreset: function(keyword, region, language) {
+      document.getElementById('analyzer-keyword').value = keyword;
+      document.getElementById('analyzer-region').value = region;
+      document.getElementById('analyzer-language').value = language;
+      this.updateStatus('프리셋 적용됨: ' + keyword);
+    },
+
+    runAnalyzer: function() {
+      var self = this;
+      var keyword = document.getElementById('analyzer-keyword').value.trim();
+
+      if (!keyword) {
+        alert('검색 키워드를 입력해주세요.');
+        document.getElementById('analyzer-keyword').focus();
+        return;
+      }
+
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
+        alert('먼저 API 키를 설정해주세요.');
+        this.openSettings();
+        return;
+      }
+
+      var regionCode = document.getElementById('analyzer-region').value;
+      var language = document.getElementById('analyzer-language').value;
+      var timeFrame = document.getElementById('analyzer-time').value;
+      var duration = document.getElementById('analyzer-duration').value;
+      var minViews = parseInt(document.getElementById('analyzer-min-views').value) || 10000;
+      var maxResults = parseInt(document.getElementById('analyzer-max-results').value) || 25;
+
+      this.showLoading(true);
+      this.updateStatus('콘텐츠 분석 중... "' + keyword + '"');
+
+      fetch('/api/tubelens/analyzer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword,
+          regionCode: regionCode,
+          relevanceLanguage: language,
+          timeFrame: timeFrame,
+          duration: duration,
+          minViews: minViews,
+          maxResults: maxResults,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.analyzerResults = data.data;
+          self.originalResults = data.data;
+          self.currentResults = data.data.slice();
+          self.displayAnalyzerCards(data.data);
+          self.updateStatus('콘텐츠 분석 완료: ' + data.data.length + '개 영상 발견');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Analyzer error:', error);
+        alert('콘텐츠 분석 실패: ' + error.message);
+        self.showLoading(false);
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    displayAnalyzerCards: function(videos) {
+      var self = this;
+      var tbody = document.getElementById('results-tbody');
+      var tableWrapper = document.getElementById('table-wrapper');
+      var resultsBody = document.getElementById('results-body');
+
+      this.showLoading(false);
+
+      if (!videos || videos.length === 0) {
+        tableWrapper.style.display = 'none';
+        document.querySelector('.empty-state').style.display = 'flex';
+        document.getElementById('results-count').textContent = '0개 영상';
+        return;
+      }
+
+      document.querySelector('.empty-state').style.display = 'none';
+      document.getElementById('results-count').textContent = videos.length + '개 영상';
+
+      // 카드 뷰로 표시
+      var html = '<div class="analyzer-results">';
+
+      videos.forEach(function(v, idx) {
+        var descPreview = (v.description || '').substring(0, 100).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        if ((v.description || '').length > 100) descPreview += '...';
+
+        var topCommentText = v.topComment ? v.topComment.substring(0, 80) : '댓글 로딩 필요';
+        if (v.topComment && v.topComment.length > 80) topCommentText += '...';
+
+        html += '<div class="analyzer-card">';
+        html += '<div class="analyzer-card-thumb" onclick="TubeLens.openVideoModal(\'' + v.videoId + '\', \'' + self.escapeHtml(v.title) + '\')">';
+        html += '<img src="' + (v.thumbnail || '') + '" alt="" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 9%22><rect fill=%22%23ddd%22 width=%2216%22 height=%229%22/></svg>\'">';
+        html += '<span class="analyzer-card-rank">' + (idx + 1) + '</span>';
+        html += '<span class="analyzer-card-duration">' + (v.duration || '0:00') + '</span>';
+        html += '</div>';
+
+        html += '<div class="analyzer-card-body">';
+        html += '<div class="analyzer-card-title" title="' + self.escapeHtml(v.title) + '">' + self.escapeHtml(v.title) + '</div>';
+        html += '<div class="analyzer-card-channel" onclick="TubeLens.loadChannelVideos({channelId:\'' + v.channelId + '\',channelTitle:\'' + self.escapeHtml(v.channelTitle) + '\'})">' + self.escapeHtml(v.channelTitle) + '</div>';
+
+        html += '<div class="analyzer-card-stats">';
+        html += '<span>👁 ' + self.formatNumber(v.viewCount) + '</span>';
+        html += '<span>👍 ' + self.formatNumber(v.likeCount) + '</span>';
+        html += '<span>💬 ' + self.formatNumber(v.commentCount) + '</span>';
+        html += '<span>📅 ' + (v.publishedAt || '') + '</span>';
+        html += '</div>';
+
+        if (descPreview) {
+          html += '<div class="analyzer-card-desc">' + descPreview + '</div>';
+        }
+
+        html += '<div class="analyzer-card-comments" data-video-id="' + v.videoId + '">';
+        html += '<div class="analyzer-card-comments-title">인기 댓글</div>';
+        html += '<div class="analyzer-card-comment">' + (v.topComment ? self.escapeHtml(topCommentText) : '<span style="color:#999">클릭하여 로드</span>') + '</div>';
+        html += '</div>';
+
+        html += '<div class="analyzer-card-actions">';
+        html += '<button class="analyzer-card-btn play" onclick="TubeLens.openVideoModal(\'' + v.videoId + '\', \'' + self.escapeHtml(v.title) + '\')">재생</button>';
+        html += '<button class="analyzer-card-btn comments" onclick="TubeLens.loadComments(\'' + v.videoId + '\', \'' + self.escapeHtml(v.title) + '\')">댓글</button>';
+        html += '<button class="analyzer-card-btn desc" onclick="TubeLens.showDescription(\'' + v.videoId + '\')">전체설명</button>';
+        html += '<button class="analyzer-card-btn copy" onclick="TubeLens.copyVideoInfo(\'' + v.videoId + '\')">복사</button>';
+        html += '</div>';
+
+        html += '</div>';
+        html += '</div>';
+      });
+
+      html += '</div>';
+
+      // 테이블 대신 카드 뷰 표시
+      tableWrapper.style.display = 'none';
+
+      // 기존 카드 뷰 제거 후 새로 추가
+      var existingCards = resultsBody.querySelector('.analyzer-results');
+      if (existingCards) {
+        existingCards.remove();
+      }
+      resultsBody.insertAdjacentHTML('beforeend', html);
+
+      // 댓글 자동 로드 (각 카드에 대해)
+      this.loadTopCommentsForCards(videos);
+    },
+
+    loadTopCommentsForCards: function(videos) {
+      var self = this;
+      videos.forEach(function(v) {
+        if (v.topComment) return; // 이미 로드된 경우 스킵
+
+        self.fetchTopComment(v.videoId).then(function(comment) {
+          var cardComments = document.querySelector('.analyzer-card-comments[data-video-id="' + v.videoId + '"] .analyzer-card-comment');
+          if (cardComments && comment) {
+            var text = comment.substring(0, 80);
+            if (comment.length > 80) text += '...';
+            cardComments.textContent = text;
+            v.topComment = comment;
+          }
+        });
+      });
+    },
+
+    fetchTopComment: function(videoId) {
+      var self = this;
+      return fetch('/api/tubelens/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: videoId,
+          maxResults: 1,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success && data.data && data.data.length > 0) {
+          return data.data[0].text;
+        }
+        return null;
+      })
+      .catch(function(err) {
+        console.log('[TubeLens] Failed to fetch comment for', videoId);
+        return null;
+      });
+    },
+
+    showDescription: function(videoId) {
+      var video = this.currentResults.find(function(v) { return v.videoId === videoId; });
+      if (video) {
+        this.currentDescription = video.description || '설명이 없습니다.';
+        document.getElementById('description-content').textContent = this.currentDescription;
+        this.openDescriptionModal();
+      }
+    },
+
+    copyVideoInfo: function(videoId) {
+      var video = this.currentResults.find(function(v) { return v.videoId === videoId; });
+      if (!video) return;
+
+      var text = '제목: ' + video.title + '\n';
+      text += '채널: ' + video.channelTitle + '\n';
+      text += 'URL: https://www.youtube.com/watch?v=' + videoId + '\n';
+      text += '조회수: ' + this.formatNumber(video.viewCount) + '\n';
+      text += '좋아요: ' + this.formatNumber(video.likeCount) + '\n';
+      text += '게시일: ' + video.publishedAt + '\n';
+      text += '\n설명:\n' + (video.description || '없음');
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() {
+          alert('영상 정보가 클립보드에 복사되었습니다.');
+        });
+      } else {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('영상 정보가 클립보드에 복사되었습니다.');
+      }
+    },
+
+    exportAnalyzerResults: function() {
+      if (!this.currentResults || this.currentResults.length === 0) {
+        alert('내보낼 결과가 없습니다. 먼저 분석을 실행해주세요.');
+        return;
+      }
+
+      var csv = 'No,제목,채널명,조회수,좋아요,댓글수,게시일,영상길이,URL,설명\n';
+      var self = this;
+
+      this.currentResults.forEach(function(v, idx) {
+        var row = [
+          idx + 1,
+          '"' + (v.title || '').replace(/"/g, '""') + '"',
+          '"' + (v.channelTitle || '').replace(/"/g, '""') + '"',
+          v.viewCount || 0,
+          v.likeCount || 0,
+          v.commentCount || 0,
+          v.publishedAt || '',
+          v.duration || '',
+          'https://www.youtube.com/watch?v=' + v.videoId,
+          '"' + (v.description || '').replace(/"/g, '""').replace(/\n/g, ' ') + '"'
+        ];
+        csv += row.join(',') + '\n';
+      });
+
+      // BOM 추가 (한글 Excel 호환)
+      var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'tubelens_analyzer_' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      this.updateStatus('CSV 파일 다운로드 완료');
+    },
+
+    escapeHtml: function(text) {
+      if (!text) return '';
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
   };
 
