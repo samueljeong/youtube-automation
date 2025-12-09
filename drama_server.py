@@ -12880,13 +12880,10 @@ def _apply_subtitle_highlights(text, highlights):
         color = h.get('color', '#FFFF00')
         if keyword and keyword in result:
             ass_color = _hex_to_ass_color(color)
-            # ASS 박스 스타일 강조:
-            # - \bord12: 두꺼운 테두리로 박스 효과
-            # - \3c: 테두리(박스) 색상 = 강조색
-            # - \c&HFFFFFF&: 텍스트는 흰색
-            # - \shad0: 그림자 제거 (박스 깔끔하게)
-            # 강조 후 원래 스타일로 복원: \bord4 (기본 테두리), \3c&H000000& (검은 테두리)
-            colored_keyword = f"{{\\bord12\\3c{ass_color}\\c&HFFFFFF&\\shad0}}{keyword}{{\\bord4\\3c&H000000&\\c&HFFFFFF&\\shad2}}"
+            # ASS 자막 색상 강조 (원래 스타일 - 색상만 변경)
+            # - \c{색상}: 텍스트 색상을 강조색으로 변경
+            # - 강조 후 원래 흰색으로 복원
+            colored_keyword = f"{{\\c{ass_color}}}{keyword}{{\\c&HFFFFFF&}}"
             result = result.replace(keyword, colored_keyword)
 
     return result
@@ -13084,49 +13081,51 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
 
         end_time = start_time + duration
 
-        # ========== 스타일별 설정 (더 볼드하게) ==========
+        # ========== 스타일별 설정 (박스 배경 추가) ==========
+        # 3번 이미지처럼 텍스트에 박스 배경 적용
         if style == 'impact':
-            # 빨간 배경 느낌의 강렬한 스타일
+            # 빨간 박스 + 흰색 텍스트 (가장 강렬)
             fontcolor = "white"
-            bordercolor = "#FF0000"  # 순수 빨강
-            fontsize = 100  # 80 → 100 (더 크게)
-            borderw = 6     # 4 → 6 (더 두껍게)
-            shadowcolor = "black"
-            shadowx = 3
-            shadowy = 3
+            fontsize = 100
+            borderw = 3
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "red@0.9"  # 빨간 박스 90% 불투명
+            boxborderw = 15  # 박스 패딩
         elif style == 'dramatic':
-            # 노란 텍스트, 더 강조
-            fontcolor = "#FFFF00"  # 순수 노랑
-            bordercolor = "black"
-            fontsize = 90   # 70 → 90
-            borderw = 5     # 3 → 5
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
-        elif style == 'emotional':
-            # 부드러운 청록 텍스트
-            fontcolor = "#00FFFF"  # 순수 청록
-            bordercolor = "#000066"
-            fontsize = 80   # 60 → 80
-            borderw = 4     # 2 → 4
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
-        else:
-            fontcolor = "white"
-            bordercolor = "black"
+            # 노란 박스 + 검은 텍스트
+            fontcolor = "black"
             fontsize = 90
-            borderw = 5
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
+            borderw = 0
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "yellow@0.9"  # 노란 박스
+            boxborderw = 12
+        elif style == 'emotional':
+            # 청록 박스 + 흰색 텍스트
+            fontcolor = "white"
+            fontsize = 80
+            borderw = 2
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "#00CCCC@0.85"  # 청록 박스
+            boxborderw = 10
+        else:
+            # 기본: 검은 박스 + 흰색 텍스트
+            fontcolor = "white"
+            fontsize = 90
+            borderw = 2
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "black@0.8"
+            boxborderw = 12
 
         # FFmpeg drawtext 텍스트 이스케이프
         text_escaped = text.replace('\\', '\\\\').replace("'", "\\'").replace(':', '\\:').replace('=', '\\=')
 
         print(f"[OVERLAY] 추가: text='{text}', style={style}, time={start_time:.1f}-{end_time:.1f}s (duration={duration}s)")
 
-        # drawtext 필터 생성 (화면 중앙, 그림자 효과 추가)
+        # drawtext 필터 생성 (화면 중앙, 박스 배경 추가)
         drawtext = (
             f"drawtext=text='{text_escaped}':"
             f"fontfile='{font_escaped}':"
@@ -13134,8 +13133,9 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
             f"fontcolor={fontcolor}:"
             f"bordercolor={bordercolor}:"
             f"borderw={borderw}:"
-            f"shadowcolor={shadowcolor}:"
-            f"shadowx={shadowx}:shadowy={shadowy}:"
+            f"box=1:"
+            f"boxcolor={boxcolor}:"
+            f"boxborderw={boxborderw}:"
             f"x=(w-text_w)/2:"
             f"y=(h-text_h)/2:"
             f"enable='between(t,{start_time},{end_time})'"
