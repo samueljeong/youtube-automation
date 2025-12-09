@@ -2179,10 +2179,6 @@
             <span class="sidebar-icon">📁</span>
             <span>Projects</span>
           </a>
-          <a href="#" class="sidebar-item" data-section="youtube" onclick="AssistantMain.showSection('youtube'); return false;">
-            <span class="sidebar-icon">📺</span>
-            <span>YouTube</span>
-          </a>
         </nav>
       </div>
 
@@ -2575,92 +2571,6 @@
               <div class="notes-list" id="project-notes-list">
                 <div class="empty">No notes yet</div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- YouTube Section -->
-      <div id="section-youtube" class="section">
-        <div class="card">
-          <div class="card-header">
-            <h3>📺 YouTube 채널 분석</h3>
-          </div>
-          <div class="card-body">
-            <!-- 채널 입력 -->
-            <div class="youtube-input-area" style="margin-bottom: 1.5rem;">
-              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <input type="text" id="youtube-channel-input" placeholder="채널 ID 또는 URL 입력 (예: UCxxxx 또는 @handle)" style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem;">
-                <button class="btn btn-primary" onclick="AssistantMain.analyzeYouTubeChannel()" id="btn-analyze-channel">
-                  🔍 분석
-                </button>
-              </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">
-                YouTube 채널 URL, 채널 ID, 또는 @핸들을 입력하세요
-              </div>
-            </div>
-
-            <!-- 분석 결과 영역 -->
-            <div id="youtube-analysis-result" style="display: none;">
-              <!-- 채널 개요 -->
-              <div class="youtube-channel-overview" style="background: var(--bg-color); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
-                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
-                  <img id="yt-channel-thumb" src="" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover;">
-                  <div>
-                    <h4 id="yt-channel-name" style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.25rem;">채널명</h4>
-                    <div id="yt-channel-handle" style="font-size: 0.85rem; color: var(--text-secondary);">@handle</div>
-                  </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
-                  <div style="background: white; padding: 0.75rem; border-radius: 8px;">
-                    <div id="yt-subscribers" style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">-</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">구독자</div>
-                  </div>
-                  <div style="background: white; padding: 0.75rem; border-radius: 8px;">
-                    <div id="yt-total-views" style="font-size: 1.25rem; font-weight: 700; color: var(--secondary-color);">-</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">총 조회수</div>
-                  </div>
-                  <div style="background: white; padding: 0.75rem; border-radius: 8px;">
-                    <div id="yt-video-count" style="font-size: 1.25rem; font-weight: 700; color: var(--warning-color);">-</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">영상 수</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 최근 영상 목록 -->
-              <div style="margin-bottom: 1.5rem;">
-                <h4 style="font-size: 1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                  🎬 최근 영상
-                  <span id="yt-avg-views" style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">(평균 조회수: -)</span>
-                </h4>
-                <div id="yt-recent-videos" style="display: grid; gap: 0.75rem;">
-                  <!-- 영상 카드들이 여기에 추가됨 -->
-                </div>
-              </div>
-
-              <!-- GPT 조언 -->
-              <div class="youtube-gpt-advice" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border: 1px solid #667eea30; border-radius: 12px; padding: 1.25rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                  <span style="font-size: 1.25rem;">💡</span>
-                  <h4 style="font-size: 1rem; font-weight: 600;">GPT 채널 분석 조언</h4>
-                  <span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 0.65rem; padding: 0.2rem 0.5rem;">GPT-5.1</span>
-                </div>
-                <div id="yt-gpt-advice" style="font-size: 0.9rem; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap;">
-                  분석 버튼을 클릭하면 GPT가 채널을 분석하여 조언을 제공합니다.
-                </div>
-              </div>
-            </div>
-
-            <!-- 로딩 상태 -->
-            <div id="youtube-loading" style="display: none; text-align: center; padding: 3rem;">
-              <div style="font-size: 2rem; margin-bottom: 1rem;">🔄</div>
-              <div style="color: var(--text-secondary);">채널 분석 중...</div>
-            </div>
-
-            <!-- 에러 상태 -->
-            <div id="youtube-error" style="display: none; text-align: center; padding: 2rem; background: #fef2f2; border-radius: 8px; color: #dc2626;">
-              <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️</div>
-              <div id="youtube-error-message">오류가 발생했습니다.</div>
             </div>
           </div>
         </div>

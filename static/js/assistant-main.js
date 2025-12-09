@@ -3272,105 +3272,6 @@ const AssistantMain = (() => {
     }
   }
 
-  // ===== YouTube Channel Analysis =====
-  async function analyzeYouTubeChannel() {
-    const input = document.getElementById('youtube-channel-input').value.trim();
-    if (!input) {
-      showToast('채널 ID 또는 URL을 입력해주세요', 'error');
-      return;
-    }
-
-    // UI 상태 업데이트
-    document.getElementById('youtube-analysis-result').style.display = 'none';
-    document.getElementById('youtube-loading').style.display = 'block';
-    document.getElementById('youtube-error').style.display = 'none';
-    document.getElementById('btn-analyze-channel').disabled = true;
-
-    try {
-      const response = await fetch('/api/assistant/youtube-analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_input: input })
-      });
-
-      const data = await response.json();
-
-      if (!data.ok) {
-        throw new Error(data.error || '분석 실패');
-      }
-
-      // 채널 정보 표시
-      const channel = data.channel;
-      document.getElementById('yt-channel-thumb').src = channel.thumbnail || '';
-      document.getElementById('yt-channel-name').textContent = channel.title || '채널명';
-      document.getElementById('yt-channel-handle').textContent = channel.customUrl || channel.id;
-      document.getElementById('yt-subscribers').textContent = formatNumber(channel.subscriberCount);
-      document.getElementById('yt-total-views').textContent = formatNumber(channel.viewCount);
-      document.getElementById('yt-video-count').textContent = formatNumber(channel.videoCount);
-
-      // 최근 영상 목록 표시
-      const videosContainer = document.getElementById('yt-recent-videos');
-      videosContainer.innerHTML = '';
-
-      const videos = data.videos || [];
-      let totalViews = 0;
-
-      videos.forEach((video, idx) => {
-        totalViews += parseInt(video.viewCount) || 0;
-
-        const videoCard = document.createElement('div');
-        videoCard.style.cssText = 'display: flex; gap: 0.75rem; padding: 0.75rem; background: var(--bg-color); border-radius: 8px; align-items: flex-start;';
-
-        videoCard.innerHTML = `
-          <a href="https://youtube.com/watch?v=${video.id}" target="_blank" style="flex-shrink: 0;">
-            <img src="${video.thumbnail}" style="width: 120px; height: 68px; border-radius: 6px; object-fit: cover;">
-          </a>
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-              ${video.title}
-            </div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.75rem;">
-              <span>👁 ${formatNumber(video.viewCount)}</span>
-              <span>👍 ${formatNumber(video.likeCount)}</span>
-              <span>💬 ${formatNumber(video.commentCount)}</span>
-            </div>
-            ${video.titleAdvice ? `<div style="font-size: 0.7rem; color: var(--primary-color); margin-top: 0.5rem;">💡 ${video.titleAdvice}</div>` : ''}
-          </div>
-        `;
-
-        videosContainer.appendChild(videoCard);
-      });
-
-      // 평균 조회수 표시
-      const avgViews = videos.length > 0 ? Math.round(totalViews / videos.length) : 0;
-      document.getElementById('yt-avg-views').textContent = `(평균 조회수: ${formatNumber(avgViews)})`;
-
-      // GPT 조언 표시
-      document.getElementById('yt-gpt-advice').textContent = data.advice || '분석 결과가 없습니다.';
-
-      // 결과 표시
-      document.getElementById('youtube-loading').style.display = 'none';
-      document.getElementById('youtube-analysis-result').style.display = 'block';
-
-    } catch (err) {
-      console.error('[YouTube] Analysis error:', err);
-      document.getElementById('youtube-loading').style.display = 'none';
-      document.getElementById('youtube-error').style.display = 'block';
-      document.getElementById('youtube-error-message').textContent = err.message || '분석 중 오류가 발생했습니다.';
-    } finally {
-      document.getElementById('btn-analyze-channel').disabled = false;
-    }
-  }
-
-  function formatNumber(num) {
-    if (!num) return '0';
-    num = parseInt(num);
-    if (num >= 100000000) return (num / 100000000).toFixed(1) + '억';
-    if (num >= 10000) return (num / 10000).toFixed(1) + '만';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toLocaleString();
-  }
-
   // ===== Initialize on DOM Ready =====
   document.addEventListener('DOMContentLoaded', init);
 
@@ -3470,8 +3371,6 @@ const AssistantMain = (() => {
     showDuplicateModal,
     closeDuplicateModal,
     selectDuplicate,
-    forceCreate,
-    // YouTube functions
-    analyzeYouTubeChannel
+    forceCreate
   };
 })();
