@@ -13778,11 +13778,59 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                         except:
                             pass
 
-                # 1-2. 메인 영상 이미지를 9:16으로 크롭 (새 이미지 생성 대신)
+                # 1-2. 쇼츠용 9:16 이미지 생성 (스틱맨 중앙 배치)
                 image_path = os.path.join(temp_dir, f"beat_{beat_id:02d}_image.png")
 
-                # scene_images가 제공되면 해당 이미지를 크롭하여 사용
-                if scene_images and len(scene_images) > 0:
+                # 옵션 1: broll_prompt가 있으면 전용 9:16 이미지 생성 시도
+                shorts_image_generated = False
+                if broll_prompt:
+                    try:
+                        # 9:16 세로 이미지용 프롬프트 강화
+                        vertical_prompt = f"""VERTICAL 9:16 PORTRAIT composition for mobile shorts.
+
+CRITICAL - STICKMAN CHARACTER REQUIREMENTS:
+- CENTER the stickman character in the frame
+- Stickman: Simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows, black outline body
+- The stickman should occupy the CENTER of the image (not left or right edges)
+- Leave text-safe areas at top 20% and bottom 30%
+
+Background: Detailed anime-style, Ghibli-inspired, warm colors
+Style: Contrast collage - simple stickman against detailed background
+
+Scene: {broll_prompt}
+
+OUTPUT: 1080x1920 vertical image with CENTERED stickman character."""
+
+                        # Gemini API로 9:16 이미지 생성
+                        gen_resp = req.post(f"{base_url}/api/drama/generate-image", json={
+                            "prompt": vertical_prompt,
+                            "width": 1080,
+                            "height": 1920,
+                            "model": "gemini-2.5-flash"
+                        }, timeout=60)
+
+                        if gen_resp.status_code == 200:
+                            gen_data = gen_resp.json()
+                            if gen_data.get("ok") and gen_data.get("imageUrl"):
+                                img_url = gen_data["imageUrl"]
+                                # 생성된 이미지 다운로드
+                                if img_url.startswith("http"):
+                                    img_download = req.get(img_url, timeout=30)
+                                else:
+                                    img_download = req.get(f"{base_url}{img_url}", timeout=30)
+
+                                with open(image_path, "wb") as f:
+                                    f.write(img_download.content)
+
+                                if os.path.exists(image_path) and os.path.getsize(image_path) > 1000:
+                                    shorts_image_generated = True
+                                    total_cost += 0.02  # Gemini 이미지 생성 비용
+                                    print(f"[SHORTS-V2] Beat {beat_id} 전용 9:16 이미지 생성 완료 (스틱맨 중앙)")
+                    except Exception as gen_err:
+                        print(f"[SHORTS-V2] Beat {beat_id} 이미지 생성 실패, 크롭으로 fallback: {gen_err}")
+
+                # 옵션 2: 전용 이미지 생성 실패 시 기존 이미지 크롭
+                if not shorts_image_generated and scene_images and len(scene_images) > 0:
                     # beat_id에 해당하는 이미지 선택 (순환)
                     img_idx = (idx) % len(scene_images)
                     source_img_url = scene_images[img_idx]
@@ -13810,7 +13858,7 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                             crop_result = subprocess.run(crop_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=30)
 
                             if crop_result.returncode == 0 and os.path.exists(image_path):
-                                print(f"[SHORTS-V2] Beat {beat_id} 이미지 크롭 완료 (원본: {img_idx+1}번째)")
+                                print(f"[SHORTS-V2] Beat {beat_id} 이미지 크롭 완료 (원본: {img_idx+1}번째, 스틱맨 잘릴 수 있음)")
                             else:
                                 print(f"[SHORTS-V2] Beat {beat_id} 크롭 실패: {crop_result.stderr.decode('utf-8', errors='ignore')[-200:]}")
                         except Exception as crop_err:
@@ -13854,26 +13902,9 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
             for bd in beat_data:
                 clip_path = os.path.join(temp_dir, f"clip_{bd['beat_id']:02d}.mp4")
 
-                # 이미지 + 오디오 + 자막 합성 (한국 뉴스 스타일)
-                # 자막 텍스트 줄바꿈 처리 (16자마다, 최대 2줄)
+                # 이미지 + 오디오 + 자막 합성 (한국 뉴스 스타일 + TTS 싱크)
                 voiceover_raw = bd['voiceover']
-                max_chars_per_line = 16
-                lines = []
-                current_line = ""
-                for char in voiceover_raw:
-                    current_line += char
-                    if len(current_line) >= max_chars_per_line:
-                        lines.append(current_line)
-                        current_line = ""
-                if current_line:
-                    lines.append(current_line)
-                # 최대 2줄만 표시 (너무 길면 잘림)
-                voiceover_wrapped = "\n".join(lines[:2])
-                if len(lines) > 2:
-                    voiceover_wrapped = voiceover_wrapped.rstrip() + "..."
-
-                # FFmpeg drawtext 이스케이프 순서: 백슬래시 → 콜론 → 따옴표
-                voiceover_escaped = voiceover_wrapped.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
+                beat_duration = bd['duration']
 
                 # 폰트 경로 (NanumGothicBold 우선)
                 font_path = "fonts/NanumGothicBold.ttf"
@@ -13881,21 +13912,82 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                     font_path = "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"
                 font_escaped = font_path.replace("\\", "/").replace(":", "\\:")
 
+                # ========== TTS 싱크 자막: 문장/구 단위로 분할 ==========
+                # 마침표, 쉼표, 물음표 등으로 분할
+                import re
+                # 문장 구분자로 분할 (구분자 포함)
+                sentence_pattern = r'([^.!?,。，、！？]+[.!?,。，、！？]?)'
+                raw_segments = re.findall(sentence_pattern, voiceover_raw)
+                # 빈 문자열 제거 및 정리
+                segments = [s.strip() for s in raw_segments if s.strip()]
+
+                # 세그먼트가 너무 많으면 병합 (최대 4개)
+                if len(segments) > 4:
+                    merged = []
+                    chunk_size = (len(segments) + 3) // 4
+                    for i in range(0, len(segments), chunk_size):
+                        merged.append(' '.join(segments[i:i+chunk_size]))
+                    segments = merged
+
+                # 세그먼트가 없으면 전체를 하나로
+                if not segments:
+                    segments = [voiceover_raw]
+
+                # 각 세그먼트의 시간 계산 (글자 수 비율 기반)
+                total_chars = sum(len(s) for s in segments)
+                if total_chars == 0:
+                    total_chars = 1
+
+                segment_timings = []
+                current_time = 0.0
+                for seg in segments:
+                    seg_duration = (len(seg) / total_chars) * beat_duration
+                    segment_timings.append({
+                        'text': seg,
+                        'start': current_time,
+                        'end': current_time + seg_duration
+                    })
+                    current_time += seg_duration
+
                 # ========== 한국 뉴스 스타일 텍스트 오버레이 ==========
                 # 쇼츠 해상도: 1080x1920 (9:16)
-                # 1. 하단 자막 영역: 반투명 검정 배경 박스 + 흰색 텍스트
+                # 1. 기본 필터: 해상도 + 하단 배경 박스
                 subtitle_filter = (
-                    # 먼저 해상도를 명시적으로 설정 (drawbox 'h' 평가 오류 방지)
                     f"scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,"
-                    # 하단 반투명 검정 배경 박스 (하단 28%)
-                    f"drawbox=x=0:y=ih*0.72:w=iw:h=ih*0.28:color=black@0.7:t=fill,"
-                    # 자막 텍스트 (더 크고 굵게, 중앙 정렬)
-                    f"drawtext=text='{voiceover_escaped}':"
-                    f"fontfile='{font_escaped}':fontsize=52:fontcolor=white:"
-                    f"borderw=3:bordercolor=black:"
-                    f"x=(w-text_w)/2:y=h*0.78:"
-                    f"line_spacing=12"
+                    f"drawbox=x=0:y=ih*0.68:w=iw:h=ih*0.32:color=black@0.75:t=fill"
                 )
+
+                # 2. TTS 싱크 자막: 각 세그먼트를 시간에 맞춰 표시
+                for seg_idx, seg_info in enumerate(segment_timings):
+                    # 텍스트 줄바꿈 처리 (14자마다)
+                    seg_text = seg_info['text']
+                    max_chars_per_line = 14
+                    lines = []
+                    current_line = ""
+                    for char in seg_text:
+                        current_line += char
+                        if len(current_line) >= max_chars_per_line:
+                            lines.append(current_line)
+                            current_line = ""
+                    if current_line:
+                        lines.append(current_line)
+                    wrapped_text = "\n".join(lines[:3])  # 최대 3줄
+
+                    # FFmpeg 이스케이프
+                    text_escaped = wrapped_text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
+
+                    # enable 표현식으로 시간 범위 지정
+                    start_t = seg_info['start']
+                    end_t = seg_info['end']
+
+                    subtitle_filter += (
+                        f",drawtext=text='{text_escaped}':"
+                        f"fontfile='{font_escaped}':fontsize=68:fontcolor=white:"
+                        f"borderw=4:bordercolor=black:"
+                        f"x=(w-text_w)/2:y=h*0.73:"
+                        f"line_spacing=16:"
+                        f"enable='between(t,{start_t:.2f},{end_t:.2f})'"
+                    )
 
                 # 2. 상단 헤드라인 (on_screen_text): 뉴스 스타일 - 노란색/청록색, 큰 폰트
                 if bd['on_screen_text']:
@@ -13904,24 +13996,26 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
 
                     # 텍스트 길이에 따라 폰트 크기 조절 (더 굵고 크게)
                     text_len = len(bd['on_screen_text'])
-                    if text_len <= 10:
-                        headline_fontsize = 84  # 72 → 84
-                    elif text_len <= 20:
-                        headline_fontsize = 72  # 60 → 72
+                    if text_len <= 8:
+                        headline_fontsize = 100  # 매우 짧은 타이틀
+                    elif text_len <= 15:
+                        headline_fontsize = 88   # 짧은 타이틀
+                    elif text_len <= 25:
+                        headline_fontsize = 72   # 중간 타이틀
                     else:
-                        headline_fontsize = 56  # 48 → 56
+                        headline_fontsize = 60   # 긴 타이틀
 
                     # 색상 선택: beat 번호에 따라 노란색/청록색 교대
                     headline_color = "yellow" if bd['beat_id'] % 2 == 1 else "cyan"
 
                     subtitle_filter += (
-                        # 상단 반투명 배경 (상단 20%)
-                        f",drawbox=x=0:y=0:w=iw:h=ih*0.20:color=black@0.6:t=fill,"
-                        # 헤드라인 텍스트 (불투명 영역 하단에 맞춤, 더 굵은 테두리)
+                        # 상단 반투명 배경 (상단 22% - 더 큰 타이틀 공간)
+                        f",drawbox=x=0:y=0:w=iw:h=ih*0.22:color=black@0.65:t=fill,"
+                        # 헤드라인 텍스트 (폰트/테두리 증가)
                         f"drawtext=text='{text_escaped}':"
                         f"fontfile='{font_escaped}':fontsize={headline_fontsize}:fontcolor={headline_color}:"
-                        f"borderw=5:bordercolor=black:"
-                        f"x=(w-text_w)/2:y=h*0.12"
+                        f"borderw=6:bordercolor=black:"
+                        f"x=(w-text_w)/2:y=h*0.10"
                     )
 
                 cmd = [
