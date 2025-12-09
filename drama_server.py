@@ -10642,23 +10642,24 @@ def api_image_analyze_script():
       }},
 
       // ★ detected_category가 "story"일 때 사용 (드라마, 감성, 인간관계, 일상 이야기)
+      // ⚠️ 모든 썸네일은 실사/영화 스타일! 스틱맨, 만화, 웹툰 스타일 절대 금지!
       "A": {{
-        "description": "스토리 스타일 A: 감정/표정 중심",
-        "prompt": "Cartoon illustration style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression (shock, surprise, joy). Vibrant colors, high contrast. NO realistic humans, comic/cartoon style only.",
+        "description": "스토리 스타일 A: 감정/표정 중심 (실사)",
+        "prompt": "PHOTOREALISTIC cinematic YouTube thumbnail, 16:9 aspect ratio. Korean person with emotional expression matching the story (contemplative, tearful, hopeful, shocked). Dramatic lighting like movie poster. High contrast, warm or cool tones based on mood. NO cartoon, NO stickman, NO illustration.",
         "text_overlay": {{"main": "{thumb_length} 감정 텍스트", "sub": "optional"}},
-        "style": "emotional, cartoon"
+        "style": "emotional, photorealistic"
       }},
       "B": {{
-        "description": "스토리 스타일 B: Before/After 대비",
-        "prompt": "Split screen YouTube thumbnail, 16:9 aspect ratio. Before/After comparison layout. Cartoon style, vibrant contrasting colors. Clear visual storytelling. NO realistic photos.",
-        "text_overlay": {{"main": "대비 텍스트", "sub": "optional"}},
-        "style": "narrative, contrast"
+        "description": "스토리 스타일 B: 장면/상황 중심 (실사)",
+        "prompt": "PHOTOREALISTIC cinematic YouTube thumbnail, 16:9 aspect ratio. Scene depicting the key moment of the story - location, objects, atmosphere. Professional photography style with dramatic lighting. Space for text overlay. NO cartoon, NO stickman, NO illustration.",
+        "text_overlay": {{"main": "상황 텍스트", "sub": "optional"}},
+        "style": "scene, photorealistic"
       }},
       "C": {{
-        "description": "스토리 스타일 C: 타이포그래피 중심",
-        "prompt": "Typography-focused YouTube thumbnail, 16:9 aspect ratio. Large bold Korean text. Gradient background. Minimal illustration. High contrast colors.",
+        "description": "스토리 스타일 C: 실루엣/분위기 중심",
+        "prompt": "PHOTOREALISTIC atmospheric YouTube thumbnail, 16:9 aspect ratio. Silhouette or backlit figure conveying emotion. Dramatic sky or background. Cinematic color grading. Bold space for text. NO cartoon, NO stickman, NO illustration.",
         "text_overlay": {{"main": "{thumb_length} 메인 문구", "sub": "optional"}},
-        "style": "typography, bold"
+        "style": "atmospheric, silhouette"
       }}
     }}'''
 
@@ -11520,13 +11521,13 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 
 ## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
 The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
-⚠️ THUMBNAILS ARE NOT STICKMAN! Use webtoon/manhwa cartoon style with expressive characters!
-- A: Emotion/expression focused - Korean webtoon style character with exaggerated emotion (surprise, shock, joy)
-- B: Story/situation focused - show before/after contrast or key scene moment in cartoon style
-- C: Typography focused - bold text with minimal background, graphic design style
-- All 3 prompts MUST use cartoon/webtoon/manhwa illustration style, NOT stickman!
-- All 3 prompts MUST be different styles/compositions!
-- NEVER use realistic human faces or stickman - use Korean webtoon/manhwa cartoon style only!
+⚠️ ALL THUMBNAILS MUST BE PHOTOREALISTIC! NO stickman, NO cartoon, NO webtoon, NO illustration!
+- A: Emotion/expression focused - Real Korean person with emotional expression, cinematic lighting
+- B: Scene/situation focused - Professional photography of the key moment/location
+- C: Atmospheric/silhouette focused - Dramatic backlit figure or mood shot
+- All 3 prompts MUST use PHOTOREALISTIC cinematic style!
+- All 3 prompts MUST be different compositions!
+- ALWAYS use professional photography style - like movie posters or news thumbnails!
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (한글 텍스트 규칙) ⚠️
 The "text_overlay" field contains Korean text that will be rendered ON the thumbnail image.
@@ -12747,7 +12748,7 @@ def _hex_to_ass_color(hex_color):
 
 
 def _apply_subtitle_highlights(text, highlights):
-    """자막 텍스트에 키워드 색상 강조 적용
+    """자막 텍스트에 키워드 색상 강조 적용 (박스 배경 포함)
 
     Args:
         text: 원본 자막 텍스트
@@ -12765,8 +12766,13 @@ def _apply_subtitle_highlights(text, highlights):
         color = h.get('color', '#FFFF00')
         if keyword and keyword in result:
             ass_color = _hex_to_ass_color(color)
-            # ASS 색상 태그 적용: {\c&HBBGGRR&}텍스트{\c&HFFFFFF&}
-            colored_keyword = f"{{\\c{ass_color}}}{keyword}{{\\c&HFFFFFF&}}"
+            # ASS 박스 스타일 강조:
+            # - \bord12: 두꺼운 테두리로 박스 효과
+            # - \3c: 테두리(박스) 색상 = 강조색
+            # - \c&HFFFFFF&: 텍스트는 흰색
+            # - \shad0: 그림자 제거 (박스 깔끔하게)
+            # 강조 후 원래 스타일로 복원: \bord4 (기본 테두리), \3c&H000000& (검은 테두리)
+            colored_keyword = f"{{\\bord12\\3c{ass_color}\\c&HFFFFFF&\\shad0}}{keyword}{{\\bord4\\3c&H000000&\\c&HFFFFFF&\\shad2}}"
             result = result.replace(keyword, colored_keyword)
 
     return result
@@ -17593,13 +17599,34 @@ ABSOLUTE RESTRICTIONS:
 - MUST be photorealistic news style"""
         else:
             print(f"[THUMBNAIL-AI] 스토리 스타일 적용 - category: '{category}', style: '{style}'")
+            # 스틱맨/만화 스타일 제거 → 실사 스타일로 통일
+            clean_prompt = prompt
+            for remove_kw in ['stickman', 'stick man', 'cartoon', 'comic', 'illustration', 'anime', 'animated', 'Ghibli', 'slice-of-life', 'webtoon', 'manhwa']:
+                clean_prompt = clean_prompt.replace(remove_kw, '').replace(remove_kw.lower(), '').replace(remove_kw.capitalize(), '')
+
             enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
 
-{prompt}
+STYLE REQUIREMENTS:
+- PHOTOREALISTIC style, like a movie poster or professional photography
+- Real human expressions, NOT cartoon, NOT illustration, NOT stickman
+- Dramatic lighting, cinematic composition
+- High contrast, vibrant colors
+- Professional photography aesthetic
+- Space for bold Korean text overlay
+
+Subject/Scene:
+{clean_prompt}
 
 {text_instruction}
 
-Style: {style if style else 'comic'}, comic/illustration, eye-catching, high contrast"""
+ABSOLUTE RESTRICTIONS:
+- NO cartoon style
+- NO comic style
+- NO anime style
+- NO stickman characters
+- NO illustration style
+- NO webtoon/manhwa style
+- MUST be photorealistic cinematic style"""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
@@ -19526,9 +19553,11 @@ def run_automation_pipeline(row_data, row_index):
                 video_id = upload_data.get('videoId', '')
                 print(f"[AUTOMATION] 4. 완료: {youtube_url} (총 비용: ${total_cost:.2f})")
 
-                # ========== 5. 쇼츠 백그라운드 생성 (롱폼 먼저 반환) ==========
+                # ========== 5. 쇼츠 백그라운드 생성 (현재 비활성화) ==========
+                # TODO: 쇼츠 품질 개선 후 다시 활성화
                 # 롱폼이 더 중요하므로 먼저 결과를 반환하고, 쇼츠는 백그라운드에서 처리
-                shorts_info = video_effects.get('shorts', {})
+                SHORTS_ENABLED = False  # 쇼츠 생성 비활성화 (2025-12-09)
+                shorts_info = video_effects.get('shorts', {}) if SHORTS_ENABLED else {}
                 highlight_scenes_nums = shorts_info.get('highlight_scenes', [])
 
                 # highlight_scenes가 비어있으면 기본값으로 처음 2-3개 씬 선택
@@ -19747,7 +19776,7 @@ The visual style is:
         "text": "썸네일에 들어갈 강렬한 한국어 문구 (8-12자, 클릭 유도)",
         "text_color": "#FFD700",
         "outline_color": "#000000",
-        "prompt": "Korean webtoon manhwa style YouTube thumbnail, 16:9 aspect ratio. Cartoon character with EXAGGERATED facial expression (shock, surprise, anger, crying). Clean vector illustration style, bold outlines, vibrant saturated colors, dramatic lighting. NO stickman, NO realistic photo. Style reference: Korean YouTube thumbnail illustration, webtoon art style."
+        "prompt": "PHOTOREALISTIC cinematic YouTube thumbnail, 16:9 aspect ratio. Korean person with emotional expression matching the story. Dramatic lighting like movie poster. High contrast, vibrant saturated colors. Professional photography aesthetic. Space for bold Korean text. NO cartoon, NO stickman, NO illustration, NO webtoon."
     },
     "scenes": [
         {
@@ -19760,17 +19789,19 @@ The visual style is:
 
 ## THUMBNAIL RULES (CRITICAL!)
 Generate ONE powerful thumbnail that maximizes YouTube CTR (Click-Through Rate):
-- Style: Korean webtoon/manhwa cartoon illustration (NOT stickman, NOT realistic photo)
-- Character: Cartoon person with exaggerated facial expression (shock, surprise, anger, crying, frustration)
+- Style: PHOTOREALISTIC cinematic style (like movie poster or news thumbnail)
+- Subject: Real Korean person with emotional expression, or dramatic scene/location
 - Text should be 8-12 Korean characters, bold and impactful
 - Examples: "결국 터졌다", "이게 실화?", "소름 돋았다", "절대 하지 마세요"
-- Colors: Vibrant, saturated, high contrast (red, yellow, orange backgrounds work well)
-- Composition: Character on one side, bold text on the other
+- Colors: Dramatic lighting, high contrast, professional photography aesthetic
+- Composition: Subject on one side, bold text on the other
+- ⚠️ NO cartoon, NO stickman, NO webtoon, NO illustration!
 
 ## CRITICAL RULES
 1. narration = 원본 대본의 정확한 문장을 그대로 복사. 요약하거나 줄이지 마세요!
 2. image_prompt = 영어로 작성. 반드시 "detailed anime background" + "simple white stickman" 포함
-3. NO realistic human faces - ONLY stickman character!"""
+3. NO realistic human faces in SCENE images - ONLY stickman character!
+   (But THUMBNAIL should be photorealistic!)"""
 
         user_prompt = f"""다음 대본을 분석하여 {image_count}개의 씬으로 나누세요.
 
