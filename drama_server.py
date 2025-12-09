@@ -13726,7 +13726,7 @@ JSON 형식으로만 출력해. 다른 텍스트 없이 순수 JSON만.'''
         return None
 
 
-def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url="http://localhost:5000", scene_images=None):
+def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url="http://localhost:5000", scene_images=None, fixed_title=None):
     """쇼츠 전용 영상 생성 (새 TTS + 메인 영상 이미지 크롭 + 한국 뉴스 스타일 텍스트)
 
     Args:
@@ -13735,6 +13735,7 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
         output_path: 출력 파일 경로
         base_url: API 서버 URL
         scene_images: 메인 영상의 씬 이미지 URL 리스트 (16:9 → 9:16 크롭용)
+        fixed_title: 전체 영상에 고정 표시할 타이틀 (영상 제목)
 
     Returns:
         dict: {ok, shorts_path, duration, cost}
@@ -13819,20 +13820,24 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 if broll_prompt:
                     try:
                         # 9:16 세로 이미지용 프롬프트 강화
+                        # 중요: 스틱맨만 + 배경 (다른 사람/텍스트 없음)
                         vertical_prompt = f"""VERTICAL 9:16 PORTRAIT composition for mobile shorts.
 
-CRITICAL - STICKMAN CHARACTER REQUIREMENTS:
-- CENTER the stickman character in the frame
-- Stickman: Simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows, black outline body
-- The stickman should occupy the CENTER of the image (not left or right edges)
-- Leave text-safe areas at top 20% and bottom 30%
+CRITICAL - STICKMAN CHARACTER (ONLY CHARACTER ALLOWED):
+- CENTER a simple white stickman character in the frame
+- Stickman design: Round white head, two black dot eyes, small curved mouth, thin eyebrows, white body with black outline, simple stick arms and legs
+- The stickman should be the ONLY character in the image
+- Position stickman in the CENTER-BOTTOM area (leaving top 25% for text overlay)
 
-Background: Detailed anime-style, Ghibli-inspired, warm colors
-Style: Contrast collage - simple stickman against detailed background
+FORBIDDEN - DO NOT INCLUDE:
+- NO other people, humans, grandparents, elderly, children, or any realistic characters
+- NO text, letters, words, Korean characters, or any writing in the image
+- NO additional cartoon characters besides the one stickman
 
-Scene: {broll_prompt}
+Background style: Detailed anime-style, Ghibli-inspired, warm colors, atmospheric scenery
+Scene environment: {broll_prompt}
 
-OUTPUT: 1080x1920 vertical image with CENTERED stickman character."""
+OUTPUT: 1080x1920 vertical image with ONLY ONE centered stickman against scenic background."""
 
                         # Gemini API로 9:16 이미지 생성
                         gen_resp = req.post(f"{base_url}/api/drama/generate-image", json={
@@ -14022,13 +14027,15 @@ OUTPUT: 1080x1920 vertical image with CENTERED stickman character."""
                         f"enable='between(t,{start_t:.2f},{end_t:.2f})'"
                     )
 
-                # 2. 상단 헤드라인 (on_screen_text): 뉴스 스타일 - 노란색/청록색, 큰 폰트
-                if bd['on_screen_text']:
+                # 2. 상단 헤드라인: 고정 타이틀 (영상 제목) - 노란색, 전체 영상에 동일하게 표시
+                # fixed_title이 있으면 사용, 없으면 on_screen_text fallback
+                headline_text = fixed_title if fixed_title else bd.get('on_screen_text', '')
+                if headline_text:
                     # FFmpeg drawtext 이스케이프 순서: 백슬래시 → 콜론 → 따옴표
-                    text_escaped = bd['on_screen_text'].replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
+                    text_escaped = headline_text.replace("\\", "\\\\").replace(":", "\\:").replace("'", "'\\''")
 
                     # 텍스트 길이에 따라 폰트 크기 조절 (더 굵고 크게)
-                    text_len = len(bd['on_screen_text'])
+                    text_len = len(headline_text)
                     if text_len <= 8:
                         headline_fontsize = 100  # 매우 짧은 타이틀
                     elif text_len <= 15:
@@ -14038,8 +14045,8 @@ OUTPUT: 1080x1920 vertical image with CENTERED stickman character."""
                     else:
                         headline_fontsize = 60   # 긴 타이틀
 
-                    # 색상 선택: beat 번호에 따라 노란색/청록색 교대
-                    headline_color = "yellow" if bd['beat_id'] % 2 == 1 else "cyan"
+                    # 고정 타이틀은 항상 노란색 (일관성)
+                    headline_color = "yellow"
 
                     subtitle_filter += (
                         # 상단 반투명 배경 (상단 22% - 더 큰 타이틀 공간)
@@ -19574,7 +19581,8 @@ def run_automation_pipeline(row_data, row_index):
                                 voice_name=voice,
                                 output_path=shorts_output_path,
                                 base_url=base_url,
-                                scene_images=scene_image_urls
+                                scene_images=scene_image_urls,
+                                fixed_title=shorts_title  # 영상 제목을 고정 타이틀로 전달
                             )
 
                             if not shorts_result.get("ok"):
