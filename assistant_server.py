@@ -5255,18 +5255,18 @@ def get_youtube_channels():
         channels = []
         for row in rows:
             channel = {
-                'id': row[0],
-                'channel_id': row[1],
-                'channel_title': row[2],
-                'channel_handle': row[3],
-                'thumbnail_url': row[4],
-                'alias': row[5],
-                'category': row[6],
-                'subscribers': row[7],
-                'total_views': row[8],
-                'video_count': row[9],
-                'last_fetched_at': row[10].isoformat() if row[10] else None,
-                'created_at': row[11].isoformat() if row[11] else None
+                'id': row['id'],
+                'channel_id': row['channel_id'],
+                'channel_title': row['channel_title'],
+                'channel_handle': row['channel_handle'],
+                'thumbnail_url': row['thumbnail_url'],
+                'alias': row['alias'],
+                'category': row['category'],
+                'subscribers': row['subscribers'],
+                'total_views': row['total_views'],
+                'video_count': row['video_count'],
+                'last_fetched_at': row['last_fetched_at'].isoformat() if row['last_fetched_at'] else None,
+                'created_at': row['created_at'].isoformat() if row['created_at'] else None
             }
 
             # 최근 7일간 변화량 조회
@@ -5277,7 +5277,7 @@ def get_youtube_channels():
                     WHERE channel_id = %s
                     ORDER BY record_date DESC
                     LIMIT 7
-                ''', (row[1],))
+                ''', (row['channel_id'],))
             else:
                 cursor.execute('''
                     SELECT record_date, subscribers, total_views
@@ -5285,15 +5285,15 @@ def get_youtube_channels():
                     WHERE channel_id = ?
                     ORDER BY record_date DESC
                     LIMIT 7
-                ''', (row[1],))
+                ''', (row['channel_id'],))
 
             history = cursor.fetchall()
             if len(history) >= 2:
                 # 어제와 오늘 비교
-                today_subs = history[0][1]
-                yesterday_subs = history[1][1]
-                today_views = history[0][2]
-                yesterday_views = history[1][2]
+                today_subs = history[0]['subscribers']
+                yesterday_subs = history[1]['subscribers']
+                today_views = history[0]['total_views']
+                yesterday_views = history[1]['total_views']
 
                 channel['subscribers_change'] = today_subs - yesterday_subs
                 channel['views_change'] = today_views - yesterday_views
@@ -5303,8 +5303,8 @@ def get_youtube_channels():
 
             # 7일간 변화량
             if len(history) >= 7:
-                channel['subscribers_change_7d'] = history[0][1] - history[6][1]
-                channel['views_change_7d'] = history[0][2] - history[6][2]
+                channel['subscribers_change_7d'] = history[0]['subscribers'] - history[6]['subscribers']
+                channel['views_change_7d'] = history[0]['total_views'] - history[6]['total_views']
             else:
                 channel['subscribers_change_7d'] = 0
                 channel['views_change_7d'] = 0
@@ -5393,7 +5393,8 @@ def add_youtube_channel():
                 stats_result['subscribers'], stats_result['total_views'], stats_result['video_count'],
                 now, now
             ))
-            new_id = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            new_id = result['id'] if result else None
 
             # 히스토리 기록
             cursor.execute('''
@@ -5466,7 +5467,7 @@ def delete_youtube_channel(channel_db_id):
             conn.close()
             return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
 
-        channel_id = row[0]
+        channel_id = row['channel_id']
 
         # 히스토리도 함께 삭제
         if USE_POSTGRES:
@@ -5596,7 +5597,8 @@ def get_youtube_channel_history(channel_db_id):
             conn.close()
             return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
 
-        channel_id, channel_title = row
+        channel_id = row['channel_id']
+        channel_title = row['channel_title']
 
         if USE_POSTGRES:
             cursor.execute('''
@@ -5620,11 +5622,12 @@ def get_youtube_channel_history(channel_db_id):
 
         history = []
         for h in history_rows:
+            record_date = h['record_date']
             history.append({
-                'date': h[0].isoformat() if hasattr(h[0], 'isoformat') else str(h[0]),
-                'subscribers': h[1],
-                'total_views': h[2],
-                'video_count': h[3]
+                'date': record_date.isoformat() if hasattr(record_date, 'isoformat') else str(record_date),
+                'subscribers': h['subscribers'],
+                'total_views': h['total_views'],
+                'video_count': h['video_count']
             })
 
         return jsonify({
