@@ -10845,7 +10845,14 @@ def api_image_analyze_script():
 5. **건강 카테고리 필수**: "doctor in white coat", "photorealistic", "medical" 키워드 포함
 6. **건강 썸네일 텍스트**: 여러 줄 (line1, line2, line3, line4)로 구성, highlight 필드에 강조할 키워드"""
 
-            system_prompt = f"""You are an AI that generates image prompts for COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character.
+            system_prompt = f"""You are an AI that generates:
+1. **SCENE IMAGE PROMPTS (scenes[].image_prompt)** = COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character
+2. **THUMBNAIL PROMPTS (ai_prompts)** = PHOTOREALISTIC STYLE: Real humans, news photography, NO stickman!
+
+⚠️ CRITICAL DISTINCTION:
+- scenes[].image_prompt → 스틱맨 + 애니메이션 배경 (영상 내부 이미지)
+- ai_prompts → 실사 스타일, 실제 인물, 뉴스/영화 포스터 스타일 (YouTube 썸네일)
+- 이 두 가지는 완전히 다른 스타일임!
 
 ## ⚠️ LANGUAGE RULE (CRITICAL!) ⚠️
 Output Language: {lang_config['name']} ({lang_config['native']})
@@ -11615,12 +11622,29 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 
 ## ⚠️ CRITICAL: AI THUMBNAIL PROMPTS RULES ⚠️
 The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
-⚠️ ALL THUMBNAILS MUST BE PHOTOREALISTIC! NO stickman, NO cartoon, NO webtoon, NO illustration!
-- A: Emotion/expression focused - Real Korean person with emotional expression, cinematic lighting
-- B: Scene/situation focused - Professional photography of the key moment/location
-- C: Atmospheric/silhouette focused - Dramatic backlit figure or mood shot
+
+### ★★★ 절대 규칙 (ABSOLUTE RULES) ★★★
+⚠️ ALL THUMBNAILS MUST BE PHOTOREALISTIC! NO stickman, NO cartoon, NO webtoon, NO illustration, NO silhouette, NO faceless!
+⚠️ 모든 썸네일은 실사 스타일이어야 함! 스틱맨, 만화, 실루엣, 얼굴 없는 인물 절대 금지!
+
+### ★★★ 인물/기업 규칙 (PERSON/COMPANY RULES) ★★★
+대본에 특정 인물이나 기업이 언급되면:
+1. **text_overlay.name 필드에 인물/기업명 추가** (예: "박나래", "삼성전자", "윤석열")
+2. **이미지 프롬프트에 해당 인물/기업이 연상되는 묘사 추가**
+   - 연예인: 그 사람의 특징적인 외모, 의상, 분위기 묘사
+   - 정치인: 정장, 연설 제스처, 공식적인 분위기
+   - 기업: 해당 기업의 로고 색상, 분위기, 관련 제품/서비스
+3. **얼굴이 명확하게 보이는 구도** - NO silhouette, NO hidden face!
+
+### 스타일 가이드
+- A: **인물 클로즈업** - 핵심 인물의 얼굴/상반신, CLEAR VISIBLE FACE, 감정 표현
+- B: **현장/상황** - 뉴스 현장, 관련 장소, 제품/서비스 시각화
+- C: **비교/대비** - 분할 화면, Before/After, 두 요소 대비
+
+### 기술 요구사항
 - All 3 prompts MUST use PHOTOREALISTIC cinematic style!
 - All 3 prompts MUST be different compositions!
+- All 3 prompts MUST show CLEAR VISIBLE FACE when person is involved!
 - ALWAYS use professional photography style - like movie posters or news thumbnails!
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (썸네일 텍스트 규칙) ⚠️
@@ -12183,6 +12207,17 @@ def api_image_generate_assets_zip():
                 return f"{prefix}{chapter}장{suffix}"
             # 제X장, X장에서, X장을, X장의, X장은, X장이, X장과, X장부터, X장까지 등
             text = re.sub(r'(제)?(\d+)장(에서|을|의|은|이|과|부터|까지|으로|에|도)', replace_chapter_context, text)
+
+            # ★ "개"로 시작하는 한자어 단위 (고유어 처리 전에 먼저!)
+            # "11개월" → "십일개월" (O), "열한개월" (X)
+            # "5개국" → "오개국" (O), "다섯개국" (X)
+            sino_ge_units = ['개월', '개국', '개사', '개년', '개소', '개항', '개교']
+            for unit in sino_ge_units:
+                pattern = r'(\d+)' + re.escape(unit)
+                def replace_sino_ge(match, u=unit):
+                    num = int(match.group(1))
+                    return num_to_sino(num) + u
+                text = re.sub(pattern, replace_sino_ge, text)
 
             # 고유어 단위 패턴 (숫자 + 고유어단위)
             for unit in native_units:
@@ -12856,13 +12891,10 @@ def _apply_subtitle_highlights(text, highlights):
         color = h.get('color', '#FFFF00')
         if keyword and keyword in result:
             ass_color = _hex_to_ass_color(color)
-            # ASS 박스 스타일 강조:
-            # - \bord12: 두꺼운 테두리로 박스 효과
-            # - \3c: 테두리(박스) 색상 = 강조색
-            # - \c&HFFFFFF&: 텍스트는 흰색
-            # - \shad0: 그림자 제거 (박스 깔끔하게)
-            # 강조 후 원래 스타일로 복원: \bord4 (기본 테두리), \3c&H000000& (검은 테두리)
-            colored_keyword = f"{{\\bord12\\3c{ass_color}\\c&HFFFFFF&\\shad0}}{keyword}{{\\bord4\\3c&H000000&\\c&HFFFFFF&\\shad2}}"
+            # ASS 자막 색상 강조 (원래 스타일 - 색상만 변경)
+            # - \c{색상}: 텍스트 색상을 강조색으로 변경
+            # - 강조 후 원래 흰색으로 복원
+            colored_keyword = f"{{\\c{ass_color}}}{keyword}{{\\c&HFFFFFF&}}"
             result = result.replace(keyword, colored_keyword)
 
     return result
@@ -12976,8 +13008,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             end = _format_ass_time(sub['end'])
             text = sub.get('text', '')
 
-            # 긴 텍스트 자동 줄바꿈 적용
-            text = wrap_text(text, max_chars_per_line)
+            # 긴 텍스트 자동 줄바꿈 적용 (일본어만! 한국어는 기존 스타일 유지)
+            if lang == 'ja':
+                text = wrap_text(text, max_chars_per_line)
 
             # 색상 강조 적용
             if highlights:
@@ -13059,49 +13092,51 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
 
         end_time = start_time + duration
 
-        # ========== 스타일별 설정 (더 볼드하게) ==========
+        # ========== 스타일별 설정 (박스 배경 추가) ==========
+        # 3번 이미지처럼 텍스트에 박스 배경 적용
         if style == 'impact':
-            # 빨간 배경 느낌의 강렬한 스타일
+            # 빨간 박스 + 흰색 텍스트 (가장 강렬)
             fontcolor = "white"
-            bordercolor = "#FF0000"  # 순수 빨강
-            fontsize = 100  # 80 → 100 (더 크게)
-            borderw = 6     # 4 → 6 (더 두껍게)
-            shadowcolor = "black"
-            shadowx = 3
-            shadowy = 3
+            fontsize = 100
+            borderw = 3
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "red@0.9"  # 빨간 박스 90% 불투명
+            boxborderw = 15  # 박스 패딩
         elif style == 'dramatic':
-            # 노란 텍스트, 더 강조
-            fontcolor = "#FFFF00"  # 순수 노랑
-            bordercolor = "black"
-            fontsize = 90   # 70 → 90
-            borderw = 5     # 3 → 5
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
-        elif style == 'emotional':
-            # 부드러운 청록 텍스트
-            fontcolor = "#00FFFF"  # 순수 청록
-            bordercolor = "#000066"
-            fontsize = 80   # 60 → 80
-            borderw = 4     # 2 → 4
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
-        else:
-            fontcolor = "white"
-            bordercolor = "black"
+            # 노란 박스 + 검은 텍스트
+            fontcolor = "black"
             fontsize = 90
-            borderw = 5
-            shadowcolor = "black"
-            shadowx = 2
-            shadowy = 2
+            borderw = 0
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "yellow@0.9"  # 노란 박스
+            boxborderw = 12
+        elif style == 'emotional':
+            # 청록 박스 + 흰색 텍스트
+            fontcolor = "white"
+            fontsize = 80
+            borderw = 2
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "#00CCCC@0.85"  # 청록 박스
+            boxborderw = 10
+        else:
+            # 기본: 검은 박스 + 흰색 텍스트
+            fontcolor = "white"
+            fontsize = 90
+            borderw = 2
+            bordercolor = "black"
+            box_enabled = True
+            boxcolor = "black@0.8"
+            boxborderw = 12
 
         # FFmpeg drawtext 텍스트 이스케이프
         text_escaped = text.replace('\\', '\\\\').replace("'", "\\'").replace(':', '\\:').replace('=', '\\=')
 
         print(f"[OVERLAY] 추가: text='{text}', style={style}, time={start_time:.1f}-{end_time:.1f}s (duration={duration}s)")
 
-        # drawtext 필터 생성 (화면 중앙, 그림자 효과 추가)
+        # drawtext 필터 생성 (화면 중앙, 박스 배경 추가)
         drawtext = (
             f"drawtext=text='{text_escaped}':"
             f"fontfile='{font_escaped}':"
@@ -13109,8 +13144,9 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
             f"fontcolor={fontcolor}:"
             f"bordercolor={bordercolor}:"
             f"borderw={borderw}:"
-            f"shadowcolor={shadowcolor}:"
-            f"shadowx={shadowx}:shadowy={shadowy}:"
+            f"box=1:"
+            f"boxcolor={boxcolor}:"
+            f"boxborderw={boxborderw}:"
             f"x=(w-text_w)/2:"
             f"y=(h-text_h)/2:"
             f"enable='between(t,{start_time},{end_time})'"
