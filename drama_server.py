@@ -11061,11 +11061,22 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       "scene_number": 1,
       "chapter_title": "Short chapter title for YouTube (5-15 chars)",
       "narration": "<speak>원본 대본의 정확한 문장.<break time='300ms'/><prosody rate='slow'>감정 표현이 필요한 부분</prosody>에 SSML 태그 추가.</speak>",
-      "image_prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [action], face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage.",
+      "image_prompt": "⚠️ detected_category에 따라 다르게 작성! (아래 규칙 참고)",
       "ken_burns": "zoom_in / zoom_out / pan_left / pan_right / pan_up / pan_down"
     }}
   ]
 }}
+
+## ⚠️ CRITICAL: SCENE IMAGE_PROMPT RULES (카테고리별) ⚠️
+
+**detected_category가 "news"일 때:**
+- 실사/뉴스 스타일 이미지 사용 (NO stickman, NO cartoon)
+- 뉴스 배경, 현장 사진, 건물, 그래프 등 실제 뉴스에서 볼 수 있는 이미지
+- 예시: "PHOTOREALISTIC Korean news style background. [Scene description: National Assembly building exterior / stock market trading floor / corporate office building]. Professional news photography, dramatic lighting, 16:9, space for text overlay. NO people, NO cartoon, NO stickman."
+
+**detected_category가 "story"일 때:**
+- 스틱맨 + 애니메이션 배경 스타일 유지
+- 예시: "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [action]. NO anime characters, NO realistic humans, ONLY stickman. Contrast collage."
 
 {ai_prompts_rules}
 
@@ -19125,6 +19136,22 @@ def run_automation_pipeline(row_data, row_index):
                 prompt = scene.get('image_prompt', '')
                 if not prompt:
                     return idx, None
+
+                # 뉴스 카테고리일 때 스틱맨 관련 키워드 제거 → 실사 스타일로
+                if detected_category == 'news':
+                    stickman_keywords = [
+                        'stickman', 'stick man', 'Simple white stickman',
+                        'round head, two black dot eyes, small mouth, thin eyebrows, black outline body',
+                        'NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman',
+                        'ONLY stickman', 'Contrast collage', 'Ghibli-inspired', 'slice-of-life',
+                        'anime background', 'Detailed anime'
+                    ]
+                    for kw in stickman_keywords:
+                        prompt = prompt.replace(kw, '')
+                    # 뉴스 스타일 강조 추가
+                    if 'PHOTOREALISTIC' not in prompt.upper():
+                        prompt = f"PHOTOREALISTIC Korean news style. {prompt}. Professional news photography, dramatic lighting, 16:9. NO cartoon, NO stickman, NO anime."
+                    print(f"[AUTOMATION][IMAGE] 뉴스 스타일 적용: {idx+1}")
 
                 max_retries = 3
                 for attempt in range(max_retries):
