@@ -6627,7 +6627,7 @@ def get_youtube_channel_advice():
         # 4. GPT 분석 요청
         client = OpenAI(api_key=openai_api_key)
 
-        # 분석 데이터 준비
+        # 분석 데이터 준비 - 영상 ID 포함
         analysis_data = {
             "channel": {
                 "name": channel_title,
@@ -6637,8 +6637,9 @@ def get_youtube_channel_advice():
                 "monetization_eligible": monetization_eligible,
                 "avg_upload_interval_days": round(avg_upload_interval, 1) if avg_upload_interval else None
             },
-            "recent_videos": [
+            "videos": [
                 {
+                    "video_id": v['video_id'],
                     "title": v['title'],
                     "views": v['views'],
                     "likes": v['likes'],
@@ -6647,7 +6648,7 @@ def get_youtube_channel_advice():
                     "views_per_day": v['views_per_day'],
                     "engagement_rate": v['engagement_rate']
                 }
-                for v in my_videos[:15]  # 최근 15개만
+                for v in my_videos[:15]
             ],
             "performance_summary": {
                 "avg_views": round(avg_views),
@@ -6658,75 +6659,87 @@ def get_youtube_channel_advice():
             "trending_reference": trending_insights
         }
 
-        prompt = f"""당신은 YouTube 성장 전략 전문가입니다. 다음 채널 데이터를 분석하고 수익화를 위한 구체적인 조언을 제공해주세요.
+        prompt = f"""당신은 YouTube 성장 전략 전문가입니다. 다음 채널 데이터를 분석하고 **구체적이고 실행 가능한** 조언을 제공해주세요.
 
 ## 채널 데이터
 {json.dumps(analysis_data, ensure_ascii=False, indent=2)}
 
 ## 분석 요청
-이 채널이 수익화(구독자 1,000명 이상, 시청시간 4,000시간)를 달성하고 성장하기 위한 전략을 분석해주세요.
+각 영상을 분석하고, 제목 변경이 필요한 영상에 대해 **정확한 새 제목**을 제안해주세요.
 
 다음 JSON 형식으로 답변해주세요:
 {{
-  "channel_diagnosis": {{
-    "strengths": ["강점 1", "강점 2"],
-    "weaknesses": ["약점 1", "약점 2"],
-    "monetization_status": "현재 수익화 상태 및 예상 달성 시점"
-  }},
-  "title_strategy": {{
-    "current_analysis": "현재 제목 패턴 분석",
-    "improvements": ["개선점 1", "개선점 2"],
-    "suggested_templates": ["추천 제목 템플릿 1", "추천 제목 템플릿 2"]
-  }},
-  "content_strategy": {{
-    "what_works": "성과 좋은 콘텐츠 패턴",
-    "recommendations": ["콘텐츠 추천 1", "콘텐츠 추천 2"],
-    "trending_opportunities": ["트렌드 활용 기회 1", "트렌드 활용 기회 2"]
-  }},
-  "upload_strategy": {{
-    "current_frequency": "현재 업로드 빈도 분석",
-    "recommended_frequency": "추천 업로드 빈도",
-    "best_timing": "추천 업로드 시간대"
-  }},
-  "growth_actions": [
+  "summary": "채널 분석 요약 (2-3문장)",
+
+  "urgent_title_changes": [
     {{
-      "priority": 1,
-      "action": "즉시 실행할 액션",
-      "expected_impact": "예상 효과",
-      "how_to": "구체적 실행 방법"
-    }},
-    {{
-      "priority": 2,
-      "action": "다음 실행할 액션",
-      "expected_impact": "예상 효과",
-      "how_to": "구체적 실행 방법"
-    }},
-    {{
-      "priority": 3,
-      "action": "장기적 액션",
-      "expected_impact": "예상 효과",
-      "how_to": "구체적 실행 방법"
+      "video_id": "영상ID",
+      "current_title": "현재 제목",
+      "suggested_title": "제안하는 새 제목",
+      "reason": "변경 이유 (1문장)",
+      "expected_improvement": "예상 효과"
     }}
   ],
-  "monetization_roadmap": {{
-    "current_progress": "현재 진행 상황 (구독자, 시청시간)",
-    "estimated_timeline": "예상 수익화 달성 시점",
-    "key_milestones": ["마일스톤 1", "마일스톤 2", "마일스톤 3"]
+
+  "video_rankings": {{
+    "high_potential": [
+      {{
+        "video_id": "영상ID",
+        "title": "제목",
+        "why": "왜 잠재력이 높은지",
+        "action": "이 영상으로 할 수 있는 구체적 액션"
+      }}
+    ],
+    "needs_improvement": [
+      {{
+        "video_id": "영상ID",
+        "title": "제목",
+        "problem": "무엇이 문제인지",
+        "solution": "구체적 해결책"
+      }}
+    ]
   }},
-  "quick_wins": ["빠르게 실행 가능한 팁 1", "빠르게 실행 가능한 팁 2", "빠르게 실행 가능한 팁 3"],
-  "summary": "전체 분석 요약 (3-4문장)"
+
+  "next_video_ideas": [
+    {{
+      "topic": "다음 영상 주제",
+      "suggested_title": "추천 제목",
+      "why_now": "왜 지금 이 주제인지",
+      "target_views": "목표 조회수"
+    }}
+  ],
+
+  "immediate_actions": [
+    {{
+      "action": "지금 당장 해야 할 일",
+      "target_video": "대상 영상 제목 또는 '전체'",
+      "how_to": "구체적 실행 방법",
+      "time_needed": "소요 시간"
+    }}
+  ],
+
+  "monetization_status": {{
+    "current": "현재 상태 (구독자 X명, 예상 시청시간 X시간)",
+    "needed": "필요한 것 (구독자 X명 더, 시청시간 X시간 더)",
+    "timeline": "예상 달성 시점",
+    "bottleneck": "가장 큰 장애물"
+  }}
 }}
 
-실질적이고 구체적인 조언을 제공해주세요. 한국 YouTube 생태계를 고려해주세요."""
+중요:
+- 제목 변경은 최소 3개 이상 구체적으로 제안해주세요
+- "키워드를 추가하세요" 같은 일반적인 조언 대신 "이 제목을 저 제목으로 바꾸세요"라고 명확하게
+- 각 영상의 video_id를 정확히 사용해주세요
+- 한국 YouTube 트렌드를 반영해주세요"""
 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "당신은 YouTube 채널 성장 전문 컨설턴트입니다. 데이터 기반의 실용적인 조언을 제공합니다."},
+                {"role": "system", "content": "당신은 YouTube 채널 성장 전문 컨설턴트입니다. 일반적인 조언이 아닌, 구체적인 제목 변경과 실행 가능한 액션을 제시합니다. 모든 제안은 구체적인 영상을 지목하고 정확한 대안을 제시해야 합니다."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=3000
+            max_tokens=4000
         )
 
         result_text = response.choices[0].message.content.strip()

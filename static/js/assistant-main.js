@@ -4128,37 +4128,25 @@ const AssistantMain = (() => {
     if (advice.summary) {
       html += `
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-          <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem;">💡 핵심 요약</div>
-          <div style="font-size: 0.85rem; line-height: 1.5;">${advice.summary}</div>
+          <div style="font-size: 0.85rem; line-height: 1.5;">${escapeHtml(advice.summary)}</div>
         </div>`;
     }
 
-    // Quick Wins
-    if (advice.quick_wins && advice.quick_wins.length > 0) {
-      html += `
-        <div style="background: #ecfdf5; border: 1px solid #10b981; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
-          <div style="font-weight: 600; color: #059669; margin-bottom: 0.5rem;">⚡ 바로 실행 가능한 팁</div>
-          <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; color: #065f46;">
-            ${advice.quick_wins.map(tip => `<li style="margin-bottom: 0.25rem;">${escapeHtml(tip)}</li>`).join('')}
-          </ul>
-        </div>`;
-    }
-
-    // 탭 네비게이션
+    // 탭 네비게이션 - 새 구조
     html += `
       <div style="display: flex; gap: 0.25rem; margin-bottom: 0.75rem; overflow-x: auto; padding-bottom: 0.25rem;">
-        <button onclick="AssistantMain.showAdviceTab('diagnosis')" class="btn btn-small advice-tab active" data-tab="diagnosis">진단</button>
-        <button onclick="AssistantMain.showAdviceTab('title')" class="btn btn-small btn-secondary advice-tab" data-tab="title">제목</button>
-        <button onclick="AssistantMain.showAdviceTab('content')" class="btn btn-small btn-secondary advice-tab" data-tab="content">콘텐츠</button>
-        <button onclick="AssistantMain.showAdviceTab('actions')" class="btn btn-small btn-secondary advice-tab" data-tab="actions">액션</button>
-        <button onclick="AssistantMain.showAdviceTab('roadmap')" class="btn btn-small btn-secondary advice-tab" data-tab="roadmap">로드맵</button>
+        <button onclick="AssistantMain.showAdviceTab('titles')" class="btn btn-small advice-tab active" data-tab="titles">🔥 제목 수정</button>
+        <button onclick="AssistantMain.showAdviceTab('rankings')" class="btn btn-small btn-secondary advice-tab" data-tab="rankings">📊 영상 분석</button>
+        <button onclick="AssistantMain.showAdviceTab('actions')" class="btn btn-small btn-secondary advice-tab" data-tab="actions">⚡ 액션</button>
+        <button onclick="AssistantMain.showAdviceTab('ideas')" class="btn btn-small btn-secondary advice-tab" data-tab="ideas">💡 다음 영상</button>
+        <button onclick="AssistantMain.showAdviceTab('status')" class="btn btn-small btn-secondary advice-tab" data-tab="status">💰 수익화</button>
       </div>
       <div id="advice-tab-content"></div>`;
 
     contentEl.innerHTML = html;
 
-    // 기본 탭 표시
-    showAdviceTab('diagnosis');
+    // 기본으로 제목 수정 탭 표시
+    showAdviceTab('titles');
   }
 
   function showAdviceTab(tabName) {
@@ -4182,112 +4170,164 @@ const AssistantMain = (() => {
     let html = '';
 
     switch(tabName) {
-      case 'diagnosis':
-        const diag = advice.channel_diagnosis || {};
-        html = `
-          <div style="display: grid; gap: 0.75rem;">
-            <div style="background: #ecfdf5; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #059669; margin-bottom: 0.5rem;">💪 강점</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem;">
-                ${(diag.strengths || []).map(s => `<li>${escapeHtml(s)}</li>`).join('')}
-              </ul>
+      case 'titles':
+        // 🔥 제목 수정 탭 - 가장 중요!
+        const titleChanges = advice.urgent_title_changes || [];
+        if (titleChanges.length > 0) {
+          html = `
+            <div style="margin-bottom: 0.5rem;">
+              <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.5rem;">🔥 지금 바로 수정해야 할 제목 ${titleChanges.length}개</div>
             </div>
-            <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.5rem;">⚠️ 개선점</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem;">
-                ${(diag.weaknesses || []).map(w => `<li>${escapeHtml(w)}</li>`).join('')}
-              </ul>
-            </div>
-            <div style="background: #fef3c7; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #92400e; margin-bottom: 0.25rem;">💰 수익화 상태</div>
-              <div style="font-size: 0.8rem;">${escapeHtml(diag.monetization_status || '')}</div>
-            </div>
-          </div>`;
+            <div style="display: grid; gap: 0.75rem;">`;
+
+          titleChanges.forEach((change, idx) => {
+            html += `
+              <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 8px; border-left: 4px solid #dc2626;">
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem;">#${idx + 1} 수정 필요</div>
+                <div style="margin-bottom: 0.5rem;">
+                  <div style="font-size: 0.7rem; color: #dc2626;">현재:</div>
+                  <div style="font-size: 0.85rem; text-decoration: line-through; color: var(--text-muted);">${escapeHtml(change.current_title)}</div>
+                </div>
+                <div style="margin-bottom: 0.5rem;">
+                  <div style="font-size: 0.7rem; color: #10b981;">변경 추천:</div>
+                  <div style="font-size: 0.9rem; font-weight: 600; color: #10b981; background: #ecfdf5; padding: 0.5rem; border-radius: 4px;">${escapeHtml(change.suggested_title)}</div>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                  <span style="color: #f59e0b;">💡 이유:</span> ${escapeHtml(change.reason)}
+                </div>
+                <div style="font-size: 0.75rem; color: #667eea; margin-top: 0.25rem;">
+                  📈 ${escapeHtml(change.expected_improvement)}
+                </div>
+              </div>`;
+          });
+          html += '</div>';
+        } else {
+          html = '<div style="text-align: center; padding: 1rem; color: var(--text-muted);">제목 수정 제안이 없습니다</div>';
+        }
         break;
 
-      case 'title':
-        const title = advice.title_strategy || {};
-        html = `
-          <div style="display: grid; gap: 0.75rem;">
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; margin-bottom: 0.5rem;">📊 현재 제목 분석</div>
-              <div style="font-size: 0.8rem;">${escapeHtml(title.current_analysis || '')}</div>
-            </div>
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; margin-bottom: 0.5rem;">✨ 개선점</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem;">
-                ${(title.improvements || []).map(i => `<li>${escapeHtml(i)}</li>`).join('')}
-              </ul>
-            </div>
-            <div style="background: #eff6ff; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #1d4ed8; margin-bottom: 0.5rem;">📝 추천 제목 템플릿</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem; color: #1e40af;">
-                ${(title.suggested_templates || []).map(t => `<li style="margin-bottom: 0.25rem;">"${escapeHtml(t)}"</li>`).join('')}
-              </ul>
-            </div>
-          </div>`;
-        break;
+      case 'rankings':
+        // 📊 영상 분석 탭
+        const rankings = advice.video_rankings || {};
+        const highPotential = rankings.high_potential || [];
+        const needsImprovement = rankings.needs_improvement || [];
 
-      case 'content':
-        const content = advice.content_strategy || {};
-        html = `
-          <div style="display: grid; gap: 0.75rem;">
-            <div style="background: #ecfdf5; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #059669; margin-bottom: 0.25rem;">🎯 효과적인 콘텐츠</div>
-              <div style="font-size: 0.8rem;">${escapeHtml(content.what_works || '')}</div>
-            </div>
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; margin-bottom: 0.5rem;">💡 콘텐츠 추천</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem;">
-                ${(content.recommendations || []).map(r => `<li>${escapeHtml(r)}</li>`).join('')}
-              </ul>
-            </div>
-            <div style="background: #fef3c7; padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">🔥 트렌드 기회</div>
-              <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.8rem;">
-                ${(content.trending_opportunities || []).map(t => `<li>${escapeHtml(t)}</li>`).join('')}
-              </ul>
-            </div>
-          </div>`;
+        html = '<div style="display: grid; gap: 1rem;">';
+
+        if (highPotential.length > 0) {
+          html += `
+            <div>
+              <div style="font-weight: 600; color: #10b981; margin-bottom: 0.5rem;">✨ 잠재력 높은 영상</div>
+              <div style="display: grid; gap: 0.5rem;">`;
+          highPotential.forEach(video => {
+            html += `
+              <div style="background: #ecfdf5; padding: 0.75rem; border-radius: 6px;">
+                <div style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem;">${escapeHtml(video.title)}</div>
+                <div style="font-size: 0.75rem; color: #059669; margin-bottom: 0.25rem;">💪 ${escapeHtml(video.why)}</div>
+                <div style="font-size: 0.75rem; color: #047857; background: white; padding: 0.5rem; border-radius: 4px;">
+                  👉 ${escapeHtml(video.action)}
+                </div>
+              </div>`;
+          });
+          html += '</div></div>';
+        }
+
+        if (needsImprovement.length > 0) {
+          html += `
+            <div>
+              <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.5rem;">⚠️ 개선 필요한 영상</div>
+              <div style="display: grid; gap: 0.5rem;">`;
+          needsImprovement.forEach(video => {
+            html += `
+              <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px;">
+                <div style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem;">${escapeHtml(video.title)}</div>
+                <div style="font-size: 0.75rem; color: #dc2626; margin-bottom: 0.25rem;">❌ ${escapeHtml(video.problem)}</div>
+                <div style="font-size: 0.75rem; color: #059669; background: white; padding: 0.5rem; border-radius: 4px;">
+                  ✅ ${escapeHtml(video.solution)}
+                </div>
+              </div>`;
+          });
+          html += '</div></div>';
+        }
+
+        html += '</div>';
+        if (highPotential.length === 0 && needsImprovement.length === 0) {
+          html = '<div style="text-align: center; padding: 1rem; color: var(--text-muted);">영상 분석 데이터가 없습니다</div>';
+        }
         break;
 
       case 'actions':
-        const actions = advice.growth_actions || [];
-        html = `<div style="display: grid; gap: 0.5rem;">`;
-        actions.forEach((action, idx) => {
-          const colors = ['#667eea', '#10b981', '#f59e0b'];
-          html += `
-            <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px; border-left: 3px solid ${colors[idx] || '#667eea'};">
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
-                <span style="background: ${colors[idx] || '#667eea'}; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600;">${action.priority}</span>
-                <span style="font-weight: 600; font-size: 0.85rem;">${escapeHtml(action.action)}</span>
-              </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem;">📈 ${escapeHtml(action.expected_impact)}</div>
-              <div style="font-size: 0.75rem; color: var(--text-secondary);">📋 ${escapeHtml(action.how_to)}</div>
-            </div>`;
-        });
-        html += '</div>';
+        // ⚡ 즉시 실행 액션 탭
+        const actions = advice.immediate_actions || [];
+        if (actions.length > 0) {
+          html = `<div style="display: grid; gap: 0.5rem;">`;
+          actions.forEach((action, idx) => {
+            const colors = ['#dc2626', '#f59e0b', '#10b981', '#667eea'];
+            html += `
+              <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px; border-left: 3px solid ${colors[idx % colors.length]};">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.25rem;">
+                  <span style="font-weight: 600; font-size: 0.85rem;">${escapeHtml(action.action)}</span>
+                  <span style="font-size: 0.7rem; color: var(--text-muted); white-space: nowrap;">⏱ ${escapeHtml(action.time_needed)}</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #667eea; margin-bottom: 0.25rem;">🎯 대상: ${escapeHtml(action.target_video)}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); background: var(--card-bg); padding: 0.5rem; border-radius: 4px;">
+                  📋 ${escapeHtml(action.how_to)}
+                </div>
+              </div>`;
+          });
+          html += '</div>';
+        } else {
+          html = '<div style="text-align: center; padding: 1rem; color: var(--text-muted);">실행 액션이 없습니다</div>';
+        }
         break;
 
-      case 'roadmap':
-        const roadmap = advice.monetization_roadmap || {};
+      case 'ideas':
+        // 💡 다음 영상 아이디어 탭
+        const ideas = advice.next_video_ideas || [];
+        if (ideas.length > 0) {
+          html = `
+            <div style="margin-bottom: 0.5rem;">
+              <div style="font-weight: 600; color: #667eea;">💡 다음에 만들 영상 추천</div>
+            </div>
+            <div style="display: grid; gap: 0.75rem;">`;
+          ideas.forEach((idea, idx) => {
+            html += `
+              <div style="background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%); padding: 0.75rem; border-radius: 8px;">
+                <div style="font-weight: 600; font-size: 0.9rem; color: #1d4ed8; margin-bottom: 0.25rem;">${idx + 1}. ${escapeHtml(idea.topic)}</div>
+                <div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                  <div style="font-size: 0.7rem; color: var(--text-muted);">추천 제목:</div>
+                  <div style="font-size: 0.85rem; font-weight: 500;">"${escapeHtml(idea.suggested_title)}"</div>
+                </div>
+                <div style="font-size: 0.75rem; color: #4338ca;">🔥 ${escapeHtml(idea.why_now)}</div>
+                <div style="font-size: 0.75rem; color: #059669; margin-top: 0.25rem;">🎯 목표: ${escapeHtml(idea.target_views)}</div>
+              </div>`;
+          });
+          html += '</div>';
+        } else {
+          html = '<div style="text-align: center; padding: 1rem; color: var(--text-muted);">영상 아이디어가 없습니다</div>';
+        }
+        break;
+
+      case 'status':
+        // 💰 수익화 상태 탭
+        const status = advice.monetization_status || {};
         html = `
           <div style="display: grid; gap: 0.75rem;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px;">
-              <div style="font-size: 0.75rem; opacity: 0.9;">🎯 목표: 수익화 달성</div>
-              <div style="font-size: 1.1rem; font-weight: 700; margin: 0.25rem 0;">${escapeHtml(roadmap.estimated_timeline || '분석 중...')}</div>
-              <div style="font-size: 0.8rem; opacity: 0.9;">${escapeHtml(roadmap.current_progress || '')}</div>
+              <div style="font-size: 0.75rem; opacity: 0.9;">🎯 목표: YouTube 파트너 프로그램 가입</div>
+              <div style="font-size: 1.1rem; font-weight: 700; margin: 0.25rem 0;">${escapeHtml(status.timeline || '분석 중...')}</div>
             </div>
             <div style="background: var(--bg-color); padding: 0.75rem; border-radius: 6px;">
-              <div style="font-weight: 600; margin-bottom: 0.5rem;">🚩 주요 마일스톤</div>
-              <div style="display: grid; gap: 0.5rem;">
-                ${(roadmap.key_milestones || []).map((m, idx) => `
-                  <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem;">
-                    <span style="width: 20px; height: 20px; border-radius: 50%; background: var(--border-color); display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">${idx + 1}</span>
-                    ${escapeHtml(m)}
-                  </div>
-                `).join('')}
-              </div>
+              <div style="font-weight: 600; margin-bottom: 0.5rem;">📊 현재 상태</div>
+              <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">${escapeHtml(status.current || '')}</div>
+            </div>
+            <div style="background: #fef3c7; padding: 0.75rem; border-radius: 6px;">
+              <div style="font-weight: 600; color: #92400e; margin-bottom: 0.25rem;">📌 필요한 것</div>
+              <div style="font-size: 0.85rem;">${escapeHtml(status.needed || '')}</div>
+            </div>
+            <div style="background: #fef2f2; padding: 0.75rem; border-radius: 6px;">
+              <div style="font-weight: 600; color: #dc2626; margin-bottom: 0.25rem;">🚧 가장 큰 장애물</div>
+              <div style="font-size: 0.85rem;">${escapeHtml(status.bottleneck || '')}</div>
             </div>
           </div>`;
         break;
