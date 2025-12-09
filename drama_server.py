@@ -11624,14 +11624,19 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 
 ### ★★★ 썸네일 스타일 (WEBTOON/COMIC STYLE) ★★★
-⚠️ 모든 썸네일은 한국 웹툰/만화 일러스트 스타일로 제작!
-⚠️ NO photorealistic, NO stickman, NO anime - 한국 웹툰 스타일만!
+⚠️ 모든 썸네일은 웹툰/만화 일러스트 스타일로 제작!
+⚠️ NO photorealistic, NO stickman - 웹툰 스타일만!
+
+**캐릭터 국적 규칙 (언어에 따라 결정):**
+- 한국어 대본 → 한국인 캐릭터 (Korean man/woman)
+- 일본어 대본 → 일본인 캐릭터 (Japanese man/woman)
+- 영어 대본 → 서양인 캐릭터 (Western man/woman)
 
 **캐릭터 스타일:**
-- 한국 웹툰 스타일 캐릭터 (Korean webtoon style character)
+- 웹툰 스타일 캐릭터 (webtoon style character)
 - 과장된 표정 (exaggerated shocked/surprised expression)
 - 큰 눈, 입 벌린 충격 표정, 땀방울
-- 30-40대 한국인 남성/여성 (상황에 맞게)
+- 30-40대 남성/여성 (상황에 맞게, 국적은 위 규칙 따름)
 - 선명한 외곽선, 깔끔한 채색
 
 **배경 스타일:**
@@ -11646,14 +11651,16 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 
 ### ★★★ 프롬프트 작성 규칙 ★★★
 **반드시 포함할 키워드:**
-- "Korean webtoon style illustration"
+- "[국적] webtoon style illustration" (예: "Korean/Japanese/Western webtoon style")
 - "exaggerated shocked expression" 또는 "surprised face"
 - "comic style, clean lines, vibrant colors"
 - "YouTube thumbnail, 16:9"
 
-**프롬프트 예시:**
+**프롬프트 예시 (한국어 대본):**
 - "Korean webtoon style illustration, shocked Korean man in his 30s with exaggerated surprised expression, sweating, mouth wide open, standing in front of clothing store with colorful padded jackets, comic style impact lines, clean lines, vibrant colors, YouTube thumbnail 16:9"
-- "Korean webtoon comic style, worried Korean man holding phone and bill, aquarium with fish in background, money flying around, shocked expression, comic effect lines, bright colors, YouTube thumbnail"
+
+**프롬프트 예시 (일본어 대본):**
+- "Japanese webtoon style illustration, shocked Japanese man in his 30s with exaggerated surprised expression, sweating, mouth wide open, standing in front of office building, comic style impact lines, clean lines, vibrant colors, YouTube thumbnail 16:9"
 
 ### ★★★ A/B/C 스타일 가이드 ★★★
 - **A**: 캐릭터 중심 - 과장된 표정의 캐릭터 + 관련 배경
@@ -17737,6 +17744,7 @@ def api_thumbnail_ai_generate_single():
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
         style = prompt_data.get('style', '')
+        lang = data.get('lang', 'ko')  # 언어 파라미터 (기본값: 한국어)
 
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
@@ -17752,21 +17760,32 @@ IMPORTANT TEXT OVERLAY:
                 text_instruction += f'- Subtitle: "{sub_text}"\n'
 
         # ========== 웹툰 스타일 썸네일 (단일 스타일) ==========
-        print(f"[THUMBNAIL-AI] 웹툰 스타일 적용 - category: '{category}', style: '{style}'")
+        # 언어에 따른 캐릭터 국적 결정
+        if lang == 'ja':
+            character_nationality = "Japanese"
+            character_desc = "Japanese man or woman"
+        elif lang == 'en':
+            character_nationality = "Western"
+            character_desc = "Western man or woman"
+        else:  # ko 또는 기타
+            character_nationality = "Korean"
+            character_desc = "Korean man or woman"
+
+        print(f"[THUMBNAIL-AI] 웹툰 스타일 적용 - category: '{category}', style: '{style}', lang: '{lang}' → {character_nationality} character")
 
         # 기존 프롬프트에서 실사/스틱맨 관련 키워드 제거
         clean_prompt = prompt
         for remove_kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
             clean_prompt = clean_prompt.replace(remove_kw, '').replace(remove_kw.lower(), '').replace(remove_kw.capitalize(), '')
 
-        enhanced_prompt = f"""Create a Korean WEBTOON style YouTube thumbnail (16:9 landscape).
+        enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
 
-★★★ CRITICAL STYLE: KOREAN WEBTOON/MANHWA ILLUSTRATION ★★★
+★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
 
 CHARACTER REQUIREMENTS:
-- Korean webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)
+- {character_nationality} webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)
 - EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)
-- 30-40 year old Korean man or woman (match the content)
+- 30-40 year old {character_desc} (match the content)
 - Clean bold outlines, vibrant flat colors
 - Comic-style expression marks (sweat drops, impact lines, exclamation marks)
 
@@ -17786,17 +17805,16 @@ Subject/Scene:
 {text_instruction}
 
 MANDATORY KEYWORDS TO USE:
-- "Korean webtoon style illustration"
+- "{character_nationality} webtoon style illustration"
 - "exaggerated shocked expression" or "surprised face"
 - "comic style, clean lines, vibrant colors"
-- "manhwa style"
+- "manhwa/webtoon style"
 
 ABSOLUTE RESTRICTIONS:
 - NO photorealistic style
 - NO stickman
-- NO anime style (Japanese)
 - NO 3D render
-- MUST be Korean webtoon/manhwa illustration style"""
+- MUST be {character_nationality} webtoon/manhwa illustration style"""
 
         headers = {
             "Authorization": f"Bearer {openrouter_api_key}",
@@ -19474,7 +19492,8 @@ def run_automation_pipeline(row_data, row_index):
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
                     "session_id": f"thumb_{session_id}",
                     "prompt": thumb_prompt,
-                    "category": detected_category  # 뉴스/스토리 카테고리 명시적 전달
+                    "category": detected_category,  # 뉴스/스토리 카테고리 명시적 전달
+                    "lang": detected_lang  # 언어 전달 (캐릭터 국적 결정용)
                 }, timeout=180)
 
                 thumb_data = thumb_resp.json()
