@@ -12738,9 +12738,10 @@ def _get_subtitle_style(lang):
             "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
         )
     elif lang == 'ja':
-        # 일본어 - NanumGothic 사용 (CJK 지원)
+        # 일본어 - Noto Sans CJK JP 사용 (일본어 글리프 완전 지원)
+        # 폰트 크기 22로 줄여서 긴 문장도 화면 내 표시
         return (
-            "FontName=NanumGothic,FontSize=26,PrimaryColour=&H00FFFFFF,"
+            "FontName=Noto Sans CJK JP,FontSize=22,PrimaryColour=&H00FFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
         )
@@ -18921,25 +18922,52 @@ def calculate_seo_score_for_automation(title: str, description: str = "", tags: 
     }
 
 
-def enhance_description_for_youtube(description: str, title: str, hashtags: list = None) -> str:
+def enhance_description_for_youtube(description: str, title: str, hashtags: list = None, lang: str = 'ko') -> str:
     """
     YouTube 설명란 SEO 최적화
-    - CTA (구독/좋아요 유도) 추가
+    - CTA (구독/좋아요 유도) 추가 - 언어별 처리
     - 해시태그 정리
     """
     if not description:
         description = ""
 
+    # 언어별 CTA 키워드 및 문구
+    cta_config = {
+        'ko': {
+            'keywords': ['구독', '좋아요', '알림', '댓글'],
+            'cta': [
+                "👍 이 영상이 도움이 되셨다면 좋아요와 구독 부탁드립니다!",
+                "🔔 알림 설정하시면 새로운 영상을 놓치지 않습니다.",
+                "💬 궁금한 점은 댓글로 남겨주세요!"
+            ]
+        },
+        'ja': {
+            'keywords': ['チャンネル登録', '高評価', '通知', 'コメント'],
+            'cta': [
+                "👍 この動画が役に立ったら、高評価とチャンネル登録をお願いします！",
+                "🔔 通知をオンにすると、新しい動画を見逃しません。",
+                "💬 ご質問があれば、コメントでお知らせください！"
+            ]
+        },
+        'en': {
+            'keywords': ['subscribe', 'like', 'notification', 'comment'],
+            'cta': [
+                "👍 If you found this video helpful, please like and subscribe!",
+                "🔔 Turn on notifications so you never miss a new video.",
+                "💬 Leave a comment if you have any questions!"
+            ]
+        }
+    }
+
+    config = cta_config.get(lang, cta_config['ko'])
+
     # 이미 CTA가 있는지 확인
-    cta_keywords = ['구독', '좋아요', '알림', '댓글']
-    has_cta = any(keyword in description for keyword in cta_keywords)
+    has_cta = any(keyword.lower() in description.lower() for keyword in config['keywords'])
 
     # CTA가 없으면 추가
     if not has_cta:
         cta_text = "\n\n" + "=" * 30 + "\n"
-        cta_text += "👍 이 영상이 도움이 되셨다면 좋아요와 구독 부탁드립니다!\n"
-        cta_text += "🔔 알림 설정하시면 새로운 영상을 놓치지 않습니다.\n"
-        cta_text += "💬 궁금한 점은 댓글로 남겨주세요!"
+        cta_text += "\n".join(config['cta'])
         description = description + cta_text
 
     return description
@@ -19090,6 +19118,24 @@ def run_automation_pipeline(row_data, row_index):
             hashtags = youtube_meta.get('hashtags', [])
             tags = youtube_meta.get('tags', [])
             pin_comment = youtube_meta.get('pin_comment', '')
+
+            # 대본 언어 감지 (CTA 언어 결정용)
+            def detect_lang_simple(text):
+                if not text:
+                    return 'ko'
+                import re as re_detect
+                korean = len(re_detect.findall(r'[가-힣]', text))
+                japanese = len(re_detect.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
+                total = len(re_detect.sub(r'\s', '', text))
+                if total == 0:
+                    return 'ko'
+                if korean / total > 0.3:
+                    return 'ko'
+                if japanese / total > 0.2:
+                    return 'ja'
+                return 'en'
+            detected_lang = detect_lang_simple(script)
+            print(f"[AUTOMATION] 감지된 언어: {detected_lang}")
 
             # 로깅
             print(f"[AUTOMATION] 설명란: {len(description)}자, 챕터: {len(description_chapters)}개")
@@ -19464,8 +19510,8 @@ def run_automation_pipeline(row_data, row_index):
 
         # [TUBELENS] 설명란 SEO 최적화 (CTA 자동 추가)
         try:
-            description = enhance_description_for_youtube(description, title, hashtags)
-            print(f"[TUBELENS] 설명란 CTA 추가 완료 (총 {len(description)}자)")
+            description = enhance_description_for_youtube(description, title, hashtags, lang=detected_lang)
+            print(f"[TUBELENS] 설명란 CTA 추가 완료 (총 {len(description)}자, lang={detected_lang})")
         except Exception as cta_err:
             print(f"[TUBELENS] 설명란 CTA 추가 실패 (무시): {cta_err}")
 
@@ -19573,19 +19619,24 @@ def run_automation_pipeline(row_data, row_index):
                 # TODO: 쇼츠 품질 개선 후 다시 활성화
                 # 롱폼이 더 중요하므로 먼저 결과를 반환하고, 쇼츠는 백그라운드에서 처리
                 SHORTS_ENABLED = False  # 쇼츠 생성 비활성화 (2025-12-09)
-                shorts_info = video_effects.get('shorts', {}) if SHORTS_ENABLED else {}
-                highlight_scenes_nums = shorts_info.get('highlight_scenes', [])
 
-                # highlight_scenes가 비어있으면 기본값으로 처음 2-3개 씬 선택
-                if not highlight_scenes_nums or len(highlight_scenes_nums) == 0:
-                    total_scenes_count = len(scenes) if scenes else 0
-                    if total_scenes_count >= 3:
-                        mid = total_scenes_count // 2
-                        highlight_scenes_nums = [1, mid, total_scenes_count]
-                    elif total_scenes_count >= 2:
-                        highlight_scenes_nums = [1, total_scenes_count]
-                    elif total_scenes_count == 1:
-                        highlight_scenes_nums = [1]
+                if SHORTS_ENABLED:
+                    shorts_info = video_effects.get('shorts', {})
+                    highlight_scenes_nums = shorts_info.get('highlight_scenes', [])
+
+                    # highlight_scenes가 비어있으면 기본값으로 처음 2-3개 씬 선택
+                    if not highlight_scenes_nums or len(highlight_scenes_nums) == 0:
+                        total_scenes_count = len(scenes) if scenes else 0
+                        if total_scenes_count >= 3:
+                            mid = total_scenes_count // 2
+                            highlight_scenes_nums = [1, mid, total_scenes_count]
+                        elif total_scenes_count >= 2:
+                            highlight_scenes_nums = [1, total_scenes_count]
+                        elif total_scenes_count == 1:
+                            highlight_scenes_nums = [1]
+                else:
+                    highlight_scenes_nums = []
+                    print(f"[AUTOMATION] 5. 쇼츠 생성 비활성화됨 (SHORTS_ENABLED=False)")
 
                 if highlight_scenes_nums and len(highlight_scenes_nums) > 0:
                     # 백그라운드 스레드에서 쇼츠 생성
