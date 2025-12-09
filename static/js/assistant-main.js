@@ -4022,6 +4022,12 @@ const AssistantMain = (() => {
     const oauthData = await checkYoutubeOAuth();
     renderYoutubeOAuthSection(oauthData);
 
+    // Show/hide GPT advice section based on OAuth status
+    const gptAdviceSection = document.getElementById('youtube-gpt-advice-section');
+    if (gptAdviceSection) {
+      gptAdviceSection.style.display = oauthData && oauthData.authenticated ? 'block' : 'none';
+    }
+
     // Then load channels as usual
     const listEl = document.getElementById('youtube-channels-list');
     const summaryEl = document.getElementById('youtube-summary');
@@ -4098,6 +4104,121 @@ const AssistantMain = (() => {
       showToast('AI 분석 중 오류가 발생했습니다', 'error');
       contentEl.innerHTML = '<div style="text-align: center; padding: 1rem; color: #f44336;">분석 중 오류 발생</div>';
     }
+  }
+
+  // GPT Advice for the standalone section (youtube-gpt-advice-section)
+  async function getYoutubeGptAdvice() {
+    const contentEl = document.getElementById('youtube-gpt-advice-content');
+    const loadingEl = document.getElementById('youtube-gpt-advice-loading');
+    const btn = document.getElementById('btn-get-gpt-advice');
+
+    if (!contentEl) return;
+
+    // Show loading state
+    if (loadingEl) loadingEl.style.display = 'block';
+    contentEl.style.display = 'none';
+    if (btn) btn.disabled = true;
+
+    try {
+      const response = await fetch('/assistant/api/youtube/my-channel/advisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ include_trending: true })
+      });
+
+      const data = await response.json();
+
+      // Hide loading
+      if (loadingEl) loadingEl.style.display = 'none';
+      contentEl.style.display = 'block';
+      if (btn) btn.disabled = false;
+
+      if (data.success) {
+        renderYoutubeGptAdvice(data);
+      } else if (data.need_auth) {
+        showToast('YouTube 인증이 필요합니다', 'warning');
+        contentEl.innerHTML = '<p style="color: var(--text-muted); margin: 0;">먼저 YouTube 계정을 연동해주세요.</p>';
+      } else {
+        showToast(data.error || 'AI 분석 실패', 'error');
+        contentEl.innerHTML = `<p style="color: #f44336; margin: 0;">분석 실패: ${data.error}</p>`;
+      }
+    } catch (error) {
+      console.error('[Assistant] Get YouTube GPT advice error:', error);
+      if (loadingEl) loadingEl.style.display = 'none';
+      contentEl.style.display = 'block';
+      if (btn) btn.disabled = false;
+      showToast('AI 분석 중 오류가 발생했습니다', 'error');
+      contentEl.innerHTML = '<p style="color: #f44336; margin: 0;">분석 중 오류 발생</p>';
+    }
+  }
+
+  function renderYoutubeGptAdvice(data) {
+    const contentEl = document.getElementById('youtube-gpt-advice-content');
+    if (!contentEl) return;
+
+    const advice = data.advice || {};
+    const analysisData = data.analysis_data || {};
+    const channel = analysisData.channel || {};
+
+    let html = '';
+
+    // 요약
+    if (advice.summary) {
+      html += `<div style="margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #667eea; margin-bottom: 0.5rem;">📊 채널 분석 요약</div>
+        <p style="margin: 0; color: var(--text-primary);">${escapeHtml(advice.summary)}</p>
+      </div>`;
+    }
+
+    // Quick Wins
+    if (advice.quick_wins && advice.quick_wins.length > 0) {
+      html += `<div style="margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #10b981; margin-bottom: 0.5rem;">⚡ 바로 실행 가능한 팁</div>
+        <ul style="margin: 0; padding-left: 1.25rem;">
+          ${advice.quick_wins.map(tip => `<li style="margin-bottom: 0.25rem;">${escapeHtml(tip)}</li>`).join('')}
+        </ul>
+      </div>`;
+    }
+
+    // 제목 조언
+    if (advice.title_advice) {
+      html += `<div style="margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #f59e0b; margin-bottom: 0.5rem;">📝 제목 조언</div>
+        <p style="margin: 0;">${escapeHtml(advice.title_advice)}</p>
+      </div>`;
+    }
+
+    // 썸네일 조언
+    if (advice.thumbnail_advice) {
+      html += `<div style="margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #ec4899; margin-bottom: 0.5rem;">🖼️ 썸네일 조언</div>
+        <p style="margin: 0;">${escapeHtml(advice.thumbnail_advice)}</p>
+      </div>`;
+    }
+
+    // 업로드 시간 조언
+    if (advice.upload_time_advice) {
+      html += `<div style="margin-bottom: 1rem;">
+        <div style="font-weight: 600; color: #6366f1; margin-bottom: 0.5rem;">⏰ 업로드 시간 조언</div>
+        <p style="margin: 0;">${escapeHtml(advice.upload_time_advice)}</p>
+      </div>`;
+    }
+
+    // 액션 플랜
+    if (advice.action_plan && advice.action_plan.length > 0) {
+      html += `<div>
+        <div style="font-weight: 600; color: #8b5cf6; margin-bottom: 0.5rem;">🎯 추천 액션 플랜</div>
+        <ol style="margin: 0; padding-left: 1.25rem;">
+          ${advice.action_plan.map(action => `<li style="margin-bottom: 0.25rem;">${escapeHtml(action)}</li>`).join('')}
+        </ol>
+      </div>`;
+    }
+
+    if (!html) {
+      html = '<p style="color: var(--text-muted); margin: 0;">분석 결과가 없습니다.</p>';
+    }
+
+    contentEl.innerHTML = html;
   }
 
   function renderYoutubeAdvice(data) {
@@ -4545,6 +4666,7 @@ const AssistantMain = (() => {
     filterMyVideos,
     // YouTube AI Advisor functions
     getYoutubeAdvice,
+    getYoutubeGptAdvice,
     showAdviceTab,
     compareWithTrending
   };

@@ -8,7 +8,7 @@ import csv
 import json
 import re
 from datetime import datetime, date, timedelta
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, redirect
 
 
 def parse_korean_datetime(datetime_str):

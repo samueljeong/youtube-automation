@@ -2607,6 +2607,29 @@
                 <button class="btn btn-primary" onclick="AssistantMain.addYoutubeChannel()" style="margin-top: 1rem;">첫 채널 추가하기</button>
               </div>
             </div>
+
+            <!-- GPT AI 성장 조언 섹션 -->
+            <div class="youtube-gpt-advice-section" id="youtube-gpt-advice-section" style="margin-top: 1.5rem; display: none;">
+              <div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border: 1px solid #667eea30; border-radius: 12px; padding: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.25rem;">💡</span>
+                    <h4 style="font-size: 1rem; font-weight: 600; margin: 0;">AI 채널 성장 조언</h4>
+                    <span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 4px;">GPT-5.1</span>
+                  </div>
+                  <button class="btn btn-primary btn-small" onclick="AssistantMain.getYoutubeGptAdvice()" id="btn-get-gpt-advice">
+                    🔍 분석 요청
+                  </button>
+                </div>
+                <div id="youtube-gpt-advice-content" style="font-size: 0.9rem; line-height: 1.7; color: var(--text-primary);">
+                  <p style="color: var(--text-muted); margin: 0;">채널 데이터를 분석하여 제목, 썸네일, 업로드 시간 등에 대한 맞춤 조언을 제공합니다.</p>
+                </div>
+                <div id="youtube-gpt-advice-loading" style="display: none; text-align: center; padding: 1rem;">
+                  <span style="font-size: 1.5rem;">🔄</span>
+                  <p style="color: var(--text-muted); margin: 0.5rem 0 0 0;">AI가 분석 중입니다...</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
