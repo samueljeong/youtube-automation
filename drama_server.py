@@ -10602,38 +10602,42 @@ def api_image_analyze_script():
             # 뉴스: 한국 뉴스 스타일 (MBC/SBS/TV조선 분석 기반) / 스토리: 감정 표현
             ai_prompts_section = f'''    "detected_category": "news 또는 story 중 하나 선택 (대본 분석 결과)",
     "thumbnail_text": {{
-      // ★ 대본에서 "따옴표 발언" 추출 - 가장 중요!
+      // ★★★ 핵심 인물/기업명 추출 - 매우 중요! ★★★
+      "person_name": "대본의 핵심 인물 이름 (예: 조진웅, 윤석열, 이재명). 없으면 빈 문자열",
+      "entity_name": "핵심 기업/기관명 (예: 쿠팡, 삼성전자, 검찰). 없으면 빈 문자열",
+      // ★ 대본에서 "따옴표 발언" 추출
       "quote": "대본에서 가장 충격적/흥미로운 발언을 따옴표로 추출 (예: \\"이건 처음 있는 일\\")",
-      "headline": "핵심 헤드라인 2줄 이내 (예: 환율 1500원 돌파 / 당신의 자산은?)",
-      "numbers": "강조할 숫자가 있다면 추출 (예: 3370만명, 456개, 40억)"
+      "headline": "핵심 헤드라인 2줄 이내 (예: 과거는 언제까지 죄인가)",
+      "numbers": "강조할 숫자가 있다면 추출 (예: 3370만명, 30년, 40억)"
     }},
     "visual_elements": {{
       // ★ 대본에서 추출한 핵심 시각 요소
-      "main_subject": "대본의 핵심 주제 (예: 쿠팡 개인정보 유출, 환율 상승, 정치인 발언)",
-      "person_description": "등장 인물 묘사 (예: 50대 한국 남성 정치인, 정장, 심각한 표정 / 30대 여성 기자, 마이크 들고)",
-      "scene_description": "배경/현장 묘사 (예: 국회의사당, 법정, 쇼핑앱 화면, 환율 그래프)",
+      "main_subject": "대본의 핵심 주제 (예: 조진웅 소년범 논란, 쿠팡 개인정보 유출, 환율 상승)",
+      "person_description": "등장 인물 묘사 (예: 40대 한국 남성 배우, 심각한 표정, 손으로 턱을 괴고 / 50대 남성 정치인, 정장)",
+      "scene_description": "배경/현장 묘사 (예: 국회의사당, 법정, 뉴스 스튜디오, 환율 그래프)",
       "emotion": "충격/분노/기쁨/슬픔/긴장/우려/희망 중 하나",
       "color_scheme": "yellow-highlight/cyan-news/pink-scandal/red-urgent/blue-trust 중 하나"
     }},
     "ai_prompts": {{
       // ★ detected_category가 "news"일 때: 한국 뉴스 썸네일 스타일
       // 로고 없이, 콘텐츠 중심으로 생성
+      // ★★★ text_overlay에 person_name 또는 entity_name을 반드시 포함! ★★★
       "A": {{
-        "description": "인물 중심: 클로즈업 + 하단 텍스트 영역",
-        "prompt": "대본의 핵심 인물을 시각화. 예시: 정치인 발언 → 'Korean male politician in his 50s, wearing dark suit, serious concerned expression, speaking at podium, blurred government building background, dramatic lighting, upper body shot, space for text overlay at bottom 35%, 16:9, photorealistic, news interview style' / 연예인 스캔들 → 'Korean female celebrity in her 30s, casual clothes, worried expression, paparazzi style photo, dark moody background, space for text at bottom, 16:9, tabloid news style'",
-        "text_overlay": {{"main": "따옴표 발언 또는 핵심 헤드라인 (15자 이내)", "sub": "부연 설명 (20자 이내)", "color": "yellow 또는 cyan 또는 pink"}},
+        "description": "인물 중심: 클로즈업 + 인물명/기업명 포함 텍스트",
+        "prompt": "대본의 핵심 인물을 시각화. 예시: 배우 논란 → 'Korean male actor in his 40s, thoughtful expression, hand on chin, news interview style, blurred courtroom or news studio background, dramatic lighting, upper body shot, space for text overlay at bottom 35%, 16:9, photorealistic' / 정치인 발언 → 'Korean male politician in his 50s, wearing dark suit, serious concerned expression, speaking at podium, blurred government building background, dramatic lighting, upper body shot, space for text overlay at bottom 35%, 16:9, photorealistic, news interview style'",
+        "text_overlay": {{"name": "인물명 또는 기업명 (예: 조진웅, 쿠팡)", "main": "핵심 문구 (15자 이내)", "sub": "부연 설명 (20자 이내)", "color": "yellow 또는 cyan 또는 pink"}},
         "style": "person-closeup, news-interview"
       }},
       "B": {{
-        "description": "현장/이벤트 중심: 배경 이미지 + 텍스트 오버레이",
+        "description": "현장/이벤트 중심: 배경 이미지 + 인물명/기업명 포함 텍스트",
         "prompt": "대본의 핵심 현장/사건을 시각화. 예시: 쿠팡 유출 → 'Coupang-style orange e-commerce app interface on smartphone screen, red warning popup showing data breach alert, personal information icons floating, dark dramatic background, space for bold text overlay at bottom 40%, 16:9, tech news style' / 환율 → 'Korean won to US dollar exchange rate display showing 1500, red upward arrows, financial crisis mood, stock market screens in background, dramatic red lighting, space for text at bottom, 16:9' / 건물/장소 → 'Korean National Assembly building exterior, dramatic cloudy sky, news photo style, space for headline text at bottom 35%, 16:9'",
-        "text_overlay": {{"main": "충격적 헤드라인 (15자 이내)", "sub": "상세 설명", "color": "white 또는 yellow"}},
+        "text_overlay": {{"name": "인물명 또는 기업명", "main": "충격적 헤드라인 (15자 이내)", "sub": "상세 설명", "color": "white 또는 yellow"}},
         "style": "scene-event, background-overlay"
       }},
       "C": {{
-        "description": "분할 비교: 2인 대비 또는 Before/After",
+        "description": "분할 비교: 2인 대비 또는 Before/After + 인물명 표시",
         "prompt": "대본의 대립/비교 요소를 시각화. 예시: 정치 대립 → 'Split screen thumbnail: left side Korean male politician from ruling party speaking angrily, right side opposition party politician responding with stern face, versus composition, political debate style, space for text at bottom 30%, 16:9' / 국제 반응 → 'Split screen: left side Korean celebration scene, right side Japanese news commentator looking shocked/surprised, contrast composition, 16:9' / 변화 비교 → 'Split screen before/after style: left calm green mood, right alarming red mood, clear visual contrast, 16:9'",
-        "text_overlay": {{"main": "vs 대비 텍스트", "sub": "각 측 설명", "color": "multi-color (left: cyan, right: pink)"}},
+        "text_overlay": {{"name": "핵심 인물/기업명", "main": "vs 대비 텍스트", "sub": "각 측 설명", "color": "multi-color (left: cyan, right: pink)"}},
         "style": "split-comparison, versus"
       }},
 
@@ -10694,9 +10698,14 @@ def api_image_analyze_script():
 ### 2단계: 썸네일 텍스트 추출 (thumbnail_text) - 매우 중요!
 
 대본에서 다음을 추출하세요 (한국 뉴스 스타일):
-- **quote**: 대본에서 가장 충격적/흥미로운 발언을 "따옴표"로 감싸서 추출 (예: "3370만명 유출됐다")
-- **headline**: 핵심 헤드라인 2줄 이내 (예: "쿠팡 초유의 사태")
-- **numbers**: 강조할 숫자가 있다면 추출 (예: "3370만", "1500원")
+- **person_name**: ★★★ 대본의 핵심 인물 이름 (예: "조진웅", "윤석열", "이재명"). 없으면 빈 문자열
+- **entity_name**: ★★★ 핵심 기업/기관명 (예: "쿠팡", "삼성전자", "검찰"). 없으면 빈 문자열
+- **quote**: 대본에서 가장 충격적/흥미로운 발언을 "따옴표"로 감싸서 추출 (예: "과거는 언제까지 죄인가")
+- **headline**: 핵심 헤드라인 2줄 이내 (예: "30년 전 과거와 소년법 논란")
+- **numbers**: 강조할 숫자가 있다면 추출 (예: "30년", "3370만")
+
+**중요**: person_name이나 entity_name이 있으면 썸네일 텍스트에 반드시 포함해야 함!
+예: "조진웅" + "과거는 언제까지 죄인가" 또는 "쿠팡" + "3370만명 유출"
 
 ### 3단계: 시각 요소 추출 (visual_elements)
 
@@ -10735,21 +10744,23 @@ def api_image_analyze_script():
 {{
   "detected_category": "news",
   "thumbnail_text": {{
-    "quote": "충격적인 발언 따옴표",
-    "headline": "핵심 헤드라인",
-    "numbers": "강조 숫자"
+    "person_name": "조진웅",
+    "entity_name": "",
+    "quote": "과거는 언제까지 죄인가",
+    "headline": "30년 전 과거와 소년법 논란",
+    "numbers": "30년"
   }},
   "visual_elements": {{
-    "main_subject": "핵심 주제",
-    "person_description": "인물 묘사",
-    "scene_description": "장소/현장 묘사",
-    "emotion": "감정",
-    "color_scheme": "색상 스킴"
+    "main_subject": "조진웅 소년범 논란",
+    "person_description": "40대 한국 남성 배우, 심각한 표정",
+    "scene_description": "뉴스 스튜디오, 법정 배경",
+    "emotion": "충격",
+    "color_scheme": "yellow-highlight"
   }},
   "ai_prompts": {{
-    "A": {{ "prompt": "인물 클로즈업 영문 프롬프트", "style": "person", "text_position": "bottom" }},
-    "B": {{ "prompt": "현장/이벤트 영문 프롬프트", "style": "scene", "text_position": "center" }},
-    "C": {{ "prompt": "분할 비교 영문 프롬프트", "style": "split", "text_position": "overlay" }}
+    "A": {{ "prompt": "인물 클로즈업 영문 프롬프트", "style": "person", "text_overlay": {{"name": "조진웅", "main": "과거는 언제까지 죄인가"}} }},
+    "B": {{ "prompt": "현장/이벤트 영문 프롬프트", "style": "scene", "text_overlay": {{"name": "조진웅", "main": "30년 전 과거"}} }},
+    "C": {{ "prompt": "분할 비교 영문 프롬프트", "style": "split", "text_overlay": {{"name": "조진웅", "main": "소년법 논란"}} }}
   }}
 }}
 ```
