@@ -3676,6 +3676,381 @@ const AssistantMain = (() => {
     detailContent.innerHTML = html;
   }
 
+  // ===== YouTube OAuth Functions =====
+  let youtubeOAuthStatus = null;
+  let myChannelVideos = null;
+  let myChannelAnalytics = null;
+
+  async function checkYoutubeOAuth() {
+    try {
+      const response = await fetch('/assistant/api/youtube/oauth/auth-status');
+      const data = await response.json();
+      youtubeOAuthStatus = data;
+      return data;
+    } catch (error) {
+      console.error('[Assistant] Check YouTube OAuth error:', error);
+      return { authenticated: false };
+    }
+  }
+
+  function connectYoutubeOAuth() {
+    // 새 창에서 OAuth 인증 시작
+    window.open('/assistant/api/youtube/oauth/auth', 'youtube-oauth', 'width=600,height=700');
+  }
+
+  async function disconnectYoutubeOAuth() {
+    if (!confirm('YouTube 연동을 해제하시겠습니까?')) return;
+
+    try {
+      const response = await fetch('/assistant/api/youtube/oauth/disconnect', {
+        method: 'POST'
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('YouTube 연동이 해제되었습니다', 'success');
+        youtubeOAuthStatus = null;
+        myChannelVideos = null;
+        myChannelAnalytics = null;
+        loadYoutubeChannels(); // UI 새로고침
+      } else {
+        showToast(data.error || '연동 해제 실패', 'error');
+      }
+    } catch (error) {
+      console.error('[Assistant] Disconnect YouTube OAuth error:', error);
+      showToast('연동 해제 중 오류가 발생했습니다', 'error');
+    }
+  }
+
+  async function loadMyChannelVideos(status = 'all') {
+    try {
+      const response = await fetch(`/assistant/api/youtube/my-channel/videos?status=${status}&max_results=50`);
+      const data = await response.json();
+
+      if (data.success) {
+        myChannelVideos = data;
+        renderMyChannelVideos(data);
+      } else if (data.need_auth) {
+        showToast('YouTube 인증이 필요합니다', 'warning');
+      }
+      return data;
+    } catch (error) {
+      console.error('[Assistant] Load my channel videos error:', error);
+      return { success: false };
+    }
+  }
+
+  async function loadMyChannelAnalytics(days = 28) {
+    try {
+      const response = await fetch(`/assistant/api/youtube/my-channel/analytics?days=${days}`);
+      const data = await response.json();
+
+      if (data.success) {
+        myChannelAnalytics = data;
+        renderMyChannelAnalytics(data);
+      }
+      return data;
+    } catch (error) {
+      console.error('[Assistant] Load my channel analytics error:', error);
+      return { success: false };
+    }
+  }
+
+  async function loadMyChannelPerformance() {
+    try {
+      const response = await fetch('/assistant/api/youtube/my-channel/recent-performance');
+      const data = await response.json();
+      if (data.success) {
+        renderRecentPerformance(data);
+      }
+      return data;
+    } catch (error) {
+      console.error('[Assistant] Load recent performance error:', error);
+      return { success: false };
+    }
+  }
+
+  function renderYoutubeOAuthSection(oauthData) {
+    const oauthEl = document.getElementById('youtube-oauth-section');
+    if (!oauthEl) return;
+
+    if (!oauthData || !oauthData.authenticated) {
+      oauthEl.innerHTML = `
+        <div style="background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 600; margin-bottom: 0.25rem;">🔗 YouTube 계정 연동</div>
+              <div style="font-size: 0.8rem; opacity: 0.9;">예약 영상, 비공개 영상, 실시간 분석을 확인하려면 연동하세요</div>
+            </div>
+            <button onclick="AssistantMain.connectYoutubeOAuth()" class="btn" style="background: white; color: #cc0000; font-weight: 600;">
+              연동하기
+            </button>
+          </div>
+        </div>`;
+      return;
+    }
+
+    const channel = oauthData.channel;
+    oauthEl.innerHTML = `
+      <div style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <img src="${channel?.thumbnail || ''}" style="width: 32px; height: 32px; border-radius: 50%;"
+                 onerror="this.style.display='none'">
+            <div>
+              <div style="font-weight: 600;">✅ ${channel?.title || 'YouTube 연동됨'}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">구독자 ${formatNumberShort(channel?.subscribers || 0)}</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button onclick="AssistantMain.loadMyChannelVideos()" class="btn btn-small btn-secondary">내 영상</button>
+            <button onclick="AssistantMain.loadMyChannelAnalytics()" class="btn btn-small btn-secondary">분석</button>
+            <button onclick="AssistantMain.disconnectYoutubeOAuth()" class="btn btn-small" style="background: #fee2e2; color: #dc2626;">연동해제</button>
+          </div>
+        </div>
+        <div id="youtube-my-content" style="margin-top: 0.5rem;"></div>
+      </div>`;
+  }
+
+  function formatNumberShort(num) {
+    if (!num) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toLocaleString();
+  }
+
+  function renderMyChannelVideos(data) {
+    const contentEl = document.getElementById('youtube-my-content');
+    if (!contentEl) return;
+
+    const scheduled = data.scheduled_videos || [];
+    const regular = data.regular_videos || [];
+
+    let html = '';
+
+    // 탭 UI
+    html += `
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+        <button onclick="AssistantMain.filterMyVideos('all')" class="btn btn-small" id="filter-all">전체 (${scheduled.length + regular.length})</button>
+        <button onclick="AssistantMain.filterMyVideos('scheduled')" class="btn btn-small btn-secondary" id="filter-scheduled">📅 예약 (${scheduled.length})</button>
+        <button onclick="AssistantMain.filterMyVideos('private')" class="btn btn-small btn-secondary" id="filter-private">🔒 비공개</button>
+        <button onclick="AssistantMain.filterMyVideos('unlisted')" class="btn btn-small btn-secondary" id="filter-unlisted">🔗 미등록</button>
+      </div>`;
+
+    // 예약 영상 섹션
+    if (scheduled.length > 0) {
+      html += `<div id="scheduled-section">
+        <h5 style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📅 예약된 영상 (${scheduled.length})</h5>
+        <div style="display: grid; gap: 0.5rem; margin-bottom: 1rem;">`;
+
+      scheduled.forEach(video => {
+        const scheduledDate = video.scheduled_at ? new Date(video.scheduled_at).toLocaleString('ko-KR') : '-';
+        html += `
+          <div style="display: flex; gap: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 6px; border: 1px solid #fcd34d;">
+            <img src="${video.thumbnail}" style="width: 80px; height: 45px; border-radius: 4px; object-fit: cover;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 500; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(video.title)}</div>
+              <div style="font-size: 0.7rem; color: #92400e;">📅 ${scheduledDate}</div>
+            </div>
+          </div>`;
+      });
+
+      html += '</div></div>';
+    }
+
+    // 일반 영상 목록
+    if (regular.length > 0) {
+      html += `<div id="regular-section">
+        <h5 style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📺 최근 영상</h5>
+        <div style="display: grid; gap: 0.5rem; max-height: 300px; overflow-y: auto;">`;
+
+      regular.slice(0, 10).forEach(video => {
+        const privacyIcon = video.privacy_status === 'private' ? '🔒' : (video.privacy_status === 'unlisted' ? '🔗' : '🌐');
+        const privacyColor = video.privacy_status === 'private' ? '#fee2e2' : (video.privacy_status === 'unlisted' ? '#e0e7ff' : 'var(--bg-color)');
+
+        html += `
+          <div style="display: flex; gap: 0.5rem; padding: 0.5rem; background: ${privacyColor}; border-radius: 6px; border: 1px solid var(--border-color);">
+            <img src="${video.thumbnail}" style="width: 80px; height: 45px; border-radius: 4px; object-fit: cover;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 500; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${privacyIcon} ${escapeHtml(video.title)}
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">
+                👁 ${formatNumberShort(video.views)} · 👍 ${formatNumberShort(video.likes)} · 💬 ${formatNumberShort(video.comments)}
+              </div>
+            </div>
+          </div>`;
+      });
+
+      html += '</div></div>';
+    }
+
+    if (scheduled.length === 0 && regular.length === 0) {
+      html += '<div style="text-align: center; padding: 1rem; color: var(--text-muted);">영상이 없습니다</div>';
+    }
+
+    contentEl.innerHTML = html;
+  }
+
+  function filterMyVideos(status) {
+    loadMyChannelVideos(status);
+  }
+
+  function renderMyChannelAnalytics(data) {
+    const contentEl = document.getElementById('youtube-my-content');
+    if (!contentEl) return;
+
+    const summary = data.summary || {};
+    const daily = data.daily_data || [];
+    const current = data.current_stats || {};
+
+    const changeColor = (num) => num > 0 ? '#10b981' : (num < 0 ? '#ef4444' : '#64748b');
+    const changeSign = (num) => num > 0 ? '+' : '';
+
+    let html = `
+      <div style="margin-bottom: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h5 style="font-size: 0.9rem; margin: 0;">📊 최근 ${data.period?.days || 28}일 분석</h5>
+          <div style="display: flex; gap: 0.25rem;">
+            <button onclick="AssistantMain.loadMyChannelAnalytics(7)" class="btn btn-small btn-secondary">7일</button>
+            <button onclick="AssistantMain.loadMyChannelAnalytics(28)" class="btn btn-small btn-secondary">28일</button>
+            <button onclick="AssistantMain.loadMyChannelAnalytics(90)" class="btn btn-small btn-secondary">90일</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 요약 카드 -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">조회수</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumberShort(summary.views || 0)}</div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">시청시간</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumberShort(summary.watch_hours || 0)}시간</div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">구독자 증가</div>
+          <div style="font-size: 1rem; font-weight: 700; color: ${changeColor(summary.net_subs || 0)};">
+            ${changeSign(summary.net_subs || 0)}${formatNumberShort(Math.abs(summary.net_subs || 0))}
+          </div>
+        </div>
+        <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">현재 구독자</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumberShort(current.subscribers || 0)}</div>
+        </div>
+      </div>`;
+
+    // 일별 데이터 차트 (간단한 바 차트)
+    if (daily.length > 0) {
+      const maxViews = Math.max(...daily.map(d => d.views));
+
+      html += `
+        <details>
+          <summary style="cursor: pointer; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+            📈 일별 조회수 추이
+          </summary>
+          <div style="display: flex; gap: 2px; align-items: end; height: 60px; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-color); border-radius: 6px;">`;
+
+      daily.slice(-14).forEach(d => {
+        const height = maxViews > 0 ? Math.max(4, (d.views / maxViews) * 50) : 4;
+        html += `<div style="flex: 1; background: #667eea; border-radius: 2px; height: ${height}px;" title="${d.date}: ${d.views}회"></div>`;
+      });
+
+      html += `</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">최근 14일</div>
+        </details>`;
+    }
+
+    if (data.analytics_error) {
+      html += `<div style="font-size: 0.75rem; color: #f59e0b; margin-top: 0.5rem;">
+        ⚠️ 상세 분석 데이터를 가져올 수 없습니다. YouTube Analytics API 권한을 확인해주세요.
+      </div>`;
+    }
+
+    contentEl.innerHTML = html;
+  }
+
+  function renderRecentPerformance(data) {
+    const contentEl = document.getElementById('youtube-my-content');
+    if (!contentEl) return;
+
+    const videos = data.videos || [];
+    const best = data.best_performing;
+
+    let html = `<h5 style="font-size: 0.9rem; margin-bottom: 0.75rem;">🚀 최근 영상 성과</h5>`;
+
+    if (best) {
+      html += `
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;">
+          <div style="font-size: 0.7rem; opacity: 0.9;">🏆 최고 성과</div>
+          <div style="font-weight: 600; margin: 0.25rem 0;">${escapeHtml(best.title)}</div>
+          <div style="font-size: 0.8rem;">시간당 ${formatNumberShort(best.views_per_hour)}회 조회</div>
+        </div>`;
+    }
+
+    if (videos.length > 0) {
+      html += '<div style="display: grid; gap: 0.5rem;">';
+      videos.slice(0, 5).forEach((video, idx) => {
+        html += `
+          <div style="display: flex; gap: 0.5rem; padding: 0.5rem; background: var(--bg-color); border-radius: 6px; align-items: center;">
+            <span style="font-weight: 600; color: ${idx === 0 ? '#10b981' : 'var(--text-muted)'};">#${idx + 1}</span>
+            <img src="${video.thumbnail}" style="width: 60px; height: 34px; border-radius: 4px; object-fit: cover;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 0.75rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${escapeHtml(video.title)}
+              </div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">
+                ${formatNumberShort(video.views_per_hour)}/h · ${video.hours_since_publish}h ago
+              </div>
+            </div>
+          </div>`;
+      });
+      html += '</div>';
+    }
+
+    contentEl.innerHTML = html;
+  }
+
+  // Update loadYoutubeChannels to also check OAuth
+  const originalLoadYoutubeChannels = loadYoutubeChannels;
+
+  async function loadYoutubeChannelsWithOAuth() {
+    console.log('[Assistant] Loading YouTube channels with OAuth check...');
+
+    // Load OAuth status first
+    const oauthData = await checkYoutubeOAuth();
+    renderYoutubeOAuthSection(oauthData);
+
+    // Then load channels as usual
+    const listEl = document.getElementById('youtube-channels-list');
+    const summaryEl = document.getElementById('youtube-summary');
+
+    if (!listEl) return;
+
+    listEl.innerHTML = '<div class="empty" style="text-align: center; padding: 2rem;">로딩 중...</div>';
+
+    try {
+      const response = await fetch('/assistant/api/youtube/channels');
+      const data = await response.json();
+
+      if (data.success) {
+        youtubeChannels = data.channels || [];
+        renderYoutubeChannels(youtubeChannels);
+        const myChannels = youtubeChannels.filter(c => c.category === 'mine');
+        renderYoutubeSummary(myChannels);
+      } else {
+        listEl.innerHTML = `<div class="empty" style="text-align: center; padding: 2rem; color: #f44336;">오류: ${data.error}</div>`;
+      }
+    } catch (error) {
+      console.error('[Assistant] Load YouTube channels error:', error);
+      listEl.innerHTML = '<div class="empty" style="text-align: center; padding: 2rem; color: #f44336;">로딩 실패</div>';
+    }
+  }
+
+  // Replace loadYoutubeChannels with new version
+  loadYoutubeChannels = loadYoutubeChannelsWithOAuth;
+
   // ===== Initialize on DOM Ready =====
   document.addEventListener('DOMContentLoaded', init);
 
@@ -3784,6 +4159,13 @@ const AssistantMain = (() => {
     deleteYoutubeChannel,
     refreshYoutubeChannels,
     showYoutubeChannelDetail,
-    closeYoutubeDetailModal
+    closeYoutubeDetailModal,
+    // YouTube OAuth functions
+    connectYoutubeOAuth,
+    disconnectYoutubeOAuth,
+    loadMyChannelVideos,
+    loadMyChannelAnalytics,
+    loadMyChannelPerformance,
+    filterMyVideos
   };
 })();
