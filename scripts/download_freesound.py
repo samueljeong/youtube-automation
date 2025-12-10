@@ -7,7 +7,7 @@ import os
 import requests
 import time
 
-API_KEY = "ikPaTWCyB4IZJgi5a31q"
+API_KEY = "xuttzpvpcpbcXZTxGj75GXd6lnzn16SlADMhlP9f"
 BASE_URL = "https://freesound.org/apiv2"
 
 # 다운로드할 오디오 정의
