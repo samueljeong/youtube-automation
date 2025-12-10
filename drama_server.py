@@ -11837,10 +11837,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     }}
   }},
   "video_effects": {{
-    "bgm_mood": "기본 BGM 분위기 (영상 전체에 적용). ONE of: hopeful, sad, tense, dramatic, calm, inspiring, mysterious, nostalgic, epic, romantic, comedic, horror, upbeat",
+    "bgm_mood": "기본 BGM 분위기. 반드시 아래 목록에서 선택! hopeful/sad/tense/dramatic/calm/inspiring/mysterious/nostalgic/epic/romantic/comedic/horror/upbeat/melancholic/peaceful/dark/bright/ethereal/whimsical/jazz/classical/electronic/ambient/acoustic/piano/action/adventure/chase/battle/heroic/news/documentary/corporate/cinematic/trailer/suspenseful/triumphant/sentimental/energetic/relaxing",
     "scene_bgm_changes": [
-      {{"scene": 3, "mood": "tense", "reason": "긴장감 고조되는 장면"}},
-      {{"scene": 5, "mood": "hopeful", "reason": "희망적인 반전이 시작되는 장면"}}
+      {{"scene": 2, "mood": "mysterious", "reason": "의문점 제기"}},
+      {{"scene": 4, "mood": "tense", "reason": "갈등/위기 시작"}},
+      {{"scene": 6, "mood": "dramatic", "reason": "충격적 사실 공개"}},
+      {{"scene": 8, "mood": "triumphant", "reason": "해결/성공"}}
     ],
     "subtitle_highlights": [
       {{"keyword": "강조할 단어1", "color": "#FF0000"}},
@@ -11851,13 +11853,18 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       {{"scene": 7, "text": "반전", "duration": 2, "style": "dramatic"}}
     ],
     "sound_effects": [
-      {{"scene": 1, "type": "whoosh", "moment": "씬 전환 시작"}},
-      {{"scene": 2, "type": "notification", "moment": "중요한 정보 등장"}},
-      {{"scene": 3, "type": "impact", "moment": "충격적인 사실 공개"}},
-      {{"scene": 4, "type": "tension", "moment": "긴장감 고조"}},
-      {{"scene": 5, "type": "heartbeat", "moment": "불안한 순간"}},
-      {{"scene": 6, "type": "emotional", "moment": "감동적인 장면"}},
-      {{"scene": 7, "type": "success", "moment": "해결/성공 순간"}}
+      {{"scene": 1, "type": "whoosh", "moment": "씬 시작"}},
+      {{"scene": 1, "type": "cinematic", "moment": "인트로 강조"}},
+      {{"scene": 2, "type": "notification", "moment": "정보 등장"}},
+      {{"scene": 3, "type": "dramatic_hit", "moment": "충격 공개"}},
+      {{"scene": 3, "type": "gasp", "moment": "놀람 반응"}},
+      {{"scene": 4, "type": "suspense", "moment": "긴장 고조"}},
+      {{"scene": 4, "type": "heartbeat", "moment": "불안감"}},
+      {{"scene": 5, "type": "thunder", "moment": "위기 절정"}},
+      {{"scene": 6, "type": "reveal", "moment": "반전 공개"}},
+      {{"scene": 7, "type": "emotional", "moment": "감동"}},
+      {{"scene": 8, "type": "triumphant", "moment": "성공"}},
+      {{"scene": 8, "type": "applause", "moment": "축하"}}
     ],
     "lower_thirds": [
       {{"scene": 2, "text": "화자명 또는 출처", "position": "bottom-left"}}
