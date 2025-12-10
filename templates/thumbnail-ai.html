@@ -554,6 +554,9 @@
         });
         const generateData = await generateRes.json();
 
+        // 디버깅: 응답 확인
+        console.log('[THUMBNAIL-AI] generate-single 응답:', generateData);
+
         // 결과 저장
         currentImageUrls = {
           A: generateData.ok ? generateData.image_url : null
@@ -662,14 +665,18 @@
       const result = results.A;
       const promptData = currentPrompts.A;
 
+      console.log('[THUMBNAIL-AI] renderThumbnails result:', result);
+
       if (result?.ok && result?.image_url) {
         const card = document.createElement('div');
         card.className = 'thumbnail-card';
         card.dataset.variant = 'A';
 
+        console.log('[THUMBNAIL-AI] 이미지 URL:', result.image_url);
+
         card.innerHTML = `
           <div class="image-wrapper">
-            <img src="${result.image_url}" alt="생성된 썸네일">
+            <img src="${result.image_url}" alt="생성된 썸네일" onerror="console.error('이미지 로드 실패:', this.src)">
           </div>
           <div class="card-info">
             <h4>${promptData?.description || '생성된 썸네일'}</h4>
