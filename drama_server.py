@@ -10588,14 +10588,29 @@ def _analyze_seo_keywords(script, lang='ko'):
         from collections import Counter
         word_freq = Counter(words)
 
-        # 불용어 제거 (한국어)
+        # 불용어 제거 (언어별)
         stopwords_ko = {'있습니다', '했습니다', '합니다', '됩니다', '입니다', '그리고', '하지만', '그래서',
                         '때문에', '이것은', '저것은', '여러분', '우리는', '그들은', '이렇게', '저렇게',
-                        '있는데', '없는데', '한다는', '된다는', '있다고', '없다고'}
+                        '있는데', '없는데', '한다는', '된다는', '있다고', '없다고', '그것은', '이것이'}
+        stopwords_ja = {'ています', 'ました', 'です', 'ます', 'である', 'という', 'こと', 'もの',
+                        'それは', 'これは', 'あります', 'なります', 'について', 'ために', 'として',
+                        'しかし', 'そして', 'また', 'ただ', 'つまり', 'なぜなら', 'だから'}
+        stopwords_en = {'this', 'that', 'these', 'those', 'with', 'from', 'have', 'been',
+                        'were', 'will', 'would', 'could', 'should', 'about', 'which', 'their',
+                        'there', 'what', 'when', 'where', 'they', 'them', 'then', 'than',
+                        'more', 'some', 'into', 'other', 'also', 'just', 'only', 'very'}
+
+        # 언어별 불용어 선택
+        if lang == 'ko':
+            stopwords = stopwords_ko
+        elif lang == 'ja':
+            stopwords = stopwords_ja
+        else:
+            stopwords = stopwords_en
 
         # 상위 키워드 추출
         top_keywords = [word for word, count in word_freq.most_common(20)
-                       if word not in stopwords_ko and count >= 2][:5]
+                       if word not in stopwords and count >= 2][:5]
 
         if not top_keywords:
             print("[SEO] 키워드 추출 실패")
