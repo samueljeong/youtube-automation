@@ -130,6 +130,27 @@ image_count = max(3, len(script) // 150)
 
 ---
 
+## 환경변수 설정
+
+| 환경변수 | 기본값 | 설명 |
+|---------|-------|------|
+| `VIDEO_PARALLEL_WORKERS` | `1` | 씬 클립 생성 병렬 워커 수 |
+
+### VIDEO_PARALLEL_WORKERS 설정 가이드
+
+| Render 플랜 | 메모리 | 권장 값 | 예상 속도 |
+|------------|-------|--------|----------|
+| Standard | 2GB | `1` (순차) | 기준 |
+| **Pro** | **4GB** | **`2`** | **~1.5-1.8배** |
+| Pro Plus | 8GB | `3` | ~2배 |
+
+**Render 대시보드에서 설정**:
+1. Dashboard → Service → Environment
+2. `VIDEO_PARALLEL_WORKERS` = `2` 추가
+3. 문제 발생 시 `1`로 변경 (코드 재배포 불필요)
+
+---
+
 ## GPT-5.1 API 사용 가이드
 
 GPT-5.1은 **Responses API** 사용 필수:
