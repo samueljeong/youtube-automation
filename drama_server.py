@@ -13303,9 +13303,10 @@ def api_image_generate_assets_zip():
                         char_ratio = len(sentence) / total_chars
                         sent_duration = total_duration * char_ratio
 
-                        # ★ 자막 싱크 최적화: 문장 분리 최소화 (분리 시 글자비율 타이밍이 TTS와 맞지 않음)
-                        # 50자까지는 분리 안함 → 정확한 싱크
-                        max_subtitle_chars = 40 if detected_lang == 'ja' else 50
+                        # ★ 자막 싱크 최적화: ASS 자동 줄바꿈 사용으로 수동 분리 최소화
+                        # ASS WrapStyle=0 + MarginL/R=100으로 자동 2줄 줄바꿈
+                        # 문장 분리 없이 통째로 표시 → TTS duration 그대로 사용 → 정확한 싱크
+                        max_subtitle_chars = 100 if detected_lang == 'ja' else 120
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
@@ -13356,10 +13357,10 @@ def api_image_generate_assets_zip():
                         duration = get_mp3_duration(audio_bytes)
                         scene_audios.append(audio_bytes)
 
-                        # ★ 자막 싱크 최적화: 문장 분리 최소화 (분리 시 글자비율 타이밍이 TTS와 맞지 않음)
-                        # 50자까지는 분리 안함 → TTS duration 그대로 사용 → 정확한 싱크
-                        # 50자 초과 시에만 분리 (매우 긴 문장)
-                        max_subtitle_chars = 40 if detected_lang == 'ja' else 50
+                        # ★ 자막 싱크 최적화: ASS 자동 줄바꿈 사용으로 수동 분리 최소화
+                        # ASS WrapStyle=0 + MarginL/R=100으로 자동 2줄 줄바꿈
+                        # 문장 분리 없이 통째로 표시 → TTS duration 그대로 사용 → 정확한 싱크
+                        max_subtitle_chars = 100 if detected_lang == 'ja' else 120
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
@@ -13929,13 +13930,15 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             print(f"[ASS-WRAP] 일본어 줄바꿈: '{text[:30]}...' → {len(lines)}줄")
             return result
 
-        # ASS 헤더 (큰 폰트, 두꺼운 테두리, 하단 중앙 정렬)
-        # BorderStyle=1: 테두리 + 그림자 (박스가 아닌 외곽선)
-        # Outline=4: 두꺼운 검은색 테두리 (가독성)
-        # Shadow=2: 그림자로 입체감
-        # MarginV=50: 하단 여백
+        # ASS 헤더 (반투명 박스 + 자동 줄바꿈)
+        # BorderStyle=4: 배경 박스 + 외곽선 (가독성 최고)
+        # BackColour=&HA0000000: 반투명 검정 배경 (A0 = 약 63% 투명)
+        # Outline=2: 얇은 검정 테두리
+        # Shadow=0: 그림자 제거 (박스가 있으므로 불필요)
+        # MarginL/R=100: 좌우 여백으로 자동 줄바꿈 영역 제한
+        # MarginV=40: 하단 여백
+        # WrapStyle=0: 스마트 줄바꿈 (긴 텍스트 자동 2줄)
         # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
-        # OutlineColour=&H00000000: 검은색 테두리
         ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1280
@@ -13944,7 +13947,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H00FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,2,2,30,30,50,1
+Style: Default,{font_name},{font_size},&H00FFFF,&H000000FF,&H00000000,&HA0000000,1,0,0,0,100,100,0,0,4,2,0,2,100,100,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
