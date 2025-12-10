@@ -12896,31 +12896,32 @@ def _update_job_status(job_id, **kwargs):
                 json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
-    """언어별 자막 스타일 반환 (ASS 형식) - 폰트28 기준"""
-    # 유튜브 스타일: 흰색 텍스트 + 검은색 외곽선 + 그림자
+    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 배경 박스"""
+    # 유튜브 스타일: 노란색 텍스트 + 검은색 둥근 배경 박스
     # NanumGothic 사용 (Pretendard는 한글 글리프 없음)
+    # BorderStyle=3: 불투명 박스 배경
+    # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
+    # BackColour=&HC0000000: 검은색 75% 불투명 배경
     if lang == 'ko':
         # NanumGothic - 나눔고딕 (한글 완벽 지원)
-        # Outline=2 (두꺼운 외곽선), MarginV=40 (하단 여백)
         return (
-            "FontName=NanumGothic,FontSize=28,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
+            "FontName=NanumGothic,FontSize=28,PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&HC0000000,"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
     elif lang == 'ja':
         # 일본어 - Noto Sans CJK JP 사용 (일본어 글리프 완전 지원)
-        # 폰트 크기 22로 줄여서 긴 문장도 화면 내 표시
         return (
-            "FontName=Noto Sans CJK JP,FontSize=22,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
+            "FontName=Noto Sans CJK JP,FontSize=22,PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&HC0000000,"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
     else:
         # 영어/기타 언어
         return (
-            "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFFFF,"
-            "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=2,Shadow=1,MarginV=40,Bold=1"
+            "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&HC0000000,"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
 
 def _hex_to_ass_color(hex_color):
@@ -20842,8 +20843,8 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                         f.write(f"{format_srt_time(sub['start'])} --> {format_srt_time(sub['end'])}\n")
                         f.write(f"{sub['text']}\n\n")
 
-                # 자막 스타일 (한글 최적화)
-                subtitle_style = "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=3,Outline=2,Shadow=1,MarginV=30"
+                # 자막 스타일 (노란색 + 검은 배경 박스)
+                subtitle_style = "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFF,OutlineColour=&H00000000,BackColour=&HC0000000,BorderStyle=3,Outline=0,Shadow=0,MarginV=30,Bold=1"
 
                 # FFmpeg 자막 필터
                 escaped_srt = srt_path.replace('\\', '\\\\').replace(':', '\\:')
