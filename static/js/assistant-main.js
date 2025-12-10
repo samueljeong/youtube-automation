@@ -3507,7 +3507,10 @@ const AssistantMain = (() => {
     }
   }
 
-  async function showYoutubeChannelDetail(channelDbId) {
+  // 현재 열린 채널 상세의 ID (Analytics 기간 변경용)
+  let currentDetailChannelId = null;
+
+  async function showYoutubeChannelDetail(channelDbId, analyticsDays = 28) {
     const modal = document.getElementById('youtube-detail-modal');
     const detailThumb = document.getElementById('youtube-detail-thumb');
     const detailName = document.getElementById('youtube-detail-name');
@@ -3518,25 +3521,35 @@ const AssistantMain = (() => {
     const channel = youtubeChannels.find(c => c.id === channelDbId);
     if (!channel) return;
 
+    currentDetailChannelId = channelDbId;
     detailThumb.src = channel.thumbnail_url || '';
     detailName.textContent = channel.alias || channel.channel_title;
     detailContent.innerHTML = '<div style="text-align: center; padding: 2rem;">로딩 중...</div>';
     modal.style.display = 'flex';
 
-    // 히스토리와 영상 목록 동시에 로딩
+    // 히스토리, 영상 목록, Analytics 동시에 로딩
     try {
-      const [historyRes, videosRes] = await Promise.all([
+      const [historyRes, videosRes, analyticsRes] = await Promise.all([
         fetch(`/assistant/api/youtube/channels/${channelDbId}/history?days=30`),
-        fetch(`/assistant/api/youtube/channels/${channelDbId}/videos?max_results=5`)
+        fetch(`/assistant/api/youtube/channels/${channelDbId}/videos?max_results=5`),
+        fetch(`/assistant/api/youtube/channels/${channelDbId}/analytics?days=${analyticsDays}`)
       ]);
 
       const historyData = await historyRes.json();
       const videosData = await videosRes.json();
+      const analyticsData = await analyticsRes.json();
 
-      renderChannelDetailModal(channel, historyData, videosData);
+      renderChannelDetailModal(channel, historyData, videosData, analyticsData, analyticsDays);
     } catch (error) {
       console.error('[Assistant] Load channel detail error:', error);
       detailContent.innerHTML = '<div style="text-align: center; padding: 2rem; color: #f44336;">로딩 실패</div>';
+    }
+  }
+
+  // Analytics 기간 변경
+  function changeChannelAnalyticsDays(days) {
+    if (currentDetailChannelId) {
+      showYoutubeChannelDetail(currentDetailChannelId, days);
     }
   }
 
@@ -3544,7 +3557,7 @@ const AssistantMain = (() => {
     document.getElementById('youtube-detail-modal').style.display = 'none';
   }
 
-  function renderChannelDetailModal(channel, historyData, videosData) {
+  function renderChannelDetailModal(channel, historyData, videosData, analyticsData = null, analyticsDays = 28) {
     const detailContent = document.getElementById('youtube-detail-content');
 
     const formatNumber = (num) => {
@@ -3582,16 +3595,83 @@ const AssistantMain = (() => {
       else lastUploadText = `${diffDays}일 전`;
     }
 
-    let html = `
-      <!-- 통계 요약 -->
+    // Analytics 데이터 처리
+    const analytics = analyticsData?.success ? analyticsData : null;
+    const analyticsAvailable = analytics?.analytics_available === true;
+
+    let html = '';
+
+    // Analytics 섹션 (기간 선택 버튼 포함)
+    html += `
+      <div style="margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h4 style="font-size: 0.85rem; margin: 0; color: var(--text-secondary);">📊 최근 ${analyticsDays}일 분석</h4>
+          <div style="display: flex; gap: 0.25rem;">
+            <button onclick="AssistantMain.changeChannelAnalyticsDays(7)" class="btn btn-small ${analyticsDays === 7 ? 'btn-primary' : 'btn-secondary'}" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">7일</button>
+            <button onclick="AssistantMain.changeChannelAnalyticsDays(28)" class="btn btn-small ${analyticsDays === 28 ? 'btn-primary' : 'btn-secondary'}" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">28일</button>
+            <button onclick="AssistantMain.changeChannelAnalyticsDays(90)" class="btn btn-small ${analyticsDays === 90 ? 'btn-primary' : 'btn-secondary'}" style="padding: 0.25rem 0.5rem; font-size: 0.7rem;">90일</button>
+          </div>
+        </div>`;
+
+    if (analyticsAvailable && analytics.summary) {
+      // Analytics 데이터가 있는 경우
+      const summary = analytics.summary;
+      html += `
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">조회수</div>
+            <div style="font-size: 1rem; font-weight: 700;">${formatNumber(summary.views)}</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">시청시간</div>
+            <div style="font-size: 1rem; font-weight: 700;">${summary.watch_hours}시간</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">구독자 증가</div>
+            <div style="font-size: 1rem; font-weight: 700; color: ${changeColor(summary.net_subs)};">${changeSign(summary.net_subs)}${formatNumber(summary.net_subs)}</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">현재 구독자</div>
+            <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.subscribers)}</div>
+          </div>
+        </div>`;
+    } else {
+      // Analytics 데이터가 없는 경우
+      html += `
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;">
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">조회수</div>
+            <div style="font-size: 1rem; font-weight: 700;">-</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">시청시간</div>
+            <div style="font-size: 1rem; font-weight: 700;">-</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">구독자 증가</div>
+            <div style="font-size: 1rem; font-weight: 700; color: ${changeColor(subsDiff)};">${changeSign(subsDiff)}${formatNumber(subsDiff)}</div>
+          </div>
+          <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
+            <div style="font-size: 0.7rem; color: var(--text-muted);">현재 구독자</div>
+            <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.subscribers)}</div>
+          </div>
+        </div>
+        <div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 6px; font-size: 0.75rem; color: #92400e;">
+          ⚠️ ${analytics?.message || 'YouTube 계정을 연동하면 상세 분석을 볼 수 있습니다'}
+        </div>`;
+    }
+    html += `</div>`;
+
+    // 기본 통계 요약
+    html += `
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem;">
         <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
-          <div style="font-size: 0.7rem; color: var(--text-muted);">구독자</div>
-          <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.subscribers)}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">총 조회수</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.total_views)}</div>
         </div>
         <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
-          <div style="font-size: 0.7rem; color: var(--text-muted);">${history.length}일간</div>
-          <div style="font-size: 1rem; font-weight: 700; color: ${changeColor(subsDiff)};">${changeSign(subsDiff)}${formatNumber(subsDiff)}</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">영상 수</div>
+          <div style="font-size: 1rem; font-weight: 700;">${formatNumber(channel.video_count)}</div>
         </div>
         <div style="text-align: center; padding: 0.75rem; background: var(--bg-color); border-radius: 6px;">
           <div style="font-size: 0.7rem; color: var(--text-muted);">마지막 업로드</div>
@@ -4843,6 +4923,7 @@ const AssistantMain = (() => {
     refreshYoutubeChannels,
     showYoutubeChannelDetail,
     closeYoutubeDetailModal,
+    changeChannelAnalyticsDays,  // Analytics 기간 변경
     getChannelGptAdvice,  // 등록된 채널 GPT 분석
     // YouTube OAuth functions
     connectYoutubeOAuth,

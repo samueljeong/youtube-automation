@@ -330,6 +330,17 @@ def init_assistant_db():
             )
         ''')
 
+        # Settings 테이블 (OAuth 토큰 등 설정 저장)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(200) UNIQUE NOT NULL,
+                value TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
     else:
         # SQLite 스키마
         cursor.execute('''
@@ -488,6 +499,17 @@ def init_assistant_db():
                 video_count INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(channel_id, record_date)
+            )
+        ''')
+
+        # Settings 테이블 (OAuth 토큰 등 설정 저장)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
@@ -6048,28 +6070,33 @@ def youtube_oauth_callback():
 
         credentials = flow.credentials
 
-        # 토큰 저장
+        # 연결된 채널 정보 가져오기
+        from googleapiclient.discovery import build
+        youtube = build('youtube', 'v3', credentials=credentials)
+        response = youtube.channels().list(
+            part='snippet,statistics',
+            mine=True
+        ).execute()
+
+        channel_name = '알 수 없음'
+        owned_channel_ids = []
+        items = response.get('items', [])
+        if items:
+            channel_name = items[0].get('snippet', {}).get('title', '알 수 없음')
+            # OAuth 계정이 소유한 모든 채널 ID 저장
+            for item in items:
+                owned_channel_ids.append(item.get('id'))
+
+        # 토큰 + 소유 채널 ID 저장
         save_youtube_oauth_credentials({
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
             'token_uri': credentials.token_uri,
             'client_id': credentials.client_id,
             'client_secret': credentials.client_secret,
-            'scopes': list(credentials.scopes) if credentials.scopes else YOUTUBE_SCOPES
+            'scopes': list(credentials.scopes) if credentials.scopes else YOUTUBE_SCOPES,
+            'owned_channel_ids': owned_channel_ids
         })
-
-        # 연결된 채널 정보 가져오기
-        from googleapiclient.discovery import build
-        youtube = build('youtube', 'v3', credentials=credentials)
-        response = youtube.channels().list(
-            part='snippet',
-            mine=True
-        ).execute()
-
-        channel_name = '알 수 없음'
-        items = response.get('items', [])
-        if items:
-            channel_name = items[0].get('snippet', {}).get('title', '알 수 없음')
 
         return f'''
         <!DOCTYPE html>
@@ -6368,6 +6395,141 @@ def get_my_youtube_analytics():
                 },
                 'analytics_error': str(analytics_error),
                 'message': 'YouTube Analytics API 접근 권한을 확인해주세요'
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@assistant_bp.route('/assistant/api/youtube/channels/<int:channel_db_id>/analytics', methods=['GET'])
+def get_registered_channel_analytics(channel_db_id):
+    """등록된 채널의 Analytics 데이터 (OAuth 연동 필요)"""
+    try:
+        # 1. DB에서 채널 정보 조회
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        if USE_POSTGRES:
+            cursor.execute('SELECT channel_id, channel_title, subscribers, total_views, video_count FROM youtube_channels WHERE id = %s', (channel_db_id,))
+        else:
+            cursor.execute('SELECT channel_id, channel_title, subscribers, total_views, video_count FROM youtube_channels WHERE id = ?', (channel_db_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': '채널을 찾을 수 없습니다'}), 404
+
+        channel_id = row['channel_id'] if isinstance(row, dict) else row[0]
+        channel_title = row['channel_title'] if isinstance(row, dict) else row[1]
+        current_subs = row['subscribers'] if isinstance(row, dict) else row[2]
+        current_views = row['total_views'] if isinstance(row, dict) else row[3]
+        current_videos = row['video_count'] if isinstance(row, dict) else row[4]
+
+        # 2. OAuth 서비스 확인
+        analytics = get_youtube_analytics_service()
+        if not analytics:
+            return jsonify({
+                'success': True,
+                'channel_id': channel_id,
+                'channel_title': channel_title,
+                'current_stats': {
+                    'subscribers': current_subs or 0,
+                    'total_views': current_views or 0,
+                    'video_count': current_videos or 0
+                },
+                'analytics_available': False,
+                'message': 'YouTube 계정을 연동하면 상세 분석을 볼 수 있습니다'
+            })
+
+        # 3. Analytics API 호출
+        from datetime import datetime, timedelta
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        days = int(request.args.get('days', 28))
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        try:
+            analytics_response = analytics.reports().query(
+                ids=f'channel=={channel_id}',
+                startDate=start_date,
+                endDate=end_date,
+                metrics='views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost',
+                dimensions='day',
+                sort='day'
+            ).execute()
+
+            rows = analytics_response.get('rows', [])
+
+            daily_data = []
+            total_views = 0
+            total_watch_minutes = 0
+            total_subs_gained = 0
+            total_subs_lost = 0
+
+            for row in rows:
+                day = row[0]
+                views = int(row[1])
+                watch_minutes = float(row[2])
+                avg_duration = float(row[3])
+                subs_gained = int(row[4])
+                subs_lost = int(row[5])
+
+                total_views += views
+                total_watch_minutes += watch_minutes
+                total_subs_gained += subs_gained
+                total_subs_lost += subs_lost
+
+                daily_data.append({
+                    'date': day,
+                    'views': views,
+                    'watch_minutes': round(watch_minutes, 1),
+                    'avg_duration_seconds': round(avg_duration, 1),
+                    'subs_gained': subs_gained,
+                    'subs_lost': subs_lost,
+                    'net_subs': subs_gained - subs_lost
+                })
+
+            return jsonify({
+                'success': True,
+                'channel_id': channel_id,
+                'channel_title': channel_title,
+                'current_stats': {
+                    'subscribers': current_subs or 0,
+                    'total_views': current_views or 0,
+                    'video_count': current_videos or 0
+                },
+                'analytics_available': True,
+                'period': {
+                    'start': start_date,
+                    'end': end_date,
+                    'days': days
+                },
+                'summary': {
+                    'views': total_views,
+                    'watch_hours': round(total_watch_minutes / 60, 1),
+                    'subs_gained': total_subs_gained,
+                    'subs_lost': total_subs_lost,
+                    'net_subs': total_subs_gained - total_subs_lost
+                },
+                'daily_data': daily_data
+            })
+
+        except Exception as analytics_error:
+            error_msg = str(analytics_error)
+            print(f"[YOUTUBE-ANALYTICS] 채널 {channel_id} 분석 오류: {error_msg}")
+
+            # 권한 없음 또는 소유하지 않은 채널
+            return jsonify({
+                'success': True,
+                'channel_id': channel_id,
+                'channel_title': channel_title,
+                'current_stats': {
+                    'subscribers': current_subs or 0,
+                    'total_views': current_views or 0,
+                    'video_count': current_videos or 0
+                },
+                'analytics_available': False,
+                'message': '이 채널의 상세 분석 권한이 없습니다. 해당 채널의 YouTube 계정으로 연동해주세요.'
             })
 
     except Exception as e:
