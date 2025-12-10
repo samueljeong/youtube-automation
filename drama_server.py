@@ -5499,6 +5499,68 @@ def api_freesound_test():
         return jsonify({"ok": False, "message": "API 키 확인 필요"}), 500
 
 
+@app.route('/api/audio/download-zip', methods=['GET'])
+def api_audio_download_zip():
+    """서버의 모든 BGM/SFX 파일을 zip으로 다운로드"""
+    import zipfile
+    import io
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
+    sfx_dir = os.path.join(script_dir, "static", "audio", "sfx")
+
+    # 메모리에 zip 파일 생성
+    memory_file = io.BytesIO()
+
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # BGM 파일 추가
+        if os.path.exists(bgm_dir):
+            for filename in os.listdir(bgm_dir):
+                if filename.endswith('.mp3'):
+                    filepath = os.path.join(bgm_dir, filename)
+                    zf.write(filepath, f"bgm/{filename}")
+
+        # SFX 파일 추가
+        if os.path.exists(sfx_dir):
+            for filename in os.listdir(sfx_dir):
+                if filename.endswith('.mp3'):
+                    filepath = os.path.join(sfx_dir, filename)
+                    zf.write(filepath, f"sfx/{filename}")
+
+    memory_file.seek(0)
+
+    return send_file(
+        memory_file,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name='audio_files.zip'
+    )
+
+
+@app.route('/api/audio/list', methods=['GET'])
+def api_audio_list():
+    """서버에 있는 BGM/SFX 파일 목록"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
+    sfx_dir = os.path.join(script_dir, "static", "audio", "sfx")
+
+    bgm_files = []
+    sfx_files = []
+
+    if os.path.exists(bgm_dir):
+        bgm_files = sorted([f for f in os.listdir(bgm_dir) if f.endswith('.mp3')])
+
+    if os.path.exists(sfx_dir):
+        sfx_files = sorted([f for f in os.listdir(sfx_dir) if f.endswith('.mp3')])
+
+    return jsonify({
+        "ok": True,
+        "bgm": {"count": len(bgm_files), "files": bgm_files},
+        "sfx": {"count": len(sfx_files), "files": sfx_files},
+        "total": len(bgm_files) + len(sfx_files)
+    })
+
+
 @app.route('/bgm-upload')
 def bgm_upload_page():
     """BGM 업로드 페이지"""
