@@ -5249,11 +5249,57 @@ FREESOUND_BASE_URL = "https://freesound.org/apiv2"
 
 # 다운로드할 오디오 쿼리 정의
 FREESOUND_BGM_QUERIES = {
-    "epic": ("epic cinematic orchestral", 30, 180),
-    "romantic": ("romantic piano love", 30, 180),
-    "comedic": ("funny comedy playful", 30, 180),
-    "horror": ("horror scary dark ambient", 30, 180),
-    "upbeat": ("upbeat happy energetic", 30, 180),
+    # 기존 분위기
+    "epic": ("epic cinematic orchestral trailer", 30, 180),
+    "romantic": ("romantic piano love emotional", 30, 180),
+    "comedic": ("funny comedy playful quirky", 30, 180),
+    "horror": ("horror scary dark creepy", 30, 180),
+    "upbeat": ("upbeat happy energetic positive", 30, 180),
+
+    # 감정/분위기
+    "hopeful": ("hopeful inspiring positive uplifting", 30, 180),
+    "sad": ("sad melancholic emotional piano", 30, 180),
+    "tense": ("tense suspense thriller tension", 30, 180),
+    "dramatic": ("dramatic cinematic intense emotional", 30, 180),
+    "calm": ("calm peaceful relaxing ambient", 30, 180),
+    "inspiring": ("inspiring motivational uplifting", 30, 180),
+    "mysterious": ("mysterious ambient enigmatic", 30, 180),
+    "nostalgic": ("nostalgic emotional memories retro", 30, 180),
+    "melancholic": ("melancholic sad piano emotional", 30, 180),
+    "peaceful": ("peaceful serene nature calm", 30, 180),
+    "dark": ("dark ominous sinister ambient", 30, 180),
+    "bright": ("bright cheerful happy sunshine", 30, 180),
+    "ethereal": ("ethereal dreamy ambient atmospheric", 30, 180),
+    "whimsical": ("whimsical playful magical fairy", 30, 180),
+
+    # 장르
+    "jazz": ("jazz smooth saxophone piano", 30, 180),
+    "classical": ("classical orchestra symphony", 30, 180),
+    "electronic": ("electronic ambient synth", 30, 180),
+    "ambient": ("ambient atmospheric soundscape", 30, 180),
+    "acoustic": ("acoustic guitar folk warm", 30, 180),
+    "piano": ("piano solo emotional beautiful", 30, 180),
+
+    # 액션/모험
+    "action": ("action intense fast battle", 30, 180),
+    "adventure": ("adventure exploration journey", 30, 180),
+    "chase": ("chase pursuit fast tension", 30, 180),
+    "battle": ("battle war epic drums", 30, 180),
+    "heroic": ("heroic triumphant victory brass", 30, 180),
+
+    # 상황/용도
+    "news": ("news broadcast corporate serious", 30, 180),
+    "documentary": ("documentary informative ambient", 30, 180),
+    "corporate": ("corporate business professional", 30, 180),
+    "cinematic": ("cinematic film score emotional", 30, 180),
+    "trailer": ("trailer epic dramatic intense", 30, 180),
+
+    # 특수 분위기
+    "suspenseful": ("suspenseful thriller mystery tension", 30, 180),
+    "triumphant": ("triumphant victory celebration fanfare", 30, 180),
+    "sentimental": ("sentimental emotional touching", 30, 180),
+    "energetic": ("energetic dynamic powerful driving", 30, 180),
+    "relaxing": ("relaxing spa meditation calm", 30, 180),
 }
 
 FREESOUND_SFX_QUERIES = {
@@ -11586,30 +11632,73 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 
 ## 🎵 BGM & SFX 가이드라인 (중요!)
 
-### BGM 분위기 종류 (13가지)
-- **hopeful**: 희망적, 밝은 분위기 (긍정적인 결말, 성공 스토리)
-- **sad**: 슬픈, 감성적 분위기 (비극, 이별, 슬픈 사연)
-- **tense**: 긴장감 있는 분위기 (위기, 갈등, 서스펜스)
-- **dramatic**: 극적인 분위기 (반전, 클라이맥스, 충격적 사실)
-- **calm**: 차분한 분위기 (정보 전달, 설명, 일상)
-- **inspiring**: 영감을 주는 분위기 (동기부여, 도전, 성취)
-- **mysterious**: 신비로운 분위기 (미스터리, 의문, 궁금증)
-- **nostalgic**: 향수를 자극하는 분위기 (과거 회상, 추억)
-- **epic**: 웅장한 분위기 (대규모 사건, 역사적 순간)
-- **romantic**: 로맨틱한 분위기 (사랑, 감동적인 관계)
-- **comedic**: 코믹한 분위기 (유머, 웃긴 상황)
-- **horror**: 공포스러운 분위기 (무서운 사건, 소름)
-- **upbeat**: 신나는, 경쾌한 분위기 (활기찬, 에너지 넘치는)
+### BGM 분위기 종류 (40가지 이상) - 씬별로 다양하게!
+
+**기본 감정:**
+- **hopeful**: 희망적, 밝은 (긍정적인 결말, 성공)
+- **sad**: 슬픈, 감성적 (비극, 이별)
+- **tense**: 긴장감 (위기, 갈등, 서스펜스)
+- **dramatic**: 극적인 (반전, 클라이맥스)
+- **calm**: 차분한 (정보 전달, 일상)
+- **inspiring**: 영감 (동기부여, 도전)
+- **mysterious**: 신비로운 (미스터리, 궁금증)
+- **nostalgic**: 향수 (과거 회상, 추억)
+
+**강한 감정:**
+- **epic**: 웅장한 (대규모 사건, 역사적)
+- **romantic**: 로맨틱 (사랑, 감동)
+- **comedic**: 코믹 (유머, 웃김)
+- **horror**: 공포 (무서운, 소름)
+- **upbeat**: 신나는 (활기찬, 에너지)
+- **melancholic**: 우울한 (상실, 그리움)
+- **peaceful**: 평화로운 (자연, 휴식)
+- **dark**: 어두운 (불길한, 위협적)
+- **bright**: 밝은 (행복, 기쁨)
+- **ethereal**: 몽환적 (꿈, 환상)
+- **whimsical**: 기발한 (동화, 마법)
+
+**장르별:**
+- **jazz**: 재즈 (세련된, 도시적)
+- **classical**: 클래식 (고급, 우아)
+- **electronic**: 일렉트로닉 (현대적, 미래)
+- **ambient**: 앰비언트 (배경, 분위기)
+- **acoustic**: 어쿠스틱 (따뜻한, 자연스러운)
+- **piano**: 피아노 (감성적, 아름다운)
+
+**액션/모험:**
+- **action**: 액션 (빠른, 긴박)
+- **adventure**: 모험 (탐험, 여정)
+- **chase**: 추격 (쫓기는, 긴장)
+- **battle**: 전투 (전쟁, 싸움)
+- **heroic**: 영웅적 (승리, 용감)
+
+**상황별:**
+- **news**: 뉴스 (보도, 정보)
+- **documentary**: 다큐 (탐구, 설명)
+- **corporate**: 비즈니스 (전문적, 신뢰)
+- **cinematic**: 영화적 (드라마틱, 감성)
+- **trailer**: 예고편 (강렬, 기대감)
+
+**특수 분위기:**
+- **suspenseful**: 서스펜스 (긴장, 불안)
+- **triumphant**: 승리감 (성취, 축하)
+- **sentimental**: 감상적 (추억, 감동)
+- **energetic**: 역동적 (파워풀, 드라이빙)
+- **relaxing**: 힐링 (명상, 휴식)
 
 ### 씬별 BGM 변경 규칙 (scene_bgm_changes)
-- 대본의 감정 흐름에 따라 BGM 분위기를 전환하세요
-- **최소 2~3번**의 BGM 전환 권장 (5씬 이상 영상)
+- 대본의 감정 흐름에 따라 BGM 분위기를 **적극적으로** 전환하세요!
+- **최소 3~5번**의 BGM 전환 권장 (씬별로 분위기가 다르면 다 바꿔도 OK)
 - 전환 포인트 예시:
-  - 충격적인 사실 공개 → tense/dramatic
-  - 희망적인 반전 → hopeful/inspiring
-  - 감동적인 결말 → emotional/nostalgic
-  - 위기/갈등 고조 → tense/horror
-  - 유머러스한 순간 → comedic/upbeat
+  - 영상 시작 → cinematic/mysterious (기대감)
+  - 충격적 사실 공개 → tense/dramatic/suspenseful
+  - 희망적 반전 → hopeful/inspiring/triumphant
+  - 감동적 결말 → nostalgic/sentimental/piano
+  - 위기/갈등 고조 → tense/horror/dark/chase
+  - 유머러스한 순간 → comedic/upbeat/whimsical
+  - 슬픈 장면 → sad/melancholic/peaceful
+  - 액션/추격 → action/chase/battle/energetic
+  - 성공/해결 → triumphant/heroic/bright
 
 ### SFX 효과음 종류 (40가지 이상) - 적극 활용!
 
