@@ -12471,19 +12471,40 @@ def api_image_generate_assets_zip():
                         char_ratio = len(sentence) / total_chars
                         sent_duration = total_duration * char_ratio
 
-                        srt_entries.append({
-                            'index': len(srt_entries) + 1,
-                            'start': current_time,
-                            'end': current_time + sent_duration,
-                            'text': sentence
-                        })
-                        scene_subtitles.append({
-                            'start': scene_relative_time,
-                            'end': scene_relative_time + sent_duration,
-                            'text': sentence
-                        })
+                        # ★ 자막 분리: 긴 문장은 짧게 분리 (20자 제한)
+                        max_subtitle_chars = 20
+                        if len(sentence) <= max_subtitle_chars:
+                            subtitle_parts = [sentence]
+                        else:
+                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars)
 
-                        print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s (비례) - {sentence[:30]}...")
+                        # 분리된 자막에 비율로 타이밍 분배
+                        part_total_chars = sum(len(p) for p in subtitle_parts)
+                        if part_total_chars == 0:
+                            part_total_chars = 1
+                        part_start = current_time
+                        part_relative_start = scene_relative_time
+
+                        for part in subtitle_parts:
+                            part_ratio = len(part) / part_total_chars
+                            part_duration = sent_duration * part_ratio
+
+                            srt_entries.append({
+                                'index': len(srt_entries) + 1,
+                                'start': part_start,
+                                'end': part_start + part_duration,
+                                'text': part
+                            })
+                            scene_subtitles.append({
+                                'start': part_relative_start,
+                                'end': part_relative_start + part_duration,
+                                'text': part
+                            })
+
+                            part_start += part_duration
+                            part_relative_start += part_duration
+
+                        print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s (비례) - {len(subtitle_parts)}자막 - {sentence[:30]}...")
                         current_time += sent_duration
                         scene_relative_time += sent_duration
                 else:
@@ -12502,19 +12523,40 @@ def api_image_generate_assets_zip():
                         duration = get_mp3_duration(audio_bytes)
                         scene_audios.append(audio_bytes)
 
-                        srt_entries.append({
-                            'index': len(srt_entries) + 1,
-                            'start': current_time,
-                            'end': current_time + duration,
-                            'text': sentence
-                        })
-                        scene_subtitles.append({
-                            'start': scene_relative_time,
-                            'end': scene_relative_time + duration,
-                            'text': sentence
-                        })
+                        # ★ 자막 분리: TTS는 긴 문장 유지, 자막만 짧게 분리 (20자 제한)
+                        max_subtitle_chars = 20
+                        if len(sentence) <= max_subtitle_chars:
+                            subtitle_parts = [sentence]
+                        else:
+                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars)
 
-                        print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                        # 글자 수 비율로 타이밍 분배
+                        total_chars = sum(len(p) for p in subtitle_parts)
+                        if total_chars == 0:
+                            total_chars = 1
+                        part_start = current_time
+                        part_relative_start = scene_relative_time
+
+                        for part in subtitle_parts:
+                            part_ratio = len(part) / total_chars
+                            part_duration = duration * part_ratio
+
+                            srt_entries.append({
+                                'index': len(srt_entries) + 1,
+                                'start': part_start,
+                                'end': part_start + part_duration,
+                                'text': part
+                            })
+                            scene_subtitles.append({
+                                'start': part_relative_start,
+                                'end': part_relative_start + part_duration,
+                                'text': part
+                            })
+
+                            part_start += part_duration
+                            part_relative_start += part_duration
+
+                        print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {len(subtitle_parts)}자막 - {sentence[:30]}...")
                         current_time += duration
                         scene_relative_time += duration
 
