@@ -10679,24 +10679,24 @@ def api_image_analyze_script():
       }},
 
       // ★ detected_category가 "story"일 때 사용 (드라마, 감성, 인간관계, 일상 이야기)
-      // ⚠️ 모든 썸네일은 실사/영화 스타일! 스틱맨, 만화, 웹툰 스타일 절대 금지!
+      // ⚠️ 웹툰/만화 스타일! 클릭률 높은 과장된 감정 표현!
       "A": {{
-        "description": "스토리 스타일 A: 감정/표정 중심 (실사)",
-        "prompt": "PHOTOREALISTIC cinematic YouTube thumbnail, 16:9 aspect ratio. Korean person with emotional expression matching the story (contemplative, tearful, hopeful, shocked). Dramatic lighting like movie poster. High contrast, warm or cool tones based on mood. NO cartoon, NO stickman, NO illustration.",
+        "description": "웹툰 스타일 A: 감정/표정 중심",
+        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating). 30-40 year old Korean man or woman. Clean bold outlines, vibrant flat colors. Comic-style expression marks (sweat drops, impact lines). Background related to the topic. NO photorealistic, NO stickman.",
         "text_overlay": {{"main": "{thumb_length} 감정 텍스트", "sub": "optional"}},
-        "style": "emotional, photorealistic"
+        "style": "webtoon, emotional, exaggerated"
       }},
       "B": {{
-        "description": "스토리 스타일 B: 장면/상황 중심 (실사)",
-        "prompt": "PHOTOREALISTIC cinematic YouTube thumbnail, 16:9 aspect ratio. Scene depicting the key moment of the story - location, objects, atmosphere. Professional photography style with dramatic lighting. Space for text overlay. NO cartoon, NO stickman, NO illustration.",
+        "description": "웹툰 스타일 B: 상황/장면 중심",
+        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean manhwa illustration showing the key moment of the story. Character with exaggerated expression on right side, leave space for text on left. Comic-style effect lines (radial lines, impact effects). Bright vibrant colors. NO photorealistic, NO stickman.",
         "text_overlay": {{"main": "상황 텍스트", "sub": "optional"}},
-        "style": "scene, photorealistic"
+        "style": "webtoon, scene, vibrant"
       }},
       "C": {{
-        "description": "스토리 스타일 C: 실루엣/분위기 중심",
-        "prompt": "PHOTOREALISTIC atmospheric YouTube thumbnail, 16:9 aspect ratio. Silhouette or backlit figure conveying emotion. Dramatic sky or background. Cinematic color grading. Bold space for text. NO cartoon, NO stickman, NO illustration.",
+        "description": "웹툰 스타일 C: 드라마틱 분위기",
+        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Manhwa style dramatic composition with emotional character expression. High contrast colors, comic book aesthetic. Bold space for text overlay. Character shows strong emotion matching the story. NO photorealistic, NO stickman, NO 3D render.",
         "text_overlay": {{"main": "{thumb_length} 메인 문구", "sub": "optional"}},
-        "style": "atmospheric, silhouette"
+        "style": "webtoon, dramatic, comic"
       }}
     }}'''
 
@@ -19638,62 +19638,18 @@ def run_automation_pipeline(row_data, row_index):
                 return False
 
         def generate_thumbnail():
-            """썸네일 생성 (병렬 작업 3) - 웹 UI와 동일한 프롬프트 사용"""
+            """썸네일 생성 (병렬 작업 3) - 대본 분석에서 생성된 ai_prompts 사용 (웹툰 스타일)"""
             nonlocal thumbnail_url, total_cost
-            print(f"[AUTOMATION][THUMB] 썸네일 생성 시작 (웹 UI 동일 프롬프트)...")
+            print(f"[AUTOMATION][THUMB] 썸네일 생성 시작...")
             try:
-                # ========== 웹 UI와 동일한 /api/thumbnail-ai/analyze 호출 ==========
-                # 이렇게 하면 웹 UI에서 프롬프트 설정 변경 시 파이프라인에도 자동 적용
-                print(f"[AUTOMATION][THUMB] /api/thumbnail-ai/analyze 호출 (웹 UI 동일)")
-
-                analyze_resp = req.post(f"{base_url}/api/thumbnail-ai/analyze", json={
-                    "script": script[:3000],  # 대본
-                    "title": title,
-                    "additional_prompt": ""  # 추가 요청사항 없음
-                }, timeout=120)
-
-                analyze_data = analyze_resp.json()
-
-                if analyze_data.get('ok') and analyze_data.get('prompts', {}).get('A'):
-                    # 웹 UI와 동일한 프롬프트 사용
-                    prompt_a = analyze_data['prompts']['A']
-                    thumb_prompt = {
-                        "prompt": prompt_a.get('prompt', ''),
-                        "text_overlay": prompt_a.get('text_overlay', {}),
-                        "style": prompt_a.get('style', '')
-                    }
-                    detected_lang_from_analyze = analyze_data.get('lang', 'ko')
-                    print(f"[AUTOMATION][THUMB] 웹 UI 동일 프롬프트 생성 완료 (언어: {detected_lang_from_analyze})")
-                    print(f"[AUTOMATION][THUMB] 프롬프트: {thumb_prompt.get('prompt', '')[:100]}...")
-
-                    # 비용: GPT-5.1 분석 비용 추가
-                    total_cost += 0.03
-
-                    # /api/thumbnail-ai/generate-single 호출
-                    thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
-                        "session_id": f"thumb_{session_id}",
-                        "prompt": thumb_prompt,
-                        "category": detected_category,
-                        "lang": detected_lang_from_analyze
-                    }, timeout=180)
-
-                    thumb_data = thumb_resp.json()
-                    if thumb_data.get('ok') and thumb_data.get('image_url'):
-                        thumbnail_url = thumb_data['image_url']
-                        total_cost += 0.03  # 이미지 생성 비용
-                        print(f"[AUTOMATION][THUMB] 완료 (비용: $0.06 = 분석 $0.03 + 이미지 $0.03)")
-                        return thumbnail_url
-                    else:
-                        print(f"[AUTOMATION][THUMB] 이미지 생성 실패: {thumb_data.get('error', '알 수 없음')}")
-                else:
-                    print(f"[AUTOMATION][THUMB] 프롬프트 분석 실패: {analyze_data.get('error', '알 수 없음')}")
-
-                # ========== 폴백: 기존 ai_prompts 사용 ==========
-                print(f"[AUTOMATION][THUMB] 폴백: 대본 분석 시 생성된 ai_prompts 사용")
+                # GPT-5.1이 대본 분석으로 자동 감지한 카테고리 사용
                 is_news = detected_category == 'news'
+                print(f"[AUTOMATION][THUMB] GPT 감지 카테고리: {detected_category} → {'뉴스' if is_news else '스토리(웹툰)'} 스타일")
 
+                # GPT가 생성한 ai_prompts.A 사용 (story 카테고리는 웹툰 스타일로 생성됨)
                 if ai_prompts and ai_prompts.get('A'):
                     thumb_prompt = ai_prompts.get('A').copy() if isinstance(ai_prompts.get('A'), dict) else ai_prompts.get('A')
+                    # best_combo에서 선택된 텍스트가 있으면 text_overlay에 적용
                     if best_combo and best_combo.get('chosen_thumbnail_text'):
                         chosen_text = best_combo.get('chosen_thumbnail_text', '')
                         if isinstance(thumb_prompt, dict):
@@ -19702,16 +19658,22 @@ def run_automation_pipeline(row_data, row_index):
                                 thumb_prompt['text_overlay'] = {'main': parts[0], 'sub': parts[1] if len(parts) > 1 else ''}
                             else:
                                 thumb_prompt['text_overlay'] = {'main': chosen_text, 'sub': ''}
+                            print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
+                    print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (스타일: {thumb_prompt.get('style', 'unknown')})")
                 elif is_news:
+                    # 폴백: 뉴스 스타일 프롬프트
+                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 스타일 프롬프트")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '뉴스 헤드라인') if best_combo else '뉴스 헤드라인'
                     thumb_prompt = {
                         "prompt": "Korean TV news broadcast YouTube thumbnail. 16:9 aspect ratio. Large bold Korean headline text in WHITE or YELLOW. Dark blue gradient background. Professional broadcast journalism aesthetic.",
                         "text_overlay": {"main": fallback_text, "sub": ""}
                     }
                 else:
+                    # 폴백: 웹툰 스타일 프롬프트
+                    print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '메인 텍스트') if best_combo else '메인 텍스트'
                     thumb_prompt = {
-                        "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Character with exaggerated emotional expression. Vibrant colors, high contrast.",
+                        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
                         "text_overlay": {"main": fallback_text, "sub": ""}
                     }
 
@@ -19726,15 +19688,13 @@ def run_automation_pipeline(row_data, row_index):
                 if thumb_data.get('ok') and thumb_data.get('image_url'):
                     thumbnail_url = thumb_data['image_url']
                     total_cost += 0.03
-                    print(f"[AUTOMATION][THUMB] 폴백 완료 (비용: $0.03)")
+                    print(f"[AUTOMATION][THUMB] 완료 (비용: $0.03)")
                     return thumbnail_url
                 else:
-                    print(f"[AUTOMATION][THUMB] 폴백 실패: {thumb_data.get('error', '알 수 없음')}")
+                    print(f"[AUTOMATION][THUMB] 실패: {thumb_data.get('error', '알 수 없음')}")
                     return None
             except Exception as e:
                 print(f"[AUTOMATION][THUMB] 오류: {e}")
-                import traceback
-                traceback.print_exc()
                 return None
 
         # 병렬 실행
