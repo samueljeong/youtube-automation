@@ -1278,6 +1278,8 @@ def parse_input():
 
         # 기존 인물 데이터 조회 (연동을 위해)
         existing_people = []
+        # 기존 태스크 데이터 조회 (중복 제안 방지를 위해)
+        existing_tasks = []
         try:
             conn_check = get_db_connection()
             cursor_check = conn_check.cursor()
@@ -1286,15 +1288,44 @@ def parse_input():
             else:
                 cursor_check.execute('SELECT id, name, role, category, notes FROM people ORDER BY updated_at DESC LIMIT 100')
             existing_people = [dict(row) for row in cursor_check.fetchall()]
+
+            # 미완료 태스크 조회 (최근 60일 이내, ai_suggestion 포함)
+            if USE_POSTGRES:
+                cursor_check.execute('''
+                    SELECT id, title, due_date, category, source
+                    FROM tasks
+                    WHERE is_completed = FALSE
+                    AND (due_date IS NULL OR due_date >= CURRENT_DATE - INTERVAL '60 days')
+                    ORDER BY due_date ASC NULLS LAST
+                    LIMIT 50
+                ''')
+            else:
+                cursor_check.execute('''
+                    SELECT id, title, due_date, category, source
+                    FROM tasks
+                    WHERE is_completed = 0
+                    AND (due_date IS NULL OR due_date >= date('now', '-60 days'))
+                    ORDER BY due_date ASC
+                    LIMIT 50
+                ''')
+            existing_tasks = [dict(row) for row in cursor_check.fetchall()]
             conn_check.close()
         except Exception as e:
-            print(f"[Parse] 기존 인물 조회 실패: {e}")
+            print(f"[Parse] 기존 데이터 조회 실패: {e}")
 
         existing_people_text = ""
         if existing_people:
             existing_people_text = "\n[기존 등록된 인물 목록]\n"
             for p in existing_people[:30]:  # 최대 30명만
                 existing_people_text += f"- ID:{p['id']} {p['name']} ({p.get('role') or '직분없음'}) - {p.get('notes') or ''}\n"
+
+        # 기존 태스크 목록 텍스트 생성 (중복 제안 방지용)
+        existing_tasks_text = ""
+        if existing_tasks:
+            existing_tasks_text = "\n[기존 등록된 태스크/제안 목록 - 중복 생성 금지!]\n"
+            for t in existing_tasks[:30]:  # 최대 30개만
+                due_str = str(t.get('due_date') or '날짜없음')
+                existing_tasks_text += f"- {t['title']} (기한: {due_str})\n"
 
         # GPT-5.1 통합 파싱 프롬프트
         system_prompt = f"""[역할]
@@ -1306,8 +1337,7 @@ def parse_input():
 [입력 컨텍스트]
 - 오늘 날짜: {today.isoformat()} ({today.strftime('%A')})
 - 기본 카테고리: {default_category or '없음'}
-{existing_people_text}
-
+{existing_people_text}{existing_tasks_text}
 [출력]
 반드시 다음 JSON 형식으로만 출력하라:
 {{
@@ -1399,6 +1429,11 @@ def parse_input():
    - 장기적인 목표/기간이 명시된 작업
 
 5. suggestions (AI 비서 제안) - 매우 중요!
+   ★★★ 중복 방지 필수! ★★★
+   - [기존 등록된 태스크/제안 목록]에 이미 비슷한 내용이 있으면 제안하지 마라!
+   - 같은 인물에 대한 비슷한 제안(위로 연락, 기도, 회복 확인 등)이 이미 있으면 생성 금지
+   - 기존 제안과 내용/대상이 겹치면 빈 배열 [] 반환
+
    - 입원/수술 일정이 있으면:
      * 입원 1-2일 전: "병문안 준비" 또는 "위로 연락" 제안
      * 수술 당일/전날: "기도 요청 공지" 제안
@@ -1428,7 +1463,8 @@ def parse_input():
 - 인물 정보와 함께 일정이 언급되면 둘 다 추출
 - 일정 제목에는 반드시 "누구의" 일정인지 대상자를 포함해야 한다
 - 기존 인물 목록과 매칭하여 중복 생성 방지, 정보 업데이트 수행
-- suggestions는 사용자가 놓치기 쉬운 후속 조치를 제안해야 한다
+- ★ suggestions는 [기존 등록된 태스크/제안 목록]을 반드시 확인하여 중복 생성 방지!
+- suggestions는 사용자가 놓치기 쉬운 후속 조치를 제안해야 한다 (단, 이미 있으면 생략)
 - JSON 외의 다른 텍스트는 절대로 출력하지 마라"""
 
         # GPT-5.1 Responses API 사용
