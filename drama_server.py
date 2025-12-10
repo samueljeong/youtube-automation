@@ -5318,9 +5318,14 @@ def api_freesound_download():
 
     results = {"bgm": {}, "sfx": {}, "errors": []}
 
-    data = request.get_json() or {}
-    download_bgm = data.get("bgm", True)
-    download_sfx = data.get("sfx", True)
+    # GET 또는 POST 모두 지원
+    if request.method == 'POST' and request.is_json:
+        data = request.get_json() or {}
+    else:
+        data = request.args.to_dict()
+
+    download_bgm = data.get("bgm", "true").lower() != "false" if isinstance(data.get("bgm"), str) else data.get("bgm", True)
+    download_sfx = data.get("sfx", "true").lower() != "false" if isinstance(data.get("sfx"), str) else data.get("sfx", True)
 
     # BGM 다운로드
     if download_bgm:
