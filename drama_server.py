@@ -8205,7 +8205,8 @@ def youtube_auth():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=redirect_uri
         )
@@ -8314,7 +8315,8 @@ def youtube_callback():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=oauth_state['redirect_uri']
         )
@@ -10236,7 +10238,8 @@ def api_youtube_auth_page():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=redirect_uri
         )
@@ -10479,7 +10482,10 @@ def youtube_upload():
                     token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
                     client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
                     client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
-                    scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
+                    scopes=token_data.get('scopes', [
+                        'https://www.googleapis.com/auth/youtube.upload',
+                        'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+                    ])
                 )
 
                 # 토큰 만료 시 갱신
@@ -13297,8 +13303,9 @@ def api_image_generate_assets_zip():
                         char_ratio = len(sentence) / total_chars
                         sent_duration = total_duration * char_ratio
 
-                        # ★ 자막 분리: 긴 문장은 짧게 분리 (20자 제한, 일본어는 18자)
-                        max_subtitle_chars = 18 if detected_lang == 'ja' else 20
+                        # ★ 자막 싱크 최적화: 문장 분리 최소화 (분리 시 글자비율 타이밍이 TTS와 맞지 않음)
+                        # 50자까지는 분리 안함 → 정확한 싱크
+                        max_subtitle_chars = 40 if detected_lang == 'ja' else 50
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
@@ -13349,8 +13356,10 @@ def api_image_generate_assets_zip():
                         duration = get_mp3_duration(audio_bytes)
                         scene_audios.append(audio_bytes)
 
-                        # ★ 자막 분리: TTS는 긴 문장 유지, 자막만 짧게 분리 (20자 제한, 일본어는 18자)
-                        max_subtitle_chars = 18 if detected_lang == 'ja' else 20
+                        # ★ 자막 싱크 최적화: 문장 분리 최소화 (분리 시 글자비율 타이밍이 TTS와 맞지 않음)
+                        # 50자까지는 분리 안함 → TTS duration 그대로 사용 → 정확한 싱크
+                        # 50자 초과 시에만 분리 (매우 긴 문장)
+                        max_subtitle_chars = 40 if detected_lang == 'ja' else 50
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
@@ -13764,32 +13773,33 @@ def _update_job_status(job_id, **kwargs):
                 json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
-    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 배경 박스"""
-    # 유튜브 스타일: 노란색 텍스트 + 검은색 둥근 배경 박스
-    # NanumGothic 사용 (Pretendard는 한글 글리프 없음)
-    # BorderStyle=3: 불투명 박스 배경
+    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리"""
+    # 유튜브 스타일: 노란색 텍스트 + 검은색 테두리 (가독성 최우선)
+    # BorderStyle=1: 테두리 + 그림자 (박스 아님)
+    # Outline=4: 두꺼운 검은색 테두리
+    # Shadow=2: 입체감 있는 그림자
     # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
-    # BackColour=&HC0000000: 검은색 75% 불투명 배경
+    # OutlineColour=&H00000000: 검은색 테두리
     if lang == 'ko':
-        # NanumGothic - 나눔고딕 (한글 완벽 지원)
+        # NanumSquareRound - 나눔스퀘어 라운드 (둥근 고딕, 가독성 좋음)
         return (
-            "FontName=NanumGothic,FontSize=28,PrimaryColour=&H00FFFF,"
-            "OutlineColour=&H00000000,BackColour=&HC0000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "FontName=NanumSquareRound,FontSize=28,PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
     elif lang == 'ja':
         # 일본어 - Noto Sans CJK JP 사용 (일본어 글리프 완전 지원)
         return (
             "FontName=Noto Sans CJK JP,FontSize=22,PrimaryColour=&H00FFFF,"
-            "OutlineColour=&H00000000,BackColour=&HC0000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
     else:
-        # 영어/기타 언어
+        # 영어/기타 언어 - NanumSquareRound 사용
         return (
-            "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFF,"
-            "OutlineColour=&H00000000,BackColour=&HC0000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "FontName=NanumSquareRound,FontSize=22,PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
 
 def _hex_to_ass_color(hex_color):
@@ -13920,9 +13930,12 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             return result
 
         # ASS 헤더 (큰 폰트, 두꺼운 테두리, 하단 중앙 정렬)
-        # Outline: 2 → 4 (더 두꺼운 테두리)
-        # Shadow: 1 → 2 (더 진한 그림자)
-        # MarginV: 40 → 50 (하단 여백)
+        # BorderStyle=1: 테두리 + 그림자 (박스가 아닌 외곽선)
+        # Outline=4: 두꺼운 검은색 테두리 (가독성)
+        # Shadow=2: 그림자로 입체감
+        # MarginV=50: 하단 여백
+        # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
+        # OutlineColour=&H00000000: 검은색 테두리
         ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1280
@@ -13931,7 +13944,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H00FFFF,&H000000FF,&H00000000,&HC0000000,1,0,0,0,100,100,0,0,3,0,0,2,30,30,50,1
+Style: Default,{font_name},{font_size},&H00FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,2,2,30,30,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -14240,11 +14253,46 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
     return ticker_filter
 
 
+# BGM 분위기 별칭 매핑 (파일이 없을 경우 대체 분위기로 폴백)
+BGM_MOOD_ALIAS = {
+    # 뉴스/다큐멘터리 계열 → calm 또는 cinematic
+    "documentary": "cinematic",
+    "news": "calm",
+    "informative": "calm",
+    "corporate": "calm",
+
+    # 감정 계열 폴백
+    "melancholy": "sad",
+    "sentimental": "sad",
+    "touching": "emotional",
+    "emotional": "sad",
+
+    # 긴장/서스펜스 계열
+    "suspense": "tense",
+    "thriller": "tense",
+    "dark": "mysterious",
+
+    # 밝은/긍정 계열
+    "uplifting": "inspiring",
+    "motivational": "inspiring",
+    "cheerful": "upbeat",
+    "happy": "upbeat",
+
+    # 기타
+    "action": "epic",
+    "adventure": "epic",
+    "horror": "dark",
+}
+
+
 def _get_bgm_file(mood, bgm_dir=None):
     """분위기에 맞는 BGM 파일 선택 (여러 개면 랜덤)
 
     Args:
-        mood: hopeful, sad, tense, dramatic, calm, inspiring, mysterious, nostalgic
+        mood: 지원 분위기 - hopeful, sad, tense, dramatic, calm, inspiring,
+              mysterious, nostalgic, epic, romantic, comedic, horror, upbeat,
+              cinematic, emotional, dark, suspenseful, ambient, electronic 등
+              (파일이 없으면 BGM_MOOD_ALIAS에 따라 대체 분위기로 폴백)
         bgm_dir: BGM 파일 디렉토리 (없으면 스크립트 위치 기준)
 
     Returns:
@@ -14290,9 +14338,24 @@ def _get_bgm_file(mood, bgm_dir=None):
     print(f"[BGM] 디렉토리 내 전체 파일: {[os.path.basename(f) for f in all_files]}")
 
     if not matching_files:
-        print(f"[BGM] '{mood}' 분위기 BGM 파일 없음")
-        print(f"[BGM] ⚠️ {bgm_dir}/{mood}.mp3 또는 {mood}_01.mp3 형식으로 파일을 업로드하세요")
-        return None
+        # 별칭 매핑으로 폴백 시도
+        alias_mood = BGM_MOOD_ALIAS.get(mood)
+        if alias_mood:
+            print(f"[BGM] '{mood}' 파일 없음 → '{alias_mood}'로 폴백 시도")
+            alias_patterns = [
+                os.path.join(bgm_dir, f"{alias_mood}.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood}_*.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood} *.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood}*.mp3"),
+            ]
+            for pattern in alias_patterns:
+                matching_files.extend(glob.glob(pattern))
+            matching_files = list(set(matching_files))
+
+        if not matching_files:
+            print(f"[BGM] '{mood}' 분위기 BGM 파일 없음")
+            print(f"[BGM] ⚠️ {bgm_dir}/{mood}.mp3 또는 {mood}_01.mp3 형식으로 파일을 업로드하세요")
+            return None
 
     # 랜덤 선택
     selected = random.choice(matching_files)
@@ -14681,7 +14744,9 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
 
         temp_dir = tempfile.mkdtemp()
 
-        for i, sfx in enumerate(sound_effects):
+        # 순차적 인덱스 사용 (continue로 건너뛴 항목과 관계없이 연속 인덱스 보장)
+        sfx_idx = 0
+        for sfx in sound_effects:
             scene_num = sfx.get('scene', 1)
             sfx_type = sfx.get('type', '')
 
@@ -14694,7 +14759,7 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
                 continue
 
             # 효과음 트림 (2.5초로 자르기)
-            trimmed_path = os.path.join(temp_dir, f"sfx_{i}.mp3")
+            trimmed_path = os.path.join(temp_dir, f"sfx_{sfx_idx}.mp3")
             if not _trim_sfx(sfx_file, trimmed_path, max_duration=2.5, fade_out=0.5):
                 continue
 
@@ -14702,7 +14767,10 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
             delay_ms = int((scene_start_times[scene_num] + 0.5) * 1000)
 
             sfx_inputs.append(trimmed_path)
-            adelay_filters.append(f"[{i+1}:a]adelay={delay_ms}|{delay_ms},volume=0.8[sfx{i}]")
+            # FFmpeg 입력 인덱스: [0]=비디오, [1]=첫번째 SFX, [2]=두번째 SFX...
+            # sfx_idx는 0부터 시작하므로 입력 인덱스는 sfx_idx+1
+            adelay_filters.append(f"[{sfx_idx+1}:a]adelay={delay_ms}|{delay_ms},volume=0.8[sfx{sfx_idx}]")
+            sfx_idx += 1
 
         if not sfx_inputs:
             print(f"[SFX] 사용 가능한 효과음 없음")
@@ -21931,8 +21999,8 @@ def _automation_generate_video(scenes, episode_id, output_dir):
                         f.write(f"{format_srt_time(sub['start'])} --> {format_srt_time(sub['end'])}\n")
                         f.write(f"{sub['text']}\n\n")
 
-                # 자막 스타일 (노란색 + 검은 배경 박스)
-                subtitle_style = "FontName=NanumGothic,FontSize=22,PrimaryColour=&H00FFFF,OutlineColour=&H00000000,BackColour=&HC0000000,BorderStyle=3,Outline=0,Shadow=0,MarginV=30,Bold=1"
+                # 자막 스타일 (노란색 + 검은 테두리, NanumSquareRound 폰트)
+                subtitle_style = "FontName=NanumSquareRound,FontSize=22,PrimaryColour=&H00FFFF,OutlineColour=&H00000000,BackColour=&H80000000,BorderStyle=1,Outline=4,Shadow=2,MarginV=30,Bold=1"
 
                 # FFmpeg 자막 필터
                 escaped_srt = srt_path.replace('\\', '\\\\').replace(':', '\\:')
@@ -22007,7 +22075,10 @@ def _automation_youtube_upload(video_path, title, description, visibility, chann
             token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
             client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
             client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
-            scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
+            scopes=token_data.get('scopes', [
+                'https://www.googleapis.com/auth/youtube.upload',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+            ])
         )
 
         # 토큰 갱신
