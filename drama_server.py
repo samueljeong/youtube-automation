@@ -12987,7 +12987,7 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
     try:
         # 언어별 폰트 설정 (큰 자막 - 50대+ 시청자 가독성)
         if lang == 'ko':
-            font_name = "NanumGothic"
+            font_name = "NanumSquareRound"  # 나눔스퀘어 라운드 (둥근 고딕)
             font_size = 48  # 24 → 48 (2배 크기)
             max_chars_per_line = 20  # 한국어: 한 줄 최대 20자
         elif lang == 'ja':
@@ -12995,7 +12995,7 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             font_size = 40  # 일본어는 글자가 복잡해서 조금 작게
             max_chars_per_line = 18  # 일본어: 한 줄 최대 18자
         else:
-            font_name = "NanumGothic"
+            font_name = "NanumSquareRound"  # 나눔스퀘어 라운드
             font_size = 44  # 22 → 44 (2배 크기)
             max_chars_per_line = 25  # 영어: 한 줄 최대 25자
 
