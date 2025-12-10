@@ -1202,13 +1202,21 @@
       html += '<td>' + this.formatNumber(item.subscriberCount) + '</td>';
       html += '<td>' + this.formatNumber(item.viewCount) + '</td>';
 
+      // 100배 떡상 배지 (신의 간택)
+      var viral100xBadge = '';
+      if (item.performanceValue >= 100) {
+        viral100xBadge = '<span class="viral-100x-badge">' + Math.floor(item.performanceValue) + '배 떡상</span>';
+      } else if (item.performanceValue >= 50) {
+        viral100xBadge = '<span class="viral-100x-badge" style="background:linear-gradient(135deg,#ed8936,#dd6b20);animation:none">' + Math.floor(item.performanceValue) + '배</span>';
+      }
+
       // 급상승 점수 또는 기존 기여도 표시
       if (item.risingScore !== undefined) {
         html += '<td>' + risingBadge + '<br><small>' + (item.risingScore || 0) + '점</small></td>';
-        html += '<td><small>' + this.formatNumber(item.viewsPerHour || 0) + '/h</small><br><small>' + this.formatNumber(item.viewsPerDay || 0) + '/d</small></td>';
+        html += '<td>' + viral100xBadge + '<br><small>' + this.formatNumber(item.viewsPerHour || 0) + '/h</small><br><small>' + this.formatNumber(item.viewsPerDay || 0) + '/d</small></td>';
       } else {
         html += '<td><div class="gauge"><div class="gauge-fill ' + contribColor + '" style="width:' + contribPercent + '%"></div></div><div class="gauge-value">' + contribPercent.toFixed(0) + '%</div></td>';
-        html += '<td>' + item.performanceValue.toFixed(2) + 'x</td>';
+        html += '<td>' + viral100xBadge + (viral100xBadge ? '<br>' : '') + '<span>' + item.performanceValue.toFixed(2) + 'x</span></td>';
       }
 
       html += '<td><span class="cii-badge ' + ciiClass + '">' + item.cii + '</span></td>';
@@ -1219,6 +1227,7 @@
       html += '<td>' + this.formatNumber(item.videoCount || 0) + '</td>';
       html += '<td style="cursor:pointer;color:#3182ce" onclick="TubeLens.showDescription(\'' + item.videoId + '\')">보기</td>';
       html += '<td class="action-buttons" style="white-space:nowrap;">';
+      html += '<button class="btn-ai-plan" onclick="TubeLens.generateAIPlan(\'' + item.videoId + '\')" title="AI 기획 생성">🎯 AI기획</button>';
       html += '<button class="btn-action bookmark" onclick="TubeLens.addBookmark(\'' + item.videoId + '\')" title="북마크">⭐</button>';
       html += '<button class="btn-action" onclick="TubeLens.analyzeVideoScore(\'' + item.videoId + '\')" title="종합 분석 (SEO+바이럴)" style="background:#667eea;color:#fff;font-size:0.75rem;">📊</button>';
       html += '<button class="btn-action ab" onclick="TubeLens.suggestTitles(\'' + item.videoId + '\')" title="제목 A/B 제안">AB</button>';
@@ -2978,6 +2987,256 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    },
+
+    // ===== AI 기획 생성 =====
+    currentAIPlanVideo: null,
+    currentAIPlanPrompt: '',
+
+    generateAIPlan: function(videoId) {
+      var self = this;
+      var video = this.currentResults.find(function(v) { return v.videoId === videoId; });
+
+      if (!video) {
+        alert('영상 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      this.currentAIPlanVideo = video;
+      this.updateStatus('AI 기획 생성 중...');
+
+      // 모달 표시 (로딩 상태)
+      var modalTitle = document.getElementById('analysis-modal-title');
+      var modalContent = document.getElementById('analysis-modal-content');
+
+      modalTitle.textContent = '🎯 AI 콘텐츠 기획';
+
+      // 로딩 UI
+      var loadingHtml = '<div class="ai-plan-content">';
+      loadingHtml += '<div class="ai-plan-video-info">';
+      loadingHtml += '<img src="' + (video.thumbnail || '') + '" alt="">';
+      loadingHtml += '<div class="ai-plan-video-stats">';
+      loadingHtml += '<h4>' + this.escapeHtml(video.title) + '</h4>';
+      loadingHtml += '<p>채널: ' + this.escapeHtml(video.channelTitle) + '</p>';
+      loadingHtml += '<p>조회수: ' + this.formatNumber(video.viewCount) + ' · 구독자: ' + this.formatNumber(video.subscriberCount) + '</p>';
+      loadingHtml += '<p><strong style="color:#ff0000">성과도: ' + (video.performanceValue || 0).toFixed(2) + '배</strong></p>';
+      loadingHtml += '</div></div>';
+      loadingHtml += '<div style="text-align:center;padding:40px">';
+      loadingHtml += '<div class="loading-spinner"></div>';
+      loadingHtml += '<p>AI가 떡상 영상의 DNA를 분석 중...</p>';
+      loadingHtml += '</div></div>';
+
+      modalContent.innerHTML = loadingHtml;
+      document.getElementById('analysis-modal').classList.add('show');
+
+      // API 호출
+      fetch('/api/tubelens/generate-ai-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: video.videoId,
+          title: video.title,
+          description: video.description,
+          channelTitle: video.channelTitle,
+          viewCount: video.viewCount,
+          subscriberCount: video.subscriberCount,
+          likeCount: video.likeCount,
+          commentCount: video.commentCount,
+          performanceValue: video.performanceValue,
+          duration: video.duration,
+          publishedAt: video.publishedAt
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.currentAIPlanPrompt = data.data.prompt;
+          self.displayAIPlanResult(video, data.data);
+          self.updateStatus('AI 기획 생성 완료');
+        } else {
+          throw new Error(data.message || 'AI 기획 생성 실패');
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] AI Plan error:', error);
+        // 에러 시 기본 템플릿 제공
+        self.displayAIPlanFallback(video);
+        self.updateStatus('AI 기획 생성 실패 - 기본 템플릿 제공');
+      });
+    },
+
+    displayAIPlanResult: function(video, planData) {
+      var modalContent = document.getElementById('analysis-modal-content');
+
+      var html = '<div class="ai-plan-content">';
+
+      // 영상 정보
+      html += '<div class="ai-plan-video-info">';
+      html += '<img src="' + (video.thumbnail || '') + '" alt="">';
+      html += '<div class="ai-plan-video-stats">';
+      html += '<h4>' + this.escapeHtml(video.title) + '</h4>';
+      html += '<p>채널: ' + this.escapeHtml(video.channelTitle) + '</p>';
+      html += '<p>조회수: ' + this.formatNumber(video.viewCount) + ' · 구독자: ' + this.formatNumber(video.subscriberCount) + '</p>';
+      html += '<p><strong style="color:#ff0000">🔥 성과도: ' + (video.performanceValue || 0).toFixed(2) + '배</strong></p>';
+      html += '</div></div>';
+
+      // 성공 요인 분석
+      if (planData.successFactors) {
+        html += '<div class="ai-plan-section">';
+        html += '<h4>📊 이 영상이 터진 이유</h4>';
+        html += '<ul>';
+        planData.successFactors.forEach(function(factor) {
+          html += '<li>' + factor + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 추천 제목
+      if (planData.suggestedTitles) {
+        html += '<div class="ai-plan-section">';
+        html += '<h4>🏷️ 비슷한 스타일 제목 제안</h4>';
+        html += '<ul>';
+        planData.suggestedTitles.forEach(function(title) {
+          html += '<li>' + title + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 썸네일 제안
+      if (planData.thumbnailIdeas) {
+        html += '<div class="ai-plan-section">';
+        html += '<h4>🖼️ 썸네일 문구 제안</h4>';
+        html += '<ul>';
+        planData.thumbnailIdeas.forEach(function(idea) {
+          html += '<li>' + idea + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 초반 30초 후킹
+      if (planData.hookScript) {
+        html += '<div class="ai-plan-section">';
+        html += '<h4>🎬 초반 30초 후킹 스크립트</h4>';
+        html += '<p style="background:#fff;padding:12px;border-radius:8px;white-space:pre-wrap;">' + planData.hookScript + '</p>';
+        html += '</div>';
+      }
+
+      // 콘텐츠 기획 아이디어
+      if (planData.contentIdeas) {
+        html += '<div class="ai-plan-section">';
+        html += '<h4>💡 관련 콘텐츠 아이디어</h4>';
+        html += '<ul>';
+        planData.contentIdeas.forEach(function(idea) {
+          html += '<li>' + idea + '</li>';
+        });
+        html += '</ul></div>';
+      }
+
+      // 복사 버튼
+      html += '<button class="copy-prompt-btn" onclick="TubeLens.copyAIPlanPrompt()">';
+      html += '<span>📋</span> Gemini에 붙여넣기용 프롬프트 복사';
+      html += '</button>';
+
+      html += '</div>';
+
+      modalContent.innerHTML = html;
+    },
+
+    displayAIPlanFallback: function(video) {
+      var self = this;
+      var modalContent = document.getElementById('analysis-modal-content');
+
+      // 기본 분석 생성
+      var performanceText = '';
+      if (video.performanceValue >= 100) {
+        performanceText = '🔥 신의 간택! 구독자 대비 조회수가 무려 ' + Math.floor(video.performanceValue) + '배입니다!';
+      } else if (video.performanceValue >= 50) {
+        performanceText = '🚀 고성과 영상! 구독자 대비 조회수가 ' + Math.floor(video.performanceValue) + '배입니다.';
+      } else if (video.performanceValue >= 10) {
+        performanceText = '👍 평균 이상의 성과! 구독자 대비 조회수가 ' + Math.floor(video.performanceValue) + '배입니다.';
+      } else {
+        performanceText = '📊 구독자 대비 조회수가 ' + video.performanceValue.toFixed(2) + '배입니다.';
+      }
+
+      var prompt = this.generateAIPlanPrompt(video);
+      this.currentAIPlanPrompt = prompt;
+
+      var html = '<div class="ai-plan-content">';
+
+      // 영상 정보
+      html += '<div class="ai-plan-video-info">';
+      html += '<img src="' + (video.thumbnail || '') + '" alt="">';
+      html += '<div class="ai-plan-video-stats">';
+      html += '<h4>' + this.escapeHtml(video.title) + '</h4>';
+      html += '<p>채널: ' + this.escapeHtml(video.channelTitle) + '</p>';
+      html += '<p>조회수: ' + this.formatNumber(video.viewCount) + ' · 구독자: ' + this.formatNumber(video.subscriberCount) + '</p>';
+      html += '<p><strong style="color:#ff0000">' + performanceText + '</strong></p>';
+      html += '</div></div>';
+
+      html += '<div class="ai-plan-section">';
+      html += '<h4>🎯 AI 분석 프롬프트</h4>';
+      html += '<p>아래 버튼을 클릭하여 프롬프트를 복사한 후 Gemini 또는 ChatGPT에 붙여넣으세요.</p>';
+      html += '<p style="background:#fff;padding:12px;border-radius:8px;font-size:0.85rem;max-height:200px;overflow-y:auto;white-space:pre-wrap;">' + this.escapeHtml(prompt.substring(0, 500)) + '...</p>';
+      html += '</div>';
+
+      // 복사 버튼
+      html += '<button class="copy-prompt-btn" onclick="TubeLens.copyAIPlanPrompt()">';
+      html += '<span>📋</span> Gemini에 붙여넣기용 프롬프트 복사';
+      html += '</button>';
+
+      html += '</div>';
+
+      modalContent.innerHTML = html;
+    },
+
+    generateAIPlanPrompt: function(video) {
+      var prompt = '다음은 YouTube에서 구독자 대비 ' + (video.performanceValue || 0).toFixed(0) + '배의 조회수를 기록한 떡상 영상입니다.\n\n';
+      prompt += '=== 영상 정보 ===\n';
+      prompt += '제목: ' + video.title + '\n';
+      prompt += '채널: ' + video.channelTitle + '\n';
+      prompt += '조회수: ' + this.formatNumber(video.viewCount) + '\n';
+      prompt += '구독자 수: ' + this.formatNumber(video.subscriberCount) + '\n';
+      prompt += '성과도 배율: ' + (video.performanceValue || 0).toFixed(2) + '배\n';
+      prompt += '좋아요: ' + this.formatNumber(video.likeCount) + '\n';
+      prompt += '댓글 수: ' + this.formatNumber(video.commentCount) + '\n';
+      prompt += '영상 길이: ' + video.duration + '\n';
+      prompt += 'URL: https://www.youtube.com/watch?v=' + video.videoId + '\n\n';
+
+      if (video.description) {
+        prompt += '=== 영상 설명 ===\n';
+        prompt += video.description.substring(0, 500) + '\n\n';
+      }
+
+      prompt += '=== 분석 요청 ===\n';
+      prompt += '이 영상이 터진 이유를 분석하고, 다음을 제공해주세요:\n\n';
+      prompt += '1. 이 영상이 터진 3가지 핵심 요인\n';
+      prompt += '2. 비슷한 스타일의 제목 3개 제안\n';
+      prompt += '3. 클릭을 유도하는 썸네일 문구 2개\n';
+      prompt += '4. 초반 30초 후킹을 위한 멘트 예시\n';
+      prompt += '5. 이 영상을 참고한 관련 콘텐츠 아이디어 3개\n';
+
+      return prompt;
+    },
+
+    copyAIPlanPrompt: function() {
+      if (!this.currentAIPlanPrompt) {
+        alert('복사할 프롬프트가 없습니다.');
+        return;
+      }
+
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(this.currentAIPlanPrompt).then(function() {
+          alert('✅ 프롬프트가 클립보드에 복사되었습니다!\n\nGemini 또는 ChatGPT에 붙여넣어 분석을 받아보세요.');
+        });
+      } else {
+        var textarea = document.createElement('textarea');
+        textarea.value = this.currentAIPlanPrompt;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('✅ 프롬프트가 클립보드에 복사되었습니다!\n\nGemini 또는 ChatGPT에 붙여넣어 분석을 받아보세요.');
+      }
     }
   };
 
