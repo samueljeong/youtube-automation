@@ -20262,11 +20262,11 @@ def run_automation_pipeline(row_data, row_index):
                 upload_payload["tags"] = tags
                 print(f"[AUTOMATION] YouTube 태그 {len(tags)}개 추가")
 
-            # 첫 댓글 추가 (video_effects에서 가져오기)
-            first_comment = video_effects.get('first_comment', '')
-            if first_comment:
-                upload_payload["firstComment"] = first_comment
-                print(f"[AUTOMATION] 첫 댓글 설정: {first_comment[:50]}...")
+            # 고정 댓글 추가 (GPT-5.1 생성 pin_comment 사용)
+            # pin_comment는 youtube_meta에서 추출됨 (video_effects.first_comment 대신)
+            if pin_comment and pin_comment.strip():
+                upload_payload["firstComment"] = pin_comment
+                print(f"[AUTOMATION] 고정 댓글 전달: {pin_comment[:50]}...")
 
             # 예약시간(E열)이 있으면 ISO 8601 형식으로 변환하여 추가 (15분 후 공개보다 우선)
             if publish_time:
@@ -20490,6 +20490,15 @@ def run_automation_pipeline(row_data, row_index):
                     shorts_thread.start()
                     print(f"[AUTOMATION] 5. 쇼츠 생성 백그라운드 시작 (롱폼 먼저 반환)")
 
+                # 업로드 결과에서 댓글 작성 여부 확인
+                comment_posted = upload_data.get('commentPosted', False)
+                comment_id = upload_data.get('commentId', None)
+
+                if comment_posted:
+                    print(f"[AUTOMATION] ✅ 고정 댓글 자동 작성 완료 (YouTube Studio에서 고정 필요)")
+                elif pin_comment:
+                    print(f"[AUTOMATION] ⚠️ 고정 댓글 작성 실패 (댓글 비활성화 또는 권한 문제)")
+
                 # 롱폼 결과 즉시 반환 (쇼츠는 백그라운드에서 진행)
                 return {
                     "ok": True,
@@ -20506,7 +20515,9 @@ def run_automation_pipeline(row_data, row_index):
                     # 유튜브 메타데이터 추가
                     "hashtags": hashtags,
                     "tags": tags,
-                    "pin_comment": pin_comment  # YouTube Studio에서 수동으로 고정 필요
+                    "pin_comment": pin_comment,  # 생성된 댓글 내용
+                    "comment_posted": comment_posted,  # 댓글 자동 작성 여부
+                    "comment_id": comment_id  # 작성된 댓글 ID (YouTube Studio에서 고정 필요)
                 }
             else:
                 return {"ok": False, "error": f"YouTube 업로드 실패: {upload_data.get('error')}", "video_url": None, "shorts_url": None, "cost": total_cost}
