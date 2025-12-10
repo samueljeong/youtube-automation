@@ -12092,7 +12092,7 @@ def api_image_generate_assets_zip():
 
             return result
 
-        def split_by_meaning_fallback(text, max_chars=20):
+        def split_by_meaning_fallback(text, max_chars=20, lang='ko'):
             """GPT 실패 시 폴백: 의미 단위로 텍스트 분리"""
             # 분리 우선순위: 쉼표 > 조사+공백 > 접속부사 > 강제 분리
             chunks = []
@@ -12106,18 +12106,28 @@ def api_image_generate_assets_zip():
                 # 최대 길이 내에서 분리점 찾기
                 search_range = remaining[:max_chars + 5]  # 약간 여유
 
-                # 1. 쉼표에서 분리
-                comma_pos = search_range.rfind(',')
+                # 1. 쉼표에서 분리 (한국어: , / 일본어: 、)
+                if lang == 'ja':
+                    comma_pos = max(search_range.rfind(','), search_range.rfind('、'))
+                else:
+                    comma_pos = search_range.rfind(',')
                 if comma_pos > 5:
                     chunks.append(remaining[:comma_pos + 1].strip())
                     remaining = remaining[comma_pos + 1:].strip()
                     continue
 
-                # 2. 조사 + 공백에서 분리 (은/는/이/가/을/를/에/의/와/과/로/으로 등)
-                patterns = [
-                    r'(.{5,}?(?:은|는|이|가|을|를|에서|에게|으로|로|와|과|의|도|만|까지|부터|처럼|보다))\s',
-                    r'(.{5,}?(?:하고|하면|하지만|그리고|그래서|하여|해서|했고|했지만))\s',
-                ]
+                # 2. 조사/접속사에서 분리 (언어별)
+                if lang == 'ja':
+                    # 일본어: 조사(は/が/を/に/で/と/の/へ/より/から/まで) 뒤에서 분리
+                    patterns = [
+                        r'(.{5,}?(?:は|が|を|に|で|と|の|へ|より|から|まで|けど|ので|のに|ても|たら|なら))',
+                    ]
+                else:
+                    # 한국어: 조사 + 공백에서 분리
+                    patterns = [
+                        r'(.{5,}?(?:은|는|이|가|을|를|에서|에게|으로|로|와|과|의|도|만|까지|부터|처럼|보다))\s',
+                        r'(.{5,}?(?:하고|하면|하지만|그리고|그래서|하여|해서|했고|했지만))\s',
+                    ]
                 found = False
                 for pattern in patterns:
                     match = re.search(pattern, search_range)
@@ -12131,12 +12141,13 @@ def api_image_generate_assets_zip():
                 if found:
                     continue
 
-                # 3. 공백에서 분리 (최대한 max_chars에 가깝게)
-                space_pos = search_range[:max_chars].rfind(' ')
-                if space_pos > 5:
-                    chunks.append(remaining[:space_pos].strip())
-                    remaining = remaining[space_pos:].strip()
-                    continue
+                # 3. 공백에서 분리 (일본어는 스킵)
+                if lang != 'ja':
+                    space_pos = search_range[:max_chars].rfind(' ')
+                    if space_pos > 5:
+                        chunks.append(remaining[:space_pos].strip())
+                        remaining = remaining[space_pos:].strip()
+                        continue
 
                 # 4. 강제 분리 (max_chars에서 자르기)
                 chunks.append(remaining[:max_chars].strip())
@@ -12471,12 +12482,12 @@ def api_image_generate_assets_zip():
                         char_ratio = len(sentence) / total_chars
                         sent_duration = total_duration * char_ratio
 
-                        # ★ 자막 분리: 긴 문장은 짧게 분리 (20자 제한)
-                        max_subtitle_chars = 20
+                        # ★ 자막 분리: 긴 문장은 짧게 분리 (20자 제한, 일본어는 18자)
+                        max_subtitle_chars = 18 if detected_lang == 'ja' else 20
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
-                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars)
+                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars, detected_lang)
 
                         # 분리된 자막에 비율로 타이밍 분배
                         part_total_chars = sum(len(p) for p in subtitle_parts)
@@ -12523,12 +12534,12 @@ def api_image_generate_assets_zip():
                         duration = get_mp3_duration(audio_bytes)
                         scene_audios.append(audio_bytes)
 
-                        # ★ 자막 분리: TTS는 긴 문장 유지, 자막만 짧게 분리 (20자 제한)
-                        max_subtitle_chars = 20
+                        # ★ 자막 분리: TTS는 긴 문장 유지, 자막만 짧게 분리 (20자 제한, 일본어는 18자)
+                        max_subtitle_chars = 18 if detected_lang == 'ja' else 20
                         if len(sentence) <= max_subtitle_chars:
                             subtitle_parts = [sentence]
                         else:
-                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars)
+                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars, detected_lang)
 
                         # 글자 수 비율로 타이밍 분배
                         total_chars = sum(len(p) for p in subtitle_parts)
