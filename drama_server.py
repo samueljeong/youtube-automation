@@ -5257,6 +5257,7 @@ FREESOUND_BGM_QUERIES = {
 }
 
 FREESOUND_SFX_QUERIES = {
+    # 기존 효과음
     "notification": ("notification alert ding", 0.5, 5),
     "heartbeat": ("heartbeat heart beat", 1, 10),
     "clock_tick": ("clock tick ticking", 1, 10),
@@ -5264,6 +5265,58 @@ FREESOUND_SFX_QUERIES = {
     "gasp": ("gasp surprise shock", 0.5, 5),
     "typing": ("typing keyboard", 1, 10),
     "door": ("door open close creak", 0.5, 5),
+
+    # 전환/움직임
+    "swoosh": ("swoosh whoosh swipe fast", 0.3, 3),
+    "transition": ("transition cinematic", 0.5, 5),
+    "slide": ("slide swoosh smooth", 0.3, 3),
+    "rewind": ("rewind tape reverse", 0.5, 5),
+
+    # 감정/반응
+    "laugh": ("laugh laughter funny", 1, 8),
+    "cry": ("cry crying sob", 1, 10),
+    "sigh": ("sigh relief exhale", 0.5, 5),
+    "scream": ("scream horror shock", 0.5, 5),
+
+    # 환경/자연
+    "rain": ("rain rainfall ambient", 3, 15),
+    "thunder": ("thunder storm rumble", 1, 10),
+    "wind": ("wind blowing ambient", 2, 15),
+
+    # 긴장/공포
+    "suspense": ("suspense tension horror", 2, 15),
+    "horror_sting": ("horror sting scare jump", 0.5, 5),
+    "dramatic_hit": ("dramatic hit impact orchestra", 0.5, 5),
+    "drone": ("drone dark ominous", 3, 15),
+
+    # UI/알림
+    "pop": ("pop bubble click", 0.2, 3),
+    "click": ("click button interface", 0.2, 2),
+    "beep": ("beep electronic alert", 0.3, 3),
+    "chime": ("chime bell notification", 0.5, 5),
+    "error": ("error wrong buzzer", 0.3, 3),
+
+    # 액션/충돌
+    "punch": ("punch hit fight", 0.3, 3),
+    "crash": ("crash breaking glass", 0.5, 5),
+    "explosion": ("explosion boom blast", 1, 8),
+    "slam": ("slam door bang", 0.3, 3),
+
+    # 성공/실패
+    "win": ("win victory success fanfare", 1, 8),
+    "fail": ("fail lose game over", 1, 5),
+    "reveal": ("reveal magic sparkle", 1, 8),
+    "countdown": ("countdown beep timer", 2, 10),
+
+    # 기타
+    "magic": ("magic spell sparkle fantasy", 1, 8),
+    "glitch": ("glitch digital distortion", 0.5, 5),
+    "camera": ("camera shutter photo", 0.3, 3),
+    "cash": ("cash register money coin", 0.5, 5),
+    "writing": ("writing pen pencil paper", 1, 8),
+    "footsteps": ("footsteps walking steps", 2, 10),
+    "car": ("car engine driving", 2, 10),
+    "phone": ("phone ring mobile", 1, 8),
 }
 
 
@@ -11558,31 +11611,88 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
   - 위기/갈등 고조 → tense/horror
   - 유머러스한 순간 → comedic/upbeat
 
-### SFX 효과음 종류 (13가지) - 적극 활용!
+### SFX 효과음 종류 (40가지 이상) - 적극 활용!
+
+**기본 효과음:**
 - **impact**: 충격음 (충격적인 사실, 반전, 강조)
 - **whoosh**: 휘익 소리 (씬 전환, 빠른 움직임)
 - **ding**: 딩동 알림음 (포인트 강조, 정답)
 - **tension**: 긴장감 효과음 (위기, 불안, 서스펜스)
 - **emotional**: 감성 효과음 (감동, 슬픔, 여운)
 - **success**: 성공 효과음 (달성, 해결, 좋은 결과)
-- **notification**: 알림음 (중요 정보, 팁, 강조)
+
+**알림/UI:**
+- **notification**: 알림음 (중요 정보, 팁)
+- **pop**: 팝 소리 (등장, 출현)
+- **click**: 클릭음 (선택, 버튼)
+- **beep**: 비프음 (전자음, 경고)
+- **chime**: 차임벨 (알림, 시작)
+- **error**: 에러음 (실패, 오류)
+
+**감정/반응:**
 - **heartbeat**: 심장박동 (긴장, 불안, 두려움)
-- **clock_tick**: 시계 소리 (시간 압박, 긴박감, 카운트다운)
-- **applause**: 박수 소리 (성공, 축하, 공감)
-- **gasp**: 놀람 소리 (충격, 반전, 서프라이즈)
-- **typing**: 타이핑 소리 (텍스트 표시, 메시지, 검색)
-- **door**: 문 소리 (등장, 퇴장, 전환점)
+- **gasp**: 놀람 소리 (충격, 반전)
+- **applause**: 박수 소리 (성공, 축하)
+- **laugh**: 웃음소리 (유머, 코믹)
+- **cry**: 울음소리 (슬픔, 감동)
+- **sigh**: 한숨 (안도, 실망)
+- **scream**: 비명 (공포, 놀람)
+
+**전환/움직임:**
+- **swoosh**: 휙 소리 (빠른 전환)
+- **transition**: 전환음 (씬 전환)
+- **slide**: 슬라이드 (부드러운 전환)
+- **rewind**: 되감기 (과거 회상)
+
+**환경/자연:**
+- **rain**: 비 소리 (감성, 우울)
+- **thunder**: 천둥 (충격, 긴장)
+- **wind**: 바람 (쓸쓸함, 변화)
+
+**긴장/공포:**
+- **suspense**: 서스펜스 (긴장 고조)
+- **horror_sting**: 공포 스팅 (점프 스케어)
+- **dramatic_hit**: 드라마틱 히트 (충격적 공개)
+- **drone**: 드론음 (불길함, 압박)
+- **clock_tick**: 시계 소리 (시간 압박, 긴박감)
+
+**액션/충돌:**
+- **punch**: 펀치 (타격, 충돌)
+- **crash**: 충돌/파괴 (사고, 파괴)
+- **explosion**: 폭발 (대형 사건)
+- **slam**: 쾅 소리 (문, 물체)
+
+**성공/실패:**
+- **win**: 승리 (성공, 달성)
+- **fail**: 실패 (좌절, 패배)
+- **reveal**: 공개 (반전, 드러남)
+- **countdown**: 카운트다운 (긴박, 마감)
+
+**일상/기타:**
+- **typing**: 타이핑 (텍스트, 검색)
+- **door**: 문 소리 (등장, 퇴장)
+- **magic**: 마법 (환상, 변신)
+- **glitch**: 글리치 (디지털, 오류)
+- **camera**: 카메라 (촬영, 사진)
+- **cash**: 돈 소리 (금전, 성공)
+- **writing**: 글쓰기 (메모, 기록)
+- **footsteps**: 발소리 (접근, 추적)
+- **car**: 자동차 (이동, 추격)
+- **phone**: 전화벨 (연락, 소식)
 
 ### SFX 사용 규칙 (적극적으로!)
-- **씬당 1~2개**의 효과음을 적극 배치하세요!
+- **씬당 2~3개**의 효과음을 적극 배치하세요!
 - 중요한 순간마다 효과음으로 강조 (시청자 집중도 향상)
 - 효과음 타이밍 예시:
-  - 영상 시작 → whoosh (주의 환기)
-  - 중요 정보 → notification/ding (강조)
-  - 충격적 사실 → impact/gasp (반응 유도)
-  - 긴장 장면 → tension/heartbeat (몰입)
-  - 해결/성공 → success/applause (카타르시스)
-  - 감동 장면 → emotional (여운)
+  - 영상 시작 → whoosh/transition (주의 환기)
+  - 중요 정보 → notification/ding/chime (강조)
+  - 충격적 사실 → impact/gasp/dramatic_hit (반응 유도)
+  - 긴장 장면 → tension/heartbeat/suspense/drone (몰입)
+  - 공포/스릴러 → horror_sting/scream/thunder (긴장감)
+  - 해결/성공 → success/applause/win/reveal (카타르시스)
+  - 감동 장면 → emotional/cry/sigh (여운)
+  - 유머 장면 → laugh/pop/fail (웃음 유도)
+  - 시간 압박 → clock_tick/countdown/beep (긴박감)
 
 {seo_prompt}
 
