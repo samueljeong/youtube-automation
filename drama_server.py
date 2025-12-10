@@ -5307,9 +5307,9 @@ def _freesound_download_preview(sound, output_path):
         return False
 
 
-@app.route('/api/freesound/download', methods=['POST'])
+@app.route('/api/freesound/download', methods=['GET', 'POST'])
 def api_freesound_download():
-    """Freesound에서 BGM/SFX 다운로드"""
+    """Freesound에서 BGM/SFX 다운로드 (GET으로도 호출 가능)"""
     import time
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
