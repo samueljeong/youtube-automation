@@ -15974,6 +15974,173 @@ def _get_ken_burns_filter(effect_type, duration, fps=24, output_size="1280x720")
     return vf_filter
 
 
+def _create_scene_clip_worker(task):
+    """
+    단일 씬의 클립을 생성하는 헬퍼 함수 (ThreadPoolExecutor용)
+    병렬 처리 시 각 워커에서 독립적으로 실행됨
+    """
+    import subprocess
+    import shutil
+    import urllib.request
+    import gc
+
+    idx, scene, work_dir, total_scenes = task
+
+    image_url = scene.get('image_url', '')
+    audio_url = scene.get('audio_url', '')
+    duration = scene.get('duration', 5.0)
+
+    print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1}/{total_scenes} 처리 시작...")
+
+    if not image_url:
+        print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 스킵 - 이미지 URL 없음")
+        return idx, None, duration
+
+    # 이미지 다운로드
+    img_path = os.path.join(work_dir, f"scene_{idx:03d}.jpg")
+    try:
+        if image_url.startswith('http'):
+            req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                with open(img_path, 'wb') as f:
+                    f.write(response.read())
+        elif image_url.startswith('/'):
+            local_path = image_url.lstrip('/')
+            if os.path.exists(local_path):
+                shutil.copy(local_path, img_path)
+            else:
+                print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 로컬 이미지 없음: {local_path}")
+                return idx, None, duration
+    except Exception as e:
+        print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 이미지 다운로드 실패: {e}")
+        return idx, None, duration
+
+    if not os.path.exists(img_path):
+        return idx, None, duration
+
+    # 오디오 다운로드
+    audio_path = None
+    if audio_url:
+        audio_path = os.path.join(work_dir, f"audio_{idx:03d}.mp3")
+        try:
+            if audio_url.startswith('http'):
+                req = urllib.request.Request(audio_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    with open(audio_path, 'wb') as f:
+                        f.write(response.read())
+            elif audio_url.startswith('/'):
+                local_path = audio_url.lstrip('/')
+                if os.path.exists(local_path):
+                    shutil.copy(local_path, audio_path)
+        except Exception as e:
+            print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 오디오 다운로드 실패: {e}")
+            audio_path = None
+
+    # Ken Burns 효과 (씬별로 다양한 효과 자동 배정)
+    ken_burns_effect = scene.get('ken_burns', None)
+    if not ken_burns_effect:
+        effects_cycle = ['zoom_in', 'pan_right', 'zoom_out', 'pan_left', 'zoom_in', 'pan_up']
+        ken_burns_effect = effects_cycle[idx % len(effects_cycle)]
+
+    ken_burns_filter = _get_ken_burns_filter(ken_burns_effect, duration)
+
+    # 씬 클립 생성
+    clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
+    if audio_path and os.path.exists(audio_path):
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-framerate", "24",
+            "-i", img_path,
+            "-i", audio_path,
+            "-vf", ken_burns_filter,
+            "-c:v", "libx264", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-pix_fmt", "yuv420p",
+            "-shortest", "-t", str(duration),
+            clip_path
+        ]
+    else:
+        cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-framerate", "24",
+            "-i", img_path,
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-vf", ken_burns_filter,
+            "-c:v", "libx264", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-pix_fmt", "yuv420p",
+            "-t", str(duration), "-shortest",
+            clip_path
+        ]
+
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=600
+    )
+
+    if result.returncode == 0 and os.path.exists(clip_path):
+        print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 완료: {duration:.1f}초")
+        del result
+        gc.collect()
+        return idx, clip_path, duration
+
+    # Ken Burns 실패 시 단순 방식으로 재시도
+    stderr_msg = result.stderr.decode('utf-8', errors='ignore')[:300] if result.stderr else ''
+    print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} Ken Burns 실패, 단순 방식 재시도: {stderr_msg}")
+    del result
+    gc.collect()
+
+    simple_filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2"
+    if audio_path and os.path.exists(audio_path):
+        fallback_cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-i", img_path,
+            "-i", audio_path,
+            "-vf", simple_filter,
+            "-c:v", "libx264", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-pix_fmt", "yuv420p",
+            "-shortest", "-t", str(duration),
+            clip_path
+        ]
+    else:
+        fallback_cmd = [
+            "ffmpeg", "-y",
+            "-loop", "1",
+            "-i", img_path,
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-vf", simple_filter,
+            "-c:v", "libx264", "-preset", "fast",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-pix_fmt", "yuv420p",
+            "-t", str(duration), "-shortest",
+            clip_path
+        ]
+
+    fallback_result = subprocess.run(
+        fallback_cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        timeout=600
+    )
+
+    if fallback_result.returncode == 0 and os.path.exists(clip_path):
+        print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 단순 방식 성공: {duration:.1f}초")
+        del fallback_result
+        gc.collect()
+        return idx, clip_path, duration
+
+    print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 최종 실패")
+    del fallback_result
+    gc.collect()
+    return idx, None, duration
+
+
 def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effects=None):
     """백그라운드 영상 생성 워커
 
@@ -16027,149 +16194,152 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             all_subtitles = []
             current_time = 0.0
 
+            # 환경변수로 병렬 처리 워커 수 설정 (기본값: 1 = 순차 처리)
+            # Render Pro (4GB) 환경에서는 2로 설정 권장
+            parallel_workers = int(os.environ.get('VIDEO_PARALLEL_WORKERS', 1))
+
             # 1. 각 씬별 영상 클립 생성
-            for idx, scene in enumerate(scenes):
-                progress = int((idx / total_scenes) * 70)
-                _update_job_status(job_id, progress=progress, message=f'씬 {idx + 1}/{total_scenes} 처리 중...')
+            if parallel_workers > 1:
+                # ========== 병렬 처리 모드 ==========
+                from concurrent.futures import ThreadPoolExecutor, as_completed
 
-                image_url = scene.get('image_url', '')
-                audio_url = scene.get('audio_url', '')
-                duration = scene.get('duration', 5.0)
-                subtitles = scene.get('subtitles', [])
+                print(f"[VIDEO-WORKER-PARALLEL] 병렬 처리 시작 - {total_scenes}개 씬, {parallel_workers}개 워커")
+                _update_job_status(job_id, progress=5, message=f'병렬 처리 시작 ({parallel_workers}개 워커)...')
 
-                print(f"[VIDEO-WORKER] Scene {idx + 1}: duration={duration:.2f}s")
+                tasks = [(idx, scene, work_dir, total_scenes) for idx, scene in enumerate(scenes)]
+                results = [None] * total_scenes  # 순서 유지를 위한 리스트
 
-                if not image_url:
-                    continue
+                with ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+                    future_to_idx = {executor.submit(_create_scene_clip_worker, task): task[0] for task in tasks}
+                    completed = 0
 
-                # 이미지 다운로드
-                img_path = os.path.join(work_dir, f"scene_{idx:03d}.jpg")
-                print(f"[VIDEO-WORKER] Scene {idx + 1} image_url: {image_url[:100]}...")
-                try:
-                    if image_url.startswith('http'):
-                        req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
-                        with urllib.request.urlopen(req, timeout=30) as response:
-                            with open(img_path, 'wb') as f:
-                                f.write(response.read())
-                    elif image_url.startswith('/'):
-                        local_path = image_url.lstrip('/')
-                        if os.path.exists(local_path):
-                            shutil.copy(local_path, img_path)
-                        else:
-                            print(f"[VIDEO-WORKER] Local image not found: {local_path}")
-                            continue
-                except Exception as e:
-                    print(f"[VIDEO-WORKER] Image download failed: {e}")
-                    continue
+                    for future in as_completed(future_to_idx):
+                        idx = future_to_idx[future]
+                        completed += 1
+                        progress = int((completed / total_scenes) * 70)
+                        _update_job_status(job_id, progress=progress, message=f'씬 {completed}/{total_scenes} 클립 생성 중...')
 
-                # 이미지 파일 검증
-                if not os.path.exists(img_path):
-                    print(f"[VIDEO-WORKER] Image file not created: {img_path}")
-                    continue
-                img_size = os.path.getsize(img_path)
-                print(f"[VIDEO-WORKER] Scene {idx + 1} image saved: {img_size} bytes")
+                        try:
+                            result_idx, clip_path, duration = future.result()
+                            results[idx] = (clip_path, duration)
+                        except Exception as e:
+                            print(f"[VIDEO-WORKER-PARALLEL] 씬 {idx+1} 오류: {e}")
+                            results[idx] = (None, scenes[idx].get('duration', 5.0))
 
-                # 오디오 다운로드
-                audio_path = None
-                if audio_url:
-                    audio_path = os.path.join(work_dir, f"audio_{idx:03d}.mp3")
+                # 결과 정리 (순서대로) + 자막 시간 계산
+                for idx, (clip_path, duration) in enumerate(results):
+                    if clip_path and os.path.exists(clip_path):
+                        scene_videos.append(clip_path)
+
+                    # 자막 시간 조정 (순차적으로)
+                    subtitles = scenes[idx].get('subtitles', [])
+                    for sub in subtitles:
+                        all_subtitles.append({
+                            'start': current_time + sub.get('start', 0),
+                            'end': current_time + sub.get('end', duration),
+                            'text': sub.get('text', '')
+                        })
+                    current_time += duration
+
+                gc.collect()
+                print(f"[VIDEO-WORKER-PARALLEL] 병렬 처리 완료 - 성공: {len(scene_videos)}/{total_scenes}")
+
+            else:
+                # ========== 순차 처리 모드 (기본값 - 메모리 절약) ==========
+                print(f"[VIDEO-WORKER-SEQUENTIAL] 순차 처리 시작 - {total_scenes}개 씬 (메모리 절약 모드)")
+
+                for idx, scene in enumerate(scenes):
+                    progress = int((idx / total_scenes) * 70)
+                    _update_job_status(job_id, progress=progress, message=f'씬 {idx + 1}/{total_scenes} 처리 중...')
+
+                    image_url = scene.get('image_url', '')
+                    audio_url = scene.get('audio_url', '')
+                    duration = scene.get('duration', 5.0)
+                    subtitles = scene.get('subtitles', [])
+
+                    print(f"[VIDEO-WORKER-SEQUENTIAL] Scene {idx + 1}: duration={duration:.2f}s")
+
+                    if not image_url:
+                        current_time += duration
+                        continue
+
+                    # 이미지 다운로드
+                    img_path = os.path.join(work_dir, f"scene_{idx:03d}.jpg")
+                    print(f"[VIDEO-WORKER-SEQUENTIAL] Scene {idx + 1} image_url: {image_url[:100]}...")
                     try:
-                        if audio_url.startswith('http'):
-                            req = urllib.request.Request(audio_url, headers={'User-Agent': 'Mozilla/5.0'})
+                        if image_url.startswith('http'):
+                            req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
                             with urllib.request.urlopen(req, timeout=30) as response:
-                                with open(audio_path, 'wb') as f:
+                                with open(img_path, 'wb') as f:
                                     f.write(response.read())
-                        elif audio_url.startswith('/'):
-                            local_path = audio_url.lstrip('/')
+                        elif image_url.startswith('/'):
+                            local_path = image_url.lstrip('/')
                             if os.path.exists(local_path):
-                                shutil.copy(local_path, audio_path)
+                                shutil.copy(local_path, img_path)
+                            else:
+                                print(f"[VIDEO-WORKER-SEQUENTIAL] Local image not found: {local_path}")
+                                current_time += duration
+                                continue
                     except Exception as e:
-                        print(f"[VIDEO-WORKER] Audio download failed: {e}")
-                        audio_path = None
+                        print(f"[VIDEO-WORKER-SEQUENTIAL] Image download failed: {e}")
+                        current_time += duration
+                        continue
 
-                # 자막 시간 조정
-                for sub in subtitles:
-                    all_subtitles.append({
-                        'start': current_time + sub.get('start', 0),
-                        'end': current_time + sub.get('end', duration),
-                        'text': sub.get('text', '')
-                    })
-                current_time += duration
+                    # 이미지 파일 검증
+                    if not os.path.exists(img_path):
+                        print(f"[VIDEO-WORKER-SEQUENTIAL] Image file not created: {img_path}")
+                        current_time += duration
+                        continue
+                    img_size = os.path.getsize(img_path)
+                    print(f"[VIDEO-WORKER-SEQUENTIAL] Scene {idx + 1} image saved: {img_size} bytes")
 
-                # Ken Burns 효과 가져오기 (씬별로 다른 효과 적용)
-                ken_burns_effect = scene.get('ken_burns', None)
-                if not ken_burns_effect:
-                    # 씬별로 다양한 효과 자동 배정 (다이나믹한 영상을 위해)
-                    effects_cycle = ['zoom_in', 'pan_right', 'zoom_out', 'pan_left', 'zoom_in', 'pan_up']
-                    ken_burns_effect = effects_cycle[idx % len(effects_cycle)]
+                    # 오디오 다운로드
+                    audio_path = None
+                    if audio_url:
+                        audio_path = os.path.join(work_dir, f"audio_{idx:03d}.mp3")
+                        try:
+                            if audio_url.startswith('http'):
+                                req = urllib.request.Request(audio_url, headers={'User-Agent': 'Mozilla/5.0'})
+                                with urllib.request.urlopen(req, timeout=30) as response:
+                                    with open(audio_path, 'wb') as f:
+                                        f.write(response.read())
+                            elif audio_url.startswith('/'):
+                                local_path = audio_url.lstrip('/')
+                                if os.path.exists(local_path):
+                                    shutil.copy(local_path, audio_path)
+                        except Exception as e:
+                            print(f"[VIDEO-WORKER-SEQUENTIAL] Audio download failed: {e}")
+                            audio_path = None
 
-                ken_burns_filter = _get_ken_burns_filter(ken_burns_effect, duration)
-                print(f"[VIDEO-WORKER] Scene {idx + 1} Ken Burns: {ken_burns_effect}")
-                print(f"[VIDEO-WORKER] Scene {idx + 1} VF filter: {ken_burns_filter[:200]}...")
+                    # 자막 시간 조정
+                    for sub in subtitles:
+                        all_subtitles.append({
+                            'start': current_time + sub.get('start', 0),
+                            'end': current_time + sub.get('end', duration),
+                            'text': sub.get('text', '')
+                        })
+                    current_time += duration
 
-                # 씬 클립 생성 (Ken Burns 효과 포함)
-                clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
-                if audio_path and os.path.exists(audio_path):
-                    cmd = [
-                        "ffmpeg", "-y",
-                        "-loop", "1",  # 이미지 루프
-                        "-framerate", "24",  # 입력 프레임레이트 지정
-                        "-i", img_path,
-                        "-i", audio_path,
-                        "-vf", ken_burns_filter,
-                        "-c:v", "libx264", "-preset", "fast",
-                        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-                        "-pix_fmt", "yuv420p",
-                        "-shortest", "-t", str(duration),
-                        clip_path
-                    ]
-                else:
-                    cmd = [
-                        "ffmpeg", "-y",
-                        "-loop", "1",  # 이미지 루프
-                        "-framerate", "24",  # 입력 프레임레이트 지정
-                        "-i", img_path,
-                        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                        "-vf", ken_burns_filter,
-                        "-c:v", "libx264", "-preset", "fast",
-                        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-                        "-pix_fmt", "yuv420p",
-                        "-t", str(duration), "-shortest",
-                        clip_path
-                    ]
+                    # Ken Burns 효과 가져오기 (씬별로 다른 효과 적용)
+                    ken_burns_effect = scene.get('ken_burns', None)
+                    if not ken_burns_effect:
+                        # 씬별로 다양한 효과 자동 배정 (다이나믹한 영상을 위해)
+                        effects_cycle = ['zoom_in', 'pan_right', 'zoom_out', 'pan_left', 'zoom_in', 'pan_up']
+                        ken_burns_effect = effects_cycle[idx % len(effects_cycle)]
 
-                # 디버깅: 실제 실행 명령어 출력
-                print(f"[VIDEO-WORKER] FFmpeg cmd: {' '.join(cmd[:15])}...")
+                    ken_burns_filter = _get_ken_burns_filter(ken_burns_effect, duration)
+                    print(f"[VIDEO-WORKER-SEQUENTIAL] Scene {idx + 1} Ken Burns: {ken_burns_effect}")
 
-                # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
-                result = subprocess.run(
-                    cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.PIPE,
-                    timeout=600
-                )
-                if result.returncode == 0 and os.path.exists(clip_path):
-                    scene_videos.append(clip_path)
-                    print(f"[VIDEO-WORKER] Clip {idx+1} created successfully")
-                    del result
-                    gc.collect()
-                else:
-                    stderr = result.stderr.decode('utf-8', errors='ignore')[:1500] if result.stderr else 'no stderr'
-                    print(f"[VIDEO-WORKER] Clip {idx+1} FAILED (code {result.returncode})")
-                    print(f"[VIDEO-WORKER] FFmpeg stderr: {stderr}")
-                    del result
-                    gc.collect()
-
-                    # Ken Burns 실패 시 단순 방식으로 재시도 (이미지 + 오디오만)
-                    print(f"[VIDEO-WORKER] Clip {idx+1} 단순 방식으로 재시도...")
-                    simple_filter = f"scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2"
+                    # 씬 클립 생성 (Ken Burns 효과 포함)
+                    clip_path = os.path.join(work_dir, f"clip_{idx:03d}.mp4")
                     if audio_path and os.path.exists(audio_path):
-                        fallback_cmd = [
+                        cmd = [
                             "ffmpeg", "-y",
                             "-loop", "1",
+                            "-framerate", "24",
                             "-i", img_path,
                             "-i", audio_path,
-                            "-vf", simple_filter,
+                            "-vf", ken_burns_filter,
                             "-c:v", "libx264", "-preset", "fast",
                             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                             "-pix_fmt", "yuv420p",
@@ -16177,12 +16347,13 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                             clip_path
                         ]
                     else:
-                        fallback_cmd = [
+                        cmd = [
                             "ffmpeg", "-y",
                             "-loop", "1",
+                            "-framerate", "24",
                             "-i", img_path,
                             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                            "-vf", simple_filter,
+                            "-vf", ken_burns_filter,
                             "-c:v", "libx264", "-preset", "fast",
                             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                             "-pix_fmt", "yuv420p",
@@ -16190,20 +16361,70 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                             clip_path
                         ]
 
-                    fallback_result = subprocess.run(
-                        fallback_cmd,
+                    # 메모리 최적화: stdout DEVNULL, stderr만 PIPE (OOM 방지)
+                    result = subprocess.run(
+                        cmd,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.PIPE,
                         timeout=600
                     )
-                    if fallback_result.returncode == 0 and os.path.exists(clip_path):
+                    if result.returncode == 0 and os.path.exists(clip_path):
                         scene_videos.append(clip_path)
-                        print(f"[VIDEO-WORKER] Clip {idx+1} 단순 방식 성공")
+                        print(f"[VIDEO-WORKER-SEQUENTIAL] Clip {idx+1} created successfully")
+                        del result
+                        gc.collect()
                     else:
-                        fallback_stderr = fallback_result.stderr.decode('utf-8', errors='ignore')[:500] if fallback_result.stderr else ''
-                        print(f"[VIDEO-WORKER] Clip {idx+1} 단순 방식도 실패: {fallback_stderr}")
-                    del fallback_result
-                    gc.collect()
+                        stderr = result.stderr.decode('utf-8', errors='ignore')[:500] if result.stderr else 'no stderr'
+                        print(f"[VIDEO-WORKER-SEQUENTIAL] Clip {idx+1} FAILED: {stderr[:200]}")
+                        del result
+                        gc.collect()
+
+                        # Ken Burns 실패 시 단순 방식으로 재시도
+                        print(f"[VIDEO-WORKER-SEQUENTIAL] Clip {idx+1} 단순 방식으로 재시도...")
+                        simple_filter = "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2"
+                        if audio_path and os.path.exists(audio_path):
+                            fallback_cmd = [
+                                "ffmpeg", "-y",
+                                "-loop", "1",
+                                "-i", img_path,
+                                "-i", audio_path,
+                                "-vf", simple_filter,
+                                "-c:v", "libx264", "-preset", "fast",
+                                "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+                                "-pix_fmt", "yuv420p",
+                                "-shortest", "-t", str(duration),
+                                clip_path
+                            ]
+                        else:
+                            fallback_cmd = [
+                                "ffmpeg", "-y",
+                                "-loop", "1",
+                                "-i", img_path,
+                                "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+                                "-vf", simple_filter,
+                                "-c:v", "libx264", "-preset", "fast",
+                                "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+                                "-pix_fmt", "yuv420p",
+                                "-t", str(duration), "-shortest",
+                                clip_path
+                            ]
+
+                        fallback_result = subprocess.run(
+                            fallback_cmd,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE,
+                            timeout=600
+                        )
+                        if fallback_result.returncode == 0 and os.path.exists(clip_path):
+                            scene_videos.append(clip_path)
+                            print(f"[VIDEO-WORKER-SEQUENTIAL] Clip {idx+1} 단순 방식 성공")
+                        else:
+                            fallback_stderr = fallback_result.stderr.decode('utf-8', errors='ignore')[:300] if fallback_result.stderr else ''
+                            print(f"[VIDEO-WORKER-SEQUENTIAL] Clip {idx+1} 단순 방식도 실패: {fallback_stderr}")
+                        del fallback_result
+                        gc.collect()
+
+                print(f"[VIDEO-WORKER-SEQUENTIAL] 순차 처리 완료 - 성공: {len(scene_videos)}/{total_scenes}")
 
             print(f"[VIDEO-WORKER] Total clips created: {len(scene_videos)} / {total_scenes}")
 
