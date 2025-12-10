@@ -8247,8 +8247,6 @@ def youtube_auth():
 def youtube_callback():
     """YouTube OAuth 콜백 처리"""
     try:
-        from google_auth_oauthlib.flow import Flow
-
         code = request.args.get('code')
         state = request.args.get('state')
         error = request.args.get('error')
@@ -8300,39 +8298,49 @@ def youtube_callback():
             </html>
             """, 400
 
-        # Flow 재생성
-        client_config = {
-            "web": {
-                "client_id": oauth_state['client_id'],
-                "client_secret": oauth_state['client_secret'],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": [oauth_state['redirect_uri']]
+        # ★ Scope 검증 문제 해결: requests로 직접 토큰 교환
+        # Google OAuth가 반환하는 scope 순서가 다를 수 있어 Flow.fetch_token에서 에러 발생
+        # 수동으로 토큰 교환하여 scope 검증 우회
+        import requests as req
+        token_response = req.post(
+            'https://oauth2.googleapis.com/token',
+            data={
+                'code': code,
+                'client_id': oauth_state['client_id'],
+                'client_secret': oauth_state['client_secret'],
+                'redirect_uri': oauth_state['redirect_uri'],
+                'grant_type': 'authorization_code'
             }
-        }
-
-        flow = Flow.from_client_config(
-            client_config,
-            scopes=[
-                'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly',
-                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
-            ],
-            redirect_uri=oauth_state['redirect_uri']
         )
 
-        flow.fetch_token(code=code)
-        credentials = flow.credentials
+        if token_response.status_code != 200:
+            error_data = token_response.json()
+            print(f"[YOUTUBE-CALLBACK] 토큰 교환 실패: {error_data}")
+            raise Exception(f"토큰 교환 실패: {error_data.get('error_description', error_data.get('error', 'Unknown error'))}")
+
+        token_json = token_response.json()
+        print(f"[YOUTUBE-CALLBACK] 토큰 교환 성공, scopes: {token_json.get('scope', 'N/A')}")
 
         # 토큰 데이터 준비
         token_data = {
-            'token': credentials.token,
-            'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': list(credentials.scopes) if credentials.scopes else []
+            'token': token_json.get('access_token'),
+            'refresh_token': token_json.get('refresh_token'),
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': oauth_state['client_id'],
+            'client_secret': oauth_state['client_secret'],
+            'scopes': token_json.get('scope', '').split() if token_json.get('scope') else []
         }
+
+        # Credentials 객체 생성 (채널 정보 조회용)
+        from google.oauth2.credentials import Credentials
+        credentials = Credentials(
+            token=token_data['token'],
+            refresh_token=token_data['refresh_token'],
+            token_uri=token_data['token_uri'],
+            client_id=token_data['client_id'],
+            client_secret=token_data['client_secret'],
+            scopes=token_data['scopes']
+        )
 
         # 채널 정보 조회
         channel_id = None
