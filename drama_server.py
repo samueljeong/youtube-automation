@@ -17235,7 +17235,7 @@ def get_learning_examples(limit=5):
 @app.route('/api/thumbnail-ai/analyze', methods=['POST'])
 def api_thumbnail_ai_analyze():
     """
-    GPT-5.1이 대본을 분석하여 썸네일 프롬프트 2개 생성
+    GPT-5.1이 대본을 분석하여 썸네일 프롬프트 1개 생성
     학습 데이터를 Few-shot으로 활용
     """
     try:
@@ -17245,13 +17245,15 @@ def api_thumbnail_ai_analyze():
         data = request.get_json() or {}
         script = data.get('script', '')
         title = data.get('title', '')
-        genre = data.get('genre', '일반')
+        additional_prompt = data.get('additional_prompt', '')  # 사용자 추가 요청사항
 
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
 
-        print(f"[THUMBNAIL-AI] 분석 요청 - 제목: {title}, 장르: {genre}")
+        print(f"[THUMBNAIL-AI] 분석 요청 - 제목: {title}")
         print(f"[THUMBNAIL-AI] 대본 길이: {len(script)}자")
+        if additional_prompt:
+            print(f"[THUMBNAIL-AI] 추가 요청사항: {additional_prompt}")
 
         # 학습 데이터 가져오기
         learning_examples = get_learning_examples(5)
@@ -17269,29 +17271,35 @@ def api_thumbnail_ai_analyze():
 - 선택 이유: {ex['reason'] or '없음'}
 """
 
+        # 추가 요청사항 텍스트
+        additional_instruction = ""
+        if additional_prompt:
+            additional_instruction = f"""
+
+[사용자 추가 요청사항]
+다음 요청사항을 반드시 썸네일 프롬프트에 반영하세요:
+{additional_prompt}
+"""
+
         system_prompt = f"""당신은 유튜브 썸네일 전문 디자이너입니다.
-사용자의 대본을 분석하여 클릭률이 높은 썸네일 이미지 프롬프트 3개를 생성합니다.
-(YouTube Test & Compare 기능용 - 3개 썸네일 A/B/C 테스트)
+사용자의 대본을 분석하여 클릭률이 높은 썸네일 이미지 프롬프트 1개를 생성합니다.
 
 [핵심 원칙]
 1. 유튜브 썸네일은 "호기심"과 "감정"을 자극해야 합니다
 2. 텍스트는 한글로, 크고 굵게, 읽기 쉽게
 3. 대비가 강한 색상 사용 (빨강/노랑/흰색 등)
 4. 얼굴 표정이나 감정적인 요소 포함
-5. "Before vs After" 또는 "Split Screen" 구도가 효과적
+5. 한국 웹툰/만화 스타일 (저작권 안전)
 
 [이미지 프롬프트 작성 규칙]
 - 영문으로 작성 (Gemini 3 Pro Image가 이해할 수 있도록)
 - 16:9 가로 비율 (YouTube 썸네일 표준)
 - 한글 텍스트 오버레이 지시 포함
 - 구체적인 색상, 스타일, 구도 명시
-- 만화/일러스트 스타일 권장 (저작권 안전)
+- 한국 웹툰/만화 일러스트 스타일 필수
+- 과장된 감정 표현 (놀람, 충격, 기쁨 등)
 {examples_text}
-
-[3개 썸네일 차별화 전략]
-- A: 감정/표정 중심 (놀람, 충격, 기쁨 등)
-- B: 스토리/상황 중심 (Before vs After, 대비 구도)
-- C: 텍스트/타이포 중심 (강렬한 문구, 숫자 강조)
+{additional_instruction}
 
 [응답 형식]
 반드시 다음 JSON 형식으로만 응답하세요:
@@ -17300,28 +17308,10 @@ def api_thumbnail_ai_analyze():
   "thumbnail_concept": "썸네일 컨셉 설명",
   "prompts": {{
     "A": {{
-      "description": "프롬프트 A 설명 (한글)",
-      "prompt": "영문 이미지 생성 프롬프트",
+      "description": "프롬프트 설명 (한글)",
+      "prompt": "영문 이미지 생성 프롬프트 (Korean webtoon style 포함 필수)",
       "text_overlay": {{
-        "main": "메인 텍스트 (한글)",
-        "sub": "서브 텍스트 (한글, 선택)"
-      }},
-      "style": "스타일 키워드"
-    }},
-    "B": {{
-      "description": "프롬프트 B 설명 (한글)",
-      "prompt": "영문 이미지 생성 프롬프트",
-      "text_overlay": {{
-        "main": "메인 텍스트 (한글)",
-        "sub": "서브 텍스트 (한글, 선택)"
-      }},
-      "style": "스타일 키워드"
-    }},
-    "C": {{
-      "description": "프롬프트 C 설명 (한글)",
-      "prompt": "영문 이미지 생성 프롬프트",
-      "text_overlay": {{
-        "main": "메인 텍스트 (한글)",
+        "main": "메인 텍스트 (한글, 짧고 임팩트있게)",
         "sub": "서브 텍스트 (한글, 선택)"
       }},
       "style": "스타일 키워드"
@@ -17330,13 +17320,12 @@ def api_thumbnail_ai_analyze():
 }}"""
 
         user_prompt = f"""[제목] {title}
-[장르] {genre}
 
 [대본]
 {script[:3000]}
 
-위 대본을 분석하여 클릭률 높은 유튜브 썸네일 프롬프트 3개(A/B/C)를 생성해주세요.
-YouTube Test & Compare용이므로 세 프롬프트는 서로 확실히 다른 스타일/구도여야 합니다."""
+위 대본을 분석하여 클릭률 높은 유튜브 썸네일 프롬프트 1개를 생성해주세요.
+한국 웹툰/만화 스타일로, 과장된 표정과 감정을 담아주세요."""
 
         # GPT-5.1 Responses API 호출
         response = client.responses.create(
@@ -17391,7 +17380,6 @@ YouTube Test & Compare용이므로 세 프롬프트는 서로 확실히 다른 �
             "script_summary": result.get("script_summary", ""),
             "thumbnail_concept": result.get("thumbnail_concept", ""),
             "prompts": result.get("prompts", {}),
-            "genre": genre,
             "title": title,
             "learning_examples_used": len(learning_examples)
         })
