@@ -10310,12 +10310,43 @@ def youtube_upload():
                         traceback.print_exc()
                         # 플레이리스트 추가 실패해도 업로드는 성공한 것으로 처리
 
+                # 첫 댓글 작성 (first_comment가 있는 경우)
+                first_comment = data.get('firstComment', '')
+                comment_posted = False
+                if first_comment:
+                    try:
+                        print(f"[YOUTUBE-UPLOAD] 첫 댓글 작성 시작: {first_comment[:50]}...")
+                        comment_request = youtube.commentThreads().insert(
+                            part="snippet",
+                            body={
+                                "snippet": {
+                                    "videoId": video_id,
+                                    "topLevelComment": {
+                                        "snippet": {
+                                            "textOriginal": first_comment
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                        comment_response = comment_request.execute()
+                        comment_posted = True
+                        comment_id = comment_response.get('id', '')
+                        print(f"[YOUTUBE-UPLOAD] 첫 댓글 작성 성공! commentId: {comment_id}")
+                    except Exception as comment_error:
+                        print(f"[YOUTUBE-UPLOAD] 첫 댓글 작성 실패: {comment_error}")
+                        import traceback
+                        traceback.print_exc()
+                        # 댓글 작성 실패해도 업로드는 성공한 것으로 처리
+
                 # 메시지 생성
                 upload_message = "YouTube 업로드 완료!"
                 if thumbnail_uploaded:
                     upload_message += " (썸네일 포함)"
                 if playlist_added:
                     upload_message += " (플레이리스트 추가됨)"
+                if comment_posted:
+                    upload_message += " (첫 댓글 게시됨)"
 
                 return jsonify({
                     "ok": True,
@@ -10326,6 +10357,7 @@ def youtube_upload():
                     "thumbnailUploaded": thumbnail_uploaded,
                     "playlistAdded": playlist_added,
                     "playlistId": playlist_id if playlist_added else None,
+                    "commentPosted": comment_posted,
                     "message": upload_message,
                     "metadata": {
                         "title": title,
@@ -11197,7 +11229,8 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     "transitions": {{
       "style": "crossfade",
       "duration": 0.5
-    }}
+    }},
+    "first_comment": "(대본 언어로) 시청자 댓글을 유도하는 질문 또는 의견 요청 (50-100자)"
   }},
   "scenes": [
     {{
@@ -11375,6 +11408,28 @@ Add source/speaker info when quoting or citing:
 - none: 전환 효과 없음 (빠른 컷)
 
 **duration:** 0.3 ~ 1.0초 권장 (기본 0.5초)
+
+### First Comment (첫 댓글 - 시청자 참여 유도) - 필수!
+영상 업로드 후 자동으로 게시되는 첫 댓글입니다. 시청자의 댓글 참여를 유도합니다.
+⚠️ **반드시 대본 언어로 작성!**
+
+**규칙:**
+- 50-100자 이내로 작성
+- 시청자에게 질문하거나 의견을 요청
+- 영상 내용과 관련된 질문으로 토론 유도
+- 이모지 1-2개 자연스럽게 포함 가능
+- 정치적/논쟁적 질문은 피하기
+
+**좋은 예시:**
+- 한국어: "여러분은 이 상황에서 어떤 선택을 하셨을까요? 댓글로 알려주세요! 🤔"
+- 한국어: "혹시 비슷한 경험 있으신 분 계신가요? 여러분의 이야기도 궁금해요 💬"
+- 日本語: "皆さんはどう思いますか？コメントで教えてください！🤔"
+- English: "What would you have done in this situation? Let me know in the comments! 🤔"
+
+**나쁜 예시 (금지):**
+- "좋아요와 구독 부탁드립니다" ❌ (너무 홍보성)
+- "어떻게 생각하세요?" ❌ (너무 모호함)
+- "정치적으로 누가 옳다고 생각하세요?" ❌ (논쟁 유발)
 
 ### Ken Burns Effect (이미지 움직임)
 Each scene should have a different Ken Burns effect for visual variety:
@@ -19923,6 +19978,12 @@ def run_automation_pipeline(row_data, row_index):
             if tags and len(tags) > 0:
                 upload_payload["tags"] = tags
                 print(f"[AUTOMATION] YouTube 태그 {len(tags)}개 추가")
+
+            # 첫 댓글 추가 (video_effects에서 가져오기)
+            first_comment = video_effects.get('first_comment', '')
+            if first_comment:
+                upload_payload["firstComment"] = first_comment
+                print(f"[AUTOMATION] 첫 댓글 설정: {first_comment[:50]}...")
 
             # 예약시간(E열)이 있으면 ISO 8601 형식으로 변환하여 추가 (15분 후 공개보다 우선)
             if publish_time:
