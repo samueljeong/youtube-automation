@@ -10542,6 +10542,202 @@ def load_prompt_guides():
     return guides
 
 
+# ===== SEO 키워드 분석 함수 =====
+def _analyze_seo_keywords(script, lang='ko'):
+    """대본에서 키워드를 추출하고 YouTube SEO 데이터 분석
+
+    Args:
+        script: 대본 텍스트
+        lang: 언어 코드 (ko/en/ja)
+
+    Returns:
+        {
+            "keywords": ["키워드1", "키워드2"],
+            "youtube_trends": [{"title": "상위 영상 제목", "views": 10000, "tags": [...]}],
+            "recommended_keywords": ["추천 키워드"],
+            "title_patterns": ["패턴1", "패턴2"],
+            "seo_prompt": "GPT에게 전달할 SEO 가이드"
+        }
+    """
+    import requests
+    import re
+
+    api_key = os.environ.get('YOUTUBE_API_KEY', '')
+    if not api_key:
+        print("[SEO] YouTube API 키가 없습니다")
+        return None
+
+    try:
+        # 1. 대본에서 핵심 키워드 추출 (간단한 방식)
+        # 긴 단어, 자주 등장하는 단어 추출
+        script_preview = script[:1500]
+
+        # 숫자+단위 패턴 (2025년, 3가지, 100만원 등)
+        number_patterns = re.findall(r'\d+[\s]?(?:년|월|일|가지|개|만원|억|조|%|위)', script_preview)
+
+        # 주요 명사 추출 (한국어 기준)
+        if lang == 'ko':
+            # 2글자 이상 단어 중 자주 등장하는 것
+            words = re.findall(r'[가-힣]{2,6}', script_preview)
+        elif lang == 'ja':
+            words = re.findall(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]{2,6}', script_preview)
+        else:
+            words = re.findall(r'\b[a-zA-Z]{4,}\b', script_preview.lower())
+
+        # 빈도수 계산
+        from collections import Counter
+        word_freq = Counter(words)
+
+        # 불용어 제거 (한국어)
+        stopwords_ko = {'있습니다', '했습니다', '합니다', '됩니다', '입니다', '그리고', '하지만', '그래서',
+                        '때문에', '이것은', '저것은', '여러분', '우리는', '그들은', '이렇게', '저렇게',
+                        '있는데', '없는데', '한다는', '된다는', '있다고', '없다고'}
+
+        # 상위 키워드 추출
+        top_keywords = [word for word, count in word_freq.most_common(20)
+                       if word not in stopwords_ko and count >= 2][:5]
+
+        if not top_keywords:
+            print("[SEO] 키워드 추출 실패")
+            return None
+
+        # 검색 쿼리 생성 (상위 2-3개 키워드 조합)
+        search_query = ' '.join(top_keywords[:3])
+        print(f"[SEO] 추출된 키워드: {top_keywords}")
+        print(f"[SEO] 검색 쿼리: {search_query}")
+
+        # 2. YouTube Search API로 상위 영상 검색
+        search_resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/search",
+            params={
+                "part": "snippet",
+                "q": search_query,
+                "type": "video",
+                "maxResults": 10,
+                "order": "relevance",
+                "relevanceLanguage": lang,
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if search_resp.status_code != 200:
+            print(f"[SEO] YouTube 검색 실패: {search_resp.status_code}")
+            return None
+
+        search_data = search_resp.json()
+        video_ids = [item["id"]["videoId"] for item in search_data.get("items", [])
+                    if "videoId" in item.get("id", {})]
+
+        if not video_ids:
+            print("[SEO] 검색 결과 없음")
+            return None
+
+        # 3. 영상 상세 정보 조회 (제목, 태그, 조회수)
+        videos_resp = requests.get(
+            "https://www.googleapis.com/youtube/v3/videos",
+            params={
+                "part": "snippet,statistics",
+                "id": ",".join(video_ids),
+                "key": api_key
+            },
+            timeout=10
+        )
+
+        if videos_resp.status_code != 200:
+            print(f"[SEO] 영상 정보 조회 실패: {videos_resp.status_code}")
+            return None
+
+        # 4. 데이터 분석
+        youtube_trends = []
+        all_tags = []
+        title_words = []
+
+        for video in videos_resp.json().get("items", []):
+            snippet = video.get("snippet", {})
+            stats = video.get("statistics", {})
+
+            title = snippet.get("title", "")
+            tags = snippet.get("tags", [])
+            view_count = int(stats.get("viewCount", 0))
+
+            youtube_trends.append({
+                "title": title,
+                "views": view_count,
+                "tags": tags[:10] if tags else []
+            })
+
+            all_tags.extend(tags[:10] if tags else [])
+            title_words.extend(re.findall(r'[가-힣]{2,}|[a-zA-Z]{3,}|\d+', title))
+
+        # 5. 패턴 분석
+        tag_freq = Counter(all_tags)
+        recommended_tags = [tag for tag, _ in tag_freq.most_common(15)]
+
+        title_word_freq = Counter(title_words)
+        common_title_words = [word for word, count in title_word_freq.most_common(10) if count >= 2]
+
+        # 제목 패턴 분석
+        title_patterns = []
+        for trend in youtube_trends[:5]:
+            title = trend["title"]
+            # 숫자 포함 여부
+            has_number = bool(re.search(r'\d+', title))
+            # 구분자 사용 (|, -, :)
+            has_separator = bool(re.search(r'[|:\-]', title))
+            # 길이
+            length = len(title)
+
+            if has_number and has_separator:
+                title_patterns.append("숫자 + 구분자 (예: 3가지 방법 | 완벽 정리)")
+            elif has_number:
+                title_patterns.append("숫자 강조 (예: 2025년 반드시 알아야 할)")
+            elif has_separator:
+                title_patterns.append("구분자 사용 (예: 핵심 정리 | 전문가 분석)")
+
+        title_patterns = list(set(title_patterns))[:3]
+
+        # 6. GPT용 SEO 프롬프트 생성
+        seo_prompt = f"""
+## 🔍 SEO 키워드 분석 결과 (YouTube 실시간 데이터)
+
+### 추출된 핵심 키워드
+{', '.join(top_keywords)}
+
+### YouTube 상위 영상 제목 (참고용)
+{chr(10).join([f"- {t['title']} (조회수: {t['views']:,})" for t in youtube_trends[:5]])}
+
+### 추천 태그 (상위 영상들이 사용하는 태그)
+{', '.join(recommended_tags[:10])}
+
+### 제목 패턴 분석
+{chr(10).join([f"- {p}" for p in title_patterns]) if title_patterns else "- 숫자 + 핵심 키워드 조합 추천"}
+
+### SEO 최적화 지침
+1. **위 키워드 중 2-3개를 제목에 자연스럽게 포함**
+2. **상위 영상 제목 패턴 참고하되, 차별화된 표현 사용**
+3. **추천 태그를 tags 필드에 포함**
+4. **설명란 첫 2줄에 핵심 키워드 포함**
+"""
+
+        print(f"[SEO] 분석 완료: {len(youtube_trends)}개 영상, {len(recommended_tags)}개 태그")
+
+        return {
+            "keywords": top_keywords,
+            "youtube_trends": youtube_trends,
+            "recommended_keywords": recommended_tags,
+            "title_patterns": title_patterns,
+            "common_title_words": common_title_words,
+            "seo_prompt": seo_prompt
+        }
+
+    except Exception as e:
+        print(f"[SEO] 분석 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 @app.route('/api/image/analyze-script', methods=['POST'])
 def api_image_analyze_script():
     """이미지 제작용 대본 분석 - 씬 분리 + 썸네일/이미지 프롬프트 생성"""
@@ -10595,6 +10791,15 @@ def api_image_analyze_script():
 
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
+
+        # ★ SEO 키워드 분석 (YouTube 상위 영상 분석)
+        seo_data = _analyze_seo_keywords(script, output_language)
+        seo_prompt = ""
+        if seo_data:
+            seo_prompt = seo_data.get('seo_prompt', '')
+            print(f"[IMAGE-ANALYZE] SEO 분석 완료: {len(seo_data.get('keywords', []))}개 키워드, {len(seo_data.get('recommended_keywords', []))}개 추천 태그")
+        else:
+            print("[IMAGE-ANALYZE] SEO 분석 스킵 (API 키 없음 또는 오류)")
 
         # 시니어 썸네일 가이드 로드
         senior_thumbnail_guide = None
@@ -11122,6 +11327,8 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 - 핵심 요약 1-2문장 + 시청자 질문 1개
 - 댓글 참여를 유도하는 열린 질문
 
+{seo_prompt}
+
 ## OUTPUT FORMAT (MUST BE JSON)
 {{
   "detected_category": "news 또는 story (대본 분석 결과 - 반드시 먼저 결정!)",
@@ -11612,6 +11819,8 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 - **태그**: 5-12개 (넓은/구체/변형/채널 키워드)
 - **톤**: 과장 금지, 팩트 → 의미 → 액션 순서
 - **고정 댓글**: 대본 언어와 동일한 언어로 작성! (일본어 대본 → 일본어 댓글)
+
+{seo_prompt}
 
 ## Output Format (MUST be valid JSON)
 {{
