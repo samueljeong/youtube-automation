@@ -1095,6 +1095,145 @@
       color: #fff;
     }
 
+    /* 100x 떡상 배지 (신의 간택) */
+    .viral-100x-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px;
+      background: linear-gradient(135deg, #ff0000, #cc0000);
+      color: #fff;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+      animation: pulse100x 2s ease-in-out infinite;
+      box-shadow: 0 2px 8px rgba(255, 0, 0, 0.4);
+    }
+
+    .viral-100x-badge::before {
+      content: '🔥';
+    }
+
+    @keyframes pulse100x {
+      0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 0, 0, 0.4); }
+      50% { transform: scale(1.05); box-shadow: 0 4px 16px rgba(255, 0, 0, 0.6); }
+    }
+
+    /* AI 기획 버튼 */
+    .btn-ai-plan {
+      padding: 6px 12px;
+      background: linear-gradient(135deg, #8b5cf6, #a855f7);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-ai-plan:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    /* AI 기획 결과 모달 스타일 */
+    .ai-plan-content {
+      line-height: 1.7;
+    }
+
+    .ai-plan-section {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ai-plan-section h4 {
+      font-size: 1rem;
+      color: #8b5cf6;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ai-plan-section p, .ai-plan-section ul {
+      margin: 0;
+      font-size: 0.95rem;
+      color: #333;
+    }
+
+    .ai-plan-section ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .ai-plan-section li {
+      padding: 8px 12px;
+      background: #fff;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border-left: 4px solid #8b5cf6;
+    }
+
+    .ai-plan-video-info {
+      display: flex;
+      gap: 16px;
+      background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .ai-plan-video-info img {
+      width: 200px;
+      height: 112px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .ai-plan-video-stats {
+      flex: 1;
+    }
+
+    .ai-plan-video-stats h4 {
+      font-size: 1rem;
+      margin-bottom: 8px;
+      color: #1a1a2e;
+    }
+
+    .ai-plan-video-stats p {
+      font-size: 0.85rem;
+      color: #666;
+      margin: 4px 0;
+    }
+
+    .copy-prompt-btn {
+      margin-top: 16px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #8b5cf6, #a855f7);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .copy-prompt-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+    }
+
     /* AI Analysis Buttons */
     .ai-buttons {
       display: flex;

@@ -2639,3 +2639,150 @@ def api_keyword_trend():
     except Exception as e:
         print(f"키워드 트렌드 분석 오류: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@tubelens_bp.route('/api/tubelens/generate-ai-plan', methods=['POST'])
+def api_generate_ai_plan():
+    """AI 콘텐츠 기획 생성 - 떡상 영상 분석 및 기획 제안"""
+    try:
+        import json
+        from openai import OpenAI
+
+        data = request.get_json()
+
+        video_id = data.get("videoId", "")
+        title = data.get("title", "")
+        description = data.get("description", "")[:1000]  # 최대 1000자
+        channel_title = data.get("channelTitle", "")
+        view_count = int(data.get("viewCount", 0))
+        subscriber_count = int(data.get("subscriberCount", 1))
+        like_count = int(data.get("likeCount", 0))
+        comment_count = int(data.get("commentCount", 0))
+        performance_value = float(data.get("performanceValue", 0))
+        duration = data.get("duration", "")
+        published_at = data.get("publishedAt", "")
+
+        if not title:
+            return jsonify({"success": False, "message": "영상 정보가 필요합니다."}), 400
+
+        openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        if not openai_api_key:
+            return jsonify({"success": False, "message": "OpenAI API 키가 설정되지 않았습니다."}), 400
+
+        client = OpenAI(api_key=openai_api_key)
+
+        # 성과 분석
+        performance_desc = ""
+        if performance_value >= 100:
+            performance_desc = f"🔥 신의 간택! 구독자 대비 조회수가 무려 {int(performance_value)}배입니다!"
+        elif performance_value >= 50:
+            performance_desc = f"🚀 고성과 영상! 구독자 대비 조회수가 {int(performance_value)}배입니다."
+        elif performance_value >= 10:
+            performance_desc = f"👍 평균 이상의 성과! 구독자 대비 조회수가 {int(performance_value)}배입니다."
+        else:
+            performance_desc = f"📊 구독자 대비 조회수가 {performance_value:.2f}배입니다."
+
+        prompt = f"""다음은 YouTube에서 높은 성과를 기록한 영상입니다. 이 영상을 분석하고 콘텐츠 기획 제안을 해주세요.
+
+=== 영상 정보 ===
+제목: {title}
+채널: {channel_title}
+조회수: {view_count:,}
+구독자 수: {subscriber_count:,}
+성과도 배율: {performance_value:.2f}배 ({performance_desc})
+좋아요: {like_count:,}
+댓글 수: {comment_count:,}
+영상 길이: {duration}
+게시일: {published_at}
+URL: https://www.youtube.com/watch?v={video_id}
+
+=== 영상 설명 ===
+{description or '(없음)'}
+
+=== 분석 요청 ===
+다음 형식의 JSON으로 분석 결과를 제공해주세요:
+{{
+  "successFactors": [
+    "이 영상이 터진 핵심 요인 1",
+    "이 영상이 터진 핵심 요인 2",
+    "이 영상이 터진 핵심 요인 3"
+  ],
+  "suggestedTitles": [
+    "비슷한 스타일의 제목 제안 1",
+    "비슷한 스타일의 제목 제안 2",
+    "비슷한 스타일의 제목 제안 3"
+  ],
+  "thumbnailIdeas": [
+    "클릭을 유도하는 썸네일 문구 1",
+    "클릭을 유도하는 썸네일 문구 2"
+  ],
+  "hookScript": "초반 30초 후킹을 위한 멘트 예시 (3-5문장)",
+  "contentIdeas": [
+    "이 영상을 참고한 관련 콘텐츠 아이디어 1",
+    "이 영상을 참고한 관련 콘텐츠 아이디어 2",
+    "이 영상을 참고한 관련 콘텐츠 아이디어 3"
+  ]
+}}
+
+한국어로 답변해주세요. 구체적이고 실제로 활용 가능한 내용으로 작성해주세요."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 YouTube 콘텐츠 기획 전문가입니다. 떡상 영상의 성공 요인을 분석하고, 유사한 성과를 낼 수 있는 콘텐츠 기획을 제안합니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2000
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # JSON 파싱
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        plan_data = json.loads(result_text)
+
+        # 프롬프트도 함께 반환 (Gemini용)
+        gemini_prompt = f"""다음은 YouTube에서 구독자 대비 {int(performance_value)}배의 조회수를 기록한 떡상 영상입니다.
+
+=== 영상 정보 ===
+제목: {title}
+채널: {channel_title}
+조회수: {view_count:,}
+구독자 수: {subscriber_count:,}
+성과도 배율: {performance_value:.2f}배
+좋아요: {like_count:,}
+댓글 수: {comment_count:,}
+영상 길이: {duration}
+URL: https://www.youtube.com/watch?v={video_id}
+
+=== 영상 설명 ===
+{description or '(없음)'}
+
+=== 분석 요청 ===
+이 영상이 터진 이유를 분석하고, 다음을 제공해주세요:
+
+1. 이 영상이 터진 3가지 핵심 요인
+2. 비슷한 스타일의 제목 3개 제안
+3. 클릭을 유도하는 썸네일 문구 2개
+4. 초반 30초 후킹을 위한 멘트 예시
+5. 이 영상을 참고한 관련 콘텐츠 아이디어 3개"""
+
+        plan_data["prompt"] = gemini_prompt
+
+        return jsonify({
+            "success": True,
+            "data": plan_data,
+            "message": "AI 콘텐츠 기획 생성 완료"
+        })
+
+    except json.JSONDecodeError as e:
+        print(f"AI 기획 JSON 파싱 오류: {e}")
+        return jsonify({"success": False, "message": "분석 결과 파싱 실패"}), 500
+    except Exception as e:
+        print(f"AI 기획 생성 오류: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
