@@ -8205,7 +8205,8 @@ def youtube_auth():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=redirect_uri
         )
@@ -8314,7 +8315,8 @@ def youtube_callback():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=oauth_state['redirect_uri']
         )
@@ -10236,7 +10238,8 @@ def api_youtube_auth_page():
             client_config,
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
+                'https://www.googleapis.com/auth/youtube.readonly',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
             ],
             redirect_uri=redirect_uri
         )
@@ -10479,7 +10482,10 @@ def youtube_upload():
                     token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
                     client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
                     client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
-                    scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
+                    scopes=token_data.get('scopes', [
+                        'https://www.googleapis.com/auth/youtube.upload',
+                        'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+                    ])
                 )
 
                 # 토큰 만료 시 갱신
@@ -14240,11 +14246,46 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
     return ticker_filter
 
 
+# BGM 분위기 별칭 매핑 (파일이 없을 경우 대체 분위기로 폴백)
+BGM_MOOD_ALIAS = {
+    # 뉴스/다큐멘터리 계열 → calm 또는 cinematic
+    "documentary": "cinematic",
+    "news": "calm",
+    "informative": "calm",
+    "corporate": "calm",
+
+    # 감정 계열 폴백
+    "melancholy": "sad",
+    "sentimental": "sad",
+    "touching": "emotional",
+    "emotional": "sad",
+
+    # 긴장/서스펜스 계열
+    "suspense": "tense",
+    "thriller": "tense",
+    "dark": "mysterious",
+
+    # 밝은/긍정 계열
+    "uplifting": "inspiring",
+    "motivational": "inspiring",
+    "cheerful": "upbeat",
+    "happy": "upbeat",
+
+    # 기타
+    "action": "epic",
+    "adventure": "epic",
+    "horror": "dark",
+}
+
+
 def _get_bgm_file(mood, bgm_dir=None):
     """분위기에 맞는 BGM 파일 선택 (여러 개면 랜덤)
 
     Args:
-        mood: hopeful, sad, tense, dramatic, calm, inspiring, mysterious, nostalgic
+        mood: 지원 분위기 - hopeful, sad, tense, dramatic, calm, inspiring,
+              mysterious, nostalgic, epic, romantic, comedic, horror, upbeat,
+              cinematic, emotional, dark, suspenseful, ambient, electronic 등
+              (파일이 없으면 BGM_MOOD_ALIAS에 따라 대체 분위기로 폴백)
         bgm_dir: BGM 파일 디렉토리 (없으면 스크립트 위치 기준)
 
     Returns:
@@ -14290,9 +14331,24 @@ def _get_bgm_file(mood, bgm_dir=None):
     print(f"[BGM] 디렉토리 내 전체 파일: {[os.path.basename(f) for f in all_files]}")
 
     if not matching_files:
-        print(f"[BGM] '{mood}' 분위기 BGM 파일 없음")
-        print(f"[BGM] ⚠️ {bgm_dir}/{mood}.mp3 또는 {mood}_01.mp3 형식으로 파일을 업로드하세요")
-        return None
+        # 별칭 매핑으로 폴백 시도
+        alias_mood = BGM_MOOD_ALIAS.get(mood)
+        if alias_mood:
+            print(f"[BGM] '{mood}' 파일 없음 → '{alias_mood}'로 폴백 시도")
+            alias_patterns = [
+                os.path.join(bgm_dir, f"{alias_mood}.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood}_*.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood} *.mp3"),
+                os.path.join(bgm_dir, f"{alias_mood}*.mp3"),
+            ]
+            for pattern in alias_patterns:
+                matching_files.extend(glob.glob(pattern))
+            matching_files = list(set(matching_files))
+
+        if not matching_files:
+            print(f"[BGM] '{mood}' 분위기 BGM 파일 없음")
+            print(f"[BGM] ⚠️ {bgm_dir}/{mood}.mp3 또는 {mood}_01.mp3 형식으로 파일을 업로드하세요")
+            return None
 
     # 랜덤 선택
     selected = random.choice(matching_files)
@@ -14681,7 +14737,9 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
 
         temp_dir = tempfile.mkdtemp()
 
-        for i, sfx in enumerate(sound_effects):
+        # 순차적 인덱스 사용 (continue로 건너뛴 항목과 관계없이 연속 인덱스 보장)
+        sfx_idx = 0
+        for sfx in sound_effects:
             scene_num = sfx.get('scene', 1)
             sfx_type = sfx.get('type', '')
 
@@ -14694,7 +14752,7 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
                 continue
 
             # 효과음 트림 (2.5초로 자르기)
-            trimmed_path = os.path.join(temp_dir, f"sfx_{i}.mp3")
+            trimmed_path = os.path.join(temp_dir, f"sfx_{sfx_idx}.mp3")
             if not _trim_sfx(sfx_file, trimmed_path, max_duration=2.5, fade_out=0.5):
                 continue
 
@@ -14702,7 +14760,10 @@ def _mix_sfx_into_video(video_path, sound_effects, scenes, output_path, sfx_dir=
             delay_ms = int((scene_start_times[scene_num] + 0.5) * 1000)
 
             sfx_inputs.append(trimmed_path)
-            adelay_filters.append(f"[{i+1}:a]adelay={delay_ms}|{delay_ms},volume=0.8[sfx{i}]")
+            # FFmpeg 입력 인덱스: [0]=비디오, [1]=첫번째 SFX, [2]=두번째 SFX...
+            # sfx_idx는 0부터 시작하므로 입력 인덱스는 sfx_idx+1
+            adelay_filters.append(f"[{sfx_idx+1}:a]adelay={delay_ms}|{delay_ms},volume=0.8[sfx{sfx_idx}]")
+            sfx_idx += 1
 
         if not sfx_inputs:
             print(f"[SFX] 사용 가능한 효과음 없음")
@@ -22007,7 +22068,10 @@ def _automation_youtube_upload(video_path, title, description, visibility, chann
             token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
             client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
             client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
-            scopes=token_data.get('scopes', ['https://www.googleapis.com/auth/youtube.upload'])
+            scopes=token_data.get('scopes', [
+                'https://www.googleapis.com/auth/youtube.upload',
+                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+            ])
         )
 
         # 토큰 갱신
