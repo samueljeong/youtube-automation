@@ -5243,6 +5243,158 @@ def api_list_bgm():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ========== Freesound API 다운로드 ==========
+FREESOUND_API_KEY = "xuttzpvpcpbcXZTxGj75GXd6lnzn16SlADMhlP9f"
+FREESOUND_BASE_URL = "https://freesound.org/apiv2"
+
+# 다운로드할 오디오 쿼리 정의
+FREESOUND_BGM_QUERIES = {
+    "epic": ("epic cinematic orchestral", 30, 180),
+    "romantic": ("romantic piano love", 30, 180),
+    "comedic": ("funny comedy playful", 30, 180),
+    "horror": ("horror scary dark ambient", 30, 180),
+    "upbeat": ("upbeat happy energetic", 30, 180),
+}
+
+FREESOUND_SFX_QUERIES = {
+    "notification": ("notification alert ding", 0.5, 5),
+    "heartbeat": ("heartbeat heart beat", 1, 10),
+    "clock_tick": ("clock tick ticking", 1, 10),
+    "applause": ("applause clapping crowd", 1, 10),
+    "gasp": ("gasp surprise shock", 0.5, 5),
+    "typing": ("typing keyboard", 1, 10),
+    "door": ("door open close creak", 0.5, 5),
+}
+
+
+def _freesound_search(query, min_duration=0, max_duration=300, num_results=4):
+    """Freesound에서 소리 검색"""
+    import requests
+    params = {
+        "query": query,
+        "token": FREESOUND_API_KEY,
+        "fields": "id,name,duration,previews,license",
+        "filter": f"duration:[{min_duration} TO {max_duration}]",
+        "sort": "score",
+        "page_size": num_results * 2,
+    }
+    try:
+        response = requests.get(f"{FREESOUND_BASE_URL}/search/text/", params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("results", [])[:num_results]
+    except Exception as e:
+        print(f"[FREESOUND] 검색 실패: {e}")
+        return []
+
+
+def _freesound_download_preview(sound, output_path):
+    """사운드 프리뷰(MP3) 다운로드"""
+    import requests
+    try:
+        preview_url = sound.get("previews", {}).get("preview-hq-mp3")
+        if not preview_url:
+            preview_url = sound.get("previews", {}).get("preview-lq-mp3")
+        if not preview_url:
+            return False
+        response = requests.get(preview_url, timeout=60)
+        response.raise_for_status()
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        return True
+    except Exception as e:
+        print(f"[FREESOUND] 다운로드 실패: {e}")
+        return False
+
+
+@app.route('/api/freesound/download', methods=['POST'])
+def api_freesound_download():
+    """Freesound에서 BGM/SFX 다운로드"""
+    import time
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
+    sfx_dir = os.path.join(script_dir, "static", "audio", "sfx")
+
+    results = {"bgm": {}, "sfx": {}, "errors": []}
+
+    data = request.get_json() or {}
+    download_bgm = data.get("bgm", True)
+    download_sfx = data.get("sfx", True)
+
+    # BGM 다운로드
+    if download_bgm:
+        for sound_type, (query, min_dur, max_dur) in FREESOUND_BGM_QUERIES.items():
+            print(f"[FREESOUND] BGM 검색: {sound_type} - '{query}'")
+            sounds = _freesound_search(query, min_dur, max_dur, num_results=4)
+
+            if not sounds:
+                results["errors"].append(f"BGM '{sound_type}' 검색 결과 없음")
+                continue
+
+            downloaded = []
+            for i, sound in enumerate(sounds, 1):
+                filename = f"{sound_type}_{i:02d}.mp3"
+                output_path = os.path.join(bgm_dir, filename)
+
+                if _freesound_download_preview(sound, output_path):
+                    downloaded.append({
+                        "file": filename,
+                        "name": sound.get("name", "")[:50],
+                        "duration": sound.get("duration", 0)
+                    })
+                    print(f"[FREESOUND] ✓ {filename} 다운로드 완료")
+
+                time.sleep(0.3)  # Rate limit
+
+            results["bgm"][sound_type] = downloaded
+            time.sleep(0.5)
+
+    # SFX 다운로드
+    if download_sfx:
+        for sound_type, (query, min_dur, max_dur) in FREESOUND_SFX_QUERIES.items():
+            print(f"[FREESOUND] SFX 검색: {sound_type} - '{query}'")
+            sounds = _freesound_search(query, min_dur, max_dur, num_results=4)
+
+            if not sounds:
+                results["errors"].append(f"SFX '{sound_type}' 검색 결과 없음")
+                continue
+
+            downloaded = []
+            for i, sound in enumerate(sounds, 1):
+                filename = f"{sound_type}_{i:02d}.mp3"
+                output_path = os.path.join(sfx_dir, filename)
+
+                if _freesound_download_preview(sound, output_path):
+                    downloaded.append({
+                        "file": filename,
+                        "name": sound.get("name", "")[:50],
+                        "duration": sound.get("duration", 0)
+                    })
+                    print(f"[FREESOUND] ✓ {filename} 다운로드 완료")
+
+                time.sleep(0.3)
+
+            results["sfx"][sound_type] = downloaded
+            time.sleep(0.5)
+
+    return jsonify({
+        "ok": True,
+        "message": "Freesound 다운로드 완료",
+        "results": results
+    })
+
+
+@app.route('/api/freesound/test', methods=['GET'])
+def api_freesound_test():
+    """Freesound API 키 테스트"""
+    sounds = _freesound_search("test", 0, 10, 1)
+    if sounds:
+        return jsonify({"ok": True, "message": "API 키 유효함", "sample": sounds[0].get("name")})
+    else:
+        return jsonify({"ok": False, "message": "API 키 확인 필요"}), 500
+
+
 @app.route('/bgm-upload')
 def bgm_upload_page():
     """BGM 업로드 페이지"""
