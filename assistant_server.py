@@ -6464,7 +6464,9 @@ def get_registered_channel_analytics(channel_db_id):
 
         # 2. OAuth 서비스 확인
         analytics = get_youtube_analytics_service()
-        if not analytics:
+        youtube = get_youtube_oauth_service()
+
+        if not analytics or not youtube:
             return jsonify({
                 'success': True,
                 'channel_id': channel_id,
@@ -6477,6 +6479,36 @@ def get_registered_channel_analytics(channel_db_id):
                 'analytics_available': False,
                 'message': 'YouTube 계정을 연동하면 상세 분석을 볼 수 있습니다'
             })
+
+        # 2.5. 현재 연동된 계정이 이 채널의 소유자인지 확인
+        try:
+            my_channels_response = youtube.channels().list(
+                part='id,snippet',
+                mine=True
+            ).execute()
+            my_channel_ids = [ch.get('id') for ch in my_channels_response.get('items', [])]
+            my_channel_title = my_channels_response.get('items', [{}])[0].get('snippet', {}).get('title', '알 수 없음') if my_channels_response.get('items') else '알 수 없음'
+
+            print(f"[YOUTUBE-ANALYTICS] 연동된 계정 채널: {my_channel_ids}, 조회 요청 채널: {channel_id}")
+
+            if channel_id not in my_channel_ids:
+                return jsonify({
+                    'success': True,
+                    'channel_id': channel_id,
+                    'channel_title': channel_title,
+                    'current_stats': {
+                        'subscribers': current_subs or 0,
+                        'total_views': current_views or 0,
+                        'video_count': current_videos or 0
+                    },
+                    'analytics_available': False,
+                    'ownership_mismatch': True,
+                    'connected_channel': my_channel_title,
+                    'message': f'현재 연동된 계정({my_channel_title})이 이 채널의 소유자가 아닙니다. 해당 채널의 YouTube 계정으로 연동해주세요.'
+                })
+        except Exception as ownership_check_error:
+            print(f"[YOUTUBE-ANALYTICS] 소유권 확인 실패: {ownership_check_error}")
+            # 소유권 확인 실패해도 Analytics API 시도
 
         # 3. Analytics API 호출
         from datetime import datetime, timedelta
@@ -6554,7 +6586,23 @@ def get_registered_channel_analytics(channel_db_id):
             error_msg = str(analytics_error)
             print(f"[YOUTUBE-ANALYTICS] 채널 {channel_id} 분석 오류: {error_msg}")
 
-            # 권한 없음 또는 소유하지 않은 채널
+            # 에러 타입별 메시지 분류
+            user_message = '상세 분석 데이터를 불러올 수 없습니다.'
+            error_type = 'unknown'
+
+            if '403' in error_msg or 'forbidden' in error_msg.lower():
+                user_message = '이 채널의 분석 권한이 없습니다. 해당 채널의 YouTube 계정으로 연동해주세요.'
+                error_type = 'forbidden'
+            elif '401' in error_msg or 'unauthorized' in error_msg.lower():
+                user_message = 'YouTube 인증이 만료되었습니다. 다시 연동해주세요.'
+                error_type = 'unauthorized'
+            elif '429' in error_msg or 'quota' in error_msg.lower():
+                user_message = 'API 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.'
+                error_type = 'quota_exceeded'
+            elif 'channel' in error_msg.lower() and 'not found' in error_msg.lower():
+                user_message = '채널을 찾을 수 없습니다. 채널 ID를 확인해주세요.'
+                error_type = 'not_found'
+
             return jsonify({
                 'success': True,
                 'channel_id': channel_id,
@@ -6565,7 +6613,9 @@ def get_registered_channel_analytics(channel_db_id):
                     'video_count': current_videos or 0
                 },
                 'analytics_available': False,
-                'message': '이 채널의 상세 분석 권한이 없습니다. 해당 채널의 YouTube 계정으로 연동해주세요.'
+                'error_type': error_type,
+                'error_detail': error_msg[:200] if error_msg else None,  # 디버깅용 (최대 200자)
+                'message': user_message
             })
 
     except Exception as e:

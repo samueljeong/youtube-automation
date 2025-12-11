@@ -3671,6 +3671,8 @@ const AssistantMain = (() => {
         </div>
         <div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border-radius: 6px; font-size: 0.75rem; color: #92400e;">
           ⚠️ ${analytics?.message || 'YouTube 계정을 연동하면 상세 분석을 볼 수 있습니다'}
+          ${analytics?.ownership_mismatch ? `<br><span style="font-size: 0.7rem; color: #78716c;">현재 연동: ${escapeHtml(analytics.connected_channel)}</span>` : ''}
+          ${analytics?.error_type === 'unauthorized' ? '<br><a href="#" onclick="AssistantMain.openYouTubeOAuthConnect(); return false;" style="color: #2563eb;">다시 연동하기</a>' : ''}
         </div>`;
     }
     html += `</div>`;
