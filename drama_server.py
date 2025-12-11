@@ -88,6 +88,10 @@ video_jobs = {}  # {job_id: {status, progress, result, error, created_at}}
 video_jobs_lock = threading.Lock()
 VIDEO_JOBS_FILE = 'data/video_jobs.json'
 
+# ===== 파이프라인 동시 실행 방지 Lock =====
+# cron job이 동시에 여러 worker에서 실행되는 것을 방지
+pipeline_lock = threading.Lock()
+
 # YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
 
@@ -22871,6 +22875,17 @@ def api_sheets_check_and_process():
     1. 예약시간이 있는 경우: 예약시간 빠른 순
     2. 예약시간이 없는 경우: 시트 순서
     """
+    # ========== 동시 실행 방지 Lock ==========
+    # 다른 worker에서 이미 파이프라인이 실행 중이면 즉시 반환
+    if not pipeline_lock.acquire(blocking=False):
+        print("[SHEETS] 다른 파이프라인이 이미 실행 중 - 스킵")
+        return jsonify({
+            "ok": True,
+            "message": "다른 파이프라인이 이미 실행 중입니다",
+            "skipped": True,
+            "processed": 0
+        })
+
     try:
         from datetime import datetime, timedelta, timezone
 
@@ -23096,6 +23111,10 @@ def api_sheets_check_and_process():
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        # 항상 lock 해제
+        pipeline_lock.release()
+        print("[SHEETS] 파이프라인 Lock 해제됨")
 
 
 def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
