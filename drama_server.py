@@ -11194,19 +11194,26 @@ def api_image_analyze_script():
             import re as re_module  # 스코프 문제 해결
 
             def detect_script_language(text):
-                """스크립트 언어 감지 (한국어/영어/일본어)"""
+                """스크립트 언어 감지 (한국어/영어/일본어)
+
+                일본어 뉴스/비즈니스 대본은 한자(漢字) 비율이 높고 히라가나/가타카나가 적음.
+                따라서 한글이 없고 히라가나/가타카나가 1개 이상 있으면 일본어로 판단.
+                """
                 if not text:
                     return 'en'
                 korean_chars = len(re_module.findall(r'[가-힣]', text))
+                # 히라가나 + 가타카나 (일본어 고유 문자)
                 japanese_chars = len(re_module.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
                 total_chars = len(re_module.sub(r'\s', '', text))
                 if total_chars == 0:
                     return 'en'
-                korean_ratio = korean_chars / total_chars
-                japanese_ratio = japanese_chars / total_chars
-                if korean_ratio > 0.3:
+
+                # 한국어 우선 감지 (한글이 있으면 한국어)
+                if korean_chars > 0:
                     return 'ko'
-                elif japanese_ratio > 0.2:
+                # 일본어 감지: 히라가나/가타카나가 1개 이상 있으면 일본어
+                # (한자가 많은 일본어 뉴스 대본도 정확히 감지)
+                elif japanese_chars > 0:
                     return 'ja'
                 return 'en'
 
@@ -12832,17 +12839,20 @@ def api_image_generate_assets_zip():
         from datetime import datetime
 
         def detect_language(text):
-            """텍스트의 주요 언어 감지 (한국어/영어/일본어)"""
+            """텍스트의 주요 언어 감지 (한국어/영어/일본어)
+
+            일본어 뉴스/비즈니스 대본은 한자(漢字) 비율이 높고 히라가나/가타카나가 적음.
+            따라서 한글이 없고 히라가나/가타카나가 1개 이상 있으면 일본어로 판단.
+            """
             if not text:
                 return 'en'
             korean_chars = len(re.findall(r'[가-힣]', text))
             japanese_chars = len(re.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
-            total_chars = len(re.sub(r'\s', '', text))
-            if total_chars == 0:
-                return 'en'
-            if korean_chars / total_chars > 0.3:
+            # 한국어 우선 감지 (한글이 있으면 한국어)
+            if korean_chars > 0:
                 return 'ko'
-            elif japanese_chars / total_chars > 0.2:
+            # 일본어 감지: 히라가나/가타카나가 1개 이상 있으면 일본어
+            elif japanese_chars > 0:
                 return 'ja'
             return 'en'
 
@@ -18774,26 +18784,27 @@ def api_thumbnail_ai_analyze():
 
         # 언어 감지 (대본 기준)
         def detect_language(text):
-            """대본의 주요 언어를 감지"""
+            """대본의 주요 언어를 감지
+
+            일본어 뉴스/비즈니스 대본은 한자(漢字) 비율이 높고 히라가나/가타카나가 적음.
+            따라서 한글이 없고 히라가나/가타카나가 1개 이상 있으면 일본어로 판단.
+            """
             import re
-            # 일본어 감지 (히라가나/가타카나)
-            ja_pattern = re.compile(r'[\u3040-\u309F\u30A0-\u30FF]')
-            ja_count = len(ja_pattern.findall(text[:1000]))
             # 한국어 감지
             ko_pattern = re.compile(r'[\uAC00-\uD7AF]')
             ko_count = len(ko_pattern.findall(text[:1000]))
-            # 영어 감지 (알파벳)
-            en_pattern = re.compile(r'[a-zA-Z]')
-            en_count = len(en_pattern.findall(text[:1000]))
+            # 일본어 감지 (히라가나/가타카나)
+            ja_pattern = re.compile(r'[\u3040-\u309F\u30A0-\u30FF]')
+            ja_count = len(ja_pattern.findall(text[:1000]))
 
-            if ja_count > 30:  # 일본어가 충분히 많으면
-                return 'ja', '日本語', 'Japanese'
-            elif ko_count > en_count:
+            # 한국어 우선 (한글이 있으면 한국어)
+            if ko_count > 0:
                 return 'ko', '한국어', 'Korean'
-            elif en_count > 50:  # 영어가 충분히 많으면
-                return 'en', 'English', 'English'
-            else:
-                return 'ko', '한국어', 'Korean'  # 기본값
+            # 일본어: 히라가나/가타카나가 1개 이상 있으면 일본어
+            elif ja_count > 0:
+                return 'ja', '日本語', 'Japanese'
+            # 기본값: 영어
+            return 'en', 'English', 'English'
 
         lang_code, lang_name, lang_english = detect_language(script + title)
         print(f"[THUMBNAIL-AI] 분석 요청 - 제목: {title}")
@@ -21199,17 +21210,18 @@ def run_automation_pipeline(row_data, row_index):
 
             # 대본 언어 감지 (CTA 언어 결정용)
             def detect_lang_simple(text):
+                """일본어 뉴스/비즈니스 대본은 한자가 많고 히라가나/가타카나가 적음.
+                한글이 없고 히라가나/가타카나가 1개 이상 있으면 일본어로 판단."""
                 if not text:
                     return 'ko'
                 import re as re_detect
                 korean = len(re_detect.findall(r'[가-힣]', text))
                 japanese = len(re_detect.findall(r'[\u3040-\u309F\u30A0-\u30FF]', text))
-                total = len(re_detect.sub(r'\s', '', text))
-                if total == 0:
+                # 한국어 우선 (한글이 있으면 한국어)
+                if korean > 0:
                     return 'ko'
-                if korean / total > 0.3:
-                    return 'ko'
-                if japanese / total > 0.2:
+                # 일본어: 히라가나/가타카나가 1개 이상 있으면 일본어
+                if japanese > 0:
                     return 'ja'
                 return 'en'
             detected_lang = detect_lang_simple(script)
