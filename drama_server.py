@@ -20019,6 +20019,190 @@ def sheets_update_cell(service, sheet_id, cell_range, value, max_retries=3):
     return False
 
 
+# ========== 시트 동적 매핑 함수들 ==========
+
+def get_all_sheet_names(service, sheet_id):
+    """
+    Google Sheets 파일의 모든 시트(탭) 이름 가져오기
+    _설정, _템플릿 등 언더스코어로 시작하는 시트는 제외
+
+    반환: ['채널A', '채널B', ...] 또는 None (실패 시)
+    """
+    try:
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        sheets = spreadsheet.get('sheets', [])
+
+        sheet_names = []
+        for sheet in sheets:
+            name = sheet.get('properties', {}).get('title', '')
+            # 언더스코어로 시작하는 시트는 설정/템플릿용으로 제외
+            if name and not name.startswith('_'):
+                sheet_names.append(name)
+
+        print(f"[SHEETS] 발견된 채널 시트: {sheet_names}")
+        return sheet_names
+    except Exception as e:
+        print(f"[SHEETS] 시트 목록 가져오기 실패: {e}")
+        return None
+
+
+def get_column_mapping(headers):
+    """
+    헤더 이름으로 열 인덱스/문자 매핑 생성
+
+    headers: ['상태', '공개설정', '플레이리스트ID', ...]
+    반환: {
+        '상태': {'index': 0, 'letter': 'A'},
+        '공개설정': {'index': 1, 'letter': 'B'},
+        ...
+    }
+    """
+    mapping = {}
+    for idx, header in enumerate(headers):
+        if header:  # 빈 헤더 무시
+            # 열 문자 계산 (0->A, 1->B, ..., 25->Z, 26->AA, ...)
+            col_letter = ''
+            temp_idx = idx
+            while True:
+                col_letter = chr(ord('A') + temp_idx % 26) + col_letter
+                temp_idx = temp_idx // 26 - 1
+                if temp_idx < 0:
+                    break
+
+            mapping[header] = {
+                'index': idx,
+                'letter': col_letter
+            }
+
+    return mapping
+
+
+def get_sheet_channel_id(rows):
+    """
+    시트의 1행에서 채널 ID 추출
+
+    시트 구조:
+    - A1: '채널ID'
+    - B1: 'UCxxxx...'
+
+    반환: 채널 ID 문자열 또는 None
+    """
+    if not rows or len(rows) < 1:
+        return None
+
+    first_row = rows[0]
+    if len(first_row) >= 2 and first_row[0] == '채널ID':
+        return first_row[1]
+
+    return None
+
+
+def get_row_value(row, col_map, header_name, default=''):
+    """
+    헤더 이름으로 행에서 값 가져오기
+
+    row: 데이터 행 리스트
+    col_map: get_column_mapping()의 반환값
+    header_name: 열 이름 (예: '상태', '대본')
+    default: 값이 없을 때 기본값
+    """
+    if header_name not in col_map:
+        return default
+
+    idx = col_map[header_name]['index']
+    if idx < len(row):
+        return row[idx] if row[idx] else default
+    return default
+
+
+def sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, header_name, value):
+    """
+    헤더 이름으로 특정 셀 업데이트
+
+    sheet_name: 시트 이름 (예: '뉴스채널')
+    row_num: 행 번호 (1-based)
+    col_map: get_column_mapping()의 반환값
+    header_name: 열 이름 (예: '상태')
+    value: 설정할 값
+    """
+    if header_name not in col_map:
+        print(f"[SHEETS] 경고: 헤더 '{header_name}'을 찾을 수 없음")
+        return False
+
+    col_letter = col_map[header_name]['letter']
+    cell_range = f"'{sheet_name}'!{col_letter}{row_num}"
+
+    return sheets_update_cell(service, sheet_id, cell_range, value)
+
+
+# ========== CTR 자동화 설정 ==========
+CTR_THRESHOLD = 3.0  # CTR 3% 미만이면 제목 변경
+CTR_CHECK_DAYS = 7   # 업로드 후 7일 후부터 CTR 체크
+
+
+def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
+    """
+    YouTube Analytics API로 영상의 CTR (클릭률) 조회
+
+    반환: {
+        'ctr': 4.5,  # 클릭률 (%)
+        'impressions': 10000,  # 노출 수
+        'views': 450  # 조회 수
+    } 또는 None (실패 시)
+    """
+    from datetime import datetime, timedelta
+
+    try:
+        # 최근 28일간 데이터 조회
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=28)).strftime('%Y-%m-%d')
+
+        response = youtube_analytics.reports().query(
+            ids=f'channel=={channel_id}',
+            startDate=start_date,
+            endDate=end_date,
+            metrics='views,impressions,impressionClickThroughRate',
+            dimensions='video',
+            filters=f'video=={video_id}'
+        ).execute()
+
+        rows = response.get('rows', [])
+        if rows and len(rows) > 0:
+            # [video_id, views, impressions, ctr]
+            row = rows[0]
+            return {
+                'views': int(row[1]) if len(row) > 1 else 0,
+                'impressions': int(row[2]) if len(row) > 2 else 0,
+                'ctr': float(row[3]) * 100 if len(row) > 3 else 0  # 비율 -> 퍼센트
+            }
+
+        return None
+    except Exception as e:
+        print(f"[CTR] Analytics API 오류: {e}")
+        return None
+
+
+def extract_video_id_from_url(url):
+    """YouTube URL에서 video ID 추출"""
+    import re
+
+    if not url:
+        return None
+
+    # 다양한 YouTube URL 형식 지원
+    patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
+        r'(?:youtube\.com/shorts/)([a-zA-Z0-9_-]{11})'
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+
+    return None
+
+
 # ========== TubeLens 통합 기능 (자동화 파이프라인용) ==========
 
 # 채널별 최적 업로드 시간 캐시 (메모리 + 파일)
@@ -22464,26 +22648,39 @@ def api_sheets_auth_status():
 @app.route('/api/sheets/check-and-process', methods=['POST'])
 def api_sheets_check_and_process():
     """
-    Google Sheets에서 '대기' 상태인 행을 찾아 처리
+    Google Sheets에서 '대기' 상태인 행을 찾아 처리 (다중 시트 지원)
     Render Cron Job에서 5분마다 호출
 
-    시트 구조:
-    A: 상태 (대기/처리중/완료/실패)
-    B: 예약시간 (2025-12-07 09:00)
-    C: 채널ID
-    D: 대본
-    E: 제목 (선택)
-    F: 공개설정 (private/unlisted/public)
-    G: 영상URL (자동 입력 - 출력)
-    H: 에러메시지 (자동 입력 - 출력)
-    I: 음성 (선택, 기본: ko-KR-Neural2-C 남성)
-       - 여성: ko-KR-Neural2-A
-       - 남성: ko-KR-Neural2-C
-    J: 타겟 (선택, 기본: senior)
-       - senior: 시니어 (50-70대)
-       - general: 일반 (20-40대)
+    시트 구조 (채널별 시트):
+    - 행1: 채널 설정 (A1: '채널ID', B1: 'UCxxxx...')
+    - 행2: 헤더 (상태, 공개설정, 플레이리스트ID, 작업시간, 예약시간, ...)
+    - 행3~: 데이터
+
+    헤더 (열 순서는 동적 매핑):
+    - 상태: 대기/처리중/완료/실패
+    - 공개설정: public/private/unlisted
+    - 플레이리스트ID: YouTube 플레이리스트 ID
+    - 작업시간: 파이프라인 실행 시간 (출력)
+    - 예약시간: YouTube 공개 예약 시간
+    - 영상URL: 업로드된 URL (출력)
+    - CTR: 클릭률 (출력)
+    - 노출수: impressions (출력)
+    - 제목 (GPT 생성): 메인 제목
+    - 제목2: 대안 제목 (solution)
+    - 제목3: 대안 제목 (authority)
+    - 제목변경일: CTR 자동화용 (출력)
+    - 대본: 영상 대본
+    - 카테고리: news/story (출력)
+    - 에러메시지: 실패 시 에러 (출력)
+    - 비용: 생성 비용 (출력)
+
+    처리 우선순위:
+    1. 예약시간이 있는 경우: 예약시간 빠른 순
+    2. 예약시간이 없는 경우: 시트 순서
     """
     try:
+        from datetime import datetime, timedelta, timezone
+
         # 서비스 계정 인증
         service = get_sheets_service_account()
         if not service:
@@ -22500,166 +22697,471 @@ def api_sheets_check_and_process():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # 시트 데이터 읽기 (A:R까지 - 플레이리스트ID 컬럼 포함)
-        rows = sheets_read_rows(service, sheet_id, 'Sheet1!A:R')
+        # 현재 시간 (한국 시간 KST = UTC+9)
+        kst = timezone(timedelta(hours=9))
+        now = datetime.now(kst).replace(tzinfo=None)
 
-        # None = API 실패 (재시도 후에도 실패), [] = 빈 시트
-        if rows is None:
+        # ========== 1. 모든 시트 목록 가져오기 ==========
+        sheet_names = get_all_sheet_names(service, sheet_id)
+        if sheet_names is None:
             return jsonify({
                 "ok": False,
-                "error": "Google Sheets API 호출 실패 (재시도 후에도 실패)",
-                "processed": 0
-            }), 503  # Service Unavailable
+                "error": "시트 목록 가져오기 실패"
+            }), 503
 
-        if len(rows) == 0:
+        if len(sheet_names) == 0:
             return jsonify({
                 "ok": True,
-                "message": "시트가 비어있습니다",
+                "message": "처리할 채널 시트가 없습니다 (언더스코어로 시작하지 않는 시트 없음)",
                 "processed": 0
             })
 
-        # 현재 시간 (한국 시간 KST = UTC+9)
-        from datetime import datetime, timedelta, timezone
-        kst = timezone(timedelta(hours=9))
-        now = datetime.now(kst).replace(tzinfo=None)  # naive datetime으로 변환 (시트의 작업시간과 비교용)
-        processed_count = 0
-        results = []
+        print(f"[SHEETS] 총 {len(sheet_names)}개 채널 시트 확인: {sheet_names}")
 
-        # ========== 처리중인 작업이 있는지 확인 (40분 타임아웃) ==========
-        # "처리중"인 행이 있으면 새 작업을 시작하지 않음 (한 번에 하나씩만 처리)
-        # 단, 40분 이상 처리중이거나 시작시간이 없으면 실패로 변경
-        # (10분 영상에 ~20분 소요되므로 여유있게 40분)
-        for i, row in enumerate(rows[1:], start=2):
-            if len(row) > 0 and row[0] == '처리중':
-                work_time = row[1] if len(row) > 1 else ''
-
-                # 처리 시작 시간 확인 (B열)
-                if work_time:
-                    try:
-                        work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M:%S')
-                        elapsed_minutes = (now - work_dt).total_seconds() / 60
-
-                        if elapsed_minutes > 40:
-                            # 40분 초과 → 실패로 변경
-                            print(f"[SHEETS] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리")
-                            sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                            sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', f'타임아웃: {elapsed_minutes:.0f}분 경과')
-                            continue  # 다음 행 확인
-                        else:
-                            print(f"[SHEETS] 처리중인 작업 발견 (행 {i}, {elapsed_minutes:.1f}분 경과) - 새 작업 시작 안함")
-                    except ValueError:
-                        # 시간 형식 파싱 실패 → 실패로 처리
-                        print(f"[SHEETS] 행 {i}: 시작시간 형식 오류 - 실패 처리")
-                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                        sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', '시작시간 형식 오류로 실패')
-                        continue  # 다음 행 확인
-                else:
-                    # 시작시간 없음 → 실패로 처리 (배포 전 작업 등)
-                    print(f"[SHEETS] 행 {i}: 시작시간 없음 - 실패 처리")
-                    sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                    sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', '시작시간 없음 (서버 재시작)')
-                    continue  # 다음 행 확인
-
-                return jsonify({
-                    "ok": True,
-                    "message": f"행 {i}에서 처리중인 작업이 있어 대기합니다",
-                    "processing_row": i,
-                    "processed": 0
-                })
-
-        # ========== 대기 중인 첫 번째 행만 처리 ==========
-        # 행 순회 (첫 번째 행은 헤더로 가정)
-        for i, row in enumerate(rows[1:], start=2):  # 2부터 시작 (1-based, 헤더 제외)
-            if len(row) < 1:
+        # ========== 2. 모든 시트에서 처리중 상태 확인 ==========
+        # 어떤 시트에서든 처리중이면 새 작업 시작 안함
+        for sheet_name in sheet_names:
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            if rows is None or len(rows) < 3:  # 행1: 채널설정, 행2: 헤더, 행3~: 데이터
                 continue
 
-            status = row[0] if len(row) > 0 else ''
-            work_time = row[1] if len(row) > 1 else ''  # B열: 작업시간 (파이프라인 실행 시점)
+            # 헤더에서 열 매핑 생성 (행2)
+            headers = rows[1]
+            col_map = get_column_mapping(headers)
 
-            # '대기' 상태이고 작업시간이 지났으면 처리
-            if status == '대기':
-                # 작업시간 파싱
-                should_process = False
-                if work_time:
-                    try:
-                        work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M')
-                        if now >= work_dt:
-                            should_process = True
-                    except ValueError:
-                        # 작업시간 형식이 잘못되면 즉시 처리
-                        should_process = True
-                else:
-                    # 작업시간이 없으면 즉시 처리
-                    should_process = True
+            if '상태' not in col_map or '작업시간' not in col_map:
+                print(f"[SHEETS] 경고: '{sheet_name}' 시트에 필수 헤더(상태, 작업시간)가 없음")
+                continue
 
-                if should_process:
-                    print(f"[SHEETS] 처리 시작 - 행 {i}")
+            # 데이터 행 순회 (행3부터)
+            for i, row in enumerate(rows[2:], start=3):
+                status = get_row_value(row, col_map, '상태')
+                work_time = get_row_value(row, col_map, '작업시간')
 
-                    # 상태를 '처리중'으로 변경 + 시작 시간 기록 (B열)
-                    sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '처리중')
-                    sheets_update_cell(service, sheet_id, f'Sheet1!B{i}', now.strftime('%Y-%m-%d %H:%M:%S'))
+                if status == '처리중':
+                    # 처리 시작 시간 확인
+                    if work_time:
+                        try:
+                            work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M:%S')
+                            elapsed_minutes = (now - work_dt).total_seconds() / 60
 
-                    # 파이프라인 실행
-                    result = run_automation_pipeline(row, i)
-
-                    # ========== 새로운 컬럼 구조 (H,I 제목 추가로 2칸 밀림) ==========
-                    # G: 제목(메인), H: 제목2(대안1), I: 제목3(대안2)
-                    # J: 비용, K: 공개설정, L: 영상URL, M: 에러메시지
-                    # N: 음성, O: 타겟, P: 카테고리, Q: 쇼츠URL
-
-                    # 비용 기록 (J열) - 성공/실패 모두
-                    cost = result.get('cost', 0.0)
-                    sheets_update_cell(service, sheet_id, f'Sheet1!J{i}', f'${cost:.2f}')
-
-                    # 제목 기록 (G, H, I열) - GPT가 생성한 3가지 스타일 제목
-                    if result.get('title'):
-                        sheets_update_cell(service, sheet_id, f'Sheet1!G{i}', result['title'])
-                    title_options = result.get('title_options', [])
-                    if len(title_options) >= 1:
-                        sheets_update_cell(service, sheet_id, f'Sheet1!H{i}', title_options[0].get('title', ''))
-                    if len(title_options) >= 2:
-                        sheets_update_cell(service, sheet_id, f'Sheet1!I{i}', title_options[1].get('title', ''))
-
-                    # 사용된 설정 정보 기록 (N, O, P열)
-                    if result.get('voice'):
-                        sheets_update_cell(service, sheet_id, f'Sheet1!N{i}', result['voice'])
-                    if result.get('audience'):
-                        sheets_update_cell(service, sheet_id, f'Sheet1!O{i}', result['audience'])
-                    if result.get('detected_category'):
-                        sheets_update_cell(service, sheet_id, f'Sheet1!P{i}', result['detected_category'])
-
-                    if result.get('ok'):
-                        # 성공 - 상태: 완료, 영상URL 기록 (L열), 쇼츠URL 기록 (Q열)
-                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '완료')
-                        if result.get('video_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!L{i}', result['video_url'])
-                        if result.get('shorts_url'):
-                            sheets_update_cell(service, sheet_id, f'Sheet1!Q{i}', result['shorts_url'])
+                            if elapsed_minutes > 40:
+                                # 40분 초과 → 실패로 변경
+                                print(f"[SHEETS] [{sheet_name}] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리")
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '상태', '실패')
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '에러메시지', f'타임아웃: {elapsed_minutes:.0f}분 경과')
+                                continue
+                            else:
+                                # 아직 처리중 → 전체 대기
+                                print(f"[SHEETS] [{sheet_name}] 행 {i}에서 처리중 ({elapsed_minutes:.1f}분 경과) - 새 작업 시작 안함")
+                                return jsonify({
+                                    "ok": True,
+                                    "message": f"[{sheet_name}] 행 {i}에서 처리중인 작업이 있어 대기합니다",
+                                    "processing_sheet": sheet_name,
+                                    "processing_row": i,
+                                    "processed": 0
+                                })
+                        except ValueError:
+                            # 시간 형식 파싱 실패 → 실패로 처리
+                            print(f"[SHEETS] [{sheet_name}] 행 {i}: 시작시간 형식 오류 - 실패 처리")
+                            sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '상태', '실패')
+                            sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '에러메시지', '시작시간 형식 오류로 실패')
+                            continue
                     else:
-                        # 실패 - 상태: 실패, 에러메시지 기록 (M열)
-                        sheets_update_cell(service, sheet_id, f'Sheet1!A{i}', '실패')
-                        error_msg = result.get('error', '알 수 없는 오류')[:500]  # 최대 500자
-                        sheets_update_cell(service, sheet_id, f'Sheet1!M{i}', error_msg)
+                        # 시작시간 없음 → 실패로 처리
+                        print(f"[SHEETS] [{sheet_name}] 행 {i}: 시작시간 없음 - 실패 처리")
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '상태', '실패')
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '에러메시지', '시작시간 없음 (서버 재시작)')
+                        continue
 
-                    processed_count += 1
-                    results.append({
-                        "row": i,
-                        "ok": result.get('ok'),
-                        "error": result.get('error')
-                    })
+        # ========== 3. 모든 시트에서 대기 작업 수집 ==========
+        pending_tasks = []  # [(예약시간, 시트순서, 시트이름, 행번호, 행데이터, 채널ID, col_map)]
 
-                    # ★ 한 번에 하나만 처리하고 종료
-                    break
+        for sheet_order, sheet_name in enumerate(sheet_names):
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            if rows is None or len(rows) < 3:
+                continue
+
+            # 채널 ID (행1)
+            channel_id = get_sheet_channel_id(rows)
+            if not channel_id:
+                print(f"[SHEETS] 경고: '{sheet_name}' 시트에 채널ID가 없음 (A1: '채널ID', B1: 'UCxxx' 형식 필요)")
+                continue
+
+            # 헤더에서 열 매핑 생성 (행2)
+            headers = rows[1]
+            col_map = get_column_mapping(headers)
+
+            if '상태' not in col_map or '대본' not in col_map:
+                print(f"[SHEETS] 경고: '{sheet_name}' 시트에 필수 헤더(상태, 대본)가 없음")
+                continue
+
+            # 데이터 행 순회 (행3부터)
+            for i, row in enumerate(rows[2:], start=3):
+                status = get_row_value(row, col_map, '상태')
+
+                if status == '대기':
+                    # 예약시간 파싱
+                    scheduled_time_str = get_row_value(row, col_map, '예약시간')
+                    scheduled_dt = None
+
+                    if scheduled_time_str:
+                        try:
+                            scheduled_dt = datetime.strptime(scheduled_time_str, '%Y-%m-%d %H:%M')
+                        except ValueError:
+                            try:
+                                scheduled_dt = datetime.strptime(scheduled_time_str, '%Y-%m-%d %H:%M:%S')
+                            except ValueError:
+                                pass  # 파싱 실패 시 None 유지
+
+                    # 예약시간이 미래면 건너뛰기
+                    if scheduled_dt and scheduled_dt > now:
+                        print(f"[SHEETS] [{sheet_name}] 행 {i}: 예약시간 {scheduled_time_str}이 아직 안됨 - 건너뛰기")
+                        continue
+
+                    # 대기 작업 추가
+                    # 정렬 키: (예약시간 있으면 예약시간, 없으면 최대값), (시트순서)
+                    sort_key = (scheduled_dt if scheduled_dt else datetime.max, sheet_order)
+                    pending_tasks.append((sort_key, sheet_name, i, row, channel_id, col_map))
+
+        # ========== 4. 예약시간 기준 정렬 ==========
+        pending_tasks.sort(key=lambda x: x[0])
+
+        if not pending_tasks:
+            return jsonify({
+                "ok": True,
+                "message": "처리할 대기 작업이 없습니다",
+                "processed": 0,
+                "sheets_checked": sheet_names
+            })
+
+        # ========== 5. 첫 번째 작업 실행 ==========
+        sort_key, sheet_name, row_num, row_data, channel_id, col_map = pending_tasks[0]
+        print(f"[SHEETS] [{sheet_name}] 행 {row_num} 처리 시작 (채널: {channel_id})")
+
+        # 상태를 '처리중'으로 변경 + 시작 시간 기록
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '처리중')
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '작업시간', now.strftime('%Y-%m-%d %H:%M:%S'))
+
+        # 파이프라인 실행 (새 구조에 맞게 데이터 전달)
+        pipeline_data = {
+            'channel_id': channel_id,
+            'script': get_row_value(row_data, col_map, '대본'),
+            'title': get_row_value(row_data, col_map, '제목 (GPT 생성)'),
+            'privacy': get_row_value(row_data, col_map, '공개설정', 'private'),
+            'playlist_id': get_row_value(row_data, col_map, '플레이리스트ID'),
+            'scheduled_time': get_row_value(row_data, col_map, '예약시간'),
+        }
+
+        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map)
+
+        # ========== 6. 결과 기록 ==========
+        # 비용 기록
+        cost = result.get('cost', 0.0)
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '비용', f'${cost:.2f}')
+
+        # 제목 기록
+        if result.get('title'):
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목 (GPT 생성)', result['title'])
+        title_options = result.get('title_options', [])
+        if len(title_options) >= 1:
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목2', title_options[0].get('title', ''))
+        if len(title_options) >= 2:
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목3', title_options[1].get('title', ''))
+
+        # 카테고리 기록
+        if result.get('detected_category'):
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '카테고리', result['detected_category'])
+
+        if result.get('ok'):
+            # 성공
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '완료')
+            if result.get('video_url'):
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '영상URL', result['video_url'])
+        else:
+            # 실패
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '실패')
+            error_msg = result.get('error', '알 수 없는 오류')[:500]
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '에러메시지', error_msg)
 
         return jsonify({
             "ok": True,
-            "message": f"{processed_count}개 행 처리 완료",
-            "processed": processed_count,
-            "results": results
+            "message": f"[{sheet_name}] 행 {row_num} 처리 완료",
+            "processed": 1,
+            "sheet": sheet_name,
+            "row": row_num,
+            "result_ok": result.get('ok'),
+            "error": result.get('error')
         })
 
     except Exception as e:
         print(f"[SHEETS] check-and-process 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
+    """
+    자동화 파이프라인 실행 (v2 - 동적 매핑 지원)
+
+    pipeline_data: {
+        'channel_id': 채널 ID,
+        'script': 대본,
+        'title': 제목 (선택),
+        'privacy': 공개설정,
+        'playlist_id': 플레이리스트 ID (선택),
+        'scheduled_time': 예약시간 (선택)
+    }
+    """
+    # 기존 run_automation_pipeline 함수 호출을 위해 row 형식으로 변환
+    # 기존 함수는 row[인덱스] 방식으로 접근하므로 호환성 유지
+    # 새 구조: channel_id는 시트 레벨에서 전달
+
+    # 기존 파이프라인 호출 (channel_id를 별도로 전달)
+    return run_automation_pipeline_with_channel(
+        channel_id=pipeline_data['channel_id'],
+        script=pipeline_data['script'],
+        title=pipeline_data.get('title'),
+        privacy=pipeline_data.get('privacy', 'private'),
+        playlist_id=pipeline_data.get('playlist_id'),
+        scheduled_time=pipeline_data.get('scheduled_time'),
+        sheet_name=sheet_name,
+        row_num=row_num
+    )
+
+
+def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy='private',
+                                          playlist_id=None, scheduled_time=None,
+                                          sheet_name=None, row_num=None):
+    """
+    자동화 파이프라인 실행 (명시적 파라미터 버전)
+    기존 run_automation_pipeline의 로직을 재사용하면서 새 구조 지원
+    """
+    # 기존 함수의 row 형식으로 변환하여 호출
+    # 기존 컬럼 구조: [상태, 작업시간, 채널ID, 채널명, 예약시간, 대본, 제목, ...]
+    # 새 구조에서는 채널ID가 시트 레벨이므로 더미 row 생성
+
+    # 더미 row 생성 (기존 함수 호환용)
+    dummy_row = [
+        '대기',           # 0: 상태
+        '',               # 1: 작업시간
+        channel_id,       # 2: 채널ID
+        sheet_name or '', # 3: 채널명 (시트 이름 사용)
+        scheduled_time or '', # 4: 예약시간
+        script,           # 5: 대본
+        title or '',      # 6: 제목
+        '',               # 7: 제목2
+        '',               # 8: 제목3
+        '',               # 9: 비용
+        privacy,          # 10: 공개설정
+        '',               # 11: 영상URL
+        '',               # 12: 에러메시지
+        '',               # 13: 음성
+        'senior',         # 14: 타겟
+        '',               # 15: 카테고리
+        '',               # 16: 쇼츠URL
+        playlist_id or '' # 17: 플레이리스트ID
+    ]
+
+    # 기존 파이프라인 호출
+    return run_automation_pipeline(dummy_row, row_num or 0)
+
+
+@app.route('/api/sheets/check-ctr-and-update-titles', methods=['POST'])
+def api_sheets_check_ctr_and_update_titles():
+    """
+    CTR 기반 자동 제목 변경 API
+
+    완료된 영상들의 CTR을 확인하고, CTR이 3% 미만인 경우 제목을 자동으로 변경합니다.
+    - 업로드 후 7일 이상 지난 영상만 대상
+    - 제목 변경 이력이 없는 영상만 대상
+    - 제목2 → 제목3 순서로 변경 시도
+
+    Render Cron Job에서 매일 1회 호출 권장
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # 시트 ID
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
+            }), 400
+
+        # YouTube Analytics 서비스 (OAuth 필요)
+        try:
+            from googleapiclient.discovery import build
+            from google.oauth2.credentials import Credentials
+
+            youtube_token = get_youtube_oauth_token()
+            if not youtube_token:
+                return jsonify({
+                    "ok": False,
+                    "error": "YouTube OAuth 토큰이 없습니다. 먼저 YouTube 계정을 연동하세요."
+                }), 400
+
+            credentials = Credentials(
+                token=youtube_token.get('access_token'),
+                refresh_token=youtube_token.get('refresh_token'),
+                token_uri='https://oauth2.googleapis.com/token',
+                client_id=os.environ.get('YOUTUBE_CLIENT_ID'),
+                client_secret=os.environ.get('YOUTUBE_CLIENT_SECRET')
+            )
+
+            youtube_analytics = build('youtubeAnalytics', 'v2', credentials=credentials)
+            youtube = build('youtube', 'v3', credentials=credentials)
+        except Exception as e:
+            return jsonify({
+                "ok": False,
+                "error": f"YouTube API 초기화 실패: {e}"
+            }), 500
+
+        # 현재 시간 (KST)
+        kst = timezone(timedelta(hours=9))
+        now = datetime.now(kst).replace(tzinfo=None)
+
+        # 모든 시트 목록 가져오기
+        sheet_names = get_all_sheet_names(service, sheet_id)
+        if not sheet_names:
+            return jsonify({
+                "ok": True,
+                "message": "처리할 시트가 없습니다",
+                "checked": 0,
+                "updated": 0
+            })
+
+        checked_count = 0
+        updated_count = 0
+        results = []
+
+        for sheet_name in sheet_names:
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            if rows is None or len(rows) < 3:
+                continue
+
+            # 채널 ID (행1)
+            channel_id = get_sheet_channel_id(rows)
+            if not channel_id:
+                continue
+
+            # 헤더에서 열 매핑 생성 (행2)
+            headers = rows[1]
+            col_map = get_column_mapping(headers)
+
+            required_headers = ['상태', '영상URL', '작업시간', '제목 (GPT 생성)', '제목2', '제목3', 'CTR', '노출수', '제목변경일']
+            if not all(h in col_map for h in ['상태', '영상URL', '작업시간']):
+                print(f"[CTR] [{sheet_name}] 필수 헤더 없음, 건너뛰기")
+                continue
+
+            # 데이터 행 순회 (행3부터)
+            for i, row in enumerate(rows[2:], start=3):
+                status = get_row_value(row, col_map, '상태')
+                video_url = get_row_value(row, col_map, '영상URL')
+                work_time_str = get_row_value(row, col_map, '작업시간')
+                title_changed_date = get_row_value(row, col_map, '제목변경일')
+
+                # 완료 상태 + 영상URL 있음 + 제목 변경 이력 없음
+                if status != '완료' or not video_url or title_changed_date:
+                    continue
+
+                # 업로드 후 7일 이상 지났는지 확인
+                if work_time_str:
+                    try:
+                        work_time = datetime.strptime(work_time_str, '%Y-%m-%d %H:%M:%S')
+                        days_since_upload = (now - work_time).days
+                        if days_since_upload < CTR_CHECK_DAYS:
+                            continue  # 아직 7일 안됨
+                    except ValueError:
+                        continue
+
+                # 비디오 ID 추출
+                video_id = extract_video_id_from_url(video_url)
+                if not video_id:
+                    continue
+
+                checked_count += 1
+
+                # CTR 조회
+                ctr_data = get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id)
+
+                if ctr_data:
+                    ctr = ctr_data.get('ctr', 0)
+                    impressions = ctr_data.get('impressions', 0)
+
+                    # CTR, 노출수 기록
+                    if 'CTR' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, 'CTR', f'{ctr:.2f}%')
+                    if '노출수' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '노출수', str(impressions))
+
+                    # CTR이 기준 미만이면 제목 변경
+                    if ctr < CTR_THRESHOLD and impressions >= 100:  # 최소 100회 노출 이상
+                        current_title = get_row_value(row, col_map, '제목 (GPT 생성)')
+                        title2 = get_row_value(row, col_map, '제목2')
+                        title3 = get_row_value(row, col_map, '제목3')
+
+                        # 다음 제목 선택 (제목2 → 제목3)
+                        new_title = None
+                        if title2 and title2 != current_title:
+                            new_title = title2
+                        elif title3 and title3 != current_title:
+                            new_title = title3
+
+                        if new_title:
+                            # YouTube API로 제목 변경
+                            try:
+                                youtube.videos().update(
+                                    part='snippet',
+                                    body={
+                                        'id': video_id,
+                                        'snippet': {
+                                            'title': new_title,
+                                            'categoryId': '22'  # People & Blogs
+                                        }
+                                    }
+                                ).execute()
+
+                                # 시트에 변경 기록
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '제목 (GPT 생성)', new_title)
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '제목변경일', now.strftime('%Y-%m-%d %H:%M'))
+
+                                updated_count += 1
+                                results.append({
+                                    'sheet': sheet_name,
+                                    'row': i,
+                                    'video_id': video_id,
+                                    'old_title': current_title,
+                                    'new_title': new_title,
+                                    'ctr': ctr,
+                                    'impressions': impressions
+                                })
+                                print(f"[CTR] [{sheet_name}] 행 {i}: 제목 변경 완료 (CTR {ctr:.2f}% < {CTR_THRESHOLD}%)")
+
+                            except Exception as e:
+                                print(f"[CTR] [{sheet_name}] 행 {i}: 제목 변경 실패 - {e}")
+
+        return jsonify({
+            "ok": True,
+            "message": f"CTR 확인 완료: {checked_count}개 확인, {updated_count}개 제목 변경",
+            "checked": checked_count,
+            "updated": updated_count,
+            "ctr_threshold": CTR_THRESHOLD,
+            "results": results
+        })
+
+    except Exception as e:
+        print(f"[CTR] check-ctr-and-update-titles 오류: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500

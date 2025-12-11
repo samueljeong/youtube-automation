@@ -54,34 +54,71 @@ Google Sheets 기반 YouTube 영상 자동 생성 시스템
 
 ---
 
-## Google Sheets 컬럼 구조
+## Google Sheets 구조 (채널별 시트)
 
-| 열 | 필드명 | 설명 |
-|---|--------|------|
-| A | 상태 | 대기중/처리중/완료/실패 |
-| B | 작업시간 | 파이프라인 실행 시간 |
-| C | 채널ID | YouTube 채널 ID |
-| D | 채널명 | 참고용 (코드에서 미사용) |
-| E | 예약시간 | YouTube 공개 예약 시간 |
-| F | 대본 | 영상 대본 전문 |
-| G | 제목 | YouTube 제목 (GPT 생성 메인, 입력 시 우선) |
-| H | 제목2 | 대안 제목 1 - solution 스타일 (출력) |
-| I | 제목3 | 대안 제목 2 - authority 스타일 (출력) |
-| J | 비용 | 생성 비용 (출력) |
-| K | 공개설정 | public/private/unlisted |
-| L | 영상URL | 업로드된 URL (출력) |
-| M | 에러메시지 | 실패 시 에러 (출력) |
-| N | 음성 | TTS 음성 (입력/출력) |
-| O | 타겟 | general/senior (입력/출력) |
-| P | 카테고리 | GPT 감지 카테고리 - news/story (출력) |
-| Q | 쇼츠URL | 자동 생성된 쇼츠 URL (출력) |
-| R | 플레이리스트ID | YouTube 플레이리스트 ID (입력, 선택) |
+### 시트 구조 개요
 
-**제목 A/B 테스트**: G열에 메인 제목, H/I열에 대안 제목이 자동 저장됩니다.
-CTR이 낮을 경우 YouTube Studio에서 H 또는 I열의 제목으로 변경하여 테스트할 수 있습니다.
+```
+Google Sheets 파일
+├── 뉴스채널      ← 채널별 탭 (탭 이름 = 채널명)
+├── 드라마채널
+├── 시니어채널
+└── _설정        ← 언더스코어 시작 = 처리 제외 (선택)
+```
 
-**플레이리스트 자동 추가**: R열에 플레이리스트 ID를 입력하면 업로드된 영상이 자동으로 해당 플레이리스트에 추가됩니다.
-플레이리스트 ID는 YouTube Studio > 플레이리스트 > URL에서 `list=` 뒤의 값입니다 (예: `PLxxxxxxxxxxxxxxxxxx`).
+### 각 시트 구조
+
+**행 1: 채널 설정 (고정)**
+| A1 | B1 |
+|----|-----|
+| 채널ID | UCxxxxxxxxxxxx |
+
+**행 2: 헤더 (열 순서 자유 - 동적 매핑)**
+
+| 헤더명 | 입/출력 | 설명 |
+|--------|---------|------|
+| 상태 | 입출력 | 대기/처리중/완료/실패 |
+| 공개설정 | 입력 | public/private/unlisted |
+| 플레이리스트ID | 입력 | YouTube 플레이리스트 ID |
+| 작업시간 | 출력 | 파이프라인 실행 시간 |
+| 예약시간 | 입력 | YouTube 공개 예약 시간 |
+| 영상URL | 출력 | 업로드된 URL |
+| CTR | 출력 | 클릭률 (%) - 자동 조회 |
+| 노출수 | 출력 | impressions - 자동 조회 |
+| 제목 (GPT 생성) | 입출력 | 메인 제목 |
+| 제목2 | 출력 | 대안 제목 (solution 스타일) |
+| 제목3 | 출력 | 대안 제목 (authority 스타일) |
+| 제목변경일 | 출력 | CTR 자동화로 변경된 날짜 |
+| 대본 | 입력 | 영상 대본 전문 |
+| 카테고리 | 출력 | GPT 감지 (news/story) |
+| 에러메시지 | 출력 | 실패 시 에러 |
+| 비용 | 출력 | 생성 비용 ($x.xx) |
+
+**행 3~: 데이터**
+
+### 처리 우선순위
+
+1. **예약시간 있음**: 예약시간 빠른 순으로 처리
+2. **예약시간 없음**: 시트 탭 순서대로 처리
+3. **처리중 상태**: 어떤 시트에서든 처리중이면 전체 대기
+
+### 제목 A/B 테스트 자동화
+
+- **자동 CTR 확인**: 업로드 후 7일 경과한 영상의 CTR 자동 조회
+- **자동 제목 변경**: CTR 3% 미만 + 노출 100회 이상 시 제목2 → 제목3 순서로 변경
+- **변경 기록**: 제목변경일에 변경 일시 자동 기록
+- **API**: `POST /api/sheets/check-ctr-and-update-titles` (매일 1회 cron 권장)
+
+### 열 순서 자유 변경
+
+헤더 기반 동적 매핑으로 열 순서를 자유롭게 변경할 수 있습니다.
+예시:
+```
+A: 상태 | B: 대본 | C: 제목 | D: 영상URL | ...  (순서 1)
+A: 대본 | B: 상태 | C: 영상URL | D: 제목 | ...  (순서 2) - 둘 다 OK
+```
+
+**주의**: 헤더 이름은 정확히 일치해야 합니다.
 
 ---
 
@@ -99,8 +136,11 @@ image_count = max(3, len(script) // 150)
 
 ## 주요 API 엔드포인트
 
-### 자동화용
-- `POST /api/sheets/check-and-process` - cron job 트리거
+### 자동화용 (cron job)
+- `POST /api/sheets/check-and-process` - 영상 생성 파이프라인 (5분마다)
+- `POST /api/sheets/check-ctr-and-update-titles` - CTR 기반 제목 자동 변경 (매일 1회)
+
+### 파이프라인 내부
 - `POST /api/image/analyze-script` - GPT-5.1 대본 분석
 - `POST /api/drama/generate-image` - Gemini 이미지 생성
 - `POST /api/image/generate-assets-zip` - TTS + 자막 생성
@@ -110,6 +150,10 @@ image_count = max(3, len(script) // 150)
 
 ### 상태 확인
 - `GET /api/image/video-status/{job_id}` - 영상 생성 상태
+
+### 디버깅
+- `GET /api/sheets/read` - 시트 데이터 읽기
+- `POST /api/sheets/update` - 시트 셀 업데이트
 
 ---
 
