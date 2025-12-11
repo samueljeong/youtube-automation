@@ -13800,9 +13800,9 @@ def _get_subtitle_style(lang):
             "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
     elif lang == 'ja':
-        # 일본어 - Noto Sans CJK JP 사용 (일본어 글리프 완전 지원)
+        # 일본어 - Corporate Logo Rounded 사용 (일본어 글리프 완전 지원)
         return (
-            "FontName=Noto Sans CJK JP,FontSize=22,PrimaryColour=&H00FFFF,"
+            "FontName=Corporate Logo Rounded ver3,FontSize=22,PrimaryColour=&H00FFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
@@ -13881,7 +13881,7 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             font_size = 48  # 24 → 48 (2배 크기)
             max_chars_per_line = 20  # 한국어: 한 줄 최대 20자
         elif lang == 'ja':
-            font_name = "Noto Sans CJK JP"  # 일본어 전용 폰트
+            font_name = "Corporate Logo Rounded ver3"  # 일본어 전용 폰트
             font_size = 40  # 일본어는 글자가 복잡해서 조금 작게
             max_chars_per_line = 15  # 일본어: 한 줄 최대 15자 (18 → 15, 화면 잘림 방지)
         else:
@@ -14029,7 +14029,7 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
     filters = []
     # 언어별 폰트 선택
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "NotoSansCJKjp-Bold.otf")
+        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
     else:
         font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
@@ -14159,7 +14159,7 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang='ko'):
     filters = []
     # 언어별 폰트 선택
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "NotoSansCJKjp-Bold.otf")
+        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
     else:
         font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
@@ -14261,7 +14261,7 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir, lang='k
 
     # 언어별 폰트 선택
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "NotoSansCJKjp-Bold.otf")
+        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
     else:
         font_path = os.path.join(fonts_dir, "NanumGothicBold.ttf")
     font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
