@@ -2658,17 +2658,35 @@ def analyze_news_with_gpt(news_items):
 7. JSON 외의 텍스트는 출력하지 마라"""
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"다음 뉴스 헤드라인들을 분석해주세요:\n\n{headlines_text}"}
+        # GPT-5.1 Responses API 사용
+        response = client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": f"다음 뉴스 헤드라인들을 분석해주세요:\n\n{headlines_text}"}]}
             ],
-            temperature=0.5,
-            response_format={"type": "json_object"}
+            temperature=0.5
         )
 
-        result = json.loads(response.choices[0].message.content)
+        # GPT-5.1 응답 추출
+        if getattr(response, "output_text", None):
+            response_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            response_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱 (```json 블록 제거)
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        response_text = response_text.strip()
+
+        result = json.loads(response_text)
         analyzed = result.get('news', [])
 
         # 원본 뉴스에서 링크와 발행 시간 추가
