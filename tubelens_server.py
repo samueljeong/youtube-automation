@@ -212,66 +212,87 @@ def get_channel_info(channel_id: str, api_key: str) -> Dict[str, Any]:
 
 
 def get_video_details(video_ids: List[str], api_key: str) -> List[Dict[str, Any]]:
-    """비디오 상세 정보 가져오기"""
+    """비디오 상세 정보 가져오기 (채널 정보 배치 처리로 최적화)"""
     if not video_ids:
         return []
 
-    # 50개씩 배치로 처리 (API 제한)
-    all_videos = []
-
+    # 1단계: 비디오 정보 50개씩 배치로 수집
+    video_items = []
     for i in range(0, len(video_ids), 50):
         batch_ids = video_ids[i:i+50]
-
         try:
             data = make_youtube_request("videos", {
                 "id": ",".join(batch_ids),
                 "part": "snippet,statistics,contentDetails"
             }, api_key)
-
-            for item in data.get("items", []):
-                video_id = item.get("id")
-                snippet = item.get("snippet", {})
-                statistics = item.get("statistics", {})
-                content_details = item.get("contentDetails", {})
-
-                # 채널 정보 가져오기
-                channel_id = snippet.get("channelId", "")
-                channel_info = get_channel_info(channel_id, api_key) if channel_id else {}
-
-                # 시간 정보
-                duration_seconds = parse_duration(content_details.get("duration", ""))
-                published_at = snippet.get("publishedAt", "")
-
-                # 통계 정보
-                view_count = int(statistics.get("viewCount", 0))
-                like_count = int(statistics.get("likeCount", 0))
-                comment_count = int(statistics.get("commentCount", 0))
-                subscriber_count = channel_info.get("subscriberCount", 0)
-
-                # CII 계산
-                cii_data = calculate_cii(view_count, subscriber_count, like_count, comment_count)
-
-                all_videos.append({
-                    "videoId": video_id,
-                    "title": snippet.get("title", ""),
-                    "description": snippet.get("description", ""),
-                    "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
-                    "channelId": channel_id,
-                    "channelTitle": snippet.get("channelTitle", ""),
-                    "publishedAt": published_at[:10] if published_at else "",
-                    "publishedAtRaw": published_at,
-                    "duration": format_duration(duration_seconds),
-                    "durationSeconds": duration_seconds,
-                    "viewCount": view_count,
-                    "likeCount": like_count,
-                    "commentCount": comment_count,
-                    "subscriberCount": subscriber_count,
-                    "totalVideos": channel_info.get("videoCount", 0),
-                    **cii_data
-                })
-
+            video_items.extend(data.get("items", []))
         except Exception as e:
             print(f"비디오 상세 정보 가져오기 실패: {e}")
+
+    # 2단계: 모든 고유 채널 ID 수집
+    channel_ids = list(set([
+        item.get("snippet", {}).get("channelId", "")
+        for item in video_items
+        if item.get("snippet", {}).get("channelId")
+    ]))
+
+    # 3단계: 채널 정보 배치로 가져오기 (N+1 문제 해결)
+    channel_map = {}
+    for i in range(0, len(channel_ids), 50):
+        batch_channel_ids = channel_ids[i:i+50]
+        try:
+            channels_data = make_youtube_request("channels", {
+                "part": "statistics",
+                "id": ",".join(batch_channel_ids)
+            }, api_key)
+            for ch in channels_data.get("items", []):
+                channel_map[ch["id"]] = {
+                    "subscriberCount": int(ch["statistics"].get("subscriberCount", 0)),
+                    "videoCount": int(ch["statistics"].get("videoCount", 0))
+                }
+        except Exception as e:
+            print(f"채널 정보 배치 가져오기 실패: {e}")
+
+    # 4단계: 비디오 데이터 조합
+    all_videos = []
+    for item in video_items:
+        video_id = item.get("id")
+        snippet = item.get("snippet", {})
+        statistics = item.get("statistics", {})
+        content_details = item.get("contentDetails", {})
+
+        channel_id = snippet.get("channelId", "")
+        channel_info = channel_map.get(channel_id, {"subscriberCount": 0, "videoCount": 0})
+
+        duration_seconds = parse_duration(content_details.get("duration", ""))
+        published_at = snippet.get("publishedAt", "")
+
+        view_count = int(statistics.get("viewCount", 0))
+        like_count = int(statistics.get("likeCount", 0))
+        comment_count = int(statistics.get("commentCount", 0))
+        subscriber_count = channel_info.get("subscriberCount", 0)
+
+        cii_data = calculate_cii(view_count, subscriber_count, like_count, comment_count)
+
+        all_videos.append({
+            "videoId": video_id,
+            "title": snippet.get("title", ""),
+            "description": snippet.get("description", ""),
+            "thumbnail": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+            "channelId": channel_id,
+            "channelTitle": snippet.get("channelTitle", ""),
+            "publishedAt": published_at[:10] if published_at else "",
+            "publishedAtRaw": published_at,
+            "duration": format_duration(duration_seconds),
+            "durationSeconds": duration_seconds,
+            "viewCount": view_count,
+            "likeCount": like_count,
+            "commentCount": comment_count,
+            "subscriberCount": subscriber_count,
+            "totalVideos": channel_info.get("videoCount", 0),
+            "categoryId": snippet.get("categoryId", ""),
+            **cii_data
+        })
 
     return all_videos
 
