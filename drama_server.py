@@ -13934,7 +13934,7 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
         if lang == 'ko':
             font_name = lang_ko.FONTS['default_name']
             font_size = 48  # 24 → 48 (2배 크기)
-            max_chars_per_line = 20  # 한국어: 한 줄 최대 20자
+            max_chars_per_line = 26  # 한국어: 한 줄 최대 26자 (20→26 확장)
         elif lang == 'ja':
             # 일본어: lang/ja.py에서 관리
             font_name = lang_ja.FONTS['default_name']
@@ -14005,6 +14005,17 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
 
             # 빈 줄 제거
             lines = [l for l in lines if l]
+
+            # 마지막 줄이 너무 짧으면 (8자 미만) 이전 줄과 합치기
+            # 예: "해드리겠습니다." (8자) 같은 짧은 끝 부분 방지
+            min_last_line_chars = 8
+            if len(lines) >= 2 and len(lines[-1]) < min_last_line_chars:
+                # 이전 줄과 합쳤을 때 max_chars를 약간 초과해도 허용 (가독성 우선)
+                combined = lines[-2] + ' ' + lines[-1]
+                if len(combined) <= max_chars + 6:  # 최대 32자까지 허용
+                    lines[-2] = combined
+                    lines.pop()
+
             result = '\n'.join(lines)
             return result
 
