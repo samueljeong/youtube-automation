@@ -1,100 +1,260 @@
 {
   "title": "시니어용 유튜브 썸네일 제작 가이드",
-  "version": "1.0",
-  "principles": {
-    "text_rules": {
-      "max_chars": 12,
-      "font_style": "bold gothic",
-      "outline": true,
-      "outline_color": "#000000",
-      "position": "left_top"
+  "version": "1.1",
+  "languages": ["ko", "ja"],
+
+  "korean": {
+    "target": "한국 50-70대 시니어",
+    "principles": {
+      "text_rules": {
+        "max_chars": 12,
+        "font_style": "bold gothic",
+        "outline": true,
+        "outline_color": "#000000",
+        "position": "left_top"
+      },
+      "visual_rules": {
+        "single_scene": true,
+        "emotion_required": true,
+        "no_complex_gradient": true,
+        "background_blur": "5-10%"
+      },
+      "color_combinations": [
+        { "text": "#FFD700", "outline": "#000000", "name": "노랑+검정" },
+        { "text": "#FF0000", "outline": "#FFFFFF", "name": "빨강+흰색" },
+        { "text": "#0066FF", "outline": "#FFFFFF", "name": "파랑+흰색" },
+        { "text": "#FF8C00", "outline": "#000000", "name": "주황+검정" },
+        { "text": "#00AA00", "outline": "#FFFFFF", "name": "녹색+흰색" }
+      ],
+      "forbidden_colors": ["연보라", "연회색", "파스텔톤만"]
     },
-    "visual_rules": {
-      "single_scene": true,
-      "emotion_required": true,
-      "no_complex_gradient": true,
-      "background_blur": "5-10%"
+    "text_patterns": {
+      "retrospective": [
+        "그날을 잊지 않는다",
+        "처음엔 몰랐다",
+        "그때 말하지 말걸",
+        "돌아보면 눈물이 난다",
+        "다시 만난 그 자리"
+      ],
+      "regret_lesson": [
+        "하는 게 아니었다",
+        "그 말을 왜 했을까",
+        "늦게 알았다",
+        "지금도 후회한다",
+        "왜 그랬을까"
+      ],
+      "experience_sharing": [
+        "다 겪어봤다",
+        "누구나 그런 날 있다",
+        "나도 그랬다",
+        "환자 앞에서 배운 것들",
+        "기적 같은 하루"
+      ]
     },
-    "color_combinations": [
-      { "text": "#FFD700", "outline": "#000000", "name": "노랑+검정" },
-      { "text": "#FF0000", "outline": "#FFFFFF", "name": "빨강+흰색" },
-      { "text": "#0066FF", "outline": "#FFFFFF", "name": "파랑+흰색" },
-      { "text": "#FF8C00", "outline": "#000000", "name": "주황+검정" },
-      { "text": "#00AA00", "outline": "#FFFFFF", "name": "녹색+흰색" }
+    "stickman_poses": [
+      "종이봉투 들고 서 있음",
+      "문 앞에서 주춤",
+      "고개 숙임",
+      "손에 서류/차트 들고 있음",
+      "창 밖을 바라봄",
+      "의자에 앉아 대기",
+      "가운 들고/접고 있음",
+      "손을 모으고 있음",
+      "문 여는 자세",
+      "멈춰 서 있음"
     ],
-    "forbidden_colors": ["연보라", "연회색", "파스텔톤만"]
-  },
-  "text_patterns": {
-    "retrospective": [
-      "그날을 잊지 않는다",
-      "처음엔 몰랐다",
-      "그때 말하지 말걸",
-      "돌아보면 눈물이 난다",
-      "다시 만난 그 자리"
+    "backgrounds": [
+      "병원 입구 간판",
+      "진료대기실 의자",
+      "병원 복도",
+      "창가 햇살",
+      "약국 외관",
+      "동네 상점가",
+      "벚꽃 길",
+      "진료실 책상",
+      "기차역 플랫폼",
+      "시장 골목"
     ],
-    "regret_lesson": [
-      "하는 게 아니었다",
-      "그 말을 왜 했을까",
-      "늦게 알았다",
-      "지금도 후회한다",
-      "왜 그랬을까"
-    ],
-    "experience_sharing": [
-      "다 겪어봤다",
-      "누구나 그런 날 있다",
-      "나도 그랬다",
-      "환자 앞에서 배운 것들",
-      "기적 같은 하루"
-    ]
-  },
-  "stickman_poses": [
-    "종이봉투 들고 서 있음",
-    "문 앞에서 주춤",
-    "고개 숙임",
-    "손에 서류/차트 들고 있음",
-    "창 밖을 바라봄",
-    "의자에 앉아 대기",
-    "가운 들고/접고 있음",
-    "손을 모으고 있음",
-    "문 여는 자세",
-    "멈춰 서 있음"
-  ],
-  "korean_backgrounds": [
-    "병원 입구 간판",
-    "진료대기실 의자",
-    "병원 복도",
-    "창가 햇살",
-    "약국 외관",
-    "동네 상점가",
-    "벚꽃 길",
-    "진료실 책상",
-    "기차역 플랫폼",
-    "시장 골목"
-  ],
-  "layout_templates": {
-    "template_a": {
-      "name": "기본형",
-      "text_position": "left_top",
-      "character_position": "right",
-      "background": "병원 관련",
-      "text_color": "노랑+검정"
+    "layout_templates": {
+      "template_a": {
+        "name": "기본형",
+        "text_position": "left_top",
+        "character_position": "right",
+        "background": "병원 관련",
+        "text_color": "노랑+검정"
+      },
+      "template_b": {
+        "name": "스토리형",
+        "text_position": "top_center",
+        "character_position": "center_right",
+        "background": "책상+창문+햇살",
+        "props": "가운, 서류"
+      },
+      "template_c": {
+        "name": "감정형",
+        "text_position": "left_top",
+        "character_position": "right_bottom_small",
+        "background": "흐림10%+진한 대비"
+      }
     },
-    "template_b": {
-      "name": "스토리형",
-      "text_position": "top_center",
-      "character_position": "center_right",
-      "background": "책상+창문+햇살",
-      "props": "가운, 서류"
-    },
-    "template_c": {
-      "name": "감정형",
-      "text_position": "left_top",
-      "character_position": "right_bottom_small",
-      "background": "흐림10%+진한 대비"
+    "prompt_template": {
+      "realistic": "Korean elderly [gender], [emotion] expression, [location], warm nostalgic lighting, soft focus background, [action], film grain, 1970s Korean aesthetic",
+      "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime slice-of-life background showing [location], soft pastel lighting, emotional storytelling composition"
     }
   },
-  "prompt_template": {
-    "realistic": "Korean elderly [gender], [emotion] expression, [location], warm nostalgic lighting, soft focus background, [action], film grain, 1970s Korean aesthetic",
-    "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime slice-of-life background showing [location], soft pastel lighting, emotional storytelling composition"
+
+  "japanese": {
+    "target": "일본 60-80대 시니어 (스마트폰 소형 화면 시청)",
+    "principles": {
+      "text_rules": {
+        "max_chars": 10,
+        "description": "큰 글씨로 표시하기 위해 최대 10자 이내",
+        "font_style": "bold gothic",
+        "outline": true,
+        "outline_color": "#000000",
+        "position": "left_top",
+        "core_message_only": true
+      },
+      "visual_rules": {
+        "single_scene": true,
+        "emotion_required": true,
+        "no_complex_gradient": true,
+        "background_blur": "5-10%",
+        "high_contrast": true,
+        "large_text_priority": true
+      },
+      "color_combinations": [
+        { "text": "#FFD700", "outline": "#000000", "name": "黄色+黒" },
+        { "text": "#FF0000", "outline": "#FFFFFF", "name": "赤+白" },
+        { "text": "#0066FF", "outline": "#FFFFFF", "name": "青+白" },
+        { "text": "#FF8C00", "outline": "#000000", "name": "オレンジ+黒" }
+      ],
+      "forbidden_colors": ["薄紫", "薄灰色", "パステルカラーのみ"]
+    },
+    "content_rules": {
+      "must_include": {
+        "specific_numbers": true,
+        "description": "구체적인 숫자/금액/날짜 우선 (예: 2.7%, 5万円, 1月から)"
+      },
+      "sentence_style": ["疑問形", "断定形"],
+      "forbidden_words": {
+        "youth_slang": ["ヤバい", "マジ", "ガチ", "めっちゃ", "やばすぎ", "ウケる", "エモい"],
+        "description": "젊은이 말투 절대 금지"
+      },
+      "recommended_action_words": ["確認", "注意", "届出", "申請", "変更", "必須", "重要"],
+      "topics_of_interest": ["年金", "医療費", "光熱費", "生活費", "介護", "健康"]
+    },
+    "text_patterns": {
+      "number_focused": [
+        "年金2.7%増額",
+        "電気代30%値上げ",
+        "12月届出必須",
+        "5万円sinior sinior sinior sinior sinior",
+        "1月から変更"
+      ],
+      "action_focused": [
+        "届出お忘れなく",
+        "sinior sinior sinior sinior sinior 確認を",
+        "sinior sinior sinior sinior 注意",
+        "sinior sinior sinior 変更sinior sinior sinior"
+      ],
+      "question_style": [
+        "sinior sinior sinior sinior ？",
+        "sinior sinior sinior sinior sinior sinior ？",
+        "sinior sinior sinior sinior sinior ？"
+      ]
+    },
+    "bad_examples": [
+      {
+        "text": "年金↑ 光熱費↑ インフル大流行",
+        "reason": "情報過多、文字が小さくなる"
+      },
+      {
+        "text": "ヤバい年金",
+        "reason": "若者言葉、具体性なし"
+      },
+      {
+        "text": "3つの冬支度",
+        "reason": "曖昧な表現、具体性なし"
+      }
+    ],
+    "good_examples": [
+      {
+        "text": "年金2.7%増額",
+        "reason": "核心メッセージ1つ、具体的数値"
+      },
+      {
+        "text": "sinior sinior sinior 届出必須",
+        "reason": "金額+行動喚起"
+      },
+      {
+        "text": "sinior sinior sinior から変更",
+        "reason": "日付+核心キーワード"
+      }
+    ],
+    "backgrounds": [
+      "市役所窓口",
+      "病院待合室",
+      "銀行ATM",
+      "年金事務所",
+      "薬局カウンター",
+      "郵便局",
+      "スーパーマーケット",
+      "公園ベンチ",
+      "電車内",
+      "自宅リビング"
+    ],
+    "layout_templates": {
+      "template_a": {
+        "name": "数字強調型",
+        "text_position": "center",
+        "text_size": "extra_large",
+        "background": "シンプル単色",
+        "description": "숫자를 크게 중앙 배치"
+      },
+      "template_b": {
+        "name": "行動喚起型",
+        "text_position": "left_top",
+        "character_position": "right",
+        "background": "関連場所",
+        "description": "행동 촉구 문구 + 관련 이미지"
+      }
+    },
+    "prompt_template": {
+      "realistic": "Japanese elderly [gender], [emotion] expression, [location], warm lighting, soft focus background, [action], natural Japanese aesthetic",
+      "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime background showing [location], soft lighting, clean composition for senior viewers"
+    },
+    "title_rules": {
+      "max_chars": 35,
+      "min_chars": 25,
+      "target_chars": 30,
+      "must_include_number": true,
+      "forbidden_expressions": ["3本立て", "3大変化", "○○の話", "まとめ"],
+      "recommended_action_words": ["確認", "注意", "届出", "申請", "変更"],
+      "bad_examples": [
+        {
+          "title": "年金と光熱費とインフル 3つの冬支度",
+          "reason": "具体性なし、曖昧"
+        },
+        {
+          "title": "ヤバい！年金がマジで変わる",
+          "reason": "若者言葉、具体性なし"
+        }
+      ],
+      "good_examples": [
+        {
+          "title": "1月から年金2.7%増額決定！sinior sinior sinior sinior sinior sinior",
+          "reason": "具体的日付+具体的数値"
+        },
+        {
+          "title": "12月sinior sinior sinior 届出しないと sinior sinior損",
+          "reason": "日付+金額+行動喚起"
+        },
+        {
+          "title": "電気代sinior sinior sinior sinior %値上げ sinior sinior確認を",
+          "reason": "数値+行動喚起"
+        }
+      ]
+    }
   }
 }
