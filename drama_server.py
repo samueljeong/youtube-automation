@@ -22940,9 +22940,10 @@ def api_sheets_check_and_process():
         result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map)
 
         # ========== 6. 결과 기록 ==========
-        # 비용 기록
-        cost = result.get('cost', 0.0)
-        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '비용', f'${cost:.2f}')
+        # 비용 기록 (원화로 변환, 1 USD = 1,350 KRW)
+        cost_usd = result.get('cost', 0.0)
+        cost_krw = int(cost_usd * 1350)
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '비용', f'{cost_krw:,}원')
 
         # 제목 기록
         if result.get('title'):
