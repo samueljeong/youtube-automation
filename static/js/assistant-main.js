@@ -3486,8 +3486,15 @@ const AssistantMain = (() => {
   }
 
   async function refreshYoutubeChannels() {
+    const refreshBtn = document.querySelector('[onclick="AssistantMain.refreshYoutubeChannels()"]');
     try {
       showToast('채널 정보 업데이트 중...', 'info');
+
+      // 버튼 비활성화 및 로딩 표시
+      if (refreshBtn) {
+        refreshBtn.innerHTML = '⏳ 업데이트 중...';
+        refreshBtn.disabled = true;
+      }
 
       const response = await fetch('/assistant/api/youtube/channels/refresh', {
         method: 'POST'
@@ -3497,13 +3504,19 @@ const AssistantMain = (() => {
 
       if (data.success) {
         showToast(data.message, 'success');
-        loadYoutubeChannels();
+        await loadYoutubeChannels();
       } else {
         showToast(data.error || '업데이트 실패', 'error');
       }
     } catch (error) {
       console.error('[Assistant] Refresh YouTube channels error:', error);
       showToast('업데이트 중 오류가 발생했습니다', 'error');
+    } finally {
+      // 버튼 복구
+      if (refreshBtn) {
+        refreshBtn.innerHTML = '🔄 새로고침';
+        refreshBtn.disabled = false;
+      }
     }
   }
 
@@ -4225,10 +4238,10 @@ const AssistantMain = (() => {
         const myChannels = youtubeChannels.filter(c => c.category === 'mine');
         renderYoutubeSummary(myChannels);
 
-        // 자동 갱신: 마지막 업데이트가 1시간 이상 지났으면 백그라운드에서 갱신
+        // 자동 갱신: 마지막 업데이트가 5분 이상 지났으면 백그라운드에서 갱신
         if (youtubeChannels.length > 0) {
           const now = new Date();
-          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+          const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
 
           // 가장 최근 업데이트 시간 확인
           let needsRefresh = false;
@@ -4238,7 +4251,7 @@ const AssistantMain = (() => {
               break;
             }
             const lastFetched = new Date(channel.last_fetched_at);
-            if (lastFetched < oneHourAgo) {
+            if (lastFetched < fiveMinutesAgo) {
               needsRefresh = true;
               break;
             }
@@ -4246,6 +4259,12 @@ const AssistantMain = (() => {
 
           if (needsRefresh) {
             console.log('[Assistant] Auto-refreshing YouTube channels (data is stale)...');
+            // 업데이트 중 표시
+            const refreshBtn = document.querySelector('[onclick="AssistantMain.refreshYoutubeChannels()"]');
+            if (refreshBtn) {
+              refreshBtn.innerHTML = '⏳ 업데이트 중...';
+              refreshBtn.disabled = true;
+            }
             // 백그라운드에서 갱신 (await 없이 비동기 실행)
             (async () => {
               try {
@@ -4267,6 +4286,12 @@ const AssistantMain = (() => {
                 }
               } catch (err) {
                 console.error('[Assistant] Auto-refresh failed:', err);
+              } finally {
+                // 버튼 복구
+                if (refreshBtn) {
+                  refreshBtn.innerHTML = '🔄 새로고침';
+                  refreshBtn.disabled = false;
+                }
               }
             })();
           }
