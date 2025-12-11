@@ -2790,71 +2790,66 @@ URL: https://www.youtube.com/watch?v={video_id}
 
 @tubelens_bp.route('/api/tubelens/transcript', methods=['POST'])
 def api_get_transcript():
-    """YouTube 영상 대본(자막) 추출 API"""
+    """YouTube 영상 대본(자막) 추출 API - youtube-transcript-api v1.0+ 호환"""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        from youtube_transcript_api._errors import (
-            TranscriptsDisabled,
-            NoTranscriptFound,
-            VideoUnavailable
-        )
 
         data = request.get_json()
         video_id = data.get("videoId", "")
         language_codes = data.get("languages", ["ko", "ja", "en", "zh-Hans", "zh-Hant"])
-        include_auto = data.get("includeAuto", True)  # 자동 생성 자막 포함 여부
+        include_auto = data.get("includeAuto", True)
 
         if not video_id:
             return jsonify({"success": False, "message": "videoId가 필요합니다."}), 400
 
-        # 영상 ID에서 URL 파라미터 제거 (v=xxx&t=123 같은 경우)
+        # 영상 ID에서 URL 파라미터 제거
         if "&" in video_id:
             video_id = video_id.split("&")[0]
 
-        transcript_list = None
-        transcript_data = None
+        # YouTubeTranscriptApi 인스턴스 생성 (v1.0+ API)
+        ytt_api = YouTubeTranscriptApi()
+
+        transcript_result = None
         used_language = None
         is_auto_generated = False
 
         try:
-            # 사용 가능한 자막 목록 조회
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            # 자막 목록 조회 (v1.0+: .list() 메서드 사용)
+            transcript_list = ytt_api.list(video_id)
 
             # 1. 수동 자막 우선 시도
             for lang_code in language_codes:
                 try:
                     transcript = transcript_list.find_transcript([lang_code])
-                    if not transcript.is_generated:  # 수동 자막
-                        transcript_data = transcript.fetch()
+                    if not transcript.is_generated:
+                        transcript_result = transcript.fetch()
                         used_language = lang_code
                         is_auto_generated = False
                         break
                 except Exception:
                     continue
 
-            # 2. 수동 자막 없으면 자동 생성 자막 시도
-            if transcript_data is None and include_auto:
+            # 2. 자동 생성 자막 시도
+            if transcript_result is None and include_auto:
                 for lang_code in language_codes:
                     try:
                         transcript = transcript_list.find_transcript([lang_code])
-                        if transcript.is_generated:  # 자동 생성 자막
-                            transcript_data = transcript.fetch()
+                        if transcript.is_generated:
+                            transcript_result = transcript.fetch()
                             used_language = lang_code
                             is_auto_generated = True
                             break
                     except Exception:
                         continue
 
-            # 3. 여전히 없으면 번역 자막 시도 (영어 → 한국어/일본어)
-            if transcript_data is None:
+            # 3. 번역 자막 시도
+            if transcript_result is None:
                 try:
-                    # 영어 자막을 찾아서 번역
                     en_transcript = transcript_list.find_transcript(['en'])
-                    # 한국어로 번역 시도, 실패하면 일본어
                     for target_lang in ['ko', 'ja']:
                         try:
                             translated = en_transcript.translate(target_lang)
-                            transcript_data = translated.fetch()
+                            transcript_result = translated.fetch()
                             used_language = f"en→{target_lang}"
                             is_auto_generated = en_transcript.is_generated
                             break
@@ -2863,54 +2858,65 @@ def api_get_transcript():
                 except Exception:
                     pass
 
-            # 4. 마지막 시도: 아무 자막이나 가져오기
-            if transcript_data is None:
+            # 4. 아무 자막이나 가져오기
+            if transcript_result is None:
                 try:
-                    # 사용 가능한 첫 번째 자막
                     for transcript in transcript_list:
-                        transcript_data = transcript.fetch()
+                        transcript_result = transcript.fetch()
                         used_language = transcript.language_code
                         is_auto_generated = transcript.is_generated
                         break
                 except Exception:
                     pass
 
-        except TranscriptsDisabled:
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "disabled" in error_msg:
+                return jsonify({
+                    "success": False,
+                    "message": "이 영상은 자막이 비활성화되어 있습니다.",
+                    "errorType": "disabled"
+                }), 400
+            elif "unavailable" in error_msg or "not exist" in error_msg:
+                return jsonify({
+                    "success": False,
+                    "message": "영상을 찾을 수 없습니다.",
+                    "errorType": "unavailable"
+                }), 400
+            elif "no transcript" in error_msg:
+                return jsonify({
+                    "success": False,
+                    "message": "이 영상에는 자막이 없습니다.",
+                    "errorType": "not_found"
+                }), 400
+            else:
+                raise
+
+        if transcript_result is None:
             return jsonify({
                 "success": False,
-                "message": "이 영상은 자막이 비활성화되어 있습니다.",
-                "errorType": "disabled"
-            }), 400
-        except VideoUnavailable:
-            return jsonify({
-                "success": False,
-                "message": "영상을 찾을 수 없습니다.",
-                "errorType": "unavailable"
-            }), 400
-        except NoTranscriptFound:
-            return jsonify({
-                "success": False,
-                "message": "이 영상에는 자막이 없습니다.",
+                "message": "자막을 찾을 수 없습니다.",
                 "errorType": "not_found"
             }), 400
 
-        if transcript_data is None:
-            return jsonify({
-                "success": False,
-                "message": "자막을 찾을 수 없습니다. 이 영상에는 자막이 없거나 비활성화되어 있습니다.",
-                "errorType": "not_found"
-            }), 400
-
-        # 텍스트만 추출하여 연결
+        # v1.0+ FetchedTranscript 객체 처리
         full_text = ""
         segments = []
 
-        for entry in transcript_data:
-            text = entry.get("text", "").strip()
-            start = entry.get("start", 0)
-            duration = entry.get("duration", 0)
+        # snippets 속성 또는 직접 이터레이션
+        items = getattr(transcript_result, 'snippets', None) or transcript_result
 
-            # [음악], [박수] 같은 태그 제거 옵션
+        for entry in items:
+            # FetchedTranscriptSnippet 객체 또는 dict 처리
+            if hasattr(entry, 'text'):
+                text = entry.text.strip()
+                start = entry.start
+                duration = entry.duration
+            else:
+                text = entry.get("text", "").strip()
+                start = entry.get("start", 0)
+                duration = entry.get("duration", 0)
+
             if text and not (text.startswith("[") and text.endswith("]")):
                 segments.append({
                     "text": text,
@@ -2921,9 +2927,13 @@ def api_get_transcript():
 
         full_text = full_text.strip()
 
-        # 글자 수 및 예상 읽기 시간 계산
+        # 언어 정보 (FetchedTranscript에서 가져오기)
+        if hasattr(transcript_result, 'language_code') and transcript_result.language_code:
+            used_language = transcript_result.language_code
+        if hasattr(transcript_result, 'is_generated'):
+            is_auto_generated = transcript_result.is_generated
+
         char_count = len(full_text.replace(" ", ""))
-        # 한국어 기준 1분에 약 300자
         estimated_minutes = round(char_count / 300, 1)
 
         return jsonify({
