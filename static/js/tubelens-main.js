@@ -155,7 +155,7 @@
     loadTrending: function() {
       var self = this;
 
-      if (this.apiKeys.length === 0) {
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
         alert('먼저 API 키를 설정해주세요.');
         this.openSettings();
         return;
@@ -205,7 +205,7 @@
     loadRising: function() {
       var self = this;
 
-      if (this.apiKeys.length === 0) {
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
         alert('먼저 API 키를 설정해주세요.');
         this.openSettings();
         return;
@@ -600,7 +600,7 @@
         return;
       }
 
-      if (this.apiKeys.length === 0) {
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
         alert('먼저 API 키를 설정해주세요.');
         this.openSettings();
         return;
@@ -753,7 +753,7 @@
         return;
       }
 
-      if (this.apiKeys.length === 0) {
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
         alert('먼저 API 키를 설정해주세요.');
         this.openSettings();
         return;
