@@ -11960,12 +11960,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     }}
   }},
   "video_effects": {{
-    "bgm_mood": "기본 BGM 분위기. 반드시 아래 목록에서 선택! hopeful/sad/tense/dramatic/calm/inspiring/mysterious/nostalgic/epic/romantic/comedic/horror/upbeat/melancholic/peaceful/dark/bright/ethereal/whimsical/jazz/classical/electronic/ambient/acoustic/piano/action/adventure/chase/battle/heroic/news/documentary/corporate/cinematic/trailer/suspenseful/triumphant/sentimental/energetic/relaxing",
+    "bgm_mood": "기본 BGM 분위기. 반드시 아래 12개 중에서 선택! calm/cinematic/comedic/dramatic/epic/hopeful/horror/mysterious/nostalgic/sad/tense/upbeat",
     "scene_bgm_changes": [
       {{"scene": 2, "mood": "mysterious", "reason": "의문점 제기"}},
       {{"scene": 4, "mood": "tense", "reason": "갈등/위기 시작"}},
       {{"scene": 6, "mood": "dramatic", "reason": "충격적 사실 공개"}},
-      {{"scene": 8, "mood": "triumphant", "reason": "해결/성공"}}
+      {{"scene": 8, "mood": "hopeful", "reason": "해결/성공"}}
     ],
     "subtitle_highlights": [
       {{"keyword": "강조할 단어1", "color": "#FF0000"}},
@@ -14268,34 +14268,57 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir):
 
 
 # BGM 분위기 별칭 매핑 (파일이 없을 경우 대체 분위기로 폴백)
+# 현재 사용 가능한 BGM: calm, cinematic, comedic, dramatic, epic, hopeful, horror, mysterious, nostalgic, sad, tense, upbeat
 BGM_MOOD_ALIAS = {
-    # 뉴스/다큐멘터리 계열 → calm 또는 cinematic
+    # 뉴스/다큐멘터리/기업 계열 → calm 또는 cinematic
     "documentary": "cinematic",
     "news": "calm",
     "informative": "calm",
     "corporate": "calm",
+    "trailer": "cinematic",
 
-    # 감정 계열 폴백
+    # 감정 계열 → sad, hopeful, nostalgic
     "melancholy": "sad",
+    "melancholic": "sad",
     "sentimental": "sad",
-    "touching": "emotional",
+    "touching": "sad",
     "emotional": "sad",
+    "inspiring": "hopeful",
+    "uplifting": "hopeful",
+    "motivational": "hopeful",
+    "triumphant": "epic",
+    "romantic": "nostalgic",
 
-    # 긴장/서스펜스 계열
+    # 긴장/서스펜스 계열 → tense, mysterious, horror
     "suspense": "tense",
+    "suspenseful": "tense",
     "thriller": "tense",
+    "chase": "tense",
     "dark": "mysterious",
+    "ethereal": "mysterious",
 
-    # 밝은/긍정 계열
-    "uplifting": "inspiring",
-    "motivational": "inspiring",
+    # 밝은/긍정/에너지 계열 → upbeat, comedic
     "cheerful": "upbeat",
     "happy": "upbeat",
+    "bright": "upbeat",
+    "energetic": "upbeat",
+    "whimsical": "comedic",
 
-    # 기타
+    # 차분한/평화 계열 → calm
+    "peaceful": "calm",
+    "relaxing": "calm",
+    "ambient": "calm",
+    "jazz": "calm",
+    "classical": "calm",
+    "acoustic": "calm",
+    "piano": "calm",
+    "electronic": "upbeat",
+
+    # 액션/모험 계열 → epic, dramatic
     "action": "epic",
     "adventure": "epic",
-    "horror": "dark",
+    "battle": "epic",
+    "heroic": "epic",
 }
 
 
@@ -14303,9 +14326,8 @@ def _get_bgm_file(mood, bgm_dir=None):
     """분위기에 맞는 BGM 파일 선택 (여러 개면 랜덤)
 
     Args:
-        mood: 지원 분위기 - hopeful, sad, tense, dramatic, calm, inspiring,
-              mysterious, nostalgic, epic, romantic, comedic, horror, upbeat,
-              cinematic, emotional, dark, suspenseful, ambient, electronic 등
+        mood: 지원 분위기 (12종) - calm, cinematic, comedic, dramatic, epic,
+              hopeful, horror, mysterious, nostalgic, sad, tense, upbeat
               (파일이 없으면 BGM_MOOD_ALIAS에 따라 대체 분위기로 폴백)
         bgm_dir: BGM 파일 디렉토리 (없으면 스크립트 위치 기준)
 
@@ -16157,7 +16179,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
 
     video_effects 구조:
     {
-        "bgm_mood": "hopeful/sad/tense/dramatic/calm/inspiring/mysterious/nostalgic",
+        "bgm_mood": "calm/cinematic/comedic/dramatic/epic/hopeful/horror/mysterious/nostalgic/sad/tense/upbeat",
         "subtitle_highlights": [{"keyword": "단어", "color": "#FF0000"}],
         "sound_effects": [{"scene": 1, "type": "impact", "moment": "..."}],
         "lower_thirds": [{"scene": 2, "text": "출처", "position": "bottom-left"}]
