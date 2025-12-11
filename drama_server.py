@@ -20834,7 +20834,7 @@ def run_automation_pipeline(row_data, row_index):
                 "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto",
                 "channel_style": channel_style  # [TUBELENS] 채널별 스타일 정보
-            }, timeout=180)  # GPT-5.1 응답 대기 시간 증가 (120→180초)
+            }, timeout=300)  # GPT-5.1 응답 대기 시간 증가 (180→300초, 20분 대본 대응)
 
             analyze_data = analyze_resp.json()
             if not analyze_data.get('ok'):
