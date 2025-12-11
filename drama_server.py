@@ -5307,7 +5307,6 @@ FREESOUND_SFX_QUERIES = {
     "notification": ("notification alert ding", 0.5, 5),
     "heartbeat": ("heartbeat heart beat", 1, 10),
     "clock_tick": ("clock tick ticking", 1, 10),
-    "applause": ("applause clapping crowd", 1, 10),
     "gasp": ("gasp surprise shock", 0.5, 5),
     "typing": ("typing keyboard", 1, 10),
     "door": ("door open close creak", 0.5, 5),
@@ -11846,7 +11845,6 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 **감정/반응:**
 - **heartbeat**: 심장박동 (긴장, 불안, 두려움)
 - **gasp**: 놀람 소리 (충격, 반전)
-- **applause**: 박수 소리 (성공, 축하)
 - **laugh**: 웃음소리 (유머, 코믹)
 - **cry**: 울음소리 (슬픔, 감동)
 - **sigh**: 한숨 (안도, 실망)
@@ -11903,7 +11901,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
   - 충격적 사실 → impact/gasp/dramatic_hit (반응 유도)
   - 긴장 장면 → tension/heartbeat/suspense/drone (몰입)
   - 공포/스릴러 → horror_sting/scream/thunder (긴장감)
-  - 해결/성공 → success/applause/win/reveal (카타르시스)
+  - 해결/성공 → success/win/reveal (카타르시스)
   - 감동 장면 → emotional/cry/sigh (여운)
   - 유머 장면 → laugh/pop/fail (웃음 유도)
   - 시간 압박 → clock_tick/countdown/beep (긴박감)
@@ -11988,8 +11986,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       {{"scene": 5, "type": "thunder", "moment": "위기 절정"}},
       {{"scene": 6, "type": "reveal", "moment": "반전 공개"}},
       {{"scene": 7, "type": "emotional", "moment": "감동"}},
-      {{"scene": 8, "type": "triumphant", "moment": "성공"}},
-      {{"scene": 8, "type": "applause", "moment": "축하"}}
+      {{"scene": 8, "type": "triumphant", "moment": "성공"}}
     ],
     "lower_thirds": [
       {{"scene": 2, "text": "화자명 또는 출처", "position": "bottom-left"}}
