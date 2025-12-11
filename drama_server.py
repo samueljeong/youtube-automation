@@ -4751,11 +4751,14 @@ def api_generate_tts():
                     else:
                         emotion_chunk_count += 1
 
+                # speaker 이름에서 언어 코드 추출 (예: ko-KR-Neural2-C → ko-KR)
+                lang_code = '-'.join(speaker.split('-')[:2]) if speaker and '-' in speaker else lang_ko.TTS['language_code']
+
                 if is_ssml:
                     payload = {
                         "input": {"ssml": processed_chunk},
                         "voice": {
-                            "languageCode": "ko-KR",
+                            "languageCode": lang_code,
                             "name": speaker
                         },
                         "audioConfig": {
@@ -4775,7 +4778,7 @@ def api_generate_tts():
                     payload = {
                         "input": {"text": chunk},
                         "voice": {
-                            "languageCode": "ko-KR",
+                            "languageCode": lang_code,
                             "name": speaker
                         },
                         "audioConfig": {
@@ -12841,10 +12844,10 @@ def api_image_generate_assets_zip():
             return 'en'
 
         def get_voice_for_language(lang, base_voice):
-            """언어에 맞는 TTS 음성 반환"""
+            """언어에 맞는 TTS 음성 반환 (한국어: lang/ko.py에서 관리)"""
             is_female = 'Neural2-A' in base_voice or 'Neural2-B' in base_voice or 'Wavenet-A' in base_voice
             voice_map = {
-                'ko': {'female': 'ko-KR-Neural2-A', 'male': 'ko-KR-Neural2-C'},
+                'ko': {'female': lang_ko.TTS['voices']['female'], 'male': lang_ko.TTS['voices']['male']},
                 'en': {'female': 'en-US-Neural2-F', 'male': 'en-US-Neural2-D'},
                 'ja': {'female': 'ja-JP-Neural2-B', 'male': 'ja-JP-Neural2-C'}
             }
@@ -12852,7 +12855,8 @@ def api_image_generate_assets_zip():
             return voice_map.get(lang, voice_map['en'])[gender]
 
         def get_language_code(lang):
-            return {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP'}.get(lang, 'en-US')
+            """언어 코드 반환 (한국어: lang/ko.py에서 관리)"""
+            return {'ko': lang_ko.TTS['language_code'], 'en': 'en-US', 'ja': 'ja-JP'}.get(lang, 'en-US')
 
         def split_sentences_with_gpt(text, lang='ko'):
             """GPT-5.1을 사용해 자연스러운 자막 단위로 분리"""
@@ -17160,7 +17164,7 @@ def api_generate_shorts_tts():
 
         data = request.get_json()
         text = data.get('text', '').strip()
-        voice = data.get('voice', 'ko-KR-Neural2-C')
+        voice = data.get('voice', lang_ko.TTS['default_voice'])  # 기본: lang/ko.py에서 관리
         speed = float(data.get('speed', 1.2))
 
         if not text:
@@ -17175,10 +17179,13 @@ def api_generate_shorts_tts():
 
         url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={google_api_key}"
 
+        # voice 이름에서 언어 코드 추출 (예: ko-KR-Neural2-C → ko-KR)
+        lang_code = '-'.join(voice.split('-')[:2]) if voice and '-' in voice else lang_ko.TTS['language_code']
+
         payload = {
             "input": {"text": text},
             "voice": {
-                "languageCode": "ko-KR",
+                "languageCode": lang_code,
                 "name": voice
             },
             "audioConfig": {
@@ -21088,7 +21095,7 @@ def run_automation_pipeline(row_data, row_index):
         # H(7), I(8), J(9)는 출력 컬럼 (제목2, 제목3, 비용)
         visibility = (row_data[10] if len(row_data) > 10 else '').strip() or 'private'  # K열: 공개설정
         # L(11), M(12)는 출력 컬럼 (영상URL, 에러메시지)
-        voice = (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C'  # N열: 음성
+        voice = (row_data[13] if len(row_data) > 13 else '').strip() or lang_ko.TTS['default_voice']  # N열: 음성 (기본: lang/ko.py)
         audience = (row_data[14] if len(row_data) > 14 else '').strip() or 'senior'  # O열: 타겟 시청자
         category = (row_data[15] if len(row_data) > 15 else '').strip()  # P열: 카테고리 (뉴스 등)
         # Q(16): 쇼츠URL(출력)
@@ -22118,8 +22125,8 @@ def _automation_generate_tts_neural2(scenes, episode_id, uploads_dir):
         if not api_key:
             return {"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}
 
-        voice_name = "ko-KR-Neural2-C"  # 남성 Neural2 음성 (고품질)
-        language_code = "ko-KR"
+        voice_name = lang_ko.TTS['default_voice']  # 기본 음성 (lang/ko.py에서 관리)
+        language_code = lang_ko.TTS['language_code']
 
         audio_data = []
 
