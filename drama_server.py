@@ -21,6 +21,7 @@ from tubelens_server import tubelens_bp
 # 언어별 설정 (폰트, 자막, TTS 등)
 from lang import ko as lang_ko
 from lang import ja as lang_ja
+from lang import en as lang_en
 
 app = Flask(__name__)
 
@@ -12850,14 +12851,14 @@ def api_image_generate_assets_zip():
             voice_map = {
                 'ko': {'female': lang_ko.TTS['voices']['female'], 'male': lang_ko.TTS['voices']['male']},
                 'ja': {'female': lang_ja.TTS['voices']['female'], 'male': lang_ja.TTS['voices']['male']},
-                'en': {'female': 'en-US-Neural2-F', 'male': 'en-US-Neural2-D'},
+                'en': {'female': lang_en.TTS['voices']['female'], 'male': lang_en.TTS['voices']['male']},
             }
             gender = 'female' if is_female else 'male'
             return voice_map.get(lang, voice_map['en'])[gender]
 
         def get_language_code(lang):
             """언어 코드 반환 (lang/*.py에서 관리)"""
-            return {'ko': lang_ko.TTS['language_code'], 'ja': lang_ja.TTS['language_code'], 'en': 'en-US'}.get(lang, 'en-US')
+            return {'ko': lang_ko.TTS['language_code'], 'ja': lang_ja.TTS['language_code'], 'en': lang_en.TTS['language_code']}.get(lang, lang_en.TTS['language_code'])
 
         def split_sentences_with_gpt(text, lang='ko'):
             """GPT-5.1을 사용해 자연스러운 자막 단위로 분리"""
@@ -13351,6 +13352,8 @@ def api_image_generate_assets_zip():
                         # ★ 자막 길이 설정: lang/*.py에서 관리
                         if detected_lang == 'ja':
                             max_subtitle_chars = lang_ja.SUBTITLE['max_chars_total']
+                        elif detected_lang == 'en':
+                            max_subtitle_chars = lang_en.SUBTITLE['max_chars_total']
                         else:
                             max_subtitle_chars = lang_ko.SUBTITLE['max_chars_total']
                         if len(sentence) <= max_subtitle_chars:
@@ -13406,6 +13409,8 @@ def api_image_generate_assets_zip():
                         # ★ 자막 길이 설정: lang/*.py에서 관리
                         if detected_lang == 'ja':
                             max_subtitle_chars = lang_ja.SUBTITLE['max_chars_total']
+                        elif detected_lang == 'en':
+                            max_subtitle_chars = lang_en.SUBTITLE['max_chars_total']
                         else:
                             max_subtitle_chars = lang_ko.SUBTITLE['max_chars_total']
                         if len(sentence) <= max_subtitle_chars:
@@ -13845,9 +13850,18 @@ def _get_subtitle_style(lang):
             "OutlineColour=&H00000000,BackColour=&H80000000,"
             "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
         )
+    elif lang == 'en':
+        # 영어: lang/en.py에서 관리하는 폰트 사용
+        font_name = lang_en.FONTS['default_name']
+        font_size = lang_en.SUBTITLE['style']['font_size']
+        return (
+            f"FontName={font_name},FontSize={font_size},PrimaryColour=&H00FFFF,"
+            "OutlineColour=&H00000000,BackColour=&H80000000,"
+            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+        )
     else:
-        # 영어/기타 언어 - 한국어 폰트로 fallback
-        font_name = lang_ko.FONTS['default_name']
+        # 기타 언어 - 영어 폰트로 fallback
+        font_name = lang_en.FONTS['default_name']
         return (
             f"FontName={font_name},FontSize=22,PrimaryColour=&H00FFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
@@ -13926,10 +13940,16 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             font_name = lang_ja.FONTS['default_name']
             font_size = lang_ja.SUBTITLE['style']['font_size_burn']
             max_chars_per_line = lang_ja.SUBTITLE['max_chars_per_line']
+        elif lang == 'en':
+            # 영어: lang/en.py에서 관리
+            font_name = lang_en.FONTS['default_name']
+            font_size = lang_en.SUBTITLE['style']['font_size_burn']
+            max_chars_per_line = lang_en.SUBTITLE['max_chars_per_line']
         else:
-            font_name = lang_ko.FONTS['default_name']  # 한국어 폰트로 fallback
-            font_size = 44  # 22 → 44 (2배 크기)
-            max_chars_per_line = 25  # 영어: 한 줄 최대 25자
+            # 기타 언어 - 영어 설정으로 fallback
+            font_name = lang_en.FONTS['default_name']
+            font_size = lang_en.SUBTITLE['style']['font_size_burn']
+            max_chars_per_line = lang_en.SUBTITLE['max_chars_per_line']
 
         # 긴 텍스트 자동 줄바꿈 함수
         def wrap_text(text, max_chars):

@@ -21,14 +21,14 @@ from typing import Optional
 # 언어별 설정 모듈 import
 from . import ko
 from . import ja
-# from . import en  # TODO: 영어 설정 파일 생성 후 활성화
+from . import en
 
 
 # 지원 언어 목록
 SUPPORTED_LANGUAGES = {
     'ko': ko,
     'ja': ja,
-    # 'en': en,  # TODO
+    'en': en,
 }
 
 
