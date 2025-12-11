@@ -139,19 +139,28 @@ YOUTUBE_HASHTAGS = {
 
 SUBTITLE = {
     # 자막 길이 설정
-    'max_chars_per_line': 20,   # 한 줄 최대 글자 수 (현재 drama_server.py는 120!)
+    'max_chars_per_line': 26,   # 한 줄 최대 글자 수 (20→26 확장)
     'max_lines': 2,             # 최대 줄 수
-    'max_chars_total': 40,      # 총 최대 글자 수 (20 * 2)
+    'max_chars_total': 52,      # 총 최대 글자 수 (26 * 2)
 
     # 자막 타이밍
     'min_duration': 1.0,        # 최소 표시 시간 (초)
     'max_duration': 5.0,        # 최대 표시 시간 (초)
     'chars_per_second': 8,      # 초당 글자 수 (읽는 속도)
 
+    # ★ 청킹 설정 (문장을 짧은 자막 단위로 분리)
+    'chunking': {
+        'enabled': True,            # 청킹 활성화
+        'min_chars': 8,             # 청크 최소 글자 수
+        'max_chars': 20,            # 청크 최대 글자 수
+        'min_last_line_chars': 8,   # 마지막 줄 최소 글자 (짧으면 이전 줄과 합침)
+    },
+
     # 자막 스타일 (ASS 형식)
     'style': {
         'font_name': 'NanumSquareRound',   # 폰트
         'font_size': 28,                    # 크기
+        'font_size_burn': 48,               # 영상 burn-in용 큰 폰트 (50대+ 가독성)
         'primary_color': '&H00FFFF',        # 노란색 (BGR)
         'outline_color': '&H00000000',      # 검은색 테두리
         'back_color': '&H80000000',         # 반투명 검은 배경
@@ -162,15 +171,18 @@ SUBTITLE = {
         'bold': 1,                          # 볼드
     },
 
-    # 문장 분할 패턴
+    # 청킹 분할 기준 (우선순위 순)
     'split_patterns': [
-        ',',      # 쉼표
-        '~고',    # 연결어미
-        '~며',
-        '~면',
-        '~서',
-        '~니',
-        '~는데',
+        # 1순위: 문장 종료
+        '.', '?', '!',
+        # 2순위: 쉼표
+        ',',
+        # 3순위: 연결어미 (자연스러운 끊김)
+        '~고 ', '~며 ', '~면 ', '~서 ', '~니 ', '~는데 ',
+        '~지만 ', '~으면 ', '~어서 ', '~니까 ', '~라서 ',
+        # 4순위: 조사 뒤 공백 (의미 단위)
+        '은 ', '는 ', '이 ', '가 ', '을 ', '를 ',
+        '에 ', '에서 ', '으로 ', '로 ',
     ],
 
     # 문장 종료 패턴

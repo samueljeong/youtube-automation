@@ -12929,7 +12929,12 @@ def api_image_generate_assets_zip():
                 return split_korean_semantic_fallback(text)
 
         def split_sentences(text, lang='en'):
-            """텍스트를 자막 단위로 분리 - 문장 부호 기준 (모든 언어 동일)"""
+            """텍스트를 자막 단위로 분리 - 언어별 청킹 적용"""
+            # 한국어: 의미 기반 청킹 사용 (lang/ko.py 설정 참조)
+            if lang == 'ko' and lang_ko.SUBTITLE.get('chunking', {}).get('enabled', False):
+                max_chars = lang_ko.SUBTITLE['chunking'].get('max_chars', 20)
+                return split_korean_semantic_fallback(text, max_chars)
+
             # 소수점(7.5)은 문장 끝이 아니므로 임시로 치환
             # 숫자.숫자 패턴을 임시 마커로 교체
             decimal_pattern = r'(\d)\.(\d)'
