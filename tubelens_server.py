@@ -2786,3 +2786,163 @@ URL: https://www.youtube.com/watch?v={video_id}
     except Exception as e:
         print(f"AI 기획 생성 오류: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@tubelens_bp.route('/api/tubelens/transcript', methods=['POST'])
+def api_get_transcript():
+    """YouTube 영상 대본(자막) 추출 API"""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api._errors import (
+            TranscriptsDisabled,
+            NoTranscriptFound,
+            VideoUnavailable
+        )
+
+        data = request.get_json()
+        video_id = data.get("videoId", "")
+        language_codes = data.get("languages", ["ko", "ja", "en", "zh-Hans", "zh-Hant"])
+        include_auto = data.get("includeAuto", True)  # 자동 생성 자막 포함 여부
+
+        if not video_id:
+            return jsonify({"success": False, "message": "videoId가 필요합니다."}), 400
+
+        # 영상 ID에서 URL 파라미터 제거 (v=xxx&t=123 같은 경우)
+        if "&" in video_id:
+            video_id = video_id.split("&")[0]
+
+        transcript_list = None
+        transcript_data = None
+        used_language = None
+        is_auto_generated = False
+
+        try:
+            # 사용 가능한 자막 목록 조회
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+            # 1. 수동 자막 우선 시도
+            for lang_code in language_codes:
+                try:
+                    transcript = transcript_list.find_transcript([lang_code])
+                    if not transcript.is_generated:  # 수동 자막
+                        transcript_data = transcript.fetch()
+                        used_language = lang_code
+                        is_auto_generated = False
+                        break
+                except Exception:
+                    continue
+
+            # 2. 수동 자막 없으면 자동 생성 자막 시도
+            if transcript_data is None and include_auto:
+                for lang_code in language_codes:
+                    try:
+                        transcript = transcript_list.find_transcript([lang_code])
+                        if transcript.is_generated:  # 자동 생성 자막
+                            transcript_data = transcript.fetch()
+                            used_language = lang_code
+                            is_auto_generated = True
+                            break
+                    except Exception:
+                        continue
+
+            # 3. 여전히 없으면 번역 자막 시도 (영어 → 한국어/일본어)
+            if transcript_data is None:
+                try:
+                    # 영어 자막을 찾아서 번역
+                    en_transcript = transcript_list.find_transcript(['en'])
+                    # 한국어로 번역 시도, 실패하면 일본어
+                    for target_lang in ['ko', 'ja']:
+                        try:
+                            translated = en_transcript.translate(target_lang)
+                            transcript_data = translated.fetch()
+                            used_language = f"en→{target_lang}"
+                            is_auto_generated = en_transcript.is_generated
+                            break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+
+            # 4. 마지막 시도: 아무 자막이나 가져오기
+            if transcript_data is None:
+                try:
+                    # 사용 가능한 첫 번째 자막
+                    for transcript in transcript_list:
+                        transcript_data = transcript.fetch()
+                        used_language = transcript.language_code
+                        is_auto_generated = transcript.is_generated
+                        break
+                except Exception:
+                    pass
+
+        except TranscriptsDisabled:
+            return jsonify({
+                "success": False,
+                "message": "이 영상은 자막이 비활성화되어 있습니다.",
+                "errorType": "disabled"
+            }), 400
+        except VideoUnavailable:
+            return jsonify({
+                "success": False,
+                "message": "영상을 찾을 수 없습니다.",
+                "errorType": "unavailable"
+            }), 400
+        except NoTranscriptFound:
+            return jsonify({
+                "success": False,
+                "message": "이 영상에는 자막이 없습니다.",
+                "errorType": "not_found"
+            }), 400
+
+        if transcript_data is None:
+            return jsonify({
+                "success": False,
+                "message": "자막을 찾을 수 없습니다. 이 영상에는 자막이 없거나 비활성화되어 있습니다.",
+                "errorType": "not_found"
+            }), 400
+
+        # 텍스트만 추출하여 연결
+        full_text = ""
+        segments = []
+
+        for entry in transcript_data:
+            text = entry.get("text", "").strip()
+            start = entry.get("start", 0)
+            duration = entry.get("duration", 0)
+
+            # [음악], [박수] 같은 태그 제거 옵션
+            if text and not (text.startswith("[") and text.endswith("]")):
+                segments.append({
+                    "text": text,
+                    "start": round(start, 2),
+                    "duration": round(duration, 2)
+                })
+                full_text += text + " "
+
+        full_text = full_text.strip()
+
+        # 글자 수 및 예상 읽기 시간 계산
+        char_count = len(full_text.replace(" ", ""))
+        # 한국어 기준 1분에 약 300자
+        estimated_minutes = round(char_count / 300, 1)
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "videoId": video_id,
+                "language": used_language,
+                "isAutoGenerated": is_auto_generated,
+                "fullText": full_text,
+                "segments": segments,
+                "charCount": char_count,
+                "estimatedMinutes": estimated_minutes,
+                "segmentCount": len(segments)
+            },
+            "message": f"자막 추출 완료 ({used_language}, {'자동생성' if is_auto_generated else '수동'})"
+        })
+
+    except Exception as e:
+        print(f"대본 추출 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": f"대본 추출 실패: {str(e)}"}), 500
