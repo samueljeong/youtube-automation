@@ -22969,6 +22969,9 @@ def api_sheets_check_and_process():
             sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '완료')
             if result.get('video_url'):
                 sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '영상URL', result['video_url'])
+            # 업로드 완료 시간 기록
+            upload_time = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '업로드시간', upload_time)
         else:
             # 실패
             sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '실패')
