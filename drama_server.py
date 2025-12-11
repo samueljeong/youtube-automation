@@ -20142,18 +20142,22 @@ CTR_CHECK_DAYS = 7   # 업로드 후 7일 후부터 CTR 체크
 
 def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
     """
-    YouTube Analytics API로 영상의 CTR (클릭률) 조회
+    YouTube Analytics API로 영상의 CTR (클릭률) 및 조회수/구독자 데이터 조회
 
     반환: {
         'ctr': 4.5,  # 클릭률 (%)
         'impressions': 10000,  # 노출 수
-        'views': 450  # 조회 수
+        'views': 450,  # 총 조회 수 (28일)
+        'views_today': 50,  # 오늘 조회 수
+        'views_yesterday': 45,  # 어제 조회 수
+        'subscribers_gained': 10,  # 구독자 증가
+        'subscribers_lost': 2  # 구독자 감소
     } 또는 None (실패 시)
     """
     from datetime import datetime, timedelta
 
     try:
-        # 최근 28일간 데이터 조회
+        # 최근 28일간 데이터 조회 (CTR, 노출수, 총 조회수)
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=28)).strftime('%Y-%m-%d')
 
@@ -20161,24 +20165,92 @@ def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
             ids=f'channel=={channel_id}',
             startDate=start_date,
             endDate=end_date,
-            metrics='views,impressions,impressionClickThroughRate',
+            metrics='views,impressions,impressionClickThroughRate,subscribersGained,subscribersLost',
             dimensions='video',
             filters=f'video=={video_id}'
         ).execute()
 
+        result = {
+            'views': 0,
+            'impressions': 0,
+            'ctr': 0,
+            'subscribers_gained': 0,
+            'subscribers_lost': 0,
+            'views_today': 0,
+            'views_yesterday': 0
+        }
+
         rows = response.get('rows', [])
         if rows and len(rows) > 0:
-            # [video_id, views, impressions, ctr]
+            # [video_id, views, impressions, ctr, subscribersGained, subscribersLost]
             row = rows[0]
-            return {
-                'views': int(row[1]) if len(row) > 1 else 0,
-                'impressions': int(row[2]) if len(row) > 2 else 0,
-                'ctr': float(row[3]) * 100 if len(row) > 3 else 0  # 비율 -> 퍼센트
-            }
+            result['views'] = int(row[1]) if len(row) > 1 else 0
+            result['impressions'] = int(row[2]) if len(row) > 2 else 0
+            result['ctr'] = float(row[3]) * 100 if len(row) > 3 else 0  # 비율 -> 퍼센트
+            result['subscribers_gained'] = int(row[4]) if len(row) > 4 else 0
+            result['subscribers_lost'] = int(row[5]) if len(row) > 5 else 0
+
+        # 오늘과 어제 조회수 별도 조회 (일별 비교용)
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+            # 오늘 조회수
+            today_response = youtube_analytics.reports().query(
+                ids=f'channel=={channel_id}',
+                startDate=today,
+                endDate=today,
+                metrics='views',
+                dimensions='video',
+                filters=f'video=={video_id}'
+            ).execute()
+            today_rows = today_response.get('rows', [])
+            if today_rows and len(today_rows) > 0:
+                result['views_today'] = int(today_rows[0][1]) if len(today_rows[0]) > 1 else 0
+
+            # 어제 조회수
+            yesterday_response = youtube_analytics.reports().query(
+                ids=f'channel=={channel_id}',
+                startDate=yesterday,
+                endDate=yesterday,
+                metrics='views',
+                dimensions='video',
+                filters=f'video=={video_id}'
+            ).execute()
+            yesterday_rows = yesterday_response.get('rows', [])
+            if yesterday_rows and len(yesterday_rows) > 0:
+                result['views_yesterday'] = int(yesterday_rows[0][1]) if len(yesterday_rows[0]) > 1 else 0
+
+        except Exception as e:
+            print(f"[CTR] 일별 조회수 조회 오류 (무시됨): {e}")
+
+        return result if result['views'] > 0 or result['impressions'] > 0 else None
+    except Exception as e:
+        print(f"[CTR] Analytics API 오류: {e}")
+        return None
+
+
+def get_channel_subscriber_count(youtube, channel_id):
+    """
+    YouTube Data API로 채널의 총 구독자 수 조회
+
+    반환: 구독자 수 (int) 또는 None (실패 시)
+    """
+    try:
+        response = youtube.channels().list(
+            part='statistics',
+            id=channel_id
+        ).execute()
+
+        items = response.get('items', [])
+        if items and len(items) > 0:
+            stats = items[0].get('statistics', {})
+            subscriber_count = stats.get('subscriberCount', '0')
+            return int(subscriber_count)
 
         return None
     except Exception as e:
-        print(f"[CTR] Analytics API 오류: {e}")
+        print(f"[CTR] 채널 구독자 수 조회 오류: {e}")
         return None
 
 
@@ -23046,7 +23118,7 @@ def api_sheets_check_ctr_and_update_titles():
         results = []
 
         for sheet_name in sheet_names:
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
             if rows is None or len(rows) < 3:
                 continue
 
@@ -23054,6 +23126,15 @@ def api_sheets_check_ctr_and_update_titles():
             channel_id = get_sheet_channel_id(rows)
             if not channel_id:
                 continue
+
+            # F1에 채널 구독자 수 기록
+            try:
+                subscriber_count = get_channel_subscriber_count(youtube, channel_id)
+                if subscriber_count is not None:
+                    sheets_update_cell(service, sheet_id, f"'{sheet_name}'!F1", f"구독자: {subscriber_count:,}명")
+                    print(f"[CTR] [{sheet_name}] F1에 구독자 수 기록: {subscriber_count:,}명")
+            except Exception as e:
+                print(f"[CTR] [{sheet_name}] F1 구독자 수 기록 실패: {e}")
 
             # 헤더에서 열 매핑 생성 (행2)
             headers = rows[1]
@@ -23071,11 +23152,56 @@ def api_sheets_check_ctr_and_update_titles():
                 work_time_str = get_row_value(row, col_map, '작업시간')
                 title_changed_date = get_row_value(row, col_map, '제목변경일')
 
-                # 완료 상태 + 영상URL 있음 + 제목 변경 이력 없음
-                if status != '완료' or not video_url or title_changed_date:
+                # 완료 상태 + 영상URL 있음
+                if status != '완료' or not video_url:
                     continue
 
-                # 업로드 후 7일 이상 지났는지 확인
+                # 비디오 ID 추출
+                video_id = extract_video_id_from_url(video_url)
+                if not video_id:
+                    continue
+
+                checked_count += 1
+
+                # CTR 및 조회수/구독 데이터 조회
+                ctr_data = get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id)
+
+                if ctr_data:
+                    ctr = ctr_data.get('ctr', 0)
+                    impressions = ctr_data.get('impressions', 0)
+                    views = ctr_data.get('views', 0)
+                    views_today = ctr_data.get('views_today', 0)
+                    views_yesterday = ctr_data.get('views_yesterday', 0)
+                    subs_gained = ctr_data.get('subscribers_gained', 0)
+                    subs_lost = ctr_data.get('subscribers_lost', 0)
+
+                    # CTR, 노출수 기록
+                    if 'CTR' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, 'CTR', f'{ctr:.2f}%')
+                    if '노출수' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '노출수', str(impressions))
+
+                    # 조회수 기록
+                    if '조회수' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '조회수', str(views))
+
+                    # 전일대비 (오늘 - 어제)
+                    if '전일대비' in col_map:
+                        diff = views_today - views_yesterday
+                        diff_str = f"+{diff}" if diff >= 0 else str(diff)
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '전일대비', diff_str)
+
+                    # 구독증가/감소
+                    if '구독증가' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '구독증가', f"+{subs_gained}")
+                    if '구독감소' in col_map:
+                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '구독감소', f"-{subs_lost}")
+
+                # 제목 변경은 7일 이상 지난 영상만, 제목변경 이력 없는 경우만
+                if title_changed_date:
+                    continue  # 이미 제목 변경됨
+
+                # 업로드 후 7일 이상 지났는지 확인 (제목 변경용)
                 if work_time_str:
                     try:
                         work_time = datetime.strptime(work_time_str, '%Y-%m-%d %H:%M:%S')
@@ -23085,25 +23211,9 @@ def api_sheets_check_ctr_and_update_titles():
                     except ValueError:
                         continue
 
-                # 비디오 ID 추출
-                video_id = extract_video_id_from_url(video_url)
-                if not video_id:
-                    continue
-
-                checked_count += 1
-
-                # CTR 조회
-                ctr_data = get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id)
-
                 if ctr_data:
                     ctr = ctr_data.get('ctr', 0)
                     impressions = ctr_data.get('impressions', 0)
-
-                    # CTR, 노출수 기록
-                    if 'CTR' in col_map:
-                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, 'CTR', f'{ctr:.2f}%')
-                    if '노출수' in col_map:
-                        sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '노출수', str(impressions))
 
                     # CTR이 기준 미만이면 제목 변경
                     if ctr < CTR_THRESHOLD and impressions >= 100:  # 최소 100회 노출 이상
