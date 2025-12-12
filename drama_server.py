@@ -8048,7 +8048,8 @@ def youtube_auth():
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
                 'https://www.googleapis.com/auth/youtube.readonly',
-                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+                'https://www.googleapis.com/auth/youtube.force-ssl',  # 댓글 작성용
+                'https://www.googleapis.com/auth/yt-analytics.readonly'  # CTR/조회수 Analytics
             ],
             redirect_uri=redirect_uri
         )
@@ -9243,7 +9244,8 @@ def api_youtube_auth_page():
             scopes=[
                 'https://www.googleapis.com/auth/youtube.upload',
                 'https://www.googleapis.com/auth/youtube.readonly',
-                'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
+                'https://www.googleapis.com/auth/youtube.force-ssl',  # 댓글 작성용
+                'https://www.googleapis.com/auth/yt-analytics.readonly'  # CTR/조회수 Analytics
             ],
             redirect_uri=redirect_uri
         )
