@@ -18881,7 +18881,8 @@ def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
     from datetime import datetime, timedelta
 
     try:
-        # 최근 28일간 데이터 조회 (CTR, 노출수, 총 조회수)
+        # 최근 28일간 데이터 조회 (조회수, 구독자 변동)
+        # 참고: impressions, impressionClickThroughRate는 video dimension과 함께 사용 불가
         end_date = datetime.now().strftime('%Y-%m-%d')
         start_date = (datetime.now() - timedelta(days=28)).strftime('%Y-%m-%d')
 
@@ -18889,15 +18890,15 @@ def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
             ids=f'channel=={channel_id}',
             startDate=start_date,
             endDate=end_date,
-            metrics='views,impressions,impressionClickThroughRate,subscribersGained,subscribersLost',
+            metrics='views,subscribersGained,subscribersLost',
             dimensions='video',
             filters=f'video=={video_id}'
         ).execute()
 
         result = {
             'views': 0,
-            'impressions': 0,
-            'ctr': 0,
+            'impressions': 0,  # Analytics API에서 video별 조회 불가
+            'ctr': 0,  # Analytics API에서 video별 조회 불가
             'subscribers_gained': 0,
             'subscribers_lost': 0,
             'views_today': 0,
@@ -18906,13 +18907,11 @@ def get_video_ctr_from_analytics(youtube_analytics, channel_id, video_id):
 
         rows = response.get('rows', [])
         if rows and len(rows) > 0:
-            # [video_id, views, impressions, ctr, subscribersGained, subscribersLost]
+            # [video_id, views, subscribersGained, subscribersLost]
             row = rows[0]
             result['views'] = int(row[1]) if len(row) > 1 else 0
-            result['impressions'] = int(row[2]) if len(row) > 2 else 0
-            result['ctr'] = float(row[3]) * 100 if len(row) > 3 else 0  # 비율 -> 퍼센트
-            result['subscribers_gained'] = int(row[4]) if len(row) > 4 else 0
-            result['subscribers_lost'] = int(row[5]) if len(row) > 5 else 0
+            result['subscribers_gained'] = int(row[2]) if len(row) > 2 else 0
+            result['subscribers_lost'] = int(row[3]) if len(row) > 3 else 0
 
         # 오늘과 어제 조회수 별도 조회 (일별 비교용)
         try:
