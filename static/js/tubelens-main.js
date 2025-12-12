@@ -3439,10 +3439,17 @@
       });
     },
 
-    displayBlueoceanResults: function(results) {
+    displayBlueoceanResults: function(results, filterValue) {
       var container = document.getElementById('blueocean-results');
       var list = document.getElementById('blueocean-list');
       var count = document.getElementById('blueocean-count');
+      var filterSelect = document.getElementById('blueocean-score-filter');
+
+      // 첫 호출 시 원본 저장
+      if (!filterValue) {
+        this.blueoceanResults = results;
+        if (filterSelect) filterSelect.value = 'all';
+      }
 
       if (!results || results.length === 0) {
         container.style.display = 'block';
@@ -3451,13 +3458,30 @@
         return;
       }
 
-      count.textContent = results.length + '개';
+      // 필터링
+      var filteredResults = results;
+      if (filterValue && filterValue !== 'all') {
+        if (filterValue === 'low') {
+          filteredResults = results.filter(function(r) { return r.blueoceanScore < 40; });
+        } else {
+          var minScore = parseInt(filterValue);
+          filteredResults = results.filter(function(r) { return r.blueoceanScore >= minScore; });
+        }
+      }
+
+      count.textContent = filteredResults.length + '개' + (filterValue && filterValue !== 'all' ? ' (필터됨)' : '');
+
+      if (filteredResults.length === 0) {
+        container.style.display = 'block';
+        list.innerHTML = '<div class="empty-state"><p>선택한 점수 범위에 해당하는 결과가 없습니다.</p></div>';
+        return;
+      }
 
       var html = '';
       var self = this;
 
-      results.forEach(function(item, index) {
-        var scoreClass = item.blueoceanScore >= 60 ? 'high' : item.blueoceanScore >= 40 ? 'medium' : 'low';
+      filteredResults.forEach(function(item, index) {
+        var scoreClass = item.blueoceanScore >= 80 ? 'high' : item.blueoceanScore >= 60 ? 'medium' : item.blueoceanScore >= 40 ? 'low' : 'red';
 
         html += '<div class="blueocean-item">';
         html += '  <div class="blueocean-item-header">';
@@ -3654,6 +3678,13 @@
 
     closeDeepModal: function() {
       document.getElementById('blueocean-deep-modal').style.display = 'none';
+    },
+
+    filterBlueoceanByScore: function() {
+      var filterValue = document.getElementById('blueocean-score-filter').value;
+      if (this.blueoceanResults) {
+        this.displayBlueoceanResults(this.blueoceanResults, filterValue);
+      }
     }
   };
 

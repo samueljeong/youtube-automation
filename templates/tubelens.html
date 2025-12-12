@@ -1612,6 +1612,25 @@
       border-radius: 20px;
     }
 
+    .blueocean-filter-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .blueocean-score-filter {
+      padding: 6px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .blueocean-score-filter:hover {
+      border-color: #0ea5e9;
+    }
+
     .blueocean-list {
       display: flex;
       flex-direction: column;
@@ -1664,8 +1683,13 @@
     }
 
     .blueocean-score.low {
-      background: #e1e5eb;
-      color: #666;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .blueocean-score.red {
+      background: #fee2e2;
+      color: #dc2626;
     }
 
     .blueocean-recommendation {
@@ -2835,7 +2859,16 @@
         <div class="blueocean-results" id="blueocean-results" style="display:none;">
           <div class="blueocean-results-header">
             <h3>🎯 발굴된 블루오션 카테고리</h3>
-            <span class="blueocean-results-count" id="blueocean-count">0개</span>
+            <div class="blueocean-filter-group">
+              <select class="blueocean-score-filter" id="blueocean-score-filter" onchange="TubeLens.filterBlueoceanByScore()">
+                <option value="all">전체 점수</option>
+                <option value="80">80점 이상 (강력 추천)</option>
+                <option value="60">60점 이상 (추천)</option>
+                <option value="40">40점 이상 (관망)</option>
+                <option value="low">40점 미만 (레드오션)</option>
+              </select>
+              <span class="blueocean-results-count" id="blueocean-count">0개</span>
+            </div>
           </div>
           <div class="blueocean-list" id="blueocean-list">
             <!-- 결과가 여기에 동적으로 추가됨 -->

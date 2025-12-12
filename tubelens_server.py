@@ -3020,6 +3020,63 @@ def extract_keywords_from_videos(videos: List[Dict[str, Any]]) -> List[str]:
     return top_keywords
 
 
+# 해외에서 인기 있는 니치 키워드 (블루오션 후보)
+NICHE_KEYWORDS = {
+    "US": [
+        "stoicism", "adhd tips", "dopamine detox", "carnivore diet",
+        "home gym", "biohacking", "sleep optimization", "cold plunge",
+        "thrift flip", "van life", "tiny house", "off grid",
+        "ai tools", "chatgpt tutorial", "midjourney", "stable diffusion",
+        "true crime", "unsolved mystery", "creepypasta", "iceberg explained",
+        "satisfying", "asmr", "oddly satisfying", "relaxing",
+        "financial freedom", "side hustle", "passive income", "dropshipping",
+        "manga recap", "anime recap", "manhwa", "webtoon",
+        "90s nostalgia", "liminal spaces", "analog horror", "arg",
+        "silent vlog", "study with me", "clean with me", "day in my life"
+    ],
+    "JP": [
+        "vtuber", "hololive", "nijisanji", "voiceroid",
+        "isekai", "narou", "light novel", "manga spoiler",
+        "retro game", "famicom", "super famicom", "arcade",
+        "japanese asmr", "ear cleaning", "whispering",
+        "japan travel", "tokyo walk", "kyoto tour", "osaka food",
+        "idol", "jpop", "city pop", "anime song",
+        "otaku", "figure", "gunpla", "cosplay",
+        "ramen", "sushi", "bento", "japanese cooking"
+    ],
+    "GB": [
+        "british comedy", "uk drill", "grime",
+        "premier league", "football highlights", "match analysis",
+        "royal family", "british history", "castle tour",
+        "pub culture", "british food", "full english",
+        "london vlog", "uk travel", "scotland",
+        "british slang", "cockney", "accent challenge"
+    ],
+    "DE": [
+        "german lesson", "deutsch lernen", "german culture",
+        "bundesliga", "german football",
+        "german engineering", "made in germany",
+        "berlin", "munich", "oktoberfest",
+        "german history", "ww2 documentary", "cold war"
+    ],
+    "BR": [
+        "funk brasileiro", "sertanejo", "pagode",
+        "futebol brasileiro", "flamengo", "corinthians",
+        "novela", "brazilian drama", "reality show",
+        "brazil travel", "rio", "amazon",
+        "brazilian food", "feijoada", "churrasco"
+    ],
+    "IN": [
+        "bollywood", "south indian", "tollywood",
+        "cricket", "ipl", "india match",
+        "indian cooking", "curry recipe", "biryani",
+        "indian wedding", "mehndi", "sangeet",
+        "yoga", "meditation", "ayurveda",
+        "indian history", "mythology", "mahabharata"
+    ]
+}
+
+
 def calculate_blueocean_score(foreign_data: Dict, korea_data: Dict) -> float:
     """블루오션 점수 계산
 
@@ -3137,16 +3194,52 @@ def api_blueocean():
                 if not foreign_videos:
                     continue
 
-                # 2. 키워드 추출
-                keywords = extract_keywords_from_videos(foreign_videos)
+                # 2. 키워드 추출 (트렌딩에서 + 니치 키워드)
+                extracted_keywords = extract_keywords_from_videos(foreign_videos)
+                niche_keywords = NICHE_KEYWORDS.get(region, [])
+
+                # 니치 키워드에서 랜덤 10개 선택 + 추출 키워드 5개
+                import random
+                selected_niche = random.sample(niche_keywords, min(10, len(niche_keywords))) if niche_keywords else []
+                keywords = list(set(extracted_keywords[:5] + selected_niche))
 
                 # 해외 통계
                 foreign_avg_views = sum(v["viewCount"] for v in foreign_videos) / len(foreign_videos)
                 foreign_total_views = sum(v["viewCount"] for v in foreign_videos)
 
-                # 3. 한국에서 같은 키워드로 검색
-                for keyword in keywords[:10]:  # 상위 10개 키워드만
+                # 3. 각 키워드에 대해 해외/한국 검색 비교
+                for keyword in keywords[:15]:  # 상위 15개 키워드
                     try:
+                        # 해외에서 키워드 검색 (니치 키워드용)
+                        foreign_search_params = {
+                            "part": "snippet",
+                            "type": "video",
+                            "q": keyword,
+                            "regionCode": region,
+                            "maxResults": 20,
+                            "order": "viewCount"
+                        }
+                        if video_type == "shorts":
+                            foreign_search_params["videoDuration"] = "short"
+                        elif video_type == "longform":
+                            foreign_search_params["videoDuration"] = "medium"
+
+                        foreign_search = make_youtube_request("search", foreign_search_params, api_key)
+                        foreign_search_ids = [item["id"]["videoId"] for item in foreign_search.get("items", [])
+                                              if item.get("id", {}).get("videoId")]
+
+                        # 해외 키워드 검색 결과 상세 정보
+                        foreign_keyword_videos = []
+                        foreign_keyword_avg = 0
+                        if foreign_search_ids:
+                            foreign_keyword_videos = get_video_details(foreign_search_ids[:10], api_key)
+                            if foreign_keyword_videos:
+                                foreign_keyword_avg = sum(v["viewCount"] for v in foreign_keyword_videos) / len(foreign_keyword_videos)
+
+                        # 해외에서 인기 없으면 스킵
+                        if foreign_keyword_avg < 100000:  # 10만 미만이면 스킵
+                            continue
+
                         # 한국 검색
                         korea_search_params = {
                             "part": "snippet",
@@ -3182,14 +3275,9 @@ def api_blueocean():
                                 korea_avg_views = sum(v["viewCount"] for v in korea_videos) / len(korea_videos)
 
                         # 4. 블루오션 점수 계산
-                        foreign_keyword_videos = [v for v in foreign_videos
-                                                  if keyword.lower() in v.get("title", "").lower()]
-                        foreign_keyword_avg = (sum(v["viewCount"] for v in foreign_keyword_videos) /
-                                               len(foreign_keyword_videos)) if foreign_keyword_videos else foreign_avg_views
-
                         foreign_data = {
                             "avg_views": foreign_keyword_avg,
-                            "video_count": len(foreign_keyword_videos) or len(foreign_videos) // len(keywords)
+                            "video_count": len(foreign_keyword_videos)
                         }
                         korea_data = {
                             "channel_count": len(korea_channels),
@@ -3199,10 +3287,10 @@ def api_blueocean():
 
                         score = calculate_blueocean_score(foreign_data, korea_data)
 
-                        # 블루오션 판정 (점수 40 이상이면 유망)
+                        # 블루오션 판정 (점수 30 이상이면 표시)
                         if score >= 30:
-                            # 대표 영상 선택
-                            sample_videos = foreign_keyword_videos[:3] if foreign_keyword_videos else foreign_videos[:3]
+                            # 대표 영상 선택 (해외 키워드 검색 결과)
+                            sample_videos = foreign_keyword_videos[:3]
 
                             results.append({
                                 "keyword": keyword,
@@ -3210,8 +3298,8 @@ def api_blueocean():
                                 "blueoceanScore": score,
                                 "foreignStats": {
                                     "avgViews": int(foreign_keyword_avg),
-                                    "videoCount": len(foreign_keyword_videos) or "N/A",
-                                    "totalViews": int(foreign_total_views)
+                                    "videoCount": len(foreign_keyword_videos),
+                                    "totalViews": int(sum(v["viewCount"] for v in foreign_keyword_videos)) if foreign_keyword_videos else 0
                                 },
                                 "koreaStats": {
                                     "channelCount": len(korea_channels),
