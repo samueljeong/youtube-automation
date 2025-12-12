@@ -8208,8 +8208,11 @@ def youtube_callback():
         except Exception as channel_error:
             print(f"[YOUTUBE-CALLBACK] 채널 정보 조회 실패 (토큰은 저장): {channel_error}")
 
-        # 채널별로 토큰 저장
-        save_youtube_token_to_db(token_data, channel_id=channel_id, channel_info=channel_info)
+        # account_id가 있으면 그걸로 저장, 없으면 channel_id로 저장
+        account_id = oauth_state.get('account_id', '').strip()
+        token_key = account_id if account_id else channel_id
+        save_youtube_token_to_db(token_data, channel_id=token_key, channel_info=channel_info)
+        print(f"[YOUTUBE-CALLBACK] 토큰 저장 완료 (key: {token_key})")
 
         print(f"[YOUTUBE-CALLBACK] 인증 완료, /image 페이지로 리다이렉트")
         # Image Lab 페이지로 리다이렉트 (인증 완료)
@@ -9188,9 +9191,13 @@ def api_youtube_auth_page():
 
         # force 파라미터 확인 (다른 계정 연결 시 사용)
         force_new_auth = request.args.get('force', '0') == '1'
+        # account_id 파라미터 (이메일 또는 식별자)
+        account_id = request.args.get('account_id', '').strip()
 
         if force_new_auth:
             print("[YOUTUBE-AUTH-GET] force=1 - 새 계정 인증 강제 진행")
+        if account_id:
+            print(f"[YOUTUBE-AUTH-GET] account_id: {account_id}")
 
         # 이미 인증된 토큰 확인 (refresh_token이 있으면 재인증 불필요)
         # force=1이면 기존 토큰 무시하고 새 인증 진행
@@ -9259,12 +9266,13 @@ def api_youtube_auth_page():
             prompt=oauth_prompt  # select_account: 계정 선택, consent: 동의 화면 (refresh_token 확보)
         )
 
-        # 상태 저장
+        # 상태 저장 (account_id 포함)
         save_oauth_state({
             'state': state,
             'redirect_uri': redirect_uri,
             'client_id': client_id,
-            'client_secret': client_secret
+            'client_secret': client_secret,
+            'account_id': account_id  # 이메일 또는 식별자
         })
 
         print(f"[YOUTUBE-AUTH-GET] Google OAuth URL로 리다이렉트")
@@ -18793,6 +18801,26 @@ def get_sheet_channel_id(rows):
     return None
 
 
+def get_sheet_account_email(rows):
+    """
+    시트의 1행에서 계정 이메일 추출
+
+    시트 구조:
+    - C1: '계정'
+    - D1: 'user@gmail.com'
+
+    반환: 이메일 문자열 또는 None
+    """
+    if not rows or len(rows) < 1:
+        return None
+
+    first_row = rows[0]
+    if len(first_row) >= 4 and first_row[2] == '계정':
+        return first_row[3].strip() if first_row[3] else None
+
+    return None
+
+
 def get_row_value(row, col_map, header_name, default=''):
     """
     헤더 이름으로 행에서 값 가져오기
@@ -21000,15 +21028,20 @@ def api_sheets_check_ctr_and_update_titles():
             if not channel_id:
                 continue
 
-            # 해당 채널의 YouTube 토큰 로드
-            youtube_token = load_youtube_token_from_db(channel_id)
+            # 계정 이메일 (행1 C열, D열)
+            account_email = get_sheet_account_email(rows)
+            token_key = account_email or channel_id  # 계정 이메일 우선, 없으면 채널ID
+
+            # 해당 계정의 YouTube 토큰 로드
+            youtube_token = load_youtube_token_from_db(token_key)
             if not youtube_token:
-                print(f"[CTR] [{sheet_name}] 채널 {channel_id}의 토큰 없음, 건너뛰기")
+                print(f"[CTR] [{sheet_name}] 토큰 없음 (key: {token_key}), 건너뛰기")
                 results.append({
                     "sheet": sheet_name,
                     "channel_id": channel_id,
+                    "account": account_email,
                     "status": "skipped",
-                    "reason": "토큰 없음"
+                    "reason": f"토큰 없음 ({token_key})"
                 })
                 continue
 
@@ -21034,15 +21067,17 @@ def api_sheets_check_ctr_and_update_titles():
                         'client_secret': creds.client_secret,
                         'scopes': list(creds.scopes) if creds.scopes else []
                     }
-                    save_youtube_token_to_db(updated_token, channel_id=channel_id)
+                    save_youtube_token_to_db(updated_token, channel_id=token_key)
 
                 youtube = build('youtube', 'v3', credentials=creds)
                 youtube_analytics = build('youtubeAnalytics', 'v2', credentials=creds)
+                print(f"[CTR] [{sheet_name}] YouTube API 초기화 성공 (account: {account_email or 'N/A'})")
             except Exception as e:
                 print(f"[CTR] [{sheet_name}] YouTube API 초기화 실패: {e}")
                 results.append({
                     "sheet": sheet_name,
                     "channel_id": channel_id,
+                    "account": account_email,
                     "status": "error",
                     "reason": f"API 초기화 실패: {e}"
                 })
