@@ -20970,7 +20970,7 @@ def api_sheets_check_ctr_and_update_titles():
             from googleapiclient.discovery import build
             from google.oauth2.credentials import Credentials
 
-            youtube_token = get_youtube_oauth_token()
+            youtube_token = load_youtube_token_from_db()
             if not youtube_token:
                 return jsonify({
                     "ok": False,
@@ -20978,11 +20978,11 @@ def api_sheets_check_ctr_and_update_titles():
                 }), 400
 
             credentials = Credentials(
-                token=youtube_token.get('access_token'),
+                token=youtube_token.get('token'),
                 refresh_token=youtube_token.get('refresh_token'),
-                token_uri='https://oauth2.googleapis.com/token',
-                client_id=os.environ.get('YOUTUBE_CLIENT_ID'),
-                client_secret=os.environ.get('YOUTUBE_CLIENT_SECRET')
+                token_uri=youtube_token.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                client_id=youtube_token.get('client_id') or os.environ.get('YOUTUBE_CLIENT_ID'),
+                client_secret=youtube_token.get('client_secret') or os.environ.get('YOUTUBE_CLIENT_SECRET')
             )
 
             youtube_analytics = build('youtubeAnalytics', 'v2', credentials=credentials)
