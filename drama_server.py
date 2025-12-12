@@ -10109,7 +10109,7 @@ def api_image_analyze_script():
         language_config = {
             'ko': {'name': 'Korean', 'native': '한국어', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Korean (한국어).'},
             'en': {'name': 'English', 'native': 'English', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in English.'},
-            'ja': {'name': 'Japanese', 'native': '日本語', 'instruction': 'Write ALL titles, description, thumbnail text, and narration in Japanese (日本語).'},
+            'ja': {'name': 'Japanese', 'native': '日本語', 'instruction': 'Write ALL titles, description, thumbnail text, narration, overlays, and subtitles in Japanese using ONLY hiragana/katakana. ⚠️ NO KANJI (漢字) ALLOWED! Use ひらがな instead of 漢字. Example: 年金→ねんきん, 届出→とどけで, 確認→かくにん. Numbers and symbols (%, 円, 月) are allowed.'},
         }
 
         # 자동 감지 시 스크립트 언어 분석
@@ -10542,20 +10542,26 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
    - 단, 실제 내용이 받쳐줄 때만 사용. 과장/왜곡 금지.
 
 ### 🇯🇵 일본어 썸네일 특별 규칙 (60-80대 시니어 타겟)
+⚠️ **한자(漢字) 사용 절대 금지! 히라가나/가타카나만 사용!**
+- 年金 → ねんきん, 届出 → とどけで, 変更 → へんこう
+- 숫자와 기호(%, 円, 月)만 예외적으로 허용
+- 시니어가 한자를 읽기 어려워하므로 반드시 히라가나로!
+
 1. **최대 10자 이내** (큰 글씨로 표시하기 위해)
 2. **핵심 메시지 1개만** (정보 과다 금지)
-3. **구체적인 숫자/금액/날짜 우선** (예: "年金2.7%増", "12月sinior sinior sinior sinior sinior")
+3. **구체적인 숫자/금액/날짜 우선** (예: "ねんきん2.7%ぞう", "12月届け出ひっす")
 4. **의문형 또는 단정형**으로 흥미 유발
 5. **젊은이 말투 절대 금지**: ヤバい、マジ、ガチ 등
 
 **❌ 일본어 썸네일 나쁜 예시:**
-- "年金↑ 光熱費↑ インフル大流行" → 정보 과다, 글자가 작아짐
-- "ヤバい年金" → 젊은이 말투
+- "年金↑ 光熱費↑" → 한자 사용 금지!
+- "届出必須" → 한자 사용 금지!
+- "ヤバい年金" → 젊은이 말투 + 한자
 
 **✅ 일본어 썸네일 좋은 예시:**
-- "年金2.7%増額" → 핵심 메시지 1개, 구체적 수치
-- "sinior sinior sinior 届出必須" → 금액 + 행동 촉구
-- "sinior sinior sinior から変更" → 날짜 + 핵심 키워드
+- "ねんきん2.7%ぞうがく" → 히라가나 + 구체적 수치
+- "とどけでひっす" → 히라가나만 사용
+- "12がつからへんこう" → 히라가나 + 날짜
 
 4. **제목과의 관계**
    - 썸네일 문구는 영상 제목과 똑같이 쓰지 않는다.
@@ -10616,21 +10622,27 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 - 낚시성/과장/선정성 **절대 금지** ("충격", "소름", "멸망", "난리" 금지)
 
 ### 🇯🇵 일본어 제목 특별 규칙 (60-80대 시니어 타겟)
+⚠️ **한자(漢字) 사용 절대 금지! 히라가나/가타카나만 사용!**
+- 年金 → ねんきん, 届出 → とどけで, 変更 → へんこう, 確認 → かくにん
+- 숫자와 기호(%, 円, 月)만 예외적으로 허용
+- 시니어가 한자를 읽기 어려워하므로 반드시 히라가나로!
+
 - **30자 전후** (25-35자)
-- **구체적인 숫자 필수** (〇%、〇円、〇月から 등)
-- **「自分に関係ある」と即座に感じさせる** (자신과 관련있다고 즉시 느끼게)
-- **행동 촉구 워드 권장**: 確認、注意、届出、申請、変更 등
+- **구체적인 숫자 필수** (〇%、〇円、〇がつから 등)
+- **「じぶんにかんけいある」とすぐにかんじさせる** (자신과 관련있다고 즉시 느끼게)
+- **행동 촉구 워드 권장**: かくにん、ちゅうい、とどけで、しんせい、へんこう 등
 - **젊은이 말투 절대 금지**: ヤバい、マジ、ガチ、めっちゃ、やばすぎ 등
-- **애매한 표현 금지**: 「3本立て」「3大変化」「○○の話」 등
+- **애매한 표현 금지**: 「3ほんだて」「3だいへんか」「○○のはなし」 등
 
 **❌ 일본어 나쁜 예시:**
-- "年金と光熱費とインフル 3つの冬支度" → 구체성 없음, 애매함
-- "ヤバい！年金がマジで変わる" → 젊은이 말투, 구체성 없음
+- "年金と光熱費とインフル" → 한자 사용 금지!
+- "届出しないと損" → 한자 사용 금지!
+- "ヤバい！年金がマジで変わる" → 젊은이 말투 + 한자
 
 **✅ 일본어 좋은 예시:**
-- "1月から年金2.7%増額決定！sinior sinior sinior sinior sinior sinior" → 구체적 날짜 + 구체적 수치
-- "12月sinior sinior sinior 届出しないと sinior sinior損" → 날짜 + 금액 + 행동 촉구
-- "電気代sinior sinior sinior sinior %値上げ sinior sinior確認を" → 수치 + 행동 촉구
+- "1がつからねんきん2.7%ぞうがくけってい！" → 히라가나 + 구체적 날짜/수치
+- "12がつまでにとどけでしないと〇〇円そん" → 히라가나 + 금액 + 행동 촉구
+- "でんきだい〇〇%ねあげ、いますぐかくにんを" → 히라가나 + 수치 + 행동 촉구
 
 ### ⚠️ 제목 작성 시 흔한 실수 (절대 금지!)
 **❌ 나쁜 예시:**
@@ -10926,6 +10938,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
     }}
   }},
   "video_effects": {{
+    "⚠️ 일본어 주의": "OUTPUT LANGUAGE가 Japanese일 경우, 모든 텍스트(screen_overlays, lower_thirds, news_ticker, shorts)에서 한자(漢字) 사용 금지! 히라가나/가타카나만 사용!",
     "bgm_mood": "기본 BGM 분위기. 반드시 아래 12개 중에서 선택! calm/cinematic/comedic/dramatic/epic/hopeful/horror/mysterious/nostalgic/sad/tense/upbeat",
     "scene_bgm_changes": [
       {{"scene": 2, "mood": "mysterious", "reason": "의문점 제기"}},
@@ -10934,12 +10947,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       {{"scene": 8, "mood": "hopeful", "reason": "해결/성공"}}
     ],
     "subtitle_highlights": [
-      {{"keyword": "강조할 단어1", "color": "#FF0000"}},
-      {{"keyword": "강조할 단어2", "color": "#FFFF00"}}
+      {{"keyword": "강조할 단어1 (일본어: 히라가나만!)", "color": "#FF0000"}},
+      {{"keyword": "강조할 단어2 (일본어: 히라가나만!)", "color": "#FFFF00"}}
     ],
     "screen_overlays": [
-      {{"scene": 3, "text": "대박!", "duration": 3, "style": "impact"}},
-      {{"scene": 7, "text": "반전", "duration": 2, "style": "dramatic"}}
+      {{"scene": 3, "text": "일본어: ひらがなのみ! (한자 금지)", "duration": 3, "style": "impact"}},
+      {{"scene": 7, "text": "예: すごい! (×凄い)", "duration": 2, "style": "dramatic"}}
     ],
     "sound_effects": [
       {{"scene": 1, "type": "whoosh", "moment": "씬 시작"}},
@@ -10955,16 +10968,16 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       {{"scene": 8, "type": "triumphant", "moment": "성공"}}
     ],
     "lower_thirds": [
-      {{"scene": 2, "text": "화자명 또는 출처", "position": "bottom-left"}}
+      {{"scene": 2, "text": "일본어: ひらがなのみ (한자금지)", "position": "bottom-left"}}
     ],
     "news_ticker": {{
       "enabled": true,
-      "headlines": ["(대본 언어로) 첫 번째 헤드라인", "(대본 언어로) 두 번째 헤드라인", "(대본 언어로) 세 번째 헤드라인"]
+      "headlines": ["일본어: ひらがな/カタカナのみ (한자금지)", "예: ねんきんぞうがく (×年金増額)", "숫자와 %만 허용"]
     }},
     "shorts": {{
       "highlight_scenes": [1, 2],
-      "hook_text": "(대본 언어로) 시청자를 사로잡는 훅 (15자 이내)",
-      "title": "(대본 언어로) 쇼츠 제목 #Shorts"
+      "hook_text": "일본어: ひらがなのみ (한자금지, 15자 이내)",
+      "title": "일본어: ひらがなのみ #Shorts"
     }},
     "transitions": {{
       "style": "crossfade",
