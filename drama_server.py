@@ -10600,12 +10600,12 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 
 ## 🎯 유튜브 제목 생성 규칙 (중요!)
 
-### 🌍 언어 감지 및 적용 (CRITICAL!)
-대본의 언어를 먼저 감지하고, **해당 언어로** 제목/설명/썸네일 텍스트를 작성하세요:
-- 한국어 대본 → 한국어로 모든 메타데이터 작성
-- 일본어 대본 → 일본어로 모든 메타데이터 작성 (제목, 설명, 썸네일 텍스트, 해시태그)
-- 영어 대본 → 영어로 모든 메타데이터 작성
-- **절대 대본 언어와 다른 언어로 메타데이터를 작성하지 마세요!**
+### 🌍 OUTPUT_LANGUAGE 엄격 준수 (CRITICAL!)
+⚠️ **언어를 스스로 감지하지 마세요!** 사용자 입력의 `OUTPUT LANGUAGE`를 반드시 따르세요!
+- OUTPUT LANGUAGE가 Korean이면 → 한국어로 모든 메타데이터 작성
+- OUTPUT LANGUAGE가 Japanese이면 → 일본어로 모든 메타데이터 작성
+- OUTPUT LANGUAGE가 English이면 → 영어로 모든 메타데이터 작성
+- **대본에 다른 언어가 섞여 있어도, OUTPUT LANGUAGE를 무조건 따르세요!**
 
 ### 기본 규칙 (언어별 길이 기준)
 - **한국어**: 18-32자 (공백 포함)
@@ -10666,8 +10666,9 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 ## 🎯 유튜브 설명란 생성 규칙 (중요!)
 
 ### 🌍 언어 규칙 (CRITICAL!)
-- **대본 언어와 동일한 언어로 설명란 작성!**
-- 일본어 대본 → 일본어 설명란, 영어 대본 → 영어 설명란
+- **OUTPUT LANGUAGE와 동일한 언어로 설명란 작성!**
+- OUTPUT LANGUAGE가 Korean이면 → 한국어 설명란
+- OUTPUT LANGUAGE가 Japanese이면 → 일본어 설명란
 
 ### 목표
 - 검색·추천 노출에 유리한 설명란 작성
@@ -10985,10 +10986,10 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
 {ai_prompts_rules}
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (썸네일 텍스트 규칙) ⚠️
-The "text_overlay" text MUST match the script language!
+The "text_overlay" text MUST match the OUTPUT LANGUAGE!
 ⚠️ IMAGE GENERATION MODELS STRUGGLE WITH LONG TEXT! Keep it SHORT!
 
-### 🌍 언어 규칙: 대본 언어 = 썸네일 텍스트 언어!
+### 🌍 언어 규칙: OUTPUT LANGUAGE = 썸네일 텍스트 언어!
 
 **MAIN TEXT RULES (언어별):**
 - 한국어: 최대 6자 | 일본어: 최대 8자 | 영어: 최대 15자
@@ -11507,10 +11508,10 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 - **C**: 대비/비교 - 분할 화면 또는 Before/After 느낌
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (썸네일 텍스트 규칙) ⚠️
-The "text_overlay" text MUST match the script language!
+The "text_overlay" text MUST match the OUTPUT LANGUAGE!
 ⚠️ IMAGE GENERATION MODELS STRUGGLE WITH LONG TEXT! Keep it SHORT!
 
-### 🌍 언어 규칙: 대본 언어 = 썸네일 텍스트 언어!
+### 🌍 언어 규칙: OUTPUT LANGUAGE = 썸네일 텍스트 언어!
 
 **MAIN TEXT RULES (언어별):**
 - 한국어: 최대 6자 | 일본어: 최대 8자 | 영어: 최대 15자
@@ -13039,12 +13040,14 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
         current_time += scene.get('duration', 0)
 
     filters = []
-    # 언어별 폰트 선택 (한국어: lang/ko.py에서 관리)
+    # 언어별 폰트 선택 (font= 파라미터로 fontconfig 폴백 활성화)
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
+        font_name = lang_ja.FONTS['default_name']
+    elif lang == 'en':
+        font_name = lang_en.FONTS['default_name']
     else:
-        font_path = os.path.join(fonts_dir, lang_ko.FONTS['default'])
-    font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
+        font_name = lang_ko.FONTS['default_name']
+    font_escaped = font_name.replace(':', '\\:')
 
     for overlay in screen_overlays:
         scene_num = overlay.get('scene', 1)
@@ -13123,9 +13126,10 @@ def _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitle
         print(f"[OVERLAY] 추가: text='{text}', style={style}, time={start_time:.1f}-{end_time:.1f}s (duration={duration}s)")
 
         # drawtext 필터 생성 (화면 중앙, 박스 배경 추가)
+        # font= 파라미터 사용으로 fontconfig 폴백 활성화 (일본어 문자 깨짐 방지)
         drawtext = (
             f"drawtext=text='{text_escaped}':"
-            f"fontfile='{font_escaped}':"
+            f"font='{font_escaped}':"
             f"fontsize={fontsize}:"
             f"fontcolor={fontcolor}:"
             f"bordercolor={bordercolor}:"
@@ -13169,12 +13173,14 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang='ko'):
         current_time += scene.get('duration', 0)
 
     filters = []
-    # 언어별 폰트 선택 (한국어: lang/ko.py에서 관리)
+    # 언어별 폰트 선택 (font= 파라미터로 fontconfig 폴백 활성화)
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
+        font_name = lang_ja.FONTS['default_name']
+    elif lang == 'en':
+        font_name = lang_en.FONTS['default_name']
     else:
-        font_path = os.path.join(fonts_dir, lang_ko.FONTS['default'])
-    font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
+        font_name = lang_ko.FONTS['default_name']
+    font_escaped = font_name.replace(':', '\\:')
 
     for lt in lower_thirds:
         scene_num = lt.get('scene', 1)
@@ -13213,11 +13219,11 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang='ko'):
             f"enable='between(t,{start_time},{end_time})'"
         )
 
-        # 텍스트 필터
+        # 텍스트 필터 (font= 파라미터로 fontconfig 폴백 활성화)
         text_escaped = text.replace("'", "'\\''").replace(":", "\\:")
         text_filter = (
             f"drawtext=text='{text_escaped}':"
-            f"fontfile='{font_escaped}':"
+            f"font='{font_escaped}':"
             f"fontsize=28:"
             f"fontcolor=white:"
             f"x={x_pos}:"
@@ -13230,7 +13236,7 @@ def _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang='ko'):
         # 또는 box=1:boxcolor=black@0.7:boxborderw=10 사용
         text_with_bg = (
             f"drawtext=text='{text_escaped}':"
-            f"fontfile='{font_escaped}':"
+            f"font='{font_escaped}':"
             f"fontsize=28:"
             f"fontcolor=white:"
             f"box=1:"
@@ -13271,12 +13277,14 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir, lang='k
     ticker_text = "   ●   ".join(headlines) + "   ●   " + headlines[0]  # 반복을 위해 첫 번째 추가
     ticker_text = ticker_text.replace("'", "'\\''").replace(":", "\\:")
 
-    # 언어별 폰트 선택 (한국어: lang/ko.py에서 관리)
+    # 언어별 폰트 선택 (font= 파라미터로 fontconfig 폴백 활성화)
     if lang == 'ja':
-        font_path = os.path.join(fonts_dir, "Corporate-Logo-Rounded-Bold-ver3.otf")
+        font_name = lang_ja.FONTS['default_name']
+    elif lang == 'en':
+        font_name = lang_en.FONTS['default_name']
     else:
-        font_path = os.path.join(fonts_dir, lang_ko.FONTS['default'])
-    font_escaped = font_path.replace('\\', '/').replace(':', '\\:')
+        font_name = lang_ko.FONTS['default_name']
+    font_escaped = font_name.replace(':', '\\:')
 
     # 스크롤 속도: 전체 영상 동안 텍스트가 2-3번 정도 지나가도록
     # x = w - (mod(t * speed, tw + w))
@@ -13285,10 +13293,11 @@ def _generate_news_ticker_filter(news_ticker, total_duration, fonts_dir, lang='k
 
     # 뉴스 티커 스타일: 하단에 어두운 빨간 배경(반투명) + 흰 텍스트
     # 참고: drawbox에서 w=w는 순환 참조 에러 발생, iw(입력 너비) 사용
+    # font= 파라미터 사용으로 fontconfig 폴백 활성화 (일본어 문자 깨짐 방지)
     ticker_filter = (
         f"drawbox=x=0:y=ih-40:w=iw:h=40:color=0x8B0000@0.7:t=fill,"
         f"drawtext=text='{ticker_text}':"
-        f"fontfile='{font_escaped}':"
+        f"font='{font_escaped}':"
         f"fontsize=24:"
         f"fontcolor=white:"
         f"x=w-mod(t*{scroll_speed}\\,tw+w):"

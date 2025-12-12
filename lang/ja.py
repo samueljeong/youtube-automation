@@ -293,8 +293,8 @@ FONTS = {
     # 폰트 우선순위 (첫 번째부터 시도)
     'priority': [
         'Corporate-Logo-Rounded-Bold-ver3.otf',  # 기본 (둥근 고딕)
-        'NotoSansJP-Bold.ttf',                   # Noto Sans JP (폴백)
-        'NotoSansCJKjp-Bold.otf',                # Noto Sans CJK JP
+        'NotoSansCJKjp-Bold.otf',                # Noto Sans CJK JP (폴백)
+        'NotoSansJP-Bold.ttf',                   # Noto Sans JP
         'IPAexGothic.ttf',                       # IPA 고딕
     ],
 
