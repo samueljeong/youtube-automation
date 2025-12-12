@@ -3929,40 +3929,47 @@ def api_my_channel_analysis():
 # =====================================================
 
 def download_shorts_video(video_id: str, output_dir: str) -> Optional[str]:
-    """yt-dlp로 YouTube Shorts 다운로드"""
-    output_path = os.path.join(output_dir, f"{video_id}.mp4")
+    """yt-dlp Python 라이브러리로 YouTube Shorts 다운로드"""
+    output_template = os.path.join(output_dir, f"{video_id}.%(ext)s")
 
     try:
-        cmd = [
-            "yt-dlp",
-            "-f", "best[height<=1080]",
-            "--no-playlist",
-            "-o", output_path,
-            f"https://www.youtube.com/shorts/{video_id}"
-        ]
+        import yt_dlp
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        ydl_opts = {
+            'format': 'best[height<=1080]',
+            'outtmpl': output_template,
+            'noplaylist': True,
+            'quiet': True,
+            'no_warnings': True,
+        }
 
-        if result.returncode != 0:
-            print(f"[SHORTS] yt-dlp 에러: {result.stderr}")
-            return None
+        url = f"https://www.youtube.com/shorts/{video_id}"
+        print(f"[SHORTS] 다운로드 시작: {url}")
 
-        if os.path.exists(output_path):
-            return output_path
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                # 다운로드된 파일 경로 찾기
+                for ext in ['mp4', 'webm', 'mkv']:
+                    check_path = os.path.join(output_dir, f"{video_id}.{ext}")
+                    if os.path.exists(check_path):
+                        print(f"[SHORTS] 다운로드 완료: {check_path}")
+                        return check_path
 
-        # yt-dlp가 확장자를 변경했을 수 있음
-        for ext in ['.webm', '.mkv', '.mp4']:
-            check_path = os.path.join(output_dir, f"{video_id}{ext}")
-            if os.path.exists(check_path):
-                return check_path
+        # 파일 검색 (확장자가 다를 수 있음)
+        import glob
+        files = glob.glob(os.path.join(output_dir, f"{video_id}.*"))
+        if files:
+            print(f"[SHORTS] 다운로드 완료: {files[0]}")
+            return files[0]
 
+        print(f"[SHORTS] 다운로드 파일을 찾을 수 없음")
         return None
 
-    except subprocess.TimeoutExpired:
-        print(f"[SHORTS] 다운로드 타임아웃: {video_id}")
-        return None
     except Exception as e:
         print(f"[SHORTS] 다운로드 오류: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
