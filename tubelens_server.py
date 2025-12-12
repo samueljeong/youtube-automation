@@ -7,9 +7,16 @@ from flask import Blueprint, render_template, request, jsonify
 import os
 import re
 import math
+import subprocess
+import tempfile
+import base64
+import json
+import shutil
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 import requests
+import google.generativeai as genai
+from openai import OpenAI
 
 tubelens_bp = Blueprint('tubelens', __name__)
 
@@ -3915,3 +3922,432 @@ def api_my_channel_analysis():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# =====================================================
+# YouTube Shorts → 이미지 프롬프트 생성 API
+# =====================================================
+
+def download_shorts_video(video_id: str, output_dir: str) -> Optional[str]:
+    """yt-dlp로 YouTube Shorts 다운로드"""
+    output_path = os.path.join(output_dir, f"{video_id}.mp4")
+
+    try:
+        cmd = [
+            "yt-dlp",
+            "-f", "best[height<=1080]",
+            "--no-playlist",
+            "-o", output_path,
+            f"https://www.youtube.com/shorts/{video_id}"
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        if result.returncode != 0:
+            print(f"[SHORTS] yt-dlp 에러: {result.stderr}")
+            return None
+
+        if os.path.exists(output_path):
+            return output_path
+
+        # yt-dlp가 확장자를 변경했을 수 있음
+        for ext in ['.webm', '.mkv', '.mp4']:
+            check_path = os.path.join(output_dir, f"{video_id}{ext}")
+            if os.path.exists(check_path):
+                return check_path
+
+        return None
+
+    except subprocess.TimeoutExpired:
+        print(f"[SHORTS] 다운로드 타임아웃: {video_id}")
+        return None
+    except Exception as e:
+        print(f"[SHORTS] 다운로드 오류: {e}")
+        return None
+
+
+def extract_frames_by_scene(video_path: str, output_dir: str, threshold: float = 0.3) -> List[Dict[str, Any]]:
+    """FFmpeg로 씬 변경 감지하여 프레임 추출 (씬 기반)"""
+    frames = []
+
+    try:
+        # 영상 길이 확인
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json", video_path
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        probe_data = json.loads(probe_result.stdout)
+        duration = float(probe_data.get("format", {}).get("duration", 60))
+
+        print(f"[SHORTS] 영상 길이: {duration:.1f}초, 씬 감지 임계값: {threshold}")
+
+        # 첫 프레임은 항상 포함
+        first_frame_path = os.path.join(output_dir, "frame_000.jpg")
+        cmd_first = [
+            "ffmpeg", "-y",
+            "-ss", "0",
+            "-i", video_path,
+            "-vframes", "1",
+            "-q:v", "2",
+            first_frame_path
+        ]
+        subprocess.run(cmd_first, capture_output=True, text=True, timeout=30)
+
+        if os.path.exists(first_frame_path):
+            frames.append({
+                "index": 0,
+                "time": 0.0,
+                "path": first_frame_path
+            })
+
+        # 씬 변경 감지하여 프레임 추출
+        # select 필터: 씬 변화가 threshold 이상일 때만 프레임 선택
+        # showinfo 필터: 타임스탬프 정보 출력
+        scene_frames_pattern = os.path.join(output_dir, "scene_%03d.jpg")
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-vf", f"select='gt(scene,{threshold})',showinfo",
+            "-vsync", "vfr",
+            "-q:v", "2",
+            scene_frames_pattern
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+        # showinfo 출력에서 타임스탬프 추출
+        # 형식: [Parsed_showinfo_1 @ 0x...] n:   1 pts:  12345 pts_time:3.456
+        import re
+        timestamps = []
+        for line in result.stderr.split('\n'):
+            match = re.search(r'pts_time:(\d+\.?\d*)', line)
+            if match:
+                timestamps.append(float(match.group(1)))
+
+        # 추출된 씬 프레임들 정리
+        frame_index = 1
+        for i, ts in enumerate(timestamps):
+            scene_path = os.path.join(output_dir, f"scene_{i+1:03d}.jpg")
+            if os.path.exists(scene_path):
+                # 파일명 통일
+                new_path = os.path.join(output_dir, f"frame_{frame_index:03d}.jpg")
+                os.rename(scene_path, new_path)
+                frames.append({
+                    "index": frame_index,
+                    "time": round(ts, 1),
+                    "path": new_path
+                })
+                frame_index += 1
+
+        # 씬이 거의 없는 경우 (단일 씬 영상) 중간 프레임 추가
+        if len(frames) < 3 and duration > 10:
+            print(f"[SHORTS] 씬 변화 적음, 추가 프레임 샘플링...")
+            mid_times = [duration * 0.33, duration * 0.66]
+            for t in mid_times:
+                extra_path = os.path.join(output_dir, f"frame_{frame_index:03d}.jpg")
+                cmd_extra = [
+                    "ffmpeg", "-y",
+                    "-ss", str(t),
+                    "-i", video_path,
+                    "-vframes", "1",
+                    "-q:v", "2",
+                    extra_path
+                ]
+                subprocess.run(cmd_extra, capture_output=True, text=True, timeout=30)
+                if os.path.exists(extra_path):
+                    frames.append({
+                        "index": frame_index,
+                        "time": round(t, 1),
+                        "path": extra_path
+                    })
+                    frame_index += 1
+
+        # 시간순 정렬
+        frames.sort(key=lambda x: x["time"])
+        for i, f in enumerate(frames):
+            f["index"] = i
+
+        print(f"[SHORTS] 씬 기반 프레임 추출 완료: {len(frames)}개")
+        return frames
+
+    except Exception as e:
+        print(f"[SHORTS] 프레임 추출 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return frames
+
+
+def extract_frames_by_interval(video_path: str, output_dir: str, interval: int = 5) -> List[Dict[str, Any]]:
+    """FFmpeg로 N초 간격으로 프레임 추출 (시간 기반)"""
+    frames = []
+
+    try:
+        # 영상 길이 확인
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json", video_path
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        probe_data = json.loads(probe_result.stdout)
+        duration = float(probe_data.get("format", {}).get("duration", 60))
+
+        print(f"[SHORTS] 영상 길이: {duration:.1f}초, 간격: {interval}초")
+
+        # N초 간격으로 프레임 추출
+        current_time = 0
+        frame_index = 0
+
+        while current_time < duration:
+            frame_path = os.path.join(output_dir, f"frame_{frame_index:03d}.jpg")
+
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", str(current_time),
+                "-i", video_path,
+                "-vframes", "1",
+                "-q:v", "2",
+                frame_path
+            ]
+
+            subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if os.path.exists(frame_path):
+                frames.append({
+                    "index": frame_index,
+                    "time": current_time,
+                    "path": frame_path
+                })
+                frame_index += 1
+
+            current_time += interval
+
+        print(f"[SHORTS] 시간 기반 프레임 추출 완료: {len(frames)}개")
+        return frames
+
+    except Exception as e:
+        print(f"[SHORTS] 프레임 추출 오류: {e}")
+        return frames
+
+
+def analyze_frame_with_gemini(frame_path: str) -> Optional[str]:
+    """Gemini Vision으로 프레임 분석"""
+    try:
+        # Gemini API 키 설정
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            print("[SHORTS] Gemini API 키가 없습니다")
+            return None
+
+        genai.configure(api_key=api_key)
+
+        # 이미지 로드
+        import PIL.Image
+        image = PIL.Image.open(frame_path)
+
+        # Gemini Vision 모델
+        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+
+        prompt = """이 이미지를 분석하여 이미지 생성 AI에 사용할 프롬프트를 만들어주세요.
+
+다음 요소들을 포함해주세요:
+- 주요 피사체 (사람, 물체, 장면)
+- 배경 및 환경
+- 조명 스타일
+- 색감 및 분위기
+- 카메라 앵글/구도
+
+응답 형식: 영어로 된 이미지 생성 프롬프트만 출력 (설명 없이)
+예시: "Young woman in casual outfit, urban cafe background, natural window lighting, warm color palette, medium shot, candid moment"
+"""
+
+        response = model.generate_content([prompt, image])
+
+        if response and response.text:
+            return response.text.strip()
+
+        return None
+
+    except Exception as e:
+        print(f"[SHORTS] Gemini 분석 오류: {e}")
+        return None
+
+
+def refine_prompt_with_gpt(raw_prompt: str, context: str = "") -> Optional[str]:
+    """GPT로 프롬프트 정제 (선택적)"""
+    try:
+        client = OpenAI()
+
+        system_prompt = """You are an expert at creating image generation prompts.
+Refine the given prompt to be more specific and effective for AI image generation.
+Keep it concise (under 100 words) and in English.
+Focus on visual elements, style, lighting, and composition.
+Output only the refined prompt, nothing else."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Refine this prompt:\n{raw_prompt}\n\nContext: {context}"}
+            ],
+            temperature=0.7,
+            max_tokens=200
+        )
+
+        if response.choices:
+            return response.choices[0].message.content.strip()
+
+        return raw_prompt
+
+    except Exception as e:
+        print(f"[SHORTS] GPT 정제 오류: {e}")
+        return raw_prompt
+
+
+@tubelens_bp.route('/api/tubelens/shorts-to-prompts', methods=['POST'])
+def shorts_to_prompts():
+    """YouTube Shorts URL을 분석하여 씬별 이미지 프롬프트 생성
+
+    Request:
+        {
+            "url": "https://youtube.com/shorts/xxx",
+            "mode": "scene",  // "scene" (씬 기반, 기본값) 또는 "interval" (시간 기반)
+            "interval": 5,    // 시간 기반 모드일 때 초 단위 (기본값: 5)
+            "threshold": 0.3, // 씬 기반 모드일 때 감지 민감도 (0.1~0.5, 낮을수록 민감)
+            "refine": false   // GPT로 프롬프트 정제 여부 (기본값: false)
+        }
+
+    Response:
+        {
+            "success": true,
+            "videoId": "xxx",
+            "duration": 58,
+            "mode": "scene",
+            "prompts": [
+                {"time": 0, "prompt": "..."},
+                {"time": 3.5, "prompt": "..."}
+            ]
+        }
+    """
+    temp_dir = None
+
+    try:
+        data = request.get_json() or {}
+        url = data.get("url", "")
+        mode = data.get("mode", "scene")  # 기본값: 씬 기반
+        interval = int(data.get("interval", 5))
+        threshold = float(data.get("threshold", 0.3))
+        refine = data.get("refine", False)
+
+        # 파라미터 제한
+        interval = max(2, min(30, interval))
+        threshold = max(0.1, min(0.5, threshold))
+
+        # Video ID 추출
+        video_id = extract_video_id(url)
+        if not video_id:
+            return jsonify({
+                "success": False,
+                "message": "유효한 YouTube Shorts URL이 아닙니다"
+            }), 400
+
+        print(f"[SHORTS] 분석 시작: {video_id}, 모드: {mode}")
+
+        # 임시 디렉토리 생성
+        temp_dir = tempfile.mkdtemp(prefix="shorts_")
+
+        # 1. 영상 다운로드
+        print(f"[SHORTS] 영상 다운로드 중...")
+        video_path = download_shorts_video(video_id, temp_dir)
+
+        if not video_path:
+            return jsonify({
+                "success": False,
+                "message": "영상 다운로드에 실패했습니다. 영상이 비공개이거나 지역 제한이 있을 수 있습니다."
+            }), 400
+
+        # 2. 프레임 추출 (모드에 따라 다른 방식 사용)
+        print(f"[SHORTS] 프레임 추출 중... (모드: {mode})")
+        if mode == "interval":
+            frames = extract_frames_by_interval(video_path, temp_dir, interval)
+        else:
+            frames = extract_frames_by_scene(video_path, temp_dir, threshold)
+
+        if not frames:
+            return jsonify({
+                "success": False,
+                "message": "프레임 추출에 실패했습니다"
+            }), 500
+
+        # 3. 각 프레임 분석
+        print(f"[SHORTS] {len(frames)}개 프레임 분석 중...")
+        prompts = []
+
+        for frame in frames:
+            print(f"[SHORTS] 프레임 {frame['index']} 분석 중 ({frame['time']}초)...")
+
+            raw_prompt = analyze_frame_with_gemini(frame["path"])
+
+            if raw_prompt:
+                # GPT로 정제 (옵션)
+                if refine:
+                    final_prompt = refine_prompt_with_gpt(raw_prompt)
+                else:
+                    final_prompt = raw_prompt
+
+                prompts.append({
+                    "time": frame["time"],
+                    "prompt": final_prompt
+                })
+            else:
+                prompts.append({
+                    "time": frame["time"],
+                    "prompt": "[분석 실패]"
+                })
+
+        # 영상 길이 계산
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json", video_path
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        probe_data = json.loads(probe_result.stdout)
+        duration = float(probe_data.get("format", {}).get("duration", 0))
+
+        print(f"[SHORTS] 분석 완료: {len(prompts)}개 프롬프트 생성")
+
+        return jsonify({
+            "success": True,
+            "videoId": video_id,
+            "duration": round(duration, 1),
+            "mode": mode,
+            "frameCount": len(prompts),
+            "prompts": prompts
+        })
+
+    except Exception as e:
+        print(f"[SHORTS] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+    finally:
+        # 임시 파일 정리
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as cleanup_error:
+                print(f"[SHORTS] 임시 파일 정리 실패: {cleanup_error}")
+
+
+@tubelens_bp.route('/tubelens/shorts-prompt-generator')
+def shorts_prompt_generator_page():
+    """Shorts 프롬프트 생성기 페이지"""
+    return render_template('tubelens/shorts_prompt_generator.html')
