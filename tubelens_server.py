@@ -4141,22 +4141,30 @@ def extract_frames_by_interval(video_path: str, output_dir: str, interval: int =
 
 
 def analyze_frame_with_gemini(frame_path: str) -> Optional[str]:
-    """Gemini Vision으로 프레임 분석"""
+    """OpenRouter Gemini Vision으로 프레임 분석"""
     try:
-        # Gemini API 키 설정
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        import requests
+        import PIL.Image
+        import io
+
+        # OpenRouter API 키 설정
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            print("[SHORTS] Gemini API 키가 없습니다")
+            print("[SHORTS] OpenRouter API 키가 없습니다")
             return None
 
-        genai.configure(api_key=api_key)
-
-        # 이미지 로드
-        import PIL.Image
+        # 이미지 로드 및 base64 인코딩
         image = PIL.Image.open(frame_path)
 
-        # Gemini Vision 모델
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        with open(frame_path, "rb") as f:
+            image_bytes = f.read()
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+
+        # 이미지 포맷 감지
+        img_format = image.format or 'PNG'
+        mime_type = f"image/{img_format.lower()}"
+        if img_format.upper() == 'JPG':
+            mime_type = 'image/jpeg'
 
         prompt = """이 이미지를 분석하여 이미지 생성 AI에 사용할 프롬프트를 만들어주세요.
 
@@ -4171,15 +4179,46 @@ def analyze_frame_with_gemini(frame_path: str) -> Optional[str]:
 예시: "Young woman in casual outfit, urban cafe background, natural window lighting, warm color palette, medium shot, candid moment"
 """
 
-        response = model.generate_content([prompt, image])
+        # OpenRouter API 호출
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "google/gemini-2.0-flash-001",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 500,
+                "temperature": 0.7
+            },
+            timeout=30
+        )
 
-        if response and response.text:
-            return response.text.strip()
+        if response.status_code == 200:
+            response_data = response.json()
+            content = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if content:
+                return content.strip()
 
+        print(f"[SHORTS] OpenRouter API 오류: {response.status_code} - {response.text}")
         return None
 
     except Exception as e:
-        print(f"[SHORTS] Gemini 분석 오류: {e}")
+        print(f"[SHORTS] OpenRouter 분석 오류: {e}")
         return None
 
 
@@ -4386,34 +4425,40 @@ def image_to_prompt():
     try:
         import PIL.Image
         import io
+        import requests
 
-        # Gemini API 키 확인
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        # OpenRouter API 키 확인
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            return jsonify({"success": False, "message": "Gemini API 키가 설정되지 않았습니다"}), 500
-
-        genai.configure(api_key=api_key)
+            return jsonify({"success": False, "message": "OpenRouter API 키가 설정되지 않았습니다"}), 500
 
         # 이미지 로드 (파일 업로드 또는 base64)
         image = None
+        image_base64 = None
 
         if request.files and 'image' in request.files:
             file = request.files['image']
             if file.filename:
-                image = PIL.Image.open(file.stream)
+                image_bytes = file.read()
+                image = PIL.Image.open(io.BytesIO(image_bytes))
+                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
         elif request.is_json:
             data = request.get_json()
             if data.get('image_base64'):
-                image_data = base64.b64decode(data['image_base64'])
+                image_base64 = data['image_base64']
+                image_data = base64.b64decode(image_base64)
                 image = PIL.Image.open(io.BytesIO(image_data))
 
-        if not image:
+        if not image or not image_base64:
             return jsonify({"success": False, "message": "이미지를 업로드해주세요"}), 400
 
-        print(f"[IMAGE-PROMPT] 이미지 분석 시작: {image.size}")
+        # 이미지 포맷 감지
+        img_format = image.format or 'PNG'
+        mime_type = f"image/{img_format.lower()}"
+        if img_format.upper() == 'JPG':
+            mime_type = 'image/jpeg'
 
-        # Gemini Vision 모델로 세밀한 분석
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        print(f"[IMAGE-PROMPT] 이미지 분석 시작: {image.size}, 포맷: {mime_type}")
 
         analysis_prompt = """이 이미지를 전문 사진작가/영상 감독의 관점에서 매우 세밀하게 분석해주세요.
 
@@ -4470,13 +4515,48 @@ def image_to_prompt():
   "prompt_en": "English image generation prompt (based on above analysis)"
 }"""
 
-        response = model.generate_content([analysis_prompt, image])
+        # OpenRouter API 호출
+        openrouter_response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "google/gemini-2.0-flash-001",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": analysis_prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{image_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 2000,
+                "temperature": 0.7
+            },
+            timeout=60
+        )
 
-        if not response or not response.text:
+        if openrouter_response.status_code != 200:
+            error_msg = openrouter_response.text
+            print(f"[IMAGE-PROMPT] OpenRouter API 오류: {error_msg}")
+            return jsonify({"success": False, "message": f"OpenRouter API 오류: {error_msg}"}), 500
+
+        response_data = openrouter_response.json()
+        response_text = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        if not response_text:
             return jsonify({"success": False, "message": "이미지 분석에 실패했습니다"}), 500
 
         # JSON 파싱
-        response_text = response.text.strip()
+        response_text = response_text.strip()
 
         # JSON 블록 추출 (```json ... ``` 형태일 경우)
         if "```json" in response_text:
