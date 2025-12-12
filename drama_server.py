@@ -20965,33 +20965,10 @@ def api_sheets_check_ctr_and_update_titles():
                 "error": "AUTOMATION_SHEET_ID 환경변수가 설정되지 않았습니다"
             }), 400
 
-        # YouTube Analytics 서비스 (OAuth 필요)
-        try:
-            from googleapiclient.discovery import build
-            from google.oauth2.credentials import Credentials
-
-            youtube_token = load_youtube_token_from_db()
-            if not youtube_token:
-                return jsonify({
-                    "ok": False,
-                    "error": "YouTube OAuth 토큰이 없습니다. 먼저 YouTube 계정을 연동하세요."
-                }), 400
-
-            credentials = Credentials(
-                token=youtube_token.get('token'),
-                refresh_token=youtube_token.get('refresh_token'),
-                token_uri=youtube_token.get('token_uri', 'https://oauth2.googleapis.com/token'),
-                client_id=youtube_token.get('client_id') or os.environ.get('YOUTUBE_CLIENT_ID'),
-                client_secret=youtube_token.get('client_secret') or os.environ.get('YOUTUBE_CLIENT_SECRET')
-            )
-
-            youtube_analytics = build('youtubeAnalytics', 'v2', credentials=credentials)
-            youtube = build('youtube', 'v3', credentials=credentials)
-        except Exception as e:
-            return jsonify({
-                "ok": False,
-                "error": f"YouTube API 초기화 실패: {e}"
-            }), 500
+        # YouTube API 모듈 임포트
+        from googleapiclient.discovery import build
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
 
         # 현재 시간 (KST)
         kst = timezone(timedelta(hours=9))
@@ -21019,6 +20996,54 @@ def api_sheets_check_ctr_and_update_titles():
             # 채널 ID (행1)
             channel_id = get_sheet_channel_id(rows)
             if not channel_id:
+                continue
+
+            # 해당 채널의 YouTube 토큰 로드
+            youtube_token = load_youtube_token_from_db(channel_id)
+            if not youtube_token:
+                print(f"[CTR] [{sheet_name}] 채널 {channel_id}의 토큰 없음, 건너뛰기")
+                results.append({
+                    "sheet": sheet_name,
+                    "channel_id": channel_id,
+                    "status": "skipped",
+                    "reason": "토큰 없음"
+                })
+                continue
+
+            # YouTube API 클라이언트 생성
+            try:
+                creds = Credentials(
+                    token=youtube_token.get('token'),
+                    refresh_token=youtube_token.get('refresh_token'),
+                    token_uri=youtube_token.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                    client_id=youtube_token.get('client_id') or os.environ.get('YOUTUBE_CLIENT_ID'),
+                    client_secret=youtube_token.get('client_secret') or os.environ.get('YOUTUBE_CLIENT_SECRET')
+                )
+
+                # 토큰 만료 시 갱신
+                if creds.expired and creds.refresh_token:
+                    print(f"[CTR] [{sheet_name}] 토큰 갱신 중...")
+                    creds.refresh(Request())
+                    updated_token = {
+                        'token': creds.token,
+                        'refresh_token': creds.refresh_token,
+                        'token_uri': creds.token_uri,
+                        'client_id': creds.client_id,
+                        'client_secret': creds.client_secret,
+                        'scopes': list(creds.scopes) if creds.scopes else []
+                    }
+                    save_youtube_token_to_db(updated_token, channel_id=channel_id)
+
+                youtube = build('youtube', 'v3', credentials=creds)
+                youtube_analytics = build('youtubeAnalytics', 'v2', credentials=creds)
+            except Exception as e:
+                print(f"[CTR] [{sheet_name}] YouTube API 초기화 실패: {e}")
+                results.append({
+                    "sheet": sheet_name,
+                    "channel_id": channel_id,
+                    "status": "error",
+                    "reason": f"API 초기화 실패: {e}"
+                })
                 continue
 
             # F1에 채널 구독자 수 기록
