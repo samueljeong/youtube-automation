@@ -1473,6 +1473,347 @@
       background: linear-gradient(135deg, #667eea, #764ba2);
     }
 
+    .main-tab.active.blueocean {
+      background: linear-gradient(135deg, #0077b6, #00b4d8);
+    }
+
+    /* Blue Ocean Panel Styles */
+    .blueocean-panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .blueocean-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .blueocean-icon {
+      font-size: 2rem;
+    }
+
+    .blueocean-header h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #0077b6, #00b4d8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .blueocean-desc {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 0.95rem;
+    }
+
+    .blueocean-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .blueocean-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .blueocean-regions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .region-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #f5f7fa;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+    }
+
+    .region-checkbox:hover {
+      background: #e1e5eb;
+    }
+
+    .region-checkbox input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #0077b6;
+    }
+
+    .blueocean-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .btn-blueocean {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #0077b6, #00b4d8);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-blueocean:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 119, 182, 0.3);
+    }
+
+    .btn-blueocean:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Blue Ocean Results */
+    .blueocean-results {
+      margin-top: 24px;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .blueocean-results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .blueocean-results-header h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .blueocean-results-count {
+      font-size: 0.9rem;
+      color: #666;
+      background: #fff;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    .blueocean-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .blueocean-item {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: all 0.2s;
+    }
+
+    .blueocean-item:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    .blueocean-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .blueocean-keyword {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+
+    .blueocean-score {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .blueocean-score.high {
+      background: linear-gradient(135deg, #00b894, #00cec9);
+      color: #fff;
+    }
+
+    .blueocean-score.medium {
+      background: linear-gradient(135deg, #fdcb6e, #f39c12);
+      color: #fff;
+    }
+
+    .blueocean-score.low {
+      background: #e1e5eb;
+      color: #666;
+    }
+
+    .blueocean-recommendation {
+      font-size: 0.95rem;
+      color: #0077b6;
+      margin-bottom: 16px;
+      font-weight: 500;
+    }
+
+    .blueocean-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .blueocean-stat-group {
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-radius: 8px;
+    }
+
+    .blueocean-stat-group h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .blueocean-stat-group .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      padding: 4px 0;
+    }
+
+    .blueocean-stat-group .stat-value {
+      font-weight: 600;
+    }
+
+    .blueocean-videos {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 4px 0;
+    }
+
+    .blueocean-video-card {
+      flex: 0 0 180px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .blueocean-video-card:hover {
+      transform: scale(1.02);
+    }
+
+    .blueocean-video-card img {
+      width: 100%;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .blueocean-video-card .video-title {
+      font-size: 0.8rem;
+      color: #333;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .blueocean-video-card .video-views {
+      font-size: 0.75rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .blueocean-item-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn-deep-analyze {
+      padding: 8px 16px;
+      background: #0077b6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-deep-analyze:hover {
+      background: #005f8a;
+    }
+
+    /* Deep Modal */
+    .blueocean-deep-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .blueocean-deep-content {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 900px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+      width: 90%;
+    }
+
+    .blueocean-deep-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: #f0f0f0;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .blueocean-deep-close:hover {
+      background: #e0e0e0;
+    }
+
     .analyzer-panel {
       background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
       border-radius: 16px;
@@ -2025,6 +2366,14 @@
       </svg>
       콘텐츠 분석기
     </button>
+    <button class="main-tab blueocean" id="tab-blueocean" onclick="TubeLens.switchTab('blueocean')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M2 12h20"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      블루오션 발굴
+    </button>
   </div>
 
   <div class="main-container">
@@ -2396,6 +2745,114 @@
         </div>
       </div>
     </div><!-- End Analyzer Tab Panel -->
+
+    <!-- Blue Ocean Tab Panel (블루오션 발굴) -->
+    <div class="tab-panel" id="panel-blueocean">
+      <div class="blueocean-panel">
+        <div class="blueocean-header">
+          <span class="blueocean-icon">🌊</span>
+          <h2>블루오션 카테고리 발굴</h2>
+        </div>
+        <p class="blueocean-desc">해외에서 인기있지만 한국에 아직 없는 카테고리를 자동으로 찾아드립니다. 쇼츠/롱폼 모두 지원!</p>
+
+        <div class="blueocean-form">
+          <div class="blueocean-row">
+            <div class="option-group">
+              <label>분석 대상 국가</label>
+              <div class="blueocean-regions">
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-us" value="US" checked> 🇺🇸 미국
+                </label>
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-jp" value="JP"> 🇯🇵 일본
+                </label>
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-gb" value="GB"> 🇬🇧 영국
+                </label>
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-de" value="DE"> 🇩🇪 독일
+                </label>
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-br" value="BR"> 🇧🇷 브라질
+                </label>
+                <label class="region-checkbox">
+                  <input type="checkbox" id="region-in" value="IN"> 🇮🇳 인도
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="blueocean-row">
+            <div class="option-group">
+              <label>영상 타입</label>
+              <select class="option-select" id="blueocean-video-type">
+                <option value="all">전체</option>
+                <option value="shorts">쇼츠만</option>
+                <option value="longform">롱폼만</option>
+              </select>
+            </div>
+            <div class="option-group">
+              <label>카테고리</label>
+              <select class="option-select" id="blueocean-category">
+                <option value="">전체 카테고리</option>
+                <option value="1">영화/애니메이션</option>
+                <option value="10">음악</option>
+                <option value="15">동물</option>
+                <option value="17">스포츠</option>
+                <option value="20">게임</option>
+                <option value="22">인물/블로그</option>
+                <option value="23">코미디</option>
+                <option value="24">엔터테인먼트</option>
+                <option value="25">뉴스/정치</option>
+                <option value="26">노하우/스타일</option>
+                <option value="27">교육</option>
+                <option value="28">과학기술</option>
+              </select>
+            </div>
+            <div class="option-group">
+              <label>분석 영상 수</label>
+              <select class="option-select" id="blueocean-max-results">
+                <option value="30">30개 (빠름)</option>
+                <option value="50" selected>50개 (권장)</option>
+                <option value="100">100개 (정밀)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="blueocean-actions">
+            <button class="btn-blueocean" onclick="TubeLens.findBlueocean()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/>
+              </svg>
+              블루오션 발굴 시작
+            </button>
+          </div>
+        </div>
+
+        <!-- 블루오션 결과 영역 -->
+        <div class="blueocean-results" id="blueocean-results" style="display:none;">
+          <div class="blueocean-results-header">
+            <h3>🎯 발굴된 블루오션 카테고리</h3>
+            <span class="blueocean-results-count" id="blueocean-count">0개</span>
+          </div>
+          <div class="blueocean-list" id="blueocean-list">
+            <!-- 결과가 여기에 동적으로 추가됨 -->
+          </div>
+        </div>
+
+        <!-- 심층 분석 모달 -->
+        <div class="blueocean-deep-modal" id="blueocean-deep-modal" style="display:none;">
+          <div class="blueocean-deep-content">
+            <button class="blueocean-deep-close" onclick="TubeLens.closeDeepModal()">&times;</button>
+            <div id="blueocean-deep-body">
+              <!-- 심층 분석 결과가 여기에 표시됨 -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div><!-- End Blue Ocean Tab Panel -->
 
     <!-- Results Panel -->
     <div class="results-panel">

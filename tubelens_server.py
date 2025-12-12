@@ -2977,3 +2977,407 @@ def api_get_transcript():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": f"대본 추출 실패: {str(e)}"}), 500
+
+
+# ===== 블루오션 카테고리 발굴 =====
+
+def extract_keywords_from_videos(videos: List[Dict[str, Any]]) -> List[str]:
+    """영상 제목에서 키워드 추출 (GPT 없이 간단한 방식)"""
+    import re
+    from collections import Counter
+
+    all_words = []
+    stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+                  'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+                  'would', 'could', 'should', 'may', 'might', 'must', 'shall',
+                  'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in',
+                  'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into',
+                  'through', 'during', 'before', 'after', 'above', 'below',
+                  'between', 'under', 'again', 'further', 'then', 'once',
+                  'here', 'there', 'when', 'where', 'why', 'how', 'all',
+                  'each', 'few', 'more', 'most', 'other', 'some', 'such',
+                  'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
+                  'too', 'very', 'just', 'and', 'but', 'if', 'or', 'because',
+                  'until', 'while', 'this', 'that', 'these', 'those', 'i',
+                  'me', 'my', 'myself', 'we', 'our', 'ours', 'you', 'your',
+                  'he', 'him', 'his', 'she', 'her', 'it', 'its', 'they',
+                  'them', 'their', 'what', 'which', 'who', 'whom', 'shorts',
+                  'video', 'new', 'official', 'full', '|', '-', '#', 'ep',
+                  'episode', 'part', 'vol', 'vs', '&', 'feat', 'ft'}
+
+    for video in videos:
+        title = video.get('title', '').lower()
+        # 특수문자 제거하고 단어 추출
+        words = re.findall(r'[a-z가-힣]+', title)
+        for word in words:
+            if len(word) > 2 and word not in stop_words:
+                all_words.append(word)
+
+    # 빈도수 기반 상위 키워드
+    word_counts = Counter(all_words)
+    top_keywords = [word for word, count in word_counts.most_common(20) if count >= 2]
+
+    return top_keywords
+
+
+def calculate_blueocean_score(foreign_data: Dict, korea_data: Dict) -> float:
+    """블루오션 점수 계산
+
+    점수 = (해외 평균 조회수 / 한국 채널수) × (해외 영상수 / 한국 영상수) × 성장 가중치
+    높을수록 블루오션 (해외에선 인기인데 한국엔 적음)
+    """
+    foreign_avg_views = foreign_data.get('avg_views', 0)
+    foreign_video_count = foreign_data.get('video_count', 1)
+
+    korea_channel_count = korea_data.get('channel_count', 0)
+    korea_video_count = korea_data.get('video_count', 0)
+    korea_avg_views = korea_data.get('avg_views', 0)
+
+    # 한국에 채널/영상이 적을수록 점수 높음
+    scarcity_score = foreign_avg_views / max(korea_channel_count + 1, 1)
+
+    # 해외 대비 한국 콘텐츠 비율 (낮을수록 블루오션)
+    content_ratio = foreign_video_count / max(korea_video_count, 1)
+
+    # 조회수 격차 (해외가 높을수록 가치 있음)
+    view_gap = foreign_avg_views / max(korea_avg_views, 1) if korea_avg_views > 0 else foreign_avg_views / 10000
+
+    # 최종 점수 (로그 스케일로 정규화)
+    raw_score = (scarcity_score * 0.4) + (content_ratio * 0.3) + (view_gap * 0.3)
+
+    # 0-100 스케일로 변환
+    normalized_score = min(100, math.log10(max(raw_score, 1)) * 20)
+
+    return round(normalized_score, 2)
+
+
+@tubelens_bp.route('/api/tubelens/blueocean', methods=['POST'])
+def api_blueocean():
+    """블루오션 카테고리 발굴 API
+
+    해외에서 인기있지만 한국에 아직 없는 카테고리를 찾습니다.
+    """
+    try:
+        data = request.get_json()
+
+        foreign_regions = data.get("foreignRegions", ["US"])  # 분석할 해외 국가
+        video_type = data.get("videoType", "all")  # shorts, longform, all
+        category_id = data.get("categoryId", "")  # YouTube 카테고리
+        max_results = min(int(data.get("maxResults", 50)), 100)
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+        if not api_key:
+            api_key = get_youtube_api_key()
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        results = []
+
+        for region in foreign_regions:
+            # 1. 해외 트렌딩 영상 수집
+            try:
+                trending_params = {
+                    "part": "snippet",
+                    "chart": "mostPopular",
+                    "regionCode": region,
+                    "maxResults": max_results
+                }
+                if category_id:
+                    trending_params["videoCategoryId"] = category_id
+
+                trending_data = make_youtube_request("videos", trending_params, api_key)
+                foreign_video_ids = [item["id"] for item in trending_data.get("items", [])]
+
+                if not foreign_video_ids:
+                    continue
+
+                # 상세 정보 가져오기
+                foreign_videos = get_video_details(foreign_video_ids, api_key)
+
+                # 영상 타입 필터링
+                if video_type == "shorts":
+                    foreign_videos = [v for v in foreign_videos if v["durationSeconds"] <= 60]
+                elif video_type == "longform":
+                    foreign_videos = [v for v in foreign_videos if v["durationSeconds"] > 60]
+
+                if not foreign_videos:
+                    continue
+
+                # 2. 키워드 추출
+                keywords = extract_keywords_from_videos(foreign_videos)
+
+                # 해외 통계
+                foreign_avg_views = sum(v["viewCount"] for v in foreign_videos) / len(foreign_videos)
+                foreign_total_views = sum(v["viewCount"] for v in foreign_videos)
+
+                # 3. 한국에서 같은 키워드로 검색
+                for keyword in keywords[:10]:  # 상위 10개 키워드만
+                    try:
+                        # 한국 검색
+                        korea_search_params = {
+                            "part": "snippet",
+                            "type": "video",
+                            "q": keyword,
+                            "regionCode": "KR",
+                            "maxResults": 50,
+                            "order": "viewCount"
+                        }
+
+                        if video_type == "shorts":
+                            korea_search_params["videoDuration"] = "short"
+                        elif video_type == "longform":
+                            korea_search_params["videoDuration"] = "medium"
+
+                        korea_search = make_youtube_request("search", korea_search_params, api_key)
+                        korea_items = korea_search.get("items", [])
+
+                        # 한국 채널 수 (고유 채널)
+                        korea_channels = set()
+                        korea_video_ids = []
+                        for item in korea_items:
+                            if item.get("id", {}).get("videoId"):
+                                korea_video_ids.append(item["id"]["videoId"])
+                                korea_channels.add(item["snippet"]["channelId"])
+
+                        # 한국 영상 상세 정보
+                        korea_videos = []
+                        korea_avg_views = 0
+                        if korea_video_ids:
+                            korea_videos = get_video_details(korea_video_ids[:20], api_key)
+                            if korea_videos:
+                                korea_avg_views = sum(v["viewCount"] for v in korea_videos) / len(korea_videos)
+
+                        # 4. 블루오션 점수 계산
+                        foreign_keyword_videos = [v for v in foreign_videos
+                                                  if keyword.lower() in v.get("title", "").lower()]
+                        foreign_keyword_avg = (sum(v["viewCount"] for v in foreign_keyword_videos) /
+                                               len(foreign_keyword_videos)) if foreign_keyword_videos else foreign_avg_views
+
+                        foreign_data = {
+                            "avg_views": foreign_keyword_avg,
+                            "video_count": len(foreign_keyword_videos) or len(foreign_videos) // len(keywords)
+                        }
+                        korea_data = {
+                            "channel_count": len(korea_channels),
+                            "video_count": len(korea_videos),
+                            "avg_views": korea_avg_views
+                        }
+
+                        score = calculate_blueocean_score(foreign_data, korea_data)
+
+                        # 블루오션 판정 (점수 40 이상이면 유망)
+                        if score >= 30:
+                            # 대표 영상 선택
+                            sample_videos = foreign_keyword_videos[:3] if foreign_keyword_videos else foreign_videos[:3]
+
+                            results.append({
+                                "keyword": keyword,
+                                "region": region,
+                                "blueoceanScore": score,
+                                "foreignStats": {
+                                    "avgViews": int(foreign_keyword_avg),
+                                    "videoCount": len(foreign_keyword_videos) or "N/A",
+                                    "totalViews": int(foreign_total_views)
+                                },
+                                "koreaStats": {
+                                    "channelCount": len(korea_channels),
+                                    "videoCount": len(korea_videos),
+                                    "avgViews": int(korea_avg_views)
+                                },
+                                "sampleVideos": [{
+                                    "videoId": v["videoId"],
+                                    "title": v["title"],
+                                    "thumbnail": v["thumbnail"],
+                                    "viewCount": v["viewCount"],
+                                    "channelTitle": v["channelTitle"]
+                                } for v in sample_videos],
+                                "recommendation": get_blueocean_recommendation(score, len(korea_channels))
+                            })
+
+                    except Exception as e:
+                        print(f"키워드 '{keyword}' 분석 실패: {e}")
+                        continue
+
+            except Exception as e:
+                print(f"지역 '{region}' 트렌딩 수집 실패: {e}")
+                continue
+
+        # 점수 순으로 정렬
+        results.sort(key=lambda x: x["blueoceanScore"], reverse=True)
+
+        # 중복 키워드 제거 (가장 높은 점수만 유지)
+        seen_keywords = set()
+        unique_results = []
+        for r in results:
+            if r["keyword"] not in seen_keywords:
+                seen_keywords.add(r["keyword"])
+                unique_results.append(r)
+
+        return jsonify({
+            "success": True,
+            "data": unique_results[:20],  # 상위 20개
+            "message": f"블루오션 카테고리 {len(unique_results)}개 발굴 완료"
+        })
+
+    except Exception as e:
+        print(f"블루오션 분석 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+def get_blueocean_recommendation(score: float, korea_channels: int) -> str:
+    """블루오션 점수에 따른 추천 메시지"""
+    if score >= 80:
+        return "🔥 초블루오션! 지금 바로 시작하세요"
+    elif score >= 60:
+        return "💎 매우 유망! 선점 효과 기대"
+    elif score >= 40:
+        return "✨ 유망! 차별화 전략 필요"
+    elif score >= 30:
+        if korea_channels < 5:
+            return "🌱 진입 가능! 한국 채널 거의 없음"
+        else:
+            return "📊 검토 필요! 경쟁 분석 권장"
+    else:
+        return "⚠️ 레드오션 가능성"
+
+
+@tubelens_bp.route('/api/tubelens/blueocean-deep', methods=['POST'])
+def api_blueocean_deep():
+    """블루오션 심층 분석 API
+
+    특정 키워드에 대해 더 상세한 분석을 수행합니다.
+    """
+    try:
+        data = request.get_json()
+
+        keyword = data.get("keyword", "")
+        foreign_region = data.get("foreignRegion", "US")
+        video_type = data.get("videoType", "all")
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not keyword:
+            return jsonify({"success": False, "message": "키워드가 필요합니다."}), 400
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+        if not api_key:
+            api_key = get_youtube_api_key()
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 해외 검색
+        foreign_params = {
+            "part": "snippet",
+            "type": "video",
+            "q": keyword,
+            "regionCode": foreign_region,
+            "maxResults": 50,
+            "order": "viewCount"
+        }
+        if video_type == "shorts":
+            foreign_params["videoDuration"] = "short"
+        elif video_type == "longform":
+            foreign_params["videoDuration"] = "medium"
+
+        foreign_search = make_youtube_request("search", foreign_params, api_key)
+        foreign_video_ids = [item["id"]["videoId"] for item in foreign_search.get("items", [])
+                           if item.get("id", {}).get("videoId")]
+        foreign_videos = get_video_details(foreign_video_ids, api_key) if foreign_video_ids else []
+
+        # 한국 검색
+        korea_params = foreign_params.copy()
+        korea_params["regionCode"] = "KR"
+
+        korea_search = make_youtube_request("search", korea_params, api_key)
+        korea_video_ids = [item["id"]["videoId"] for item in korea_search.get("items", [])
+                         if item.get("id", {}).get("videoId")]
+        korea_videos = get_video_details(korea_video_ids, api_key) if korea_video_ids else []
+
+        # 채널 분석
+        foreign_channels = {}
+        for v in foreign_videos:
+            ch_id = v["channelId"]
+            if ch_id not in foreign_channels:
+                foreign_channels[ch_id] = {
+                    "title": v["channelTitle"],
+                    "subscribers": v["subscriberCount"],
+                    "videos": []
+                }
+            foreign_channels[ch_id]["videos"].append(v)
+
+        korea_channels = {}
+        for v in korea_videos:
+            ch_id = v["channelId"]
+            if ch_id not in korea_channels:
+                korea_channels[ch_id] = {
+                    "title": v["channelTitle"],
+                    "subscribers": v["subscriberCount"],
+                    "videos": []
+                }
+            korea_channels[ch_id]["videos"].append(v)
+
+        # 통계 계산
+        foreign_stats = {
+            "totalVideos": len(foreign_videos),
+            "totalChannels": len(foreign_channels),
+            "avgViews": int(sum(v["viewCount"] for v in foreign_videos) / len(foreign_videos)) if foreign_videos else 0,
+            "maxViews": max((v["viewCount"] for v in foreign_videos), default=0),
+            "avgSubscribers": int(sum(v["subscriberCount"] for v in foreign_videos) / len(foreign_videos)) if foreign_videos else 0,
+            "topVideos": sorted(foreign_videos, key=lambda x: x["viewCount"], reverse=True)[:5]
+        }
+
+        korea_stats = {
+            "totalVideos": len(korea_videos),
+            "totalChannels": len(korea_channels),
+            "avgViews": int(sum(v["viewCount"] for v in korea_videos) / len(korea_videos)) if korea_videos else 0,
+            "maxViews": max((v["viewCount"] for v in korea_videos), default=0),
+            "avgSubscribers": int(sum(v["subscriberCount"] for v in korea_videos) / len(korea_videos)) if korea_videos else 0,
+            "topVideos": sorted(korea_videos, key=lambda x: x["viewCount"], reverse=True)[:5]
+        }
+
+        # 블루오션 점수
+        score = calculate_blueocean_score(
+            {"avg_views": foreign_stats["avgViews"], "video_count": foreign_stats["totalVideos"]},
+            {"channel_count": korea_stats["totalChannels"], "video_count": korea_stats["totalVideos"],
+             "avg_views": korea_stats["avgViews"]}
+        )
+
+        # 경쟁 분석
+        competition_level = "낮음" if korea_stats["totalChannels"] < 10 else "중간" if korea_stats["totalChannels"] < 30 else "높음"
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "keyword": keyword,
+                "foreignRegion": foreign_region,
+                "videoType": video_type,
+                "blueoceanScore": score,
+                "recommendation": get_blueocean_recommendation(score, korea_stats["totalChannels"]),
+                "competitionLevel": competition_level,
+                "foreignStats": foreign_stats,
+                "koreaStats": korea_stats,
+                "gap": {
+                    "viewsGap": foreign_stats["avgViews"] - korea_stats["avgViews"],
+                    "channelGap": foreign_stats["totalChannels"] - korea_stats["totalChannels"],
+                    "opportunityScore": round((foreign_stats["avgViews"] / max(korea_stats["avgViews"], 1)) *
+                                             (1 / max(korea_stats["totalChannels"], 1)) * 100, 2)
+                }
+            },
+            "message": f"'{keyword}' 심층 분석 완료"
+        })
+
+    except Exception as e:
+        print(f"블루오션 심층 분석 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500

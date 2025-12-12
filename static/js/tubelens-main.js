@@ -121,6 +121,8 @@
         this.updateStatus('구독자 대비 고성과 영상을 발굴하세요');
       } else if (tabName === 'analyzer') {
         this.updateStatus('키워드와 필터를 설정하고 분석을 시작하세요');
+      } else if (tabName === 'blueocean') {
+        this.updateStatus('해외 트렌드를 분석하여 한국 블루오션을 찾아보세요');
       }
 
       // Empty state 메시지 업데이트
@@ -148,6 +150,9 @@
       } else if (tabName === 'analyzer') {
         h4.textContent = '콘텐츠 분석을 시작하세요';
         p.textContent = '키워드로 터진 영상을 찾고 제목/설명/댓글을 분석하세요';
+      } else if (tabName === 'blueocean') {
+        h4.textContent = '블루오션 발굴을 시작하세요';
+        p.textContent = '해외에서 인기있지만 한국에 없는 카테고리를 찾아보세요';
       }
     },
 
@@ -3368,6 +3373,283 @@
         document.body.removeChild(textarea);
         alert('✅ 프롬프트가 클립보드에 복사되었습니다!\n\nGemini 또는 ChatGPT에 붙여넣어 분석을 받아보세요.');
       }
+    },
+
+    // ===== 블루오션 카테고리 발굴 =====
+
+    findBlueocean: function() {
+      var self = this;
+
+      if (this.apiKeys.length === 0 && !this.serverHasApiKey) {
+        alert('먼저 API 키를 설정해주세요.');
+        this.openSettings();
+        return;
+      }
+
+      // 선택된 국가 수집
+      var regions = [];
+      var checkboxes = document.querySelectorAll('.blueocean-regions input[type="checkbox"]:checked');
+      checkboxes.forEach(function(cb) {
+        regions.push(cb.value);
+      });
+
+      if (regions.length === 0) {
+        alert('최소 1개 국가를 선택해주세요.');
+        return;
+      }
+
+      var videoType = document.getElementById('blueocean-video-type').value;
+      var categoryId = document.getElementById('blueocean-category').value;
+      var maxResults = parseInt(document.getElementById('blueocean-max-results').value);
+
+      this.showLoading(true);
+      this.updateStatus('🌊 블루오션 카테고리 발굴 중... (약 1-2분 소요)');
+
+      fetch('/api/tubelens/blueocean', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          foreignRegions: regions,
+          videoType: videoType,
+          categoryId: categoryId,
+          maxResults: maxResults,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        self.showLoading(false);
+        if (data.success) {
+          self.displayBlueoceanResults(data.data);
+          self.updateStatus('🎯 블루오션 ' + data.data.length + '개 발굴 완료!');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Blueocean error:', error);
+        alert('블루오션 발굴 실패: ' + error.message);
+        self.showLoading(false);
+        self.updateStatus('발굴 실패: ' + error.message);
+      });
+    },
+
+    displayBlueoceanResults: function(results) {
+      var container = document.getElementById('blueocean-results');
+      var list = document.getElementById('blueocean-list');
+      var count = document.getElementById('blueocean-count');
+
+      if (!results || results.length === 0) {
+        container.style.display = 'block';
+        list.innerHTML = '<div class="empty-state"><p>발굴된 블루오션이 없습니다. 다른 국가나 카테고리를 선택해보세요.</p></div>';
+        count.textContent = '0개';
+        return;
+      }
+
+      count.textContent = results.length + '개';
+
+      var html = '';
+      var self = this;
+
+      results.forEach(function(item, index) {
+        var scoreClass = item.blueoceanScore >= 60 ? 'high' : item.blueoceanScore >= 40 ? 'medium' : 'low';
+
+        html += '<div class="blueocean-item">';
+        html += '  <div class="blueocean-item-header">';
+        html += '    <div>';
+        html += '      <span class="blueocean-keyword">' + self.escapeHtml(item.keyword) + '</span>';
+        html += '      <span style="color:#666;font-size:0.85rem;margin-left:8px;">(' + item.region + ')</span>';
+        html += '    </div>';
+        html += '    <div class="blueocean-score ' + scoreClass + '">';
+        html += '      <span>점수: ' + item.blueoceanScore + '</span>';
+        html += '    </div>';
+        html += '  </div>';
+
+        html += '  <div class="blueocean-recommendation">' + item.recommendation + '</div>';
+
+        html += '  <div class="blueocean-stats">';
+        html += '    <div class="blueocean-stat-group">';
+        html += '      <h4>🌍 해외 (' + item.region + ')</h4>';
+        html += '      <div class="stat-row"><span>평균 조회수</span><span class="stat-value">' + self.formatNumber(item.foreignStats.avgViews) + '</span></div>';
+        html += '      <div class="stat-row"><span>영상 수</span><span class="stat-value">' + (item.foreignStats.videoCount || 'N/A') + '</span></div>';
+        html += '    </div>';
+        html += '    <div class="blueocean-stat-group">';
+        html += '      <h4>🇰🇷 한국</h4>';
+        html += '      <div class="stat-row"><span>채널 수</span><span class="stat-value">' + item.koreaStats.channelCount + '개</span></div>';
+        html += '      <div class="stat-row"><span>평균 조회수</span><span class="stat-value">' + self.formatNumber(item.koreaStats.avgViews) + '</span></div>';
+        html += '    </div>';
+        html += '  </div>';
+
+        // 샘플 영상
+        if (item.sampleVideos && item.sampleVideos.length > 0) {
+          html += '  <div class="blueocean-videos">';
+          item.sampleVideos.forEach(function(video) {
+            html += '    <div class="blueocean-video-card" onclick="TubeLens.openVideo(\'' + video.videoId + '\')">';
+            html += '      <img src="' + video.thumbnail + '" alt="thumbnail">';
+            html += '      <div class="video-title">' + self.escapeHtml(video.title) + '</div>';
+            html += '      <div class="video-views">' + self.formatNumber(video.viewCount) + ' views</div>';
+            html += '    </div>';
+          });
+          html += '  </div>';
+        }
+
+        html += '  <div class="blueocean-item-actions">';
+        html += '    <button class="btn-deep-analyze" onclick="TubeLens.deepAnalyzeBlueocean(\'' + self.escapeHtml(item.keyword) + '\', \'' + item.region + '\')">심층 분석</button>';
+        html += '  </div>';
+
+        html += '</div>';
+      });
+
+      list.innerHTML = html;
+      container.style.display = 'block';
+    },
+
+    deepAnalyzeBlueocean: function(keyword, region) {
+      var self = this;
+      var videoType = document.getElementById('blueocean-video-type').value;
+
+      this.updateStatus('🔍 "' + keyword + '" 심층 분석 중...');
+
+      var modal = document.getElementById('blueocean-deep-modal');
+      var body = document.getElementById('blueocean-deep-body');
+      body.innerHTML = '<div style="text-align:center;padding:40px;"><p>분석 중...</p></div>';
+      modal.style.display = 'flex';
+
+      fetch('/api/tubelens/blueocean-deep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword,
+          foreignRegion: region,
+          videoType: videoType,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          self.displayDeepAnalysis(data.data);
+          self.updateStatus('✅ 심층 분석 완료');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        body.innerHTML = '<div style="text-align:center;padding:40px;color:#e53e3e;"><p>분석 실패: ' + error.message + '</p></div>';
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    displayDeepAnalysis: function(data) {
+      var body = document.getElementById('blueocean-deep-body');
+      var self = this;
+
+      var scoreClass = data.blueoceanScore >= 60 ? 'high' : data.blueoceanScore >= 40 ? 'medium' : 'low';
+
+      var html = '';
+      html += '<h2 style="margin-bottom:8px;">🔍 "' + self.escapeHtml(data.keyword) + '" 심층 분석</h2>';
+      html += '<p style="color:#666;margin-bottom:24px;">' + data.foreignRegion + ' vs 한국 비교</p>';
+
+      // 점수 & 추천
+      html += '<div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">';
+      html += '  <div class="blueocean-score ' + scoreClass + '" style="font-size:1.1rem;padding:12px 24px;">';
+      html += '    블루오션 점수: <strong>' + data.blueoceanScore + '</strong>';
+      html += '  </div>';
+      html += '  <div style="padding:12px 24px;background:#f0f9ff;border-radius:20px;color:#0077b6;font-weight:500;">';
+      html += '    ' + data.recommendation;
+      html += '  </div>';
+      html += '  <div style="padding:12px 24px;background:#f5f5f5;border-radius:20px;">';
+      html += '    경쟁 강도: <strong>' + data.competitionLevel + '</strong>';
+      html += '  </div>';
+      html += '</div>';
+
+      // 갭 분석
+      html += '<div style="background:#f8fafc;padding:16px;border-radius:12px;margin-bottom:24px;">';
+      html += '  <h4 style="margin-bottom:12px;">📊 기회 분석</h4>';
+      html += '  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">';
+      html += '    <div style="text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:#0077b6;">' + self.formatNumber(data.gap.viewsGap) + '</div><div style="font-size:0.85rem;color:#666;">조회수 격차</div></div>';
+      html += '    <div style="text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:#00b894;">' + data.gap.channelGap + '</div><div style="font-size:0.85rem;color:#666;">채널 수 격차</div></div>';
+      html += '    <div style="text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:#e17055;">' + data.gap.opportunityScore + '</div><div style="font-size:0.85rem;color:#666;">기회 점수</div></div>';
+      html += '  </div>';
+      html += '</div>';
+
+      // 해외 vs 한국 비교
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">';
+
+      // 해외 통계
+      html += '  <div style="background:#e0f7fa;padding:20px;border-radius:12px;">';
+      html += '    <h4 style="margin-bottom:12px;">🌍 해외 (' + data.foreignRegion + ')</h4>';
+      html += '    <div style="display:flex;flex-direction:column;gap:8px;">';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>총 영상 수</span><strong>' + data.foreignStats.totalVideos + '개</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>총 채널 수</span><strong>' + data.foreignStats.totalChannels + '개</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>평균 조회수</span><strong>' + self.formatNumber(data.foreignStats.avgViews) + '</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>최대 조회수</span><strong>' + self.formatNumber(data.foreignStats.maxViews) + '</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>평균 구독자</span><strong>' + self.formatNumber(data.foreignStats.avgSubscribers) + '</strong></div>';
+      html += '    </div>';
+      html += '  </div>';
+
+      // 한국 통계
+      html += '  <div style="background:#fff3e0;padding:20px;border-radius:12px;">';
+      html += '    <h4 style="margin-bottom:12px;">🇰🇷 한국</h4>';
+      html += '    <div style="display:flex;flex-direction:column;gap:8px;">';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>총 영상 수</span><strong>' + data.koreaStats.totalVideos + '개</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>총 채널 수</span><strong>' + data.koreaStats.totalChannels + '개</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>평균 조회수</span><strong>' + self.formatNumber(data.koreaStats.avgViews) + '</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>최대 조회수</span><strong>' + self.formatNumber(data.koreaStats.maxViews) + '</strong></div>';
+      html += '      <div style="display:flex;justify-content:space-between;"><span>평균 구독자</span><strong>' + self.formatNumber(data.koreaStats.avgSubscribers) + '</strong></div>';
+      html += '    </div>';
+      html += '  </div>';
+
+      html += '</div>';
+
+      // TOP 영상 비교
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">';
+
+      // 해외 TOP 영상
+      html += '  <div>';
+      html += '    <h4 style="margin-bottom:12px;">🔥 해외 TOP 영상</h4>';
+      if (data.foreignStats.topVideos && data.foreignStats.topVideos.length > 0) {
+        data.foreignStats.topVideos.forEach(function(video) {
+          html += '    <div style="display:flex;gap:12px;margin-bottom:12px;cursor:pointer;" onclick="TubeLens.openVideo(\'' + video.videoId + '\')">';
+          html += '      <img src="' + video.thumbnail + '" style="width:120px;border-radius:8px;">';
+          html += '      <div style="flex:1;">';
+          html += '        <div style="font-size:0.85rem;line-height:1.3;margin-bottom:4px;">' + self.escapeHtml(video.title).substring(0, 50) + '...</div>';
+          html += '        <div style="font-size:0.8rem;color:#666;">' + self.formatNumber(video.viewCount) + ' views</div>';
+          html += '      </div>';
+          html += '    </div>';
+        });
+      } else {
+        html += '    <p style="color:#666;">영상 없음</p>';
+      }
+      html += '  </div>';
+
+      // 한국 TOP 영상
+      html += '  <div>';
+      html += '    <h4 style="margin-bottom:12px;">🇰🇷 한국 TOP 영상</h4>';
+      if (data.koreaStats.topVideos && data.koreaStats.topVideos.length > 0) {
+        data.koreaStats.topVideos.forEach(function(video) {
+          html += '    <div style="display:flex;gap:12px;margin-bottom:12px;cursor:pointer;" onclick="TubeLens.openVideo(\'' + video.videoId + '\')">';
+          html += '      <img src="' + video.thumbnail + '" style="width:120px;border-radius:8px;">';
+          html += '      <div style="flex:1;">';
+          html += '        <div style="font-size:0.85rem;line-height:1.3;margin-bottom:4px;">' + self.escapeHtml(video.title).substring(0, 50) + '...</div>';
+          html += '        <div style="font-size:0.8rem;color:#666;">' + self.formatNumber(video.viewCount) + ' views</div>';
+          html += '      </div>';
+          html += '    </div>';
+        });
+      } else {
+        html += '    <p style="color:#666;">영상 없음 - 블루오션!</p>';
+      }
+      html += '  </div>';
+
+      html += '</div>';
+
+      body.innerHTML = html;
+    },
+
+    closeDeepModal: function() {
+      document.getElementById('blueocean-deep-modal').style.display = 'none';
     }
   };
 
