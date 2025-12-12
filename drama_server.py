@@ -9754,23 +9754,27 @@ def youtube_upload():
 
         except ImportError as e:
             print(f"[YOUTUBE-UPLOAD] 라이브러리 없음: {e}")
+            return jsonify({
+                "ok": False,
+                "error": f"필수 라이브러리 없음: {str(e)}",
+                "needsAuth": False
+            }), 200
         except Exception as upload_error:
             print(f"[YOUTUBE-UPLOAD] 업로드 오류: {upload_error}")
             import traceback
             traceback.print_exc()
+            return jsonify({
+                "ok": False,
+                "error": f"업로드 중 오류 발생: {str(upload_error)}",
+                "needsAuth": False
+            }), 200
 
-        # 테스트 모드: 가상의 videoId 생성
-        import random
-        import string
-        fake_video_id = ''.join(random.choices(string.ascii_letters + string.digits, k=11))
-
+        # 이 코드는 정상적인 경우 도달하지 않음 (위에서 모두 return됨)
+        # 만약 여기에 도달하면 예상치 못한 코드 경로
+        print(f"[YOUTUBE-UPLOAD][WARN] 예상치 못한 코드 경로 - 테스트 모드로 fallback")
         return jsonify({
-            "ok": True,
-            "mode": "test",
-            "videoId": fake_video_id,
-            "videoUrl": f"https://www.youtube.com/watch?v={fake_video_id}",
-            "status": "uploaded",
-            "message": "테스트 모드: 실제 업로드는 수행되지 않았습니다. OAuth 설정 후 실제 업로드가 가능합니다.",
+            "ok": False,
+            "error": "예상치 못한 코드 경로입니다. 서버 로그를 확인해주세요.",
             "metadata": {
                 "title": title,
                 "description": description[:100] + "..." if len(description) > 100 else description,
