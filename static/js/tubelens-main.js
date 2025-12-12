@@ -454,6 +454,10 @@
       }
     },
 
+    openVideo: function(videoId) {
+      window.open('https://www.youtube.com/watch?v=' + videoId, '_blank');
+    },
+
     openChannelModal: function(channels) {
       this.channelList = channels;
       this.selectedChannelIndex = -1;

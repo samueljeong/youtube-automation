@@ -3023,32 +3023,61 @@ def extract_keywords_from_videos(videos: List[Dict[str, Any]]) -> List[str]:
 def calculate_blueocean_score(foreign_data: Dict, korea_data: Dict) -> float:
     """블루오션 점수 계산
 
-    점수 = (해외 평균 조회수 / 한국 채널수) × (해외 영상수 / 한국 영상수) × 성장 가중치
-    높을수록 블루오션 (해외에선 인기인데 한국엔 적음)
+    블루오션 = 해외에서 인기 있지만 한국에서 경쟁이 적은 시장
+
+    점수 구성:
+    - 해외 인기도 (40점): 해외 평균 조회수가 높을수록 +
+    - 한국 희소성 (60점): 한국 채널이 적고, 조회수도 낮을수록 +
+
+    핵심: 한국에 이미 많은 채널이 있고 조회수도 높으면 레드오션 (낮은 점수)
     """
     foreign_avg_views = foreign_data.get('avg_views', 0)
-    foreign_video_count = foreign_data.get('video_count', 1)
-
     korea_channel_count = korea_data.get('channel_count', 0)
-    korea_video_count = korea_data.get('video_count', 0)
     korea_avg_views = korea_data.get('avg_views', 0)
 
-    # 한국에 채널/영상이 적을수록 점수 높음
-    scarcity_score = foreign_avg_views / max(korea_channel_count + 1, 1)
+    # 1. 해외 인기도 점수 (0-40점)
+    if foreign_avg_views >= 10_000_000:  # 1000만 이상
+        popularity_score = 40
+    elif foreign_avg_views >= 1_000_000:  # 100만 이상
+        popularity_score = 30
+    elif foreign_avg_views >= 100_000:  # 10만 이상
+        popularity_score = 20
+    else:
+        popularity_score = 10
 
-    # 해외 대비 한국 콘텐츠 비율 (낮을수록 블루오션)
-    content_ratio = foreign_video_count / max(korea_video_count, 1)
+    # 2. 한국 희소성 점수 (0-60점)
+    # 시작: 60점에서 채널수와 조회수에 따라 감점
+    scarcity_score = 60
 
-    # 조회수 격차 (해외가 높을수록 가치 있음)
-    view_gap = foreign_avg_views / max(korea_avg_views, 1) if korea_avg_views > 0 else foreign_avg_views / 10000
+    # 2-1. 채널 수 감점 (최대 -30점)
+    if korea_channel_count >= 50:
+        scarcity_score -= 30  # 50개 이상 = 레드오션
+    elif korea_channel_count >= 30:
+        scarcity_score -= 25
+    elif korea_channel_count >= 20:
+        scarcity_score -= 20
+    elif korea_channel_count >= 10:
+        scarcity_score -= 15
+    elif korea_channel_count >= 5:
+        scarcity_score -= 5
 
-    # 최종 점수 (로그 스케일로 정규화)
-    raw_score = (scarcity_score * 0.4) + (content_ratio * 0.3) + (view_gap * 0.3)
+    # 2-2. 한국 평균 조회수 감점 (최대 -30점)
+    # 한국에서 이미 높은 조회수 = 레드오션
+    if korea_avg_views >= 100_000_000:  # 1억 이상
+        scarcity_score -= 30
+    elif korea_avg_views >= 50_000_000:  # 5000만 이상
+        scarcity_score -= 25
+    elif korea_avg_views >= 10_000_000:  # 1000만 이상
+        scarcity_score -= 20
+    elif korea_avg_views >= 1_000_000:  # 100만 이상
+        scarcity_score -= 10
+    elif korea_avg_views >= 100_000:  # 10만 이상
+        scarcity_score -= 5
 
-    # 0-100 스케일로 변환
-    normalized_score = min(100, math.log10(max(raw_score, 1)) * 20)
+    scarcity_score = max(0, scarcity_score)
 
-    return round(normalized_score, 2)
+    final_score = popularity_score + scarcity_score
+    return round(final_score, 2)
 
 
 @tubelens_bp.route('/api/tubelens/blueocean', methods=['POST'])
