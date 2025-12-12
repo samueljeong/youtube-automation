@@ -3685,6 +3685,168 @@
       if (this.blueoceanResults) {
         this.displayBlueoceanResults(this.blueoceanResults, filterValue);
       }
+    },
+
+    // ===== 내 채널 경쟁력 분석 =====
+    analyzeMyChannel: function() {
+      var self = this;
+      var channelInput = document.getElementById('my-channel-input').value.trim();
+
+      if (!channelInput) {
+        alert('채널 URL 또는 이름을 입력해주세요.');
+        return;
+      }
+
+      this.updateStatus('📊 채널 분석 중... (경쟁 채널 조회 포함 1-2분 소요)');
+      this.showLoading(true);
+
+      var resultsDiv = document.getElementById('my-channel-results');
+      resultsDiv.style.display = 'block';
+      resultsDiv.innerHTML = '<div style="text-align:center;padding:40px;"><p>분석 중입니다...</p></div>';
+
+      fetch('/api/tubelens/my-channel-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelInput: channelInput,
+          apiKeys: this.apiKeys,
+          currentApiKeyIndex: this.currentApiKeyIndex
+        })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        self.showLoading(false);
+        if (data.success) {
+          self.displayChannelAnalysis(data.data);
+          self.updateStatus('✅ 채널 분석 완료!');
+        } else {
+          throw new Error(data.message);
+        }
+      })
+      .catch(function(error) {
+        console.error('[TubeLens] Channel analysis error:', error);
+        resultsDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#dc2626;"><p>분석 실패: ' + error.message + '</p></div>';
+        self.showLoading(false);
+        self.updateStatus('분석 실패: ' + error.message);
+      });
+    },
+
+    displayChannelAnalysis: function(data) {
+      var self = this;
+      var resultsDiv = document.getElementById('my-channel-results');
+      var analysis = data.analysis;
+      var myChannel = data.myChannel;
+
+      var html = '';
+
+      // 시장 상태 배지
+      html += '<div style="text-align:center;margin-bottom:24px;">';
+      html += '  <span class="market-status-badge" style="background:' + analysis.marketColor + '20;color:' + analysis.marketColor + ';">';
+      html += '    ' + (analysis.marketStatus === '레드오션' ? '🔴' : analysis.marketStatus === '경쟁 시장' ? '🟡' : analysis.marketStatus === '성장 시장' ? '🟢' : '🔵');
+      html += '    ' + analysis.marketStatus + ' (경쟁 강도: ' + analysis.competitionIntensity + '/100)';
+      html += '  </span>';
+      html += '  <p style="margin-top:12px;color:#64748b;font-size:0.9rem;">' + analysis.marketAdvice + '</p>';
+      html += '</div>';
+
+      // 내 채널 카드
+      html += '<div class="my-channel-card">';
+      html += '  <img src="' + myChannel.thumbnail + '" alt="' + self.escapeHtml(myChannel.title) + '">';
+      html += '  <div class="my-channel-card-info">';
+      html += '    <h3>' + self.escapeHtml(myChannel.title) + '</h3>';
+      html += '    <div class="my-channel-card-stats">';
+      html += '      <span>구독자 ' + self.formatNumber(myChannel.subscriberCount) + '</span>';
+      html += '      <span>영상 ' + myChannel.videoCount + '개</span>';
+      html += '      <span>최근 평균 ' + self.formatNumber(myChannel.avgRecentViews) + ' 조회</span>';
+      html += '    </div>';
+      html += '    <div style="margin-top:8px;font-size:0.8rem;color:#94a3b8;">';
+      html += '      카테고리: ' + data.detectedCategory + ' | 키워드: ' + data.topKeywords.join(', ');
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+
+      // 경쟁 순위
+      html += '<div style="background:#f8fafc;padding:16px;border-radius:12px;margin-bottom:20px;">';
+      html += '  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:center;">';
+      html += '    <div>';
+      html += '      <div style="font-size:2rem;font-weight:700;color:#6366f1;">' + analysis.myRank + '위</div>';
+      html += '      <div style="font-size:0.8rem;color:#64748b;">내 순위 (구독자 기준)</div>';
+      html += '    </div>';
+      html += '    <div>';
+      html += '      <div style="font-size:2rem;font-weight:700;color:#10b981;">' + analysis.totalCompetitors + '개</div>';
+      html += '      <div style="font-size:0.8rem;color:#64748b;">경쟁 채널</div>';
+      html += '    </div>';
+      html += '    <div>';
+      html += '      <div style="font-size:2rem;font-weight:700;color:#f59e0b;">' + self.formatNumber(analysis.avgCompetitorViews) + '</div>';
+      html += '      <div style="font-size:0.8rem;color:#64748b;">경쟁 채널 평균 조회</div>';
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+
+      // 성장 팁
+      if (data.growthTips && data.growthTips.length > 0) {
+        html += '<div class="growth-tips">';
+        html += '  <h4>📈 성장 팁</h4>';
+        data.growthTips.forEach(function(tip) {
+          html += '  <div class="growth-tip-item">' + tip.tip + '</div>';
+        });
+        html += '</div>';
+      }
+
+      // 성장 예측
+      if (data.growthPrediction && data.growthPrediction.scenarios) {
+        html += '<div style="margin-top:24px;padding:20px;background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:16px;border:1px solid #bae6fd;">';
+        html += '  <h4 style="font-size:1rem;font-weight:600;margin-bottom:16px;color:#0369a1;">🔮 성장 예측 시뮬레이션</h4>';
+        html += '  <p style="font-size:0.8rem;color:#64748b;margin-bottom:16px;">' + data.growthPrediction.disclaimer + '</p>';
+
+        html += '  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">';
+        data.growthPrediction.scenarios.forEach(function(s) {
+          html += '    <div style="background:#fff;padding:16px;border-radius:12px;text-align:center;">';
+          html += '      <div style="font-size:0.9rem;font-weight:600;color:#0369a1;margin-bottom:8px;">📤 ' + s.frequency + '</div>';
+          html += '      <div style="font-size:0.75rem;color:#64748b;margin-bottom:12px;">월 ' + s.videosPerMonth + '개 업로드</div>';
+          html += '      <div style="font-size:0.8rem;margin-bottom:4px;">예상 조회수/영상: <b>' + self.formatNumber(s.expectedViewsPerVideo) + '</b></div>';
+          html += '      <div style="font-size:0.8rem;margin-bottom:4px;">월간 총 조회수: <b>' + self.formatNumber(s.monthlyViews) + '</b></div>';
+          html += '      <div style="font-size:0.8rem;margin-bottom:4px;">월간 예상 신규 구독: <b>+' + self.formatNumber(s.monthlyNewSubs) + '</b></div>';
+          if (s.monthsTo100k !== "계산 불가" && s.monthsTo100k > 0) {
+            var years = Math.floor(s.monthsTo100k / 12);
+            var months = Math.round(s.monthsTo100k % 12);
+            var timeStr = years > 0 ? years + '년 ' + months + '개월' : months + '개월';
+            html += '      <div style="font-size:0.85rem;margin-top:8px;padding:8px;background:#f0fdf4;border-radius:8px;color:#166534;">';
+            html += '        10만 도달: <b>' + timeStr + '</b>';
+            html += '      </div>';
+          }
+          html += '    </div>';
+        });
+        html += '  </div>';
+        html += '</div>';
+      }
+
+      // 경쟁 채널 리스트
+      html += '<div class="competitor-list">';
+      html += '  <h4 style="font-size:1rem;font-weight:600;margin-bottom:12px;">🏆 상위 경쟁 채널</h4>';
+
+      data.competitors.forEach(function(comp, idx) {
+        var rankClass = idx < 3 ? 'top' : '';
+        html += '  <div class="competitor-item" onclick="window.open(\'https://youtube.com/channel/' + comp.channelId + '\', \'_blank\')">';
+        html += '    <span class="competitor-rank ' + rankClass + '">' + (idx + 1) + '</span>';
+        html += '    <img src="' + comp.thumbnail + '" alt="">';
+        html += '    <div class="competitor-info">';
+        html += '      <h4>' + self.escapeHtml(comp.title) + '</h4>';
+        html += '      <div class="stats">';
+        html += '        구독자 ' + self.formatNumber(comp.subscriberCount);
+        html += '        · 영상 ' + comp.videoCount + '개';
+        html += '        · 평균 ' + self.formatNumber(comp.avgRecentViews) + ' 조회';
+        html += '      </div>';
+        html += '      <div class="stats" style="margin-top:4px;color:#94a3b8;">';
+        html += '        📅 ' + comp.createdDate + ' 개설';
+        html += '        · 📤 ' + comp.uploadFrequency + ' 업로드';
+        html += '      </div>';
+        html += '    </div>';
+        html += '  </div>';
+      });
+
+      html += '</div>';
+
+      resultsDiv.innerHTML = html;
     }
   };
 

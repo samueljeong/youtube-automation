@@ -3498,3 +3498,420 @@ def api_blueocean_deep():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+@tubelens_bp.route('/api/tubelens/my-channel-analysis', methods=['POST'])
+def api_my_channel_analysis():
+    """내 채널 경쟁력 분석 API
+
+    내 채널이 블루오션인지 레드오션인지 분석하고,
+    상위 경쟁 채널과 비교합니다.
+    """
+    try:
+        data = request.get_json()
+
+        channel_input = data.get("channelInput", "")  # 채널 URL 또는 ID
+        api_keys = data.get("apiKeys", [])
+        current_api_key_index = data.get("currentApiKeyIndex", 0)
+
+        if not channel_input:
+            return jsonify({"success": False, "message": "채널 URL 또는 ID가 필요합니다."}), 400
+
+        # API 키 선택
+        api_key = None
+        if api_keys and len(api_keys) > current_api_key_index:
+            api_key = api_keys[current_api_key_index]
+        if not api_key:
+            api_key = get_youtube_api_key()
+        if not api_key:
+            return jsonify({"success": False, "message": "API 키가 필요합니다."}), 400
+
+        # 채널 ID 추출
+        channel_id = None
+        if "youtube.com" in channel_input or "youtu.be" in channel_input:
+            # URL에서 채널 ID 추출
+            if "/@" in channel_input:
+                # 핸들 형식: youtube.com/@channelhandle
+                handle = channel_input.split("/@")[1].split("/")[0].split("?")[0]
+                # 핸들로 채널 검색
+                search_result = make_youtube_request("search", {
+                    "part": "snippet",
+                    "type": "channel",
+                    "q": handle,
+                    "maxResults": 1
+                }, api_key)
+                if search_result.get("items"):
+                    channel_id = search_result["items"][0]["snippet"]["channelId"]
+            elif "/channel/" in channel_input:
+                channel_id = channel_input.split("/channel/")[1].split("/")[0].split("?")[0]
+            elif "/c/" in channel_input:
+                custom_name = channel_input.split("/c/")[1].split("/")[0].split("?")[0]
+                search_result = make_youtube_request("search", {
+                    "part": "snippet",
+                    "type": "channel",
+                    "q": custom_name,
+                    "maxResults": 1
+                }, api_key)
+                if search_result.get("items"):
+                    channel_id = search_result["items"][0]["snippet"]["channelId"]
+        else:
+            # 직접 ID 또는 이름으로 검색
+            if channel_input.startswith("UC"):
+                channel_id = channel_input
+            else:
+                search_result = make_youtube_request("search", {
+                    "part": "snippet",
+                    "type": "channel",
+                    "q": channel_input,
+                    "maxResults": 1
+                }, api_key)
+                if search_result.get("items"):
+                    channel_id = search_result["items"][0]["snippet"]["channelId"]
+
+        if not channel_id:
+            return jsonify({"success": False, "message": "채널을 찾을 수 없습니다."}), 404
+
+        # 1. 내 채널 정보 가져오기
+        channel_info = make_youtube_request("channels", {
+            "part": "snippet,statistics,brandingSettings",
+            "id": channel_id
+        }, api_key)
+
+        if not channel_info.get("items"):
+            return jsonify({"success": False, "message": "채널 정보를 가져올 수 없습니다."}), 404
+
+        my_channel = channel_info["items"][0]
+        my_stats = {
+            "channelId": channel_id,
+            "title": my_channel["snippet"]["title"],
+            "description": my_channel["snippet"].get("description", ""),
+            "thumbnail": my_channel["snippet"]["thumbnails"]["default"]["url"],
+            "subscriberCount": int(my_channel["statistics"].get("subscriberCount", 0)),
+            "videoCount": int(my_channel["statistics"].get("videoCount", 0)),
+            "viewCount": int(my_channel["statistics"].get("viewCount", 0)),
+            "country": my_channel["snippet"].get("country", "KR")
+        }
+
+        # 2. 내 채널의 최근 영상 가져오기 (키워드 추출용)
+        playlist_id = "UU" + channel_id[2:]  # 업로드 플레이리스트
+        playlist_items = make_youtube_request("playlistItems", {
+            "part": "snippet",
+            "playlistId": playlist_id,
+            "maxResults": 20
+        }, api_key)
+
+        my_video_ids = [item["snippet"]["resourceId"]["videoId"]
+                       for item in playlist_items.get("items", [])
+                       if item["snippet"]["resourceId"]["kind"] == "youtube#video"]
+
+        my_videos = get_video_details(my_video_ids, api_key) if my_video_ids else []
+
+        # 내 채널 평균 조회수
+        my_avg_views = sum(v["viewCount"] for v in my_videos) / len(my_videos) if my_videos else 0
+        my_max_views = max((v["viewCount"] for v in my_videos), default=0)
+
+        # 3. 키워드 추출 (카테고리 파악)
+        import re
+        from collections import Counter
+
+        all_words = []
+        for video in my_videos:
+            title = video.get('title', '').lower()
+            # 한글 단어도 추출
+            words = re.findall(r'[a-z가-힣]{2,}', title)
+            all_words.extend(words)
+
+        # 불용어 제거
+        stop_words = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all',
+                      'can', 'her', 'was', 'one', 'our', 'out', 'this', 'that',
+                      '그리고', '하지만', '그래서', '그런데', '이것', '저것', '우리',
+                      '오늘', '지금', '영상', '채널', '구독', '좋아요', '시청'}
+        filtered_words = [w for w in all_words if w not in stop_words]
+        word_counts = Counter(filtered_words)
+        top_keywords = [word for word, count in word_counts.most_common(5)]
+
+        # 카테고리 감지 (뉴스 키워드 체크)
+        news_keywords = {'뉴스', 'news', '속보', '정치', '경제', '사회', '이슈', '논란',
+                         '대통령', '국회', '정부', '장관', '기자', '보도', '취재'}
+        is_news = bool(set(filtered_words) & news_keywords)
+        detected_category = "뉴스/시사" if is_news else "일반"
+
+        # 4. 경쟁 채널 검색 (한국에서 같은 카테고리)
+        search_query = " ".join(top_keywords[:3]) if top_keywords else my_stats["title"]
+
+        competitor_search = make_youtube_request("search", {
+            "part": "snippet",
+            "type": "channel",
+            "q": search_query,
+            "regionCode": "KR",
+            "maxResults": 20,
+            "order": "relevance"
+        }, api_key)
+
+        competitor_ids = [item["snippet"]["channelId"]
+                         for item in competitor_search.get("items", [])
+                         if item["snippet"]["channelId"] != channel_id][:10]
+
+        # 경쟁 채널 상세 정보
+        competitors = []
+        if competitor_ids:
+            comp_info = make_youtube_request("channels", {
+                "part": "snippet,statistics",
+                "id": ",".join(competitor_ids)
+            }, api_key)
+
+            for ch in comp_info.get("items", []):
+                comp_channel_id = ch["id"]
+                # 경쟁 채널의 최근 영상 조회수 가져오기
+                comp_playlist_id = "UU" + comp_channel_id[2:]
+                comp_playlist = make_youtube_request("playlistItems", {
+                    "part": "snippet",
+                    "playlistId": comp_playlist_id,
+                    "maxResults": 10
+                }, api_key)
+                comp_video_ids = [item["snippet"]["resourceId"]["videoId"]
+                                  for item in comp_playlist.get("items", [])
+                                  if item["snippet"]["resourceId"]["kind"] == "youtube#video"]
+                comp_videos = get_video_details(comp_video_ids[:5], api_key) if comp_video_ids else []
+                comp_avg_views = sum(v["viewCount"] for v in comp_videos) / len(comp_videos) if comp_videos else 0
+
+                # 채널 생성일 파싱
+                published_at = ch["snippet"].get("publishedAt", "")
+                created_date = published_at[:10] if published_at else "알 수 없음"
+
+                # 업로드 주기 계산 (최근 10개 영상 기준)
+                upload_frequency = "알 수 없음"
+                if len(comp_videos) >= 2:
+                    from datetime import datetime
+                    dates = []
+                    for v in comp_videos:
+                        try:
+                            d = datetime.fromisoformat(v["publishedAt"].replace("Z", "+00:00"))
+                            dates.append(d)
+                        except:
+                            pass
+                    if len(dates) >= 2:
+                        dates.sort(reverse=True)
+                        total_days = (dates[0] - dates[-1]).days
+                        if total_days > 0:
+                            avg_days = total_days / (len(dates) - 1)
+                            if avg_days <= 1:
+                                upload_frequency = "매일"
+                            elif avg_days <= 3:
+                                upload_frequency = f"주 {int(7/avg_days)}회"
+                            elif avg_days <= 7:
+                                upload_frequency = "주 1회"
+                            elif avg_days <= 14:
+                                upload_frequency = "2주 1회"
+                            elif avg_days <= 30:
+                                upload_frequency = "월 1회"
+                            else:
+                                upload_frequency = f"{int(avg_days)}일마다"
+
+                competitors.append({
+                    "channelId": comp_channel_id,
+                    "title": ch["snippet"]["title"],
+                    "thumbnail": ch["snippet"]["thumbnails"]["default"]["url"],
+                    "subscriberCount": int(ch["statistics"].get("subscriberCount", 0)),
+                    "videoCount": int(ch["statistics"].get("videoCount", 0)),
+                    "viewCount": int(ch["statistics"].get("viewCount", 0)),
+                    "avgRecentViews": int(comp_avg_views),
+                    "createdDate": created_date,
+                    "uploadFrequency": upload_frequency,
+                    "topVideo": comp_videos[0] if comp_videos else None
+                })
+
+        # 구독자 순으로 정렬
+        competitors.sort(key=lambda x: x["subscriberCount"], reverse=True)
+
+        # 5. 경쟁력 분석
+        total_competitor_subs = sum(c["subscriberCount"] for c in competitors)
+        avg_competitor_subs = total_competitor_subs / len(competitors) if competitors else 0
+        avg_competitor_views = sum(c["avgRecentViews"] for c in competitors) / len(competitors) if competitors else 0
+
+        # 내 위치 (순위)
+        my_rank = 1
+        for comp in competitors:
+            if comp["subscriberCount"] > my_stats["subscriberCount"]:
+                my_rank += 1
+
+        # 경쟁 강도 점수 (0-100, 높을수록 경쟁 치열)
+        competition_intensity = 0
+
+        # 경쟁 채널 수에 따른 점수
+        if len(competitors) >= 10:
+            competition_intensity += 30
+        elif len(competitors) >= 5:
+            competition_intensity += 20
+        else:
+            competition_intensity += 10
+
+        # 상위 채널 구독자 수에 따른 점수
+        if competitors and competitors[0]["subscriberCount"] >= 1000000:
+            competition_intensity += 30
+        elif competitors and competitors[0]["subscriberCount"] >= 100000:
+            competition_intensity += 20
+        elif competitors and competitors[0]["subscriberCount"] >= 10000:
+            competition_intensity += 10
+
+        # 평균 조회수 격차에 따른 점수
+        if avg_competitor_views > 0 and my_avg_views > 0:
+            view_ratio = avg_competitor_views / my_avg_views
+            if view_ratio >= 10:
+                competition_intensity += 40
+            elif view_ratio >= 5:
+                competition_intensity += 30
+            elif view_ratio >= 2:
+                competition_intensity += 20
+            else:
+                competition_intensity += 10
+
+        competition_intensity = min(100, competition_intensity)
+
+        # 시장 상태 판정
+        if competition_intensity >= 70:
+            market_status = "레드오션"
+            market_color = "#dc2626"
+            market_advice = "경쟁이 매우 치열합니다. 차별화된 콘텐츠 전략이 필요합니다."
+        elif competition_intensity >= 50:
+            market_status = "경쟁 시장"
+            market_color = "#f59e0b"
+            market_advice = "적당한 경쟁이 있습니다. 니치한 주제로 차별화하세요."
+        elif competition_intensity >= 30:
+            market_status = "성장 시장"
+            market_color = "#10b981"
+            market_advice = "성장 가능성이 있습니다. 꾸준한 업로드가 중요합니다."
+        else:
+            market_status = "블루오션"
+            market_color = "#0ea5e9"
+            market_advice = "경쟁이 적습니다. 선점 효과를 노려보세요!"
+
+        # 6. 성장 팁 생성
+        growth_tips = []
+        if my_avg_views < avg_competitor_views:
+            growth_tips.append({
+                "type": "조회수",
+                "tip": f"평균 조회수가 경쟁 채널 대비 낮습니다. 제목과 썸네일 최적화를 고려하세요.",
+                "myValue": int(my_avg_views),
+                "avgValue": int(avg_competitor_views)
+            })
+        if my_stats["subscriberCount"] < avg_competitor_subs:
+            growth_tips.append({
+                "type": "구독자",
+                "tip": f"구독 유도 CTA를 영상에 추가하고, 커뮤니티 탭을 활용하세요.",
+                "myValue": my_stats["subscriberCount"],
+                "avgValue": int(avg_competitor_subs)
+            })
+
+        # 7. 성장 예측 (경쟁 채널 데이터 기반)
+        growth_prediction = {
+            "disclaimer": "경쟁 채널 데이터를 기반으로 한 예측이며, 실제 결과는 다를 수 있습니다.",
+            "scenarios": []
+        }
+
+        # 업로드 주기별 성과 분석
+        frequency_performance = {}
+        for comp in competitors:
+            freq = comp.get("uploadFrequency", "알 수 없음")
+            if freq != "알 수 없음" and comp["avgRecentViews"] > 0:
+                if freq not in frequency_performance:
+                    frequency_performance[freq] = []
+                frequency_performance[freq].append({
+                    "views": comp["avgRecentViews"],
+                    "subs": comp["subscriberCount"]
+                })
+
+        # 각 시나리오에 대한 예측
+        scenarios = [
+            {"frequency": "매일", "videos_per_month": 30},
+            {"frequency": "주 3회", "videos_per_month": 12},
+            {"frequency": "주 1회", "videos_per_month": 4},
+        ]
+
+        for scenario in scenarios:
+            # 비슷한 업로드 주기 채널들의 평균 조회수 찾기
+            matching_perfs = []
+            for freq, perfs in frequency_performance.items():
+                if "매일" in freq and "매일" in scenario["frequency"]:
+                    matching_perfs.extend(perfs)
+                elif "주" in freq and "주" in scenario["frequency"]:
+                    matching_perfs.extend(perfs)
+
+            # 없으면 전체 평균 사용
+            if not matching_perfs:
+                expected_views = int(avg_competitor_views * 0.7)  # 경쟁자 평균의 70%로 보수적 예측
+            else:
+                expected_views = int(sum(p["views"] for p in matching_perfs) / len(matching_perfs) * 0.7)
+
+            # 월간 예상 조회수
+            monthly_views = expected_views * scenario["videos_per_month"]
+
+            # 구독 전환율 (업계 평균 1-2%)
+            conversion_rate = 0.015
+            monthly_new_subs = int(monthly_views * conversion_rate)
+
+            # 목표 도달 예측 (10만 구독자)
+            current_subs = my_stats["subscriberCount"]
+            target_subs = 100000
+            if monthly_new_subs > 0:
+                months_to_100k = max(0, (target_subs - current_subs) / monthly_new_subs)
+            else:
+                months_to_100k = -1  # 계산 불가
+
+            growth_prediction["scenarios"].append({
+                "frequency": scenario["frequency"],
+                "videosPerMonth": scenario["videos_per_month"],
+                "expectedViewsPerVideo": expected_views,
+                "monthlyViews": monthly_views,
+                "monthlyNewSubs": monthly_new_subs,
+                "monthsTo100k": round(months_to_100k, 1) if months_to_100k >= 0 else "계산 불가",
+                "yearlyViews": monthly_views * 12,
+                "yearlyNewSubs": monthly_new_subs * 12
+            })
+
+        # 현재 채널과 상위 채널 비교
+        if competitors:
+            top_channel = competitors[0]
+            growth_prediction["comparison"] = {
+                "topChannelName": top_channel["title"],
+                "topChannelSubs": top_channel["subscriberCount"],
+                "topChannelViews": top_channel["avgRecentViews"],
+                "topChannelFrequency": top_channel.get("uploadFrequency", "알 수 없음"),
+                "viewsGap": top_channel["avgRecentViews"] - int(my_avg_views),
+                "subsGap": top_channel["subscriberCount"] - my_stats["subscriberCount"]
+            }
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "myChannel": {
+                    **my_stats,
+                    "avgRecentViews": int(my_avg_views),
+                    "maxRecentViews": int(my_max_views),
+                    "recentVideos": my_videos[:5]
+                },
+                "detectedCategory": detected_category,
+                "topKeywords": top_keywords,
+                "searchQuery": search_query,
+                "competitors": competitors[:10],
+                "analysis": {
+                    "competitionIntensity": competition_intensity,
+                    "marketStatus": market_status,
+                    "marketColor": market_color,
+                    "marketAdvice": market_advice,
+                    "myRank": my_rank,
+                    "totalCompetitors": len(competitors),
+                    "avgCompetitorSubs": int(avg_competitor_subs),
+                    "avgCompetitorViews": int(avg_competitor_views)
+                },
+                "growthTips": growth_tips,
+                "growthPrediction": growth_prediction
+            },
+            "message": f"'{my_stats['title']}' 채널 분석 완료"
+        })
+
+    except Exception as e:
+        print(f"채널 분석 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": str(e)}), 500

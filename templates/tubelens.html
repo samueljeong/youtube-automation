@@ -1692,6 +1692,211 @@
       color: #dc2626;
     }
 
+    /* 내 채널 분석 섹션 */
+    .my-channel-section {
+      margin-top: 32px;
+      padding-top: 32px;
+      border-top: 2px solid #e1e5eb;
+    }
+
+    .my-channel-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .my-channel-icon {
+      font-size: 1.5rem;
+    }
+
+    .my-channel-header h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .my-channel-desc {
+      color: #64748b;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+
+    .my-channel-form {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .my-channel-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #e1e5eb;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+
+    .my-channel-input:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+    }
+
+    .btn-analyze-channel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-analyze-channel:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .my-channel-results {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .market-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .my-channel-card {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .my-channel-card img {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+    }
+
+    .my-channel-card-info h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .my-channel-card-stats {
+      display: flex;
+      gap: 16px;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .competitor-list {
+      margin-top: 20px;
+    }
+
+    .competitor-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #e1e5eb;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .competitor-item:hover {
+      border-color: #0ea5e9;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .competitor-item img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+    }
+
+    .competitor-info {
+      flex: 1;
+    }
+
+    .competitor-info h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .competitor-info .stats {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    .competitor-rank {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e1e5eb;
+      border-radius: 50%;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .competitor-rank.top {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      color: #fff;
+    }
+
+    .growth-tips {
+      margin-top: 20px;
+      padding: 16px;
+      background: #eff6ff;
+      border-radius: 12px;
+      border-left: 4px solid #3b82f6;
+    }
+
+    .growth-tips h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+
+    .growth-tip-item {
+      font-size: 0.85rem;
+      color: #1e3a5f;
+      margin-bottom: 6px;
+      padding-left: 16px;
+      position: relative;
+    }
+
+    .growth-tip-item::before {
+      content: '💡';
+      position: absolute;
+      left: 0;
+    }
+
     .blueocean-recommendation {
       font-size: 0.95rem;
       color: #0077b6;
@@ -2871,6 +3076,31 @@
             </div>
           </div>
           <div class="blueocean-list" id="blueocean-list">
+            <!-- 결과가 여기에 동적으로 추가됨 -->
+          </div>
+        </div>
+
+        <!-- 내 채널 경쟁력 분석 섹션 -->
+        <div class="my-channel-section">
+          <div class="my-channel-header">
+            <span class="my-channel-icon">📊</span>
+            <h2>내 채널 경쟁력 분석</h2>
+          </div>
+          <p class="my-channel-desc">내 채널이 블루오션인지 레드오션인지 분석하고, 상위 경쟁 채널과 비교해보세요.</p>
+
+          <div class="my-channel-form">
+            <input type="text" class="my-channel-input" id="my-channel-input"
+                   placeholder="채널 URL 또는 이름 입력 (예: youtube.com/@채널명)">
+            <button class="btn-analyze-channel" onclick="TubeLens.analyzeMyChannel()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px">
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              분석하기
+            </button>
+          </div>
+
+          <!-- 분석 결과 영역 -->
+          <div class="my-channel-results" id="my-channel-results" style="display:none;">
             <!-- 결과가 여기에 동적으로 추가됨 -->
           </div>
         </div>
