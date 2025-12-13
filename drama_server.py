@@ -184,9 +184,12 @@ def check_youtube_quota_before_pipeline(channel_id=None):
 
         def try_quota_check(project_suffix):
             """특정 프로젝트로 할당량 테스트"""
+            lookup_key = f"{channel_id or 'default'}{project_suffix}"
+            print(f"[YOUTUBE-QUOTA-CHECK] 토큰 조회: {lookup_key}")
             token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
             if not token_data:
-                return None, f"토큰 없음 (project: {project_suffix or '기본'})"
+                print(f"[YOUTUBE-QUOTA-CHECK] 토큰 없음: {lookup_key}")
+                return None, f"토큰 없음 (key: {lookup_key})"
             if not token_data.get('refresh_token'):
                 # 디버그: 토큰 데이터의 키 확인
                 print(f"[YOUTUBE-QUOTA-CHECK] 토큰 데이터 키: {list(token_data.keys())}")
@@ -21336,6 +21339,25 @@ def api_sheets_check_and_process():
         # ========== 5. 첫 번째 작업 실행 ==========
         sort_key, sheet_name, row_num, row_data, channel_id, col_map = pending_tasks[0]
         print(f"[SHEETS] [{sheet_name}] 행 {row_num} 처리 시작 (채널: {channel_id})")
+
+        # ========== 5.1 YouTube 할당량/토큰 체크 (파이프라인 시작 전) ==========
+        # 영상 생성 후 업로드 실패를 방지하기 위해 미리 체크
+        print(f"[SHEETS] YouTube 토큰/할당량 체크 중... (채널: {channel_id})")
+        quota_ok, project_suffix, quota_error = check_youtube_quota_before_pipeline(channel_id)
+
+        if not quota_ok:
+            print(f"[SHEETS][ERROR] YouTube 체크 실패: {quota_error}")
+            # 할당량 초과 또는 토큰 없음 - 파이프라인 시작하지 않음
+            return jsonify({
+                "ok": False,
+                "error": quota_error,
+                "message": f"YouTube 토큰/할당량 문제로 파이프라인을 시작할 수 없습니다: {quota_error}",
+                "sheet": sheet_name,
+                "row": row_num,
+                "channel_id": channel_id
+            }), 503
+
+        print(f"[SHEETS] YouTube 체크 완료 - 프로젝트: {project_suffix or '기본'}")
 
         # 상태를 '처리중'으로 변경 + 시작 시간 기록
         sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '처리중')
