@@ -274,6 +274,13 @@ def check_youtube_quota_before_pipeline(channel_id=None):
 
         return False, '', f"YouTube 할당량 체크 실패: {e}"
 
+def reset_youtube_quota_exceeded():
+    """할당량 초과 플래그 수동 리셋"""
+    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
+    _youtube_quota_exceeded = False
+    _youtube_quota_exceeded_date = None
+    print("[YOUTUBE-QUOTA] 할당량 초과 플래그 수동 리셋됨")
+
 # YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
 
@@ -8526,6 +8533,18 @@ def youtube_projects_status():
     except Exception as e:
         print(f"[YOUTUBE-PROJECTS-STATUS] 오류: {e}")
         return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/youtube/reset-quota', methods=['GET', 'POST'])
+def api_reset_youtube_quota():
+    """YouTube 할당량 초과 플래그 수동 리셋"""
+    global _youtube_quota_exceeded
+    reset_youtube_quota_exceeded()
+    return jsonify({
+        "ok": True,
+        "message": "YouTube 할당량 초과 플래그가 리셋되었습니다.",
+        "quotaExceeded": _youtube_quota_exceeded
+    })
 
 
 @app.route('/api/drama/youtube-channels')
