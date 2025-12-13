@@ -4056,6 +4056,10 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
         print(f"[SHORTS] yt-dlp 실패, cobalt.tools API로 시도...")
         try:
             import requests
+
+            # YouTube 표준 URL 형식으로 변환
+            youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
             cobalt_response = requests.post(
                 "https://api.cobalt.tools/",
                 headers={
@@ -4063,21 +4067,25 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "url": url,
+                    "url": youtube_url,
                     "videoQuality": "720",
                     "filenameStyle": "basic",
                 },
                 timeout=30
             )
 
+            print(f"[SHORTS] cobalt.tools 응답: {cobalt_response.status_code}")
+
             if cobalt_response.status_code == 200:
                 cobalt_data = cobalt_response.json()
-                if cobalt_data.get("status") == "tunnel" or cobalt_data.get("status") == "redirect":
+                print(f"[SHORTS] cobalt.tools 데이터: status={cobalt_data.get('status')}")
+
+                if cobalt_data.get("status") in ["tunnel", "redirect", "stream"]:
                     download_url = cobalt_data.get("url")
                     if download_url:
                         print(f"[SHORTS] cobalt.tools에서 다운로드 URL 획득")
                         # 파일 다운로드
-                        video_response = requests.get(download_url, timeout=60, stream=True)
+                        video_response = requests.get(download_url, timeout=120, stream=True)
                         if video_response.status_code == 200:
                             output_path = os.path.join(output_dir, f"{video_id}.mp4")
                             with open(output_path, "wb") as f:
@@ -4087,9 +4095,31 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
                                 print(f"[SHORTS] cobalt.tools로 다운로드 완료: {output_path}")
                                 return (output_path, None)
                 elif cobalt_data.get("status") == "error":
-                    print(f"[SHORTS] cobalt.tools 에러: {cobalt_data.get('error', {}).get('code', 'unknown')}")
+                    error_info = cobalt_data.get("error", {})
+                    print(f"[SHORTS] cobalt.tools 에러: {error_info}")
+                elif cobalt_data.get("status") == "picker":
+                    # 여러 스트림 선택 필요한 경우
+                    picker = cobalt_data.get("picker", [])
+                    if picker:
+                        download_url = picker[0].get("url")
+                        if download_url:
+                            print(f"[SHORTS] cobalt.tools picker에서 첫 번째 옵션 선택")
+                            video_response = requests.get(download_url, timeout=120, stream=True)
+                            if video_response.status_code == 200:
+                                output_path = os.path.join(output_dir, f"{video_id}.mp4")
+                                with open(output_path, "wb") as f:
+                                    for chunk in video_response.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                                if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                                    print(f"[SHORTS] cobalt.tools로 다운로드 완료: {output_path}")
+                                    return (output_path, None)
             else:
-                print(f"[SHORTS] cobalt.tools 응답 에러: {cobalt_response.status_code}")
+                # 에러 응답 내용 로깅
+                try:
+                    error_body = cobalt_response.json()
+                    print(f"[SHORTS] cobalt.tools 에러 응답: {error_body}")
+                except:
+                    print(f"[SHORTS] cobalt.tools 에러: {cobalt_response.status_code}, {cobalt_response.text[:200]}")
         except Exception as cobalt_error:
             print(f"[SHORTS] cobalt.tools 실패: {cobalt_error}")
 
