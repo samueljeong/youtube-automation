@@ -188,9 +188,9 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             if not token_data or not token_data.get('refresh_token'):
                 return None, f"토큰 없음 (project: {project_suffix or '기본'})"
 
-            # 토큰 로드
+            # 토큰 로드 (DB 저장 시 'token' 키 사용, 'access_token'도 지원)
             creds = Credentials(
-                token=token_data.get('access_token'),
+                token=token_data.get('token') or token_data.get('access_token'),
                 refresh_token=token_data.get('refresh_token'),
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=os.getenv('YOUTUBE_CLIENT_ID_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID'),
