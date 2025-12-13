@@ -4107,16 +4107,30 @@ def api_generate_image():
 
             print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작 - 요청 사이즈: {size}")
 
-            # 사이즈에 따른 비율 결정 - 매우 강력하게 명시
-            if size == "1792x1024" or "16:9" in size:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. The width MUST be 1.78 times the height. Target dimensions: 1920x1080 pixels or 1280x720 pixels. This is MANDATORY for YouTube video format. DO NOT generate square or portrait images."
-                target_width, target_height = 1280, 720
-            elif size == "1024x1792" or "9:16" in size:
+            # 사이즈에 따른 비율 결정 - 요청 사이즈 파싱하여 자동 감지
+            is_portrait = False
+            try:
+                # "1080x1920" 형식에서 width, height 추출
+                if 'x' in size:
+                    req_width, req_height = map(int, size.lower().split('x'))
+                    is_portrait = req_height > req_width  # 세로가 더 크면 portrait
+                    print(f"[DRAMA-STEP4-IMAGE] 파싱된 사이즈: {req_width}x{req_height}, portrait={is_portrait}")
+            except:
+                pass
+
+            # 명시적 키워드 또는 파싱된 비율로 판단
+            if "9:16" in size or is_portrait:
                 aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 9:16 VERTICAL PORTRAIT aspect ratio. The height MUST be 1.78 times the width. Target dimensions: 1080x1920 pixels or 720x1280 pixels. This is MANDATORY for YouTube Shorts format. DO NOT generate square or landscape images."
                 target_width, target_height = 720, 1280
+                print(f"[DRAMA-STEP4-IMAGE] 세로(Portrait/9:16) 모드 선택: {target_width}x{target_height}")
+            elif "16:9" in size or (size == "1792x1024"):
+                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. The width MUST be 1.78 times the height. Target dimensions: 1920x1080 pixels or 1280x720 pixels. This is MANDATORY for YouTube video format. DO NOT generate square or portrait images."
+                target_width, target_height = 1280, 720
+                print(f"[DRAMA-STEP4-IMAGE] 가로(Landscape/16:9) 모드 선택: {target_width}x{target_height}")
             else:
                 aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. Target dimensions: 1920x1080 or 1280x720 pixels. MANDATORY for YouTube."
                 target_width, target_height = 1280, 720
+                print(f"[DRAMA-STEP4-IMAGE] 기본(Landscape/16:9) 모드 선택: {target_width}x{target_height}")
 
             # 프롬프트에 16:9 비율 지시만 추가
             # 스타일은 /api/image/analyze-script에서 이미 지정됨 (스틱맨+애니배경)
@@ -4301,9 +4315,10 @@ def api_generate_image():
                         original_dimensions = f"{img.width}x{img.height}"
                         print(f"[DRAMA-STEP4-IMAGE] 원본 이미지: {original_dimensions}, {original_size/1024:.1f}KB")
 
-                        # 16:9 비율로 리사이즈/크롭 (target_width, target_height 사용)
+                        # 타겟 비율로 리사이즈/크롭 (target_width, target_height 사용)
                         target_ratio = target_width / target_height
                         current_ratio = img.width / img.height
+                        ratio_name = "9:16 (세로)" if target_height > target_width else "16:9 (가로)"
 
                         if abs(current_ratio - target_ratio) > 0.05:  # 비율 차이가 5% 이상이면 크롭
                             if current_ratio > target_ratio:
@@ -4316,9 +4331,9 @@ def api_generate_image():
                                 new_height = int(img.width / target_ratio)
                                 top = (img.height - new_height) // 2
                                 img = img.crop((0, top, img.width, top + new_height))
-                            print(f"[DRAMA-STEP4-IMAGE] 16:9 크롭 완료: {img.width}x{img.height}")
+                            print(f"[DRAMA-STEP4-IMAGE] {ratio_name} 크롭 완료: {img.width}x{img.height}")
 
-                        # 타겟 크기로 리사이즈 (YouTube HD: 1280x720)
+                        # 타겟 크기로 리사이즈 (가로: 1280x720, 세로: 720x1280)
                         if img.width > target_width or img.height > target_height:
                             img = img.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
                             print(f"[DRAMA-STEP4-IMAGE] 리사이즈 완료: {target_width}x{target_height}")
