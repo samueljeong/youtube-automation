@@ -185,8 +185,13 @@ def check_youtube_quota_before_pipeline(channel_id=None):
         def try_quota_check(project_suffix):
             """특정 프로젝트로 할당량 테스트"""
             token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
-            if not token_data or not token_data.get('refresh_token'):
+            if not token_data:
                 return None, f"토큰 없음 (project: {project_suffix or '기본'})"
+            if not token_data.get('refresh_token'):
+                # 디버그: 토큰 데이터의 키 확인
+                print(f"[YOUTUBE-QUOTA-CHECK] 토큰 데이터 키: {list(token_data.keys())}")
+                print(f"[YOUTUBE-QUOTA-CHECK] refresh_token 값: {token_data.get('refresh_token', 'MISSING')[:20] if token_data.get('refresh_token') else 'EMPTY/NONE'}...")
+                return None, f"refresh_token 없음 (project: {project_suffix or '기본'})"
 
             # 토큰 로드 (DB 저장 시 'token' 키 사용, 'access_token'도 지원)
             creds = Credentials(
