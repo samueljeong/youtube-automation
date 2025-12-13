@@ -3948,73 +3948,103 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'geo_bypass': True,
+            'socket_timeout': 30,
         }
 
         url = f"https://www.youtube.com/shorts/{video_id}"
 
-        # 전략 1: Android 클라이언트로 먼저 시도 (쿠키 없이)
-        ydl_opts_android = {
-            **base_opts,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android'],
-                }
-            },
-            'http_headers': {
-                'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 12; Pixel 6)',
-            },
-        }
-
-        print(f"[SHORTS] 다운로드 시작 (Android 클라이언트): {url}")
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts_android) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if info:
-                    for ext in ['mp4', 'webm', 'mkv']:
-                        check_path = os.path.join(output_dir, f"{video_id}.{ext}")
-                        if os.path.exists(check_path):
-                            print(f"[SHORTS] Android 클라이언트로 다운로드 완료: {check_path}")
-                            return (check_path, None)
-        except Exception as android_error:
-            print(f"[SHORTS] Android 클라이언트 실패: {android_error}")
-
-        # 전략 2: 쿠키와 함께 웹 클라이언트로 시도
+        # YouTube 쿠키 설정 (환경변수에서 읽기)
         youtube_cookies = os.getenv("YOUTUBE_COOKIES", "")
         if youtube_cookies:
             cookies_file = os.path.join(output_dir, "cookies.txt")
             with open(cookies_file, "w") as f:
                 f.write(youtube_cookies)
-
-            # 쿠키 파일 형식 확인 (디버깅)
             cookie_lines = youtube_cookies.strip().split('\n')
-            print(f"[SHORTS] 쿠키 파일: {len(cookie_lines)}줄, 첫 줄: {cookie_lines[0][:50] if cookie_lines else 'empty'}...")
+            print(f"[SHORTS] 쿠키 파일 준비: {len(cookie_lines)}줄")
 
-            ydl_opts_cookies = {
-                **base_opts,
-                'cookiefile': cookies_file,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['web'],
-                    }
-                },
-            }
+        # 다양한 클라이언트 전략 시도
+        strategies = [
+            # 전략 1: iOS 클라이언트 (쿠키 없이)
+            {
+                'name': 'iOS',
+                'opts': {
+                    **base_opts,
+                    'extractor_args': {'youtube': {'player_client': ['ios']}},
+                    'http_headers': {'User-Agent': 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 17_4 like Mac OS X)'},
+                }
+            },
+            # 전략 2: TV Embed 클라이언트 (봇 감지 우회에 효과적)
+            {
+                'name': 'TV Embed',
+                'opts': {
+                    **base_opts,
+                    'extractor_args': {'youtube': {'player_client': ['tv_embedded']}},
+                }
+            },
+            # 전략 3: Android 클라이언트
+            {
+                'name': 'Android',
+                'opts': {
+                    **base_opts,
+                    'extractor_args': {'youtube': {'player_client': ['android']}},
+                    'http_headers': {'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 12; Pixel 6)'},
+                }
+            },
+            # 전략 4: Mobile Web 클라이언트
+            {
+                'name': 'Mobile Web',
+                'opts': {
+                    **base_opts,
+                    'extractor_args': {'youtube': {'player_client': ['mweb']}},
+                    'http_headers': {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1'},
+                }
+            },
+        ]
 
-            print(f"[SHORTS] 웹 클라이언트 + 쿠키로 재시도: {url}")
+        # 쿠키가 있으면 쿠키 버전 전략도 추가
+        if cookies_file:
+            strategies.append({
+                'name': 'Web + Cookies',
+                'opts': {
+                    **base_opts,
+                    'cookiefile': cookies_file,
+                    'extractor_args': {'youtube': {'player_client': ['web']}},
+                }
+            })
+            strategies.append({
+                'name': 'iOS + Cookies',
+                'opts': {
+                    **base_opts,
+                    'cookiefile': cookies_file,
+                    'extractor_args': {'youtube': {'player_client': ['ios']}},
+                }
+            })
 
+        for strategy in strategies:
+            print(f"[SHORTS] 다운로드 시도 ({strategy['name']}): {url}")
             try:
-                with yt_dlp.YoutubeDL(ydl_opts_cookies) as ydl:
+                with yt_dlp.YoutubeDL(strategy['opts']) as ydl:
                     info = ydl.extract_info(url, download=True)
                     if info:
                         for ext in ['mp4', 'webm', 'mkv']:
                             check_path = os.path.join(output_dir, f"{video_id}.{ext}")
                             if os.path.exists(check_path):
-                                print(f"[SHORTS] 쿠키로 다운로드 완료: {check_path}")
+                                print(f"[SHORTS] {strategy['name']} 클라이언트로 다운로드 완료!")
                                 return (check_path, None)
-            except Exception as cookie_error:
-                print(f"[SHORTS] 쿠키 방식도 실패: {cookie_error}")
+            except Exception as e:
+                error_msg = str(e)
+                # 봇 감지가 아닌 다른 에러면 바로 반환
+                if "Sign in to confirm" not in error_msg and "bot" not in error_msg.lower():
+                    if "Private video" in error_msg:
+                        return (None, "비공개 영상입니다")
+                    elif "Video unavailable" in error_msg:
+                        return (None, "영상을 찾을 수 없습니다")
+                    elif "age" in error_msg.lower():
+                        return (None, "연령 제한 영상입니다")
+                print(f"[SHORTS] {strategy['name']} 실패: {error_msg[:80]}...")
 
-        # 파일 검색 (확장자가 다를 수 있음)
+        # 파일 검색 (다운로드되었지만 감지 못한 경우)
         import glob
         files = glob.glob(os.path.join(output_dir, f"{video_id}.*"))
         video_files = [f for f in files if f.endswith(('.mp4', '.webm', '.mkv'))]
@@ -4022,8 +4052,8 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
             print(f"[SHORTS] 다운로드 완료: {video_files[0]}")
             return (video_files[0], None)
 
-        print(f"[SHORTS] 모든 다운로드 방식 실패")
-        return (None, "YouTube 다운로드에 실패했습니다. Android 클라이언트와 쿠키 모두 차단되었습니다.")
+        print(f"[SHORTS] 모든 다운로드 전략 실패")
+        return (None, "YouTube 봇 감지로 모든 다운로드 방식이 차단되었습니다. 잠시 후 다시 시도해주세요.")
 
     except Exception as e:
         error_str = str(e)
