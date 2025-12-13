@@ -4127,13 +4127,8 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
         print(f"[SHORTS] pytubefix로 시도...")
         try:
             from pytubefix import YouTube as PyTube
-            from pytubefix.cli import on_progress
 
-            yt = PyTube(
-                f"https://www.youtube.com/watch?v={video_id}",
-                on_progress_callback=on_progress,
-                use_po_token=True  # Proof of Origin token 사용
-            )
+            yt = PyTube(f"https://www.youtube.com/watch?v={video_id}")
 
             # 720p 이하 스트림 선택
             stream = yt.streams.filter(
