@@ -483,7 +483,13 @@ def load_youtube_token_from_db(channel_id='default', project_suffix=''):
     Args:
         channel_id: YouTube 채널 ID (없으면 'default')
         project_suffix: 프로젝트 접미사 ('_2' 등, 할당량 failover용)
+
+    Note:
+        백업 프로젝트(_2)의 경우, 해당 채널의 토큰이 없으면
+        동일 Google 계정의 다른 채널 토큰을 대신 사용합니다.
+        (동일 계정의 채널들은 OAuth 토큰을 공유할 수 있음)
     """
+    original_channel_id = channel_id
     # 프로젝트 접미사가 있으면 channel_id에 추가
     if project_suffix:
         channel_id = f"{channel_id}{project_suffix}"
@@ -497,6 +503,23 @@ def load_youtube_token_from_db(channel_id='default', project_suffix=''):
             cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = ?', (channel_id,))
 
         row = cursor.fetchone()
+
+        # ===== 백업 프로젝트 Fallback 로직 =====
+        # 해당 채널의 _2 토큰이 없으면, 아무 _2 토큰이나 사용
+        # (동일 Google 계정의 모든 채널은 같은 OAuth 토큰으로 접근 가능)
+        if not row and project_suffix:
+            print(f"[YOUTUBE-TOKEN] {channel_id} 토큰 없음, 다른 {project_suffix} 토큰 검색 중...")
+            if USE_POSTGRES:
+                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE %s ORDER BY updated_at DESC LIMIT 1",
+                              (f'%{project_suffix}',))
+            else:
+                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE ? ORDER BY updated_at DESC LIMIT 1",
+                              (f'%{project_suffix}',))
+            row = cursor.fetchone()
+            if row:
+                fallback_id = row['user_id'] if USE_POSTGRES else row[0]
+                print(f"[YOUTUBE-TOKEN] Fallback 토큰 발견: {fallback_id} → {original_channel_id} 채널에 사용")
+
         conn.close()
 
         if row:
