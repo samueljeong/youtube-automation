@@ -3928,15 +3928,21 @@ def api_my_channel_analysis():
 # YouTube Shorts → 이미지 프롬프트 생성 API
 # =====================================================
 
-def download_shorts_video(video_id: str, output_dir: str) -> Optional[str]:
-    """yt-dlp Python 라이브러리로 YouTube Shorts 다운로드"""
+def download_shorts_video(video_id: str, output_dir: str) -> tuple:
+    """yt-dlp Python 라이브러리로 YouTube Shorts 다운로드
+
+    Returns:
+        tuple: (video_path, error_message)
+               성공 시: (경로, None)
+               실패 시: (None, 에러메시지)
+    """
     output_template = os.path.join(output_dir, f"{video_id}.%(ext)s")
     cookies_file = None
 
     try:
         import yt_dlp
 
-        ydl_opts = {
+        base_opts = {
             'format': 'best[height<=1080]',
             'outtmpl': output_template,
             'noplaylist': True,
@@ -3944,44 +3950,98 @@ def download_shorts_video(video_id: str, output_dir: str) -> Optional[str]:
             'no_warnings': True,
         }
 
-        # YouTube 쿠키 설정 (환경변수에서 읽기)
+        url = f"https://www.youtube.com/shorts/{video_id}"
+
+        # 전략 1: Android 클라이언트로 먼저 시도 (쿠키 없이)
+        ydl_opts_android = {
+            **base_opts,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 12; Pixel 6)',
+            },
+        }
+
+        print(f"[SHORTS] 다운로드 시작 (Android 클라이언트): {url}")
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts_android) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if info:
+                    for ext in ['mp4', 'webm', 'mkv']:
+                        check_path = os.path.join(output_dir, f"{video_id}.{ext}")
+                        if os.path.exists(check_path):
+                            print(f"[SHORTS] Android 클라이언트로 다운로드 완료: {check_path}")
+                            return (check_path, None)
+        except Exception as android_error:
+            print(f"[SHORTS] Android 클라이언트 실패: {android_error}")
+
+        # 전략 2: 쿠키와 함께 웹 클라이언트로 시도
         youtube_cookies = os.getenv("YOUTUBE_COOKIES", "")
         if youtube_cookies:
-            # 쿠키 내용을 임시 파일로 저장
             cookies_file = os.path.join(output_dir, "cookies.txt")
             with open(cookies_file, "w") as f:
                 f.write(youtube_cookies)
-            ydl_opts['cookiefile'] = cookies_file
-            print(f"[SHORTS] YouTube 쿠키 사용")
 
-        url = f"https://www.youtube.com/shorts/{video_id}"
-        print(f"[SHORTS] 다운로드 시작: {url}")
+            # 쿠키 파일 형식 확인 (디버깅)
+            cookie_lines = youtube_cookies.strip().split('\n')
+            print(f"[SHORTS] 쿠키 파일: {len(cookie_lines)}줄, 첫 줄: {cookie_lines[0][:50] if cookie_lines else 'empty'}...")
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if info:
-                # 다운로드된 파일 경로 찾기
-                for ext in ['mp4', 'webm', 'mkv']:
-                    check_path = os.path.join(output_dir, f"{video_id}.{ext}")
-                    if os.path.exists(check_path):
-                        print(f"[SHORTS] 다운로드 완료: {check_path}")
-                        return check_path
+            ydl_opts_cookies = {
+                **base_opts,
+                'cookiefile': cookies_file,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web'],
+                    }
+                },
+            }
+
+            print(f"[SHORTS] 웹 클라이언트 + 쿠키로 재시도: {url}")
+
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts_cookies) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    if info:
+                        for ext in ['mp4', 'webm', 'mkv']:
+                            check_path = os.path.join(output_dir, f"{video_id}.{ext}")
+                            if os.path.exists(check_path):
+                                print(f"[SHORTS] 쿠키로 다운로드 완료: {check_path}")
+                                return (check_path, None)
+            except Exception as cookie_error:
+                print(f"[SHORTS] 쿠키 방식도 실패: {cookie_error}")
 
         # 파일 검색 (확장자가 다를 수 있음)
         import glob
         files = glob.glob(os.path.join(output_dir, f"{video_id}.*"))
-        if files:
-            print(f"[SHORTS] 다운로드 완료: {files[0]}")
-            return files[0]
+        video_files = [f for f in files if f.endswith(('.mp4', '.webm', '.mkv'))]
+        if video_files:
+            print(f"[SHORTS] 다운로드 완료: {video_files[0]}")
+            return (video_files[0], None)
 
-        print(f"[SHORTS] 다운로드 파일을 찾을 수 없음")
-        return None
+        print(f"[SHORTS] 모든 다운로드 방식 실패")
+        return (None, "YouTube 다운로드에 실패했습니다. Android 클라이언트와 쿠키 모두 차단되었습니다.")
 
     except Exception as e:
-        print(f"[SHORTS] 다운로드 오류: {e}")
+        error_str = str(e)
+        print(f"[SHORTS] 다운로드 오류: {error_str}")
         import traceback
         traceback.print_exc()
-        return None
+
+        # 에러 타입에 따른 메시지 분류
+        if "Sign in to confirm" in error_str or "bot" in error_str.lower():
+            return (None, "YouTube 봇 감지로 차단되었습니다. YOUTUBE_COOKIES 환경변수를 업데이트해주세요.")
+        elif "Private video" in error_str:
+            return (None, "비공개 영상입니다")
+        elif "Video unavailable" in error_str:
+            return (None, "영상을 찾을 수 없습니다")
+        elif "age" in error_str.lower():
+            return (None, "연령 제한 영상입니다. 로그인이 필요합니다.")
+        else:
+            return (None, f"다운로드 실패: {error_str[:100]}")
 
 
 def extract_frames_by_scene(video_path: str, output_dir: str, threshold: float = 0.3) -> List[Dict[str, Any]]:
@@ -4318,12 +4378,12 @@ def shorts_to_prompts():
 
         # 1. 영상 다운로드
         print(f"[SHORTS] 영상 다운로드 중...")
-        video_path = download_shorts_video(video_id, temp_dir)
+        video_path, download_error = download_shorts_video(video_id, temp_dir)
 
         if not video_path:
             return jsonify({
                 "success": False,
-                "message": "영상 다운로드에 실패했습니다. 영상이 비공개이거나 지역 제한이 있을 수 있습니다."
+                "message": download_error or "영상 다운로드에 실패했습니다."
             }), 400
 
         # 2. 프레임 추출 (모드에 따라 다른 방식 사용)
