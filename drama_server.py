@@ -12322,11 +12322,19 @@ def api_image_generate_assets_zip():
 
             return result
 
-        def split_by_meaning_fallback(text, max_chars=20, lang='ko'):
-            """GPT 실패 시 폴백: 의미 단위로 텍스트 분리"""
-            # 분리 우선순위: 쉼표 > 조사+공백 > 접속부사 > 강제 분리
+        def split_by_meaning_fallback(text, max_chars=35, lang='ko'):
+            """GPT 실패 시 폴백: 의미 단위로 텍스트 분리
+
+            분리 우선순위 (한국어):
+            1. 쉼표 (,)
+            2. 접속사/연결어미 (하지만, 그래서, 그리고, ~해서, ~하고)
+            3. 조사 (은/는/이/가 등) - 최소 15글자 이상일 때만
+            4. 공백
+            5. 강제 분리
+            """
             chunks = []
             remaining = text.strip()
+            min_chunk_len = 15  # 최소 청크 길이 (이보다 짧으면 분리 안 함)
 
             while remaining:
                 if len(remaining) <= max_chars:
@@ -12335,53 +12343,62 @@ def api_image_generate_assets_zip():
 
                 # 최대 길이 내에서 분리점 찾기
                 search_range = remaining[:max_chars + 5]  # 약간 여유
+                best_split = None
 
-                # 1. 쉼표에서 분리 (한국어: , / 일본어: 、)
+                # 1. 쉼표에서 분리 (가장 자연스러운 분리점)
                 if lang == 'ja':
                     comma_pos = max(search_range.rfind(','), search_range.rfind('、'))
                 else:
                     comma_pos = search_range.rfind(',')
-                if comma_pos > 5:
-                    chunks.append(remaining[:comma_pos + 1].strip())
-                    remaining = remaining[comma_pos + 1:].strip()
-                    continue
+                if comma_pos >= min_chunk_len:
+                    best_split = comma_pos + 1
 
-                # 2. 조사/접속사에서 분리 (언어별)
-                if lang == 'ja':
-                    # 일본어: 조사(は/が/を/に/で/と/の/へ/より/から/まで) 뒤에서 분리
-                    patterns = [
-                        r'(.{5,}?(?:は|が|を|に|で|と|の|へ|より|から|まで|けど|ので|のに|ても|たら|なら))',
-                    ]
-                else:
-                    # 한국어: 조사 + 공백에서 분리
-                    patterns = [
-                        r'(.{5,}?(?:은|는|이|가|을|를|에서|에게|으로|로|와|과|의|도|만|까지|부터|처럼|보다))\s',
-                        r'(.{5,}?(?:하고|하면|하지만|그리고|그래서|하여|해서|했고|했지만))\s',
-                    ]
-                found = False
-                for pattern in patterns:
-                    match = re.search(pattern, search_range)
-                    if match and len(match.group(1)) <= max_chars:
-                        split_pos = match.end(1)
-                        chunks.append(remaining[:split_pos].strip())
-                        remaining = remaining[split_pos:].strip()
-                        found = True
-                        break
+                # 2. 접속사/연결어미에서 분리 (쉼표 없으면)
+                if best_split is None:
+                    if lang == 'ja':
+                        connective_patterns = [
+                            r'(.{10,}?(?:けど|ので|のに|ても|たら|なら|から|まで))',
+                        ]
+                    else:
+                        # 한국어: 접속사/연결어미 뒤에서 분리 (더 자연스러운 끊김점)
+                        connective_patterns = [
+                            r'(.{12,}?(?:하지만|그러나|그래서|그리고|따라서|그런데|그러면|하여|해서|했고|했지만|하고|되어|되고|인데|지만))\s',
+                        ]
+                    for pattern in connective_patterns:
+                        match = re.search(pattern, search_range)
+                        if match and len(match.group(1)) <= max_chars:
+                            best_split = match.end(1)
+                            break
 
-                if found:
-                    continue
+                # 3. 조사에서 분리 (최소 15글자 이상일 때만 - 덜 공격적)
+                if best_split is None:
+                    if lang == 'ja':
+                        particle_patterns = [
+                            r'(.{15,}?(?:は|が|を|に|で|と|の|へ|より))',
+                        ]
+                    else:
+                        # 한국어: 조사 + 공백에서 분리 (최소 15글자 확보)
+                        particle_patterns = [
+                            r'(.{15,}?(?:은|는|이|가|을|를|에서|에게|으로|로|와|과))\s',
+                        ]
+                    for pattern in particle_patterns:
+                        match = re.search(pattern, search_range)
+                        if match and len(match.group(1)) <= max_chars:
+                            best_split = match.end(1)
+                            break
 
-                # 3. 공백에서 분리 (일본어는 스킵)
-                if lang != 'ja':
+                # 4. 공백에서 분리 (일본어는 스킵)
+                if best_split is None and lang != 'ja':
                     space_pos = search_range[:max_chars].rfind(' ')
-                    if space_pos > 5:
-                        chunks.append(remaining[:space_pos].strip())
-                        remaining = remaining[space_pos:].strip()
-                        continue
+                    if space_pos >= min_chunk_len:
+                        best_split = space_pos
 
-                # 4. 강제 분리 (max_chars에서 자르기)
-                chunks.append(remaining[:max_chars].strip())
-                remaining = remaining[max_chars:].strip()
+                # 5. 강제 분리 (위에서 찾지 못함)
+                if best_split is None:
+                    best_split = max_chars
+
+                chunks.append(remaining[:best_split].strip())
+                remaining = remaining[best_split:].strip()
 
             return chunks
 

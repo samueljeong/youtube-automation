@@ -151,9 +151,9 @@ SUBTITLE = {
     # ★ 청킹 설정 (문장을 짧은 자막 단위로 분리)
     'chunking': {
         'enabled': True,            # 청킹 활성화
-        'min_chars': 8,             # 청크 최소 글자 수
-        'max_chars': 20,            # 청크 최대 글자 수
-        'min_last_line_chars': 8,   # 마지막 줄 최소 글자 (짧으면 이전 줄과 합침)
+        'min_chars': 10,            # 청크 최소 글자 수 (8→10)
+        'max_chars': 35,            # 청크 최대 글자 수 (20→35, 더 자연스러운 문장 단위)
+        'min_last_line_chars': 10,  # 마지막 줄 최소 글자 (짧으면 이전 줄과 합침)
     },
 
     # 자막 스타일 (ASS 형식)
