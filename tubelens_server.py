@@ -4052,6 +4052,47 @@ def download_shorts_video(video_id: str, output_dir: str) -> tuple:
             print(f"[SHORTS] 다운로드 완료: {video_files[0]}")
             return (video_files[0], None)
 
+        # Fallback: cobalt.tools API 사용
+        print(f"[SHORTS] yt-dlp 실패, cobalt.tools API로 시도...")
+        try:
+            import requests
+            cobalt_response = requests.post(
+                "https://api.cobalt.tools/",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "url": url,
+                    "videoQuality": "720",
+                    "filenameStyle": "basic",
+                },
+                timeout=30
+            )
+
+            if cobalt_response.status_code == 200:
+                cobalt_data = cobalt_response.json()
+                if cobalt_data.get("status") == "tunnel" or cobalt_data.get("status") == "redirect":
+                    download_url = cobalt_data.get("url")
+                    if download_url:
+                        print(f"[SHORTS] cobalt.tools에서 다운로드 URL 획득")
+                        # 파일 다운로드
+                        video_response = requests.get(download_url, timeout=60, stream=True)
+                        if video_response.status_code == 200:
+                            output_path = os.path.join(output_dir, f"{video_id}.mp4")
+                            with open(output_path, "wb") as f:
+                                for chunk in video_response.iter_content(chunk_size=8192):
+                                    f.write(chunk)
+                            if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                                print(f"[SHORTS] cobalt.tools로 다운로드 완료: {output_path}")
+                                return (output_path, None)
+                elif cobalt_data.get("status") == "error":
+                    print(f"[SHORTS] cobalt.tools 에러: {cobalt_data.get('error', {}).get('code', 'unknown')}")
+            else:
+                print(f"[SHORTS] cobalt.tools 응답 에러: {cobalt_response.status_code}")
+        except Exception as cobalt_error:
+            print(f"[SHORTS] cobalt.tools 실패: {cobalt_error}")
+
         print(f"[SHORTS] 모든 다운로드 전략 실패")
         return (None, "YouTube 봇 감지로 모든 다운로드 방식이 차단되었습니다. 잠시 후 다시 시도해주세요.")
 
