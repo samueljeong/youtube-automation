@@ -8215,8 +8215,8 @@ def youtube_auth():
                 "error": "YouTube API 인증 정보가 설정되지 않았습니다. YOUTUBE_CLIENT_ID/GOOGLE_CLIENT_ID와 YOUTUBE_CLIENT_SECRET/GOOGLE_CLIENT_SECRET 환경 변수를 설정해주세요."
             })
 
-        # 이미 인증된 토큰이 있는지 확인 (데이터베이스에서)
-        token_data = load_youtube_token_from_db()
+        # 이미 인증된 토큰이 있는지 확인 (데이터베이스에서) - 해당 프로젝트의 토큰만 확인
+        token_data = load_youtube_token_from_db(project_suffix=project_suffix)
         if token_data and token_data.get('refresh_token'):
             try:
                 from google.auth.transport.requests import Request
