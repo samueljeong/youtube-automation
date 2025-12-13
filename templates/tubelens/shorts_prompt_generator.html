@@ -402,12 +402,27 @@
   <main class="main-container">
     <!-- Input Panel -->
     <section class="input-panel">
-      <h2>YouTube Shorts URL 입력</h2>
+      <h2>🎬 Shorts 영상 업로드</h2>
+      <p style="color: #666; font-size: 0.9rem; margin-bottom: 16px;">
+        YouTube Shorts 영상 파일을 업로드하면 씬별 이미지 프롬프트를 생성합니다.<br>
+        <span style="color: #e53e3e;">💡 팁: 브라우저 확장 프로그램으로 Shorts를 다운로드한 후 업로드하세요</span>
+      </p>
       <div class="input-row">
-        <div class="input-wrap">
-          <label for="shorts-url">Shorts URL</label>
-          <input type="text" id="shorts-url" class="text-input"
-                 placeholder="https://youtube.com/shorts/xxxxxxx 또는 영상 ID">
+        <div class="input-wrap" style="min-width: 100%;">
+          <label for="video-upload">영상 파일 (MP4, WebM, MOV)</label>
+          <div id="video-drop-zone" style="border: 2px dashed #e1e5eb; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s;">
+            <input type="file" id="video-upload" accept="video/mp4,video/webm,video/quicktime,video/*" style="display: none;">
+            <div id="video-drop-text">
+              <span style="font-size: 2rem;">🎥</span>
+              <p style="margin: 10px 0 0; color: #666;">클릭하거나 영상 파일을 드래그하세요</p>
+              <p style="margin: 5px 0 0; color: #999; font-size: 0.8rem;">최대 100MB</p>
+            </div>
+            <div id="video-preview-container" style="display: none;">
+              <video id="preview-video" style="max-width: 100%; max-height: 300px; border-radius: 8px;" controls></video>
+              <p id="video-file-name" style="margin-top: 10px; color: #333; font-weight: 500;"></p>
+              <button id="btn-change-video" type="button" style="margin-top: 8px; padding: 6px 12px; background: #e1e5eb; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">다른 파일 선택</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="input-row">
@@ -440,7 +455,7 @@
             <input type="checkbox" id="refine">
             <label for="refine">GPT로 프롬프트 정제 (선택)</label>
           </div>
-          <button id="btn-analyze" class="btn-analyze">분석 시작</button>
+          <button id="btn-analyze" class="btn-analyze" disabled>분석 시작</button>
         </div>
       </div>
     </section>
@@ -556,7 +571,15 @@
   </main>
 
   <script>
-    const shortsUrlInput = document.getElementById('shorts-url');
+    // 비디오 업로드 관련 요소
+    const videoDropZone = document.getElementById('video-drop-zone');
+    const videoUpload = document.getElementById('video-upload');
+    const videoDropText = document.getElementById('video-drop-text');
+    const videoPreviewContainer = document.getElementById('video-preview-container');
+    const previewVideo = document.getElementById('preview-video');
+    const videoFileName = document.getElementById('video-file-name');
+    const btnChangeVideo = document.getElementById('btn-change-video');
+
     const modeSelect = document.getElementById('mode');
     const intervalSelect = document.getElementById('interval');
     const intervalGroup = document.getElementById('interval-group');
@@ -575,6 +598,62 @@
     const btnCopyAll = document.getElementById('btn-copy-all');
 
     let analysisResults = null;
+    let selectedVideoFile = null;
+
+    // 비디오 드래그 앤 드롭
+    videoDropZone.addEventListener('click', (e) => {
+      if (e.target !== btnChangeVideo) {
+        videoUpload.click();
+      }
+    });
+
+    videoDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      videoDropZone.classList.add('dragover');
+    });
+
+    videoDropZone.addEventListener('dragleave', () => {
+      videoDropZone.classList.remove('dragover');
+    });
+
+    videoDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      videoDropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type.startsWith('video/')) {
+        handleVideoSelect(files[0]);
+      } else {
+        showError('비디오 파일만 업로드할 수 있습니다');
+      }
+    });
+
+    videoUpload.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleVideoSelect(e.target.files[0]);
+      }
+    });
+
+    btnChangeVideo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      videoUpload.click();
+    });
+
+    function handleVideoSelect(file) {
+      // 파일 크기 체크 (100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        showError('파일 크기는 100MB 이하여야 합니다');
+        return;
+      }
+
+      selectedVideoFile = file;
+      const videoURL = URL.createObjectURL(file);
+      previewVideo.src = videoURL;
+      videoFileName.textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + 'MB)';
+      videoDropText.style.display = 'none';
+      videoPreviewContainer.style.display = 'block';
+      btnAnalyze.disabled = false;
+      hideError();
+    }
 
     // 모드 변경 시 옵션 토글
     modeSelect.addEventListener('change', () => {
@@ -587,11 +666,10 @@
       }
     });
 
-    // 분석 시작
+    // 분석 시작 (파일 업로드 방식)
     btnAnalyze.addEventListener('click', async () => {
-      const url = shortsUrlInput.value.trim();
-      if (!url) {
-        showError('Shorts URL을 입력해주세요');
+      if (!selectedVideoFile) {
+        showError('영상 파일을 선택해주세요');
         return;
       }
 
@@ -605,7 +683,7 @@
       let progress = 0;
       const mode = modeSelect.value;
       const progressSteps = [
-        { percent: 10, text: '영상 다운로드 중...' },
+        { percent: 10, text: '영상 업로드 중...' },
         { percent: 30, text: mode === 'scene' ? '씬 변화 감지 중...' : '프레임 추출 중...' },
         { percent: 50, text: 'AI 분석 중...' },
         { percent: 80, text: '프롬프트 생성 중...' }
@@ -622,16 +700,16 @@
       }, 2000);
 
       try {
-        const response = await fetch('/api/tubelens/shorts-to-prompts', {
+        const formData = new FormData();
+        formData.append('video', selectedVideoFile);
+        formData.append('mode', modeSelect.value);
+        formData.append('interval', intervalSelect.value);
+        formData.append('threshold', thresholdSelect.value);
+        formData.append('refine', refineCheckbox.checked);
+
+        const response = await fetch('/api/tubelens/video-to-prompts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: url,
-            mode: mode,
-            interval: parseInt(intervalSelect.value),
-            threshold: parseFloat(thresholdSelect.value),
-            refine: refineCheckbox.checked
-          })
+          body: formData
         });
 
         clearInterval(progressInterval);
@@ -732,13 +810,6 @@
       div.textContent = text;
       return div.innerHTML;
     }
-
-    // Enter 키로 분석 시작
-    shortsUrlInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        btnAnalyze.click();
-      }
-    });
 
     // ========== 이미지 → 프롬프트 분석 ==========
     const dropZone = document.getElementById('drop-zone');

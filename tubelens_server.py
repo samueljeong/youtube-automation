@@ -4596,6 +4596,155 @@ def shorts_to_prompts():
                 print(f"[SHORTS] 임시 파일 정리 실패: {cleanup_error}")
 
 
+@tubelens_bp.route('/api/tubelens/video-to-prompts', methods=['POST'])
+def video_to_prompts():
+    """업로드된 비디오 파일을 분석하여 씬별 이미지 프롬프트 생성
+
+    Request:
+        multipart/form-data with:
+        - video: 비디오 파일 (MP4, WebM, MOV)
+        - mode: "scene" (씬 기반) 또는 "interval" (시간 기반)
+        - interval: 시간 기반 모드일 때 초 단위 (기본값: 5)
+        - threshold: 씬 기반 모드일 때 감지 민감도 (기본값: 0.3)
+        - refine: GPT로 프롬프트 정제 여부 (기본값: false)
+
+    Response:
+        {
+            "success": true,
+            "duration": 58,
+            "mode": "scene",
+            "frameCount": 5,
+            "prompts": [
+                {"time": 0, "prompt": "..."},
+                {"time": 3.5, "prompt": "..."}
+            ]
+        }
+    """
+    temp_dir = None
+
+    try:
+        # 비디오 파일 확인
+        if 'video' not in request.files:
+            return jsonify({
+                "success": False,
+                "message": "비디오 파일이 필요합니다"
+            }), 400
+
+        video_file = request.files['video']
+        if not video_file.filename:
+            return jsonify({
+                "success": False,
+                "message": "비디오 파일을 선택해주세요"
+            }), 400
+
+        # 파라미터 파싱
+        mode = request.form.get("mode", "scene")
+        interval = int(request.form.get("interval", 5))
+        threshold = float(request.form.get("threshold", 0.3))
+        refine_str = request.form.get("refine", "false")
+        refine = refine_str.lower() in ["true", "1", "yes"]
+
+        # 파라미터 제한
+        interval = max(2, min(30, interval))
+        threshold = max(0.1, min(0.5, threshold))
+
+        print(f"[VIDEO-PROMPT] 분석 시작: {video_file.filename}, 모드: {mode}")
+
+        # 임시 디렉토리 생성
+        temp_dir = tempfile.mkdtemp(prefix="video_prompt_")
+
+        # 비디오 파일 저장
+        video_ext = os.path.splitext(video_file.filename)[1] or '.mp4'
+        video_path = os.path.join(temp_dir, f"uploaded_video{video_ext}")
+        video_file.save(video_path)
+
+        file_size = os.path.getsize(video_path)
+        print(f"[VIDEO-PROMPT] 파일 저장 완료: {video_path} ({file_size / 1024 / 1024:.1f}MB)")
+
+        # 파일 크기 제한 (100MB)
+        if file_size > 100 * 1024 * 1024:
+            return jsonify({
+                "success": False,
+                "message": "파일 크기는 100MB 이하여야 합니다"
+            }), 400
+
+        # 프레임 추출 (모드에 따라 다른 방식 사용)
+        print(f"[VIDEO-PROMPT] 프레임 추출 중... (모드: {mode})")
+        if mode == "interval":
+            frames = extract_frames_by_interval(video_path, temp_dir, interval)
+        else:
+            frames = extract_frames_by_scene(video_path, temp_dir, threshold)
+
+        if not frames:
+            return jsonify({
+                "success": False,
+                "message": "프레임 추출에 실패했습니다"
+            }), 500
+
+        # 각 프레임 분석
+        print(f"[VIDEO-PROMPT] {len(frames)}개 프레임 분석 중...")
+        prompts = []
+
+        for frame in frames:
+            print(f"[VIDEO-PROMPT] 프레임 {frame['index']} 분석 중 ({frame['time']}초)...")
+
+            raw_prompt = analyze_frame_with_gemini(frame["path"])
+
+            if raw_prompt:
+                # GPT로 정제 (옵션)
+                if refine:
+                    final_prompt = refine_prompt_with_gpt(raw_prompt)
+                else:
+                    final_prompt = raw_prompt
+
+                prompts.append({
+                    "time": frame["time"],
+                    "prompt": final_prompt
+                })
+            else:
+                prompts.append({
+                    "time": frame["time"],
+                    "prompt": "[분석 실패]"
+                })
+
+        # 영상 길이 계산
+        probe_cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "json", video_path
+        ]
+        probe_result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        probe_data = json.loads(probe_result.stdout)
+        duration = float(probe_data.get("format", {}).get("duration", 0))
+
+        print(f"[VIDEO-PROMPT] 분석 완료: {len(prompts)}개 프롬프트 생성")
+
+        return jsonify({
+            "success": True,
+            "duration": round(duration, 1),
+            "mode": mode,
+            "frameCount": len(prompts),
+            "prompts": prompts
+        })
+
+    except Exception as e:
+        print(f"[VIDEO-PROMPT] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+    finally:
+        # 임시 파일 정리
+        if temp_dir and os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as cleanup_error:
+                print(f"[VIDEO-PROMPT] 임시 파일 정리 실패: {cleanup_error}")
+
+
 @tubelens_bp.route('/tubelens/shorts-prompt-generator')
 def shorts_prompt_generator_page():
     """Shorts 프롬프트 생성기 페이지"""
