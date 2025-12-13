@@ -8041,9 +8041,24 @@ def youtube_auth():
         from google.oauth2.credentials import Credentials
         import json as json_module
 
-        # 환경 변수에서 OAuth 클라이언트 정보 가져오기
-        # 할당량 초과 시 자동으로 _2 프로젝트로 전환
-        client_id, client_secret, project_suffix = get_youtube_credentials()
+        data = request.get_json() or {}
+        force_project = data.get('forceProject', '')  # '', '_2' 또는 'backup'
+
+        # 강제 프로젝트 지정 시 해당 프로젝트 사용
+        if force_project in ['_2', 'backup']:
+            client_id = os.getenv('YOUTUBE_CLIENT_ID_2')
+            client_secret = os.getenv('YOUTUBE_CLIENT_SECRET_2')
+            project_suffix = '_2'
+            print(f"[YOUTUBE-AUTH] 백업 프로젝트(_2) 강제 인증 요청")
+        elif force_project == 'default':
+            client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
+            client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+            project_suffix = ''
+            print(f"[YOUTUBE-AUTH] 기본 프로젝트 강제 인증 요청")
+        else:
+            # 환경 변수에서 OAuth 클라이언트 정보 가져오기
+            # 할당량 초과 시 자동으로 _2 프로젝트로 전환
+            client_id, client_secret, project_suffix = get_youtube_credentials()
 
         # Render 환경에서는 반드시 HTTPS URL 사용
         redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI')
@@ -8124,7 +8139,8 @@ def youtube_auth():
             'state': state,
             'redirect_uri': redirect_uri,
             'client_id': client_id,
-            'client_secret': client_secret
+            'client_secret': client_secret,
+            'project_suffix': project_suffix  # 프로젝트 구분 (_2 등)
         })
 
         return jsonify({
@@ -8269,8 +8285,8 @@ def youtube_callback():
         account_id = oauth_state.get('account_id', '').strip()
         token_key = account_id if account_id else channel_id
 
-        # 현재 사용 중인 프로젝트 접미사 확인 (할당량 초과 시 _2)
-        _, _, project_suffix = get_youtube_credentials()
+        # OAuth state에서 프로젝트 접미사 확인 (인증 시작 시 저장됨)
+        project_suffix = oauth_state.get('project_suffix', '')
         save_youtube_token_to_db(token_data, channel_id=token_key, channel_info=channel_info, project_suffix=project_suffix)
         print(f"[YOUTUBE-CALLBACK] 토큰 저장 완료 (key: {token_key}, project: {'기본' if not project_suffix else project_suffix})")
 
@@ -8323,6 +8339,52 @@ def youtube_auth_status():
     except Exception as e:
         print(f"[YOUTUBE-AUTH-STATUS] 오류: {e}")
         return jsonify({"authenticated": False, "error": str(e)})
+
+
+@app.route('/api/drama/youtube-projects-status')
+def youtube_projects_status():
+    """
+    두 YouTube 프로젝트(기본/_2)의 인증 상태 확인
+    할당량 failover 기능용
+    """
+    try:
+        # 기본 프로젝트 확인
+        default_token = load_youtube_token_from_db('default', '')
+        default_has_token = bool(default_token and default_token.get('refresh_token'))
+
+        # _2 프로젝트 확인
+        backup_token = load_youtube_token_from_db('default', '_2')
+        backup_has_token = bool(backup_token and backup_token.get('refresh_token'))
+
+        # 현재 사용 중인 프로젝트
+        _, _, current_suffix = get_youtube_credentials()
+        current_project = '기본' if not current_suffix else current_suffix
+
+        # _2 환경변수 설정 여부
+        has_backup_credentials = bool(os.getenv('YOUTUBE_CLIENT_ID_2'))
+
+        return jsonify({
+            "ok": True,
+            "defaultProject": {
+                "authenticated": default_has_token,
+                "name": "기본"
+            },
+            "backupProject": {
+                "authenticated": backup_has_token,
+                "name": "_2",
+                "configured": has_backup_credentials
+            },
+            "currentProject": current_project,
+            "quotaExceeded": _youtube_quota_exceeded,
+            "bothAuthenticated": default_has_token and backup_has_token,
+            "message": "두 프로젝트 모두 인증됨 - 자동 failover 가능" if (default_has_token and backup_has_token) else
+                       "백업 프로젝트 인증 필요" if (default_has_token and not backup_has_token and has_backup_credentials) else
+                       "기본 프로젝트 인증 필요" if not default_has_token else
+                       "백업 프로젝트 미설정 (YOUTUBE_CLIENT_ID_2 환경변수 필요)"
+        })
+    except Exception as e:
+        print(f"[YOUTUBE-PROJECTS-STATUS] 오류: {e}")
+        return jsonify({"ok": False, "error": str(e)})
 
 
 @app.route('/api/drama/youtube-channels')
