@@ -188,9 +188,9 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             if not token_data or not token_data.get('refresh_token'):
                 return None, f"토큰 없음 (project: {project_suffix or '기본'})"
 
-            # 토큰 로드
+            # 토큰 로드 (DB 저장 시 'token' 키 사용, 'access_token'도 지원)
             creds = Credentials(
-                token=token_data.get('access_token'),
+                token=token_data.get('token') or token_data.get('access_token'),
                 refresh_token=token_data.get('refresh_token'),
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=os.getenv('YOUTUBE_CLIENT_ID_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID'),
@@ -266,11 +266,19 @@ def check_youtube_quota_before_pipeline(channel_id=None):
                     ok, err = try_quota_check('_2')
                     if ok:
                         return True, '_2', None
+                    else:
+                        # _2 체크 실패 (예외 없이 반환된 경우)
+                        print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 체크 실패: {err}")
+                        if err and 'quota' in str(err).lower():
+                            return False, '', "두 프로젝트 모두 YouTube API 할당량 초과"
+                        return False, '', f"_2 프로젝트 오류: {err}"
                 except Exception as e2:
+                    print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 예외: {e2}")
                     if 'quota' in str(e2).lower():
                         return False, '', "두 프로젝트 모두 YouTube API 할당량 초과"
                     return False, '', f"_2 프로젝트 오류: {e2}"
-            return False, '', "YouTube API 할당량 초과. 백업 프로젝트 없음."
+            else:
+                return False, '', "YouTube API 할당량 초과. 백업 프로젝트(_2) 미설정."
 
         return False, '', f"YouTube 할당량 체크 실패: {e}"
 
