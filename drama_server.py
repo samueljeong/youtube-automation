@@ -9939,9 +9939,20 @@ def youtube_upload():
                                 "error": "YouTube 업로드가 실패했습니다. 영상 파일을 확인해주세요."
                             }), 200
                     else:
-                        print(f"[YOUTUBE-UPLOAD][WARN] 영상 정보 조회 실패 - items 없음")
+                        print(f"[YOUTUBE-UPLOAD][ERROR] 영상 정보 조회 실패 - items 없음 (video_id: {video_id})")
+                        print(f"[YOUTUBE-UPLOAD][ERROR] YouTube가 업로드 직후 영상을 삭제했을 수 있습니다.")
+                        return jsonify({
+                            "ok": False,
+                            "error": f"YouTube 업로드 후 영상 확인 실패. 영상이 정책 위반으로 즉시 삭제되었을 수 있습니다. (video_id: {video_id})"
+                        }), 200
                 except Exception as check_error:
-                    print(f"[YOUTUBE-UPLOAD][WARN] 상태 확인 실패 (계속 진행): {check_error}")
+                    print(f"[YOUTUBE-UPLOAD][ERROR] 상태 확인 실패: {check_error}")
+                    import traceback
+                    traceback.print_exc()
+                    return jsonify({
+                        "ok": False,
+                        "error": f"YouTube 업로드 후 상태 확인 실패: {str(check_error)}"
+                    }), 200
 
                 print(f"[YOUTUBE-UPLOAD] 업로드 성공: {video_url}")
 
@@ -21129,7 +21140,7 @@ def api_sheets_check_and_process():
         # ========== 2. 모든 시트에서 처리중 상태 확인 ==========
         # 어떤 시트에서든 처리중이면 새 작업 시작 안함
         for sheet_name in sheet_names:
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
             if rows is None or len(rows) < 3:  # 행1: 채널설정, 행2: 헤더, 행3~: 데이터
                 continue
 
@@ -21186,7 +21197,7 @@ def api_sheets_check_and_process():
         pending_tasks = []  # [(예약시간, 시트순서, 시트이름, 행번호, 행데이터, 채널ID, col_map)]
 
         for sheet_order, sheet_name in enumerate(sheet_names):
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:P")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
             if rows is None or len(rows) < 3:
                 continue
 
