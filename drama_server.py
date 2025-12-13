@@ -92,6 +92,55 @@ VIDEO_JOBS_FILE = 'data/video_jobs.json'
 # cron job이 동시에 여러 worker에서 실행되는 것을 방지
 pipeline_lock = threading.Lock()
 
+# ===== YouTube API 할당량 Failover =====
+# 기본 프로젝트 할당량 초과 시 _2 프로젝트로 전환
+_youtube_quota_exceeded = False  # True면 _2 프로젝트 사용
+_youtube_quota_exceeded_date = None  # 할당량 초과된 날짜 (다음 날 리셋)
+
+def get_youtube_credentials():
+    """현재 사용할 YouTube OAuth 자격증명 반환 (할당량 failover 지원)"""
+    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
+    from datetime import date
+
+    # 날짜가 바뀌면 리셋 (할당량은 매일 초기화됨)
+    today = date.today()
+    if _youtube_quota_exceeded_date and _youtube_quota_exceeded_date != today:
+        print(f"[YOUTUBE-QUOTA] 날짜 변경 감지 - 할당량 리셋 ({_youtube_quota_exceeded_date} → {today})")
+        _youtube_quota_exceeded = False
+        _youtube_quota_exceeded_date = None
+
+    # 할당량 초과 시 _2 프로젝트 사용
+    if _youtube_quota_exceeded:
+        client_id = os.getenv('YOUTUBE_CLIENT_ID_2')
+        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET_2')
+        if client_id and client_secret:
+            print("[YOUTUBE-QUOTA] _2 프로젝트 사용 중 (할당량 초과로 전환됨)")
+            return client_id, client_secret, "_2"
+
+    # 기본 프로젝트
+    client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
+    client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+    return client_id, client_secret, ""
+
+def set_youtube_quota_exceeded():
+    """할당량 초과 플래그 설정 - _2 프로젝트로 전환"""
+    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
+    from datetime import date
+
+    if not _youtube_quota_exceeded:
+        _youtube_quota_exceeded = True
+        _youtube_quota_exceeded_date = date.today()
+        print(f"[YOUTUBE-QUOTA] 할당량 초과 감지! _2 프로젝트로 전환 (날짜: {_youtube_quota_exceeded_date})")
+
+        # _2 프로젝트가 있는지 확인
+        if os.getenv('YOUTUBE_CLIENT_ID_2'):
+            print("[YOUTUBE-QUOTA] _2 프로젝트 발견 - 다음 업로드부터 _2 사용")
+            return True
+        else:
+            print("[YOUTUBE-QUOTA] _2 프로젝트 없음 - 내일까지 대기 필요")
+            return False
+    return True
+
 # YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
 
@@ -198,15 +247,19 @@ def korean_number_to_arabic(text):
     return result
 
 # YouTube 토큰 DB 저장/로드 함수
-def save_youtube_token_to_db(token_data, channel_id=None, channel_info=None):
+def save_youtube_token_to_db(token_data, channel_id=None, channel_info=None, project_suffix=''):
     """YouTube 토큰을 데이터베이스에 저장 (채널별로 저장)
 
     Args:
         token_data: OAuth 토큰 데이터
         channel_id: YouTube 채널 ID (없으면 'default')
         channel_info: 채널 정보 dict (title, thumbnail)
+        project_suffix: 프로젝트 접미사 ('_2' 등, 할당량 failover용)
     """
     user_id = channel_id or 'default'
+    # 프로젝트 접미사가 있으면 user_id에 추가
+    if project_suffix:
+        user_id = f"{user_id}{project_suffix}"
     channel_name = channel_info.get('title', '') if channel_info else ''
     channel_thumbnail = channel_info.get('thumbnail', '') if channel_info else ''
 
@@ -284,12 +337,16 @@ def save_youtube_token_to_db(token_data, channel_id=None, channel_info=None):
         return False
 
 
-def load_youtube_token_from_db(channel_id='default'):
+def load_youtube_token_from_db(channel_id='default', project_suffix=''):
     """YouTube 토큰을 데이터베이스에서 로드
 
     Args:
         channel_id: YouTube 채널 ID (없으면 'default')
+        project_suffix: 프로젝트 접미사 ('_2' 등, 할당량 failover용)
     """
+    # 프로젝트 접미사가 있으면 channel_id에 추가
+    if project_suffix:
+        channel_id = f"{channel_id}{project_suffix}"
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -7985,9 +8042,8 @@ def youtube_auth():
         import json as json_module
 
         # 환경 변수에서 OAuth 클라이언트 정보 가져오기
-        # YOUTUBE_CLIENT_ID가 없으면 GOOGLE_CLIENT_ID를 사용 (같은 Google Cloud Project의 OAuth 클라이언트)
-        client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
-        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+        # 할당량 초과 시 자동으로 _2 프로젝트로 전환
+        client_id, client_secret, project_suffix = get_youtube_credentials()
 
         # Render 환경에서는 반드시 HTTPS URL 사용
         redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI')
@@ -7999,6 +8055,7 @@ def youtube_auth():
                 redirect_uri = redirect_uri.replace('http://', 'https://')
 
         print(f"[YOUTUBE-AUTH] Redirect URI: {redirect_uri}")
+        print(f"[YOUTUBE-AUTH] 사용 프로젝트: {'기본' if not project_suffix else project_suffix}")
 
         if not client_id or not client_secret:
             return jsonify({
@@ -8211,8 +8268,11 @@ def youtube_callback():
         # account_id가 있으면 그걸로 저장, 없으면 channel_id로 저장
         account_id = oauth_state.get('account_id', '').strip()
         token_key = account_id if account_id else channel_id
-        save_youtube_token_to_db(token_data, channel_id=token_key, channel_info=channel_info)
-        print(f"[YOUTUBE-CALLBACK] 토큰 저장 완료 (key: {token_key})")
+
+        # 현재 사용 중인 프로젝트 접미사 확인 (할당량 초과 시 _2)
+        _, _, project_suffix = get_youtube_credentials()
+        save_youtube_token_to_db(token_data, channel_id=token_key, channel_info=channel_info, project_suffix=project_suffix)
+        print(f"[YOUTUBE-CALLBACK] 토큰 저장 완료 (key: {token_key}, project: {'기본' if not project_suffix else project_suffix})")
 
         print(f"[YOUTUBE-CALLBACK] 인증 완료, /image 페이지로 리다이렉트")
         # Image Lab 페이지로 리다이렉트 (인증 완료)
@@ -9158,8 +9218,9 @@ def api_youtube_auth_page():
         from google.oauth2.credentials import Credentials
 
         # 환경 변수에서 OAuth 클라이언트 정보 가져오기
-        client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
-        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+        # 할당량 초과 시 자동으로 _2 프로젝트로 전환
+        client_id, client_secret, project_suffix = get_youtube_credentials()
+        print(f"[YOUTUBE-AUTH-GET] 사용 프로젝트: {'기본' if not project_suffix else project_suffix}")
 
         # Redirect URI 설정 - 기존 콜백 엔드포인트 사용
         redirect_uri = os.getenv('YOUTUBE_REDIRECT_URI')
@@ -9483,14 +9544,18 @@ def youtube_upload():
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
 
-            # DB에서 토큰 로드 (선택된 채널의 토큰 우선)
-            token_data = load_youtube_token_from_db(channel_id) if channel_id else load_youtube_token_from_db()
+            # 현재 사용할 프로젝트 확인 (할당량 초과 시 _2)
+            _, _, project_suffix = get_youtube_credentials()
+            print(f"[YOUTUBE-UPLOAD] 사용 프로젝트: {'기본' if not project_suffix else project_suffix}")
+
+            # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
+            token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
 
             if not token_data or not token_data.get('refresh_token'):
-                print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id})")
+                print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id}, project: {project_suffix or '기본'})")
                 return jsonify({
                     "ok": False,
-                    "error": f"YouTube 토큰이 없습니다. OAuth 로그인이 필요합니다. (channel_id: {channel_id})",
+                    "error": f"YouTube 토큰이 없습니다. OAuth 로그인이 필요합니다. (channel_id: {channel_id}, project: {project_suffix or '기본'})",
                     "needsAuth": True,
                     "channelId": channel_id
                 }), 200
@@ -9760,9 +9825,31 @@ def youtube_upload():
                 "needsAuth": False
             }), 200
         except Exception as upload_error:
+            error_str = str(upload_error).lower()
             print(f"[YOUTUBE-UPLOAD] 업로드 오류: {upload_error}")
             import traceback
             traceback.print_exc()
+
+            # 할당량 초과 감지 및 _2 프로젝트로 전환
+            if 'quota' in error_str or 'quotaexceeded' in error_str:
+                print("[YOUTUBE-UPLOAD] 할당량 초과 감지!")
+                has_fallback = set_youtube_quota_exceeded()
+                if has_fallback:
+                    return jsonify({
+                        "ok": False,
+                        "error": "YouTube API 할당량 초과. 다음 업로드부터 백업 프로젝트(_2)를 사용합니다. 다시 시도해주세요.",
+                        "quotaExceeded": True,
+                        "needsAuth": True,  # _2 프로젝트 재인증 필요
+                        "needsReauth": True
+                    }), 200
+                else:
+                    return jsonify({
+                        "ok": False,
+                        "error": "YouTube API 할당량 초과. 백업 프로젝트가 없습니다. 내일 다시 시도하거나 YOUTUBE_CLIENT_ID_2 환경변수를 설정해주세요.",
+                        "quotaExceeded": True,
+                        "needsAuth": False
+                    }), 200
+
             return jsonify({
                 "ok": False,
                 "error": f"업로드 중 오류 발생: {str(upload_error)}",
