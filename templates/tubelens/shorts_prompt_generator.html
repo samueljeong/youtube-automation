@@ -10,8 +10,7 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f7fa;
-      color: #333;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
     }
 
@@ -20,9 +19,10 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 24px;
-      background: #fff;
-      border-bottom: 1px solid #e1e5eb;
+      padding: 16px 32px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -31,21 +31,42 @@
     .header-left {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
     }
 
     .header-left h1 {
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       font-weight: 700;
-      color: #e53e3e;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .header-badge {
-      font-size: 0.75rem;
-      color: #666;
-      background: #f0f0f0;
+      font-size: 0.7rem;
+      color: #fff;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       padding: 4px 10px;
       border-radius: 20px;
+      font-weight: 600;
     }
 
     .header-right {
@@ -54,215 +75,561 @@
     }
 
     .header-btn {
-      padding: 8px 16px;
+      padding: 10px 20px;
       background: #f5f7fa;
       color: #333;
       text-decoration: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 0.85rem;
       font-weight: 500;
-      transition: all 0.2s;
+      transition: all 0.3s;
     }
 
-    .header-btn:hover { background: #e1e5eb; }
-    .header-btn.home { background: #e53e3e; color: #fff; }
-    .header-btn.home:hover { background: #c53030; }
+    .header-btn:hover {
+      background: #e1e5eb;
+      transform: translateY(-1px);
+    }
+
+    .header-btn.home {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+    }
+
+    .header-btn.home:hover {
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
 
     /* Main Container */
     .main-container {
-      max-width: 1200px;
+      max-width: 900px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 40px 20px;
     }
 
-    /* Input Panel */
-    .input-panel {
-      background: #fff;
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-    }
-
-    .input-panel h2 {
-      font-size: 1.2rem;
-      margin-bottom: 16px;
-      color: #333;
-    }
-
-    .input-row {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-
-    .input-wrap {
-      flex: 1;
-      min-width: 300px;
-    }
-
-    .input-wrap label {
-      display: block;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #666;
-      margin-bottom: 6px;
-    }
-
-    .text-input {
-      width: 100%;
-      padding: 14px 20px;
-      font-size: 1rem;
-      border: 2px solid #e1e5eb;
-      border-radius: 12px;
-      transition: all 0.2s;
-    }
-
-    .text-input:focus {
-      outline: none;
-      border-color: #e53e3e;
-      box-shadow: 0 0 0 4px rgba(229, 62, 62, 0.1);
-    }
-
-    .option-wrap {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-    }
-
-    .option-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .option-group label {
-      font-size: 0.85rem;
-      color: #666;
-    }
-
-    .option-select {
-      padding: 10px 16px;
-      font-size: 0.9rem;
-      border: 2px solid #e1e5eb;
-      border-radius: 8px;
-      background: #fff;
-      cursor: pointer;
-    }
-
-    .checkbox-wrap {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .checkbox-wrap input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-    }
-
-    .btn-analyze {
-      padding: 14px 32px;
-      background: #e53e3e;
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
       color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
     }
 
-    .btn-analyze:hover { background: #c53030; }
-    .btn-analyze:disabled { background: #ccc; cursor: not-allowed; }
+    .hero h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
 
-    /* Progress */
-    .progress-panel {
+    .hero p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    /* Tab Container */
+    .tab-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      background: #f5f7fa;
+      border-bottom: 1px solid #e1e5eb;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #666;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .tab:hover {
+      color: #333;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .tab.active {
+      color: #667eea;
       background: #fff;
+      position: relative;
+    }
+
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .tab-icon {
+      font-size: 1.4rem;
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+      padding: 32px;
+    }
+
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed #d1d5db;
       border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      padding: 50px 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .upload-zone:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(102, 126, 234, 0.15);
+    }
+
+    .upload-zone:hover::before {
+      opacity: 1;
+    }
+
+    .upload-zone.dragover {
+      border-color: #667eea;
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      transform: scale(1.01);
+    }
+
+    .upload-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .upload-text h3 {
+      font-size: 1.2rem;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .upload-text p {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }
+
+    .upload-text .formats {
+      color: #999;
+      font-size: 0.8rem;
+    }
+
+    .upload-zone input[type="file"] {
       display: none;
     }
 
-    .progress-panel.active { display: block; }
+    /* Preview Container */
+    .preview-container {
+      display: none;
+      padding: 20px;
+    }
+
+    .preview-container.active {
+      display: block;
+    }
+
+    .preview-video, .preview-image {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    .file-info {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .file-name {
+      color: #333;
+      font-weight: 500;
+    }
+
+    .btn-change {
+      padding: 8px 16px;
+      background: #f1f5f9;
+      color: #666;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-change:hover {
+      background: #e2e8f0;
+    }
+
+    /* Options Section */
+    .options-section {
+      margin-top: 28px;
+    }
+
+    .options-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .option-card {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .option-card:hover {
+      border-color: #667eea;
+    }
+
+    .option-card label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #64748b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .option-card select {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .option-card select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Checkbox Option */
+    .checkbox-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: linear-gradient(135deg, #f0f7ff 0%, #f5f3ff 100%);
+      border: 2px solid #e0e7ff;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .checkbox-option:hover {
+      border-color: #667eea;
+    }
+
+    .checkbox-option input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: #667eea;
+      cursor: pointer;
+    }
+
+    .checkbox-option .option-label {
+      flex: 1;
+    }
+
+    .checkbox-option .option-label strong {
+      display: block;
+      font-size: 0.95rem;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    .checkbox-option .option-label span {
+      font-size: 0.8rem;
+      color: #666;
+    }
+
+    /* Analyze Button */
+    .btn-analyze {
+      width: 100%;
+      padding: 18px 32px;
+      margin-top: 28px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-analyze:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-analyze:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Progress Panel */
+    .progress-panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px;
+      margin-top: 24px;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .progress-panel.active {
+      display: block;
+    }
+
+    .progress-steps {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+
+    .progress-step::before {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: #e2e8f0;
+    }
+
+    .progress-step:last-child::before {
+      display: none;
+    }
+
+    .progress-step .step-icon {
+      width: 32px;
+      height: 32px;
+      background: #e2e8f0;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      position: relative;
+      z-index: 1;
+      transition: all 0.3s;
+    }
+
+    .progress-step.active .step-icon {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      animation: pulse 1.5s infinite;
+    }
+
+    .progress-step.completed .step-icon {
+      background: #10b981;
+      color: #fff;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4); }
+      50% { box-shadow: 0 0 0 10px rgba(102, 126, 234, 0); }
+    }
+
+    .progress-step .step-label {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 8px;
+      text-align: center;
+    }
 
     .progress-bar-wrap {
-      background: #e1e5eb;
+      background: #e2e8f0;
       border-radius: 10px;
-      height: 20px;
+      height: 8px;
       overflow: hidden;
-      margin-bottom: 12px;
     }
 
     .progress-bar {
       height: 100%;
-      background: linear-gradient(90deg, #e53e3e, #ff6b6b);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       border-radius: 10px;
       width: 0%;
-      transition: width 0.3s;
+      transition: width 0.5s ease;
     }
 
     .progress-text {
       font-size: 0.9rem;
-      color: #666;
+      color: #64748b;
       text-align: center;
+      margin-top: 12px;
     }
 
     /* Results Panel */
     .results-panel {
       background: #fff;
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      border-radius: 20px;
+      padding: 32px;
+      margin-top: 24px;
       display: none;
+      animation: fadeIn 0.3s ease;
     }
 
-    .results-panel.active { display: block; }
+    .results-panel.active {
+      display: block;
+    }
 
     .results-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #e1e5eb;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #e2e8f0;
     }
 
-    .results-header h2 {
-      font-size: 1.2rem;
-      color: #333;
+    .results-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .results-title h3 {
+      font-size: 1.3rem;
+      color: #1e293b;
     }
 
     .results-meta {
       display: flex;
-      gap: 16px;
-      font-size: 0.85rem;
-      color: #666;
+      gap: 12px;
+      margin-top: 8px;
     }
 
     .results-meta span {
-      background: #f5f7fa;
+      font-size: 0.85rem;
+      color: #64748b;
+      background: #f1f5f9;
       padding: 6px 12px;
-      border-radius: 6px;
+      border-radius: 8px;
     }
 
     .btn-copy-all {
-      padding: 10px 20px;
-      background: #4a5568;
+      padding: 12px 24px;
+      background: #1e293b;
       color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 0.9rem;
+      font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
-    .btn-copy-all:hover { background: #2d3748; }
+    .btn-copy-all:hover {
+      background: #334155;
+      transform: translateY(-1px);
+    }
 
     /* Prompt Cards */
     .prompt-list {
@@ -272,116 +639,210 @@
     }
 
     .prompt-card {
-      background: #f8f9fa;
-      border: 1px solid #e1e5eb;
-      border-radius: 12px;
-      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px;
       transition: all 0.2s;
     }
 
     .prompt-card:hover {
-      border-color: #e53e3e;
-      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.1);
+      border-color: #667eea;
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
     }
 
     .prompt-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
     .prompt-time {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     .time-badge {
-      background: #e53e3e;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: #fff;
-      padding: 4px 10px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
       font-size: 0.85rem;
       font-weight: 600;
     }
 
     .time-label {
-      color: #666;
-      font-size: 0.85rem;
+      color: #64748b;
+      font-size: 0.9rem;
+      font-weight: 500;
     }
 
     .btn-copy {
-      padding: 6px 12px;
-      background: #e1e5eb;
-      color: #333;
+      padding: 8px 16px;
+      background: #e2e8f0;
+      color: #475569;
       border: none;
-      border-radius: 6px;
-      font-size: 0.8rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
     }
 
-    .btn-copy:hover { background: #cbd5e0; }
-    .btn-copy.copied { background: #48bb78; color: #fff; }
+    .btn-copy:hover {
+      background: #cbd5e1;
+    }
+
+    .btn-copy.copied {
+      background: #10b981;
+      color: #fff;
+    }
 
     .prompt-text {
       font-size: 0.95rem;
-      line-height: 1.6;
-      color: #333;
+      line-height: 1.7;
+      color: #334155;
       background: #fff;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #e1e5eb;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
       white-space: pre-wrap;
       word-break: break-word;
     }
 
-    /* Error */
+    /* Error Panel */
     .error-panel {
-      background: #fed7d7;
-      border: 1px solid #fc8181;
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      border: 1px solid #fca5a5;
       border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 20px;
-      color: #c53030;
+      padding: 16px 20px;
+      margin-top: 20px;
+      color: #b91c1c;
       display: none;
+      align-items: center;
+      gap: 12px;
     }
 
-    .error-panel.active { display: block; }
+    .error-panel.active {
+      display: flex;
+    }
 
-    /* Analysis Card */
+    .error-icon {
+      font-size: 1.2rem;
+    }
+
+    /* Analysis Cards */
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
     .analysis-card {
-      background: #f8f9fa;
-      border: 1px solid #e1e5eb;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 12px;
-      padding: 16px;
+      padding: 18px;
+      transition: all 0.2s;
+    }
+
+    .analysis-card:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
     }
 
     .analysis-card h4 {
-      font-size: 0.95rem;
-      margin: 0;
+      font-size: 0.9rem;
+      color: #667eea;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .analysis-card p {
-      font-size: 0.9rem;
+      font-size: 0.95rem;
       line-height: 1.6;
-      color: #333;
-      margin: 0;
+      color: #334155;
     }
 
-    /* Drop Zone */
-    #drop-zone.dragover {
-      border-color: #e53e3e;
-      background: rgba(229, 62, 62, 0.05);
+    .analysis-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    /* Generated Prompts Section */
+    .generated-prompts {
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .generated-prompts h4 {
+      font-size: 1.1rem;
+      color: #1e293b;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .prompt-lang-badge {
+      background: #1e293b;
+    }
+
+    .prompt-lang-badge.ko {
+      background: #475569;
     }
 
     /* Responsive */
     @media (max-width: 768px) {
-      .input-row { flex-direction: column; }
-      .input-wrap { min-width: 100%; }
-      .option-wrap { flex-direction: column; align-items: flex-start; }
-      .results-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+      .main-container {
+        padding: 20px 16px;
+      }
+
+      .hero h2 {
+        font-size: 1.5rem;
+      }
+
+      .tab-content {
+        padding: 24px 20px;
+      }
+
+      .upload-zone {
+        padding: 40px 20px;
+      }
+
+      .options-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .results-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .btn-copy-all {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .progress-steps {
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .progress-step {
+        flex: none;
+        width: calc(50% - 6px);
+      }
+
+      .progress-step::before {
+        display: none;
+      }
     }
   </style>
 </head>
@@ -389,7 +850,10 @@
   <!-- Header -->
   <header class="header">
     <div class="header-left">
-      <h1>Shorts Prompt Generator</h1>
+      <div class="logo">
+        <div class="logo-icon">🎬</div>
+        <h1>Shorts Prompt Generator</h1>
+      </div>
       <span class="header-badge">AI Powered</span>
     </div>
     <div class="header-right">
@@ -400,209 +864,349 @@
 
   <!-- Main Content -->
   <main class="main-container">
-    <!-- Input Panel -->
-    <section class="input-panel">
-      <h2>🎬 Shorts 영상 업로드</h2>
-      <p style="color: #666; font-size: 0.9rem; margin-bottom: 16px;">
-        YouTube Shorts 영상 파일을 업로드하면 씬별 이미지 프롬프트를 생성합니다.<br>
-        <span style="color: #e53e3e;">💡 팁: 브라우저 확장 프로그램으로 Shorts를 다운로드한 후 업로드하세요</span>
-      </p>
-      <div class="input-row">
-        <div class="input-wrap" style="min-width: 100%;">
-          <label for="video-upload">영상 파일 (MP4, WebM, MOV)</label>
-          <div id="video-drop-zone" style="border: 2px dashed #e1e5eb; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s;">
-            <input type="file" id="video-upload" accept="video/mp4,video/webm,video/quicktime,video/*" style="display: none;">
-            <div id="video-drop-text">
-              <span style="font-size: 2rem;">🎥</span>
-              <p style="margin: 10px 0 0; color: #666;">클릭하거나 영상 파일을 드래그하세요</p>
-              <p style="margin: 5px 0 0; color: #999; font-size: 0.8rem;">최대 100MB</p>
+    <!-- Hero Section -->
+    <section class="hero">
+      <h2>AI로 영상/이미지 프롬프트 추출</h2>
+      <p>Shorts 영상이나 이미지를 업로드하면 AI가 상세한 프롬프트를 생성합니다</p>
+    </section>
+
+    <!-- Tab Container -->
+    <div class="tab-container">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="video">
+          <span class="tab-icon">🎥</span>
+          영상 분석
+        </button>
+        <button class="tab" data-tab="image">
+          <span class="tab-icon">🖼️</span>
+          이미지 분석
+        </button>
+      </div>
+
+      <!-- Video Tab Content -->
+      <div class="tab-content active" id="video-tab">
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="video-drop-zone">
+          <input type="file" id="video-upload" accept="video/mp4,video/webm,video/quicktime,video/*">
+          <div id="video-upload-content">
+            <div class="upload-icon">🎥</div>
+            <div class="upload-text">
+              <h3>영상 파일을 업로드하세요</h3>
+              <p>클릭하거나 파일을 드래그하세요</p>
+              <p class="formats">MP4, WebM, MOV · 최대 100MB</p>
             </div>
-            <div id="video-preview-container" style="display: none;">
-              <video id="preview-video" style="max-width: 100%; max-height: 300px; border-radius: 8px;" controls></video>
-              <p id="video-file-name" style="margin-top: 10px; color: #333; font-weight: 500;"></p>
-              <button id="btn-change-video" type="button" style="margin-top: 8px; padding: 6px 12px; background: #e1e5eb; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">다른 파일 선택</button>
+          </div>
+          <div class="preview-container" id="video-preview-container">
+            <video id="preview-video" class="preview-video" controls></video>
+            <div class="file-info">
+              <span class="file-name" id="video-file-name"></span>
+              <button class="btn-change" id="btn-change-video">변경</button>
             </div>
           </div>
         </div>
-      </div>
-      <div class="input-row">
-        <div class="option-wrap">
-          <div class="option-group">
-            <label for="mode">분석 모드</label>
-            <select id="mode" class="option-select">
-              <option value="scene" selected>씬 기반 (권장)</option>
-              <option value="interval">시간 기반</option>
-            </select>
+
+        <!-- Options -->
+        <div class="options-section">
+          <div class="options-title">
+            <span>⚙️</span>
+            분석 옵션
           </div>
-          <div class="option-group" id="interval-group" style="display: none;">
-            <label for="interval">프레임 간격</label>
-            <select id="interval" class="option-select">
-              <option value="2">2초</option>
-              <option value="3">3초</option>
-              <option value="5" selected>5초</option>
-              <option value="10">10초</option>
-            </select>
+          <div class="options-grid">
+            <div class="option-card">
+              <label for="mode">분석 모드</label>
+              <select id="mode">
+                <option value="scene" selected>씬 기반 (권장)</option>
+                <option value="interval">시간 기반</option>
+              </select>
+            </div>
+            <div class="option-card" id="threshold-group">
+              <label for="threshold">씬 감지 민감도</label>
+              <select id="threshold">
+                <option value="0.2">높음 (0.2)</option>
+                <option value="0.3" selected>보통 (0.3)</option>
+                <option value="0.4">낮음 (0.4)</option>
+              </select>
+            </div>
+            <div class="option-card" id="interval-group" style="display: none;">
+              <label for="interval">프레임 간격</label>
+              <select id="interval">
+                <option value="2">2초</option>
+                <option value="3">3초</option>
+                <option value="5" selected>5초</option>
+                <option value="10">10초</option>
+              </select>
+            </div>
           </div>
-          <div class="option-group" id="threshold-group">
-            <label for="threshold">씬 감지 민감도</label>
-            <select id="threshold" class="option-select">
-              <option value="0.2">높음 (0.2)</option>
-              <option value="0.3" selected>보통 (0.3)</option>
-              <option value="0.4">낮음 (0.4)</option>
-            </select>
-          </div>
-          <div class="checkbox-wrap">
+          <label class="checkbox-option" style="margin-top: 16px;">
             <input type="checkbox" id="refine">
-            <label for="refine">GPT로 프롬프트 정제 (선택)</label>
-          </div>
-          <button id="btn-analyze" class="btn-analyze" disabled>분석 시작</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Image Upload Panel -->
-    <section class="input-panel" style="margin-top: 20px;">
-      <h2>이미지 → 프롬프트 분석</h2>
-      <p style="color: #666; font-size: 0.9rem; margin-bottom: 16px;">
-        이미지를 업로드하면 조명, 카메라 앵글, 색감 등을 세밀하게 분석하여 프롬프트를 생성합니다.
-      </p>
-      <div class="input-row">
-        <div class="input-wrap" style="min-width: 100%;">
-          <label for="image-upload">이미지 파일</label>
-          <div id="drop-zone" style="border: 2px dashed #e1e5eb; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.2s;">
-            <input type="file" id="image-upload" accept="image/*" style="display: none;">
-            <div id="drop-text">
-              <span style="font-size: 2rem;">📷</span>
-              <p style="margin: 10px 0 0; color: #666;">클릭하거나 이미지를 드래그하세요</p>
+            <div class="option-label">
+              <strong>GPT로 프롬프트 정제</strong>
+              <span>더 정교한 프롬프트를 생성합니다 (시간 추가 소요)</span>
             </div>
-            <img id="preview-image" style="max-width: 100%; max-height: 300px; display: none; border-radius: 8px;">
+          </label>
+        </div>
+
+        <!-- Analyze Button -->
+        <button id="btn-analyze" class="btn-analyze" disabled>
+          <span class="spinner" id="video-spinner"></span>
+          <span id="btn-analyze-text">분석 시작</span>
+        </button>
+      </div>
+
+      <!-- Image Tab Content -->
+      <div class="tab-content" id="image-tab">
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="image-drop-zone">
+          <input type="file" id="image-upload" accept="image/*">
+          <div id="image-upload-content">
+            <div class="upload-icon">🖼️</div>
+            <div class="upload-text">
+              <h3>이미지 파일을 업로드하세요</h3>
+              <p>클릭하거나 파일을 드래그하세요</p>
+              <p class="formats">PNG, JPG, WebP 등 모든 이미지 형식</p>
+            </div>
+          </div>
+          <div class="preview-container" id="image-preview-container">
+            <img id="preview-image" class="preview-image">
+            <div class="file-info">
+              <span class="file-name" id="image-file-name"></span>
+              <button class="btn-change" id="btn-change-image">변경</button>
+            </div>
+          </div>
+        </div>
+
+        <p style="margin-top: 20px; color: #64748b; font-size: 0.9rem; line-height: 1.6;">
+          💡 이미지를 업로드하면 <strong>조명, 카메라 앵글, 색감, 분위기</strong> 등을 AI가 세밀하게 분석하여 이미지 생성 프롬프트를 만들어 드립니다.
+        </p>
+
+        <!-- Analyze Button -->
+        <button id="btn-analyze-image" class="btn-analyze" disabled>
+          <span class="spinner" id="image-spinner"></span>
+          <span id="btn-analyze-image-text">이미지 분석</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Error Panel -->
+    <div id="error-panel" class="error-panel">
+      <span class="error-icon">⚠️</span>
+      <span id="error-text"></span>
+    </div>
+
+    <!-- Progress Panel (Video) -->
+    <section id="progress-panel" class="progress-panel">
+      <div class="progress-steps">
+        <div class="progress-step" data-step="1">
+          <div class="step-icon">📤</div>
+          <span class="step-label">업로드</span>
+        </div>
+        <div class="progress-step" data-step="2">
+          <div class="step-icon">🔍</div>
+          <span class="step-label">씬 감지</span>
+        </div>
+        <div class="progress-step" data-step="3">
+          <div class="step-icon">🤖</div>
+          <span class="step-label">AI 분석</span>
+        </div>
+        <div class="progress-step" data-step="4">
+          <div class="step-icon">✨</div>
+          <span class="step-label">완료</span>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+      <div id="progress-text" class="progress-text">영상 업로드 중...</div>
+    </section>
+
+    <!-- Video Results Panel -->
+    <section id="results-panel" class="results-panel">
+      <div class="results-header">
+        <div class="results-title">
+          <span style="font-size: 1.5rem;">✅</span>
+          <div>
+            <h3>분석 완료</h3>
+            <div class="results-meta">
+              <span id="video-duration">영상 길이: -</span>
+              <span id="frame-count">프레임: -</span>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-copy-all" class="btn-copy-all">
+            <span>📋</span>
+            전체 복사
+          </button>
+          <button id="btn-generate-shorts" class="btn-copy-all" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <span>🎬</span>
+            쇼츠 영상 생성
+          </button>
+        </div>
+      </div>
+      <div id="prompt-list" class="prompt-list"></div>
+
+      <!-- Generated Images Section (hidden initially) -->
+      <div id="generated-images-section" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h4 style="font-size: 1.1rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+            <span>🖼️</span> 생성된 이미지
+          </h4>
+          <span id="image-gen-status" style="font-size: 0.85rem; color: #64748b;"></span>
+        </div>
+        <div id="generated-images-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;"></div>
+      </div>
+
+      <!-- Final Video Section (hidden initially) -->
+      <div id="final-video-section" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
+        <h4 style="font-size: 1.1rem; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span>🎥</span> 생성된 쇼츠 영상
+        </h4>
+        <div style="text-align: center;">
+          <video id="final-shorts-video" controls style="max-width: 300px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);"></video>
+          <div style="margin-top: 16px;">
+            <a id="download-shorts-link" href="#" download class="btn-copy-all" style="display: inline-flex; background: #10b981; text-decoration: none;">
+              <span>⬇️</span>
+              영상 다운로드
+            </a>
           </div>
         </div>
       </div>
-      <div class="input-row" style="margin-top: 16px;">
-        <button id="btn-analyze-image" class="btn-analyze" disabled>이미지 분석</button>
-      </div>
     </section>
 
-    <!-- Image Analysis Result -->
-    <section id="image-result-panel" class="results-panel" style="margin-top: 20px;">
+    <!-- Shorts Generation Progress Panel -->
+    <section id="shorts-progress-panel" class="progress-panel">
+      <div class="progress-steps">
+        <div class="progress-step shorts-step" data-step="1">
+          <div class="step-icon">🎨</div>
+          <span class="step-label">이미지 생성</span>
+        </div>
+        <div class="progress-step shorts-step" data-step="2">
+          <div class="step-icon">🔊</div>
+          <span class="step-label">오디오 준비</span>
+        </div>
+        <div class="progress-step shorts-step" data-step="3">
+          <div class="step-icon">🎬</div>
+          <span class="step-label">영상 합성</span>
+        </div>
+        <div class="progress-step shorts-step" data-step="4">
+          <div class="step-icon">✨</div>
+          <span class="step-label">완료</span>
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div id="shorts-progress-bar" class="progress-bar"></div>
+      </div>
+      <div id="shorts-progress-text" class="progress-text">이미지 생성 준비 중...</div>
+    </section>
+
+    <!-- Image Results Panel -->
+    <section id="image-result-panel" class="results-panel">
       <div class="results-header">
-        <h2>이미지 분석 결과</h2>
-        <button id="btn-copy-image-prompt" class="btn-copy-all">프롬프트 복사</button>
+        <div class="results-title">
+          <span style="font-size: 1.5rem;">✅</span>
+          <h3>이미지 분석 완료</h3>
+        </div>
+        <button id="btn-copy-image-prompt" class="btn-copy-all">
+          <span>📋</span>
+          전체 복사
+        </button>
       </div>
 
       <!-- Analysis Grid -->
-      <div id="analysis-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 20px;">
-        <div class="analysis-card" data-field="subject">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">📸 피사체</h4>
+      <div class="analysis-grid" id="analysis-grid">
+        <div class="analysis-card">
+          <h4>📸 피사체</h4>
           <p id="analysis-subject">-</p>
         </div>
-        <div class="analysis-card" data-field="background">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">🏞️ 배경</h4>
+        <div class="analysis-card">
+          <h4>🏞️ 배경</h4>
           <p id="analysis-background">-</p>
         </div>
-        <div class="analysis-card" data-field="lighting">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">💡 조명</h4>
+        <div class="analysis-card">
+          <h4>💡 조명</h4>
           <p id="analysis-lighting">-</p>
         </div>
-        <div class="analysis-card" data-field="camera">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">🎥 카메라/구도</h4>
+        <div class="analysis-card">
+          <h4>🎥 카메라/구도</h4>
           <p id="analysis-camera">-</p>
         </div>
-        <div class="analysis-card" data-field="color">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">🎨 색감</h4>
+        <div class="analysis-card">
+          <h4>🎨 색감</h4>
           <p id="analysis-color">-</p>
         </div>
-        <div class="analysis-card" data-field="mood">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">✨ 분위기</h4>
+        <div class="analysis-card">
+          <h4>✨ 분위기</h4>
           <p id="analysis-mood">-</p>
         </div>
-        <div class="analysis-card" data-field="style" style="grid-column: 1 / -1;">
-          <h4 style="color: #e53e3e; margin-bottom: 8px;">🎬 스타일</h4>
+        <div class="analysis-card full-width">
+          <h4>🎬 스타일</h4>
           <p id="analysis-style">-</p>
         </div>
       </div>
 
       <!-- Generated Prompts -->
-      <div style="margin-top: 20px;">
-        <h3 style="margin-bottom: 12px;">생성된 프롬프트</h3>
+      <div class="generated-prompts">
+        <h4><span>📝</span> 생성된 프롬프트</h4>
         <div class="prompt-card" style="margin-bottom: 12px;">
           <div class="prompt-header">
-            <span class="time-badge" style="background: #4a5568;">English</span>
+            <span class="time-badge prompt-lang-badge">English</span>
             <button class="btn-copy" id="btn-copy-en">복사</button>
           </div>
           <div class="prompt-text" id="prompt-en">-</div>
         </div>
         <div class="prompt-card">
           <div class="prompt-header">
-            <span class="time-badge" style="background: #2d3748;">한국어</span>
+            <span class="time-badge prompt-lang-badge ko">한국어</span>
             <button class="btn-copy" id="btn-copy-ko">복사</button>
           </div>
           <div class="prompt-text" id="prompt-ko">-</div>
         </div>
       </div>
     </section>
-
-    <!-- Error Panel -->
-    <div id="error-panel" class="error-panel"></div>
-
-    <!-- Progress Panel -->
-    <section id="progress-panel" class="progress-panel">
-      <div class="progress-bar-wrap">
-        <div id="progress-bar" class="progress-bar"></div>
-      </div>
-      <div id="progress-text" class="progress-text">영상 다운로드 중...</div>
-    </section>
-
-    <!-- Results Panel -->
-    <section id="results-panel" class="results-panel">
-      <div class="results-header">
-        <div>
-          <h2>분석 결과</h2>
-          <div class="results-meta">
-            <span id="video-duration">영상 길이: -</span>
-            <span id="frame-count">프레임: -</span>
-          </div>
-        </div>
-        <button id="btn-copy-all" class="btn-copy-all">전체 복사</button>
-      </div>
-      <div id="prompt-list" class="prompt-list"></div>
-    </section>
   </main>
 
   <script>
-    // 비디오 업로드 관련 요소
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+
+        hideError();
+      });
+    });
+
+    // ========== Video Upload ==========
     const videoDropZone = document.getElementById('video-drop-zone');
     const videoUpload = document.getElementById('video-upload');
-    const videoDropText = document.getElementById('video-drop-text');
+    const videoUploadContent = document.getElementById('video-upload-content');
     const videoPreviewContainer = document.getElementById('video-preview-container');
     const previewVideo = document.getElementById('preview-video');
     const videoFileName = document.getElementById('video-file-name');
     const btnChangeVideo = document.getElementById('btn-change-video');
-
     const modeSelect = document.getElementById('mode');
-    const intervalSelect = document.getElementById('interval');
     const intervalGroup = document.getElementById('interval-group');
-    const thresholdSelect = document.getElementById('threshold');
     const thresholdGroup = document.getElementById('threshold-group');
-    const refineCheckbox = document.getElementById('refine');
     const btnAnalyze = document.getElementById('btn-analyze');
-    const errorPanel = document.getElementById('error-panel');
+    const btnAnalyzeText = document.getElementById('btn-analyze-text');
+    const videoSpinner = document.getElementById('video-spinner');
     const progressPanel = document.getElementById('progress-panel');
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
     const resultsPanel = document.getElementById('results-panel');
     const promptList = document.getElementById('prompt-list');
-    const videoDuration = document.getElementById('video-duration');
-    const frameCount = document.getElementById('frame-count');
     const btnCopyAll = document.getElementById('btn-copy-all');
 
-    let analysisResults = null;
     let selectedVideoFile = null;
+    let analysisResults = null;
 
-    // 비디오 드래그 앤 드롭
+    // Video drop zone events
     videoDropZone.addEventListener('click', (e) => {
-      if (e.target !== btnChangeVideo) {
+      if (e.target !== btnChangeVideo && !e.target.closest('.preview-container')) {
         videoUpload.click();
       }
     });
@@ -639,7 +1243,6 @@
     });
 
     function handleVideoSelect(file) {
-      // 파일 크기 체크 (100MB)
       if (file.size > 100 * 1024 * 1024) {
         showError('파일 크기는 100MB 이하여야 합니다');
         return;
@@ -649,63 +1252,77 @@
       const videoURL = URL.createObjectURL(file);
       previewVideo.src = videoURL;
       videoFileName.textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + 'MB)';
-      videoDropText.style.display = 'none';
-      videoPreviewContainer.style.display = 'block';
+      videoUploadContent.style.display = 'none';
+      videoPreviewContainer.classList.add('active');
       btnAnalyze.disabled = false;
       hideError();
     }
 
-    // 모드 변경 시 옵션 토글
+    // Mode change
     modeSelect.addEventListener('change', () => {
       if (modeSelect.value === 'interval') {
-        intervalGroup.style.display = 'flex';
+        intervalGroup.style.display = 'block';
         thresholdGroup.style.display = 'none';
       } else {
         intervalGroup.style.display = 'none';
-        thresholdGroup.style.display = 'flex';
+        thresholdGroup.style.display = 'block';
       }
     });
 
-    // 분석 시작 (파일 업로드 방식)
+    // Video analysis
     btnAnalyze.addEventListener('click', async () => {
       if (!selectedVideoFile) {
         showError('영상 파일을 선택해주세요');
         return;
       }
 
-      // Reset UI
       hideError();
       resultsPanel.classList.remove('active');
       progressPanel.classList.add('active');
       btnAnalyze.disabled = true;
+      videoSpinner.style.display = 'block';
+      btnAnalyzeText.textContent = '분석 중...';
 
-      // Simulate progress
-      let progress = 0;
+      // Reset progress steps
+      document.querySelectorAll('.progress-step').forEach(step => {
+        step.classList.remove('active', 'completed');
+      });
+
       const mode = modeSelect.value;
-      const progressSteps = [
-        { percent: 10, text: '영상 업로드 중...' },
-        { percent: 30, text: mode === 'scene' ? '씬 변화 감지 중...' : '프레임 추출 중...' },
-        { percent: 50, text: 'AI 분석 중...' },
-        { percent: 80, text: '프롬프트 생성 중...' }
+      const steps = [
+        { step: 1, percent: 15, text: '영상 업로드 중...' },
+        { step: 2, percent: 40, text: mode === 'scene' ? '씬 변화 감지 중...' : '프레임 추출 중...' },
+        { step: 3, percent: 70, text: 'AI 분석 중...' },
+        { step: 4, percent: 90, text: '프롬프트 생성 중...' }
       ];
 
       let stepIndex = 0;
       const progressInterval = setInterval(() => {
-        if (stepIndex < progressSteps.length) {
-          progress = progressSteps[stepIndex].percent;
-          progressBar.style.width = progress + '%';
-          progressText.textContent = progressSteps[stepIndex].text;
+        if (stepIndex < steps.length) {
+          const currentStep = steps[stepIndex];
+          progressBar.style.width = currentStep.percent + '%';
+          progressText.textContent = currentStep.text;
+
+          document.querySelectorAll('.progress-step').forEach((step, idx) => {
+            if (idx < stepIndex) {
+              step.classList.remove('active');
+              step.classList.add('completed');
+            } else if (idx === stepIndex) {
+              step.classList.add('active');
+            }
+          });
+
           stepIndex++;
         }
-      }, 2000);
+      }, 2500);
 
       try {
         const formData = new FormData();
         formData.append('video', selectedVideoFile);
         formData.append('mode', modeSelect.value);
-        formData.append('interval', intervalSelect.value);
-        formData.append('threshold', thresholdSelect.value);
-        formData.append('refine', refineCheckbox.checked);
+        formData.append('interval', document.getElementById('interval').value);
+        formData.append('threshold', document.getElementById('threshold').value);
+        formData.append('refine', document.getElementById('refine').checked);
 
         const response = await fetch('/api/tubelens/video-to-prompts', {
           method: 'POST',
@@ -721,10 +1338,15 @@
           progressBar.style.width = '100%';
           progressText.textContent = '완료!';
 
+          document.querySelectorAll('.progress-step').forEach(step => {
+            step.classList.remove('active');
+            step.classList.add('completed');
+          });
+
           setTimeout(() => {
             progressPanel.classList.remove('active');
             displayResults(data);
-          }, 500);
+          }, 800);
         } else {
           progressPanel.classList.remove('active');
           showError(data.message || '분석에 실패했습니다');
@@ -735,13 +1357,14 @@
         showError('서버 오류: ' + error.message);
       } finally {
         btnAnalyze.disabled = false;
+        videoSpinner.style.display = 'none';
+        btnAnalyzeText.textContent = '분석 시작';
       }
     });
 
-    // 결과 표시
     function displayResults(data) {
-      videoDuration.textContent = `영상 길이: ${data.duration}초`;
-      frameCount.textContent = `프레임: ${data.frameCount}개`;
+      document.getElementById('video-duration').textContent = `영상 길이: ${data.duration}초`;
+      document.getElementById('frame-count').textContent = `프레임: ${data.frameCount}개`;
 
       promptList.innerHTML = '';
       data.prompts.forEach((prompt, index) => {
@@ -760,25 +1383,16 @@
         promptList.appendChild(card);
       });
 
-      // 복사 버튼 이벤트
-      document.querySelectorAll('.btn-copy').forEach(btn => {
+      document.querySelectorAll('#prompt-list .btn-copy').forEach(btn => {
         btn.addEventListener('click', () => {
           const promptText = decodeURIComponent(btn.dataset.prompt);
-          navigator.clipboard.writeText(promptText).then(() => {
-            btn.textContent = '복사됨!';
-            btn.classList.add('copied');
-            setTimeout(() => {
-              btn.textContent = '복사';
-              btn.classList.remove('copied');
-            }, 2000);
-          });
+          copyToClipboard(promptText, btn);
         });
       });
 
       resultsPanel.classList.add('active');
     }
 
-    // 전체 복사
     btnCopyAll.addEventListener('click', () => {
       if (!analysisResults) return;
 
@@ -786,59 +1400,264 @@
         `[${p.time}초] Scene ${i + 1}:\n${p.prompt}`
       ).join('\n\n---\n\n');
 
-      navigator.clipboard.writeText(allPrompts).then(() => {
-        btnCopyAll.textContent = '복사 완료!';
-        setTimeout(() => {
-          btnCopyAll.textContent = '전체 복사';
-        }, 2000);
-      });
+      copyToClipboard(allPrompts, btnCopyAll, '전체 복사');
     });
 
-    // 에러 표시
-    function showError(message) {
-      errorPanel.textContent = message;
-      errorPanel.classList.add('active');
+    // ========== Shorts Video Generation ==========
+    const btnGenerateShorts = document.getElementById('btn-generate-shorts');
+    const shortsProgressPanel = document.getElementById('shorts-progress-panel');
+    const shortsProgressBar = document.getElementById('shorts-progress-bar');
+    const shortsProgressText = document.getElementById('shorts-progress-text');
+    const generatedImagesSection = document.getElementById('generated-images-section');
+    const generatedImagesGrid = document.getElementById('generated-images-grid');
+    const imageGenStatus = document.getElementById('image-gen-status');
+    const finalVideoSection = document.getElementById('final-video-section');
+    const finalShortsVideo = document.getElementById('final-shorts-video');
+    const downloadShortsLink = document.getElementById('download-shorts-link');
+
+    let generatedImages = [];
+
+    btnGenerateShorts.addEventListener('click', async () => {
+      if (!analysisResults || !analysisResults.prompts || analysisResults.prompts.length === 0) {
+        showError('분석 결과가 없습니다. 먼저 영상을 분석해주세요.');
+        return;
+      }
+
+      // Reset UI
+      hideError();
+      generatedImages = [];
+      generatedImagesGrid.innerHTML = '';
+      generatedImagesSection.style.display = 'none';
+      finalVideoSection.style.display = 'none';
+      shortsProgressPanel.classList.add('active');
+      btnGenerateShorts.disabled = true;
+
+      // Reset progress steps
+      document.querySelectorAll('.shorts-step').forEach(step => {
+        step.classList.remove('active', 'completed');
+      });
+
+      try {
+        // Step 1: Generate images from prompts
+        updateShortsProgress(1, 10, '이미지 생성 중...');
+
+        const prompts = analysisResults.prompts;
+        const totalImages = prompts.length;
+
+        generatedImagesSection.style.display = 'block';
+
+        for (let i = 0; i < totalImages; i++) {
+          const prompt = prompts[i].prompt;
+          imageGenStatus.textContent = `${i + 1} / ${totalImages} 생성 중...`;
+
+          try {
+            // Generate image using existing API
+            const imgResponse = await fetch('/api/drama/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                prompt: prompt + ', vertical format, 9:16 aspect ratio, high quality',
+                size: '1080x1920',
+                imageProvider: 'gemini'
+              })
+            });
+
+            const imgData = await imgResponse.json();
+
+            if (imgData.success && imgData.imageUrl) {
+              generatedImages.push(imgData.imageUrl);
+
+              // Add image to grid
+              const imgCard = document.createElement('div');
+              imgCard.style.cssText = 'position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 9/16; background: #f1f5f9;';
+              imgCard.innerHTML = `
+                <img src="${imgData.imageUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="Scene ${i + 1}">
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 8px; background: linear-gradient(transparent, rgba(0,0,0,0.7)); color: white; font-size: 0.75rem;">
+                  Scene ${i + 1}
+                </div>
+              `;
+              generatedImagesGrid.appendChild(imgCard);
+            } else {
+              console.warn(`Image ${i + 1} failed:`, imgData.error);
+              // Add placeholder for failed image
+              const placeholder = document.createElement('div');
+              placeholder.style.cssText = 'display: flex; align-items: center; justify-content: center; border-radius: 8px; aspect-ratio: 9/16; background: #fee2e2; color: #b91c1c; font-size: 0.75rem;';
+              placeholder.textContent = `Scene ${i + 1} 실패`;
+              generatedImagesGrid.appendChild(placeholder);
+            }
+
+            // Update progress
+            const progress = 10 + (40 * (i + 1) / totalImages);
+            shortsProgressBar.style.width = progress + '%';
+          } catch (imgError) {
+            console.error(`Image ${i + 1} error:`, imgError);
+          }
+        }
+
+        imageGenStatus.textContent = `${generatedImages.length} / ${totalImages} 완료`;
+        document.querySelector('.shorts-step[data-step="1"]').classList.remove('active');
+        document.querySelector('.shorts-step[data-step="1"]').classList.add('completed');
+
+        if (generatedImages.length === 0) {
+          throw new Error('이미지를 생성할 수 없습니다.');
+        }
+
+        // Step 2: Generate simple background music or use silence
+        updateShortsProgress(2, 50, 'BGM 준비 중...');
+
+        // Generate simple TTS or use a placeholder audio
+        let audioUrl = null;
+
+        // Create a simple narration combining scene descriptions
+        const narrationText = prompts.slice(0, 3).map((p, i) => `Scene ${i + 1}.`).join(' ');
+
+        try {
+          const ttsResponse = await fetch('/api/tts/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: narrationText || 'Shorts video generated by AI.',
+              language: 'ko',
+              voice: 'ko-KR-Wavenet-A'
+            })
+          });
+
+          const ttsData = await ttsResponse.json();
+          if (ttsData.success && ttsData.audioUrl) {
+            audioUrl = ttsData.audioUrl;
+          }
+        } catch (ttsError) {
+          console.warn('TTS failed, using default audio:', ttsError);
+        }
+
+        document.querySelector('.shorts-step[data-step="2"]').classList.remove('active');
+        document.querySelector('.shorts-step[data-step="2"]').classList.add('completed');
+
+        // Step 3: Generate video
+        updateShortsProgress(3, 70, '영상 합성 중...');
+
+        // If no audio, try to generate video with a simple slideshow
+        if (!audioUrl) {
+          // Generate placeholder audio
+          try {
+            const placeholderTTS = await fetch('/api/tts/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: '이 영상은 AI가 생성한 쇼츠입니다.',
+                language: 'ko'
+              })
+            });
+            const placeholderData = await placeholderTTS.json();
+            if (placeholderData.success) {
+              audioUrl = placeholderData.audioUrl;
+            }
+          } catch (e) {
+            console.warn('Placeholder TTS also failed');
+          }
+        }
+
+        // Call shorts video generation API
+        const videoResponse = await fetch('/api/shorts/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            images: generatedImages,
+            audioUrl: audioUrl || '',
+            effect: 'kenburns',
+            imageDuration: 3
+          })
+        });
+
+        const videoData = await videoResponse.json();
+
+        document.querySelector('.shorts-step[data-step="3"]').classList.remove('active');
+        document.querySelector('.shorts-step[data-step="3"]').classList.add('completed');
+
+        if (videoData.ok && videoData.videoUrl) {
+          // Step 4: Complete
+          updateShortsProgress(4, 100, '완료!');
+
+          document.querySelector('.shorts-step[data-step="4"]').classList.add('completed');
+
+          setTimeout(() => {
+            shortsProgressPanel.classList.remove('active');
+
+            // Show final video
+            finalVideoSection.style.display = 'block';
+            finalShortsVideo.src = videoData.videoUrl;
+            downloadShortsLink.href = videoData.videoUrl;
+            downloadShortsLink.download = 'shorts_' + Date.now() + '.mp4';
+
+            // Scroll to video
+            finalVideoSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 800);
+        } else {
+          throw new Error(videoData.error || '영상 생성에 실패했습니다.');
+        }
+
+      } catch (error) {
+        console.error('Shorts generation error:', error);
+        shortsProgressPanel.classList.remove('active');
+        showError('쇼츠 생성 실패: ' + error.message);
+      } finally {
+        btnGenerateShorts.disabled = false;
+      }
+    });
+
+    function updateShortsProgress(step, percent, text) {
+      shortsProgressBar.style.width = percent + '%';
+      shortsProgressText.textContent = text;
+
+      document.querySelectorAll('.shorts-step').forEach((stepEl, idx) => {
+        if (idx < step - 1) {
+          stepEl.classList.remove('active');
+          stepEl.classList.add('completed');
+        } else if (idx === step - 1) {
+          stepEl.classList.add('active');
+        }
+      });
     }
 
-    function hideError() {
-      errorPanel.classList.remove('active');
-    }
-
-    // HTML 이스케이프
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // ========== 이미지 → 프롬프트 분석 ==========
-    const dropZone = document.getElementById('drop-zone');
+    // ========== Image Upload ==========
+    const imageDropZone = document.getElementById('image-drop-zone');
     const imageUpload = document.getElementById('image-upload');
+    const imageUploadContent = document.getElementById('image-upload-content');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
     const previewImage = document.getElementById('preview-image');
-    const dropText = document.getElementById('drop-text');
+    const imageFileName = document.getElementById('image-file-name');
+    const btnChangeImage = document.getElementById('btn-change-image');
     const btnAnalyzeImage = document.getElementById('btn-analyze-image');
+    const btnAnalyzeImageText = document.getElementById('btn-analyze-image-text');
+    const imageSpinner = document.getElementById('image-spinner');
     const imageResultPanel = document.getElementById('image-result-panel');
 
-    let selectedFile = null;
+    let selectedImageFile = null;
 
-    // 드래그 앤 드롭
-    dropZone.addEventListener('click', () => imageUpload.click());
-
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
+    // Image drop zone events
+    imageDropZone.addEventListener('click', (e) => {
+      if (e.target !== btnChangeImage && !e.target.closest('.preview-container')) {
+        imageUpload.click();
+      }
     });
 
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('dragover');
+    imageDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      imageDropZone.classList.add('dragover');
     });
 
-    dropZone.addEventListener('drop', (e) => {
+    imageDropZone.addEventListener('dragleave', () => {
+      imageDropZone.classList.remove('dragover');
+    });
+
+    imageDropZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      dropZone.classList.remove('dragover');
+      imageDropZone.classList.remove('dragover');
       const files = e.dataTransfer.files;
       if (files.length > 0 && files[0].type.startsWith('image/')) {
         handleImageSelect(files[0]);
+      } else {
+        showError('이미지 파일만 업로드할 수 있습니다');
       }
     });
 
@@ -848,33 +1667,41 @@
       }
     });
 
+    btnChangeImage.addEventListener('click', (e) => {
+      e.stopPropagation();
+      imageUpload.click();
+    });
+
     function handleImageSelect(file) {
-      selectedFile = file;
+      selectedImageFile = file;
       const reader = new FileReader();
       reader.onload = (e) => {
         previewImage.src = e.target.result;
-        previewImage.style.display = 'block';
-        dropText.style.display = 'none';
+        imageFileName.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + 'KB)';
+        imageUploadContent.style.display = 'none';
+        imagePreviewContainer.classList.add('active');
         btnAnalyzeImage.disabled = false;
+        hideError();
       };
       reader.readAsDataURL(file);
     }
 
-    // 이미지 분석
+    // Image analysis
     btnAnalyzeImage.addEventListener('click', async () => {
-      if (!selectedFile) {
+      if (!selectedImageFile) {
         showError('이미지를 선택해주세요');
         return;
       }
 
       hideError();
       btnAnalyzeImage.disabled = true;
-      btnAnalyzeImage.textContent = '분석 중...';
+      imageSpinner.style.display = 'block';
+      btnAnalyzeImageText.textContent = '분석 중...';
       imageResultPanel.classList.remove('active');
 
       try {
         const formData = new FormData();
-        formData.append('image', selectedFile);
+        formData.append('image', selectedImageFile);
 
         const response = await fetch('/api/tubelens/image-to-prompt', {
           method: 'POST',
@@ -892,12 +1719,12 @@
         showError('서버 오류: ' + error.message);
       } finally {
         btnAnalyzeImage.disabled = false;
-        btnAnalyzeImage.textContent = '이미지 분석';
+        imageSpinner.style.display = 'none';
+        btnAnalyzeImageText.textContent = '이미지 분석';
       }
     });
 
     function displayImageAnalysis(data) {
-      // 분석 결과 표시
       if (data.analysis) {
         document.getElementById('analysis-subject').textContent = data.analysis.subject || '-';
         document.getElementById('analysis-background').textContent = data.analysis.background || '-';
@@ -908,13 +1735,11 @@
         document.getElementById('analysis-style').textContent = data.analysis.style || '-';
       }
 
-      // 프롬프트 표시
       document.getElementById('prompt-en').textContent = data.prompt || '-';
       document.getElementById('prompt-ko').textContent = data.prompt_ko || '-';
 
       imageResultPanel.classList.add('active');
 
-      // 복사 버튼 이벤트
       document.getElementById('btn-copy-en').onclick = () => {
         copyToClipboard(data.prompt, document.getElementById('btn-copy-en'));
       };
@@ -923,17 +1748,36 @@
       };
       document.getElementById('btn-copy-image-prompt').onclick = () => {
         const fullText = `[English]\n${data.prompt}\n\n[한국어]\n${data.prompt_ko}`;
-        copyToClipboard(fullText, document.getElementById('btn-copy-image-prompt'));
+        copyToClipboard(fullText, document.getElementById('btn-copy-image-prompt'), '전체 복사');
       };
     }
 
-    function copyToClipboard(text, btn) {
+    // ========== Utilities ==========
+    const errorPanel = document.getElementById('error-panel');
+    const errorText = document.getElementById('error-text');
+
+    function showError(message) {
+      errorText.textContent = message;
+      errorPanel.classList.add('active');
+    }
+
+    function hideError() {
+      errorPanel.classList.remove('active');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function copyToClipboard(text, btn, originalText = '복사') {
       navigator.clipboard.writeText(text).then(() => {
-        const originalText = btn.textContent;
-        btn.textContent = '복사됨!';
+        const prevText = btn.innerHTML;
+        btn.innerHTML = '✓ 복사됨';
         btn.classList.add('copied');
         setTimeout(() => {
-          btn.textContent = originalText;
+          btn.innerHTML = prevText.includes('전체') ? '<span>📋</span> 전체 복사' : originalText;
           btn.classList.remove('copied');
         }, 2000);
       });
