@@ -94,28 +94,54 @@ pipeline_lock = threading.Lock()
 
 # ===== YouTube API 할당량 Failover =====
 # 기본 프로젝트 할당량 초과 시 _2 프로젝트로 전환
-_youtube_quota_exceeded = False  # True면 _2 프로젝트 사용
-_youtube_quota_exceeded_date = None  # 할당량 초과된 날짜 (다음 날 리셋)
+# 파일 기반으로 저장하여 워커 간 공유 및 서버 재시작 후에도 유지
+YOUTUBE_QUOTA_FLAG_FILE = 'data/youtube_quota_exceeded.json'
+
+def _load_quota_flag():
+    """파일에서 할당량 초과 플래그 로드"""
+    from datetime import date
+    try:
+        if os.path.exists(YOUTUBE_QUOTA_FLAG_FILE):
+            with open(YOUTUBE_QUOTA_FLAG_FILE, 'r') as f:
+                data = json.load(f)
+                exceeded_date = data.get('date')
+                if exceeded_date:
+                    # 날짜가 바뀌면 리셋 (할당량은 매일 Pacific Time 기준 초기화됨)
+                    today_str = date.today().isoformat()
+                    if exceeded_date != today_str:
+                        print(f"[YOUTUBE-QUOTA] 날짜 변경 감지 - 할당량 리셋 ({exceeded_date} → {today_str})")
+                        os.remove(YOUTUBE_QUOTA_FLAG_FILE)
+                        return False
+                    return True
+    except Exception as e:
+        print(f"[YOUTUBE-QUOTA] 플래그 파일 읽기 오류: {e}")
+    return False
+
+def _save_quota_flag():
+    """파일에 할당량 초과 플래그 저장"""
+    from datetime import date
+    try:
+        os.makedirs(os.path.dirname(YOUTUBE_QUOTA_FLAG_FILE), exist_ok=True)
+        with open(YOUTUBE_QUOTA_FLAG_FILE, 'w') as f:
+            json.dump({'exceeded': True, 'date': date.today().isoformat()}, f)
+        print(f"[YOUTUBE-QUOTA] 플래그 파일 저장됨: {YOUTUBE_QUOTA_FLAG_FILE}")
+    except Exception as e:
+        print(f"[YOUTUBE-QUOTA] 플래그 파일 저장 오류: {e}")
 
 def get_youtube_credentials():
     """현재 사용할 YouTube OAuth 자격증명 반환 (할당량 failover 지원)"""
-    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
-    from datetime import date
-
-    # 날짜가 바뀌면 리셋 (할당량은 매일 초기화됨)
-    today = date.today()
-    if _youtube_quota_exceeded_date and _youtube_quota_exceeded_date != today:
-        print(f"[YOUTUBE-QUOTA] 날짜 변경 감지 - 할당량 리셋 ({_youtube_quota_exceeded_date} → {today})")
-        _youtube_quota_exceeded = False
-        _youtube_quota_exceeded_date = None
+    # 파일에서 할당량 초과 플래그 확인
+    quota_exceeded = _load_quota_flag()
 
     # 할당량 초과 시 _2 프로젝트 사용
-    if _youtube_quota_exceeded:
+    if quota_exceeded:
         client_id = os.getenv('YOUTUBE_CLIENT_ID_2')
         client_secret = os.getenv('YOUTUBE_CLIENT_SECRET_2')
         if client_id and client_secret:
             print("[YOUTUBE-QUOTA] _2 프로젝트 사용 중 (할당량 초과로 전환됨)")
             return client_id, client_secret, "_2"
+        else:
+            print("[YOUTUBE-QUOTA] 경고: 할당량 초과 상태이나 _2 프로젝트 미설정")
 
     # 기본 프로젝트
     client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
@@ -124,22 +150,129 @@ def get_youtube_credentials():
 
 def set_youtube_quota_exceeded():
     """할당량 초과 플래그 설정 - _2 프로젝트로 전환"""
-    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
-    from datetime import date
+    # 이미 초과 상태인지 확인
+    if _load_quota_flag():
+        print("[YOUTUBE-QUOTA] 이미 할당량 초과 상태")
+        return True
 
-    if not _youtube_quota_exceeded:
-        _youtube_quota_exceeded = True
-        _youtube_quota_exceeded_date = date.today()
-        print(f"[YOUTUBE-QUOTA] 할당량 초과 감지! _2 프로젝트로 전환 (날짜: {_youtube_quota_exceeded_date})")
+    # 플래그 저장
+    _save_quota_flag()
+    print(f"[YOUTUBE-QUOTA] 할당량 초과 감지! _2 프로젝트로 전환")
 
-        # _2 프로젝트가 있는지 확인
-        if os.getenv('YOUTUBE_CLIENT_ID_2'):
-            print("[YOUTUBE-QUOTA] _2 프로젝트 발견 - 다음 업로드부터 _2 사용")
-            return True
-        else:
-            print("[YOUTUBE-QUOTA] _2 프로젝트 없음 - 내일까지 대기 필요")
-            return False
-    return True
+    # _2 프로젝트가 있는지 확인
+    if os.getenv('YOUTUBE_CLIENT_ID_2'):
+        print("[YOUTUBE-QUOTA] _2 프로젝트 발견 - 다음 업로드부터 _2 사용")
+        return True
+    else:
+        print("[YOUTUBE-QUOTA] _2 프로젝트 없음 - 내일까지 대기 필요")
+        return False
+
+def check_youtube_quota_before_pipeline(channel_id=None):
+    """
+    파이프라인 시작 전 YouTube API 할당량 체크
+
+    Returns:
+        (ok, project_suffix, error_message)
+        - ok: True면 업로드 가능
+        - project_suffix: 사용할 프로젝트 ('', '_2')
+        - error_message: 에러 시 메시지
+    """
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+
+        def try_quota_check(project_suffix):
+            """특정 프로젝트로 할당량 테스트"""
+            token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
+            if not token_data or not token_data.get('refresh_token'):
+                return None, f"토큰 없음 (project: {project_suffix or '기본'})"
+
+            # 토큰 로드
+            creds = Credentials(
+                token=token_data.get('access_token'),
+                refresh_token=token_data.get('refresh_token'),
+                token_uri='https://oauth2.googleapis.com/token',
+                client_id=os.getenv('YOUTUBE_CLIENT_ID_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID'),
+                client_secret=os.getenv('YOUTUBE_CLIENT_SECRET_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
+            )
+
+            # 토큰 갱신
+            if creds.expired or not creds.valid:
+                creds.refresh(Request())
+
+            # 간단한 API 호출로 할당량 테스트 (channels.list - 1 unit)
+            youtube = build('youtube', 'v3', credentials=creds)
+            youtube.channels().list(part='id', mine=True).execute()
+            return True, None
+
+        # 1. 먼저 플래그 파일 확인
+        if _load_quota_flag():
+            # 이미 기본 프로젝트 할당량 초과 상태 - _2로 시도
+            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 할당량 초과 상태 - _2로 시도")
+            ok, err = try_quota_check('_2')
+            if ok:
+                print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트 사용 가능")
+                return True, '_2', None
+            else:
+                # _2도 실패
+                if 'quota' in str(err).lower():
+                    print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트도 할당량 초과!")
+                    return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
+                else:
+                    print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 오류: {err}")
+                    return False, '', f"_2 프로젝트 오류: {err}"
+
+        # 2. 기본 프로젝트로 시도
+        print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트로 할당량 체크 중...")
+        ok, err = try_quota_check('')
+        if ok:
+            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 사용 가능")
+            return True, '', None
+
+        # 3. 기본 프로젝트 실패 - quotaExceeded인지 확인
+        if err and 'quota' in str(err).lower():
+            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 할당량 초과 감지 - _2로 전환")
+            _save_quota_flag()  # 플래그 저장
+
+            # _2 프로젝트로 재시도
+            if os.getenv('YOUTUBE_CLIENT_ID_2'):
+                ok2, err2 = try_quota_check('_2')
+                if ok2:
+                    print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트 사용 가능")
+                    return True, '_2', None
+                else:
+                    if 'quota' in str(err2).lower():
+                        return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
+                    else:
+                        return False, '', f"_2 프로젝트 오류: {err2}"
+            else:
+                return False, '', "YouTube API 할당량 초과. 백업 프로젝트(_2) 미설정."
+
+        # 다른 오류
+        print(f"[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 오류: {err}")
+        return False, '', f"YouTube 인증 오류: {err}"
+
+    except Exception as e:
+        error_str = str(e).lower()
+        print(f"[YOUTUBE-QUOTA-CHECK] 예외 발생: {e}")
+
+        # quotaExceeded 예외 처리
+        if 'quota' in error_str:
+            _save_quota_flag()
+            if os.getenv('YOUTUBE_CLIENT_ID_2'):
+                # _2로 재시도
+                try:
+                    ok, err = try_quota_check('_2')
+                    if ok:
+                        return True, '_2', None
+                except Exception as e2:
+                    if 'quota' in str(e2).lower():
+                        return False, '', "두 프로젝트 모두 YouTube API 할당량 초과"
+                    return False, '', f"_2 프로젝트 오류: {e2}"
+            return False, '', "YouTube API 할당량 초과. 백업 프로젝트 없음."
+
+        return False, '', f"YouTube 할당량 체크 실패: {e}"
 
 # YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
 YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
@@ -19997,6 +20130,15 @@ def run_automation_pipeline(row_data, row_index):
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
+
+        # ========== 0. YouTube 할당량 사전 체크 ==========
+        # 대본 분석/이미지 생성 비용 낭비 방지를 위해 먼저 YouTube 업로드 가능 여부 확인
+        print(f"[AUTOMATION] 0. YouTube 할당량 사전 체크...")
+        quota_ok, selected_project, quota_error = check_youtube_quota_before_pipeline(channel_id)
+        if not quota_ok:
+            print(f"[AUTOMATION][ERROR] YouTube 할당량 체크 실패: {quota_error}")
+            return {"ok": False, "error": quota_error, "video_url": None}
+        print(f"[AUTOMATION] YouTube 프로젝트 선택: {'기본' if not selected_project else selected_project}")
 
         session_id = f"auto_{row_index}_{int(time_module.time())}"
         base_url = "http://127.0.0.1:" + str(os.environ.get("PORT", 5059))
