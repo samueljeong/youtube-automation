@@ -517,21 +517,11 @@ def load_youtube_token_from_db(channel_id='default', project_suffix=''):
 
         row = cursor.fetchone()
 
-        # ===== 백업 프로젝트 Fallback 로직 =====
-        # 해당 채널의 _2 토큰이 없으면, 아무 _2 토큰이나 사용
-        # (동일 Google 계정의 모든 채널은 같은 OAuth 토큰으로 접근 가능)
+        # ===== Fallback 로직 제거 (2024-12-13) =====
+        # 주의: 다른 채널의 토큰을 사용하면 해당 채널로 업로드됨!
+        # OAuth 토큰은 인증된 채널에만 업로드 가능하므로 fallback 사용 금지
         if not row and project_suffix:
-            print(f"[YOUTUBE-TOKEN] {channel_id} 토큰 없음, 다른 {project_suffix} 토큰 검색 중...")
-            if USE_POSTGRES:
-                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE %s ORDER BY updated_at DESC LIMIT 1",
-                              (f'%{project_suffix}',))
-            else:
-                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE ? ORDER BY updated_at DESC LIMIT 1",
-                              (f'%{project_suffix}',))
-            row = cursor.fetchone()
-            if row:
-                fallback_id = row['user_id'] if USE_POSTGRES else row[0]
-                print(f"[YOUTUBE-TOKEN] Fallback 토큰 발견: {fallback_id} → {original_channel_id} 채널에 사용")
+            print(f"[YOUTUBE-TOKEN] ⚠️ {channel_id} 토큰 없음 - fallback 사용하지 않음 (다른 채널로 업로드되는 버그 방지)")
 
         conn.close()
 
