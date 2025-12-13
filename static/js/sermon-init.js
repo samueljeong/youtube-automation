@@ -632,6 +632,110 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ===== 백업/복원 버튼 이벤트 =====
+  const btnExportBackup = document.getElementById('btn-export-backup');
+  const btnImportBackup = document.getElementById('btn-import-backup');
+  const backupFileInput = document.getElementById('backup-file-input');
+
+  if (btnExportBackup) {
+    btnExportBackup.addEventListener('click', () => {
+      if (typeof exportBackup === 'function') {
+        exportBackup();
+      } else {
+        alert('백업 기능을 사용할 수 없습니다.');
+      }
+    });
+  }
+
+  if (btnImportBackup && backupFileInput) {
+    btnImportBackup.addEventListener('click', () => {
+      backupFileInput.click();
+    });
+    backupFileInput.addEventListener('change', (e) => {
+      if (e.target.files[0] && typeof importBackup === 'function') {
+        importBackup(e.target.files[0]);
+      }
+    });
+  }
+
+  // ===== Firebase 동기화 버튼 이벤트 =====
+  const btnCheckFirebase = document.getElementById('btn-check-firebase');
+  const btnRestoreFirebase = document.getElementById('btn-restore-firebase');
+  const btnUploadFirebase = document.getElementById('btn-upload-firebase');
+
+  if (btnCheckFirebase) {
+    btnCheckFirebase.addEventListener('click', async () => {
+      try {
+        showStatus('🔍 Firebase 데이터 확인 중...');
+        const data = await checkFirebaseData();
+        hideStatus();
+
+        let message = '=== Firebase 데이터 ===\n\n';
+
+        if (data.documents.length === 0) {
+          message += 'Firebase에 저장된 데이터가 없습니다.';
+        } else {
+          data.documents.forEach(doc => {
+            message += `📄 ${doc.id}\n`;
+            if (doc.updatedAt) {
+              message += `   업데이트: ${doc.updatedAt.toLocaleString('ko-KR')}\n`;
+            }
+            if (doc.version) {
+              message += `   버전: ${doc.version}\n`;
+            }
+            if (doc.styles) {
+              Object.entries(doc.styles).forEach(([cat, styles]) => {
+                message += `   [${cat}] 스타일: ${styles.join(', ')}\n`;
+              });
+            }
+            if (doc.items) {
+              message += `   저장된 설교: ${doc.count}개\n`;
+              doc.items.forEach(item => {
+                message += `      - ${item}\n`;
+              });
+            }
+            if (doc.parseError) {
+              message += `   ⚠️ 파싱 오류: ${doc.parseError}\n`;
+            }
+            message += '\n';
+          });
+        }
+
+        alert(message);
+        console.log('Firebase 데이터:', data);
+      } catch (err) {
+        hideStatus();
+        alert('Firebase 확인 실패: ' + err.message);
+      }
+    });
+  }
+
+  if (btnRestoreFirebase) {
+    btnRestoreFirebase.addEventListener('click', async () => {
+      if (!confirm('Firebase에서 데이터를 복원하시겠습니까?\n현재 로컬 설정이 덮어쓰기됩니다.')) {
+        return;
+      }
+      if (typeof restoreFromFirebase === 'function') {
+        await restoreFromFirebase();
+      } else {
+        alert('복원 기능을 사용할 수 없습니다.');
+      }
+    });
+  }
+
+  if (btnUploadFirebase) {
+    btnUploadFirebase.addEventListener('click', async () => {
+      if (!confirm('현재 로컬 설정을 Firebase에 업로드하시겠습니까?\nFirebase의 기존 데이터가 덮어쓰기됩니다.')) {
+        return;
+      }
+      if (typeof forceUploadToFirebase === 'function') {
+        await forceUploadToFirebase();
+      } else {
+        alert('업로드 기능을 사용할 수 없습니다.');
+      }
+    });
+  }
+
   console.log('✅ Sermon 앱 초기화 완료!');
 });
 

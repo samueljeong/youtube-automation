@@ -171,18 +171,17 @@ function renderStyles() {
   const settings = window.config.categorySettings[window.currentCategory];
   let styles = (settings && settings.styles) ? settings.styles : [];
 
-  // 스타일이 없으면 기본 스타일 복구
+  // 스타일이 없으면 기본 스타일 복구 (로컬에서만, Firebase에 저장하지 않음)
   if (styles.length === 0 && window.DEFAULT_STYLES) {
     // 현재 카테고리의 기본 스타일이 있으면 사용, 없으면 general 스타일 사용
     const defaultStyles = window.DEFAULT_STYLES[window.currentCategory] || window.DEFAULT_STYLES['general'];
     if (defaultStyles && defaultStyles.length > 0) {
-      console.log('[renderStyles] 기본 스타일 복구:', window.currentCategory, '(using:', window.DEFAULT_STYLES[window.currentCategory] ? 'own' : 'general', ')');
+      console.log('[renderStyles] 기본 스타일 복구 (로컬만):', window.currentCategory, '(using:', window.DEFAULT_STYLES[window.currentCategory] ? 'own' : 'general', ')');
       settings.styles = JSON.parse(JSON.stringify(defaultStyles));
       styles = settings.styles;
-      // 비동기로 저장
-      if (typeof saveConfig === 'function') {
-        setTimeout(() => saveConfig(), 100);
-      }
+      // 🔴 버그 수정: 자동 복구 시 Firebase에 저장하지 않음
+      // 기존 사용자 설정을 덮어쓰는 문제 방지
+      console.warn('[renderStyles] ⚠️ 기본 스타일이 로컬에만 복구됨. Firebase 설정 확인 필요.');
     }
   }
 

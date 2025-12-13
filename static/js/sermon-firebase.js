@@ -1820,6 +1820,145 @@ async function importBackup(file) {
   }
 }
 
+// ===== Firebase 데이터 확인/복구 함수 =====
+async function checkFirebaseData() {
+  try {
+    console.log('=== Firebase 데이터 확인 ===');
+    const snapshot = await db.collection('users').doc(USER_CODE).collection(PAGE_NAME).get();
+
+    const result = {
+      documents: [],
+      config: null,
+      savedSermons: null,
+      autoSave: null
+    };
+
+    if (snapshot.empty) {
+      console.log('Firebase에 저장된 데이터가 없습니다.');
+      return result;
+    }
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      const docInfo = {
+        id: doc.id,
+        updatedAt: data.updatedAt?.toDate?.() || null
+      };
+
+      if (doc.id === CONFIG_KEY) {
+        try {
+          const config = JSON.parse(data.value);
+          docInfo.version = config._version;
+          docInfo.categories = config.categories?.map(c => c.label);
+          docInfo.styles = {};
+          if (config.categorySettings) {
+            Object.entries(config.categorySettings).forEach(([cat, settings]) => {
+              if (settings.styles && settings.styles.length > 0) {
+                docInfo.styles[cat] = settings.styles.map(s => s.name);
+              }
+            });
+          }
+          result.config = config;
+        } catch (e) {
+          docInfo.parseError = e.message;
+        }
+      } else if (doc.id === 'sermon-saved') {
+        try {
+          const saved = JSON.parse(data.value);
+          docInfo.count = saved.length;
+          docInfo.items = saved.map(s => `${s.date} - ${s.styleName || s.styleId}`);
+          result.savedSermons = saved;
+        } catch (e) {
+          docInfo.parseError = e.message;
+        }
+      } else if (doc.id === AUTO_SAVE_KEY) {
+        try {
+          result.autoSave = JSON.parse(data.value);
+          docInfo.category = result.autoSave.category;
+          docInfo.styleId = result.autoSave.styleId;
+        } catch (e) {
+          docInfo.parseError = e.message;
+        }
+      }
+
+      result.documents.push(docInfo);
+    });
+
+    console.log('Firebase 데이터:', result);
+    return result;
+  } catch (err) {
+    console.error('Firebase 데이터 확인 실패:', err);
+    throw err;
+  }
+}
+
+async function restoreFromFirebase() {
+  try {
+    showStatus('🔄 Firebase에서 최신 데이터 복원 중...');
+
+    const data = await checkFirebaseData();
+
+    if (!data.config) {
+      alert('Firebase에 저장된 설정이 없습니다.');
+      hideStatus();
+      return false;
+    }
+
+    // Firebase config로 덮어쓰기
+    window.config = data.config;
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(data.config));
+
+    // 저장된 설교 복원
+    if (data.savedSermons) {
+      localStorage.setItem('sermon-saved', JSON.stringify(data.savedSermons));
+    }
+
+    // 자동 저장 복원
+    if (data.autoSave) {
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data.autoSave));
+    }
+
+    showStatus('✅ Firebase 데이터 복원 완료! 페이지를 새로고침합니다...');
+
+    setTimeout(() => {
+      location.reload();
+    }, 1500);
+
+    return true;
+  } catch (err) {
+    console.error('Firebase 복원 실패:', err);
+    alert('Firebase 복원 실패: ' + err.message);
+    hideStatus();
+    return false;
+  }
+}
+
+// 현재 로컬 설정을 Firebase에 강제 저장
+async function forceUploadToFirebase() {
+  try {
+    showStatus('☁️ 현재 설정을 Firebase에 업로드 중...');
+
+    // Config 저장
+    const configStr = JSON.stringify(window.config);
+    await saveToFirebase(CONFIG_KEY, configStr);
+
+    // 저장된 설교 저장
+    const savedSermons = localStorage.getItem('sermon-saved');
+    if (savedSermons) {
+      await saveToFirebase('sermon-saved', savedSermons);
+    }
+
+    showStatus('✅ Firebase 업로드 완료!');
+    setTimeout(hideStatus, 2000);
+    return true;
+  } catch (err) {
+    console.error('Firebase 업로드 실패:', err);
+    alert('Firebase 업로드 실패: ' + err.message);
+    hideStatus();
+    return false;
+  }
+}
+
 // 전역 노출
 window.db = db;
 window.USER_CODE = USER_CODE;
@@ -1839,3 +1978,6 @@ window.loadAutoSave = loadAutoSave;
 window.setupRealtimeSync = setupRealtimeSync;
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
+window.checkFirebaseData = checkFirebaseData;
+window.restoreFromFirebase = restoreFromFirebase;
+window.forceUploadToFirebase = forceUploadToFirebase;
