@@ -517,21 +517,11 @@ def load_youtube_token_from_db(channel_id='default', project_suffix=''):
 
         row = cursor.fetchone()
 
-        # ===== 백업 프로젝트 Fallback 로직 =====
-        # 해당 채널의 _2 토큰이 없으면, 아무 _2 토큰이나 사용
-        # (동일 Google 계정의 모든 채널은 같은 OAuth 토큰으로 접근 가능)
+        # ===== Fallback 로직 제거 (2024-12-13) =====
+        # 주의: 다른 채널의 토큰을 사용하면 해당 채널로 업로드됨!
+        # OAuth 토큰은 인증된 채널에만 업로드 가능하므로 fallback 사용 금지
         if not row and project_suffix:
-            print(f"[YOUTUBE-TOKEN] {channel_id} 토큰 없음, 다른 {project_suffix} 토큰 검색 중...")
-            if USE_POSTGRES:
-                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE %s ORDER BY updated_at DESC LIMIT 1",
-                              (f'%{project_suffix}',))
-            else:
-                cursor.execute("SELECT * FROM youtube_tokens WHERE user_id LIKE ? ORDER BY updated_at DESC LIMIT 1",
-                              (f'%{project_suffix}',))
-            row = cursor.fetchone()
-            if row:
-                fallback_id = row['user_id'] if USE_POSTGRES else row[0]
-                print(f"[YOUTUBE-TOKEN] Fallback 토큰 발견: {fallback_id} → {original_channel_id} 채널에 사용")
+            print(f"[YOUTUBE-TOKEN] ⚠️ {channel_id} 토큰 없음 - fallback 사용하지 않음 (다른 채널로 업로드되는 버그 방지)")
 
         conn.close()
 
@@ -8220,9 +8210,11 @@ def youtube_auth():
         # GET 또는 POST 모두 지원
         if request.method == 'GET':
             force_project = request.args.get('project', '')
+            target_channel_id = request.args.get('channel_id', '')  # 특정 채널 ID 지정
         else:
             data = request.get_json() or {}
             force_project = data.get('forceProject', '')
+            target_channel_id = data.get('channelId', '')  # 특정 채널 ID 지정
 
         # 강제 프로젝트 지정 시 해당 프로젝트 사용
         if force_project in ['_2', 'backup']:
@@ -8320,8 +8312,12 @@ def youtube_auth():
             'redirect_uri': redirect_uri,
             'client_id': client_id,
             'client_secret': client_secret,
-            'project_suffix': project_suffix  # 프로젝트 구분 (_2 등)
+            'project_suffix': project_suffix,  # 프로젝트 구분 (_2 등)
+            'target_channel_id': target_channel_id  # 특정 채널 ID (있으면 해당 채널로 저장)
         })
+
+        if target_channel_id:
+            print(f"[YOUTUBE-AUTH] 대상 채널 지정됨: {target_channel_id}")
 
         # GET 요청이면 바로 리다이렉트, POST면 JSON 응답
         if request.method == 'GET':
@@ -8465,9 +8461,18 @@ def youtube_callback():
         except Exception as channel_error:
             print(f"[YOUTUBE-CALLBACK] 채널 정보 조회 실패 (토큰은 저장): {channel_error}")
 
-        # account_id가 있으면 그걸로 저장, 없으면 channel_id로 저장
+        # 우선순위: target_channel_id > account_id > channel_id (API에서 받은 기본 채널)
+        # target_channel_id: OAuth 시작 시 특정 채널을 지정한 경우 (한 계정에 여러 채널이 있을 때)
+        target_channel_id = oauth_state.get('target_channel_id', '').strip()
         account_id = oauth_state.get('account_id', '').strip()
-        token_key = account_id if account_id else channel_id
+
+        if target_channel_id:
+            token_key = target_channel_id
+            print(f"[YOUTUBE-CALLBACK] 지정된 채널 ID 사용: {target_channel_id} (기본 채널: {channel_id})")
+        elif account_id:
+            token_key = account_id
+        else:
+            token_key = channel_id
 
         # OAuth state에서 프로젝트 접미사 확인 (인증 시작 시 저장됨)
         project_suffix = oauth_state.get('project_suffix', '')
