@@ -8306,12 +8306,12 @@ def youtube_auth():
             redirect_uri=redirect_uri
         )
 
-        # prompt='consent'는 매번 동의 화면을 강제로 표시하므로 제거
-        # access_type='offline'만으로 refresh_token을 받을 수 있음
-        # 단, 이미 권한을 부여한 사용자는 자동으로 승인됨
+        # prompt='consent'는 이미 권한 부여한 사용자도 refresh_token을 받기 위해 필요
+        # access_type='offline'과 함께 사용해야 함
         auth_url, state = flow.authorization_url(
             access_type='offline',
-            include_granted_scopes='true'
+            include_granted_scopes='true',
+            prompt='consent'  # 반드시 필요! 없으면 refresh_token 안 줌
         )
 
         # 상태를 파일에 저장 (멀티 워커 대응)
