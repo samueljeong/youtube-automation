@@ -35,7 +35,7 @@ from youtube_auth import (
 )
 
 # 이미지 생성 모듈
-from image import generate_image as image_generate, generate_image_base64, generate_thumbnail_image, GEMINI_FLASH, GEMINI_PRO
+from image import generate_image as image_generate, generate_image_base64, generate_thumbnail_image, get_image_count_by_script, GEMINI_FLASH, GEMINI_PRO
 
 app = Flask(__name__)
 
@@ -3661,17 +3661,17 @@ def api_generate_image():
         if not prompt:
             return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
 
-        # Gemini 2.5 Flash Image (image 모듈 사용) - 기본값
+        # Gemini 3 Pro Image (image 모듈 사용) - 고품질 씬 이미지
         if image_provider == "gemini":
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 이미지 생성 시작 - 요청 사이즈: {size}")
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 3 Pro 이미지 생성 시작 - 요청 사이즈: {size}")
 
-            # image 모듈의 generate_image 사용
-            result = image_generate(prompt=prompt, size=size)
+            # image 모듈의 generate_image 사용 (Gemini 3 Pro - 고품질)
+            result = image_generate(prompt=prompt, size=size, model=GEMINI_PRO)
 
             if not result.get("ok"):
                 return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")}), 200
 
-            cost_usd = result.get("cost", 0.039)
+            cost_usd = result.get("cost", 0.05)  # Gemini 3 Pro 기본 비용
             cost_krw = int(cost_usd * 1350)
 
             return jsonify({
@@ -19070,15 +19070,15 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 except Exception as style_err:
                     print(f"[TUBELENS] 채널 스타일 분석 실패 (무시): {style_err}")
 
-            # 이미지 개수 8개 고정 (추후 지시 있을때까지)
-            fixed_image_count = 8
-            print(f"[AUTOMATION] 이미지 {fixed_image_count}개 고정 생성")
+            # 영상 길이별 이미지 개수 결정 (image 모듈 사용)
+            image_count, estimated_minutes = get_image_count_by_script(len(script))
+            print(f"[AUTOMATION] 대본 {len(script)}자 → 예상 {estimated_minutes:.1f}분 → 이미지 {image_count}개")
 
             analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
                 "script": script,
                 "content_type": "drama",
                 "image_style": "animation",  # 스틱맨 스타일
-                "image_count": fixed_image_count,
+                "image_count": image_count,
                 "audience": audience,
                 "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto",
@@ -19243,7 +19243,7 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                         scenes[idx]['image_url'] = image_url
 
             success_count = len([s for s in scenes if s.get('image_url')])
-            image_cost = success_count * 0.02
+            image_cost = success_count * 0.05  # Gemini 3 Pro 비용
             total_cost += image_cost
             print(f"[AUTOMATION][IMAGE] 완료: {success_count}/{len(scenes)}개 (비용: ${image_cost:.2f})")
             return success_count

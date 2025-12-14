@@ -24,40 +24,58 @@
     },
 
     "duration_settings": {
+      "description": "영상 길이별 이미지 개수 지침 (10분 이후 장면 전환 느려짐)",
+      "image_count_rules": {
+        "~8min": 5,
+        "8~10min": 8,
+        "10~15min": 11,
+        "15min+": 12
+      },
       "2min": {
         "target_length": 600,
         "max_characters": 1,
-        "max_scenes": 2,
-        "images_per_scene": "1",
+        "image_count": 5,
         "highlight_scenes": 1
       },
       "5min": {
         "target_length": 1500,
         "max_characters": 2,
-        "max_scenes": 3,
-        "images_per_scene": "1-2",
+        "image_count": 5,
         "highlight_scenes": 1
+      },
+      "8min": {
+        "target_length": 2400,
+        "max_characters": 2,
+        "image_count": 5,
+        "highlight_scenes": 2
       },
       "10min": {
         "target_length": 3000,
         "max_characters": 2,
-        "max_scenes": 4,
-        "images_per_scene": "1-2",
-        "highlight_scenes": 2
+        "image_count": 8,
+        "highlight_scenes": 2,
+        "note": "10분 전까지는 장면 전환 자주"
+      },
+      "15min": {
+        "target_length": 4500,
+        "max_characters": 3,
+        "image_count": 11,
+        "highlight_scenes": 3,
+        "note": "10분 이후부터 장면 전환 느려짐"
       },
       "20min": {
         "target_length": 6000,
         "max_characters": 3,
-        "max_scenes": 6,
-        "images_per_scene": "1-2",
-        "highlight_scenes": 3
+        "image_count": 12,
+        "highlight_scenes": 3,
+        "note": "15분 이상은 12컷 고정"
       },
       "30min": {
         "target_length": 9000,
         "max_characters": 4,
-        "max_scenes": 8,
-        "images_per_scene": "1-2",
-        "highlight_scenes": 3
+        "image_count": 12,
+        "highlight_scenes": 3,
+        "note": "15분 이상은 12컷 고정"
       }
     },
 

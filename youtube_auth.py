@@ -460,7 +460,8 @@ def check_youtube_quota_before_pipeline(channel_id=None):
                 return True, '_2', None
             else:
                 # _2도 실패
-                if 'quota' in str(err).lower():
+                err_str = str(err) if err else ''
+                if 'quota' in err_str.lower() or '할당량' in err_str:
                     print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트도 할당량 초과!")
                     return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
                 else:
@@ -475,7 +476,8 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             return True, '', None
 
         # 3. 기본 프로젝트 실패 - quotaExceeded인지 확인
-        if err and 'quota' in str(err).lower():
+        err_lower = str(err).lower() if err else ''
+        if err and ('quota' in err_lower or '할당량' in err):
             print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 할당량 초과 감지 - _2로 전환")
             _save_quota_flag()  # 플래그 저장
 
@@ -486,7 +488,8 @@ def check_youtube_quota_before_pipeline(channel_id=None):
                     print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트 사용 가능")
                     return True, '_2', None
                 else:
-                    if 'quota' in str(err2).lower():
+                    err2_lower = str(err2).lower() if err2 else ''
+                    if 'quota' in err2_lower or '할당량' in str(err2):
                         return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
                     else:
                         return False, '', f"_2 프로젝트 오류: {err2}"
