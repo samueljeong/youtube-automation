@@ -34,6 +34,9 @@ from youtube_auth import (
     _load_quota_flag, _save_quota_flag
 )
 
+# 이미지 생성 모듈
+from image import generate_image as image_generate, generate_thumbnail_image
+
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
@@ -3658,285 +3661,22 @@ def api_generate_image():
         if not prompt:
             return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
 
-        # Gemini 2.5 Flash Image (OpenRouter API) - 기본값
+        # Gemini 2.5 Flash Image (image 모듈 사용) - 기본값
         if image_provider == "gemini":
-            openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 이미지 생성 시작 - 요청 사이즈: {size}")
 
-            if not openrouter_api_key:
-                return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."}), 200
+            # image 모듈의 generate_image 사용
+            result = image_generate(prompt=prompt, size=size)
 
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작 - 요청 사이즈: {size}")
+            if not result.get("ok"):
+                return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")}), 200
 
-            # 사이즈에 따른 비율 결정 - 매우 강력하게 명시
-            if size == "1792x1024" or "16:9" in size:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. The width MUST be 1.78 times the height. Target dimensions: 1920x1080 pixels or 1280x720 pixels. This is MANDATORY for YouTube video format. DO NOT generate square or portrait images."
-                target_width, target_height = 1280, 720
-            elif size == "1024x1792" or "9:16" in size:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 9:16 VERTICAL PORTRAIT aspect ratio. The height MUST be 1.78 times the width. Target dimensions: 1080x1920 pixels or 720x1280 pixels. This is MANDATORY for YouTube Shorts format. DO NOT generate square or landscape images."
-                target_width, target_height = 720, 1280
-            else:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. Target dimensions: 1920x1080 or 1280x720 pixels. MANDATORY for YouTube."
-                target_width, target_height = 1280, 720
-
-            # 프롬프트에 16:9 비율 지시만 추가
-            # 스타일은 /api/image/analyze-script에서 이미 지정됨 (스틱맨+애니배경)
-            enhanced_prompt = f"{aspect_instruction}\n\n{prompt}"
-            print(f"[IMAGE-GEN] 프롬프트 그대로 사용 (분석 API에서 스타일 지정됨)")
-
-            # OpenRouter API 호출 (Chat Completions 형식)
-            headers = {
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://drama-generator.app",
-                "X-Title": "Drama Image Generator"
-            }
-
-            payload = {
-                "model": "google/gemini-2.5-flash-image-preview",
-                "modalities": ["text", "image"],
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": enhanced_prompt
-                            }
-                        ]
-                    }
-                ]
-            }
-
-            # 재시도 로직 (quota 오류 대응)
-            import time
-            max_retries = 3
-            retry_delay = 5  # 초
-
-            response = None
-            last_error = None
-
-            for attempt in range(max_retries):
-                try:
-                    response = req.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
-                        headers=headers,
-                        json=payload,
-                        timeout=90
-                    )
-
-                    # 성공 또는 quota 외 오류
-                    if response.status_code == 200:
-                        break
-                    elif response.status_code in [429, 502, 503, 504] or "quota" in response.text.lower() or "rate" in response.text.lower():
-                        # Rate limit / Quota / 서버 오류 (502, 503, 504) - 재시도
-                        last_error = response.text
-                        error_type = "서버 오류" if response.status_code in [502, 503, 504] else "quota/rate limit"
-                        print(f"[DRAMA-STEP4-IMAGE][RETRY] Gemini {error_type} ({response.status_code}) (시도 {attempt + 1}/{max_retries}), {retry_delay}초 후 재시도...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2  # 지수 백오프
-                        continue
-                    else:
-                        # 다른 오류
-                        break
-
-                except req.exceptions.Timeout:
-                    last_error = "요청 시간 초과"
-                    print(f"[DRAMA-STEP4-IMAGE][RETRY] 타임아웃 (시도 {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-                except Exception as e:
-                    last_error = str(e)
-                    print(f"[DRAMA-STEP4-IMAGE][RETRY] 오류: {e} (시도 {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-
-            if response is None or response.status_code != 200:
-                error_text = last_error or (response.text if response else "알 수 없는 오류")
-                print(f"[DRAMA-STEP4-IMAGE][ERROR] OpenRouter API 최종 실패: {error_text}")
-                return jsonify({"ok": False, "error": f"Gemini API 오류 (재시도 실패): {error_text[:200]}"}), 200
-
-            result = response.json()
-
-            # 디버그: 전체 응답 로깅
-            print(f"[DRAMA-STEP4-IMAGE][DEBUG] Gemini 응답: {json.dumps(result, ensure_ascii=False)[:1000]}")
-
-            # 응답에서 이미지 추출 (base64 data URL)
-            image_url = None
-            base64_image_data = None  # 파일로 저장할 base64 데이터
-            try:
-                choices = result.get("choices", [])
-                if choices:
-                    message = choices[0].get("message", {})
-
-                    # 1. images 배열 먼저 확인 (OpenRouter 표준 형식)
-                    images = message.get("images", [])
-                    if images:
-                        for img in images:
-                            if isinstance(img, str):
-                                # base64 문자열 또는 data URL
-                                if img.startswith("data:"):
-                                    base64_image_data = img.split(",", 1)[1] if "," in img else img
-                                else:
-                                    base64_image_data = img
-                                break
-                            elif isinstance(img, dict):
-                                if img.get("type") == "image_url":
-                                    url = img.get("image_url", {}).get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                    else:
-                                        image_url = url
-                                elif "url" in img:
-                                    url = img.get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                    else:
-                                        image_url = url
-                                elif "data" in img:
-                                    base64_image_data = img.get("data")
-                                elif "b64_json" in img:
-                                    base64_image_data = img.get("b64_json")
-                                if base64_image_data or image_url:
-                                    break
-
-                    # 2. content 배열 확인
-                    if not image_url and not base64_image_data:
-                        content = message.get("content", [])
-                        if isinstance(content, list):
-                            for item in content:
-                                if isinstance(item, dict):
-                                    item_type = item.get("type", "")
-
-                                    # image_url 타입
-                                    if item_type == "image_url":
-                                        url = item.get("image_url", {}).get("url", "")
-                                        if url.startswith("data:"):
-                                            base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                        else:
-                                            image_url = url
-                                        if base64_image_data or image_url:
-                                            break
-
-                                    # image 타입 (inline_data)
-                                    elif item_type == "image":
-                                        image_data = item.get("image", {})
-                                        if isinstance(image_data, dict):
-                                            base64_image_data = image_data.get("data") or image_data.get("base64") or image_data.get("b64_json")
-                                            if base64_image_data:
-                                                break
-                                        elif isinstance(image_data, str):
-                                            base64_image_data = image_data
-                                            break
-
-                                    # inline_data 타입 (Google 형식)
-                                    elif "inline_data" in item:
-                                        inline = item.get("inline_data", {})
-                                        base64_image_data = inline.get("data", "")
-                                        if base64_image_data:
-                                            break
-
-                                    # source 타입 (Claude API 형식)
-                                    elif "source" in item:
-                                        source = item.get("source", {})
-                                        if source.get("type") == "base64":
-                                            base64_image_data = source.get("data", "")
-                                            if base64_image_data:
-                                                break
-
-                        elif isinstance(content, str):
-                            print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:200]}")
-
-                # base64 데이터가 있으면 파일로 저장 (+ 16:9 리사이즈 및 압축)
-                if base64_image_data and not image_url:
-                    import base64 as b64
-                    from PIL import Image as PILImage
-                    from io import BytesIO
-                    try:
-                        # base64 디코딩
-                        image_bytes = b64.b64decode(base64_image_data)
-
-                        # PIL로 이미지 열기
-                        img = PILImage.open(BytesIO(image_bytes))
-                        original_size = len(image_bytes)
-                        original_dimensions = f"{img.width}x{img.height}"
-                        print(f"[DRAMA-STEP4-IMAGE] 원본 이미지: {original_dimensions}, {original_size/1024:.1f}KB")
-
-                        # 16:9 비율로 리사이즈/크롭 (target_width, target_height 사용)
-                        target_ratio = target_width / target_height
-                        current_ratio = img.width / img.height
-
-                        if abs(current_ratio - target_ratio) > 0.05:  # 비율 차이가 5% 이상이면 크롭
-                            if current_ratio > target_ratio:
-                                # 이미지가 더 넓음 - 좌우 크롭
-                                new_width = int(img.height * target_ratio)
-                                left = (img.width - new_width) // 2
-                                img = img.crop((left, 0, left + new_width, img.height))
-                            else:
-                                # 이미지가 더 높음 - 상하 크롭
-                                new_height = int(img.width / target_ratio)
-                                top = (img.height - new_height) // 2
-                                img = img.crop((0, top, img.width, top + new_height))
-                            print(f"[DRAMA-STEP4-IMAGE] 16:9 크롭 완료: {img.width}x{img.height}")
-
-                        # 타겟 크기로 리사이즈 (YouTube HD: 1280x720)
-                        if img.width > target_width or img.height > target_height:
-                            img = img.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
-                            print(f"[DRAMA-STEP4-IMAGE] 리사이즈 완료: {target_width}x{target_height}")
-
-                        # RGB 변환 (RGBA 이미지인 경우)
-                        if img.mode == 'RGBA':
-                            background = PILImage.new('RGB', img.size, (255, 255, 255))
-                            background.paste(img, mask=img.split()[3])
-                            img = background
-                        elif img.mode != 'RGB':
-                            img = img.convert('RGB')
-
-                        # JPEG로 압축 저장 (품질 85)
-                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'images')
-                        os.makedirs(static_dir, exist_ok=True)
-
-                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
-                        filename = f"gemini_{timestamp}.jpg"
-                        filepath = os.path.join(static_dir, filename)
-
-                        img.save(filepath, 'JPEG', quality=85, optimize=True)
-
-                        final_size = os.path.getsize(filepath)
-                        compression_ratio = (1 - final_size / original_size) * 100
-                        print(f"[DRAMA-STEP4-IMAGE] 최종 이미지: {target_width}x{target_height}, {final_size/1024:.1f}KB (압축률: {compression_ratio:.1f}%)")
-
-                        image_url = f"/static/images/{filename}"
-                        print(f"[DRAMA-STEP4-IMAGE] 이미지 저장 완료: {image_url}")
-                    except Exception as save_err:
-                        print(f"[DRAMA-STEP4-IMAGE][ERROR] 이미지 저장 실패: {save_err}")
-                        # 저장 실패 시 base64 URL로 반환
-                        image_url = f"data:image/png;base64,{base64_image_data}"
-
-            except Exception as parse_error:
-                print(f"[DRAMA-STEP4-IMAGE][ERROR] 응답 파싱 오류: {parse_error}")
-                import traceback
-                traceback.print_exc()
-
-            if not image_url:
-                # 에러 메시지에 더 많은 정보 포함
-                error_detail = ""
-                if choices:
-                    msg = choices[0].get("message", {})
-                    if msg.get("content"):
-                        content = msg.get("content")
-                        if isinstance(content, str):
-                            error_detail = f" 응답: {content[:100]}"
-                return jsonify({"ok": False, "error": f"Gemini에서 이미지를 생성하지 못했습니다.{error_detail} 프롬프트를 수정해주세요."}), 200
-
-            # Gemini 비용: ~$0.039/장 (1290 output tokens * $30/1M)
-            cost_usd = 0.039
+            cost_usd = result.get("cost", 0.039)
             cost_krw = int(cost_usd * 1350)
-
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 완료 - 비용: ${cost_usd}")
 
             return jsonify({
                 "ok": True,
-                "imageUrl": image_url,
+                "imageUrl": result.get("image_url"),
                 "cost": cost_krw,
                 "costUsd": cost_usd,
                 "provider": "gemini"
