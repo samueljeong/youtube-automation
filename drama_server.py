@@ -19070,15 +19070,24 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 except Exception as style_err:
                     print(f"[TUBELENS] 채널 스타일 분석 실패 (무시): {style_err}")
 
-            # 이미지 개수 8개 고정 (추후 지시 있을때까지)
-            fixed_image_count = 8
-            print(f"[AUTOMATION] 이미지 {fixed_image_count}개 고정 생성")
+            # 영상 길이별 이미지 개수 결정 (한국어 TTS: 약 150자/분)
+            # ~8분: 5컷, 8~10분: 8컷, 10~15분: 11컷, 15분+: 12컷
+            estimated_minutes = len(script) / 150
+            if estimated_minutes <= 8:
+                image_count = 5
+            elif estimated_minutes <= 10:
+                image_count = 8  # 10분 전까지는 장면 전환 자주
+            elif estimated_minutes <= 15:
+                image_count = 11  # 10분 이후부터는 장면 전환 느리게
+            else:
+                image_count = 12  # 최대 12컷 고정
+            print(f"[AUTOMATION] 대본 {len(script)}자 → 예상 {estimated_minutes:.1f}분 → 이미지 {image_count}개")
 
             analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
                 "script": script,
                 "content_type": "drama",
                 "image_style": "animation",  # 스틱맨 스타일
-                "image_count": fixed_image_count,
+                "image_count": image_count,
                 "audience": audience,
                 "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto",
