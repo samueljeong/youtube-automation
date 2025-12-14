@@ -166,6 +166,23 @@ def _extract_image_from_response(result: Dict[str, Any]) -> Optional[str]:
                     return img
             elif isinstance(img, dict):
                 print(f"[GEMINI][DEBUG] _extract: images[{i}] dict 키: {list(img.keys())}")
+
+                # OpenRouter 형식: {"type": "image_url", "image_url": {"url": "data:..."}, "index": 0}
+                if "image_url" in img:
+                    image_url_obj = img["image_url"]
+                    if isinstance(image_url_obj, dict) and "url" in image_url_obj:
+                        url = image_url_obj["url"]
+                        print(f"[GEMINI][DEBUG] _extract: images[{i}][image_url][url] 발견, 길이: {len(url)}")
+                        if url.startswith("data:"):
+                            return url.split(",", 1)[1] if "," in url else url
+                        return url
+                    elif isinstance(image_url_obj, str):
+                        print(f"[GEMINI][DEBUG] _extract: images[{i}][image_url] 문자열, 길이: {len(image_url_obj)}")
+                        if image_url_obj.startswith("data:"):
+                            return image_url_obj.split(",", 1)[1] if "," in image_url_obj else image_url_obj
+                        return image_url_obj
+
+                # 기존 형식 지원
                 for key in ["data", "b64_json", "url", "base64"]:
                     if key in img:
                         val = img[key]
