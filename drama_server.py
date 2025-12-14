@@ -9648,37 +9648,54 @@ def _analyze_seo_keywords(script, lang='ko'):
         print(f"[SEO] 추출된 키워드: {top_keywords}")
         print(f"[SEO] 검색 쿼리: {search_query}")
 
-        # 2. YouTube Search API로 상위 영상 검색
-        search_resp = requests.get(
-            "https://www.googleapis.com/youtube/v3/search",
-            params={
-                "part": "snippet",
-                "q": search_query,
-                "type": "video",
-                "maxResults": 10,
-                "order": "relevance",
-                "relevanceLanguage": lang,
-                "key": api_key
-            },
-            timeout=10
-        )
+        # 2. YouTube Search API로 상위 영상 검색 (할당량 초과 시 _2 API Key로 재시도)
+        api_keys_to_try = [api_key]
+        api_key_2 = os.environ.get('YOUTUBE_API_KEY_2', '')
+        if api_key_2:
+            api_keys_to_try.append(api_key_2)
 
-        if search_resp.status_code != 200:
-            print(f"[SEO] YouTube 검색 실패: {search_resp.status_code}")
-            # 403/429 에러는 할당량 초과 가능성 - 특별 표시
-            if search_resp.status_code in [403, 429]:
-                error_body = search_resp.text.lower()
-                if 'quota' in error_body or 'limit' in error_body or search_resp.status_code == 403:
-                    print("[SEO][WARNING] YouTube API 할당량 초과 감지! 플래그 저장")
-                    # 할당량 플래그 저장 (업로드도 실패할 가능성 높음)
-                    try:
-                        _save_quota_flag()
-                    except Exception as flag_err:
-                        print(f"[SEO] 플래그 저장 실패: {flag_err}")
-                    return {"quota_exceeded": True, "error": "YouTube API 할당량 초과"}
+        search_data = None
+        used_api_key = None
+
+        for key_idx, current_api_key in enumerate(api_keys_to_try):
+            key_label = '기본' if key_idx == 0 else '_2'
+            print(f"[SEO] YouTube 검색 시도 ({key_label} API Key)")
+
+            search_resp = requests.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "snippet",
+                    "q": search_query,
+                    "type": "video",
+                    "maxResults": 10,
+                    "order": "relevance",
+                    "relevanceLanguage": lang,
+                    "key": current_api_key
+                },
+                timeout=10
+            )
+
+            if search_resp.status_code == 200:
+                search_data = search_resp.json()
+                used_api_key = current_api_key
+                print(f"[SEO] YouTube 검색 성공 ({key_label} API Key)")
+                break
+            else:
+                print(f"[SEO] YouTube 검색 실패 ({key_label}): {search_resp.status_code}")
+                # 403/429 에러는 할당량 초과 - 다음 키로 시도
+                if search_resp.status_code in [403, 429]:
+                    if key_idx == 0:
+                        print(f"[SEO] {key_label} API Key 할당량 초과 - _2로 재시도")
+                        _save_quota_flag()  # 플래그 저장
+                        continue
+                    else:
+                        # 두 번째 키도 실패
+                        print("[SEO][WARNING] 모든 API Key 할당량 초과!")
+                        return {"quota_exceeded": True, "error": "YouTube API 할당량 초과 (모든 키)"}
+                return None
+
+        if not search_data:
             return None
-
-        search_data = search_resp.json()
         video_ids = [item["id"]["videoId"] for item in search_data.get("items", [])
                     if "videoId" in item.get("id", {})]
 
@@ -9686,13 +9703,13 @@ def _analyze_seo_keywords(script, lang='ko'):
             print("[SEO] 검색 결과 없음")
             return None
 
-        # 3. 영상 상세 정보 조회 (제목, 태그, 조회수)
+        # 3. 영상 상세 정보 조회 (제목, 태그, 조회수) - 검색 성공한 API Key 사용
         videos_resp = requests.get(
             "https://www.googleapis.com/youtube/v3/videos",
             params={
                 "part": "snippet,statistics",
                 "id": ",".join(video_ids),
-                "key": api_key
+                "key": used_api_key or api_key
             },
             timeout=10
         )
