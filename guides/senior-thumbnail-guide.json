@@ -51,17 +51,17 @@
         "기적 같은 하루"
       ]
     },
-    "stickman_poses": [
-      "종이봉투 들고 서 있음",
-      "문 앞에서 주춤",
-      "고개 숙임",
-      "손에 서류/차트 들고 있음",
-      "창 밖을 바라봄",
-      "의자에 앉아 대기",
-      "가운 들고/접고 있음",
-      "손을 모으고 있음",
-      "문 여는 자세",
-      "멈춰 서 있음"
+    "character_poses": [
+      "종이봉투 들고 서 있음 (충격 표정)",
+      "문 앞에서 주춤 (걱정 표정)",
+      "고개 숙임 (슬픈 표정)",
+      "손에 서류/차트 들고 있음 (놀란 표정)",
+      "창 밖을 바라봄 (생각에 잠긴 표정)",
+      "의자에 앉아 대기 (불안한 표정)",
+      "가운 들고/접고 있음 (진지한 표정)",
+      "손을 모으고 있음 (감사하는 표정)",
+      "문 여는 자세 (기대하는 표정)",
+      "멈춰 서 있음 (충격받은 표정)"
     ],
     "backgrounds": [
       "병원 입구 간판",
@@ -99,7 +99,7 @@
     },
     "prompt_template": {
       "realistic": "Korean elderly [gender], [emotion] expression, [location], warm nostalgic lighting, soft focus background, [action], film grain, 1970s Korean aesthetic",
-      "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime slice-of-life background showing [location], soft pastel lighting, emotional storytelling composition"
+      "webtoon": "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with EXAGGERATED [emotion] EXPRESSION, 50-60 year old Korean [gender], [pose]. Clean bold outlines, vibrant flat colors, comic-style expression marks. [location] background. NO photorealistic, NO stickman, NO anime, NO 3D render."
     }
   },
 
@@ -222,7 +222,7 @@
     },
     "prompt_template": {
       "realistic": "Japanese elderly [gender], [emotion] expression, [location], warm lighting, soft focus background, [action], natural Japanese aesthetic",
-      "animation": "Simple stickman character with round white head, black outline, [pose], detailed anime background showing [location], soft lighting, clean composition for senior viewers"
+      "webtoon": "Japanese WEBTOON/manhwa style illustration, 16:9 aspect ratio. Japanese webtoon character with EXAGGERATED [emotion] EXPRESSION, 50-60 year old Japanese [gender], [pose]. Clean bold outlines, vibrant flat colors, comic-style expression marks. [location] background. NO photorealistic, NO stickman, NO anime, NO 3D render."
     },
     "title_rules": {
       "max_chars": 35,

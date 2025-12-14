@@ -1,74 +1,72 @@
 {
-  "version": "2.0",
-  "lastUpdated": "2025-12-05",
-  "description": "스틱맨(Stickman) 캐릭터 이미지 생성 가이드 - 실사 인물 사용 금지",
+  "version": "3.0",
+  "lastUpdated": "2025-12-14",
+  "description": "한국 웹툰/만화 스타일 캐릭터 이미지 생성 가이드 - 실사 인물/스틱맨 사용 금지",
 
   "characterStyle": {
-    "description": "모든 인물은 스틱맨으로만 표현 - 실사 인물 절대 금지!",
+    "description": "모든 인물은 한국 웹툰/만화 스타일로만 표현 - 실사 인물, 스틱맨 절대 금지!",
     "critical": true,
-    "warning": "⚠️ 할아버지, 할머니, 노인, 실제 사람 얼굴 생성 절대 금지!",
+    "warning": "⚠️ 실사 인물(사진처럼 사실적인 사람), 스틱맨(막대기 인간) 생성 절대 금지!",
 
-    "stickman": "Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body",
+    "webtoon_character": "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman, clean bold outlines, vibrant flat colors",
 
     "emotions": {
-      "happy": "curved smile mouth, slightly raised eyebrows",
-      "sad": "downturned mouth, dot eyes looking down",
-      "surprised": "round O-shaped mouth, wide dot eyes",
-      "angry": "zigzag mouth, angled eyebrows",
-      "crying": "downturned mouth, tear drops from eyes"
+      "happy": "bright smile, cheerful eyes, soft blush",
+      "sad": "downcast eyes, slight frown, tear drops",
+      "surprised": "wide eyes, open mouth, sweat drops",
+      "shocked": "extremely wide eyes, mouth agape, impact lines",
+      "angry": "furrowed brows, gritted teeth, anger marks",
+      "crying": "closed eyes, tears streaming, trembling mouth"
     },
 
-    "poses": {
-      "standing": "straight body posture",
-      "sitting": "bent legs at angle",
-      "walking": "legs in stride position",
-      "embracing": "two stickmen with arms around each other",
-      "thinking": "hand near head"
+    "expressions": {
+      "shocked_face": "EXAGGERATED SHOCKED EXPRESSION (wide eyes, open mouth, sweat drops)",
+      "worried_face": "WORRIED/PANICKED EXPRESSION (sweating, raised eyebrows, anxious mouth)",
+      "emotional_face": "EMOTIONAL EXPRESSION (gentle sad eyes, slight smile)",
+      "determined_face": "DETERMINED EXPRESSION (focused eyes, firm mouth)"
     }
   },
 
   "backgroundStyle": {
-    "description": "배경은 애니메이션 스타일로 상세하게",
+    "description": "배경은 주제와 관련된 상세한 배경으로 표현",
 
-    "anime_style": {
-      "base": "Detailed anime-style background, Ghibli-inspired, warm colors, slice-of-life environment",
-      "lighting": "soft warm lighting, golden hour glow, gentle shadows",
-      "color_palette": "warm earth tones, soft pastels, cozy atmosphere"
+    "general_style": {
+      "base": "Detailed background related to the scene context, vibrant colors",
+      "lighting": "warm lighting, atmospheric, professional",
+      "color_palette": "vibrant flat colors, high contrast"
     },
 
     "settings": {
-      "kitchen": "detailed anime-style traditional Korean kitchen with earthen jars, wooden cabinets, warm lighting through window",
-      "living_room": "detailed anime-style cozy living room with low wooden table, floor cushions, warm lamp light",
-      "outdoor": "detailed anime-style Korean village street, trees, traditional buildings, soft sunlight",
-      "restaurant": "detailed anime-style humble restaurant interior, wooden tables, warm tungsten lighting"
+      "kitchen": "detailed Korean kitchen with modern appliances, warm lighting through window",
+      "living_room": "cozy living room with comfortable furniture, warm lamp light",
+      "outdoor": "Korean city street or neighborhood, shops and signs, natural sunlight",
+      "office": "modern office interior, computers, professional atmosphere"
     }
   },
 
   "overallStyle": {
-    "description": "심플한 스틱맨 + 상세한 배경의 대비 스타일",
-    "style": "Contrast collage style - simple stickman against detailed anime background",
+    "description": "한국 웹툰/만화 스타일 일러스트레이션",
+    "style": "Korean webtoon/manhwa style illustration with comic-style expression marks (sweat drops, impact lines)",
     "aspect_ratio": "16:9 for YouTube thumbnails, 9:16 for shorts"
   },
 
   "forbidden": {
     "description": "절대 생성 금지 항목",
     "never_use": [
-      "realistic human faces",
-      "elderly people (grandfather, grandmother)",
-      "halmeoni (할머니)",
-      "harabeoji (할아버지)",
-      "photorealistic portraits",
-      "detailed human facial features",
+      "photorealistic human faces",
+      "stickman/stick figures",
+      "Japanese anime style",
+      "3D rendered characters",
       "realistic skin textures",
-      "Korean elderly characteristics"
+      "photograph-like images"
     ]
   },
 
   "example_prompts": {
-    "emotional_scene": "Simple white stickman with round head, black dot eyes looking sad, small frowning mouth, sitting alone at a detailed anime-style wooden kitchen table, Ghibli-inspired soft morning light through window, warm cup of tea nearby, contrast collage style, nostalgic and contemplative atmosphere",
+    "emotional_scene": "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with EMOTIONAL EXPRESSION (gentle sad eyes, slight smile), 50 year old Korean man sitting alone at kitchen table. Clean bold outlines, warm colors, comic-style atmosphere. Morning light through window. NO photorealistic, NO stickman, NO anime, NO 3D render.",
 
-    "reunion_scene": "Two simple white stickmen embracing in emotional reunion pose, one larger one smaller, detailed anime-style humble restaurant background, Ghibli-inspired warm lighting, contrast collage style, emotional and hopeful atmosphere",
+    "shocked_scene": "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with SHOCKED EXPRESSION (wide eyes, open mouth, sweat drops), 40 year old Korean man reading newspaper. Clean bold outlines, vibrant flat colors, comic-style impact lines. Office background. NO photorealistic, NO stickman, NO anime, NO 3D render.",
 
-    "outdoor_scene": "Simple white stickman with happy curved smile, walking along detailed anime-style Korean village path, cherry blossom trees, traditional tile-roof houses in background, Ghibli-inspired warm afternoon light, contrast collage style, peaceful atmosphere"
+    "outdoor_scene": "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with CONTEMPLATIVE EXPRESSION, 40 year old Korean woman walking. Clean bold outlines, vibrant city colors, daily life atmosphere. Korean city street with shops. NO photorealistic, NO stickman, NO anime, NO 3D render."
   }
 }

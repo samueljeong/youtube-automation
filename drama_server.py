@@ -3480,20 +3480,21 @@ def api_analyze_characters():
 - imagePrompt와 backgroundPrompt는 반드시 영어로 작성
 - 프롬프트는 AI 이미지 생성에 최적화되도록 상세하게 작성
 
-🚨 매우 중요 - 스틱맨(Stickman) 캐릭터 사용 필수:
+🚨 매우 중요 - 한국 웹툰/만화 스타일 캐릭터 사용 필수:
 
-- ⚠️⚠️⚠️ 실사 인물 절대 금지! 할아버지, 할머니, 노인, 실제 사람 얼굴 모두 사용 금지!
+- ⚠️⚠️⚠️ 실사 인물 절대 금지! 사진처럼 사실적인 인물 이미지 사용 금지!
+- ⚠️⚠️⚠️ 스틱맨 절대 금지! 막대기 인간 스타일 사용 금지!
 
-- ⚠️ 스틱맨 캐릭터 (모든 인물은 이걸로 표현):
-  "Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body"
+- ⚠️ 캐릭터 스타일 (모든 인물은 이걸로 표현):
+  "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION (shocked face, wide eyes, open mouth, sweat drops), 30-50 year old Korean man or woman, clean bold outlines, vibrant flat colors"
 
 - ⚠️ 배경 스타일:
-  "Detailed anime-style background, Ghibli-inspired, warm colors, slice-of-life environment"
+  "Detailed background related to the scene, vibrant colors"
 
 - ⚠️ 전체 스타일:
-  "Contrast collage style - simple stickman against detailed anime background"
+  "Korean webtoon/manhwa style illustration with comic-style expression marks (sweat drops, impact lines)"
 
-- ⚠️ 감정 표현: 스틱맨의 간단한 표정과 포즈로 표현 (점 눈, 곡선 입)"""
+- ⚠️ 감정 표현: 웹툰 캐릭터의 과장된 표정으로 표현 (큰 눈, 벌린 입, 땀방울 등)"""
 
         user_content = f"""다음 드라마 대본을 분석해주세요:
 
@@ -3570,15 +3571,16 @@ def api_generate_scene_prompt():
 4. 한국 드라마 스타일의 시각적 요소
 5. DALL-E 3에 최적화된 상세하고 명확한 묘사
 
-🚨 매우 중요 - 스틱맨(Stickman) 캐릭터만 사용:
-- 실사 인물(할아버지, 할머니, 노인, 사람 얼굴) 절대 금지!
-- 모든 인물은 스틱맨으로 표현
-- 스틱맨: "Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body"
-- 감정 표현: 스틱맨의 간단한 표정과 포즈로 표현
+🚨 매우 중요 - 한국 웹툰/만화 스타일 캐릭터만 사용:
+- 실사 인물(사진처럼 사실적인 인물) 절대 금지!
+- 스틱맨(막대기 인간) 절대 금지!
+- 모든 인물은 한국 웹툰 스타일로 표현
+- 캐릭터: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman, clean bold outlines"
+- 감정 표현: 웹툰 캐릭터의 과장된 표정으로 표현 (큰 눈, 벌린 입, 땀방울)
 
 🚨 배경 스타일:
-- 배경: "Detailed anime-style background, Ghibli-inspired, warm colors, slice-of-life environment"
-- 전체 스타일: "Contrast collage style - simple stickman against detailed anime background"
+- 배경: "Detailed background with vibrant colors, related to the scene context"
+- 전체 스타일: "Korean webtoon/manhwa style illustration with comic-style expression marks"
 
 응답 형식:
 BACKGROUND_PROMPT: [배경 프롬프트 - 영어, 1970~80년대 한국 배경 스타일 포함]
@@ -7054,10 +7056,11 @@ def generate_thumbnail():
 
 🎯 목표: 시청자가 클릭하고 싶게 만드는 썸네일
 
-⚠️ 중요: 캐릭터는 반드시 스틱맨(Stickman)으로만 표현하세요!
-- 실사 인물(할아버지, 할머니, 노인 등) 절대 사용 금지!
-- 스틱맨: 하얀 막대 인간, 둥근 머리, 검은 점 눈, 작은 입
-- 배경은 애니메이션 스타일 (지브리풍, 따뜻한 색감)
+⚠️ 중요: 캐릭터는 반드시 한국 웹툰/만화 스타일로 표현하세요!
+- 실사 인물(사진처럼 사실적인 사람) 절대 사용 금지!
+- 스틱맨(막대기 인간) 절대 사용 금지!
+- 캐릭터: 한국 웹툰 스타일, 과장된 표정 (충격, 놀람, 땀방울 등)
+- 30-50대 한국인 남성/여성
 
 대본:
 {script[:3000]}
@@ -7066,12 +7069,12 @@ def generate_thumbnail():
 
 【필수 형식】으로 응답해주세요:
 
-1. 주인공 정보: (대본의 주인공 상황/감정 - 스틱맨으로 표현됨)
+1. 주인공 정보: (대본의 주인공 상황/감정 - 웹툰 캐릭터로 표현)
 2. 이미지 프롬프트: (영어로, 아래 조건 포함)
-   - 스틱맨 캐릭터: "Simple white stickman with round head, black dot eyes, small mouth"
-   - 감정 표현: 스틱맨의 표정과 포즈로 표현
-   - 배경: 애니메이션 스타일 (Ghibli-inspired, warm colors)
-   - 구도: 스틱맨 + 배경 대비 스타일
+   - 웹툰 캐릭터: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman"
+   - 감정 표현: 과장된 웹툰 표정 (shocked face, wide eyes, open mouth, sweat drops)
+   - 배경: 주제와 관련된 상세한 배경
+   - 스타일: Clean bold outlines, vibrant flat colors, comic-style expression marks
 3. 썸네일 텍스트: (3~4줄로 구성, 각 줄 \\n으로 구분)
    - 1줄: 훅 (충격적인 숫자/상황)
    - 2줄: 핵심 인물/사건
@@ -7080,8 +7083,8 @@ def generate_thumbnail():
 4. 강조 줄 번호: (3줄 중 강조할 줄 번호, 예: 3)
 
 【예시】
-1. 주인공 정보: 외로운 노인, 교회를 혼자 지키다 희망을 찾는 순간 (스틱맨으로 표현)
-2. 이미지 프롬프트: Simple white stickman with round head, black dot eyes, small sad mouth, thin eyebrows, standing alone in detailed anime-style church interior, Ghibli-inspired warm lighting through stained glass windows, contrast collage style, emotional atmosphere
+1. 주인공 정보: 외로운 노인, 교회를 혼자 지키다 희망을 찾는 순간 (웹툰 캐릭터로 표현)
+2. 이미지 프롬프트: Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with EMOTIONAL EXPRESSION (gentle sad eyes, slight smile), 60 year old Korean man standing alone in church interior. Clean bold outlines, warm colors, comic-style atmosphere. Stained glass windows in background. NO photorealistic, NO stickman, NO anime, NO 3D render.
 3. 썸네일 텍스트: 1년간 혼자 예배드리던\\n작은 교회\\n문 닫으려던 그날\\n한 청년이 나타났습니다
 4. 강조 줄 번호: 3"""
 
@@ -7143,17 +7146,17 @@ def generate_thumbnail():
 
         if provider == 'gemini':
             # Gemini 이미지 생성 (image 모듈 사용)
-            # 스틱맨 스타일 강제 적용
+            # 웹툰 스타일 강제 적용
             enhanced_prompt = f"""CRITICAL REQUIREMENTS:
-1. 16:9 WIDESCREEN aspect ratio
-2. ONLY simple white stickman character - round head, two black dot eyes, small mouth, thin eyebrows, black outline body
-3. ABSOLUTELY NO realistic humans, NO grandpa, NO grandma, NO elderly people, NO anime characters with detailed faces
-4. Detailed anime/Ghibli-style background ONLY
-5. The stickman should be the ONLY character in the scene
+1. 16:9 WIDESCREEN aspect ratio for YouTube thumbnail
+2. Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION (shocked face, wide eyes, open mouth, sweat drops)
+3. 30-50 year old Korean man or woman (match the story context)
+4. Clean bold outlines, vibrant flat colors, comic-style expression marks
+5. ABSOLUTELY NO photorealistic humans, NO stickman/stick figures, NO Japanese anime style, NO 3D render
 
 Original request: {image_prompt}
 
-FINAL STYLE: Detailed anime background (Ghibli-inspired, warm colors) + Simple white stickman character. Eye-catching YouTube thumbnail composition."""
+FINAL STYLE: Korean webtoon/manhwa style illustration. Eye-catching YouTube thumbnail composition with dramatic character expression."""
 
             # image 모듈의 generate_image 사용
             result = image_generate(prompt=enhanced_prompt, size="1280x720")
@@ -9903,7 +9906,7 @@ def api_image_analyze_script():
         era_guide = korean_senior.get('era_1970s_1980s', {}).get('visual_style', {}) if korean_senior else {}
         style_guides = {
             'realistic': 'photorealistic, high quality photography, natural lighting, sharp focus, cinematic composition',
-            'animation': 'STICKMAN_STYLE'  # 특별 처리 필요
+            'animation': 'WEBTOON_STYLE'  # 웹툰 스타일 처리
         }
 
         style_desc = style_guides.get(image_style, 'photorealistic')
@@ -10173,13 +10176,13 @@ def api_image_analyze_script():
 6. **건강 썸네일 텍스트**: 여러 줄 (line1, line2, line3, line4)로 구성, highlight 필드에 강조할 키워드"""
 
             system_prompt = f"""You are an AI that generates:
-1. **SCENE IMAGE PROMPTS (scenes[].image_prompt)** = COLLAGE STYLE: Detailed Anime Background + 2D Stickman Character
-2. **THUMBNAIL PROMPTS (ai_prompts)** = PHOTOREALISTIC STYLE: Real humans, news photography, NO stickman!
+1. **SCENE IMAGE PROMPTS (scenes[].image_prompt)** = KOREAN WEBTOON/MANHWA STYLE: Expressive characters with exaggerated emotions
+2. **THUMBNAIL PROMPTS (ai_prompts)** = PHOTOREALISTIC STYLE for news, WEBTOON STYLE for story!
 
 ⚠️ CRITICAL DISTINCTION:
-- scenes[].image_prompt → 스틱맨 + 애니메이션 배경 (영상 내부 이미지)
-- ai_prompts → 실사 스타일, 실제 인물, 뉴스/영화 포스터 스타일 (YouTube 썸네일)
-- 이 두 가지는 완전히 다른 스타일임!
+- scenes[].image_prompt → 한국 웹툰/만화 스타일 (영상 내부 이미지)
+- ai_prompts (news) → 실사 스타일, 실제 인물, 뉴스 사진 스타일 (YouTube 썸네일)
+- ai_prompts (story) → 웹툰 스타일 (YouTube 썸네일)
 
 ## ⚠️ LANGUAGE RULE (CRITICAL!) ⚠️
 Output Language: {lang_config['name']} ({lang_config['native']})
@@ -10191,45 +10194,39 @@ Output Language: {lang_config['name']} ({lang_config['native']})
 
 Target Audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
-## CORE CONCEPT (CRITICAL!)
-The key visual style is:
-1. Background = DETAILED ANIME STYLE (slice-of-life anime, Ghibli-inspired, warm colors, soft lighting)
-2. Stickman = SIMPLE WHITE BODY + CONSISTENT FACE (round head, TWO DOT EYES, small mouth, thin eyebrows)
-3. Combination = "CONTRAST COLLAGE" - simple stickman contrasts against detailed anime background
-4. ABSOLUTELY NO OTHER CHARACTERS - NO anime characters, NO realistic humans, NO elderly people, NO grandpa, NO grandma, NO senior citizens, ONLY the simple white stickman!
+## CORE CONCEPT - KOREAN WEBTOON STYLE (CRITICAL!)
+The key visual style for scene images is KOREAN WEBTOON/MANHWA:
+1. Style = KOREAN WEBTOON (not Japanese anime, not stickman, not photorealistic)
+2. Characters = Korean webtoon/manhwa style with EXAGGERATED EXPRESSIONS (shocked face, wide eyes, open mouth, sweat drops)
+3. Age = 30-50 year old Korean man or woman (match the story context)
+4. Line art = Clean bold outlines, vibrant flat colors
+5. Expression marks = Comic-style effects (impact lines, sweat drops, emotion symbols)
 
 ⚠️ FORBIDDEN ELEMENTS (NEVER INCLUDE):
-- ANY realistic human faces or bodies
-- ANY elderly/senior/grandpa/grandma characters
-- ANY anime-style human characters
-- ANY silhouettes of people other than the stickman
+- NO stickman characters
+- NO photorealistic humans
+- NO Japanese anime style
+- NO 3D rendered characters
+- NO text/letters in the image
 
-This creates contrast between the detailed anime world and the simple stickman.
+## PROMPT STRUCTURE FOR SCENE IMAGES (ALWAYS FOLLOW THIS ORDER)
+"Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. " +
+"[Scene description with character action/emotion]. " +
+"Korean webtoon character with EXAGGERATED [emotion] EXPRESSION, 30-50 year old Korean [man/woman]. " +
+"Clean bold outlines, vibrant flat colors, comic-style expression marks. " +
+"[Background description]. NO photorealistic, NO stickman, NO anime, NO 3D render."
 
-## PROMPT STRUCTURE (ALWAYS FOLLOW THIS ORDER)
-(detailed anime background, slice-of-life style, Ghibli-inspired) +
-(simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows, black outline body) +
-(contrast collage style) +
-(no other characters)
+## WEBTOON CHARACTER DESCRIPTION (USE THIS STYLE)
+"Korean webtoon/manhwa style character with exaggerated [emotion] expression (wide eyes, [mouth expression], sweat drops),
+30-50 year old Korean [man/woman], clean bold outlines, vibrant colors, comic-style effect lines."
 
-## STICKMAN CHARACTER DESCRIPTION (USE THIS EXACT PHRASE - CRITICAL FOR CONSISTENCY!)
-"simple white stickman with round head, two black dot eyes, small curved mouth, thin eyebrows, black outline body, [pose/emotion]. NO other characters."
-
-The stickman MUST ALWAYS have these facial features in EVERY image:
-- Round white head
-- TWO BLACK DOT EYES (always visible)
-- Small curved mouth (can show emotion: smile, frown, neutral)
-- Thin eyebrows (can show emotion: raised, lowered)
-
-## MANDATORY STYLE KEYWORDS (MUST INCLUDE IN EVERY PROMPT)
-- detailed anime background, slice-of-life style
-- Ghibli-inspired warm colors and soft lighting
-- simple white stickman with round head, two black dot eyes, small mouth, thin eyebrows
-- black outline body, clean minimal flat style
-- contrast between detailed background and minimal character
-- NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman
-- seamless composition
-- CHARACTER FACE MUST BE CLEARLY VISIBLE
+## MANDATORY STYLE KEYWORDS FOR SCENE IMAGES
+- Korean WEBTOON style, manhwa illustration
+- Exaggerated facial expression (shocked, surprised, sad, angry, happy)
+- Clean bold outlines, vibrant flat colors
+- Comic-style expression marks (sweat drops, impact lines)
+- 30-50 year old Korean man or woman
+- NO photorealistic, NO stickman, NO anime, NO 3D
 
 ## 🎨 썸네일 전략 규칙 (중요!)
 
@@ -10718,7 +10715,7 @@ The stickman MUST ALWAYS have these facial features in EVERY image:
       "scene_number": 1,
       "chapter_title": "Short chapter title for YouTube (5-15 chars)",
       "narration": "<speak>원본 대본의 정확한 문장.<break time='300ms'/><prosody rate='slow'>감정 표현이 필요한 부분</prosody>에 SSML 태그 추가.</speak>",
-      "image_prompt": "[Detailed anime background, slice-of-life style, Ghibli-inspired, soft lighting]. Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body, [action], face clearly visible. NO anime characters, NO realistic humans, NO elderly, NO grandpa, NO grandma, ONLY stickman. Contrast collage.",
+      "image_prompt": "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. [Scene description]. Korean webtoon character with EXAGGERATED [emotion] EXPRESSION, 30-50 year old Korean [man/woman]. Clean bold outlines, vibrant flat colors, comic-style expression marks (sweat drops, impact lines). [Background]. NO photorealistic, NO stickman, NO anime, NO 3D render.",
       "ken_burns": "zoom_in / zoom_out / pan_left / pan_right / pan_up / pan_down"
     }}
   ]
@@ -10982,19 +10979,19 @@ Each scene needs a short chapter title for YouTube chapters:
 </speak>
 ```
 
-## EXAMPLE PROMPTS (스틱맨은 항상 동일한 얼굴: 점 눈 2개, 작은 입, 얇은 눈썹)
+## EXAMPLE PROMPTS (한국 웹툰/만화 스타일 - 과장된 표정 필수!)
 
-### 신문 읽는 스틱맨
-"Detailed anime background of office building stairs in warm morning sunlight, slice-of-life anime style, Ghibli-inspired warm colors. Simple white stickman with round head, two black dot eyes, small curved mouth, thin eyebrows, black outline body, reading a newspaper with curious expression. NO other characters. Contrast collage style."
+### 신문 읽고 충격받는 장면
+"Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Office building stairs scene in warm morning light. Korean webtoon character with SHOCKED EXPRESSION (wide eyes, open mouth, sweat drops), 40 year old Korean man reading newspaper. Clean bold outlines, vibrant flat colors, comic-style impact lines. NO photorealistic, NO stickman, NO anime, NO 3D render."
 
-### 주식 시장 혼돈
-"Detailed anime style trading floor background, monitors with stock charts, dramatic lighting, slice-of-life anime aesthetic. Simple white stickman with round head, two black dot eyes, small worried mouth, raised thin eyebrows showing concern, black outline body, standing in the center. NO anime characters, NO realistic humans. Contrast collage."
+### 주식 폭락 소식 듣는 장면
+"Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Stock trading floor with monitors showing falling charts. Korean webtoon character with WORRIED/PANICKED EXPRESSION (sweating, raised eyebrows, anxious mouth), 45 year old Korean businessman. Clean bold outlines, dramatic lighting, comic-style sweat drops. NO photorealistic, NO stickman, NO anime, NO 3D render."
 
-### 한국 진료소 스타일
-"Anime style spring morning in front of a small Korean clinic, cherry blossoms falling, Ghibli-inspired soft pastel colors. Simple white stickman with round head, two black dot eyes, gentle smile mouth, thin eyebrows, wearing a white coat, black outline body. NO other characters. Contrast collage style."
+### 의사 상담 장면
+"Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean clinic office with medical equipment. Korean webtoon character doctor with GENTLE/REASSURING EXPRESSION, 50 year old Korean man in white coat. Clean bold outlines, soft colors, professional atmosphere. NO photorealistic, NO stickman, NO anime, NO 3D render."
 
-### 도시 거리 스타일
-"Detailed anime style Korean city street background, warm colors, Ghibli-inspired slice-of-life aesthetic. Simple white stickman with round head, two black dot eyes, small neutral mouth, thin eyebrows, black outline body, standing in the foreground. NO anime characters, NO realistic humans. Contrast collage composition."
+### 도시 거리 걷는 장면
+"Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean city street with shops and signs. Korean webtoon character with CONTEMPLATIVE EXPRESSION, 40 year old Korean woman walking. Clean bold outlines, vibrant city colors, daily life atmosphere. NO photorealistic, NO stickman, NO anime, NO 3D render."
 """
 
         # 콘텐츠 타입별 시스템 프롬프트 분기 (실사 스타일)
@@ -11090,25 +11087,25 @@ Output Language: {lang_config['name']} ({lang_config['native']})
 
 Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
-## ⚠️⚠️⚠️ CRITICAL: STICKMAN CHARACTER ONLY (MUST FOLLOW!) ⚠️⚠️⚠️
-- ABSOLUTELY NO realistic human faces! Use STICKMAN character style only!
-- Stickman description: "Simple white stickman character with round head, two black dot eyes, small mouth, thin eyebrows, black outline body"
-- Background: Use detailed anime-style backgrounds (Ghibli-inspired, warm colors, detailed environments)
-- NO grandfather, grandmother, halmeoni, harabeoji, elderly man, elderly woman - ONLY stickman!
-- Style: "Contrast collage style" - simple stickman against detailed anime background
+## ⚠️⚠️⚠️ CRITICAL: KOREAN WEBTOON/MANHWA STYLE (MUST FOLLOW!) ⚠️⚠️⚠️
+- ABSOLUTELY NO photorealistic human faces! Use KOREAN WEBTOON/MANHWA style only!
+- ABSOLUTELY NO stickman/stick figures!
+- Character style: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION (shocked face, wide eyes, open mouth, sweat drops), 30-50 year old Korean man or woman, clean bold outlines, vibrant flat colors"
+- Background: Detailed backgrounds related to the scene context
+- Style: "Korean webtoon/manhwa style illustration with comic-style expression marks"
 
 ## Core Tasks
 1. Extract protagonist's age, gender, occupation, appearance from the script.
-2. Generate consistent image prompts based on extracted character info.
+2. Generate consistent image prompts based on extracted character info (KOREAN WEBTOON STYLE).
 3. Generate YouTube thumbnail text and prompts for the target audience.
 
 ## Character Prompt Rules (for image_prompt - always in English)
-- ⚠️ ALL CHARACTERS = STICKMAN ONLY! No realistic human faces!
-- Stickman: "Simple white stickman with round head, black dot eyes, small mouth, thin eyebrows, black outline body"
-- Background: Detailed anime-style (Ghibli-inspired, warm colors, slice-of-life environments)
-- Combine: Simple stickman + detailed background = "Contrast collage style"
-- Actions/poses should be shown through stickman body language
-- Emotions shown through simple facial expressions on stickman (dot eyes, curved mouth)
+- ⚠️ ALL CHARACTERS = KOREAN WEBTOON/MANHWA STYLE! No photorealistic faces, no stickman!
+- Character: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman, clean bold outlines"
+- Background: Detailed backgrounds with vibrant colors, related to the scene context
+- Style: Clean bold outlines, vibrant flat colors, comic-style expression marks (sweat drops, impact lines)
+- Actions/poses should be dynamic with exaggerated webtoon expressions
+- Emotions shown through exaggerated facial expressions (wide eyes, open mouth, sweat drops, impact lines)
 
 {thumbnail_rules}
 
@@ -11289,22 +11286,23 @@ The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
 {lang_config['instruction']}
 - ONLY image_prompt should be in English
 
-Split this script into exactly {image_count} scenes and generate "CONTRAST COLLAGE: Anime background + Stickman" image prompts.
+Split this script into exactly {image_count} scenes and generate "KOREAN WEBTOON/MANHWA STYLE" image prompts.
 Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
 Core Style (MUST follow):
-- Background = Detailed anime style (slice-of-life anime, Ghibli-inspired, warm colors, soft lighting)
-- Stickman = Simple white body + Face required (round head with TWO DOT EYES, SMALL CURVED MOUTH, THIN EYEBROWS)
-- Combination = "contrast collage" - simple stickman contrasts against detailed anime background
+- Character = Korean WEBTOON/manhwa style with EXAGGERATED EXPRESSIONS (shocked face, wide eyes, open mouth, sweat drops)
+- Character age = 30-50 year old Korean man or woman (match the story context)
+- Style = Clean bold outlines, vibrant flat colors, comic-style expression marks
+- Background = Detailed backgrounds related to the scene context
 
 Rules:
 1. Generate exactly {image_count} scenes (no more, no less)
-2. Background MUST be DETAILED ANIME STYLE - NO photorealistic!
-3. Character is ONLY "simple white stickman with round head, TWO BLACK DOT EYES, small curved mouth, thin eyebrows, black outline body"
-4. Stickman face MUST have: round head, two black dot eyes, small curved mouth, thin eyebrows - SAME in every scene!
-5. NO anime characters, NO realistic humans - ONLY the simple white stickman!
-6. Express emotion through eyebrows, mouth shape, and body posture
-7. Add these tags to every image_prompt: detailed anime background, slice-of-life style, simple white stickman, NO other characters, contrast collage
+2. Character MUST be KOREAN WEBTOON/MANHWA style - NO photorealistic, NO stickman!
+3. Character: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman, clean bold outlines"
+4. Character face MUST have: exaggerated expression matching the emotion - CONSISTENT character style in every scene!
+5. NO photorealistic humans, NO stickman/stick figures, NO Japanese anime style!
+6. Express emotion through exaggerated facial expressions (wide eyes, open mouth, sweat drops, impact lines)
+7. Add these tags to every image_prompt: Korean webtoon style, manhwa illustration, exaggerated expression, clean bold outlines, NO photorealistic, NO stickman
 8. {thumb_instruction}
 9. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 
@@ -11331,7 +11329,7 @@ Rules:
 2. {thumbnail_instruction}
 3. image_prompt MUST be in English, following the prompt writing principles above.
 4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
-5. ⚠️ ALL CHARACTERS = STICKMAN ONLY! No realistic humans (no grandfather, grandmother, elderly people). Use simple stickman with anime background."""
+5. ⚠️ ALL CHARACTERS = KOREAN WEBTOON/MANHWA STYLE! No photorealistic humans, no stickman. Use Korean webtoon style characters with exaggerated expressions."""
 
         print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
@@ -14075,24 +14073,25 @@ def _generate_shorts_video_v2(shorts_analysis, voice_name, output_path, base_url
                 if broll_prompt:
                     try:
                         # 9:16 세로 이미지용 프롬프트 강화
-                        # 중요: 스틱맨만 + 배경 (다른 사람/텍스트 없음)
+                        # 중요: 웹툰 스타일 캐릭터 + 배경 (다른 사람/텍스트 없음)
                         vertical_prompt = f"""VERTICAL 9:16 PORTRAIT composition for mobile shorts.
 
-CRITICAL - STICKMAN CHARACTER (ONLY CHARACTER ALLOWED):
-- CENTER a simple white stickman character in the frame
-- Stickman design: Round white head, two black dot eyes, small curved mouth, thin eyebrows, white body with black outline, simple stick arms and legs
-- The stickman should be the ONLY character in the image
-- Position stickman in the CENTER-BOTTOM area (leaving top 25% for text overlay)
+CRITICAL - KOREAN WEBTOON/MANHWA STYLE CHARACTER:
+- CENTER a Korean webtoon/manhwa style character in the frame
+- Character design: EXAGGERATED EXPRESSION (shocked face, wide eyes, open mouth, sweat drops), 30-50 year old Korean man or woman
+- Clean bold outlines, vibrant flat colors, comic-style expression marks
+- Position character in the CENTER-BOTTOM area (leaving top 25% for text overlay)
 
 FORBIDDEN - DO NOT INCLUDE:
-- NO other people, humans, grandparents, elderly, children, or any realistic characters
+- NO photorealistic humans or photographs
+- NO stickman/stick figures
 - NO text, letters, words, Korean characters, or any writing in the image
-- NO additional cartoon characters besides the one stickman
+- NO Japanese anime style, NO 3D render
 
-Background style: Detailed anime-style, Ghibli-inspired, warm colors, atmospheric scenery
+Background style: Detailed background related to the scene, vibrant colors
 Scene environment: {broll_prompt}
 
-OUTPUT: 1080x1920 vertical image with ONLY ONE centered stickman against scenic background."""
+OUTPUT: 1080x1920 vertical Korean webtoon style illustration with centered character against scenic background."""
 
                         # Gemini API로 9:16 이미지 생성
                         gen_resp = req.post(f"{base_url}/api/drama/generate-image", json={

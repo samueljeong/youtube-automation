@@ -996,7 +996,7 @@ const ImageMain = {
     }
 
     const thumbnailData = this.analyzedData.thumbnail || {};
-    const prompt = thumbnailData.prompt || 'detailed anime background with simple white stickman, dramatic pose, Ghibli-inspired, NO realistic humans';
+    const prompt = thumbnailData.prompt || 'Korean WEBTOON/manhwa style illustration with exaggerated expression, 16:9 aspect ratio, clean bold outlines, vibrant flat colors, NO photorealistic, NO stickman';
 
     // UI에서 스타일 값 읽기
     const outlineColor = document.getElementById('thumb-outline-color')?.value || '#000000';
