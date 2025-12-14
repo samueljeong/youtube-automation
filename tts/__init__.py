@@ -1,6 +1,6 @@
 """
-Step 3: TTS & Subtitles
-Google Cloud TTS 및 자막 생성 모듈
+TTS & Subtitles 모듈
+Google Cloud TTS 및 자막 생성
 
 핵심 기능:
 - 5000바이트 제한 해결 (tts_chunking)

@@ -432,9 +432,22 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             if creds.expired or not creds.valid:
                 creds.refresh(Request())
 
-            # 간단한 API 호출로 할당량 테스트 (channels.list - 1 unit)
+            # API 호출로 할당량 테스트
+            # search.list (100 units)를 사용하여 더 정확한 할당량 확인
+            # 업로드에 1600 units 필요하므로, 100 units도 못 쓰면 업로드 불가
             youtube = build('youtube', 'v3', credentials=creds)
-            youtube.channels().list(part='id', mine=True).execute()
+            try:
+                # search.list 테스트 (100 units) - 더 정확한 할당량 확인
+                youtube.search().list(part='id', q='test', maxResults=1, type='video').execute()
+                print(f"[YOUTUBE-QUOTA-CHECK] search.list 성공 (100 units)")
+            except Exception as search_err:
+                error_str = str(search_err).lower()
+                if 'quota' in error_str:
+                    print(f"[YOUTUBE-QUOTA-CHECK] search.list 실패 - 할당량 부족")
+                    return None, f"할당량 부족 (search.list 실패)"
+                # 다른 에러면 channels.list로 폴백
+                print(f"[YOUTUBE-QUOTA-CHECK] search.list 에러 ({search_err}), channels.list로 폴백")
+                youtube.channels().list(part='id', mine=True).execute()
             return True, None
 
         # 1. 먼저 플래그 파일 확인

@@ -34,6 +34,9 @@ from youtube_auth import (
     _load_quota_flag, _save_quota_flag
 )
 
+# 이미지 생성 모듈
+from image import generate_image as image_generate, generate_image_base64, generate_thumbnail_image, GEMINI_FLASH, GEMINI_PRO
+
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
@@ -3658,285 +3661,22 @@ def api_generate_image():
         if not prompt:
             return jsonify({"ok": False, "error": "프롬프트가 없습니다."}), 400
 
-        # Gemini 2.5 Flash Image (OpenRouter API) - 기본값
+        # Gemini 2.5 Flash Image (image 모듈 사용) - 기본값
         if image_provider == "gemini":
-            openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+            print(f"[DRAMA-STEP4-IMAGE] Gemini 이미지 생성 시작 - 요청 사이즈: {size}")
 
-            if not openrouter_api_key:
-                return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."}), 200
+            # image 모듈의 generate_image 사용
+            result = image_generate(prompt=prompt, size=size)
 
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 2.5 Flash Image 생성 시작 - 요청 사이즈: {size}")
+            if not result.get("ok"):
+                return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")}), 200
 
-            # 사이즈에 따른 비율 결정 - 매우 강력하게 명시
-            if size == "1792x1024" or "16:9" in size:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. The width MUST be 1.78 times the height. Target dimensions: 1920x1080 pixels or 1280x720 pixels. This is MANDATORY for YouTube video format. DO NOT generate square or portrait images."
-                target_width, target_height = 1280, 720
-            elif size == "1024x1792" or "9:16" in size:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 9:16 VERTICAL PORTRAIT aspect ratio. The height MUST be 1.78 times the width. Target dimensions: 1080x1920 pixels or 720x1280 pixels. This is MANDATORY for YouTube Shorts format. DO NOT generate square or landscape images."
-                target_width, target_height = 720, 1280
-            else:
-                aspect_instruction = "CRITICAL: You MUST generate the image in EXACT 16:9 WIDESCREEN LANDSCAPE aspect ratio. Target dimensions: 1920x1080 or 1280x720 pixels. MANDATORY for YouTube."
-                target_width, target_height = 1280, 720
-
-            # 프롬프트에 16:9 비율 지시만 추가
-            # 스타일은 /api/image/analyze-script에서 이미 지정됨 (스틱맨+애니배경)
-            enhanced_prompt = f"{aspect_instruction}\n\n{prompt}"
-            print(f"[IMAGE-GEN] 프롬프트 그대로 사용 (분석 API에서 스타일 지정됨)")
-
-            # OpenRouter API 호출 (Chat Completions 형식)
-            headers = {
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://drama-generator.app",
-                "X-Title": "Drama Image Generator"
-            }
-
-            payload = {
-                "model": "google/gemini-2.5-flash-image-preview",
-                "modalities": ["text", "image"],
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": enhanced_prompt
-                            }
-                        ]
-                    }
-                ]
-            }
-
-            # 재시도 로직 (quota 오류 대응)
-            import time
-            max_retries = 3
-            retry_delay = 5  # 초
-
-            response = None
-            last_error = None
-
-            for attempt in range(max_retries):
-                try:
-                    response = req.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
-                        headers=headers,
-                        json=payload,
-                        timeout=90
-                    )
-
-                    # 성공 또는 quota 외 오류
-                    if response.status_code == 200:
-                        break
-                    elif response.status_code in [429, 502, 503, 504] or "quota" in response.text.lower() or "rate" in response.text.lower():
-                        # Rate limit / Quota / 서버 오류 (502, 503, 504) - 재시도
-                        last_error = response.text
-                        error_type = "서버 오류" if response.status_code in [502, 503, 504] else "quota/rate limit"
-                        print(f"[DRAMA-STEP4-IMAGE][RETRY] Gemini {error_type} ({response.status_code}) (시도 {attempt + 1}/{max_retries}), {retry_delay}초 후 재시도...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2  # 지수 백오프
-                        continue
-                    else:
-                        # 다른 오류
-                        break
-
-                except req.exceptions.Timeout:
-                    last_error = "요청 시간 초과"
-                    print(f"[DRAMA-STEP4-IMAGE][RETRY] 타임아웃 (시도 {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-                except Exception as e:
-                    last_error = str(e)
-                    print(f"[DRAMA-STEP4-IMAGE][RETRY] 오류: {e} (시도 {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-
-            if response is None or response.status_code != 200:
-                error_text = last_error or (response.text if response else "알 수 없는 오류")
-                print(f"[DRAMA-STEP4-IMAGE][ERROR] OpenRouter API 최종 실패: {error_text}")
-                return jsonify({"ok": False, "error": f"Gemini API 오류 (재시도 실패): {error_text[:200]}"}), 200
-
-            result = response.json()
-
-            # 디버그: 전체 응답 로깅
-            print(f"[DRAMA-STEP4-IMAGE][DEBUG] Gemini 응답: {json.dumps(result, ensure_ascii=False)[:1000]}")
-
-            # 응답에서 이미지 추출 (base64 data URL)
-            image_url = None
-            base64_image_data = None  # 파일로 저장할 base64 데이터
-            try:
-                choices = result.get("choices", [])
-                if choices:
-                    message = choices[0].get("message", {})
-
-                    # 1. images 배열 먼저 확인 (OpenRouter 표준 형식)
-                    images = message.get("images", [])
-                    if images:
-                        for img in images:
-                            if isinstance(img, str):
-                                # base64 문자열 또는 data URL
-                                if img.startswith("data:"):
-                                    base64_image_data = img.split(",", 1)[1] if "," in img else img
-                                else:
-                                    base64_image_data = img
-                                break
-                            elif isinstance(img, dict):
-                                if img.get("type") == "image_url":
-                                    url = img.get("image_url", {}).get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                    else:
-                                        image_url = url
-                                elif "url" in img:
-                                    url = img.get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                    else:
-                                        image_url = url
-                                elif "data" in img:
-                                    base64_image_data = img.get("data")
-                                elif "b64_json" in img:
-                                    base64_image_data = img.get("b64_json")
-                                if base64_image_data or image_url:
-                                    break
-
-                    # 2. content 배열 확인
-                    if not image_url and not base64_image_data:
-                        content = message.get("content", [])
-                        if isinstance(content, list):
-                            for item in content:
-                                if isinstance(item, dict):
-                                    item_type = item.get("type", "")
-
-                                    # image_url 타입
-                                    if item_type == "image_url":
-                                        url = item.get("image_url", {}).get("url", "")
-                                        if url.startswith("data:"):
-                                            base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                        else:
-                                            image_url = url
-                                        if base64_image_data or image_url:
-                                            break
-
-                                    # image 타입 (inline_data)
-                                    elif item_type == "image":
-                                        image_data = item.get("image", {})
-                                        if isinstance(image_data, dict):
-                                            base64_image_data = image_data.get("data") or image_data.get("base64") or image_data.get("b64_json")
-                                            if base64_image_data:
-                                                break
-                                        elif isinstance(image_data, str):
-                                            base64_image_data = image_data
-                                            break
-
-                                    # inline_data 타입 (Google 형식)
-                                    elif "inline_data" in item:
-                                        inline = item.get("inline_data", {})
-                                        base64_image_data = inline.get("data", "")
-                                        if base64_image_data:
-                                            break
-
-                                    # source 타입 (Claude API 형식)
-                                    elif "source" in item:
-                                        source = item.get("source", {})
-                                        if source.get("type") == "base64":
-                                            base64_image_data = source.get("data", "")
-                                            if base64_image_data:
-                                                break
-
-                        elif isinstance(content, str):
-                            print(f"[DRAMA-STEP4-IMAGE][WARN] Gemini가 텍스트만 반환: {content[:200]}")
-
-                # base64 데이터가 있으면 파일로 저장 (+ 16:9 리사이즈 및 압축)
-                if base64_image_data and not image_url:
-                    import base64 as b64
-                    from PIL import Image as PILImage
-                    from io import BytesIO
-                    try:
-                        # base64 디코딩
-                        image_bytes = b64.b64decode(base64_image_data)
-
-                        # PIL로 이미지 열기
-                        img = PILImage.open(BytesIO(image_bytes))
-                        original_size = len(image_bytes)
-                        original_dimensions = f"{img.width}x{img.height}"
-                        print(f"[DRAMA-STEP4-IMAGE] 원본 이미지: {original_dimensions}, {original_size/1024:.1f}KB")
-
-                        # 16:9 비율로 리사이즈/크롭 (target_width, target_height 사용)
-                        target_ratio = target_width / target_height
-                        current_ratio = img.width / img.height
-
-                        if abs(current_ratio - target_ratio) > 0.05:  # 비율 차이가 5% 이상이면 크롭
-                            if current_ratio > target_ratio:
-                                # 이미지가 더 넓음 - 좌우 크롭
-                                new_width = int(img.height * target_ratio)
-                                left = (img.width - new_width) // 2
-                                img = img.crop((left, 0, left + new_width, img.height))
-                            else:
-                                # 이미지가 더 높음 - 상하 크롭
-                                new_height = int(img.width / target_ratio)
-                                top = (img.height - new_height) // 2
-                                img = img.crop((0, top, img.width, top + new_height))
-                            print(f"[DRAMA-STEP4-IMAGE] 16:9 크롭 완료: {img.width}x{img.height}")
-
-                        # 타겟 크기로 리사이즈 (YouTube HD: 1280x720)
-                        if img.width > target_width or img.height > target_height:
-                            img = img.resize((target_width, target_height), PILImage.Resampling.LANCZOS)
-                            print(f"[DRAMA-STEP4-IMAGE] 리사이즈 완료: {target_width}x{target_height}")
-
-                        # RGB 변환 (RGBA 이미지인 경우)
-                        if img.mode == 'RGBA':
-                            background = PILImage.new('RGB', img.size, (255, 255, 255))
-                            background.paste(img, mask=img.split()[3])
-                            img = background
-                        elif img.mode != 'RGB':
-                            img = img.convert('RGB')
-
-                        # JPEG로 압축 저장 (품질 85)
-                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'images')
-                        os.makedirs(static_dir, exist_ok=True)
-
-                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
-                        filename = f"gemini_{timestamp}.jpg"
-                        filepath = os.path.join(static_dir, filename)
-
-                        img.save(filepath, 'JPEG', quality=85, optimize=True)
-
-                        final_size = os.path.getsize(filepath)
-                        compression_ratio = (1 - final_size / original_size) * 100
-                        print(f"[DRAMA-STEP4-IMAGE] 최종 이미지: {target_width}x{target_height}, {final_size/1024:.1f}KB (압축률: {compression_ratio:.1f}%)")
-
-                        image_url = f"/static/images/{filename}"
-                        print(f"[DRAMA-STEP4-IMAGE] 이미지 저장 완료: {image_url}")
-                    except Exception as save_err:
-                        print(f"[DRAMA-STEP4-IMAGE][ERROR] 이미지 저장 실패: {save_err}")
-                        # 저장 실패 시 base64 URL로 반환
-                        image_url = f"data:image/png;base64,{base64_image_data}"
-
-            except Exception as parse_error:
-                print(f"[DRAMA-STEP4-IMAGE][ERROR] 응답 파싱 오류: {parse_error}")
-                import traceback
-                traceback.print_exc()
-
-            if not image_url:
-                # 에러 메시지에 더 많은 정보 포함
-                error_detail = ""
-                if choices:
-                    msg = choices[0].get("message", {})
-                    if msg.get("content"):
-                        content = msg.get("content")
-                        if isinstance(content, str):
-                            error_detail = f" 응답: {content[:100]}"
-                return jsonify({"ok": False, "error": f"Gemini에서 이미지를 생성하지 못했습니다.{error_detail} 프롬프트를 수정해주세요."}), 200
-
-            # Gemini 비용: ~$0.039/장 (1290 output tokens * $30/1M)
-            cost_usd = 0.039
+            cost_usd = result.get("cost", 0.039)
             cost_krw = int(cost_usd * 1350)
-
-            print(f"[DRAMA-STEP4-IMAGE] Gemini 완료 - 비용: ${cost_usd}")
 
             return jsonify({
                 "ok": True,
-                "imageUrl": image_url,
+                "imageUrl": result.get("image_url"),
                 "cost": cost_krw,
                 "costUsd": cost_usd,
                 "provider": "gemini"
@@ -4592,7 +4332,7 @@ def api_step3_tts_pipeline():
     }
     """
     try:
-        from step3_tts_and_subtitles import run_tts_pipeline
+        from tts import run_tts_pipeline
 
         data = request.get_json()
         if not data:
@@ -7401,24 +7141,8 @@ def generate_thumbnail():
         image_url = None
 
         if provider == 'gemini':
-            # Gemini 이미지 생성 (OpenRouter API 사용)
-            openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-            if not openrouter_api_key:
-                return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다. 환경변수 OPENROUTER_API_KEY를 설정해주세요."})
-
-            import time
-            import base64
-
-            # OpenRouter API 호출 설정
-            headers = {
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://drama-generator.app",
-                "X-Title": "Drama Thumbnail Generator"
-            }
-
-            # 스틱맨 스타일 강제 적용 (항상!)
-            # 절대 사실적인 인물이나 할아버지/할머니 등장 금지
+            # Gemini 이미지 생성 (image 모듈 사용)
+            # 스틱맨 스타일 강제 적용
             enhanced_prompt = f"""CRITICAL REQUIREMENTS:
 1. 16:9 WIDESCREEN aspect ratio
 2. ONLY simple white stickman character - round head, two black dot eyes, small mouth, thin eyebrows, black outline body
@@ -7428,148 +7152,16 @@ def generate_thumbnail():
 
 Original request: {image_prompt}
 
-FINAL STYLE: Detailed anime background (Ghibli-inspired, warm colors) + Simple white stickman character. Eye-catching YouTube thumbnail composition. The background is detailed and beautiful, but the character MUST be a simple stickman, NOT a realistic person."""
+FINAL STYLE: Detailed anime background (Ghibli-inspired, warm colors) + Simple white stickman character. Eye-catching YouTube thumbnail composition."""
 
-            payload = {
-                "model": "google/gemini-2.5-flash-image-preview",
-                "modalities": ["text", "image"],
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": enhanced_prompt
-                            }
-                        ]
-                    }
-                ]
-            }
+            # image 모듈의 generate_image 사용
+            result = image_generate(prompt=enhanced_prompt, size="1280x720")
 
-            # 재시도 로직
-            max_retries = 3
-            retry_delay = 5
-
-            response = None
-            last_error = None
-
-            for attempt in range(max_retries):
-                try:
-                    response = req.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
-                        headers=headers,
-                        json=payload,
-                        timeout=90
-                    )
-
-                    if response.status_code == 200:
-                        break
-                    elif response.status_code in [429, 502, 503, 504]:
-                        last_error = response.text
-                        print(f"[THUMBNAIL][RETRY] OpenRouter 오류 ({response.status_code}) (시도 {attempt + 1}/{max_retries})")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2
-                        continue
-                    else:
-                        break
-                except Exception as e:
-                    last_error = str(e)
-                    print(f"[THUMBNAIL][RETRY] 오류: {e} (시도 {attempt + 1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    continue
-
-            if response is None or response.status_code != 200:
-                error_text = last_error or (response.text if response else "알 수 없는 오류")
-                return jsonify({"ok": False, "error": f"Gemini API 오류: {error_text[:200]}"})
-
-            result = response.json()
-            print(f"[THUMBNAIL][DEBUG] OpenRouter 응답: {json.dumps(result, ensure_ascii=False)[:500]}")
-
-            # 응답에서 이미지 추출
-            base64_image_data = None
-            try:
-                choices = result.get("choices", [])
-                if choices:
-                    message = choices[0].get("message", {})
-
-                    # images 배열 확인
-                    images = message.get("images", [])
-                    if images:
-                        for img in images:
-                            if isinstance(img, str):
-                                # base64 문자열 또는 data URL
-                                if img.startswith("data:"):
-                                    base64_image_data = img.split(",", 1)[1] if "," in img else img
-                                else:
-                                    base64_image_data = img
-                                break
-                            elif isinstance(img, dict):
-                                # dict 형태의 이미지 데이터 처리
-                                if img.get("type") == "image_url":
-                                    url = img.get("image_url", {}).get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                elif "url" in img:
-                                    url = img.get("url", "")
-                                    if url.startswith("data:"):
-                                        base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                elif "data" in img:
-                                    base64_image_data = img.get("data")
-                                elif "b64_json" in img:
-                                    base64_image_data = img.get("b64_json")
-                                if base64_image_data:
-                                    break
-
-                    # content 배열 확인
-                    if not base64_image_data:
-                        content = message.get("content", [])
-                        if isinstance(content, list):
-                            for item in content:
-                                if isinstance(item, dict):
-                                    item_type = item.get("type", "")
-
-                                    if item_type == "image_url":
-                                        url = item.get("image_url", {}).get("url", "")
-                                        if url.startswith("data:"):
-                                            base64_image_data = url.split(",", 1)[1] if "," in url else url
-                                            break
-
-                                    elif item_type == "image":
-                                        image_data = item.get("image", {})
-                                        if isinstance(image_data, dict):
-                                            base64_image_data = image_data.get("data") or image_data.get("base64") or image_data.get("b64_json")
-                                        elif isinstance(image_data, str):
-                                            base64_image_data = image_data
-                                        if base64_image_data:
-                                            break
-
-                                    elif "inline_data" in item:
-                                        inline = item.get("inline_data", {})
-                                        base64_image_data = inline.get("data", "")
-                                        if base64_image_data:
-                                            break
-
-                    # base64 데이터가 있으면 파일로 저장
-                    if base64_image_data:
-                        image_bytes = base64.b64decode(base64_image_data)
-
-                        static_dir = os.path.join(os.path.dirname(__file__), 'static', 'thumbnails')
-                        os.makedirs(static_dir, exist_ok=True)
-
-                        timestamp = dt.now().strftime("%Y%m%d_%H%M%S_%f")
-                        filename = f"thumbnail_{timestamp}.png"
-                        filepath = os.path.join(static_dir, filename)
-
-                        with open(filepath, 'wb') as f:
-                            f.write(image_bytes)
-
-                        image_url = f"/static/thumbnails/{filename}"
-                        print(f"[THUMBNAIL] 이미지 저장 완료: {image_url}")
-
-            except Exception as e:
-                print(f"[THUMBNAIL][ERROR] 이미지 추출 오류: {e}")
-                import traceback
-                traceback.print_exc()
+            if result.get("ok") and result.get("image_url"):
+                image_url = result.get("image_url")
+                print(f"[THUMBNAIL] Gemini 이미지 생성 완료: {image_url}")
+            else:
+                return jsonify({"ok": False, "error": result.get("error", "Gemini 이미지 생성 실패")})
 
         elif provider == 'dalle':
             # DALL-E 3 이미지 생성
@@ -9390,41 +8982,63 @@ def youtube_upload():
                 full_thumbnail_path = os.path.join(os.path.dirname(__file__), thumbnail_path.lstrip('/'))
 
         # 실제 업로드 시도 (DB 토큰 직접 사용)
-        try:
-            from google.oauth2.credentials import Credentials
-            from google.auth.transport.requests import Request
-            from googleapiclient.discovery import build
-            from googleapiclient.http import MediaFileUpload
+        # 할당량 초과 시 _2 프로젝트로 자동 재시도
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
 
-            # 프로젝트 접미사 결정: 파이프라인에서 전달된 값 우선, 없으면 자동 선택
-            if project_suffix_param is not None:
-                # 파이프라인에서 미리 체크한 프로젝트 사용 (할당량 체크 결과)
-                project_suffix = project_suffix_param
-                print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (파이프라인 지정): {'기본' if not project_suffix else project_suffix}")
-            else:
-                # 직접 호출 시 자동 선택 (할당량 초과 플래그 기반)
-                _, _, project_suffix = get_youtube_credentials()
-                print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (자동 선택): {'기본' if not project_suffix else project_suffix}")
+        # 프로젝트 접미사 결정: 파이프라인에서 전달된 값 우선, 없으면 자동 선택
+        if project_suffix_param is not None:
+            # 파이프라인에서 미리 체크한 프로젝트 사용 (할당량 체크 결과)
+            initial_project_suffix = project_suffix_param
+            print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (파이프라인 지정): {'기본' if not initial_project_suffix else initial_project_suffix}")
+        else:
+            # 직접 호출 시 자동 선택 (할당량 초과 플래그 기반)
+            _, _, initial_project_suffix = get_youtube_credentials()
+            print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (자동 선택): {'기본' if not initial_project_suffix else initial_project_suffix}")
 
-            # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
-            token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
+        # 시도할 프로젝트 목록 생성 (기본 → _2)
+        projects_to_try = [initial_project_suffix]
+        if initial_project_suffix != "_2" and os.getenv('YOUTUBE_CLIENT_ID_2'):
+            projects_to_try.append("_2")  # _2 프로젝트가 있으면 백업으로 추가
 
-            if not token_data or not token_data.get('refresh_token'):
-                print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id}, project: {project_suffix or '기본'})")
-                return jsonify({
-                    "ok": False,
-                    "error": f"YouTube 토큰이 없습니다. OAuth 로그인이 필요합니다. (channel_id: {channel_id}, project: {project_suffix or '기본'})",
-                    "needsAuth": True,
-                    "channelId": channel_id
-                }), 200
-            else:
-                # Credentials 객체 생성
+        last_error = None
+        for attempt_idx, project_suffix in enumerate(projects_to_try):
+            if attempt_idx > 0:
+                print(f"\n[YOUTUBE-UPLOAD] === 할당량 초과로 {project_suffix} 프로젝트로 재시도 ({attempt_idx + 1}/{len(projects_to_try)}) ===")
+
+            try:
+                # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
+                token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
+
+                if not token_data or not token_data.get('refresh_token'):
+                    print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id}, project: {project_suffix or '기본'})")
+                    # 토큰이 없으면 다음 프로젝트 시도
+                    if attempt_idx < len(projects_to_try) - 1:
+                        print(f"[YOUTUBE-UPLOAD] 다음 프로젝트({projects_to_try[attempt_idx + 1]})로 시도...")
+                        continue
+                    return jsonify({
+                        "ok": False,
+                        "error": f"YouTube 토큰이 없습니다. OAuth 로그인이 필요합니다. (channel_id: {channel_id}, project: {project_suffix or '기본'})",
+                        "needsAuth": True,
+                        "channelId": channel_id
+                    }), 200
+
+                # Credentials 객체 생성 (프로젝트에 맞는 client_id/secret 사용)
+                if project_suffix == "_2":
+                    fallback_client_id = os.getenv('YOUTUBE_CLIENT_ID_2')
+                    fallback_client_secret = os.getenv('YOUTUBE_CLIENT_SECRET_2')
+                else:
+                    fallback_client_id = os.getenv('YOUTUBE_CLIENT_ID')
+                    fallback_client_secret = os.getenv('YOUTUBE_CLIENT_SECRET')
+
                 creds = Credentials(
                     token=token_data.get('token'),
                     refresh_token=token_data.get('refresh_token'),
                     token_uri=token_data.get('token_uri', 'https://oauth2.googleapis.com/token'),
-                    client_id=token_data.get('client_id') or os.getenv('YOUTUBE_CLIENT_ID'),
-                    client_secret=token_data.get('client_secret') or os.getenv('YOUTUBE_CLIENT_SECRET'),
+                    client_id=token_data.get('client_id') or fallback_client_id,
+                    client_secret=token_data.get('client_secret') or fallback_client_secret,
                     scopes=token_data.get('scopes', [
                         'https://www.googleapis.com/auth/youtube.upload',
                         'https://www.googleapis.com/auth/youtube.force-ssl'  # 댓글 작성용
@@ -9433,9 +9047,9 @@ def youtube_upload():
 
                 # 토큰 만료 시 갱신
                 if creds.expired and creds.refresh_token:
-                    print("[YOUTUBE-UPLOAD] 토큰 갱신 중...")
+                    print(f"[YOUTUBE-UPLOAD] 토큰 갱신 중... (프로젝트: {project_suffix or '기본'})")
                     creds.refresh(Request())
-                    # 갱신된 토큰 저장
+                    # 갱신된 토큰 저장 (프로젝트 접미사 포함)
                     updated_token = {
                         'token': creds.token,
                         'refresh_token': creds.refresh_token,
@@ -9444,7 +9058,7 @@ def youtube_upload():
                         'client_secret': creds.client_secret,
                         'scopes': list(creds.scopes) if creds.scopes else []
                     }
-                    save_youtube_token_to_db(updated_token, channel_id=channel_id)
+                    save_youtube_token_to_db(updated_token, channel_id=channel_id, project_suffix=project_suffix)
 
                 # YouTube API 클라이언트 생성
                 youtube = build('youtube', 'v3', credentials=creds)
@@ -9726,56 +9340,59 @@ def youtube_upload():
                     }
                 })
 
-        except ImportError as e:
-            print(f"[YOUTUBE-UPLOAD] 라이브러리 없음: {e}")
+            except ImportError as e:
+                print(f"[YOUTUBE-UPLOAD] 라이브러리 없음: {e}")
+                return jsonify({
+                    "ok": False,
+                    "error": f"필수 라이브러리 없음: {str(e)}",
+                    "needsAuth": False
+                }), 200
+            except Exception as upload_error:
+                error_str = str(upload_error).lower()
+                print(f"[YOUTUBE-UPLOAD] 업로드 오류 (프로젝트: {project_suffix or '기본'}): {upload_error}")
+                import traceback
+                traceback.print_exc()
+
+                # 할당량 초과 감지 및 _2 프로젝트로 자동 재시도
+                if 'quota' in error_str or 'quotaexceeded' in error_str:
+                    print(f"[YOUTUBE-UPLOAD] 할당량 초과 감지! (프로젝트: {project_suffix or '기본'})")
+                    set_youtube_quota_exceeded()  # 플래그 저장
+                    last_error = upload_error
+
+                    # 다음 프로젝트가 있으면 재시도
+                    if attempt_idx < len(projects_to_try) - 1:
+                        print(f"[YOUTUBE-UPLOAD] → _2 프로젝트로 자동 재시도합니다...")
+                        continue  # 다음 프로젝트로 재시도
+                    else:
+                        # 모든 프로젝트 소진
+                        print(f"[YOUTUBE-UPLOAD] 모든 프로젝트({projects_to_try})에서 할당량 초과!")
+                        return jsonify({
+                            "ok": False,
+                            "error": f"YouTube API 할당량 초과. 모든 프로젝트({', '.join(p or '기본' for p in projects_to_try)})에서 할당량이 초과되었습니다. 내일 다시 시도해주세요.",
+                            "quotaExceeded": True,
+                            "needsAuth": False
+                        }), 200
+
+                # 할당량 초과가 아닌 다른 오류
+                return jsonify({
+                    "ok": False,
+                    "error": f"업로드 중 오류 발생: {str(upload_error)}",
+                    "needsAuth": False
+                }), 200
+
+        # for 루프가 break 없이 끝남 - 정상적으로는 도달 불가
+        print(f"[YOUTUBE-UPLOAD][WARN] 예상치 못한 코드 경로 - 모든 시도 완료")
+        if last_error:
             return jsonify({
                 "ok": False,
-                "error": f"필수 라이브러리 없음: {str(e)}",
+                "error": f"업로드 실패: {str(last_error)}",
                 "needsAuth": False
             }), 200
-        except Exception as upload_error:
-            error_str = str(upload_error).lower()
-            print(f"[YOUTUBE-UPLOAD] 업로드 오류: {upload_error}")
-            import traceback
-            traceback.print_exc()
-
-            # 할당량 초과 감지 및 _2 프로젝트로 전환
-            if 'quota' in error_str or 'quotaexceeded' in error_str:
-                print("[YOUTUBE-UPLOAD] 할당량 초과 감지!")
-                has_fallback = set_youtube_quota_exceeded()
-                if has_fallback:
-                    return jsonify({
-                        "ok": False,
-                        "error": "YouTube API 할당량 초과. 다음 업로드부터 백업 프로젝트(_2)를 사용합니다. 다시 시도해주세요.",
-                        "quotaExceeded": True,
-                        "needsAuth": True,  # _2 프로젝트 재인증 필요
-                        "needsReauth": True
-                    }), 200
-                else:
-                    return jsonify({
-                        "ok": False,
-                        "error": "YouTube API 할당량 초과. 백업 프로젝트가 없습니다. 내일 다시 시도하거나 YOUTUBE_CLIENT_ID_2 환경변수를 설정해주세요.",
-                        "quotaExceeded": True,
-                        "needsAuth": False
-                    }), 200
-
-            return jsonify({
-                "ok": False,
-                "error": f"업로드 중 오류 발생: {str(upload_error)}",
-                "needsAuth": False
-            }), 200
-
-        # 이 코드는 정상적인 경우 도달하지 않음 (위에서 모두 return됨)
-        # 만약 여기에 도달하면 예상치 못한 코드 경로
-        print(f"[YOUTUBE-UPLOAD][WARN] 예상치 못한 코드 경로 - 테스트 모드로 fallback")
         return jsonify({
             "ok": False,
             "error": "예상치 못한 코드 경로입니다. 서버 로그를 확인해주세요.",
             "metadata": {
                 "title": title,
-                "description": description[:100] + "..." if len(description) > 100 else description,
-                "tags": tags,
-                "categoryId": category_id,
                 "privacyStatus": privacy_status
             }
         })
@@ -9983,6 +9600,17 @@ def _analyze_seo_keywords(script, lang='ko'):
 
         if search_resp.status_code != 200:
             print(f"[SEO] YouTube 검색 실패: {search_resp.status_code}")
+            # 403/429 에러는 할당량 초과 가능성 - 특별 표시
+            if search_resp.status_code in [403, 429]:
+                error_body = search_resp.text.lower()
+                if 'quota' in error_body or 'limit' in error_body or search_resp.status_code == 403:
+                    print("[SEO][WARNING] YouTube API 할당량 초과 감지! 플래그 저장")
+                    # 할당량 플래그 저장 (업로드도 실패할 가능성 높음)
+                    try:
+                        _save_quota_flag()
+                    except Exception as flag_err:
+                        print(f"[SEO] 플래그 저장 실패: {flag_err}")
+                    return {"quota_exceeded": True, "error": "YouTube API 할당량 초과"}
             return None
 
         search_data = search_resp.json()
@@ -10163,6 +9791,14 @@ def api_image_analyze_script():
         seo_data = _analyze_seo_keywords(script, output_language)
         seo_prompt = ""
         if seo_data:
+            # 할당량 초과 감지 시 조기 중단
+            if seo_data.get('quota_exceeded'):
+                print("[IMAGE-ANALYZE][ERROR] YouTube API 할당량 초과 - 파이프라인 중단")
+                return jsonify({
+                    "ok": False,
+                    "error": "YouTube API 할당량 초과. 파이프라인을 중단합니다. 내일 다시 시도하세요.",
+                    "quota_exceeded": True
+                }), 200
             seo_prompt = seo_data.get('seo_prompt', '')
             print(f"[IMAGE-ANALYZE] SEO 분석 완료: {len(seo_data.get('keywords', []))}개 키워드, {len(seo_data.get('recommended_keywords', []))}개 추천 태그")
         else:
@@ -17686,7 +17322,6 @@ def api_thumbnail_ai_generate():
     한글 텍스트 렌더링 지원
     """
     try:
-        import requests as req
         import time
         import base64
 
@@ -17701,11 +17336,6 @@ def api_thumbnail_ai_generate():
             return jsonify({"ok": False, "error": "프롬프트가 필요합니다"}), 400
 
         print(f"[THUMBNAIL-AI] 이미지 생성 - 세션: {session_id}, 변형: {variant}")
-
-        # OpenRouter API 키
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-        if not openrouter_api_key:
-            return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다"}), 200
 
         # 텍스트 오버레이 지시 추가
         main_text = text_overlay.get('main', '')
@@ -17736,171 +17366,28 @@ Style requirements:
 - Clean composition suitable for small preview
 - {style} aesthetic"""
 
-        # OpenRouter API 호출 (Gemini 3 Pro Image Preview)
-        headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://drama-generator.app",
-            "X-Title": "Thumbnail AI Generator"
-        }
+        # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
+        result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
+        if not result.get("ok"):
+            return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")}), 200
 
-        payload = {
-            "model": "google/gemini-3-pro-image-preview",
-            "modalities": ["text", "image"],
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": enhanced_prompt}]
-                }
-            ]
-        }
+        base64_image_data = result.get("base64")
+        if not base64_image_data:
+            return jsonify({"ok": False, "error": "이미지 데이터가 없습니다"}), 200
 
-        # 재시도 로직
-        max_retries = 3
-        retry_delay = 5
-        response = None
-        last_error = None
+        # 파일로 저장
+        timestamp = int(time.time() * 1000)
+        filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.png"
 
-        for attempt in range(max_retries):
-            try:
-                response = req.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=120
-                )
+        output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+        os.makedirs(output_dir, exist_ok=True)
+        filepath = os.path.join(output_dir, filename)
 
-                if response.status_code == 200:
-                    break
-                elif response.status_code in [429, 502, 503, 504]:
-                    last_error = response.text
-                    print(f"[THUMBNAIL-AI][RETRY] 서버 오류 ({response.status_code}), {retry_delay}초 후 재시도...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                    continue
-                else:
-                    break
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(base64_image_data))
 
-            except req.exceptions.Timeout:
-                last_error = "요청 시간 초과"
-                print(f"[THUMBNAIL-AI][RETRY] 타임아웃 (시도 {attempt + 1}/{max_retries})")
-                time.sleep(retry_delay)
-                continue
-            except Exception as e:
-                last_error = str(e)
-                time.sleep(retry_delay)
-                continue
-
-        if response is None or response.status_code != 200:
-            error_text = last_error or (response.text if response else "알 수 없는 오류")
-            print(f"[THUMBNAIL-AI][ERROR] API 최종 실패: {error_text}")
-            return jsonify({"ok": False, "error": f"이미지 생성 실패: {error_text[:200]}"}), 200
-
-        result = response.json()
-
-        # 디버그: 전체 응답 구조 출력
-        print(f"[THUMBNAIL-AI][DEBUG] OpenRouter 응답 키: {list(result.keys())}")
-        if result.get("choices"):
-            msg = result["choices"][0].get("message", {})
-            print(f"[THUMBNAIL-AI][DEBUG] message 키: {list(msg.keys())}")
-            content = msg.get("content")
-            if isinstance(content, list):
-                for i, item in enumerate(content):
-                    if isinstance(item, dict):
-                        print(f"[THUMBNAIL-AI][DEBUG] content[{i}] 타입: {item.get('type')}, 키: {list(item.keys())}")
-                    else:
-                        print(f"[THUMBNAIL-AI][DEBUG] content[{i}]: {type(item).__name__}")
-            elif content:
-                print(f"[THUMBNAIL-AI][DEBUG] content 타입: {type(content).__name__}, 길이: {len(str(content)[:100])}")
-
-        # 이미지 추출
-        image_url = None
-        base64_image_data = None
-
-        choices = result.get("choices", [])
-        if choices:
-            message = choices[0].get("message", {})
-
-            # images 배열 확인
-            images = message.get("images", [])
-            if images:
-                for img in images:
-                    if isinstance(img, str):
-                        if img.startswith("data:"):
-                            base64_image_data = img.split(",", 1)[1] if "," in img else img
-                        else:
-                            base64_image_data = img
-                        break
-
-            # content 배열 확인 (다양한 형식 지원)
-            if not base64_image_data:
-                content = message.get("content", [])
-                if isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict):
-                            item_type = item.get("type", "")
-
-                            # 형식 1: image_url
-                            if item_type == "image_url":
-                                img_data = item.get("image_url", {})
-                                url = img_data.get("url", "")
-                                if url.startswith("data:"):
-                                    base64_image_data = url.split(",", 1)[1]
-                                    print(f"[THUMBNAIL-AI][DEBUG] image_url 형식에서 이미지 추출")
-                                    break
-
-                            # 형식 2: inline_data (Gemini 네이티브)
-                            if item_type == "image" or "inline_data" in item:
-                                inline = item.get("inline_data") or item.get("image", {})
-                                if isinstance(inline, dict):
-                                    data = inline.get("data") or inline.get("b64_json") or inline.get("base64")
-                                    if data:
-                                        base64_image_data = data
-                                        print(f"[THUMBNAIL-AI][DEBUG] inline_data 형식에서 이미지 추출")
-                                        break
-
-                            # 형식 3: b64_json 직접
-                            if "b64_json" in item:
-                                base64_image_data = item["b64_json"]
-                                print(f"[THUMBNAIL-AI][DEBUG] b64_json 형식에서 이미지 추출")
-                                break
-
-                            # 형식 4: data 직접
-                            if "data" in item and item.get("type") != "text":
-                                base64_image_data = item["data"]
-                                print(f"[THUMBNAIL-AI][DEBUG] data 필드에서 이미지 추출")
-                                break
-
-                elif isinstance(content, str) and len(content) > 1000:
-                    # 긴 문자열이면 base64일 가능성
-                    try:
-                        if content.startswith("data:image"):
-                            base64_image_data = content.split(",", 1)[1]
-                            print(f"[THUMBNAIL-AI][DEBUG] content 문자열에서 data URI 추출")
-                    except:
-                        pass
-
-        if base64_image_data:
-            # 파일로 저장
-            timestamp = int(time.time() * 1000)
-            filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.png"
-
-            output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
-            os.makedirs(output_dir, exist_ok=True)
-            filepath = os.path.join(output_dir, filename)
-
-            with open(filepath, 'wb') as f:
-                f.write(base64.b64decode(base64_image_data))
-
-            image_url = f'/output/{filename}'
-            print(f"[THUMBNAIL-AI] 이미지 저장 완료: {image_url}")
-
-        if not image_url:
-            # 디버그: 응답 전체 구조 출력
-            import json
-            print(f"[THUMBNAIL-AI][DEBUG] 이미지 추출 실패 - 전체 응답:")
-            print(json.dumps(result, indent=2, ensure_ascii=False, default=str)[:2000])
-            return jsonify({"ok": False, "error": "이미지 생성 결과를 찾을 수 없습니다. 서버 로그를 확인하세요."}), 200
+        image_url = f'/output/{filename}'
+        print(f"[THUMBNAIL-AI] 이미지 저장 완료: {image_url}")
 
         return jsonify({
             "ok": True,
@@ -18043,37 +17530,33 @@ def api_thumbnail_ai_generate_single():
     단일 썸네일 생성 (자동화 파이프라인용 - A 하나만 생성)
     """
     try:
-        import requests as req
+        import base64
+        from PIL import Image
+        import io
 
         data = request.get_json() or {}
         prompt_data = data.get('prompt', {})
         session_id = data.get('session_id', '')
-        category = data.get('category', '')  # GPT가 감지한 카테고리 (news/story)
+        category = data.get('category', '')
+        lang = data.get('lang', 'ko')
 
         if not prompt_data.get('prompt'):
             return jsonify({"ok": False, "error": "prompt 필드가 필요합니다"}), 400
 
         print(f"[THUMBNAIL-AI] 단일 썸네일 생성 - 세션: {session_id}, 카테고리: {category}")
 
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-        if not openrouter_api_key:
-            return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다"}), 200
-
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
-        style = prompt_data.get('style', '')
-        lang = data.get('lang', 'ko')  # 언어 파라미터 (기본값: 한국어)
-
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
 
-        # 언어에 따른 텍스트 언어 설정
-        if lang == 'ja':
-            text_lang = "Japanese"
-        elif lang == 'en':
-            text_lang = "English"
-        else:
-            text_lang = "Korean"
+        # 언어에 따른 설정
+        lang_config = {
+            'ja': ("Japanese", "Japanese man or woman"),
+            'en': ("Western", "Western man or woman"),
+        }
+        character_nationality, character_desc = lang_config.get(lang, ("Korean", "Korean man or woman"))
+        text_lang = {"ja": "Japanese", "en": "English"}.get(lang, "Korean")
 
         text_instruction = ""
         if main_text:
@@ -18085,24 +17568,10 @@ IMPORTANT TEXT OVERLAY:
             if sub_text:
                 text_instruction += f'- Subtitle: "{sub_text}"\n'
 
-        # ========== 웹툰 스타일 썸네일 (단일 스타일) ==========
-        # 언어에 따른 캐릭터 국적 결정
-        if lang == 'ja':
-            character_nationality = "Japanese"
-            character_desc = "Japanese man or woman"
-        elif lang == 'en':
-            character_nationality = "Western"
-            character_desc = "Western man or woman"
-        else:  # ko 또는 기타
-            character_nationality = "Korean"
-            character_desc = "Korean man or woman"
-
-        print(f"[THUMBNAIL-AI] 웹툰 스타일 적용 - category: '{category}', style: '{style}', lang: '{lang}' → {character_nationality} character")
-
-        # 기존 프롬프트에서 실사/스틱맨 관련 키워드 제거
+        # 프롬프트에서 불필요한 키워드 제거
         clean_prompt = prompt
-        for remove_kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
-            clean_prompt = clean_prompt.replace(remove_kw, '').replace(remove_kw.lower(), '').replace(remove_kw.capitalize(), '')
+        for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
+            clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
         enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
 
@@ -18113,177 +17582,35 @@ CHARACTER REQUIREMENTS:
 - EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)
 - 30-40 year old {character_desc} (match the content)
 - Clean bold outlines, vibrant flat colors
-- Comic-style expression marks (sweat drops, impact lines, exclamation marks)
 
-BACKGROUND REQUIREMENTS:
-- Background related to the topic/situation
-- Comic-style effect lines (radial lines, impact effects)
-- Bright, vibrant colors
-
-COMPOSITION:
-- Character on right side or center
-- Leave space on left for text overlay
-- Background elements explain the situation
+BACKGROUND: Related to topic, comic-style effect lines, bright colors
+COMPOSITION: Character on right/center, leave space on left for text
 
 Subject/Scene:
 {clean_prompt}
 
 {text_instruction}
 
-MANDATORY KEYWORDS TO USE:
-- "{character_nationality} webtoon style illustration"
-- "exaggerated shocked expression" or "surprised face"
-- "comic style, clean lines, vibrant colors"
-- "manhwa/webtoon style"
+ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render
+MUST be {character_nationality} webtoon/manhwa illustration style"""
 
-ABSOLUTE RESTRICTIONS:
-- NO photorealistic style
-- NO stickman
-- NO 3D render
-- MUST be {character_nationality} webtoon/manhwa illustration style"""
+        # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
+        result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
+        if not result.get("ok"):
+            return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")})
 
-        headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://drama-generator.app",
-            "X-Title": "Thumbnail AI"
-        }
-
-        payload = {
-            "model": "google/gemini-3-pro-image-preview",
-            "modalities": ["text", "image"],
-            "messages": [{"role": "user", "content": [{"type": "text", "text": enhanced_prompt}]}]
-        }
-
-        response = req.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=120
-        )
-
-        if response.status_code != 200:
-            print(f"[THUMBNAIL-AI] API 오류: {response.status_code}")
-            return jsonify({"ok": False, "error": response.text[:200]})
-
-        result = response.json()
-
-        # 디버그: 응답 구조 출력
-        print(f"[THUMBNAIL-AI] 응답 키: {list(result.keys())}")
-        choices = result.get("choices", [])
-        if choices:
-            message = choices[0].get("message", {})
-            print(f"[THUMBNAIL-AI] message 키: {list(message.keys())}")
-
-        # 이미지 추출 (다양한 형식 지원)
-        base64_image_data = None
-        if choices:
-            message = choices[0].get("message", {})
-
-            # 방법 1: images 필드 확인 (다양한 형식 지원)
-            images = message.get("images")
-            if images:
-                print(f"[THUMBNAIL-AI] images 발견: 타입={type(images)}, 길이={len(images) if isinstance(images, list) else 'N/A'}")
-                if isinstance(images, list) and len(images) > 0:
-                    img = images[0]
-                    print(f"[THUMBNAIL-AI] images[0] 타입={type(img)}, 내용={str(img)[:200] if img else 'None'}")
-                    if isinstance(img, str):
-                        base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
-                    elif isinstance(img, dict):
-                        # 다양한 키 시도
-                        base64_image_data = (
-                            img.get("b64_json") or
-                            img.get("base64") or
-                            img.get("data") or
-                            img.get("image_data") or
-                            img.get("bytes")
-                        )
-                        # url 형식 (data:image/... 포함)
-                        if not base64_image_data:
-                            url = img.get("url") or img.get("source") or img.get("src")
-                            # 중첩 형식: {"type": "image_url", "image_url": {"url": "..."}}
-                            if not url:
-                                image_url_obj = img.get("image_url")
-                                if isinstance(image_url_obj, dict):
-                                    url = image_url_obj.get("url")
-                                    print(f"[THUMBNAIL-AI] images[0].image_url.url 형식 발견")
-                            if url and isinstance(url, str) and url.startswith("data:image"):
-                                base64_image_data = url.split(",", 1)[1]
-                                print(f"[THUMBNAIL-AI] images[0].url에서 추출 성공")
-                elif isinstance(images, str):
-                    base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
-
-            # 방법 2: content 배열에서 image_url 추출
-            if not base64_image_data:
-                content = message.get("content")
-                if isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict):
-                            item_type = item.get("type", "")
-                            if item_type == "image_url":
-                                url_data = item.get("image_url", {})
-                                if isinstance(url_data, dict):
-                                    url = url_data.get("url", "")
-                                    if url.startswith("data:image"):
-                                        base64_image_data = url.split(",", 1)[1]
-                                        print(f"[THUMBNAIL-AI] content.image_url에서 추출 성공")
-                                        break
-                            elif item_type == "image":
-                                # Gemini 3 Pro 형식
-                                img_data = item.get("image", {})
-                                if isinstance(img_data, dict):
-                                    base64_image_data = img_data.get("data") or img_data.get("b64_json")
-                                    if base64_image_data:
-                                        print(f"[THUMBNAIL-AI] content.image에서 추출 성공")
-                                        break
-                            # 방법 2-1: inline_data 형식 (Gemini 일반 형식)
-                            inline_data = item.get("inline_data")
-                            if inline_data and isinstance(inline_data, dict):
-                                base64_image_data = inline_data.get("data")
-                                if base64_image_data:
-                                    print(f"[THUMBNAIL-AI] inline_data에서 추출 성공")
-                                    break
-
-            # 방법 2-2: parts 배열 (네이티브 Gemini 형식)
-            if not base64_image_data:
-                parts = message.get("parts")
-                if isinstance(parts, list):
-                    for part in parts:
-                        if isinstance(part, dict):
-                            inline_data = part.get("inline_data") or part.get("inlineData")
-                            if inline_data and isinstance(inline_data, dict):
-                                base64_image_data = inline_data.get("data")
-                                if base64_image_data:
-                                    print(f"[THUMBNAIL-AI] parts.inline_data에서 추출 성공")
-                                    break
-
-            # 방법 3: content가 문자열인 경우 (data:image 포함 여부 확인)
-            if not base64_image_data:
-                content = message.get("content", "")
-                if isinstance(content, str) and "data:image" in content:
-                    import re
-                    match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', content)
-                    if match:
-                        base64_image_data = match.group(1)
-                        print(f"[THUMBNAIL-AI] content 문자열에서 추출 성공")
-
+        base64_image_data = result.get("base64")
         if not base64_image_data:
-            print(f"[THUMBNAIL-AI] 이미지 추출 실패 - 전체 응답: {str(result)[:1000]}")
             return jsonify({"ok": False, "error": "이미지 데이터 추출 실패"})
 
-        # 파일 저장 (JPEG 압축으로 용량 최적화)
-        import base64
-        from PIL import Image
-        import io
-
+        # 이미지 처리 및 저장
         upload_dir = "uploads/thumbnails"
         os.makedirs(upload_dir, exist_ok=True)
 
-        # 원본 이미지 디코딩
         image_bytes = base64.b64decode(base64_image_data)
         img = Image.open(io.BytesIO(image_bytes))
 
-        # RGBA → RGB 변환 (JPEG는 알파 채널 미지원)
+        # RGB 변환
         if img.mode == 'RGBA':
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
@@ -18291,25 +17618,21 @@ ABSOLUTE RESTRICTIONS:
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # 1280x720으로 리사이즈 (너무 크면)
-        max_width, max_height = 1280, 720
-        if img.width > max_width or img.height > max_height:
-            img.thumbnail((max_width, max_height), Image.LANCZOS)
+        # 리사이즈
+        if img.width > 1280 or img.height > 720:
+            img.thumbnail((1280, 720), Image.LANCZOS)
 
-        # JPEG로 저장 (품질 85% - 좋은 화질/적은 용량)
+        # JPEG로 저장
         filename = f"thumb_{session_id}.jpg"
         filepath = os.path.join(upload_dir, filename)
         img.save(filepath, 'JPEG', quality=85, optimize=True)
 
-        # 용량 로깅
         file_size = os.path.getsize(filepath)
         print(f"[THUMBNAIL-AI] 썸네일 저장: {filepath} ({file_size / 1024:.1f}KB)")
 
-        image_url = f"/uploads/thumbnails/{filename}"
-
         return jsonify({
             "ok": True,
-            "image_url": image_url
+            "image_url": f"/uploads/thumbnails/{filename}"
         })
 
     except Exception as e:
@@ -18326,7 +17649,6 @@ def api_thumbnail_ai_generate_both():
     A/B/C 3개의 썸네일을 한 번에 생성 (YouTube Test & Compare용)
     """
     try:
-        import requests as req
         import time
         import base64
         from concurrent.futures import ThreadPoolExecutor
@@ -18335,19 +17657,14 @@ def api_thumbnail_ai_generate_both():
         prompts = data.get('prompts', {})
         session_id = data.get('session_id', '')
 
-        # A/B는 필수, C는 선택 (하위 호환성)
         if not prompts.get('A') or not prompts.get('B'):
             return jsonify({"ok": False, "error": "A/B 프롬프트가 모두 필요합니다"}), 400
 
         has_c = prompts.get('C') is not None
         print(f"[THUMBNAIL-AI] A/B/C 동시 생성 - 세션: {session_id}, C포함: {has_c}")
 
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-        if not openrouter_api_key:
-            return jsonify({"ok": False, "error": "OpenRouter API 키가 설정되지 않았습니다"}), 200
-
         def generate_single(variant, prompt_data):
-            """단일 썸네일 생성"""
+            """단일 썸네일 생성 (image 모듈 사용)"""
             prompt = prompt_data.get('prompt', '')
             text_overlay = prompt_data.get('text_overlay', {})
             style = prompt_data.get('style', 'comic')
@@ -18373,159 +17690,27 @@ IMPORTANT TEXT OVERLAY:
 
 Style: {style}, comic/illustration, eye-catching, high contrast"""
 
-            headers = {
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://drama-generator.app",
-                "X-Title": "Thumbnail AI"
-            }
-
-            payload = {
-                "model": "google/gemini-3-pro-image-preview",
-                "modalities": ["text", "image"],
-                "messages": [{"role": "user", "content": [{"type": "text", "text": enhanced_prompt}]}]
-            }
-
             try:
-                response = req.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                    timeout=120
-                )
+                # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
+                result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
+                if not result.get("ok"):
+                    return {"variant": variant, "ok": False, "error": result.get("error", "이미지 생성 실패")}
 
-                if response.status_code != 200:
-                    print(f"[THUMBNAIL-AI][{variant}] API 오류: {response.status_code} - {response.text[:500]}")
-                    return {"variant": variant, "ok": False, "error": response.text[:200]}
+                base64_image_data = result.get("base64")
+                if not base64_image_data:
+                    return {"variant": variant, "ok": False, "error": "이미지 데이터 추출 실패"}
 
-                result = response.json()
+                # 파일 저장
+                timestamp = int(time.time() * 1000)
+                filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.png"
+                output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
+                os.makedirs(output_dir, exist_ok=True)
+                filepath = os.path.join(output_dir, filename)
 
-                # 디버그: 전체 응답 구조 출력
-                print(f"[THUMBNAIL-AI][{variant}] 응답 키: {list(result.keys())}")
-                choices = result.get("choices", [])
-                if choices:
-                    message = choices[0].get("message", {})
-                    print(f"[THUMBNAIL-AI][{variant}] message 키: {list(message.keys())}")
-                    print(f"[THUMBNAIL-AI][{variant}] content 타입: {type(message.get('content'))}")
+                with open(filepath, 'wb') as f:
+                    f.write(base64.b64decode(base64_image_data))
 
-                    # images 배열 직접 확인
-                    images_raw = message.get("images")
-                    print(f"[THUMBNAIL-AI][{variant}] images 값: 타입={type(images_raw)}, 내용={str(images_raw)[:500] if images_raw else 'None/Empty'}")
-
-                    content_preview = str(message.get('content', ''))[:300]
-                    print(f"[THUMBNAIL-AI][{variant}] content 미리보기: {content_preview}")
-
-                # 이미지 추출
-                base64_image_data = None
-                choices = result.get("choices", [])
-                if choices:
-                    message = choices[0].get("message", {})
-
-                    # 방법 1: images 필드 확인 (다양한 형식 지원)
-                    images = message.get("images")
-                    if images:
-                        # 배열인 경우
-                        if isinstance(images, list) and len(images) > 0:
-                            img = images[0]
-                            if isinstance(img, str):
-                                base64_image_data = img.split(",", 1)[1] if img.startswith("data:") else img
-                                print(f"[THUMBNAIL-AI][{variant}] images 배열(str)에서 추출 성공")
-                            elif isinstance(img, dict):
-                                # 형식 1: {'type': 'image_url', 'image_url': {'url': 'data:...'}} (OpenRouter/GPT-5.1 형식)
-                                if img.get("type") == "image_url" and "image_url" in img:
-                                    url = img.get("image_url", {}).get("url", "")
-                                    if url:
-                                        base64_image_data = url.split(",", 1)[1] if url.startswith("data:") else url
-                                        print(f"[THUMBNAIL-AI][{variant}] images 배열(image_url dict)에서 추출 성공")
-                                else:
-                                    # 형식 2: {data: ..., url: ..., b64_json: ...}
-                                    data = img.get("data") or img.get("b64_json") or img.get("url", "")
-                                    if data:
-                                        base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
-                                        print(f"[THUMBNAIL-AI][{variant}] images 배열(dict)에서 추출 성공")
-                        # 문자열인 경우
-                        elif isinstance(images, str):
-                            base64_image_data = images.split(",", 1)[1] if images.startswith("data:") else images
-                            print(f"[THUMBNAIL-AI][{variant}] images 문자열에서 추출 성공")
-                        # dict인 경우
-                        elif isinstance(images, dict):
-                            data = images.get("data") or images.get("b64_json") or images.get("url", "")
-                            if data:
-                                base64_image_data = data.split(",", 1)[1] if data.startswith("data:") else data
-                                print(f"[THUMBNAIL-AI][{variant}] images dict에서 추출 성공")
-
-                    # 방법 2: content 배열에서 image_url 타입 확인
-                    if not base64_image_data:
-                        content = message.get("content", [])
-                        if isinstance(content, list):
-                            for item in content:
-                                if isinstance(item, dict):
-                                    item_type = item.get("type", "")
-
-                                    # OpenAI 형식: image_url
-                                    if item_type == "image_url":
-                                        url = item.get("image_url", {}).get("url", "")
-                                        if url.startswith("data:"):
-                                            base64_image_data = url.split(",", 1)[1]
-                                            print(f"[THUMBNAIL-AI][{variant}] content.image_url에서 추출 성공")
-                                            break
-
-                                    # Gemini 형식: inline_data
-                                    elif "inline_data" in item:
-                                        inline = item.get("inline_data", {})
-                                        data = inline.get("data")
-                                        if data:
-                                            base64_image_data = data
-                                            print(f"[THUMBNAIL-AI][{variant}] inline_data에서 추출 성공")
-                                            break
-
-                                    # 대안: type이 "image"일 경우
-                                    elif item_type == "image":
-                                        # inline_data 내부 확인
-                                        if "inline_data" in item:
-                                            inline = item.get("inline_data", {})
-                                            data = inline.get("data")
-                                            if data:
-                                                base64_image_data = data
-                                                print(f"[THUMBNAIL-AI][{variant}] image.inline_data에서 추출 성공")
-                                                break
-                                        # 직접 data 필드
-                                        img_data = item.get("data") or item.get("image") or item.get("url", "")
-                                        if img_data:
-                                            if img_data.startswith("data:"):
-                                                base64_image_data = img_data.split(",", 1)[1]
-                                            else:
-                                                base64_image_data = img_data
-                                            print(f"[THUMBNAIL-AI][{variant}] content.image에서 추출 성공")
-                                            break
-
-                                    # 기타: data 필드 직접 확인
-                                    elif "data" in item and item_type != "text":
-                                        base64_image_data = item["data"]
-                                        print(f"[THUMBNAIL-AI][{variant}] data 필드에서 추출 성공")
-                                        break
-
-                        elif isinstance(content, str):
-                            # content가 문자열인 경우 (텍스트 응답만)
-                            print(f"[THUMBNAIL-AI][{variant}] content가 문자열임 (이미지 없음): {content[:200]}")
-
-                if base64_image_data:
-                    timestamp = int(time.time() * 1000)
-                    filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.png"
-                    output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
-                    os.makedirs(output_dir, exist_ok=True)
-                    filepath = os.path.join(output_dir, filename)
-
-                    with open(filepath, 'wb') as f:
-                        f.write(base64.b64decode(base64_image_data))
-
-                    return {"variant": variant, "ok": True, "image_url": f'/output/{filename}'}
-
-                # 디버그: 전체 응답 구조 출력
-                import json
-                print(f"[THUMBNAIL-AI][{variant}] 이미지 추출 실패 - 전체 응답:")
-                print(json.dumps(result, indent=2, ensure_ascii=False, default=str)[:3000])
-                return {"variant": variant, "ok": False, "error": "이미지 추출 실패 - API 응답에 이미지가 없습니다"}
+                return {"variant": variant, "ok": True, "image_url": f'/output/{filename}'}
 
             except Exception as e:
                 return {"variant": variant, "ok": False, "error": str(e)}
@@ -18546,7 +17731,6 @@ Style: {style}, comic/illustration, eye-catching, high contrast"""
                 result = future.result()
                 results[result["variant"]] = result
 
-        # C가 없으면 결과에서 제거
         if not has_c:
             del results["C"]
 
