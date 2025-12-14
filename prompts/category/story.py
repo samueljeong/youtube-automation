@@ -33,25 +33,28 @@ High CTR through dramatic emotional expressions!
 - High contrast, dramatic composition
 - Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character with dramatic emotional expression. High contrast colors, comic book aesthetic. Character shows strong emotion matching the story. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman, NO 3D render."
 
-### text_overlay for Story (applied separately, NOT in image)
+### text_overlay for Story (write in OUTPUT LANGUAGE from script content)
 {
-  "main": "감정 텍스트 (10-15자)",
-  "sub": "optional (부연 설명)"
+  "main": "emotional phrase from script (10-15 chars)",
+  "sub": "optional supporting detail from script"
 }
+⚠️ CRITICAL: Text MUST reflect the ACTUAL SCRIPT CONTENT, not generic phrases!
 
-### Thumbnail Text Styles by Audience (for text_overlay)
+### Thumbnail Text Styles by Audience (for text_overlay - write in OUTPUT LANGUAGE)
 
 **Senior (50-70대):**
-- Length: 8-12자
-- Style: 회상형, 후회형, 경험공유형
-- Examples: "그날을 잊지 않는다", "하는게 아니었다", "늦게 알았다"
-- Color: 노랑+검정 (highest CTR)
+- Length: 8-12 chars
+- Style: reflective, regretful, experience-sharing
+- Pattern: phrases about looking back, lessons learned, shared experiences
+- Color: yellow+black (highest CTR)
 
 **General (20-40대):**
-- Length: 4-7자
-- Style: 자극형, 궁금증형, 충격형
-- Examples: "결국 터졌다", "이게 실화?", "소름 돋았다"
-- Color: 흰색+검정, 빨강+검정
+- Length: 4-7 chars
+- Style: provocative, curiosity-inducing, shocking
+- Pattern: short impactful phrases, questions, revelations
+- Color: white+black, red+black
+
+⚠️ NEVER use generic examples! Create text based on ACTUAL SCRIPT CONTENT!
 
 ### news_ticker for Story
 "news_ticker": { "enabled": false }
