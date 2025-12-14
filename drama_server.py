@@ -9065,6 +9065,13 @@ def youtube_upload():
                 # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
                 token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
 
+                # _2 프로젝트에서 채널별 토큰이 없으면 default_2로 fallback
+                if (not token_data or not token_data.get('refresh_token')) and project_suffix == '_2' and channel_id and channel_id != 'default':
+                    print(f"[YOUTUBE-UPLOAD] {channel_id}_2 토큰 없음 → default_2로 fallback")
+                    token_data = load_youtube_token_from_db('default', '_2')
+                    if token_data and token_data.get('refresh_token'):
+                        print(f"[YOUTUBE-UPLOAD] default_2 토큰 사용")
+
                 if not token_data or not token_data.get('refresh_token'):
                     print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id}, project: {project_suffix or '기본'})")
                     # 토큰이 없으면 다음 프로젝트 시도

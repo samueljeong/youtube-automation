@@ -410,6 +410,15 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             lookup_key = f"{channel_id or 'default'}{project_suffix}"
             print(f"[YOUTUBE-QUOTA-CHECK] 토큰 조회: {lookup_key}")
             token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
+
+            # _2 프로젝트에서 채널별 토큰이 없으면 default_2로 fallback
+            if not token_data and project_suffix == '_2' and channel_id and channel_id != 'default':
+                print(f"[YOUTUBE-QUOTA-CHECK] {lookup_key} 토큰 없음 → default_2로 fallback")
+                token_data = load_youtube_token_from_db('default', '_2')
+                if token_data:
+                    lookup_key = 'default_2'
+                    print(f"[YOUTUBE-QUOTA-CHECK] default_2 토큰 사용")
+
             if not token_data:
                 print(f"[YOUTUBE-QUOTA-CHECK] 토큰 없음: {lookup_key}")
                 return None, f"토큰 없음 (key: {lookup_key})"
