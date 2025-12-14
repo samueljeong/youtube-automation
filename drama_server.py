@@ -20229,12 +20229,13 @@ def enhance_description_for_youtube(description: str, title: str, hashtags: list
     return description
 
 
-def run_automation_pipeline(row_data, row_index):
+def run_automation_pipeline(row_data, row_index, selected_project=''):
     """
     자동화 파이프라인 실행 - 기존 /image 페이지 API 재사용
 
     row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
     row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2') - api_sheets_check_and_process에서 전달
 
     ★★★ 중요: 기존 /image 페이지와 동일한 API를 사용합니다 ★★★
     - /api/image/analyze-script (대본 분석)
@@ -20295,14 +20296,10 @@ def run_automation_pipeline(row_data, row_index):
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
 
-        # ========== 0. YouTube 할당량 사전 체크 ==========
-        # 대본 분석/이미지 생성 비용 낭비 방지를 위해 먼저 YouTube 업로드 가능 여부 확인
-        print(f"[AUTOMATION] 0. YouTube 할당량 사전 체크...")
-        quota_ok, selected_project, quota_error = check_youtube_quota_before_pipeline(channel_id)
-        if not quota_ok:
-            print(f"[AUTOMATION][ERROR] YouTube 할당량 체크 실패: {quota_error}")
-            return {"ok": False, "error": quota_error, "video_url": None}
-        print(f"[AUTOMATION] YouTube 프로젝트 선택: {'기본' if not selected_project else selected_project}")
+        # ========== 0. YouTube 프로젝트 확인 ==========
+        # 할당량 체크는 api_sheets_check_and_process에서 이미 완료됨
+        # selected_project 파라미터로 미리 선택된 프로젝트를 받음
+        print(f"[AUTOMATION] 0. YouTube 프로젝트: {'기본' if not selected_project else selected_project} (사전 체크 완료)")
 
         session_id = f"auto_{row_index}_{int(time_module.time())}"
         base_url = "http://127.0.0.1:" + str(os.environ.get("PORT", 5059))
@@ -21357,6 +21354,9 @@ def api_sheets_check_and_process():
         if not quota_ok:
             print(f"[SHEETS][ERROR] YouTube 체크 실패: {quota_error}")
             # 할당량 초과 또는 토큰 없음 - 파이프라인 시작하지 않음
+            # Sheet 상태를 '실패'로 업데이트
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '에러메시지', f'YouTube 체크 실패: {quota_error}')
             return jsonify({
                 "ok": False,
                 "error": quota_error,
@@ -21382,7 +21382,7 @@ def api_sheets_check_and_process():
             'scheduled_time': get_row_value(row_data, col_map, '예약시간'),
         }
 
-        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map)
+        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
 
         # ========== 6. 결과 기록 ==========
         # 비용 기록 (원화로 변환, 1 USD = 1,350 KRW)
@@ -21438,7 +21438,7 @@ def api_sheets_check_and_process():
         print("[SHEETS] 파이프라인 Lock 해제됨")
 
 
-def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
+def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=''):
     """
     자동화 파이프라인 실행 (v2 - 동적 매핑 지원)
 
@@ -21450,12 +21450,13 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
         'playlist_id': 플레이리스트 ID (선택),
         'scheduled_time': 예약시간 (선택)
     }
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2')
     """
     # 기존 run_automation_pipeline 함수 호출을 위해 row 형식으로 변환
     # 기존 함수는 row[인덱스] 방식으로 접근하므로 호환성 유지
     # 새 구조: channel_id는 시트 레벨에서 전달
 
-    # 기존 파이프라인 호출 (channel_id를 별도로 전달)
+    # 기존 파이프라인 호출 (channel_id를 별도로 전달, selected_project 전달)
     return run_automation_pipeline_with_channel(
         channel_id=pipeline_data['channel_id'],
         script=pipeline_data['script'],
@@ -21464,16 +21465,19 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
         playlist_id=pipeline_data.get('playlist_id'),
         scheduled_time=pipeline_data.get('scheduled_time'),
         sheet_name=sheet_name,
-        row_num=row_num
+        row_num=row_num,
+        selected_project=selected_project
     )
 
 
 def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy='private',
                                           playlist_id=None, scheduled_time=None,
-                                          sheet_name=None, row_num=None):
+                                          sheet_name=None, row_num=None, selected_project=''):
     """
     자동화 파이프라인 실행 (명시적 파라미터 버전)
     기존 run_automation_pipeline의 로직을 재사용하면서 새 구조 지원
+
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2')
     """
     # 기존 함수의 row 형식으로 변환하여 호출
     # 기존 컬럼 구조: [상태, 작업시간, 채널ID, 채널명, 예약시간, 대본, 제목, ...]
@@ -21501,8 +21505,8 @@ def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy
         playlist_id or '' # 17: 플레이리스트ID
     ]
 
-    # 기존 파이프라인 호출
-    return run_automation_pipeline(dummy_row, row_num or 0)
+    # 기존 파이프라인 호출 (selected_project 전달)
+    return run_automation_pipeline(dummy_row, row_num or 0, selected_project=selected_project)
 
 
 @app.route('/api/sheets/check-ctr-and-update-titles', methods=['GET', 'POST'])
