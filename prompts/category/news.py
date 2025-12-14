@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""뉴스 카테고리 프롬프트 규칙"""
+"""뉴스 카테고리 프롬프트 규칙 - 웹툰 스타일"""
 
 NEWS_RULES = """
 ## CATEGORY: NEWS (뉴스/시사)
@@ -9,44 +9,40 @@ NEWS_RULES = """
 사건, 사고, 사회 이슈, 논쟁, 갈등, 기업, 브랜드,
 법원, 검찰, 재판
 
-### Thumbnail Style: PHOTOREALISTIC NEWS
-Real person photos, news photography style
+### Thumbnail Style: KOREAN WEBTOON
+⚠️ NO PHOTOREALISTIC! Use Korean webtoon/manhwa style!
+⚠️ NO TEXT in images! Text will be added separately!
 
-**Extract from script:**
+**Extract from script (for text_overlay, NOT in image):**
 - person_name: 핵심 인물 이름 (조진웅, 윤석열 등)
 - entity_name: 기업/기관명 (쿠팡, 삼성전자 등)
 - quote: 충격적/흥미로운 발언 "따옴표"
 - headline: 핵심 헤드라인 2줄
 - numbers: 강조 숫자 (30년, 3370만)
 
-**IMPORTANT:** If person_name or entity_name exists, MUST include in thumbnail text!
+### ai_prompts Structure (3 WEBTOON styles)
 
-### ai_prompts Structure (3 styles)
+**A = Webtoon Person Close-up:**
+- Korean webtoon style character representing the key person
+- Exaggerated emotional expression matching the news tone
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with SHOCKED/SERIOUS EXPRESSION (wide eyes, tense face), 40-50 year old Korean [man/woman] in [suit/formal wear]. Clean bold outlines, dramatic lighting, news studio or office background. Comic-style expression marks. NO text, NO letters, NO speech bubbles, NO name tags. NO photorealistic, NO stickman, NO anime."
 
-**A = Person Close-up:**
-- Key person's face/upper body close-up
-- Dark gradient at bottom for text
-- Emotional expression (shocked, angry, confident)
-- Prompt: "korean [gender] in [age]s, [expression] expression, close-up portrait, dark navy gradient at bottom for text space, news photography style, photorealistic, 16:9"
+**B = Webtoon Scene/Event:**
+- Korean webtoon style scene related to the news
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon scene showing [related location/event]. Korean webtoon character with CONCERNED EXPRESSION in the scene. Clean bold outlines, dramatic mood, vibrant colors. Comic-style atmosphere. NO text, NO letters, NO speech bubbles, NO signs, NO readable text. NO photorealistic, NO stickman."
 
-**B = Scene/Event:**
-- News scene or related location
-- Space for text overlay
-- Prompt: "korean national assembly/courtroom/stock exchange building, dramatic lighting, news photography style, space for text overlay at bottom, 16:9"
+**C = Webtoon Split/Contrast:**
+- Split composition showing contrast or comparison
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Split composition: left side Korean webtoon character with [emotion A], right side Korean webtoon character with [emotion B]. Clean bold outlines, contrasting colors (left calm, right dramatic). Comic-style dramatic effect. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
 
-**C = Split Comparison:**
-- 2-split screen: left vs right
-- Before/After, Pro/Con, Two people contrast
-- Prompt: "split screen comparison, left: [option A], right: [option B], dramatic lighting, versus composition, 16:9"
-
-### Color Schemes
-- yellow-highlight: General news (MBC style)
-- cyan-news: Info news (SBS style)
-- pink-scandal: Entertainment/scandal (TV조선 style)
+### Color Schemes (for design reference, NOT in image)
+- yellow-highlight: General news
+- cyan-news: Info news
+- pink-scandal: Entertainment/scandal
 - red-urgent: Breaking news
 - blue-trust: Official announcement
 
-### text_overlay for News
+### text_overlay for News (applied separately)
 {
   "name": "인물명 또는 기업명",
   "main": "핵심 문구 (15자 이내)",
@@ -54,7 +50,7 @@ Real person photos, news photography style
   "color": "yellow | cyan | pink"
 }
 
-### news_ticker (NEWS ONLY!)
+### news_ticker (for video effects, NOT in image)
 "news_ticker": {
   "enabled": true,
   "headlines": ["속보: ...", "이슈: ...", "핵심: ..."]

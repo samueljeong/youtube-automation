@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""스토리 카테고리 프롬프트 규칙"""
+"""스토리 카테고리 프롬프트 규칙 - 웹툰 스타일"""
 
 STORY_RULES = """
 ## CATEGORY: STORY (드라마/감성/일상)
@@ -12,31 +12,32 @@ STORY_RULES = """
 - NOT health, NOT news = STORY
 
 ### Thumbnail Style: KOREAN WEBTOON
+⚠️ NO TEXT in images! Text will be added separately!
 Korean webtoon/manhwa style with exaggerated expressions!
 High CTR through dramatic emotional expressions!
 
-### ai_prompts Structure (3 styles)
+### ai_prompts Structure (3 WEBTOON styles)
 
 **A = Webtoon Emotion Focus:**
 - Exaggerated shocked/surprised expression
-- Prompt: "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating). 30-40 year old Korean man or woman. Clean bold outlines, vibrant flat colors. Comic-style expression marks (sweat drops, impact lines). Background related to the topic. NO photorealistic, NO stickman."
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating), 30-40 year old Korean [man/woman]. Clean bold outlines, vibrant flat colors. Comic-style expression marks (sweat drops, impact lines). Background related to the topic. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
 
 **B = Webtoon Scene Focus:**
 - Key moment of story
-- Character on right, text space on left
-- Prompt: "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean manhwa illustration showing the key moment of the story. Character with exaggerated expression on right side, leave space for text on left. Comic-style effect lines (radial lines, impact effects). Bright vibrant colors. NO photorealistic, NO stickman."
+- Character on right, space for overlay on left
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon scene showing the key moment of the story. Korean webtoon character with exaggerated expression on right side. Comic-style effect lines (radial lines, impact effects). Bright vibrant colors. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
 
 **C = Webtoon Dramatic:**
 - High contrast, dramatic composition
-- Prompt: "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Manhwa style dramatic composition with emotional character expression. High contrast colors, comic book aesthetic. Bold space for text overlay. Character shows strong emotion matching the story. NO photorealistic, NO stickman, NO 3D render."
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character with dramatic emotional expression. High contrast colors, comic book aesthetic. Character shows strong emotion matching the story. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman, NO 3D render."
 
-### text_overlay for Story
+### text_overlay for Story (applied separately, NOT in image)
 {
   "main": "감정 텍스트 (10-15자)",
   "sub": "optional (부연 설명)"
 }
 
-### Thumbnail Text Styles by Audience
+### Thumbnail Text Styles by Audience (for text_overlay)
 
 **Senior (50-70대):**
 - Length: 8-12자

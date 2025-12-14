@@ -22,7 +22,7 @@ The key visual style for scene images is KOREAN WEBTOON/MANHWA:
 - Worried: furrowed brows, sweat drop, hand gesture
 - Surprised: huge eyes, small open mouth, raised eyebrows
 
-## MANDATORY STYLE KEYWORDS (MUST INCLUDE IN EVERY scene image_prompt)
+## MANDATORY STYLE KEYWORDS (MUST INCLUDE IN EVERY image_prompt)
 - Korean WEBTOON/manhwa style illustration
 - 16:9 aspect ratio
 - Korean webtoon character with EXAGGERATED [emotion] EXPRESSION
@@ -30,6 +30,7 @@ The key visual style for scene images is KOREAN WEBTOON/MANHWA:
 - Clean bold outlines, vibrant flat colors
 - Comic-style expression marks (sweat drops, impact lines)
 - NO photorealistic, NO stickman, NO anime, NO 3D render
+- NO text, NO letters, NO words, NO speech bubbles (CRITICAL!)
 
 ## SCENE IMAGE PROMPT TEMPLATE
 "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio.
@@ -37,6 +38,7 @@ The key visual style for scene images is KOREAN WEBTOON/MANHWA:
 Korean webtoon character with EXAGGERATED [emotion] EXPRESSION ([specific expression details]),
 30-50 year old Korean [man/woman].
 Clean bold outlines, vibrant flat colors, comic-style expression marks.
+NO text, NO letters, NO speech bubbles.
 NO photorealistic, NO stickman, NO anime, NO 3D render."
 """
 
@@ -184,10 +186,16 @@ OUTPUT_JSON_STRUCTURE = """
 BASE_INSTRUCTIONS = """
 ## KEY RULES
 1. SCENE image_prompt = Korean WEBTOON/manhwa style (NO photorealistic, NO stickman!)
-2. THUMBNAIL ai_prompts = PHOTOREALISTIC for news/health, WEBTOON for story
+2. THUMBNAIL ai_prompts = Korean WEBTOON/manhwa style (ALL categories!)
 3. NARRATION = EXACT script text + SSML tags (DO NOT summarize!)
 4. image_prompt = ALWAYS in English
 5. All other text (title, description, thumbnail) = OUTPUT LANGUAGE
+
+## ⚠️ CRITICAL: NO TEXT IN IMAGES! ⚠️
+- NEVER include any text, letters, words, or speech bubbles in image prompts!
+- AI image generators CANNOT render text correctly - it will be garbled/wrong language
+- Add "no text, no letters, no words, no speech bubbles" to EVERY image_prompt
+- Text overlay will be added separately in video editing
 """
 
 

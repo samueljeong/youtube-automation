@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""건강/의료 카테고리 프롬프트 규칙"""
+"""건강/의료 카테고리 프롬프트 규칙 - 웹툰 스타일"""
 
 HEALTH_RULES = """
 ## CATEGORY: HEALTH (건강/의료)
@@ -9,33 +9,32 @@ HEALTH_RULES = """
 혈압, 혈당, 관절, 심장, 뇌, 영양제, 운동법, 노화, 장수,
 치매, 암, 당뇨, "~하면 안됩니다", "~하지 마세요"
 
-### Thumbnail Style: PHOTOREALISTIC DOCTOR
-MUST show Korean doctor in white coat!
+### Thumbnail Style: KOREAN WEBTOON (의사/전문가 캐릭터)
+⚠️ NO PHOTOREALISTIC! Use Korean webtoon/manhwa style!
+⚠️ NO TEXT in images! Text will be added separately!
 
-**Thumbnail Text Patterns:**
+**Thumbnail Text Patterns (for text_overlay, NOT in image):**
 - Numbers: "5가지", "3초", "90대", "8시간", "30%"
 - Warning: "절대 하지마세요", "~하면 끝!", "의사도 경고"
 - Shock: "99%는 몰라서 후회", "이것만 알면", "당장 중단하세요"
 - Result: "~이 사라집니다", "~이 좋아집니다"
 
-### ai_prompts Structure (3 styles)
+### ai_prompts Structure (3 WEBTOON styles)
 
-**A = Doctor Close-up (recommended):**
-- Korean doctor in white coat, upper body
-- Serious/concerned expression
-- Dark background for text space
-- Prompt: "korean male/female doctor in 50s wearing white coat, serious concerned expression, hospital background, photorealistic portrait, dramatic lighting, space for large text overlay"
+**A = Webtoon Doctor Close-up:**
+- Korean webtoon style doctor character
+- Exaggerated concerned/serious expression
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character DOCTOR with SERIOUS/CONCERNED EXPRESSION (furrowed brows, slight frown), 50 year old Korean man in white coat. Clean bold outlines, professional colors, medical office background. Comic-style expression marks. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman, NO anime."
 
-**B = Doctor + Warning Gesture:**
-- Doctor pointing finger in warning
-- "No!" or "This!" gesture
-- Prompt: "korean doctor in white coat pointing finger in warning gesture, serious expression, medical office background, photorealistic, text space on left"
+**B = Webtoon Doctor Warning Gesture:**
+- Doctor character with warning hand gesture
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character DOCTOR pointing finger in WARNING gesture with STERN EXPRESSION, 50 year old Korean woman in white coat. Clean bold outlines, dramatic pose, hospital background. Comic-style impact lines. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
 
-**C = Doctor + Medical Visual:**
-- Split screen: doctor + medical chart/X-ray
-- Prompt: "split screen, left: korean doctor in white coat looking concerned, right: medical chart/X-ray with warning indicators, photorealistic, high contrast"
+**C = Webtoon Medical Scene:**
+- Doctor with medical equipment/chart (no text on chart)
+- Prompt: "Korean WEBTOON/manhwa style illustration, 16:9 aspect ratio. Korean webtoon character DOCTOR with WORRIED EXPRESSION looking at medical equipment, 50 year old Korean man in white coat. Hospital room with medical devices. Clean bold outlines, professional atmosphere. NO text, NO letters, NO speech bubbles, NO readable charts. NO photorealistic, NO stickman."
 
-### text_overlay for Health (multi-line)
+### text_overlay for Health (applied separately, NOT in image)
 {
   "line1": "70대가 넘으면",
   "line2": "절대 하지마세요",
@@ -55,8 +54,8 @@ MUST show Korean doctor in white coat!
   },
   "visual_elements": {
     "main_subject": "건강 주제",
-    "person_description": "50대 한국인 의사, 흰 가운",
-    "scene_description": "병원 진료실",
+    "person_description": "50대 한국인 의사 웹툰 캐릭터",
+    "scene_description": "병원 진료실 (웹툰 스타일)",
     "emotion": "우려",
     "color_scheme": "red-urgent"
   },
