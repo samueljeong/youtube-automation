@@ -7653,6 +7653,11 @@ def youtube_callback():
                 save_youtube_token_to_db(token_data, channel_id=ch_id, channel_info=ch_info, project_suffix=project_suffix)
                 print(f"[YOUTUBE-CALLBACK] 토큰 저장: {ch_id}{project_suffix} - {ch_info['title']}")
             print(f"[YOUTUBE-CALLBACK] 총 {len(all_channels)}개 채널에 토큰 저장 완료 (project: {'기본' if not project_suffix else project_suffix})")
+
+            # _2 프로젝트일 경우 default_2도 저장 (fallback용)
+            if project_suffix == '_2':
+                save_youtube_token_to_db(token_data, channel_id='default', channel_info={'title': 'default_2 (fallback)'}, project_suffix=project_suffix)
+                print(f"[YOUTUBE-CALLBACK] default_2 fallback 토큰도 저장 완료")
         else:
             # 채널 정보 없으면 default로 저장
             save_youtube_token_to_db(token_data, channel_id='default', channel_info=None, project_suffix=project_suffix)
