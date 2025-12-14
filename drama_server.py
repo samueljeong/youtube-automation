@@ -7767,6 +7767,50 @@ def api_reset_youtube_quota():
     })
 
 
+@app.route('/api/youtube/tokens-debug')
+def api_youtube_tokens_debug():
+    """YouTube 토큰 목록 디버그용 조회 (user_id만 표시)"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        if USE_POSTGRES:
+            cursor.execute('SELECT user_id, channel_name, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
+        else:
+            cursor.execute('SELECT user_id, channel_name, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        tokens = []
+        for row in rows:
+            if USE_POSTGRES:
+                user_id = row['user_id']
+                channel_name = row['channel_name']
+                updated_at = str(row['updated_at']) if row['updated_at'] else None
+            else:
+                user_id, channel_name, updated_at = row
+
+            is_backup = '_2' in (user_id or '')
+            tokens.append({
+                "user_id": user_id,
+                "channel_name": channel_name or "(이름없음)",
+                "updated_at": updated_at,
+                "is_backup_project": is_backup
+            })
+
+        # _2 프로젝트 토큰 개수
+        backup_count = len([t for t in tokens if t['is_backup_project']])
+
+        return jsonify({
+            "ok": True,
+            "total_count": len(tokens),
+            "backup_project_count": backup_count,
+            "tokens": tokens
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route('/api/drama/youtube-channels')
 def youtube_channels():
     """YouTube 채널 목록 가져오기 (저장된 모든 채널 반환)"""
