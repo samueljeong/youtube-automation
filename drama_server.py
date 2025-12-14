@@ -773,7 +773,8 @@ def get_client():
     if not key:
         print("[WARNING] OPENAI_API_KEY가 설정되지 않았습니다. API 호출 시 오류가 발생할 수 있습니다.")
         return None
-    return OpenAI(api_key=key)
+    # GPT-5.1 긴 처리 시간을 위한 타임아웃 설정 (10분) - sermon_server.py와 동일
+    return OpenAI(api_key=key, timeout=600.0)
 
 client = get_client()
 
@@ -9813,7 +9814,9 @@ def api_image_analyze_script():
     """이미지 제작용 대본 분석 - 씬 분리 + 썸네일/이미지 프롬프트 생성"""
     try:
         from openai import OpenAI
-        client = OpenAI()
+        import httpx
+        # GPT-5.1 응답 대기 시간 설정 (30분 이상 긴 대본 대응 - 최대 10분)
+        client = OpenAI(timeout=httpx.Timeout(600.0, connect=30.0))
 
         data = request.get_json()
         script = data.get('script', '')
@@ -19165,7 +19168,7 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto",
                 "channel_style": channel_style  # [TUBELENS] 채널별 스타일 정보
-            }, timeout=300)  # GPT-5.1 응답 대기 시간 증가 (180→300초, 20분 대본 대응)
+            }, timeout=660)  # GPT-5.1 응답 대기 시간 (내부 OpenAI 600초 + 오버헤드)
 
             analyze_data = analyze_resp.json()
             if not analyze_data.get('ok'):
