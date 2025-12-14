@@ -23,6 +23,7 @@ window.selectedTitle = ''; // 선택된 제목 저장
 // ===== 기본 설정 =====
 window.config = {
   categories: [
+    {value: "category1", label: "묵상메시지 작성"},
     {value: "general", label: "일반 설교"},
     {value: "series", label: "시리즈 설교"},
     {value: "education", label: "교육"},
@@ -34,23 +35,30 @@ window.config = {
       masterGuide: "",
       styles: [
         {
-          id: "dawn_expository",
-          name: "새벽예배 - 강해설교",
-          description: "본론 중심",
+          id: "three_points",
+          name: "3대지",
+          description: "3대지 설교",
           steps: [
-            {id: "title", name: "제목 추천", order: 1},
-            {id: "analysis", name: "본문 분석", order: 2},
-            {id: "outline", name: "개요 작성", order: 3}
+            {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+            {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
           ]
         },
         {
-          id: "sunday_topical",
-          name: "주일예배 - 주제설교",
+          id: "topical",
+          name: "주제설교",
           description: "주제 중심",
           steps: [
-            {id: "title", name: "제목 추천", order: 1},
-            {id: "analysis", name: "본문 분석", order: 2},
-            {id: "outline", name: "개요 작성", order: 3}
+            {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+            {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
+          ]
+        },
+        {
+          id: "expository",
+          name: "강해설교",
+          description: "본론 중심",
+          steps: [
+            {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+            {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
           ]
         }
       ]
@@ -60,12 +68,11 @@ window.config = {
       styles: [
         {
           id: "series_continuous",
-          name: "수요예배 - 연속강해",
+          name: "연속강해",
           description: "시리즈형 강해",
           steps: [
-            {id: "title", name: "제목 추천", order: 1},
-            {id: "analysis", name: "본문 분석", order: 2},
-            {id: "outline", name: "개요 작성", order: 3}
+            {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+            {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
           ]
         }
       ]

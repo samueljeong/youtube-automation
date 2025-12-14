@@ -4,41 +4,47 @@
  */
 
 // ===== 데이터 버전 관리 =====
-const CONFIG_VERSION = 4; // 버전 업데이트 시 증가 (v4: 기본 카테고리 병합)
+const CONFIG_VERSION = 5; // 버전 업데이트 시 증가 (v5: 기본 스타일 복원 - 3대지, 주제설교, 강해설교 + 묵상메시지)
 
 // ===== 기본 스타일 정의 (복구용) =====
 const DEFAULT_STYLES = {
   general: [
     {
-      id: "dawn_expository",
-      name: "새벽예배 - 강해설교",
-      description: "본론 중심",
+      id: "three_points",
+      name: "3대지",
+      description: "3대지 설교",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     },
     {
-      id: "sunday_topical",
-      name: "주일예배 - 주제설교",
+      id: "topical",
+      name: "주제설교",
       description: "주제 중심",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
+      ]
+    },
+    {
+      id: "expository",
+      name: "강해설교",
+      description: "본론 중심",
+      steps: [
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     }
   ],
   series: [
     {
       id: "series_continuous",
-      name: "수요예배 - 연속강해",
+      name: "연속강해",
       description: "시리즈형 강해",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     }
   ]
