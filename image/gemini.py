@@ -145,34 +145,46 @@ def _extract_image_from_response(result: Dict[str, Any]) -> Optional[str]:
     """API 응답에서 base64 이미지 데이터 추출"""
     choices = result.get("choices", [])
     if not choices:
+        print("[GEMINI][DEBUG] _extract: choices 없음")
         return None
 
     message = choices[0].get("message", {})
 
     # 1. images 배열 확인
     images = message.get("images", [])
-    for img in images:
-        if isinstance(img, str):
-            if img.startswith("data:"):
-                return img.split(",", 1)[1] if "," in img else img
-            return img
-        elif isinstance(img, dict):
-            for key in ["data", "b64_json", "url"]:
-                if key in img:
-                    val = img[key]
-                    if isinstance(val, str):
-                        if val.startswith("data:"):
-                            return val.split(",", 1)[1] if "," in val else val
-                        return val
+    if images:
+        print(f"[GEMINI][DEBUG] _extract: images 배열 발견 - 개수: {len(images)}")
+        for i, img in enumerate(images):
+            print(f"[GEMINI][DEBUG] _extract: images[{i}] 타입: {type(img).__name__}")
+            if isinstance(img, str):
+                print(f"[GEMINI][DEBUG] _extract: images[{i}] 문자열 길이: {len(img)}, 시작: {img[:50] if len(img) > 50 else img}")
+                if img.startswith("data:"):
+                    return img.split(",", 1)[1] if "," in img else img
+                # base64 문자열로 간주
+                if len(img) > 100:  # base64는 보통 매우 김
+                    print(f"[GEMINI][DEBUG] _extract: images[{i}]를 base64로 반환")
+                    return img
+            elif isinstance(img, dict):
+                print(f"[GEMINI][DEBUG] _extract: images[{i}] dict 키: {list(img.keys())}")
+                for key in ["data", "b64_json", "url", "base64"]:
+                    if key in img:
+                        val = img[key]
+                        if isinstance(val, str):
+                            print(f"[GEMINI][DEBUG] _extract: images[{i}][{key}] 발견, 길이: {len(val)}")
+                            if val.startswith("data:"):
+                                return val.split(",", 1)[1] if "," in val else val
+                            return val
 
     # 2. content 배열 확인
     content = message.get("content", [])
     if isinstance(content, list):
+        print(f"[GEMINI][DEBUG] _extract: content 리스트 - 개수: {len(content)}")
         for item in content:
             if not isinstance(item, dict):
                 continue
 
             item_type = item.get("type", "")
+            print(f"[GEMINI][DEBUG] _extract: content item 타입: {item_type}, 키: {list(item.keys())}")
 
             if item_type == "image_url":
                 url = item.get("image_url", {}).get("url", "")
@@ -191,6 +203,7 @@ def _extract_image_from_response(result: Dict[str, Any]) -> Optional[str]:
                 if source.get("type") == "base64":
                     return source.get("data")
 
+    print(f"[GEMINI][DEBUG] _extract: 이미지 추출 실패 - message 키: {list(message.keys())}")
     return None
 
 
