@@ -1,6 +1,10 @@
 """
 Gemini 이미지 생성 모듈
-OpenRouter API를 통한 Gemini 2.5 Flash 이미지 생성
+OpenRouter API를 통한 Gemini 이미지 생성
+
+지원 모델:
+- gemini-2.5-flash: 씬 이미지 생성 (빠르고 저렴)
+- gemini-3-pro: 썸네일 생성 (고품질)
 """
 
 import os
@@ -17,10 +21,19 @@ from PIL import Image as PILImage
 
 # 상수
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-GEMINI_MODEL = "google/gemini-2.5-flash-image-preview"
-DEFAULT_TIMEOUT = 90
+DEFAULT_TIMEOUT = 120
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
+
+# 모델 상수
+GEMINI_FLASH = "google/gemini-2.5-flash-image-preview"  # 씬 이미지용
+GEMINI_PRO = "google/gemini-3-pro-image-preview"        # 썸네일용 (고품질)
+
+# 모델별 비용 (USD)
+MODEL_COSTS = {
+    GEMINI_FLASH: 0.039,
+    GEMINI_PRO: 0.05,
+}
 
 
 def _get_aspect_instruction(size: str) -> Tuple[str, int, int]:
@@ -47,7 +60,7 @@ def _get_aspect_instruction(size: str) -> Tuple[str, int, int]:
         return instruction, 1280, 720
 
 
-def _call_openrouter_api(prompt: str, api_key: str) -> Dict[str, Any]:
+def _call_openrouter_api(prompt: str, api_key: str, model: str = GEMINI_FLASH) -> Dict[str, Any]:
     """OpenRouter API 호출 (재시도 로직 포함)"""
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -57,7 +70,7 @@ def _call_openrouter_api(prompt: str, api_key: str) -> Dict[str, Any]:
     }
 
     payload = {
-        "model": GEMINI_MODEL,
+        "model": model,
         "modalities": ["text", "image"],
         "messages": [
             {
@@ -223,7 +236,9 @@ def _process_and_save_image(
 def generate_image(
     prompt: str,
     size: str = "1280x720",
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    model: str = GEMINI_FLASH,
+    add_aspect_instruction: bool = True
 ) -> Dict[str, Any]:
     """
     Gemini를 사용하여 이미지 생성
@@ -232,6 +247,8 @@ def generate_image(
         prompt: 이미지 생성 프롬프트
         size: 이미지 크기 (예: "1280x720", "720x1280")
         output_dir: 이미지 저장 디렉토리 (기본: static/images)
+        model: 사용할 모델 (GEMINI_FLASH 또는 GEMINI_PRO)
+        add_aspect_instruction: 비율 지시문 자동 추가 여부
 
     Returns:
         {"ok": True, "image_url": str, "cost": float} 또는
@@ -246,12 +263,16 @@ def generate_image(
 
     # 비율 지시문 추가
     aspect_instruction, target_width, target_height = _get_aspect_instruction(size)
-    enhanced_prompt = f"{aspect_instruction}\n\n{prompt}"
+    if add_aspect_instruction:
+        enhanced_prompt = f"{aspect_instruction}\n\n{prompt}"
+    else:
+        enhanced_prompt = prompt
 
-    print(f"[GEMINI] 이미지 생성 시작 - 크기: {size}")
+    model_name = "Pro" if "pro" in model.lower() else "Flash"
+    print(f"[GEMINI-{model_name}] 이미지 생성 시작 - 크기: {size}")
 
     # API 호출
-    result = _call_openrouter_api(enhanced_prompt, api_key)
+    result = _call_openrouter_api(enhanced_prompt, api_key, model)
     if not result.get("ok"):
         return result
 
@@ -264,42 +285,91 @@ def generate_image(
     if output_dir is None:
         output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'images')
 
+    prefix = "thumbnail" if model == GEMINI_PRO else "gemini"
     image_url = _process_and_save_image(
-        base64_data, target_width, target_height, output_dir, "gemini"
+        base64_data, target_width, target_height, output_dir, prefix
     )
 
     if not image_url:
         # 저장 실패 시 base64 URL 반환
         image_url = f"data:image/png;base64,{base64_data}"
 
-    # 비용: ~$0.039/장
-    cost = 0.039
-    print(f"[GEMINI] 완료 - 비용: ${cost}")
+    # 모델별 비용
+    cost = MODEL_COSTS.get(model, 0.039)
+    print(f"[GEMINI-{model_name}] 완료 - 비용: ${cost}")
 
     return {
         "ok": True,
         "image_url": image_url,
         "cost": cost,
-        "provider": "gemini"
+        "provider": "gemini",
+        "model": model_name.lower()
+    }
+
+
+def generate_image_base64(
+    prompt: str,
+    model: str = GEMINI_PRO
+) -> Dict[str, Any]:
+    """
+    Gemini로 이미지 생성 후 base64 데이터만 반환 (저장 없음)
+
+    Args:
+        prompt: 이미지 생성 프롬프트
+        model: 사용할 모델 (GEMINI_FLASH 또는 GEMINI_PRO)
+
+    Returns:
+        {"ok": True, "base64": str, "cost": float} 또는
+        {"ok": False, "error": str}
+    """
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    if not api_key:
+        return {"ok": False, "error": "OPENROUTER_API_KEY 환경변수가 설정되지 않았습니다."}
+
+    if not prompt:
+        return {"ok": False, "error": "프롬프트가 없습니다."}
+
+    model_name = "Pro" if "pro" in model.lower() else "Flash"
+    print(f"[GEMINI-{model_name}] base64 이미지 생성 시작")
+
+    result = _call_openrouter_api(prompt, api_key, model)
+    if not result.get("ok"):
+        return result
+
+    base64_data = _extract_image_from_response(result["data"])
+    if not base64_data:
+        return {"ok": False, "error": "Gemini에서 이미지를 생성하지 못했습니다."}
+
+    cost = MODEL_COSTS.get(model, 0.05)
+    print(f"[GEMINI-{model_name}] 완료 - 비용: ${cost}")
+
+    return {
+        "ok": True,
+        "base64": base64_data,
+        "cost": cost,
+        "provider": "gemini",
+        "model": model_name.lower()
     }
 
 
 def generate_thumbnail_image(
     prompt: str,
     text_overlay: Optional[Dict[str, str]] = None,
-    output_dir: Optional[str] = None
+    output_dir: Optional[str] = None,
+    use_pro_model: bool = True
 ) -> Dict[str, Any]:
     """
-    썸네일 이미지 생성 (16:9 고정)
+    썸네일 이미지 생성 (16:9 고정, 고품질)
 
     Args:
         prompt: 이미지 생성 프롬프트
         text_overlay: 텍스트 오버레이 정보 {"main": str, "sub": str}
         output_dir: 이미지 저장 디렉토리
+        use_pro_model: True면 GEMINI_PRO (고품질), False면 GEMINI_FLASH
 
     Returns:
         {"ok": True, "image_url": str, "cost": float} 또는
         {"ok": False, "error": str}
     """
-    # 썸네일은 항상 16:9
-    return generate_image(prompt, size="1280x720", output_dir=output_dir)
+    model = GEMINI_PRO if use_pro_model else GEMINI_FLASH
+    return generate_image(prompt, size="1280x720", output_dir=output_dir, model=model)
