@@ -23,6 +23,17 @@ from lang import ko as lang_ko
 from lang import ja as lang_ja
 from lang import en as lang_en
 
+# YouTube 토큰/할당량 관리 모듈
+import youtube_auth
+from youtube_auth import (
+    get_youtube_credentials, set_youtube_quota_exceeded,
+    check_youtube_quota_before_pipeline, reset_youtube_quota_exceeded,
+    YOUTUBE_TOKEN_FILE, YOUTUBE_QUOTA_FLAG_FILE,
+    save_youtube_token_to_db, load_youtube_token_from_db,
+    load_all_youtube_channels_from_db, delete_youtube_channel_from_db,
+    _load_quota_flag, _save_quota_flag
+)
+
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
@@ -91,215 +102,6 @@ VIDEO_JOBS_FILE = 'data/video_jobs.json'
 # ===== 파이프라인 동시 실행 방지 Lock =====
 # cron job이 동시에 여러 worker에서 실행되는 것을 방지
 pipeline_lock = threading.Lock()
-
-# ===== YouTube API 할당량 Failover =====
-# 기본 프로젝트 할당량 초과 시 _2 프로젝트로 전환
-# 파일 기반으로 저장하여 워커 간 공유 및 서버 재시작 후에도 유지
-YOUTUBE_QUOTA_FLAG_FILE = 'data/youtube_quota_exceeded.json'
-
-def _load_quota_flag():
-    """파일에서 할당량 초과 플래그 로드"""
-    from datetime import date
-    try:
-        if os.path.exists(YOUTUBE_QUOTA_FLAG_FILE):
-            with open(YOUTUBE_QUOTA_FLAG_FILE, 'r') as f:
-                data = json.load(f)
-                exceeded_date = data.get('date')
-                if exceeded_date:
-                    # 날짜가 바뀌면 리셋 (할당량은 매일 Pacific Time 기준 초기화됨)
-                    today_str = date.today().isoformat()
-                    if exceeded_date != today_str:
-                        print(f"[YOUTUBE-QUOTA] 날짜 변경 감지 - 할당량 리셋 ({exceeded_date} → {today_str})")
-                        os.remove(YOUTUBE_QUOTA_FLAG_FILE)
-                        return False
-                    return True
-    except Exception as e:
-        print(f"[YOUTUBE-QUOTA] 플래그 파일 읽기 오류: {e}")
-    return False
-
-def _save_quota_flag():
-    """파일에 할당량 초과 플래그 저장"""
-    from datetime import date
-    try:
-        os.makedirs(os.path.dirname(YOUTUBE_QUOTA_FLAG_FILE), exist_ok=True)
-        with open(YOUTUBE_QUOTA_FLAG_FILE, 'w') as f:
-            json.dump({'exceeded': True, 'date': date.today().isoformat()}, f)
-        print(f"[YOUTUBE-QUOTA] 플래그 파일 저장됨: {YOUTUBE_QUOTA_FLAG_FILE}")
-    except Exception as e:
-        print(f"[YOUTUBE-QUOTA] 플래그 파일 저장 오류: {e}")
-
-def get_youtube_credentials():
-    """현재 사용할 YouTube OAuth 자격증명 반환 (할당량 failover 지원)"""
-    # 파일에서 할당량 초과 플래그 확인
-    quota_exceeded = _load_quota_flag()
-
-    # 할당량 초과 시 _2 프로젝트 사용
-    if quota_exceeded:
-        client_id = os.getenv('YOUTUBE_CLIENT_ID_2')
-        client_secret = os.getenv('YOUTUBE_CLIENT_SECRET_2')
-        if client_id and client_secret:
-            print("[YOUTUBE-QUOTA] _2 프로젝트 사용 중 (할당량 초과로 전환됨)")
-            return client_id, client_secret, "_2"
-        else:
-            print("[YOUTUBE-QUOTA] 경고: 할당량 초과 상태이나 _2 프로젝트 미설정")
-
-    # 기본 프로젝트
-    client_id = os.getenv('YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID')
-    client_secret = os.getenv('YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
-    return client_id, client_secret, ""
-
-def set_youtube_quota_exceeded():
-    """할당량 초과 플래그 설정 - _2 프로젝트로 전환"""
-    # 이미 초과 상태인지 확인
-    if _load_quota_flag():
-        print("[YOUTUBE-QUOTA] 이미 할당량 초과 상태")
-        return True
-
-    # 플래그 저장
-    _save_quota_flag()
-    print(f"[YOUTUBE-QUOTA] 할당량 초과 감지! _2 프로젝트로 전환")
-
-    # _2 프로젝트가 있는지 확인
-    if os.getenv('YOUTUBE_CLIENT_ID_2'):
-        print("[YOUTUBE-QUOTA] _2 프로젝트 발견 - 다음 업로드부터 _2 사용")
-        return True
-    else:
-        print("[YOUTUBE-QUOTA] _2 프로젝트 없음 - 내일까지 대기 필요")
-        return False
-
-def check_youtube_quota_before_pipeline(channel_id=None):
-    """
-    파이프라인 시작 전 YouTube API 할당량 체크
-
-    Returns:
-        (ok, project_suffix, error_message)
-        - ok: True면 업로드 가능
-        - project_suffix: 사용할 프로젝트 ('', '_2')
-        - error_message: 에러 시 메시지
-    """
-    try:
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-        from googleapiclient.discovery import build
-
-        def try_quota_check(project_suffix):
-            """특정 프로젝트로 할당량 테스트"""
-            lookup_key = f"{channel_id or 'default'}{project_suffix}"
-            print(f"[YOUTUBE-QUOTA-CHECK] 토큰 조회: {lookup_key}")
-            token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
-            if not token_data:
-                print(f"[YOUTUBE-QUOTA-CHECK] 토큰 없음: {lookup_key}")
-                return None, f"토큰 없음 (key: {lookup_key})"
-            if not token_data.get('refresh_token'):
-                # 디버그: 토큰 데이터의 키 확인
-                print(f"[YOUTUBE-QUOTA-CHECK] 토큰 데이터 키: {list(token_data.keys())}")
-                print(f"[YOUTUBE-QUOTA-CHECK] refresh_token 값: {token_data.get('refresh_token', 'MISSING')[:20] if token_data.get('refresh_token') else 'EMPTY/NONE'}...")
-                return None, f"refresh_token 없음 (project: {project_suffix or '기본'})"
-
-            # 토큰 로드 (DB 저장 시 'token' 키 사용, 'access_token'도 지원)
-            creds = Credentials(
-                token=token_data.get('token') or token_data.get('access_token'),
-                refresh_token=token_data.get('refresh_token'),
-                token_uri='https://oauth2.googleapis.com/token',
-                client_id=os.getenv('YOUTUBE_CLIENT_ID_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_ID') or os.getenv('GOOGLE_CLIENT_ID'),
-                client_secret=os.getenv('YOUTUBE_CLIENT_SECRET_2' if project_suffix == '_2' else 'YOUTUBE_CLIENT_SECRET') or os.getenv('GOOGLE_CLIENT_SECRET')
-            )
-
-            # 토큰 갱신
-            if creds.expired or not creds.valid:
-                creds.refresh(Request())
-
-            # 간단한 API 호출로 할당량 테스트 (channels.list - 1 unit)
-            youtube = build('youtube', 'v3', credentials=creds)
-            youtube.channels().list(part='id', mine=True).execute()
-            return True, None
-
-        # 1. 먼저 플래그 파일 확인
-        if _load_quota_flag():
-            # 이미 기본 프로젝트 할당량 초과 상태 - _2로 시도
-            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 할당량 초과 상태 - _2로 시도")
-            ok, err = try_quota_check('_2')
-            if ok:
-                print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트 사용 가능")
-                return True, '_2', None
-            else:
-                # _2도 실패
-                if 'quota' in str(err).lower():
-                    print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트도 할당량 초과!")
-                    return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
-                else:
-                    print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 오류: {err}")
-                    return False, '', f"_2 프로젝트 오류: {err}"
-
-        # 2. 기본 프로젝트로 시도
-        print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트로 할당량 체크 중...")
-        ok, err = try_quota_check('')
-        if ok:
-            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 사용 가능")
-            return True, '', None
-
-        # 3. 기본 프로젝트 실패 - quotaExceeded인지 확인
-        if err and 'quota' in str(err).lower():
-            print("[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 할당량 초과 감지 - _2로 전환")
-            _save_quota_flag()  # 플래그 저장
-
-            # _2 프로젝트로 재시도
-            if os.getenv('YOUTUBE_CLIENT_ID_2'):
-                ok2, err2 = try_quota_check('_2')
-                if ok2:
-                    print("[YOUTUBE-QUOTA-CHECK] _2 프로젝트 사용 가능")
-                    return True, '_2', None
-                else:
-                    if 'quota' in str(err2).lower():
-                        return False, '', "두 프로젝트 모두 YouTube API 할당량 초과. 내일 다시 시도하세요."
-                    else:
-                        return False, '', f"_2 프로젝트 오류: {err2}"
-            else:
-                return False, '', "YouTube API 할당량 초과. 백업 프로젝트(_2) 미설정."
-
-        # 다른 오류
-        print(f"[YOUTUBE-QUOTA-CHECK] 기본 프로젝트 오류: {err}")
-        return False, '', f"YouTube 인증 오류: {err}"
-
-    except Exception as e:
-        error_str = str(e).lower()
-        print(f"[YOUTUBE-QUOTA-CHECK] 예외 발생: {e}")
-
-        # quotaExceeded 예외 처리
-        if 'quota' in error_str:
-            _save_quota_flag()
-            if os.getenv('YOUTUBE_CLIENT_ID_2'):
-                # _2로 재시도
-                try:
-                    ok, err = try_quota_check('_2')
-                    if ok:
-                        return True, '_2', None
-                    else:
-                        # _2 체크 실패 (예외 없이 반환된 경우)
-                        print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 체크 실패: {err}")
-                        if err and 'quota' in str(err).lower():
-                            return False, '', "두 프로젝트 모두 YouTube API 할당량 초과"
-                        return False, '', f"_2 프로젝트 오류: {err}"
-                except Exception as e2:
-                    print(f"[YOUTUBE-QUOTA-CHECK] _2 프로젝트 예외: {e2}")
-                    if 'quota' in str(e2).lower():
-                        return False, '', "두 프로젝트 모두 YouTube API 할당량 초과"
-                    return False, '', f"_2 프로젝트 오류: {e2}"
-            else:
-                return False, '', "YouTube API 할당량 초과. 백업 프로젝트(_2) 미설정."
-
-        return False, '', f"YouTube 할당량 체크 실패: {e}"
-
-def reset_youtube_quota_exceeded():
-    """할당량 초과 플래그 수동 리셋"""
-    global _youtube_quota_exceeded, _youtube_quota_exceeded_date
-    _youtube_quota_exceeded = False
-    _youtube_quota_exceeded_date = None
-    print("[YOUTUBE-QUOTA] 할당량 초과 플래그 수동 리셋됨")
-
-# YouTube 토큰 파일 경로 (레거시 - 데이터베이스로 마이그레이션됨)
-YOUTUBE_TOKEN_FILE = 'data/youtube_token.json'
-
 
 # ===== 한글 숫자 → 아라비아 숫자 변환 (자막용) =====
 def korean_number_to_arabic(text):
@@ -401,244 +203,6 @@ def korean_number_to_arabic(text):
     result = re.sub(r'(\d+)\s+(년|월|일|살|세|명|개|번|시|분|초)', r'\1\2', result)
 
     return result
-
-# YouTube 토큰 DB 저장/로드 함수
-def save_youtube_token_to_db(token_data, channel_id=None, channel_info=None, project_suffix=''):
-    """YouTube 토큰을 데이터베이스에 저장 (채널별로 저장)
-
-    Args:
-        token_data: OAuth 토큰 데이터
-        channel_id: YouTube 채널 ID (없으면 'default')
-        channel_info: 채널 정보 dict (title, thumbnail)
-        project_suffix: 프로젝트 접미사 ('_2' 등, 할당량 failover용)
-    """
-    user_id = channel_id or 'default'
-    # 프로젝트 접미사가 있으면 user_id에 추가
-    if project_suffix:
-        user_id = f"{user_id}{project_suffix}"
-    channel_name = channel_info.get('title', '') if channel_info else ''
-    channel_thumbnail = channel_info.get('thumbnail', '') if channel_info else ''
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        if USE_POSTGRES:
-            # channel_name, channel_thumbnail 컬럼이 없을 수 있으므로 먼저 추가 시도
-            try:
-                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN IF NOT EXISTS channel_name TEXT')
-                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN IF NOT EXISTS channel_thumbnail TEXT')
-                conn.commit()
-            except:
-                pass
-
-            cursor.execute('''
-                INSERT INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, channel_name, channel_thumbnail, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    token = EXCLUDED.token,
-                    refresh_token = EXCLUDED.refresh_token,
-                    token_uri = EXCLUDED.token_uri,
-                    client_id = EXCLUDED.client_id,
-                    client_secret = EXCLUDED.client_secret,
-                    scopes = EXCLUDED.scopes,
-                    channel_name = EXCLUDED.channel_name,
-                    channel_thumbnail = EXCLUDED.channel_thumbnail,
-                    updated_at = CURRENT_TIMESTAMP
-            ''', (
-                user_id,
-                token_data.get('token'),
-                token_data.get('refresh_token'),
-                token_data.get('token_uri'),
-                token_data.get('client_id'),
-                token_data.get('client_secret'),
-                ','.join(token_data.get('scopes', [])),
-                channel_name,
-                channel_thumbnail
-            ))
-        else:
-            # SQLite - 컬럼 추가 시도
-            try:
-                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN channel_name TEXT')
-            except:
-                pass
-            try:
-                cursor.execute('ALTER TABLE youtube_tokens ADD COLUMN channel_thumbnail TEXT')
-            except:
-                pass
-
-            cursor.execute('''
-                INSERT OR REPLACE INTO youtube_tokens (user_id, token, refresh_token, token_uri, client_id, client_secret, scopes, channel_name, channel_thumbnail, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-            ''', (
-                user_id,
-                token_data.get('token'),
-                token_data.get('refresh_token'),
-                token_data.get('token_uri'),
-                token_data.get('client_id'),
-                token_data.get('client_secret'),
-                ','.join(token_data.get('scopes', [])),
-                channel_name,
-                channel_thumbnail
-            ))
-
-        conn.commit()
-        conn.close()
-        print(f"[YOUTUBE-TOKEN] 데이터베이스에 저장 완료 (channel_id: {user_id}, name: {channel_name})")
-        return True
-    except Exception as e:
-        print(f"[YOUTUBE-TOKEN] 데이터베이스 저장 실패: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-def load_youtube_token_from_db(channel_id='default', project_suffix=''):
-    """YouTube 토큰을 데이터베이스에서 로드
-
-    Args:
-        channel_id: YouTube 채널 ID (없으면 'default')
-        project_suffix: 프로젝트 접미사 ('_2' 등, 할당량 failover용)
-
-    Note:
-        백업 프로젝트(_2)의 경우, 해당 채널의 토큰이 없으면
-        동일 Google 계정의 다른 채널 토큰을 대신 사용합니다.
-        (동일 계정의 채널들은 OAuth 토큰을 공유할 수 있음)
-    """
-    original_channel_id = channel_id
-    # 프로젝트 접미사가 있으면 channel_id에 추가
-    if project_suffix:
-        channel_id = f"{channel_id}{project_suffix}"
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        if USE_POSTGRES:
-            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = %s', (channel_id,))
-        else:
-            cursor.execute('SELECT * FROM youtube_tokens WHERE user_id = ?', (channel_id,))
-
-        row = cursor.fetchone()
-
-        # ===== Fallback 로직 제거 (2024-12-13) =====
-        # 주의: 다른 채널의 토큰을 사용하면 해당 채널로 업로드됨!
-        # OAuth 토큰은 인증된 채널에만 업로드 가능하므로 fallback 사용 금지
-        if not row and project_suffix:
-            print(f"[YOUTUBE-TOKEN] ⚠️ {channel_id} 토큰 없음 - fallback 사용하지 않음 (다른 채널로 업로드되는 버그 방지)")
-
-        conn.close()
-
-        if row:
-            token_data = {
-                'token': row['token'] if USE_POSTGRES else row[2],
-                'refresh_token': row['refresh_token'] if USE_POSTGRES else row[3],
-                'token_uri': row['token_uri'] if USE_POSTGRES else row[4],
-                'client_id': row['client_id'] if USE_POSTGRES else row[5],
-                'client_secret': row['client_secret'] if USE_POSTGRES else row[6],
-                'scopes': (row['scopes'] if USE_POSTGRES else row[7]).split(',') if (row['scopes'] if USE_POSTGRES else row[7]) else []
-            }
-            print(f"[YOUTUBE-TOKEN] 데이터베이스에서 로드 완료 (channel_id: {channel_id})")
-            return token_data
-        else:
-            print(f"[YOUTUBE-TOKEN] 데이터베이스에 토큰 없음 (channel_id: {channel_id})")
-            return None
-    except Exception as e:
-        print(f"[YOUTUBE-TOKEN] 데이터베이스 로드 실패: {e}")
-        # 마이그레이션 전 레거시 파일에서 로드 시도
-        if os.path.exists(YOUTUBE_TOKEN_FILE):
-            try:
-                import json as json_module
-                with open(YOUTUBE_TOKEN_FILE, 'r') as f:
-                    token_data = json_module.load(f)
-                print("[YOUTUBE-TOKEN] 레거시 파일에서 로드 성공, DB로 마이그레이션 시도")
-                save_youtube_token_to_db(token_data, channel_id)
-                return token_data
-            except Exception as file_error:
-                print(f"[YOUTUBE-TOKEN] 레거시 파일 로드도 실패: {file_error}")
-        return None
-
-
-def load_all_youtube_channels_from_db():
-    """데이터베이스에 저장된 모든 YouTube 채널 목록 반환
-
-    Returns:
-        list: [{'id': channel_id, 'title': name, 'thumbnail': url}, ...]
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        if USE_POSTGRES:
-            cursor.execute('SELECT user_id, channel_name, channel_thumbnail, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
-        else:
-            cursor.execute('SELECT user_id, channel_name, channel_thumbnail, updated_at FROM youtube_tokens ORDER BY updated_at DESC')
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        channels = []
-        for row in rows:
-            if USE_POSTGRES:
-                channel_id = row['user_id']
-                channel_name = row['channel_name'] or channel_id
-                channel_thumbnail = row['channel_thumbnail'] or ''
-            else:
-                channel_id = row[0]
-                channel_name = row[1] or channel_id
-                channel_thumbnail = row[2] or ''
-
-            # 'default'는 레거시 데이터이므로 표시하지 않음 (채널 정보가 없는 경우)
-            if channel_id == 'default' and not channel_name:
-                continue
-
-            channels.append({
-                'id': channel_id,
-                'title': channel_name,
-                'thumbnail': channel_thumbnail
-            })
-
-        print(f"[YOUTUBE-TOKEN] 저장된 채널 {len(channels)}개 로드")
-        return channels
-    except Exception as e:
-        print(f"[YOUTUBE-TOKEN] 채널 목록 로드 실패: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
-
-
-def delete_youtube_channel_from_db(channel_id):
-    """데이터베이스에서 특정 YouTube 채널 토큰 삭제
-
-    Args:
-        channel_id: 삭제할 채널 ID
-
-    Returns:
-        bool: 삭제 성공 여부
-    """
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        if USE_POSTGRES:
-            cursor.execute('DELETE FROM youtube_tokens WHERE user_id = %s', (channel_id,))
-        else:
-            cursor.execute('DELETE FROM youtube_tokens WHERE user_id = ?', (channel_id,))
-
-        conn.commit()
-        deleted = cursor.rowcount > 0
-        conn.close()
-
-        if deleted:
-            print(f"[YOUTUBE-TOKEN] 채널 삭제됨: {channel_id}")
-        else:
-            print(f"[YOUTUBE-TOKEN] 삭제할 채널 없음: {channel_id}")
-
-        return deleted
-    except Exception as e:
-        print(f"[YOUTUBE-TOKEN] 채널 삭제 실패: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
 
 # Job 파일 저장/로드 함수 (Render 재시작 대비)
 def save_video_jobs():
@@ -1453,6 +1017,9 @@ def init_db():
 
 # 앱 시작 시 DB 초기화
 init_db()
+
+# YouTube 토큰/할당량 모듈 DB 연결 초기화
+youtube_auth.init_db(get_db_connection, USE_POSTGRES)
 
 # ===== DB 가이드 조회 함수 =====
 def get_relevant_guide_from_db(box_name, category="", limit=5):
@@ -9677,6 +9244,7 @@ def youtube_upload():
         publish_at = data.get('publish_at')  # ISO 8601 예약 공개 시간
         channel_id = data.get('channelId')  # 선택된 채널 ID
         playlist_id = data.get('playlistId')  # 플레이리스트 ID (선택)
+        project_suffix_param = data.get('projectSuffix', None)  # 파이프라인에서 전달된 프로젝트 접미사
 
         print(f"[YOUTUBE-UPLOAD] 업로드 요청 수신")
         print(f"  - 영상: {video_path}")
@@ -9686,6 +9254,7 @@ def youtube_upload():
         print(f"  - 채널 ID: {channel_id}")
         print(f"  - 플레이리스트 ID: {playlist_id}")
         print(f"  - 썸네일: {thumbnail_path}")
+        print(f"  - 프로젝트: {project_suffix_param or '(자동 선택)'}")
 
         # 영상 파일 경로 처리
         if video_path and not video_path.startswith('http'):
@@ -9827,9 +9396,15 @@ def youtube_upload():
             from googleapiclient.discovery import build
             from googleapiclient.http import MediaFileUpload
 
-            # 현재 사용할 프로젝트 확인 (할당량 초과 시 _2)
-            _, _, project_suffix = get_youtube_credentials()
-            print(f"[YOUTUBE-UPLOAD] 사용 프로젝트: {'기본' if not project_suffix else project_suffix}")
+            # 프로젝트 접미사 결정: 파이프라인에서 전달된 값 우선, 없으면 자동 선택
+            if project_suffix_param is not None:
+                # 파이프라인에서 미리 체크한 프로젝트 사용 (할당량 체크 결과)
+                project_suffix = project_suffix_param
+                print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (파이프라인 지정): {'기본' if not project_suffix else project_suffix}")
+            else:
+                # 직접 호출 시 자동 선택 (할당량 초과 플래그 기반)
+                _, _, project_suffix = get_youtube_credentials()
+                print(f"[YOUTUBE-UPLOAD] 사용 프로젝트 (자동 선택): {'기본' if not project_suffix else project_suffix}")
 
             # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
             token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
@@ -20221,12 +19796,13 @@ def enhance_description_for_youtube(description: str, title: str, hashtags: list
     return description
 
 
-def run_automation_pipeline(row_data, row_index):
+def run_automation_pipeline(row_data, row_index, selected_project=''):
     """
     자동화 파이프라인 실행 - 기존 /image 페이지 API 재사용
 
     row_data: [상태, 예약시간, 채널ID, 대본, 제목, 공개설정, 영상URL, 에러메시지]
     row_index: 시트에서의 행 번호 (1-based, 헤더 제외하면 데이터는 2부터)
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2') - api_sheets_check_and_process에서 전달
 
     ★★★ 중요: 기존 /image 페이지와 동일한 API를 사용합니다 ★★★
     - /api/image/analyze-script (대본 분석)
@@ -20287,14 +19863,10 @@ def run_automation_pipeline(row_data, row_index):
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
 
-        # ========== 0. YouTube 할당량 사전 체크 ==========
-        # 대본 분석/이미지 생성 비용 낭비 방지를 위해 먼저 YouTube 업로드 가능 여부 확인
-        print(f"[AUTOMATION] 0. YouTube 할당량 사전 체크...")
-        quota_ok, selected_project, quota_error = check_youtube_quota_before_pipeline(channel_id)
-        if not quota_ok:
-            print(f"[AUTOMATION][ERROR] YouTube 할당량 체크 실패: {quota_error}")
-            return {"ok": False, "error": quota_error, "video_url": None}
-        print(f"[AUTOMATION] YouTube 프로젝트 선택: {'기본' if not selected_project else selected_project}")
+        # ========== 0. YouTube 프로젝트 확인 ==========
+        # 할당량 체크는 api_sheets_check_and_process에서 이미 완료됨
+        # selected_project 파라미터로 미리 선택된 프로젝트를 받음
+        print(f"[AUTOMATION] 0. YouTube 프로젝트: {'기본' if not selected_project else selected_project} (사전 체크 완료)")
 
         session_id = f"auto_{row_index}_{int(time_module.time())}"
         base_url = "http://127.0.0.1:" + str(os.environ.get("PORT", 5059))
@@ -20793,7 +20365,8 @@ def run_automation_pipeline(row_data, row_index):
                 "title": title,
                 "description": description,
                 "privacyStatus": actual_visibility,
-                "channelId": channel_id
+                "channelId": channel_id,
+                "projectSuffix": selected_project  # 할당량 체크에서 결정된 프로젝트 사용
             }
 
             # 15분 후 공개 설정
@@ -21348,6 +20921,9 @@ def api_sheets_check_and_process():
         if not quota_ok:
             print(f"[SHEETS][ERROR] YouTube 체크 실패: {quota_error}")
             # 할당량 초과 또는 토큰 없음 - 파이프라인 시작하지 않음
+            # Sheet 상태를 '실패'로 업데이트
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '에러메시지', f'YouTube 체크 실패: {quota_error}')
             return jsonify({
                 "ok": False,
                 "error": quota_error,
@@ -21373,7 +20949,7 @@ def api_sheets_check_and_process():
             'scheduled_time': get_row_value(row_data, col_map, '예약시간'),
         }
 
-        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map)
+        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
 
         # ========== 6. 결과 기록 ==========
         # 비용 기록 (원화로 변환, 1 USD = 1,350 KRW)
@@ -21429,7 +21005,7 @@ def api_sheets_check_and_process():
         print("[SHEETS] 파이프라인 Lock 해제됨")
 
 
-def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
+def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=''):
     """
     자동화 파이프라인 실행 (v2 - 동적 매핑 지원)
 
@@ -21441,12 +21017,13 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
         'playlist_id': 플레이리스트 ID (선택),
         'scheduled_time': 예약시간 (선택)
     }
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2')
     """
     # 기존 run_automation_pipeline 함수 호출을 위해 row 형식으로 변환
     # 기존 함수는 row[인덱스] 방식으로 접근하므로 호환성 유지
     # 새 구조: channel_id는 시트 레벨에서 전달
 
-    # 기존 파이프라인 호출 (channel_id를 별도로 전달)
+    # 기존 파이프라인 호출 (channel_id를 별도로 전달, selected_project 전달)
     return run_automation_pipeline_with_channel(
         channel_id=pipeline_data['channel_id'],
         script=pipeline_data['script'],
@@ -21455,16 +21032,19 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map):
         playlist_id=pipeline_data.get('playlist_id'),
         scheduled_time=pipeline_data.get('scheduled_time'),
         sheet_name=sheet_name,
-        row_num=row_num
+        row_num=row_num,
+        selected_project=selected_project
     )
 
 
 def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy='private',
                                           playlist_id=None, scheduled_time=None,
-                                          sheet_name=None, row_num=None):
+                                          sheet_name=None, row_num=None, selected_project=''):
     """
     자동화 파이프라인 실행 (명시적 파라미터 버전)
     기존 run_automation_pipeline의 로직을 재사용하면서 새 구조 지원
+
+    selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2')
     """
     # 기존 함수의 row 형식으로 변환하여 호출
     # 기존 컬럼 구조: [상태, 작업시간, 채널ID, 채널명, 예약시간, 대본, 제목, ...]
@@ -21492,8 +21072,8 @@ def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy
         playlist_id or '' # 17: 플레이리스트ID
     ]
 
-    # 기존 파이프라인 호출
-    return run_automation_pipeline(dummy_row, row_num or 0)
+    # 기존 파이프라인 호출 (selected_project 전달)
+    return run_automation_pipeline(dummy_row, row_num or 0, selected_project=selected_project)
 
 
 @app.route('/api/sheets/check-ctr-and-update-titles', methods=['GET', 'POST'])
