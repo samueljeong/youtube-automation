@@ -411,13 +411,9 @@ def check_youtube_quota_before_pipeline(channel_id=None):
             print(f"[YOUTUBE-QUOTA-CHECK] 토큰 조회: {lookup_key}")
             token_data = load_youtube_token_from_db(channel_id or 'default', project_suffix)
 
-            # _2 프로젝트에서 채널별 토큰이 없으면 default_2로 fallback
-            if not token_data and project_suffix == '_2' and channel_id and channel_id != 'default':
-                print(f"[YOUTUBE-QUOTA-CHECK] {lookup_key} 토큰 없음 → default_2로 fallback")
-                token_data = load_youtube_token_from_db('default', '_2')
-                if token_data:
-                    lookup_key = 'default_2'
-                    print(f"[YOUTUBE-QUOTA-CHECK] default_2 토큰 사용")
+            # ⚠️ 채널별 토큰이 없을 때 default로 fallback 하지 않음!
+            # default 토큰은 다른 채널일 수 있어서 잘못된 채널에 업로드되는 버그 발생
+            # 채널별 토큰이 없으면 해당 채널 인증이 필요함
 
             if not token_data:
                 print(f"[YOUTUBE-QUOTA-CHECK] 토큰 없음: {lookup_key}")

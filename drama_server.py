@@ -9071,12 +9071,9 @@ def youtube_upload():
                 # DB에서 토큰 로드 (선택된 채널의 토큰 우선, 프로젝트 접미사 적용)
                 token_data = load_youtube_token_from_db(channel_id, project_suffix) if channel_id else load_youtube_token_from_db('default', project_suffix)
 
-                # _2 프로젝트에서 채널별 토큰이 없으면 default_2로 fallback
-                if (not token_data or not token_data.get('refresh_token')) and project_suffix == '_2' and channel_id and channel_id != 'default':
-                    print(f"[YOUTUBE-UPLOAD] {channel_id}_2 토큰 없음 → default_2로 fallback")
-                    token_data = load_youtube_token_from_db('default', '_2')
-                    if token_data and token_data.get('refresh_token'):
-                        print(f"[YOUTUBE-UPLOAD] default_2 토큰 사용")
+                # ⚠️ 채널별 토큰이 없을 때 default로 fallback 하지 않음!
+                # default 토큰은 다른 채널일 수 있어서 잘못된 채널에 업로드되는 버그 발생
+                # 채널별 토큰이 없으면 해당 채널 인증이 필요함을 알림
 
                 if not token_data or not token_data.get('refresh_token'):
                     print(f"[YOUTUBE-UPLOAD] 에러 - DB에 토큰 없음 (channel_id: {channel_id}, project: {project_suffix or '기본'})")
@@ -9086,7 +9083,7 @@ def youtube_upload():
                         continue
                     return jsonify({
                         "ok": False,
-                        "error": f"YouTube 토큰이 없습니다. OAuth 로그인이 필요합니다. (channel_id: {channel_id}, project: {project_suffix or '기본'})",
+                        "error": f"YouTube 토큰이 없습니다. 해당 채널({channel_id})로 OAuth 로그인이 필요합니다. (project: {project_suffix or '기본'})",
                         "needsAuth": True,
                         "channelId": channel_id
                     }), 200
