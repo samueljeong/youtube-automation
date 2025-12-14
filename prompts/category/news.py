@@ -4,22 +4,21 @@
 NEWS_RULES = """
 ## CATEGORY: NEWS (뉴스/시사)
 
-### Category Detection Keywords
-정치인, 대통령, 국회, 정당, 경제, 주가, 환율, 부동산,
-사건, 사고, 사회 이슈, 논쟁, 갈등, 기업, 브랜드,
-법원, 검찰, 재판
+### Category Detection
+Politics, economy, social issues, companies, legal matters, current events
 
 ### Thumbnail Style: COMIC STYLE (문화권에 맞게)
 ⚠️ NO PHOTOREALISTIC! Use comic/webtoon/manga style matching the script's language!
 ⚠️ NO TEXT in images! Text will be added separately!
 ⚠️ Character appearance MUST match the script's culture!
 
-**Extract from script (for text_overlay, NOT in image):**
-- person_name: 핵심 인물 이름 (조진웅, 윤석열 등)
-- entity_name: 기업/기관명 (쿠팡, 삼성전자 등)
-- quote: 충격적/흥미로운 발언 "따옴표"
-- headline: 핵심 헤드라인 2줄
-- numbers: 강조 숫자 (30년, 3370만)
+**Extract from script (for text_overlay - write in OUTPUT LANGUAGE):**
+- person_name: key person name FROM THE SCRIPT
+- entity_name: company/organization name FROM THE SCRIPT
+- quote: shocking/interesting statement FROM THE SCRIPT
+- headline: main headline FROM THE SCRIPT topic
+- numbers: specific numbers FROM THE SCRIPT
+⚠️ CRITICAL: ALL text MUST come from the ACTUAL SCRIPT CONTENT!
 
 ### ai_prompts Structure (3 COMIC styles - adapt to script's culture)
 ⚠️ Use the image prompt template from the LANGUAGE section!
@@ -44,18 +43,19 @@ NEWS_RULES = """
 - red-urgent: Breaking news
 - blue-trust: Official announcement
 
-### text_overlay for News (applied separately)
+### text_overlay for News (write in OUTPUT LANGUAGE from script content)
 {
-  "name": "인물명 또는 기업명",
-  "main": "핵심 문구 (15자 이내)",
-  "sub": "부연 설명 (20자 이내)",
+  "name": "person or entity name from script",
+  "main": "key phrase from script (max 15 chars)",
+  "sub": "supporting detail from script (max 20 chars)",
   "color": "yellow | cyan | pink"
 }
+⚠️ NEVER use generic examples! Extract actual names/topics from the script!
 
-### news_ticker (for video effects, NOT in image)
+### news_ticker (for video effects - write in OUTPUT LANGUAGE)
 "news_ticker": {
   "enabled": true,
-  "headlines": ["속보: ...", "이슈: ...", "핵심: ..."]
+  "headlines": ["breaking news from script...", "key point from script..."]
 }
 """
 

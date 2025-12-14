@@ -126,21 +126,33 @@ VIDEO_EFFECTS_STRUCTURE = """
 # 유튜브 메타데이터 출력 구조
 YOUTUBE_META_STRUCTURE = """
 ## YOUTUBE METADATA OUTPUT STRUCTURE
+
+### ⚠️⚠️⚠️ CRITICAL: TITLE MUST REFLECT SCRIPT CONTENT! ⚠️⚠️⚠️
+- Title MUST be about the ACTUAL TOPIC of the script!
+- Read the script carefully and identify the MAIN SUBJECT
+- DO NOT use generic titles or copy example patterns blindly
+- The title should make viewers understand what the video is ACTUALLY about
+
+**Example of WRONG behavior:**
+- Script about: convenience store work difficulties
+- Wrong title: "Doctor's 5 health tips" ❌ (unrelated to script!)
+- Correct title: "Convenience store workers facing new challenges" ✓
+
 "youtube": {
-  "title": "main title",
+  "title": "main title - MUST reflect actual script topic!",
   "title_options": [
-    {"style": "curiosity", "title": "..."},
-    {"style": "solution", "title": "..."},
-    {"style": "authority", "title": "..."}
+    {"style": "curiosity", "title": "curiosity-style title about SCRIPT TOPIC"},
+    {"style": "solution", "title": "solution-style title about SCRIPT TOPIC"},
+    {"style": "authority", "title": "authority-style title about SCRIPT TOPIC"}
   ],
   "description": {
-    "full_text": "full description (600-1200 chars)",
-    "preview_2_lines": "first 2 lines for search preview",
-    "chapters": [{"time": "00:00", "title": "..."}]
+    "full_text": "full description about SCRIPT CONTENT (600-1200 chars)",
+    "preview_2_lines": "first 2 lines summarizing SCRIPT TOPIC",
+    "chapters": [{"time": "00:00", "title": "chapter from script"}]
   },
-  "hashtags": ["#tag1", "#tag2"],
-  "tags": ["tag1", "tag2"],
-  "pin_comment": "pinned comment with question"
+  "hashtags": ["#relevant_to_script", "#topic_from_script"],
+  "tags": ["tags", "related", "to", "script", "content"],
+  "pin_comment": "engaging question about SCRIPT TOPIC"
 }
 """
 
