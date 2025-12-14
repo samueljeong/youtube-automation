@@ -14,9 +14,8 @@ const DEFAULT_STYLES = {
       name: "3대지",
       description: "3대지 설교",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     },
     {
@@ -24,9 +23,8 @@ const DEFAULT_STYLES = {
       name: "주제설교",
       description: "주제 중심",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     },
     {
@@ -34,9 +32,8 @@ const DEFAULT_STYLES = {
       name: "강해설교",
       description: "본론 중심",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     }
   ],
@@ -46,9 +43,8 @@ const DEFAULT_STYLES = {
       name: "연속강해",
       description: "시리즈형 강해",
       steps: [
-        {id: "title", name: "제목 추천", order: 1, stepType: "step1"},
-        {id: "analysis", name: "본문 분석", order: 2, stepType: "step1"},
-        {id: "outline", name: "개요 작성", order: 3, stepType: "step2"}
+        {id: "analysis", name: "본문 분석", order: 1, stepType: "step1"},
+        {id: "structure", name: "구조 설계", order: 2, stepType: "step2"}
       ]
     }
   ]
