@@ -16345,37 +16345,14 @@ def api_thumbnail_ai_generate():
 
         print(f"[THUMBNAIL-AI] 이미지 생성 - 세션: {session_id}, 변형: {variant}")
 
-        # 텍스트 오버레이 지시 추가
-        main_text = text_overlay.get('main', '')
-        sub_text = text_overlay.get('sub', '')
+        # GPT가 생성한 프롬프트를 그대로 사용 (이미 text style 포함됨)
+        # text_overlay는 GPT 프롬프트에 이미 반영되어 있으므로 중복 지시 제거
 
-        text_instruction = ""
-        if main_text:
-            text_instruction = f"""
-IMPORTANT TEXT OVERLAY INSTRUCTIONS:
-- Add VERY LARGE, BOLD Korean text "{main_text}" on the LEFT side of the image
-- Text style: WHITE text with THICK BLACK outline (3-4px stroke)
-- Text size: EXTRA LARGE, taking up 30-40% of image width
-- Text position: LEFT side, vertically centered
-- Split into 2-4 short lines (3-6 characters per line) for maximum impact
-- Add comic-style emphasis marks (!! or exclamation effects) if appropriate
-"""
-            if sub_text:
-                text_instruction += f'- Add subtitle "{sub_text}" below main text (smaller but still bold)\n'
+        # 최종 프롬프트 구성 - 단순화
+        enhanced_prompt = f"""{prompt}
 
-        # 최종 프롬프트 구성
-        enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
-
-{prompt}
-
-{text_instruction}
-
-Style requirements:
-- High contrast, eye-catching colors
-- Professional YouTube thumbnail quality
-- Comic/illustration style (not photorealistic)
-- Clean composition suitable for small preview
-- {style} aesthetic"""
+16:9 landscape aspect ratio. {style} style illustration.
+CRITICAL: WHITE text with THICK BLACK outline only. Character on RIGHT, text on LEFT."""
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)

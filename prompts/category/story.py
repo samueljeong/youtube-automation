@@ -22,16 +22,16 @@ High CTR through dramatic emotional expressions!
 
 **A = Comic Emotion Focus:**
 - Exaggerated shocked/surprised expression
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating), 30-40 year old [nationality] [man/woman]. Clean bold outlines, vibrant flat colors. Comic-style expression marks (sweat drops, impact lines). Background related to the topic. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character on RIGHT side (30-40% of frame) with EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating), 30-40 year old [nationality] [man/woman]. Clean bold outlines, vibrant flat colors. Comic-style expression marks (sweat drops, impact lines). Background related to the topic. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. NO photorealistic, NO stickman."
 
 **B = Comic Scene Focus:**
 - Key moment of story
-- Character on right, space for overlay on left
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic scene showing the key moment of the story. [Culture] comic character with exaggerated expression on right side. Comic-style effect lines (radial lines, impact effects). Bright vibrant colors. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+- Character on right, text on left
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic scene showing the key moment of the story. [Culture] comic character with exaggerated expression on RIGHT side (30-40% of frame). Comic-style effect lines (radial lines, impact effects). Bright vibrant colors. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. NO photorealistic, NO stickman."
 
 **C = Comic Dramatic:**
 - High contrast, dramatic composition
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character with dramatic emotional expression. High contrast colors, comic book aesthetic. Character shows strong emotion matching the story. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman, NO 3D render."
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character on RIGHT side with dramatic emotional expression. High contrast colors, comic book aesthetic. Character shows strong emotion matching the story. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. NO photorealistic, NO stickman, NO 3D render."
 
 ### text_overlay for Story (write in OUTPUT LANGUAGE from script content)
 {
