@@ -200,10 +200,10 @@ The thumbnail field in output MUST follow this structure:
 For thumbnail image generation, use this template:
 
 **With Face (face=true):**
-"[Culture] webtoon style illustration, 16:9 aspect ratio. [Culture] webtoon character with [EXPRESSION] (serious/thinking/concerned face, NOT screaming), [age] year old [nationality] [man/woman] in [attire]. Clean bold outlines, [scene] background. Text space on [left/right] side. Credible news explainer tone. NO extreme expression, NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+"[Culture] webtoon style illustration, 16:9 aspect ratio. [Culture] webtoon character on RIGHT side (30-40% of frame) with [EXPRESSION] (serious/thinking/concerned face, NOT screaming), [age] year old [nationality] [man/woman] in [attire]. Clean bold outlines, [scene] background. LARGE WHITE text with THICK BLACK outline on LEFT side: '[KOREAN TEXT - 2-4 lines, 3-6 chars per line]'. Text takes 30-40% of image width. Credible news explainer tone. NO extreme expression. NO photorealistic, NO stickman."
 
 **Without Face (face=false):**
-"[Culture] webtoon style illustration, 16:9 aspect ratio. [Scene description - court/document/chart/city]. Dramatic but credible news tone. Clean bold outlines, vibrant colors. Text space on [left/right] side. NO text, NO letters, NO signs, NO readable text. NO photorealistic."
+"[Culture] webtoon style illustration, 16:9 aspect ratio. [Scene description - court/document/chart/city] on RIGHT side. Dramatic but credible news tone. Clean bold outlines, vibrant colors. LARGE WHITE text with THICK BLACK outline on LEFT side: '[KOREAN TEXT - 2-4 lines, 3-6 chars per line]'. Text takes 30-40% of image width. NO photorealistic."
 
 ---
 

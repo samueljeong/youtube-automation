@@ -70,15 +70,15 @@ Health, medical, symptoms, treatment, prevention, doctor, hospital topics
 **A = Comic Doctor Close-up:**
 - Comic style doctor character matching script's culture
 - Exaggerated concerned/serious expression
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR with SERIOUS/CONCERNED EXPRESSION (furrowed brows, slight frown), 50 year old [nationality] man in white coat. Clean bold outlines, professional colors, medical office background. Comic-style expression marks. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR on RIGHT side (30-40% of frame) with SERIOUS/CONCERNED EXPRESSION (furrowed brows, slight frown), 50 year old [nationality] man in white coat. Clean bold outlines, professional colors, medical office background. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. NO photorealistic, NO stickman."
 
 **B = Comic Doctor Warning Gesture:**
 - Doctor character with warning hand gesture
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR pointing finger in WARNING gesture with STERN EXPRESSION, 50 year old [nationality] woman in white coat. Clean bold outlines, dramatic pose, hospital background. Comic-style impact lines. NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR on RIGHT side (30-40% of frame) pointing finger in WARNING gesture with STERN EXPRESSION, 50 year old [nationality] woman in white coat. Clean bold outlines, dramatic pose, hospital background. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. NO photorealistic, NO stickman."
 
 **C = Comic Medical Scene:**
 - Doctor with medical equipment/chart (no text on chart)
-- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR with WORRIED EXPRESSION looking at medical equipment, 50 year old [nationality] man in white coat. Hospital room with medical devices. Clean bold outlines, professional atmosphere. NO text, NO letters, NO speech bubbles, NO readable charts. NO photorealistic, NO stickman."
+- Prompt template: "[Culture] comic style illustration, 16:9 aspect ratio. [Culture] comic character DOCTOR on RIGHT side with WORRIED EXPRESSION looking at medical equipment, 50 year old [nationality] man in white coat. Hospital room with medical devices. LARGE WHITE text with THICK BLACK outline on LEFT side. Text takes 30-40% of image width. Clean bold outlines, professional atmosphere. NO photorealistic, NO stickman."
 
 ### text_overlay for Health (write in OUTPUT LANGUAGE based on script content)
 {
