@@ -53,6 +53,44 @@ Health, medical, symptoms, treatment, prevention, doctor, hospital topics
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
+### ⚠️ THUMBNAIL TEXT RULES (주어 필수!)
+
+**RULE #0: SUBJECT NOUN IS MANDATORY**
+```
+Thumbnail text MUST include an explicit subject noun.
+The viewer may read ONLY the thumbnail text.
+If the subject is unclear, the thumbnail FAILS.
+```
+
+**Text Structure:**
+```
+[증상/부위/상태(명사)] + [상황/의문/행위]
+```
+
+**❌ BANNED (주어 없음):**
+- "왜 이런 신호가 오나" → 무슨 신호?
+- "이 변화는 정상인가" → 무슨 변화?
+- "언제 병원에 가야 하나" → 무슨 증상?
+
+**✅ CORRECT (주어 명시):**
+- "이 증상은 왜 나타나나"
+- "이 통증은 무엇이 문제인가"
+- "이 신호는 몸에서 왜 오나"
+- "50대 이후 이 변화가 생기는 이유"
+
+**Text Length (시니어 기준):**
+- 14-22 chars recommended
+- 2 lines OK: [Subject] / [Question/Situation]
+
+**Example Patterns:**
+1. "이 증상은 왜 나타나나"
+2. "이 통증은 무엇이 문제인가"
+3. "이 신호는 몸에서 왜 오나"
+4. "이 변화는 나이 때문인가"
+5. "이 상태는 왜 반복되나"
+
+---
+
 ### Thumbnail Style: COMIC STYLE DOCTOR (문화권에 맞게)
 ⚠️ NO PHOTOREALISTIC! Use comic/webtoon/manga style matching the script's language!
 ⚠️ NO TEXT in images! Text will be added separately!
@@ -62,7 +100,7 @@ Health, medical, symptoms, treatment, prevention, doctor, hospital topics
 - Numbers: specific numbers from script (age, percentage, count, time)
 - Warning: warning phrases related to script content
 - Result: outcome phrases related to script topic
-⚠️ CRITICAL: Text MUST relate to the ACTUAL SCRIPT CONTENT, not generic health topics!
+⚠️ CRITICAL: Text MUST include subject noun AND relate to ACTUAL SCRIPT CONTENT!
 
 ### ai_prompts Structure (3 COMIC styles - adapt to script's culture)
 ⚠️ Use the image prompt template from the LANGUAGE section!
