@@ -9869,14 +9869,6 @@ def api_image_analyze_script():
         else:
             print("[IMAGE-ANALYZE] SEO 분석 스킵 (API 키 없음 또는 오류)")
 
-        # 시니어 썸네일 가이드 로드
-        senior_thumbnail_guide = None
-        try:
-            with open('guides/senior-thumbnail-guide.json', 'r', encoding='utf-8') as f:
-                senior_thumbnail_guide = json.load(f)
-        except:
-            pass
-
         # 가이드 파일 로드
         guides = load_prompt_guides()
         korean_senior = guides.get('korean_senior', {})
