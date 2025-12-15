@@ -3930,6 +3930,192 @@ def merge_audio_chunks_ffmpeg(audio_data_list):
         return b''.join(audio_data_list)
 
 
+# ===== Gemini TTS 함수 (2025년 신규) =====
+def generate_gemini_tts(text, voice_name="Kore", model="gemini-2.5-flash-preview-tts"):
+    """
+    Gemini TTS API를 사용하여 음성 생성
+
+    Args:
+        text: 변환할 텍스트
+        voice_name: 음성 이름 (Kore, Charon, Puck, Fenrir, Aoede)
+        model: 모델명 (gemini-2.5-flash-preview-tts 또는 gemini-2.5-pro-preview-tts)
+
+    Returns:
+        dict: {"ok": True, "audio_data": bytes, "duration": float} 또는 {"ok": False, "error": str}
+    """
+    import wave
+    import io
+
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        print("[GEMINI-TTS] GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
+        return {"ok": False, "error": "GOOGLE_API_KEY 환경변수가 설정되지 않았습니다"}
+
+    # 유효한 음성 확인
+    valid_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede"]
+    if voice_name not in valid_voices:
+        print(f"[GEMINI-TTS] 잘못된 음성: {voice_name}, 기본값 Kore 사용")
+        voice_name = "Kore"
+
+    print(f"[GEMINI-TTS] 시작 - 모델: {model}, 음성: {voice_name}, 텍스트: {len(text)}자")
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+
+        payload = {
+            "contents": [{"parts": [{"text": text}]}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": voice_name
+                        }
+                    }
+                }
+            }
+        }
+
+        response = requests.post(url, json=payload, timeout=120)
+
+        if response.status_code != 200:
+            error_text = response.text[:500]
+            print(f"[GEMINI-TTS] API 오류: {response.status_code} - {error_text}")
+            return {"ok": False, "error": f"Gemini TTS API 오류: {response.status_code}"}
+
+        result = response.json()
+
+        # 오디오 데이터 추출
+        candidates = result.get("candidates", [])
+        if not candidates:
+            return {"ok": False, "error": "응답에 candidates가 없습니다"}
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+
+        audio_data = None
+        for part in parts:
+            inline_data = part.get("inlineData", {})
+            if inline_data.get("mimeType", "").startswith("audio/"):
+                import base64
+                audio_data = base64.b64decode(inline_data.get("data", ""))
+                break
+
+        if not audio_data:
+            return {"ok": False, "error": "응답에 오디오 데이터가 없습니다"}
+
+        # PCM을 WAV로 변환 (24kHz, 16bit, mono)
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(audio_data)
+
+        wav_data = wav_buffer.getvalue()
+
+        # 재생 시간 계산
+        duration = len(audio_data) / (24000 * 2)  # 24kHz, 16bit
+
+        print(f"[GEMINI-TTS] 완료 - 크기: {len(wav_data)}bytes, 길이: {duration:.1f}초")
+
+        return {
+            "ok": True,
+            "audio_data": wav_data,
+            "duration": duration,
+            "format": "wav"
+        }
+
+    except requests.exceptions.Timeout:
+        print("[GEMINI-TTS] 타임아웃")
+        return {"ok": False, "error": "Gemini TTS 타임아웃 (120초)"}
+    except Exception as e:
+        print(f"[GEMINI-TTS] 오류: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
+def convert_gemini_wav_to_mp3(wav_data):
+    """Gemini TTS의 WAV 출력을 MP3로 변환"""
+    try:
+        # 임시 파일로 변환
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+            wav_file.write(wav_data)
+            wav_path = wav_file.name
+
+        mp3_path = wav_path.replace('.wav', '.mp3')
+
+        # FFmpeg로 변환
+        cmd = [
+            'ffmpeg', '-y', '-i', wav_path,
+            '-acodec', 'libmp3lame', '-b:a', '128k',
+            mp3_path
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+
+        if result.returncode == 0 and os.path.exists(mp3_path):
+            with open(mp3_path, 'rb') as f:
+                mp3_data = f.read()
+            os.unlink(wav_path)
+            os.unlink(mp3_path)
+            return mp3_data
+        else:
+            os.unlink(wav_path)
+            print(f"[GEMINI-TTS] MP3 변환 실패: {result.stderr.decode()[:200]}")
+            return None
+
+    except Exception as e:
+        print(f"[GEMINI-TTS] MP3 변환 오류: {e}")
+        return None
+
+
+def is_gemini_voice(voice_name):
+    """Gemini TTS 음성인지 확인 (gemini: 접두사)"""
+    return voice_name.lower().startswith("gemini:")
+
+
+def parse_gemini_voice(voice_name):
+    """
+    Gemini 음성 설정 파싱
+
+    Args:
+        voice_name: "gemini:Kore" 또는 "gemini:pro:Charon" 형식
+
+    Returns:
+        dict: {"voice": "Kore", "model": "gemini-2.5-flash-preview-tts"}
+    """
+    parts = voice_name.split(":")
+
+    if len(parts) == 2:
+        # "gemini:Kore" -> Flash 모델 사용
+        return {
+            "voice": parts[1],
+            "model": "gemini-2.5-flash-preview-tts"
+        }
+    elif len(parts) == 3:
+        # "gemini:pro:Kore" -> Pro 모델 사용
+        model_type = parts[1].lower()
+        voice = parts[2]
+        if model_type == "pro":
+            return {
+                "voice": voice,
+                "model": "gemini-2.5-pro-preview-tts"
+            }
+        else:
+            return {
+                "voice": voice,
+                "model": "gemini-2.5-flash-preview-tts"
+            }
+    else:
+        # 기본값
+        return {
+            "voice": "Kore",
+            "model": "gemini-2.5-flash-preview-tts"
+        }
+
+
 # ===== Step5: TTS API (Google Cloud / 네이버 클로바 선택) =====
 @app.route('/api/drama/generate-tts', methods=['POST'])
 def api_generate_tts():
@@ -10826,7 +11012,49 @@ def api_image_generate_assets_zip():
             return text
 
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
-            """단일 문장에 대한 TTS 생성 (SSML 자동 감지)"""
+            """단일 문장에 대한 TTS 생성 (SSML 자동 감지, Gemini TTS 지원)"""
+
+            # ===== Gemini TTS 처리 =====
+            if is_gemini_voice(voice_name):
+                gemini_config = parse_gemini_voice(voice_name)
+                print(f"[TTS-GEMINI] 사용: {gemini_config['voice']} ({gemini_config['model']})")
+
+                # 한국어 숫자 변환
+                if language_code.startswith('ko'):
+                    text = convert_numbers_to_korean(text)
+
+                # SSML 태그 제거 (Gemini는 SSML 미지원)
+                ssml_tags = ['<speak>', '</speak>', '<prosody', '</prosody>', '<emphasis', '</emphasis>', '<break']
+                clean_text = text
+                for tag in ssml_tags:
+                    if tag.startswith('</'):
+                        clean_text = clean_text.replace(tag, '')
+                    elif tag == '<break':
+                        import re
+                        clean_text = re.sub(r'<break[^>]*/?>', ' ', clean_text)
+                    else:
+                        clean_text = re.sub(rf'{tag}[^>]*>', '', clean_text)
+
+                result = generate_gemini_tts(
+                    text=clean_text.strip(),
+                    voice_name=gemini_config['voice'],
+                    model=gemini_config['model']
+                )
+
+                if result.get("ok"):
+                    # WAV를 MP3로 변환
+                    mp3_data = convert_gemini_wav_to_mp3(result['audio_data'])
+                    if mp3_data:
+                        return mp3_data
+                    else:
+                        # MP3 변환 실패 시 WAV 반환
+                        return result['audio_data']
+                else:
+                    print(f"[TTS-GEMINI] 실패: {result.get('error')}, Google Cloud TTS로 폴백")
+                    # Gemini 실패 시 Google Cloud TTS로 폴백
+                    voice_name = lang_ko.TTS['default_voice']
+
+            # ===== Google Cloud TTS 처리 =====
             # SSML 태그 감지
             ssml_tags = ['<speak>', '<prosody', '<emphasis', '<break']
             is_ssml = any(tag in text for tag in ssml_tags)
