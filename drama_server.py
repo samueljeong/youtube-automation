@@ -16772,56 +16772,74 @@ def api_thumbnail_ai_generate_single():
                     'NanumSquareB.ttf',
                 ]
 
-                # 설정 파일에서 폰트 크기 비율 읽기 (기본값: 0.11, 0.07)
-                main_font_ratio = text_settings.get('main_font_size_ratio', 0.11)
-                sub_font_ratio = text_settings.get('sub_font_size_ratio', 0.07)
-                main_font_size = int(height * main_font_ratio)
-                sub_font_size = int(height * sub_font_ratio)
-
-                main_font = None
-                sub_font = None
+                # ★ 폰트 파일 찾기
+                font_path = None
                 for font_name in font_priority:
-                    font_path = os.path.join(font_dir, font_name)
-                    if os.path.exists(font_path):
-                        try:
-                            main_font = ImageFont.truetype(font_path, main_font_size)
-                            sub_font = ImageFont.truetype(font_path, sub_font_size)
-                            print(f"[THUMBNAIL-AI] 폰트 로드: {font_name}")
-                            break
-                        except Exception as font_err:
-                            print(f"[THUMBNAIL-AI] 폰트 로드 실패: {font_name} - {font_err}")
-                            continue
+                    fp = os.path.join(font_dir, font_name)
+                    if os.path.exists(fp):
+                        font_path = fp
+                        break
 
-                if not main_font:
-                    main_font = ImageFont.load_default()
-                    sub_font = ImageFont.load_default()
-                    print("[THUMBNAIL-AI] 기본 폰트 사용 (한글 미지원 가능)")
+                # ★ 텍스트 영역 정의 (설정 파일 기반)
+                text_area_top = text_settings.get('text_area_top', 0.70)
+                text_area_bottom = text_settings.get('text_area_bottom', 0.95)
+                text_area_y_start = int(height * text_area_top)
+                text_area_y_end = int(height * text_area_bottom)
+                text_area_height = text_area_y_end - text_area_y_start
+                max_text_width = int(width * 0.90)  # 좌우 5% 여백
 
-                # ★ 설정 파일에서 색상 읽기
+                # 설정값 읽기
+                main_font_ratio = text_settings.get('main_font_size_ratio', 0.12)
+                sub_font_ratio = text_settings.get('sub_font_size_ratio', 0.07)
+                line_spacing_ratio = text_settings.get('line_spacing_ratio', 0.02)
+                outline_width = text_settings.get('outline_width', 4)
+
+                # 색상 설정
                 colors_config = text_settings.get('colors', {})
                 style_key = 'news' if (style == 'news' or category == 'news') else 'story'
                 color_setting = colors_config.get(style_key, colors_config.get('story', {}))
-                text_color = tuple(color_setting.get('text', [255, 215, 0]))
+                text_color = tuple(color_setting.get('text', [255, 255, 255]))
                 outline_color = tuple(color_setting.get('outline', [0, 0, 0]))
 
-                # ★ 설정 파일에서 위치 설정 읽기
-                y_start_ratio = text_settings.get('y_start_ratio', 0.65)
-                y_end_ratio = text_settings.get('y_end_ratio', 0.95)
-                x_align = text_settings.get('x_align', 'center')
+                # ★ 자동 폰트 크기 계산 함수
+                def get_optimal_font(text, max_w, base_ratio):
+                    """텍스트가 너비에 맞는 최적 폰트 크기 계산"""
+                    font_size = int(height * base_ratio)
+                    if not font_path:
+                        return font_size, ImageFont.load_default()
+                    while font_size > 20:
+                        try:
+                            font = ImageFont.truetype(font_path, font_size)
+                            bbox = draw.textbbox((0, 0), text, font=font)
+                            if (bbox[2] - bbox[0]) <= max_w:
+                                return font_size, font
+                            font_size -= 2
+                        except:
+                            font_size -= 2
+                    return font_size, ImageFont.load_default()
 
-                # 텍스트 높이 계산 (서브텍스트 포함 시)
-                text_total_height = main_font_size
+                # 폰트 계산
+                main_font_size, main_font = get_optimal_font(main_text, max_text_width, main_font_ratio)
                 if sub_text:
-                    text_total_height += sub_font_size + int(height * 0.02)
+                    sub_font_size, sub_font = get_optimal_font(sub_text, max_text_width, sub_font_ratio)
+                else:
+                    sub_font_size, sub_font = 0, None
 
-                # 설정된 영역 내 중앙 배치
-                bottom_area_start = int(height * y_start_ratio)
-                bottom_area_end = int(height * y_end_ratio)
-                y_start = bottom_area_start + (bottom_area_end - bottom_area_start - text_total_height) // 2
+                # 줄 간격
+                line_spacing = int(height * line_spacing_ratio)
 
-                # 외곽선 두께 (설정 파일에서)
-                outline_width = text_settings.get('outline_width', 3)
-                print(f"[THUMBNAIL-AI] 텍스트 설정 로드: position={text_settings.get('position', 'bottom_center')}, y={y_start_ratio}-{y_end_ratio}")
+                # 텍스트 높이 계산
+                main_bbox = draw.textbbox((0, 0), main_text, font=main_font)
+                main_h = main_bbox[3] - main_bbox[1]
+                total_h = main_h
+                if sub_text and sub_font:
+                    sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+                    sub_h = sub_bbox[3] - sub_bbox[1]
+                    total_h += line_spacing + sub_h
+
+                # ★ 수직 중앙 정렬
+                y_start = text_area_y_start + (text_area_height - total_h) // 2
+                print(f"[THUMBNAIL-AI] 텍스트 자동맞춤: 영역={text_area_top}-{text_area_bottom}, main_font={main_font_size}, sub_font={sub_font_size}")
 
                 def draw_text_with_outline(draw, position, text, font, fill, outline):
                     """외곽선이 있는 텍스트 그리기"""
@@ -16843,8 +16861,8 @@ def api_thumbnail_ai_generate_single():
                 print(f"[THUMBNAIL-AI] 메인 텍스트 합성 (하단 중앙): '{main_text}'")
 
                 # ★ 서브 텍스트 그리기 (있으면, 가로 중앙 정렬)
-                if sub_text:
-                    y_sub = y_start + main_font_size + int(height * 0.02)
+                if sub_text and sub_font:
+                    y_sub = y_start + main_h + line_spacing  # 메인 텍스트 높이 + 줄간격
                     sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
                     sub_text_width = sub_bbox[2] - sub_bbox[0]
                     sub_x = (width - sub_text_width) // 2  # 가로 중앙
