@@ -16710,8 +16710,8 @@ def api_thumbnail_ai_generate_single():
 
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
-        main_text = text_overlay.get('main', '')
-        sub_text = text_overlay.get('sub', '')
+        main_text = text_overlay.get('main', '').replace('\n', ' ').replace('\\n', ' ').strip()  # 줄바꿈 제거 → 한 줄
+        sub_text = text_overlay.get('sub', '').replace('\n', ' ').replace('\\n', ' ').strip()
 
         # 프롬프트에서 불필요한 키워드 제거
         clean_prompt = prompt
