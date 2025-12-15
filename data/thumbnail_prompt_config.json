@@ -59,14 +59,14 @@
     "text_area_top": 0.70,
     "text_area_bottom": 0.95,
     "x_align": "center",
-    "main_font_size_ratio": 0.12,
-    "sub_font_size_ratio": 0.07,
+    "main_font_size_ratio": 0.14,
+    "sub_font_size_ratio": 0.09,
     "line_spacing_ratio": 0.02,
     "auto_fit": true,
     "outline_width": 4,
     "colors": {
-      "news": {"text": [255, 255, 255], "outline": [0, 0, 0]},
-      "story": {"text": [255, 215, 0], "outline": [0, 0, 0]}
+      "news": {"main": [255, 255, 0], "sub": [255, 255, 255], "outline": [0, 0, 0]},
+      "story": {"main": [255, 215, 0], "sub": [255, 255, 255], "outline": [0, 0, 0]}
     }
   }
 }
