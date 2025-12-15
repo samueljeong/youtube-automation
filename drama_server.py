@@ -16710,8 +16710,8 @@ def api_thumbnail_ai_generate_single():
 
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
-        main_text = text_overlay.get('main', '')
-        sub_text = text_overlay.get('sub', '')
+        main_text = text_overlay.get('main', '').replace('\n', ' ').replace('\\n', ' ').strip()  # 줄바꿈 제거 → 한 줄
+        sub_text = text_overlay.get('sub', '').replace('\n', ' ').replace('\\n', ' ').strip()
 
         # 프롬프트에서 불필요한 키워드 제거
         clean_prompt = prompt
@@ -16794,11 +16794,12 @@ def api_thumbnail_ai_generate_single():
                 line_spacing_ratio = text_settings.get('line_spacing_ratio', 0.02)
                 outline_width = text_settings.get('outline_width', 4)
 
-                # 색상 설정
+                # 색상 설정 (main/sub 분리)
                 colors_config = text_settings.get('colors', {})
                 style_key = 'news' if (style == 'news' or category == 'news') else 'story'
                 color_setting = colors_config.get(style_key, colors_config.get('story', {}))
-                text_color = tuple(color_setting.get('text', [255, 255, 255]))
+                main_text_color = tuple(color_setting.get('main', [255, 255, 0]))  # 메인: 노란색
+                sub_text_color = tuple(color_setting.get('sub', [255, 255, 255]))  # 서브: 흰색
                 outline_color = tuple(color_setting.get('outline', [0, 0, 0]))
 
                 # ★ 자동 폰트 크기 계산 함수
@@ -16857,8 +16858,8 @@ def api_thumbnail_ai_generate_single():
                 main_text_width = main_bbox[2] - main_bbox[0]
                 main_x = (width - main_text_width) // 2  # 가로 중앙
 
-                draw_text_with_outline(draw, (main_x, y_start), main_text, main_font, text_color, outline_color)
-                print(f"[THUMBNAIL-AI] 메인 텍스트 합성 (하단 중앙): '{main_text}'")
+                draw_text_with_outline(draw, (main_x, y_start), main_text, main_font, main_text_color, outline_color)
+                print(f"[THUMBNAIL-AI] 메인 텍스트 합성 (하단 중앙): '{main_text}' 색상={main_text_color}")
 
                 # ★ 서브 텍스트 그리기 (있으면, 가로 중앙 정렬)
                 if sub_text and sub_font:
@@ -16867,8 +16868,8 @@ def api_thumbnail_ai_generate_single():
                     sub_text_width = sub_bbox[2] - sub_bbox[0]
                     sub_x = (width - sub_text_width) // 2  # 가로 중앙
 
-                    draw_text_with_outline(draw, (sub_x, y_sub), sub_text, sub_font, text_color, outline_color)
-                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성 (하단 중앙): '{sub_text}'")
+                    draw_text_with_outline(draw, (sub_x, y_sub), sub_text, sub_font, sub_text_color, outline_color)
+                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성 (하단 중앙): '{sub_text}' 색상={sub_text_color}")
 
             except Exception as text_err:
                 print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패 (무시): {text_err}")
