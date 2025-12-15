@@ -7247,27 +7247,41 @@ FINAL STYLE: Korean webtoon/manhwa style illustration. Eye-catching YouTube thum
             # 텍스트 줄 분리
             text_lines = thumbnail_text.replace('\\n', '\n').split('\n')
 
-            # 색상 설정
-            normal_color = (255, 255, 255)  # 흰색
-            highlight_color = (255, 215, 0)  # 노란색 (골드)
-            outline_color = (0, 0, 0)  # 검정 외곽선
+            # ★ 설정 파일에서 텍스트 오버레이 설정 로드
+            config = load_thumbnail_prompt_config()
+            text_settings = config.get('text_overlay_settings', {})
+            colors_config = text_settings.get('colors', {})
 
-            # 텍스트 위치 (왼쪽 정렬, 상단 10%)
-            x_margin = int(width * 0.05)
-            y_start = int(height * 0.08)
+            # 색상 설정 (설정 파일 기반)
+            story_colors = colors_config.get('story', {})
+            normal_color = tuple(story_colors.get('text', [255, 255, 255]))
+            highlight_color = (255, 215, 0)  # 노란색 (골드)
+            outline_color = tuple(story_colors.get('outline', [0, 0, 0]))
+
+            # ★ 텍스트 위치 (하단 중앙 - 설정 파일 기반)
+            y_start_ratio = text_settings.get('y_start_ratio', 0.65)
             line_height = int(font_size * 1.3)
+            total_text_height = len(text_lines) * line_height
+
+            # 하단 영역 중앙 배치
+            y_start = int(height * y_start_ratio) + (int(height * 0.30) - total_text_height) // 2
 
             for i, line_text in enumerate(text_lines):
                 y = y_start + (i * line_height)
                 color = highlight_color if i == highlight_line else normal_color
 
+                # 텍스트 너비 계산하여 중앙 정렬
+                bbox = draw.textbbox((0, 0), line_text, font=font)
+                text_width = bbox[2] - bbox[0]
+                x = (width - text_width) // 2
+
                 # 외곽선 그리기 (검정)
                 for dx in [-3, -2, -1, 0, 1, 2, 3]:
                     for dy in [-3, -2, -1, 0, 1, 2, 3]:
-                        draw.text((x_margin + dx, y + dy), line_text, font=font, fill=outline_color)
+                        draw.text((x + dx, y + dy), line_text, font=font, fill=outline_color)
 
                 # 메인 텍스트
-                draw.text((x_margin, y), line_text, font=font, fill=color)
+                draw.text((x, y), line_text, font=font, fill=color)
 
             # 저장
             img.save(img_path)
@@ -15345,7 +15359,7 @@ THUMBNAIL_STYLE_PRESETS = {
             "letter_spacing": "2px"
         },
         "layout": {
-            "position": "left-top",
+            "position": "bottom-center",
             "padding": "32px",
             "text_box": True,
             "text_box_opacity": 0.7
@@ -15369,7 +15383,7 @@ THUMBNAIL_STYLE_PRESETS = {
             "letter_spacing": "1px"
         },
         "layout": {
-            "position": "top-center",
+            "position": "bottom-center",
             "padding": "28px",
             "text_box": True,
             "text_box_opacity": 0.85
@@ -15465,7 +15479,7 @@ THUMBNAIL_STYLE_PRESETS = {
             "letter_spacing": "4px"
         },
         "layout": {
-            "position": "top-center",
+            "position": "bottom-center",
             "padding": "20px",
             "text_box": False,
             "text_box_opacity": 0
@@ -15538,7 +15552,7 @@ THUMBNAIL_STYLE_PRESETS = {
             "letter_spacing": "1px"
         },
         "layout": {
-            "position": "left-center",
+            "position": "bottom-center",
             "padding": "28px",
             "text_box": False,
             "text_box_opacity": 0
@@ -16740,10 +16754,14 @@ def api_thumbnail_ai_generate_single():
 
         width, height = img.size
 
-        # ★ PIL로 텍스트 오버레이 합성
+        # ★ PIL로 텍스트 오버레이 합성 (설정 파일 기반)
         if main_text:
             try:
                 draw = ImageDraw.Draw(img)
+
+                # ★ 설정 파일에서 텍스트 오버레이 설정 로드
+                config = load_thumbnail_prompt_config()
+                text_settings = config.get('text_overlay_settings', {})
 
                 # 폰트 로드 (NanumSquareRoundB 또는 NanumGothicBold 우선)
                 font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
@@ -16754,9 +16772,11 @@ def api_thumbnail_ai_generate_single():
                     'NanumSquareB.ttf',
                 ]
 
-                # 메인 텍스트 폰트 크기 (이미지 높이의 10-12%)
-                main_font_size = int(height * 0.11)
-                sub_font_size = int(height * 0.07)
+                # 설정 파일에서 폰트 크기 비율 읽기 (기본값: 0.11, 0.07)
+                main_font_ratio = text_settings.get('main_font_size_ratio', 0.11)
+                sub_font_ratio = text_settings.get('sub_font_size_ratio', 0.07)
+                main_font_size = int(height * main_font_ratio)
+                sub_font_size = int(height * sub_font_ratio)
 
                 main_font = None
                 sub_font = None
@@ -16777,19 +16797,31 @@ def api_thumbnail_ai_generate_single():
                     sub_font = ImageFont.load_default()
                     print("[THUMBNAIL-AI] 기본 폰트 사용 (한글 미지원 가능)")
 
-                # 색상 설정 (뉴스: 흰색+검정 외곽선, 스토리: 노란색+검정 외곽선)
-                if style == 'news' or category == 'news':
-                    text_color = (255, 255, 255)  # 흰색
-                else:
-                    text_color = (255, 215, 0)  # 노란색 (골드)
-                outline_color = (0, 0, 0)  # 검정 외곽선
+                # ★ 설정 파일에서 색상 읽기
+                colors_config = text_settings.get('colors', {})
+                style_key = 'news' if (style == 'news' or category == 'news') else 'story'
+                color_setting = colors_config.get(style_key, colors_config.get('story', {}))
+                text_color = tuple(color_setting.get('text', [255, 215, 0]))
+                outline_color = tuple(color_setting.get('outline', [0, 0, 0]))
 
-                # 텍스트 위치 계산 (왼쪽 상단, 여백 5%)
-                x_margin = int(width * 0.05)
-                y_start = int(height * 0.15)
+                # ★ 설정 파일에서 위치 설정 읽기
+                y_start_ratio = text_settings.get('y_start_ratio', 0.65)
+                y_end_ratio = text_settings.get('y_end_ratio', 0.95)
+                x_align = text_settings.get('x_align', 'center')
 
-                # 외곽선 두께
-                outline_width = 3
+                # 텍스트 높이 계산 (서브텍스트 포함 시)
+                text_total_height = main_font_size
+                if sub_text:
+                    text_total_height += sub_font_size + int(height * 0.02)
+
+                # 설정된 영역 내 중앙 배치
+                bottom_area_start = int(height * y_start_ratio)
+                bottom_area_end = int(height * y_end_ratio)
+                y_start = bottom_area_start + (bottom_area_end - bottom_area_start - text_total_height) // 2
+
+                # 외곽선 두께 (설정 파일에서)
+                outline_width = text_settings.get('outline_width', 3)
+                print(f"[THUMBNAIL-AI] 텍스트 설정 로드: position={text_settings.get('position', 'bottom_center')}, y={y_start_ratio}-{y_end_ratio}")
 
                 def draw_text_with_outline(draw, position, text, font, fill, outline):
                     """외곽선이 있는 텍스트 그리기"""
@@ -16802,15 +16834,23 @@ def api_thumbnail_ai_generate_single():
                     # 메인 텍스트
                     draw.text((x, y), text, font=font, fill=fill)
 
-                # 메인 텍스트 그리기
-                draw_text_with_outline(draw, (x_margin, y_start), main_text, main_font, text_color, outline_color)
-                print(f"[THUMBNAIL-AI] 메인 텍스트 합성: '{main_text}'")
+                # ★ 메인 텍스트 그리기 (가로 중앙 정렬)
+                main_bbox = draw.textbbox((0, 0), main_text, font=main_font)
+                main_text_width = main_bbox[2] - main_bbox[0]
+                main_x = (width - main_text_width) // 2  # 가로 중앙
 
-                # 서브 텍스트 그리기 (있으면)
+                draw_text_with_outline(draw, (main_x, y_start), main_text, main_font, text_color, outline_color)
+                print(f"[THUMBNAIL-AI] 메인 텍스트 합성 (하단 중앙): '{main_text}'")
+
+                # ★ 서브 텍스트 그리기 (있으면, 가로 중앙 정렬)
                 if sub_text:
-                    y_sub = y_start + main_font_size + int(height * 0.03)
-                    draw_text_with_outline(draw, (x_margin, y_sub), sub_text, sub_font, text_color, outline_color)
-                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성: '{sub_text}'")
+                    y_sub = y_start + main_font_size + int(height * 0.02)
+                    sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+                    sub_text_width = sub_bbox[2] - sub_bbox[0]
+                    sub_x = (width - sub_text_width) // 2  # 가로 중앙
+
+                    draw_text_with_outline(draw, (sub_x, y_sub), sub_text, sub_font, text_color, outline_color)
+                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성 (하단 중앙): '{sub_text}'")
 
             except Exception as text_err:
                 print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패 (무시): {text_err}")
