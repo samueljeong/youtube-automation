@@ -18334,11 +18334,16 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     text_position = news_image_spec.get('text_position', 'left')
                     expression = news_image_spec.get('expression', 'serious')
 
-                    # 텍스트 추출 (새 구조 우선, 없으면 best_combo 사용)
+                    # 텍스트 추출 (우선순위: text.line1 > best_combo > ai_prompts.A > 제목)
                     line1 = news_thumbnail_text.get('line1', '')
                     line2 = news_thumbnail_text.get('line2', '')
                     if not line1 and best_combo:
-                        line1 = best_combo.get('chosen_thumbnail_text', '핵심 쟁점')
+                        line1 = best_combo.get('chosen_thumbnail_text', '')
+                    if not line1 and ai_prompts and ai_prompts.get('A'):
+                        line1 = ai_prompts['A'].get('text_overlay', {}).get('main', '')
+                    if not line1:
+                        # 최후 수단: 제목에서 앞 10자 사용
+                        line1 = (title or '')[:10]
 
                     # 키워드 로깅
                     if news_keywords:
