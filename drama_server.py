@@ -16023,6 +16023,95 @@ def load_thumbnail_prompt_config():
     }
 
 
+def build_thumbnail_image_prompt(clean_prompt: str, lang: str = 'ko', text_overlay: dict = None) -> str:
+    """
+    thumbnail_prompt_config.json의 image_generation_prompt_template을 사용하여
+    썸네일 이미지 생성 프롬프트를 구성합니다.
+
+    ★ 중앙화된 프롬프트 생성 - 모든 썸네일 생성 함수에서 이 함수 사용 ★
+
+    Args:
+        clean_prompt: 씬/주제 설명 프롬프트
+        lang: 언어 코드 (ko, ja, en)
+        text_overlay: {"main": "메인 텍스트", "sub": "서브 텍스트"} (선택)
+
+    Returns:
+        완성된 이미지 생성 프롬프트
+    """
+    config = load_thumbnail_prompt_config()
+
+    # 언어 설정 가져오기
+    lang_settings = config.get('language_settings', {}).get(lang, config.get('language_settings', {}).get('ko', {}))
+    character_nationality = lang_settings.get('character_nationality', 'Korean')
+    character_desc = lang_settings.get('character_desc', 'Korean man or woman')
+
+    # 텍스트 오버레이 지시 구성
+    text_instruction = ""
+    if text_overlay:
+        main_text = text_overlay.get('main', '')
+        sub_text = text_overlay.get('sub', '')
+        if main_text:
+            text_instruction = f"""
+TEXT OVERLAY INSTRUCTIONS (PIL 합성용 - AI는 텍스트 생성 금지):
+- Main text: "{main_text}" will be added in BOTTOM 30% via PIL
+- Text area must be empty/simple for overlay
+"""
+            if sub_text:
+                text_instruction += f'- Sub text: "{sub_text}" will be added below main text\n'
+
+    # 설정 파일에서 템플릿 가져오기
+    template = config.get('image_generation_prompt_template', '')
+
+    if template:
+        # 템플릿이 있으면 사용
+        prompt = template.format(
+            character_nationality=character_nationality,
+            character_nationality_upper=character_nationality.upper(),
+            character_desc=character_desc,
+            clean_prompt=clean_prompt,
+            text_instruction=text_instruction
+        )
+    else:
+        # 템플릿이 없으면 기본 프롬프트 사용 (fallback)
+        prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
+
+★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
+
+CHARACTER REQUIREMENTS:
+- {character_nationality} webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)
+- EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)
+- 30-40 year old {character_desc} (match the content)
+- Clean bold outlines, vibrant flat colors
+
+★★★ COMPOSITION (BOTTOM TEXT LAYOUT - 시니어 최적화) ★★★
+- Character/Scene: TOP 65-70% of frame (upper area)
+- Text space: BOTTOM 30-35% of frame (reserved for large text overlay)
+- Character position: CENTER-TOP or slightly right in upper area
+- NO left/right text placement - BOTTOM ONLY!
+- Bottom area should have simple/solid background for text readability
+
+Subject/Scene:
+{clean_prompt}
+
+{text_instruction}
+
+MANDATORY KEYWORDS TO USE:
+- "{character_nationality} webtoon style illustration"
+- "exaggerated shocked expression" or "surprised face"
+- "comic style, clean lines, vibrant colors"
+- "leave bottom 30% empty for text overlay"
+
+ABSOLUTE RESTRICTIONS:
+- NO photorealistic style
+- NO stickman
+- NO 3D render
+- NO random decorative elements (yellow bars, ribbons, etc.)
+- NO text/letters in the generated image
+- MUST be {character_nationality} webtoon/manhwa illustration style"""
+
+    return prompt
+
+
 def save_thumbnail_prompt_config(config):
     """썸네일 프롬프트 설정 저장"""
     try:
@@ -16408,45 +16497,21 @@ def api_thumbnail_ai_generate():
 
         print(f"[THUMBNAIL-AI] 이미지 생성 - 세션: {session_id}, 변형: {variant}")
 
-        # 텍스트 오버레이 지시 추가
-        main_text = text_overlay.get('main', '')
-        sub_text = text_overlay.get('sub', '')
+        # 언어 코드 가져오기 (기본값: ko)
+        lang = data.get('lang', 'ko')
 
-        text_instruction = ""
-        if main_text:
-            text_instruction = f"""
-IMPORTANT TEXT OVERLAY INSTRUCTIONS (하단 텍스트 레이아웃):
-- Add large, bold Korean text "{main_text}" in BOTTOM 30% of the image
-- Text should be highly visible with strong contrast (yellow text with black outline recommended)
-- Text position: BOTTOM area ONLY (30-35% from bottom)
-- Character/scene should be in TOP 70% of the frame
-- Bottom text area should have simple solid or gradient background for readability
-"""
-            if sub_text:
-                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text in bottom area\n'
+        # 프롬프트 정리 (불필요한 키워드 제거)
+        clean_prompt = prompt
+        for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
+            clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-        # 최종 프롬프트 구성 (하단 텍스트 레이아웃)
-        enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
-
-★★★ CRITICAL LAYOUT (BOTTOM TEXT - 시니어 최적화) ★★★
-- Character/Scene: TOP 65-70% of frame (upper area)
-- Text space: BOTTOM 30-35% of frame (reserved for large text overlay)
-- NO left/right text placement - BOTTOM ONLY!
-- NO decorative elements (yellow bars, ribbons, banners at top)
-- Bottom area: simple solid or gradient background for text readability
-
-{prompt}
-
-{text_instruction}
-
-Style requirements:
-- High contrast, eye-catching colors
-- Professional YouTube thumbnail quality
-- Comic/illustration style (not photorealistic)
-- Clean composition suitable for small preview
-- {style} aesthetic
-- LEAVE BOTTOM 30% EMPTY or with simple background for text overlay
-- NO random decorative elements"""
+        # ★ 중앙화된 프롬프트 생성 함수 사용 (thumbnail_prompt_config.json 기반)
+        enhanced_prompt = build_thumbnail_image_prompt(
+            clean_prompt=clean_prompt,
+            lang=lang,
+            text_overlay=text_overlay
+        )
+        print(f"[THUMBNAIL-AI] 설정 파일 기반 프롬프트 생성 완료 (lang={lang})")
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
@@ -16634,59 +16699,19 @@ def api_thumbnail_ai_generate_single():
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
 
-        # 언어에 따른 설정
-        lang_config = {
-            'ja': ("Japanese", "Japanese man or woman"),
-            'en': ("Western", "Western man or woman"),
-        }
-        character_nationality, character_desc = lang_config.get(lang, ("Korean", "Korean man or woman"))
-
         # 프롬프트에서 불필요한 키워드 제거
         clean_prompt = prompt
         for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
             clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-        # ★ 뉴스 스타일이거나 프롬프트에 이미 상세 지시가 있어도 하단 레이아웃 강제 적용
-        if style == 'news' or 'webtoon style illustration' in clean_prompt.lower():
-            # 뉴스/이슈 해설용 - 하단 텍스트 레이아웃 강제 적용
-            # 텍스트는 PIL로 합성하므로 NO text 강제
-            enhanced_prompt = f"""★★★ CRITICAL LAYOUT (BOTTOM TEXT - 시니어 최적화) ★★★
-- Character/Scene: TOP 65-70% of frame (upper area)
-- LEAVE BOTTOM 30-35% EMPTY for text overlay (simple solid background)
-- NO left/right text placement - BOTTOM ONLY!
-- NO decorative elements (yellow bars, ribbons, banners)
-
-{clean_prompt}
-
-ABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image, NO decorative bars/ribbons.
-MUST leave bottom 30% empty for text overlay."""
-            print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 하단 텍스트 레이아웃 강제 적용")
-        else:
-            # 일반 스토리용 - 썸네일 설정 파일의 규칙 적용
-            enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
-
-★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
-
-CHARACTER REQUIREMENTS:
-- {character_nationality} webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)
-- EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)
-- 30-40 year old {character_desc} (match the content)
-- Clean bold outlines, vibrant flat colors
-
-BACKGROUND: Related to topic in upper 70% area, comic-style effect lines, bright colors
-
-★★★ COMPOSITION (BOTTOM TEXT LAYOUT - 시니어 최적화) ★★★
-- Character/Scene: TOP 65-70% of frame (center-top position)
-- LEAVE BOTTOM 30-35% EMPTY for text overlay (simple solid background)
-- NO left/right text placement
-- NO decorative elements (yellow bars, ribbons, etc.)
-
-Subject/Scene:
-{clean_prompt}
-
-ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render, NO text, NO letters, NO words, NO decorative bars/ribbons
-MUST be {character_nationality} webtoon/manhwa illustration style
-MUST leave bottom 30% empty for text overlay"""
+        # ★ 중앙화된 프롬프트 생성 함수 사용 (thumbnail_prompt_config.json 기반)
+        # 모든 스타일 (news, story 등)에 동일한 하단 텍스트 레이아웃 적용
+        enhanced_prompt = build_thumbnail_image_prompt(
+            clean_prompt=clean_prompt,
+            lang=lang,
+            text_overlay=text_overlay  # PIL 합성용이므로 text_overlay 전달
+        )
+        print(f"[THUMBNAIL-AI] 설정 파일 기반 프롬프트 생성 완료 (lang={lang}, style={style})")
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
@@ -16842,28 +16867,18 @@ def api_thumbnail_ai_generate_both():
             """단일 썸네일 생성 (image 모듈 사용)"""
             prompt = prompt_data.get('prompt', '')
             text_overlay = prompt_data.get('text_overlay', {})
-            style = prompt_data.get('style', 'comic')
 
-            main_text = text_overlay.get('main', '')
-            sub_text = text_overlay.get('sub', '')
+            # 프롬프트 정리 (불필요한 키워드 제거)
+            clean_prompt = prompt
+            for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
+                clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-            text_instruction = ""
-            if main_text:
-                text_instruction = f"""
-IMPORTANT TEXT OVERLAY:
-- Add large, bold Korean text "{main_text}" prominently
-- High contrast (white text with black outline)
-"""
-                if sub_text:
-                    text_instruction += f'- Subtitle: "{sub_text}"\n'
-
-            enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
-
-{prompt}
-
-{text_instruction}
-
-Style: {style}, comic/illustration, eye-catching, high contrast"""
+            # ★ 중앙화된 프롬프트 생성 함수 사용 (thumbnail_prompt_config.json 기반)
+            enhanced_prompt = build_thumbnail_image_prompt(
+                clean_prompt=clean_prompt,
+                lang='ko',  # 기본 한국어
+                text_overlay=text_overlay
+            )
 
             try:
                 # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
@@ -18530,24 +18545,13 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     }
                     expression_desc = expression_map.get(expression, expression_map['serious'])
 
-                    # 프롬프트 생성 (face 유무에 따라 분기) - 하단 텍스트 레이아웃
+                    # ★ 씬 설명만 전달 - 레이아웃은 build_thumbnail_image_prompt()가 처리
                     if has_face:
-                        prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
-Korean webtoon character with {expression_desc} (NOT screaming, NOT exaggerated panic), 40-50 year old Korean man or woman in professional attire.
-Character positioned in TOP 70% of frame (center-top).
-Clean bold outlines, {scene_desc} background in upper area.
-LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background.
-Credible news explainer tone, NOT sensational.
-NO extreme expression, NO text, NO letters, NO speech bubbles, NO decorative elements (yellow bars, ribbons).
-NO photorealistic, NO stickman."""
+                        prompt = f"""{expression_desc.capitalize()}, 40-50 year old professional in formal attire.
+{scene_desc.capitalize()} background. Credible news explainer tone, NOT sensational."""
                     else:
-                        prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
-{scene_desc.capitalize()} positioned in TOP 70% of frame, dramatic but credible news tone.
-Clean bold outlines, vibrant colors in upper area.
-LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background.
-NO characters, focus on scene/objects in upper area.
-NO text, NO letters, NO signs, NO readable text, NO decorative elements.
-NO photorealistic."""
+                        prompt = f"""{scene_desc.capitalize()}, dramatic but credible news tone.
+Focus on scene/objects, NO characters."""
 
                     thumb_prompt = {
                         "prompt": prompt,
@@ -18571,20 +18575,22 @@ NO photorealistic."""
                             print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
                     print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (스타일: {thumb_prompt.get('style', 'unknown')})")
                 elif is_news:
-                    # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때) - 하단 텍스트 레이아웃
-                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 웹툰 스타일 프롬프트 (하단 텍스트)")
+                    # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때)
+                    # ★ 씬 설명만 전달 - 레이아웃은 build_thumbnail_image_prompt()가 처리
+                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 스타일 프롬프트 (설정 파일 기반)")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '핵심 쟁점') if best_combo else '핵심 쟁점'
                     thumb_prompt = {
-                        "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit, positioned in TOP 70% of frame. Clean bold outlines, news studio background in upper area. LEAVE BOTTOM 30% EMPTY for text overlay with simple solid background. Credible news explainer tone. NO photorealistic, NO stickman, NO decorative elements, NO yellow bars.",
+                        "prompt": "Serious focused expression, 40-50 year old professional in suit. News studio or courtroom background. Credible news explainer tone.",
                         "text_overlay": {"main": fallback_text, "sub": ""},
                         "style": "news"
                     }
                 else:
-                    # 폴백: 웹툰 스타일 프롬프트 - 하단 텍스트 레이아웃
-                    print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트 (하단 텍스트)")
+                    # 폴백: 웹툰 스타일 프롬프트
+                    # ★ 씬 설명만 전달 - 레이아웃은 build_thumbnail_image_prompt()가 처리
+                    print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트 (설정 파일 기반)")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '메인 텍스트') if best_combo else '메인 텍스트'
                     thumb_prompt = {
-                        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION, positioned in TOP 70% of frame. Clean bold outlines, vibrant flat colors. Comic-style expression marks. LEAVE BOTTOM 30% EMPTY for text overlay. NO photorealistic, NO stickman, NO decorative elements.",
+                        "prompt": "Shocked or surprised expression, dramatic reaction scene. Vibrant colors, comic-style expression marks.",
                         "text_overlay": {"main": fallback_text, "sub": ""}
                     }
 
