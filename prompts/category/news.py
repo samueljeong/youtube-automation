@@ -142,24 +142,44 @@ If the subject is unclear, the thumbnail FAILS.
 
 ---
 
-### 5. IMAGE LAYOUT RULES (웹툰 스타일)
+### 5. IMAGE LAYOUT RULES (하단 텍스트 집중형 - 시니어 최적화)
 
-**Common Layout:**
-- Text: LEFT or RIGHT side ONLY (center = BANNED, blocks face/key image)
-- Whitespace: 20-30%
-- Mobile readability priority: Large text + High contrast
-- Effect lines only as support (must not block text readability)
+★★★ 하단 텍스트 레이아웃 (BOTTOM TEXT LAYOUT) ★★★
 
-**Face = True (인물 얼굴 있음):**
-- Face size: 30-45% of frame
-- Expression ALLOWED: serious, worried, confused, focused (설명하는 긴장)
-- Expression BANNED: screaming, panic, madness, exaggerated anger
-- Text: shorter (6-9 chars usually)
-- Text position: opposite side of gaze direction
+**왜 하단 텍스트인가:**
+- 시니어는 모바일에서 하단→상단 순으로 읽음
+- 좌/우 텍스트는 놓침 (젊은 층처럼 좌우를 훑지 않음)
+- 하단 큰 텍스트 = 즉시 인식, CTR 상승
 
-**Face = False (얼굴 없음):**
-- Main subject: Event symbol image (court/document/scene/graph)
-- Type A or B works best
+**레이아웃 구조:**
+```
+┌─────────────────────────────────┐
+│   [캐릭터/장면] - 상단 65-70%    │
+│                                 │
+├─────────────────────────────────┤
+│   [텍스트] - 하단 30-35%         │
+│   (가장 큰 요소, 단색 배경)       │
+└─────────────────────────────────┘
+```
+
+**캐릭터/장면 (상단 65-70%):**
+- Face size: 30-45% of frame (상단 영역 내)
+- Position: CENTER-TOP or slightly right
+- Expression ALLOWED: serious, worried, confused, focused
+- Expression BANNED: screaming, panic, madness
+
+**텍스트 영역 (하단 30-35%):**
+- 텍스트가 썸네일의 '주인공' - 가장 큰 요소
+- 배경: 단색 또는 반투명 (가독성 확보)
+- 폰트 크기: 썸네일 높이의 40-50%
+- 최대 2줄, 1줄 권장
+
+**금지 사항:**
+- ❌ 좌측/우측 텍스트 배치
+- ❌ 상단 작은 텍스트
+- ❌ 장식 요소 (노란 바, 리본, 테두리 등)
+- ❌ 복잡한 패턴 배경
+- ❌ 텍스트 영역에 캐릭터/소품 겹침
 
 **Scene Options:**
 - courtroom: 법원, 재판, 판결 관련
@@ -221,7 +241,8 @@ The thumbnail field in output MUST follow this structure:
   "image_spec": {
     "face": true,
     "scene": "courtroom",
-    "text_position": "left",
+    "text_position": "bottom",
+    "character_position": "top_center",
     "expression": "serious",
     "style": "webtoon"
   },
@@ -237,15 +258,22 @@ The thumbnail field in output MUST follow this structure:
 
 ---
 
-### 8. GEMINI IMAGE PROMPT TEMPLATE (뉴스 해설용)
+### 8. GEMINI IMAGE PROMPT TEMPLATE (뉴스 해설용 - 하단 텍스트 레이아웃)
 
 For thumbnail image generation, use this template:
 
+**⚠️ CRITICAL: Bottom 30% must be empty for text overlay!**
+
 **With Face (face=true):**
-"[Culture] webtoon style illustration, 16:9 aspect ratio. [Culture] webtoon character with [EXPRESSION] (serious/thinking/concerned face, NOT screaming), [age] year old [nationality] [man/woman] in [attire]. Clean bold outlines, [scene] background. Text space on [left/right] side. Credible news explainer tone. NO extreme expression, NO text, NO letters, NO speech bubbles. NO photorealistic, NO stickman."
+"[Culture] webtoon style illustration, 16:9 aspect ratio. [Culture] webtoon character with [EXPRESSION] (serious/thinking/concerned face, NOT screaming), [age] year old [nationality] [man/woman] in [attire]. Character positioned in TOP 70% of frame (center-top). Clean bold outlines, [scene] background in upper area. LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background in bottom area. Credible news explainer tone. NO extreme expression, NO text, NO letters, NO speech bubbles, NO decorative elements (ribbons, bars). NO photorealistic, NO stickman."
 
 **Without Face (face=false):**
-"[Culture] webtoon style illustration, 16:9 aspect ratio. [Scene description - court/document/chart/city]. Dramatic but credible news tone. Clean bold outlines, vibrant colors. Text space on [left/right] side. NO text, NO letters, NO signs, NO readable text. NO photorealistic."
+"[Culture] webtoon style illustration, 16:9 aspect ratio. [Scene description - court/document/chart/city] positioned in TOP 70% of frame. Dramatic but credible news tone. Clean bold outlines, vibrant colors. LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background in bottom area. NO text, NO letters, NO signs, NO readable text, NO decorative elements. NO photorealistic."
+
+**MANDATORY in every prompt:**
+- "leave bottom 30% empty for text overlay"
+- "character/scene in top 70% of frame"
+- "NO decorative elements, NO ribbons, NO bars"
 
 ---
 
