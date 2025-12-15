@@ -51,16 +51,47 @@ NEWS_RULES = """
 
 ### 2. THUMBNAIL TEXT RULES (가장 중요!)
 
-**Text Length:**
-- 6-10 chars recommended, max 12 chars
-- 1 line preferred, 2 lines if needed (each line 3-7 chars)
+**⚠️ RULE #0: SUBJECT NOUN IS MANDATORY (주어 필수!)**
+```
+Thumbnail text MUST include an explicit subject noun.
+Do NOT omit the topic assuming the title will explain it.
+The viewer may read ONLY the thumbnail text.
+If the subject is unclear, the thumbnail FAILS.
+```
+
+**❌ BANNED (주어 없음):**
+- "180일 동안 무슨 일이" → 누가?
+- "왜 이렇게 오래 걸렸나" → 무엇이?
+- "지금까지 나온 내용" → 무슨 사건?
+- "이 사건의 시작과 끝" → 무슨 사건?
+
+**✅ CORRECT (주어 명시):**
+- "내란특검 180일 수사"
+- "내란특검 최종 결론"
+- "내란특검 핵심 쟁점"
+- "윤석열 탄핵 재판 진행"
+
+**Subject Requirements:**
+- Use proper nouns (고유명사) or clear common nouns (보통명사)
+- NO pronouns: 이것, 그것, 여기서, 이 사건
+- NO implied subjects: viewer must understand WITHOUT reading title
+
+**Text Length (시니어 기준):**
+- 14-22 chars recommended (NOT 6-10!)
+- 2 lines OK: [Subject] / [Situation]
+- Example: "내란특검은 / 180일 동안 무엇을 했나"
+
+**Text Structure:**
+```
+[대상(명사)] + [상황/의문/행위]
+```
 
 **Message Count:**
 - ONE message per thumbnail
 - TWO topics / cause+result together = BANNED
 
 **Text Tone:**
-- Question style BANNED (e.g., "어디까지 왔나") → Use situation/noun style
+- Question style OK if subject is clear (e.g., "내란특검 왜 180일 걸렸나")
 - Metaphor/poetic BANNED (e.g., "무너진 셋, 가려진 하나")
 - Conclusion/verdict/evaluation BANNED (e.g., "끝났다", "실패")
 
@@ -72,17 +103,22 @@ NEWS_RULES = """
 
 ### 3. THUMBNAIL TEXT TYPES (택1 - MUST choose exactly ONE)
 
+**⚠️ ALL types MUST include subject noun!**
+
 **Type A: Progress/Status Summary (진행/현황 요약형)**
 - Use when: Emphasizing event/procedure/stage
-- Examples: 진행 상황, 재판 진행, 논란 흐름, 현재 국면
+- ❌ OLD: 진행 상황, 재판 진행, 현재 국면
+- ✅ NEW: "내란특검 수사 진행", "탄핵심판 현재 국면", "윤석열 재판 일정"
 
 **Type B: Issue/Interpretation Summary (쟁점/해석 압축형)**
 - Use when: Emphasizing controversy/argument/position difference
-- Examples: 핵심 쟁점, 엇갈린 시각, 쟁점 정리, 숨은 변수
+- ❌ OLD: 핵심 쟁점, 엇갈린 시각, 숨은 변수
+- ✅ NEW: "내란특검 핵심 쟁점", "탄핵심판 엇갈린 시각", "대통령실 숨은 변수"
 
 **Type C: Impact/Aftermath Summary (영향/파장 정리형)**
 - Use when: Emphasizing result/reaction/follow-up
-- Examples: 파장 확산, 여파 확대, 시장 반응, 후속 대응
+- ❌ OLD: 파장 확산, 여파 확대, 시장 반응
+- ✅ NEW: "내란특검 파장 확산", "탄핵 여파 정리", "증시 반응 정리"
 
 **Auto-Selection Logic:**
 1. Detect signal words in title:
@@ -144,10 +180,12 @@ NEWS_RULES = """
 - "어디까지 왔나" → "진행 상황" / "현재 국면"
 
 **Failure 3: Conclusion assertion**
-- "끝났다" → "후속 대응" / "논란 흐름"
+- "끝났다" → "내란특검 후속 대응" / "탄핵심판 논란 흐름"
 
-**Failure 4: Text too long**
-- "정부가 발표한 정책의 문제점" → "핵심 쟁점" (6-10 chars, remove particles)
+**Failure 4: Missing subject (주어 없음) - MOST COMMON!**
+- ❌ "핵심 쟁점" → ✅ "내란특검 핵심 쟁점"
+- ❌ "180일 동안 무슨 일이" → ✅ "내란특검 180일 수사"
+- ❌ "왜 이렇게 오래 걸렸나" → ✅ "내란특검 왜 180일 걸렸나"
 
 **Failure 5: Exaggerated expression**
 - Screaming face → Serious/worried face, minimize effect lines
@@ -158,24 +196,27 @@ NEWS_RULES = """
 
 The thumbnail field in output MUST follow this structure:
 
+⚠️ ALL text fields MUST include subject noun!
+
 ```json
 "thumbnail": {
   "keywords": {
-    "primary": ["핵심 쟁점"],
-    "secondary": ["입장 차이", "후속 대응"],
-    "entity": ["인물명"],
+    "primary": ["내란특검"],
+    "secondary": ["핵심 쟁점", "수사 결과"],
+    "entity": ["윤석열", "한동훈"],
     "category_focus": "B"
   },
   "text": {
     "type": "B",
-    "line1": "핵심 쟁점",
-    "line2": "",
-    "char_count": 4
+    "line1": "내란특검",
+    "line2": "핵심 쟁점",
+    "char_count": 9,
+    "has_subject": true
   },
   "alternatives": [
-    {"line1": "엇갈린 시각", "line2": ""},
-    {"line1": "쟁점 정리", "line2": ""},
-    {"line1": "논란 흐름", "line2": ""}
+    {"line1": "내란특검 180일", "line2": "수사 결론"},
+    {"line1": "내란특검", "line2": "최종 결과 정리"},
+    {"line1": "내란특검 수사", "line2": "핵심 3가지"}
   ],
   "image_spec": {
     "face": true,
@@ -188,7 +229,8 @@ The thumbnail field in output MUST follow this structure:
     "char_count_ok": true,
     "forbidden_word_hit": false,
     "single_message": true,
-    "matches_title": true
+    "matches_title": true,
+    "has_explicit_subject": true
   }
 }
 ```
