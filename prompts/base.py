@@ -113,14 +113,16 @@ VIDEO_EFFECTS_STRUCTURE = """
   "bgm_mood": "base mood",
   "scene_bgm_changes": [{"scene": N, "mood": "...", "reason": "..."}],
   "subtitle_highlights": [{"keyword": "...", "color": "#FF0000"}],
-  "screen_overlays": [{"scene": N, "text": "1-4 chars", "duration": 3, "style": "impact"}],
   "sound_effects": [{"scene": N, "type": "...", "moment": "..."}],
-  "lower_thirds": [{"scene": N, "text": "...", "position": "bottom-left"}],
-  "news_ticker": {"enabled": true/false, "headlines": ["...", "..."]},
   "shorts": {"highlight_scenes": [N, M], "hook_text": "...", "title": "... #Shorts"},
   "transitions": {"style": "crossfade", "duration": 0.5},
   "first_comment": "engaging question (50-100 chars)"
 }
+
+⚠️ REMOVED FEATURES (DO NOT GENERATE):
+- screen_overlays: 사용하지 않음
+- lower_thirds: 사용하지 않음
+- news_ticker: 사용하지 않음
 """
 
 # 유튜브 메타데이터 출력 구조

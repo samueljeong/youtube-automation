@@ -11473,7 +11473,10 @@ def _update_job_status(job_id, **kwargs):
                 json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
-    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리"""
+    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리
+
+    VRCS 2.0: 시니어 시청자를 위해 큰 폰트 사이즈 사용 (52px)
+    """
     # 유튜브 스타일: 노란색 텍스트 + 검은색 테두리 (가독성 최우선)
     # BorderStyle=1: 테두리 + 그림자 (박스 아님)
     # Outline=4: 두꺼운 검은색 테두리
@@ -11482,11 +11485,12 @@ def _get_subtitle_style(lang):
     # OutlineColour=&H00000000: 검은색 테두리
     if lang == 'ko':
         # 한국어: lang/ko.py에서 관리하는 폰트 사용
+        # VRCS 2.0: 시니어용 큰 폰트 (52px)
         font_name = lang_ko.FONTS['default_name']
         return (
-            f"FontName={font_name},FontSize=28,PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize=52,PrimaryColour=&H00FFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+            "BorderStyle=1,Outline=5,Shadow=3,MarginV=50,Bold=1"
         )
     elif lang == 'ja':
         # 일본어: lang/ja.py에서 관리하는 폰트 사용
@@ -14313,30 +14317,12 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             # 기본 자막 필터 (ASS 형식은 force_style 불필요 - 파일에 스타일 포함)
             vf_filter = f"ass={ass_escaped}:fontsdir={fonts_escaped}"
 
-            # 화면 텍스트 오버레이 추가 (screen_overlays) - 나레이션 싱크 적용
-            screen_overlays = video_effects.get('screen_overlays', [])
-            if screen_overlays:
-                # all_subtitles를 전달하여 나레이션 타이밍과 동기화
-                overlay_filter = _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitles=all_subtitles, lang=detected_lang)
-                if overlay_filter:
-                    vf_filter = f"{vf_filter},{overlay_filter}"
-                    print(f"[VIDEO-WORKER] 화면 오버레이 {len(screen_overlays)}개 추가 (나레이션 싱크, lang={detected_lang})")
-
-            # 로워서드 오버레이 추가 (lower_thirds)
-            lower_thirds = video_effects.get('lower_thirds', [])
-            if lower_thirds:
-                lt_filter = _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang=detected_lang)
-                if lt_filter:
-                    vf_filter = f"{vf_filter},{lt_filter}"
-                    print(f"[VIDEO-WORKER] 로워서드 {len(lower_thirds)}개 추가 (lang={detected_lang})")
-
-            # 뉴스 티커 추가 (news_ticker)
-            news_ticker = video_effects.get('news_ticker', {})
-            if news_ticker and news_ticker.get('enabled'):
-                ticker_filter = _generate_news_ticker_filter(news_ticker, current_time, fonts_dir, lang=detected_lang)
-                if ticker_filter:
-                    vf_filter = f"{vf_filter},{ticker_filter}"
-                    print(f"[VIDEO-WORKER] 뉴스 티커 추가 (헤드라인 {len(news_ticker.get('headlines', []))}개, lang={detected_lang})")
+            # ★ VRCS 2.0: screen_overlays, lower_thirds, news_ticker 비활성화
+            # 정보 전달 효과가 낮고 화면을 어지럽힘
+            # screen_overlays = video_effects.get('screen_overlays', [])  # 비활성화
+            # lower_thirds = video_effects.get('lower_thirds', [])  # 비활성화
+            # news_ticker = video_effects.get('news_ticker', {})  # 비활성화
+            print(f"[VIDEO-WORKER] VRCS 2.0: screen_overlays, lower_thirds, news_ticker 비활성화됨")
 
             print(f"[VIDEO-WORKER] ASS path: {ass_abs_path}")
             print(f"[VIDEO-WORKER] VF filter 길이: {len(vf_filter)} chars")
