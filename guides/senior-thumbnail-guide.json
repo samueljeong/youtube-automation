@@ -7,11 +7,16 @@
     "target": "한국 50-70대 시니어",
     "principles": {
       "text_rules": {
-        "max_chars": 12,
+        "max_chars": 22,
+        "min_chars": 14,
         "font_style": "bold gothic",
         "outline": true,
         "outline_color": "#000000",
-        "position": "left_top"
+        "position": "bottom_center",
+        "height_ratio": "30-35%",
+        "max_lines": 2,
+        "preferred_lines": 1,
+        "subject_required": true
       },
       "visual_rules": {
         "single_scene": true,
@@ -77,25 +82,39 @@
     ],
     "layout_templates": {
       "template_a": {
-        "name": "기본형",
-        "text_position": "left_top",
-        "character_position": "right",
-        "background": "병원 관련",
+        "name": "하단 텍스트 기본형 (권장)",
+        "text_position": "bottom_center",
+        "text_height": "30-35%",
+        "character_position": "top_center",
+        "character_height": "65-70%",
+        "background": "상황 관련 (상단)",
+        "text_background": "단색 또는 반투명",
         "text_color": "노랑+검정"
       },
       "template_b": {
-        "name": "스토리형",
-        "text_position": "top_center",
-        "character_position": "center_right",
-        "background": "책상+창문+햇살",
-        "props": "가운, 서류"
+        "name": "하단 숫자 강조형",
+        "text_position": "bottom_center",
+        "text_height": "40%",
+        "character_position": "top_center_small",
+        "character_height": "50%",
+        "text_style": "숫자 크게 강조",
+        "example": "180일의 결론"
       },
       "template_c": {
-        "name": "감정형",
-        "text_position": "left_top",
-        "character_position": "right_bottom_small",
-        "background": "흐림10%+진한 대비"
+        "name": "하단 2줄형",
+        "text_position": "bottom_center",
+        "text_height": "35%",
+        "text_lines": 2,
+        "line1": "주어/대상",
+        "line2": "상황/핵심",
+        "character_position": "top_center",
+        "example": "내란특검 / 핵심 쟁점 3가지"
       }
+    },
+    "layout_rules": {
+      "why_bottom": "시니어는 모바일에서 하단→상단 순으로 읽음. 좌우 텍스트는 놓침.",
+      "text_priority": "텍스트가 썸네일의 '주인공'. 가장 큰 요소여야 함.",
+      "forbidden": ["좌측 텍스트", "우측 텍스트", "상단 작은 텍스트", "장식 요소 (노란 바, 리본 등)"]
     },
     "prompt_template": {
       "realistic": "Korean elderly [gender], [emotion] expression, [location], warm nostalgic lighting, soft focus background, [action], film grain, 1970s Korean aesthetic",
@@ -107,13 +126,18 @@
     "target": "일본 60-80대 시니어 (스마트폰 소형 화면 시청)",
     "principles": {
       "text_rules": {
-        "max_chars": 10,
-        "description": "큰 글씨로 표시하기 위해 최대 10자 이내",
+        "max_chars": 15,
+        "min_chars": 8,
+        "description": "큰 글씨로 표시하기 위해 최대 15자 이내",
         "font_style": "bold gothic",
         "outline": true,
         "outline_color": "#000000",
-        "position": "left_top",
-        "core_message_only": true
+        "position": "bottom_center",
+        "height_ratio": "30-35%",
+        "max_lines": 2,
+        "preferred_lines": 1,
+        "core_message_only": true,
+        "subject_required": true
       },
       "visual_rules": {
         "single_scene": true,
@@ -206,19 +230,36 @@
     ],
     "layout_templates": {
       "template_a": {
-        "name": "数字強調型",
-        "text_position": "center",
-        "text_size": "extra_large",
-        "background": "シンプル単色",
-        "description": "숫자를 크게 중앙 배치"
+        "name": "下部テキスト基本型 (推奨)",
+        "text_position": "bottom_center",
+        "text_height": "30-35%",
+        "character_position": "top_center",
+        "character_height": "65-70%",
+        "background": "関連場所 (上部)",
+        "text_background": "単色または半透明",
+        "description": "하단 텍스트 기본형"
       },
       "template_b": {
+        "name": "数字強調型",
+        "text_position": "bottom_center",
+        "text_height": "40%",
+        "text_size": "extra_large",
+        "background": "シンプル単色",
+        "description": "숫자를 하단에 크게 배치"
+      },
+      "template_c": {
         "name": "行動喚起型",
-        "text_position": "left_top",
-        "character_position": "right",
+        "text_position": "bottom_center",
+        "text_height": "35%",
+        "character_position": "top_center",
         "background": "関連場所",
-        "description": "행동 촉구 문구 + 관련 이미지"
+        "description": "행동 촉구 문구 하단 + 관련 이미지 상단"
       }
+    },
+    "layout_rules": {
+      "why_bottom": "シニアはモバイルで下から上へ読む。左右テキストは見逃す。",
+      "text_priority": "テキストがサムネイルの主役。最大要素であるべき。",
+      "forbidden": ["左側テキスト", "右側テキスト", "上部小テキスト", "装飾要素"]
     },
     "prompt_template": {
       "realistic": "Japanese elderly [gender], [emotion] expression, [location], warm lighting, soft focus background, [action], natural Japanese aesthetic",
