@@ -16784,9 +16784,19 @@ def api_thumbnail_ai_generate_single():
                     text_color = (255, 215, 0)  # 노란색 (골드)
                 outline_color = (0, 0, 0)  # 검정 외곽선
 
-                # 텍스트 위치 계산 (왼쪽 상단, 여백 5%)
-                x_margin = int(width * 0.05)
-                y_start = int(height * 0.15)
+                # ★ 텍스트 위치 계산 (하단 중앙 - 시니어 최적화)
+                # 하단 30-35% 영역에 텍스트 배치
+                x_margin = int(width * 0.05)  # 좌우 여백 5%
+
+                # 텍스트 높이 계산 (서브텍스트 포함 시)
+                text_total_height = main_font_size
+                if sub_text:
+                    text_total_height += sub_font_size + int(height * 0.02)  # 서브텍스트 + 간격
+
+                # 하단 영역 중앙에 배치 (이미지 하단 30% 영역 내)
+                bottom_area_start = int(height * 0.65)  # 하단 35% 시작점
+                bottom_area_end = int(height * 0.95)    # 하단 5% 여백
+                y_start = bottom_area_start + (bottom_area_end - bottom_area_start - text_total_height) // 2
 
                 # 외곽선 두께
                 outline_width = 3
@@ -16802,15 +16812,23 @@ def api_thumbnail_ai_generate_single():
                     # 메인 텍스트
                     draw.text((x, y), text, font=font, fill=fill)
 
-                # 메인 텍스트 그리기
-                draw_text_with_outline(draw, (x_margin, y_start), main_text, main_font, text_color, outline_color)
-                print(f"[THUMBNAIL-AI] 메인 텍스트 합성: '{main_text}'")
+                # ★ 메인 텍스트 그리기 (가로 중앙 정렬)
+                main_bbox = draw.textbbox((0, 0), main_text, font=main_font)
+                main_text_width = main_bbox[2] - main_bbox[0]
+                main_x = (width - main_text_width) // 2  # 가로 중앙
 
-                # 서브 텍스트 그리기 (있으면)
+                draw_text_with_outline(draw, (main_x, y_start), main_text, main_font, text_color, outline_color)
+                print(f"[THUMBNAIL-AI] 메인 텍스트 합성 (하단 중앙): '{main_text}'")
+
+                # ★ 서브 텍스트 그리기 (있으면, 가로 중앙 정렬)
                 if sub_text:
-                    y_sub = y_start + main_font_size + int(height * 0.03)
-                    draw_text_with_outline(draw, (x_margin, y_sub), sub_text, sub_font, text_color, outline_color)
-                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성: '{sub_text}'")
+                    y_sub = y_start + main_font_size + int(height * 0.02)
+                    sub_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
+                    sub_text_width = sub_bbox[2] - sub_bbox[0]
+                    sub_x = (width - sub_text_width) // 2  # 가로 중앙
+
+                    draw_text_with_outline(draw, (sub_x, y_sub), sub_text, sub_font, text_color, outline_color)
+                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성 (하단 중앙): '{sub_text}'")
 
             except Exception as text_err:
                 print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패 (무시): {text_err}")
