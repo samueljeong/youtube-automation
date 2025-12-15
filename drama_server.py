@@ -18392,26 +18392,54 @@ NO photorealistic."""
                     }
                     print(f"[AUTOMATION][THUMB] 뉴스 썸네일: face={has_face}, scene={scene_type}, text='{line1}'")
 
-                # GPT가 생성한 ai_prompts.A 사용 (story 카테고리는 웹툰 스타일로 생성됨)
+                # GPT가 생성한 ai_prompts.A 사용 (story/health 등 모든 카테고리)
                 elif ai_prompts and ai_prompts.get('A'):
                     thumb_prompt = ai_prompts.get('A').copy() if isinstance(ai_prompts.get('A'), dict) else ai_prompts.get('A')
-                    # best_combo에서 선택된 텍스트가 있으면 text_overlay에 적용
-                    if best_combo and best_combo.get('chosen_thumbnail_text'):
+
+                    # ★ 텍스트 우선순위: thumbnail_data.text > best_combo > ai_prompts.A.text_overlay > 제목
+                    final_line1 = ''
+                    final_line2 = ''
+
+                    # 1. thumbnail_data.text에서 추출 (news, story, health 카테고리에서 GPT가 생성)
+                    if news_thumbnail_text.get('line1'):
+                        final_line1 = news_thumbnail_text.get('line1', '')
+                        final_line2 = news_thumbnail_text.get('line2', '')
+                        print(f"[AUTOMATION][THUMB] thumbnail_data.text 텍스트 적용: '{final_line1}' / '{final_line2}'")
+                    # 2. best_combo에서 선택된 텍스트
+                    elif best_combo and best_combo.get('chosen_thumbnail_text'):
                         chosen_text = best_combo.get('chosen_thumbnail_text', '')
-                        if isinstance(thumb_prompt, dict):
-                            if '\\n' in chosen_text:
-                                parts = chosen_text.split('\\n', 1)
-                                thumb_prompt['text_overlay'] = {'main': parts[0], 'sub': parts[1] if len(parts) > 1 else ''}
-                            else:
-                                thumb_prompt['text_overlay'] = {'main': chosen_text, 'sub': ''}
-                            print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
-                    print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (스타일: {thumb_prompt.get('style', 'unknown')})")
+                        if '\\n' in chosen_text:
+                            parts = chosen_text.split('\\n', 1)
+                            final_line1 = parts[0]
+                            final_line2 = parts[1] if len(parts) > 1 else ''
+                        else:
+                            final_line1 = chosen_text
+                        print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: '{chosen_text}'")
+                    # 3. ai_prompts.A.text_overlay
+                    elif isinstance(thumb_prompt, dict) and thumb_prompt.get('text_overlay', {}).get('main'):
+                        final_line1 = thumb_prompt.get('text_overlay', {}).get('main', '')
+                        final_line2 = thumb_prompt.get('text_overlay', {}).get('sub', '')
+                        print(f"[AUTOMATION][THUMB] ai_prompts.A.text_overlay 텍스트 적용: '{final_line1}'")
+                    # 4. 폴백: 제목
+                    else:
+                        final_line1 = (title or '')[:10]
+                        print(f"[AUTOMATION][THUMB] 폴백: 제목 텍스트 적용: '{final_line1}'")
+
+                    # text_overlay 설정
+                    if isinstance(thumb_prompt, dict):
+                        thumb_prompt['text_overlay'] = {'main': final_line1, 'sub': final_line2}
+
+                    print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (카테고리: {detected_category}, 스타일: {thumb_prompt.get('style', 'unknown') if isinstance(thumb_prompt, dict) else 'unknown'})")
                 elif is_news:
                     # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때)
                     print(f"[AUTOMATION][THUMB] 폴백: 뉴스 웹툰 스타일 프롬프트")
-                    # 텍스트 우선순위: best_combo > ai_prompts.A > 제목
+                    # 텍스트 우선순위: thumbnail_data.text > best_combo > ai_prompts.A > 제목
                     fallback_text = ''
-                    if best_combo:
+                    fallback_sub = ''
+                    if news_thumbnail_text.get('line1'):
+                        fallback_text = news_thumbnail_text.get('line1', '')
+                        fallback_sub = news_thumbnail_text.get('line2', '')
+                    elif best_combo:
                         fallback_text = best_combo.get('chosen_thumbnail_text', '')
                     if not fallback_text and ai_prompts and ai_prompts.get('A'):
                         fallback_text = ai_prompts['A'].get('text_overlay', {}).get('main', '')
@@ -18419,15 +18447,19 @@ NO photorealistic."""
                         fallback_text = (title or '')[:10]
                     thumb_prompt = {
                         "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit. Clean bold outlines, news studio background. Text space on left side. Credible news explainer tone. NO photorealistic, NO stickman.",
-                        "text_overlay": {"main": fallback_text, "sub": ""},
+                        "text_overlay": {"main": fallback_text, "sub": fallback_sub},
                         "style": "news"
                     }
                 else:
                     # 폴백: 웹툰 스타일 프롬프트
                     print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트")
-                    # 텍스트 우선순위: best_combo > ai_prompts.A > 제목
+                    # 텍스트 우선순위: thumbnail_data.text > best_combo > ai_prompts.A > 제목
                     fallback_text = ''
-                    if best_combo:
+                    fallback_sub = ''
+                    if news_thumbnail_text.get('line1'):
+                        fallback_text = news_thumbnail_text.get('line1', '')
+                        fallback_sub = news_thumbnail_text.get('line2', '')
+                    elif best_combo:
                         fallback_text = best_combo.get('chosen_thumbnail_text', '')
                     if not fallback_text and ai_prompts and ai_prompts.get('A'):
                         fallback_text = ai_prompts['A'].get('text_overlay', {}).get('main', '')
@@ -18435,7 +18467,7 @@ NO photorealistic."""
                         fallback_text = (title or '')[:10]
                     thumb_prompt = {
                         "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
-                        "text_overlay": {"main": fallback_text, "sub": ""}
+                        "text_overlay": {"main": fallback_text, "sub": fallback_sub}
                     }
 
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
