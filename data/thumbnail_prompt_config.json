@@ -42,7 +42,7 @@
     }
   },
 
-  "image_generation_prompt_template": "Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).\n\n★★★ MOST IMPORTANT - LAYOUT ★★★\n1. Character in UPPER 65% of frame ONLY\n2. BOTTOM 35% must be EMPTY with PLAIN SOLID COLOR (black, dark blue, or dark gray)\n3. Character positioned CENTER-TOP\n\n★★★ BANNED ELEMENTS (will reject image if present) ★★★\n- BANNED: Yellow bars, yellow rectangles, yellow banners\n- BANNED: Emergency tape, caution tape, police tape\n- BANNED: Ribbons, decorative strips, diagonal lines\n- BANNED: Text, letters, words, signs, labels\n- BANNED: News tickers, headlines, lower thirds with text\n- BANNED: Any decorative overlay elements\n\n★★★ REQUIRED STYLE ★★★\n- {character_nationality} webtoon/manhwa illustration\n- Clean bold outlines, flat vibrant colors\n- Exaggerated expression (surprised, shocked, worried)\n- 30-50 year old {character_desc}\n- Simple background related to topic (courtroom, office, etc.)\n\n★★★ BOTTOM AREA REQUIREMENT ★★★\nThe bottom 35% of the image MUST be:\n- Completely empty OR\n- Simple solid dark color OR\n- Simple gradient (dark)\nThis area is reserved for text overlay via PIL (not AI generated text).\n\nScene description:\n{clean_prompt}\n\n{text_instruction}\n\nFINAL CHECK:\n✓ Is bottom 35% empty/plain? (REQUIRED)\n✓ No yellow bars/tape anywhere? (REQUIRED)\n✓ No text/letters in image? (REQUIRED)\n✓ Webtoon style character? (REQUIRED)",
+  "image_generation_prompt_template": "Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).\n\n★★★ CRITICAL STYLE: {character_nationality_upper} WEBTOON/MANHWA ILLUSTRATION ★★★\n\nCHARACTER REQUIREMENTS:\n- {character_nationality} webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)\n- EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)\n- 30-40 year old {character_desc} (match the content)\n- Clean bold outlines, vibrant flat colors\n- Comic-style expression marks (sweat drops, impact lines, exclamation marks)\n\nBACKGROUND REQUIREMENTS:\n- Background related to the topic/situation\n- Comic-style effect lines (radial lines, impact effects)\n- Bright, vibrant colors\n\nCOMPOSITION:\n- Character on right side or center\n- Leave space on left for text overlay\n- Background elements explain the situation\n\nSubject/Scene:\n{clean_prompt}\n\n{text_instruction}\n\nMANDATORY KEYWORDS TO USE:\n- \"{character_nationality} webtoon style illustration\"\n- \"exaggerated shocked expression\" or \"surprised face\"\n- \"comic style, clean lines, vibrant colors\"\n- \"manhwa/webtoon style\"\n\nABSOLUTE RESTRICTIONS:\n- NO photorealistic style\n- NO stickman\n- NO 3D render\n- MUST be {character_nationality} webtoon/manhwa illustration style",
 
   "few_shot_enabled": true,
   "few_shot_count": 5,
@@ -51,22 +51,5 @@
     "analysis_model": "gpt-5.1",
     "image_model": "google/gemini-3-pro-image-preview",
     "temperature": 0.8
-  },
-
-  "text_overlay_settings": {
-    "description": "PIL 텍스트 오버레이 위치/스타일 설정 (시니어 최적화)",
-    "position": "bottom_center",
-    "text_area_top": 0.70,
-    "text_area_bottom": 0.95,
-    "x_align": "center",
-    "main_font_size_ratio": 0.14,
-    "sub_font_size_ratio": 0.09,
-    "line_spacing_ratio": 0.02,
-    "auto_fit": true,
-    "outline_width": 4,
-    "colors": {
-      "news": {"main": [255, 255, 0], "sub": [255, 255, 255], "outline": [0, 0, 0]},
-      "story": {"main": [255, 215, 0], "sub": [255, 255, 255], "outline": [0, 0, 0]}
-    }
   }
 }

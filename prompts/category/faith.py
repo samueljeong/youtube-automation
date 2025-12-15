@@ -54,45 +54,6 @@ FAITH_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### ⚠️ THUMBNAIL TEXT RULES (주어 필수!)
-
-**RULE #0: SUBJECT NOUN IS MANDATORY**
-```
-Thumbnail text MUST include an explicit subject noun.
-The viewer may read ONLY the thumbnail text.
-If the subject is unclear, the thumbnail FAILS.
-```
-
-**Text Structure:**
-```
-[성경인물/본문/신앙주제(명사)] + [상황/의문/행위]
-```
-
-**❌ BANNED (주어 없음):**
-- "왜 두려워했나" → 누가?
-- "왜 이런 선택을 했나" → 누가?
-- "이 상황에서 무엇을 하셨나" → 누가?
-
-**✅ CORRECT (주어 명시):**
-- "다윗은 왜 이런 선택을 했나"
-- "베드로는 왜 두려워했나"
-- "요나는 왜 도망쳤나"
-- "하나님은 이 상황에서 무엇을 하셨나"
-- "이 말씀은 무엇을 말하나"
-
-**Text Length (시니어 기준):**
-- 14-22 chars recommended
-- 2 lines OK: [Subject] / [Question/Situation]
-
-**Example Patterns:**
-1. "다윗은 왜 이런 선택을 했나"
-2. "베드로는 왜 두려워했나"
-3. "이 본문은 왜 기록됐나"
-4. "이 말씀은 오늘 우리와 어떤 관계가 있나"
-5. "하나님은 이 상황에서 무엇을 하셨나"
-
----
-
 ### Thumbnail Style: COMIC STYLE (문화권에 맞게)
 ⚠️ Respectful, warm tone - avoid overly dramatic expressions
 ⚠️ Character shows contemplative, peaceful, or hopeful expression
