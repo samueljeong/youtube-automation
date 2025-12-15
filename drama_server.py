@@ -16353,12 +16353,15 @@ def api_thumbnail_ai_generate():
         if main_text:
             text_instruction = f"""
 IMPORTANT TEXT OVERLAY INSTRUCTIONS:
-- Add large, bold Korean text "{main_text}" prominently in the image
-- Text should be highly visible with strong contrast (white text with black outline or vice versa)
-- Text position: center or top area of the image
+- Add VERY LARGE, BOLD Korean text "{main_text}" on the LEFT side of the image
+- Text style: WHITE text with THICK BLACK outline (3-4px stroke)
+- Text size: EXTRA LARGE, taking up 30-40% of image width
+- Text position: LEFT side, vertically centered
+- Split into 2-4 short lines (3-6 characters per line) for maximum impact
+- Add comic-style emphasis marks (!! or exclamation effects) if appropriate
 """
             if sub_text:
-                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text\n'
+                text_instruction += f'- Add subtitle "{sub_text}" below main text (smaller but still bold)\n'
 
         # 최종 프롬프트 구성
         enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
@@ -16764,11 +16767,13 @@ def api_thumbnail_ai_generate_both():
             if main_text:
                 text_instruction = f"""
 IMPORTANT TEXT OVERLAY:
-- Add large, bold Korean text "{main_text}" prominently
-- High contrast (white text with black outline)
+- Add VERY LARGE, BOLD Korean text "{main_text}" on the LEFT side
+- Text style: WHITE text with THICK BLACK outline
+- Split into 2-4 short lines (3-6 chars each) for maximum impact
+- Add comic emphasis marks (!! effects) if appropriate
 """
                 if sub_text:
-                    text_instruction += f'- Subtitle: "{sub_text}"\n'
+                    text_instruction += f'- Subtitle: "{sub_text}" (below main text)\n'
 
             enhanced_prompt = f"""Create a YouTube thumbnail (16:9 landscape).
 
