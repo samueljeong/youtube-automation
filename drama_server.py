@@ -10930,25 +10930,45 @@ def api_image_generate_assets_zip():
             # SSML 감지: SSML이면 TTS는 전체로 처리하여 감정 표현 유지
             has_ssml = is_ssml_content(narration)
 
-            # ★ VRCS: subtitle_text가 있으면 짧은 핵심 자막 사용
-            vrcs_subtitle = scene.get('subtitle_text', '').strip()
+            # ★ VRCS 2.0: subtitle_segments로 문장별 ON/OFF 제어
+            subtitle_segments = scene.get('subtitle_segments', [])
 
             # 자막용 텍스트 분할 (SSML 태그 제거 후)
             plain_narration = strip_ssml_tags(narration) if has_ssml else narration
-            if vrcs_subtitle:
-                # VRCS 모드: GPT가 생성한 짧은 자막 사용 (14자 이내)
-                subtitle_sentences = [vrcs_subtitle]
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: VRCS 자막 사용 - '{vrcs_subtitle}'")
+
+            # VRCS 모드 여부 판단
+            vrcs_mode = bool(subtitle_segments)
+
+            if vrcs_mode:
+                # ★ VRCS 2.0 모드: 문장별 자막 ON/OFF 제어
+                # TTS용 문장 = subtitle_segments의 모든 sentence
+                tts_sentences = [seg.get('sentence', '') for seg in subtitle_segments if seg.get('sentence')]
+                # 자막용 = subtitle_on=true인 문장의 subtitle_text만
+                subtitle_map = {}  # {sentence_idx: subtitle_text}
+                for idx, seg in enumerate(subtitle_segments):
+                    if seg.get('subtitle_on') and seg.get('subtitle_text'):
+                        subtitle_map[idx] = seg.get('subtitle_text', '')
+
+                vrcs_on_count = len(subtitle_map)
+                vrcs_total_count = len(subtitle_segments)
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: VRCS 2.0 모드 - {vrcs_on_count}/{vrcs_total_count} 문장 자막 ON")
             else:
-                # 기존 모드: narration을 문장별로 분할
-                subtitle_sentences = split_sentences(plain_narration, detected_lang)
-                if not subtitle_sentences:
-                    subtitle_sentences = [plain_narration]
+                # 기존 모드 (fallback): narration을 문장별로 분할, 모든 문장 자막화
+                tts_sentences = split_sentences(plain_narration, detected_lang)
+                if not tts_sentences:
+                    tts_sentences = [plain_narration]
+                subtitle_map = {}  # 기존 모드에서는 모든 문장 자막화
+                for idx, sent in enumerate(tts_sentences):
+                    subtitle_map[idx] = sent  # 원문 그대로 자막
 
             scene_audios = []
             scene_start_time = current_time  # 씬 시작 시간
             scene_subtitles = []  # 씬 내 상대적 자막 타이밍
             scene_relative_time = 0.0
+
+            # ★ VRCS 타이밍 상수
+            VRCS_SUBTITLE_LEAD = 0.3  # 자막이 TTS보다 0.3초 먼저 시작
+            VRCS_SUBTITLE_TRAIL = 0.2  # 자막이 TTS보다 0.2초 늦게 끝남
 
             if has_ssml:
                 # ★ SSML 모드: 전체 나레이션을 하나의 TTS로 처리 (감정 표현 유지!)
@@ -10962,55 +10982,52 @@ def api_image_generate_assets_zip():
                     scene_audios.append(audio_bytes)
                     all_sentence_audios.append((scene_idx, 0, audio_bytes))
 
-                    # 자막 타이밍: 문장 글자 수 비율로 분배
-                    total_chars = sum(len(s) for s in subtitle_sentences)
+                    # 문장별 duration 계산 (글자 수 비율)
+                    if vrcs_mode:
+                        sentences_for_timing = tts_sentences
+                    else:
+                        sentences_for_timing = tts_sentences
+
+                    total_chars = sum(len(s) for s in sentences_for_timing)
                     if total_chars == 0:
                         total_chars = 1
 
-                    for sent_idx, sentence in enumerate(subtitle_sentences):
+                    for sent_idx, sentence in enumerate(sentences_for_timing):
                         # 글자 수 비율로 duration 계산
                         char_ratio = len(sentence) / total_chars
                         sent_duration = total_duration * char_ratio
 
-                        # ★ 자막 길이 설정: lang/*.py에서 관리
-                        if detected_lang == 'ja':
-                            max_subtitle_chars = lang_ja.SUBTITLE['max_chars_total']
-                        elif detected_lang == 'en':
-                            max_subtitle_chars = lang_en.SUBTITLE['max_chars_total']
-                        else:
-                            max_subtitle_chars = lang_ko.SUBTITLE['max_chars_total']
-                        if len(sentence) <= max_subtitle_chars:
-                            subtitle_parts = [sentence]
-                        else:
-                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars, detected_lang)
+                        # ★ VRCS 2.0: subtitle_on=true인 문장만 자막 추가
+                        if sent_idx in subtitle_map:
+                            subtitle_text = subtitle_map[sent_idx]
 
-                        # 분리된 자막에 비율로 타이밍 분배
-                        part_total_chars = sum(len(p) for p in subtitle_parts)
-                        if part_total_chars == 0:
-                            part_total_chars = 1
-                        part_start = current_time
-                        part_relative_start = scene_relative_time
-
-                        for part in subtitle_parts:
-                            part_ratio = len(part) / part_total_chars
-                            part_duration = sent_duration * part_ratio
+                            # ★ VRCS 타이밍: 자막이 0.3초 먼저 시작, 0.2초 늦게 끝남
+                            sub_start = max(0, current_time - VRCS_SUBTITLE_LEAD)
+                            sub_end = current_time + sent_duration + VRCS_SUBTITLE_TRAIL
+                            sub_relative_start = max(0, scene_relative_time - VRCS_SUBTITLE_LEAD)
+                            sub_relative_end = scene_relative_time + sent_duration + VRCS_SUBTITLE_TRAIL
 
                             srt_entries.append({
                                 'index': len(srt_entries) + 1,
-                                'start': part_start,
-                                'end': part_start + part_duration,
-                                'text': part
+                                'start': sub_start,
+                                'end': sub_end,
+                                'text': subtitle_text
                             })
                             scene_subtitles.append({
-                                'start': part_relative_start,
-                                'end': part_relative_start + part_duration,
-                                'text': part
+                                'start': sub_relative_start,
+                                'end': sub_relative_end,
+                                'text': subtitle_text
                             })
 
-                            part_start += part_duration
-                            part_relative_start += part_duration
+                            if vrcs_mode:
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - 자막 ON - '{subtitle_text}'")
+                            else:
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - {sentence[:30]}...")
+                        else:
+                            # 자막 OFF - TTS만 재생
+                            if vrcs_mode:
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - 자막 OFF")
 
-                        print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s (비례) - {len(subtitle_parts)}자막 - {sentence[:30]}...")
                         current_time += sent_duration
                         scene_relative_time += sent_duration
                 else:
@@ -11019,7 +11036,7 @@ def api_image_generate_assets_zip():
 
             if not has_ssml:
                 # 일반 모드: 문장별 TTS 생성 (정확한 싱크)
-                sentences = subtitle_sentences
+                sentences = tts_sentences
                 print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
 
                 for sent_idx, sentence in enumerate(sentences):
@@ -11029,45 +11046,39 @@ def api_image_generate_assets_zip():
                         duration = get_mp3_duration(audio_bytes)
                         scene_audios.append(audio_bytes)
 
-                        # ★ 자막 길이 설정: lang/*.py에서 관리
-                        if detected_lang == 'ja':
-                            max_subtitle_chars = lang_ja.SUBTITLE['max_chars_total']
-                        elif detected_lang == 'en':
-                            max_subtitle_chars = lang_en.SUBTITLE['max_chars_total']
-                        else:
-                            max_subtitle_chars = lang_ko.SUBTITLE['max_chars_total']
-                        if len(sentence) <= max_subtitle_chars:
-                            subtitle_parts = [sentence]
-                        else:
-                            subtitle_parts = split_by_meaning_fallback(sentence, max_subtitle_chars, detected_lang)
+                        # ★ VRCS 2.0: subtitle_on=true인 문장만 자막 추가
+                        if sent_idx in subtitle_map:
+                            subtitle_text = subtitle_map[sent_idx]
 
-                        # 글자 수 비율로 타이밍 분배
-                        total_chars = sum(len(p) for p in subtitle_parts)
-                        if total_chars == 0:
-                            total_chars = 1
-                        part_start = current_time
-                        part_relative_start = scene_relative_time
-
-                        for part in subtitle_parts:
-                            part_ratio = len(part) / total_chars
-                            part_duration = duration * part_ratio
+                            # ★ VRCS 타이밍: 자막이 0.3초 먼저 시작, 0.2초 늦게 끝남
+                            sub_start = max(0, current_time - VRCS_SUBTITLE_LEAD)
+                            sub_end = current_time + duration + VRCS_SUBTITLE_TRAIL
+                            sub_relative_start = max(0, scene_relative_time - VRCS_SUBTITLE_LEAD)
+                            sub_relative_end = scene_relative_time + duration + VRCS_SUBTITLE_TRAIL
 
                             srt_entries.append({
                                 'index': len(srt_entries) + 1,
-                                'start': part_start,
-                                'end': part_start + part_duration,
-                                'text': part
+                                'start': sub_start,
+                                'end': sub_end,
+                                'text': subtitle_text
                             })
                             scene_subtitles.append({
-                                'start': part_relative_start,
-                                'end': part_relative_start + part_duration,
-                                'text': part
+                                'start': sub_relative_start,
+                                'end': sub_relative_end,
+                                'text': subtitle_text
                             })
 
-                            part_start += part_duration
-                            part_relative_start += part_duration
+                            if vrcs_mode:
+                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - 자막 ON - '{subtitle_text}'")
+                            else:
+                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                        else:
+                            # 자막 OFF - TTS만 재생
+                            if vrcs_mode:
+                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - 자막 OFF")
+                            else:
+                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
 
-                        print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {len(subtitle_parts)}자막 - {sentence[:30]}...")
                         current_time += duration
                         scene_relative_time += duration
 
@@ -11462,7 +11473,10 @@ def _update_job_status(job_id, **kwargs):
                 json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
-    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리"""
+    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리
+
+    VRCS 2.0: 시니어 시청자를 위해 큰 폰트 사이즈 사용 (52px)
+    """
     # 유튜브 스타일: 노란색 텍스트 + 검은색 테두리 (가독성 최우선)
     # BorderStyle=1: 테두리 + 그림자 (박스 아님)
     # Outline=4: 두꺼운 검은색 테두리
@@ -11471,11 +11485,12 @@ def _get_subtitle_style(lang):
     # OutlineColour=&H00000000: 검은색 테두리
     if lang == 'ko':
         # 한국어: lang/ko.py에서 관리하는 폰트 사용
+        # VRCS 2.0: 시니어용 큰 폰트 (52px)
         font_name = lang_ko.FONTS['default_name']
         return (
-            f"FontName={font_name},FontSize=28,PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize=52,PrimaryColour=&H00FFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+            "BorderStyle=1,Outline=5,Shadow=3,MarginV=50,Bold=1"
         )
     elif lang == 'ja':
         # 일본어: lang/ja.py에서 관리하는 폰트 사용
@@ -14302,30 +14317,12 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             # 기본 자막 필터 (ASS 형식은 force_style 불필요 - 파일에 스타일 포함)
             vf_filter = f"ass={ass_escaped}:fontsdir={fonts_escaped}"
 
-            # 화면 텍스트 오버레이 추가 (screen_overlays) - 나레이션 싱크 적용
-            screen_overlays = video_effects.get('screen_overlays', [])
-            if screen_overlays:
-                # all_subtitles를 전달하여 나레이션 타이밍과 동기화
-                overlay_filter = _generate_screen_overlay_filter(screen_overlays, scenes, fonts_dir, subtitles=all_subtitles, lang=detected_lang)
-                if overlay_filter:
-                    vf_filter = f"{vf_filter},{overlay_filter}"
-                    print(f"[VIDEO-WORKER] 화면 오버레이 {len(screen_overlays)}개 추가 (나레이션 싱크, lang={detected_lang})")
-
-            # 로워서드 오버레이 추가 (lower_thirds)
-            lower_thirds = video_effects.get('lower_thirds', [])
-            if lower_thirds:
-                lt_filter = _generate_lower_thirds_filter(lower_thirds, scenes, fonts_dir, lang=detected_lang)
-                if lt_filter:
-                    vf_filter = f"{vf_filter},{lt_filter}"
-                    print(f"[VIDEO-WORKER] 로워서드 {len(lower_thirds)}개 추가 (lang={detected_lang})")
-
-            # 뉴스 티커 추가 (news_ticker)
-            news_ticker = video_effects.get('news_ticker', {})
-            if news_ticker and news_ticker.get('enabled'):
-                ticker_filter = _generate_news_ticker_filter(news_ticker, current_time, fonts_dir, lang=detected_lang)
-                if ticker_filter:
-                    vf_filter = f"{vf_filter},{ticker_filter}"
-                    print(f"[VIDEO-WORKER] 뉴스 티커 추가 (헤드라인 {len(news_ticker.get('headlines', []))}개, lang={detected_lang})")
+            # ★ VRCS 2.0: screen_overlays, lower_thirds, news_ticker 비활성화
+            # 정보 전달 효과가 낮고 화면을 어지럽힘
+            # screen_overlays = video_effects.get('screen_overlays', [])  # 비활성화
+            # lower_thirds = video_effects.get('lower_thirds', [])  # 비활성화
+            # news_ticker = video_effects.get('news_ticker', {})  # 비활성화
+            print(f"[VIDEO-WORKER] VRCS 2.0: screen_overlays, lower_thirds, news_ticker 비활성화됨")
 
             print(f"[VIDEO-WORKER] ASS path: {ass_abs_path}")
             print(f"[VIDEO-WORKER] VF filter 길이: {len(vf_filter)} chars")
@@ -18279,7 +18276,7 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                         "scene_number": i + 1,
                         "text": scene.get('narration', ''),
                         "image_url": scene.get('image_url', ''),
-                        "subtitle_text": scene.get('subtitle_text', '')  # VRCS 짧은 자막
+                        "subtitle_segments": scene.get('subtitle_segments', [])  # VRCS 2.0 문장별 자막
                     })
 
                 assets_resp = req.post(f"{base_url}/api/image/generate-assets-zip", json={

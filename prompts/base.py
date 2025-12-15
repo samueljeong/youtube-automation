@@ -113,14 +113,16 @@ VIDEO_EFFECTS_STRUCTURE = """
   "bgm_mood": "base mood",
   "scene_bgm_changes": [{"scene": N, "mood": "...", "reason": "..."}],
   "subtitle_highlights": [{"keyword": "...", "color": "#FF0000"}],
-  "screen_overlays": [{"scene": N, "text": "1-4 chars", "duration": 3, "style": "impact"}],
   "sound_effects": [{"scene": N, "type": "...", "moment": "..."}],
-  "lower_thirds": [{"scene": N, "text": "...", "position": "bottom-left"}],
-  "news_ticker": {"enabled": true/false, "headlines": ["...", "..."]},
   "shorts": {"highlight_scenes": [N, M], "hook_text": "...", "title": "... #Shorts"},
   "transitions": {"style": "crossfade", "duration": 0.5},
   "first_comment": "engaging question (50-100 chars)"
 }
+
+⚠️ REMOVED FEATURES (DO NOT GENERATE):
+- screen_overlays: 사용하지 않음
+- lower_thirds: 사용하지 않음
+- news_ticker: 사용하지 않음
 """
 
 # 유튜브 메타데이터 출력 구조
@@ -164,7 +166,21 @@ SCENE_STRUCTURE = """
     "scene_number": 1,
     "chapter_title": "short title (5-15 chars)",
     "narration": "<speak>EXACT original script text with SSML tags</speak>",
-    "subtitle_text": "핵심 키워드만 14자 이내 (VRCS 규칙 적용)",
+    "subtitle_segments": [
+      {
+        "sentence": "First sentence from narration (exact text, no SSML)",
+        "subtitle_on": false
+      },
+      {
+        "sentence": "Second sentence with important info (numbers, dates, names)",
+        "subtitle_on": true,
+        "subtitle_text": "핵심 14자 요약"
+      },
+      {
+        "sentence": "Third sentence (background or emotion)",
+        "subtitle_on": false
+      }
+    ],
     "image_prompt": "[Culture-appropriate] comic style illustration... (see LANGUAGE section for template)",
     "ken_burns": "zoom_in | zoom_out | pan_left | pan_right | pan_up | pan_down"
   }
@@ -175,12 +191,44 @@ CRITICAL: "narration" MUST contain EXACT text from the script!
 - COPY-PASTE the exact sentences
 - ADD SSML tags for emotion
 
-CRITICAL: "subtitle_text" is SHORT version for on-screen display!
-- Extract KEY NOUNS only (names, numbers, actions)
-- Remove particles: 이/가/을/를/은/는/에서/으로
-- Remove endings: ~습니다/~겠습니다
-- MAX 14 characters (Korean), 1 line only
-- Example: "특검에 따르면 정보사 요원들이 선관위 직원 30여 명을 체포" → "정보사 선관위 30명 체포"
+## VRCS SUBTITLE RULES (문장별 자막 ON/OFF)
+
+### subtitle_segments 생성 규칙
+1. narration을 문장 단위로 분리 (마침표, 물음표, 느낌표 기준)
+2. 각 문장에 대해 subtitle_on 판단 (아래 조건 참고)
+3. subtitle_on=true인 문장만 subtitle_text 생성 (14자 이내 요약)
+
+### subtitle_on = TRUE 조건 (하나라도 충족 시)
+- 전환어 포함: "그런데", "하지만", "정리하면", "중요한 건", "핵심은", "여기서"
+- 고밀도 정보: 숫자, 날짜, 고유명사, 비교 표현
+- 긴 문장: 예상 TTS 3.5초 이상 (약 50자 이상)
+
+### subtitle_on = FALSE 조건
+- 감정 묘사만 있는 문장
+- 단순 배경 설명
+- 이미 반복된 내용
+- 시각적으로 명확한 상황
+
+### 자막 밀도 규칙 (CRITICAL!)
+- 약 3문장 중 1개만 subtitle_on=true
+- 절대 모든 문장에 자막 금지 (all_sentences: never)
+- 씬당 subtitle_on=true 문장은 1-2개로 제한
+
+### subtitle_text 변환 규칙
+1. 조사 제거: 이/가/을/를/은/는/에서/으로
+2. 어미 제거: ~습니다/~겠습니다/~드립니다
+3. 접속사 제거: 그리고/그래서/또한/다음으로
+4. 핵심만 유지: 숫자, 이름, 날짜, 핵심 명사
+5. MAX 14자 (Korean)
+6. 명사구 형태 (문장 아님)
+
+### 변환 예시
+| 원문 (sentence) | subtitle_on | subtitle_text |
+|----------------|-------------|---------------|
+| "1월 초에 결심공판을 거쳐서 2월 중순에 1심 선고가 예상됩니다" | true | "2월 중순 1심 선고" |
+| "곽종근 전 특수전사령관이 법정에서 증언했습니다" | true | "곽종근 전 사령관 증언" |
+| "이 소식에 많은 사람들이 놀랐습니다" | false | (없음) |
+| "정말 충격적인 상황이었습니다" | false | (없음) |
 """
 
 # 전체 출력 JSON 구조
