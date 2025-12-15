@@ -16535,10 +16535,11 @@ def api_thumbnail_ai_history():
 def api_thumbnail_ai_generate_single():
     """
     단일 썸네일 생성 (자동화 파이프라인용 - A 하나만 생성)
+    ★ PIL로 텍스트 오버레이 합성 (AI가 텍스트 렌더링하면 깨지므로)
     """
     try:
         import base64
-        from PIL import Image
+        from PIL import Image, ImageDraw, ImageFont
         import io
 
         data = request.get_json() or {}
@@ -16546,11 +16547,12 @@ def api_thumbnail_ai_generate_single():
         session_id = data.get('session_id', '')
         category = data.get('category', '')
         lang = data.get('lang', 'ko')
+        style = prompt_data.get('style', '')  # 'news' 등
 
         if not prompt_data.get('prompt'):
             return jsonify({"ok": False, "error": "prompt 필드가 필요합니다"}), 400
 
-        print(f"[THUMBNAIL-AI] 단일 썸네일 생성 - 세션: {session_id}, 카테고리: {category}")
+        print(f"[THUMBNAIL-AI] 단일 썸네일 생성 - 세션: {session_id}, 카테고리: {category}, 스타일: {style}")
 
         prompt = prompt_data.get('prompt', '')
         text_overlay = prompt_data.get('text_overlay', {})
@@ -16563,24 +16565,23 @@ def api_thumbnail_ai_generate_single():
             'en': ("Western", "Western man or woman"),
         }
         character_nationality, character_desc = lang_config.get(lang, ("Korean", "Korean man or woman"))
-        text_lang = {"ja": "Japanese", "en": "English"}.get(lang, "Korean")
-
-        text_instruction = ""
-        if main_text:
-            text_instruction = f"""
-IMPORTANT TEXT OVERLAY:
-- Add large, bold {text_lang} text "{main_text}" prominently
-- High contrast (white text with black outline)
-"""
-            if sub_text:
-                text_instruction += f'- Subtitle: "{sub_text}"\n'
 
         # 프롬프트에서 불필요한 키워드 제거
         clean_prompt = prompt
         for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
             clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-        enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
+        # ★ 뉴스 스타일이거나 프롬프트에 이미 상세 지시가 있으면 그대로 사용
+        if style == 'news' or 'webtoon style illustration' in clean_prompt.lower():
+            # 뉴스/이슈 해설용 - 프롬프트 그대로 사용 (이미 상세하게 작성됨)
+            # 텍스트는 PIL로 합성하므로 NO text 강제
+            enhanced_prompt = clean_prompt
+            if 'NO text' not in enhanced_prompt.upper():
+                enhanced_prompt += "\n\nABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image."
+            print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 텍스트는 PIL로 합성")
+        else:
+            # 일반 스토리용 - 기존 웹툰 스타일 프롬프트
+            enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
 
 ★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
 
@@ -16596,9 +16597,7 @@ COMPOSITION: Character on right/center, leave space on left for text
 Subject/Scene:
 {clean_prompt}
 
-{text_instruction}
-
-ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render
+ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render, NO text, NO letters, NO words
 MUST be {character_nationality} webtoon/manhwa illustration style"""
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
@@ -16610,29 +16609,110 @@ MUST be {character_nationality} webtoon/manhwa illustration style"""
         if not base64_image_data:
             return jsonify({"ok": False, "error": "이미지 데이터 추출 실패"})
 
-        # 이미지 처리 및 저장
+        # 이미지 처리
         upload_dir = "uploads/thumbnails"
         os.makedirs(upload_dir, exist_ok=True)
 
         image_bytes = base64.b64decode(base64_image_data)
         img = Image.open(io.BytesIO(image_bytes))
 
-        # RGB 변환
+        # RGBA 변환 (텍스트 오버레이용)
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+
+        # 리사이즈 (1280x720 고정)
+        target_width, target_height = 1280, 720
+        if img.width != target_width or img.height != target_height:
+            img = img.resize((target_width, target_height), Image.LANCZOS)
+
+        width, height = img.size
+
+        # ★ PIL로 텍스트 오버레이 합성
+        if main_text:
+            try:
+                draw = ImageDraw.Draw(img)
+
+                # 폰트 로드 (NanumSquareRoundB 또는 NanumGothicBold 우선)
+                font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+                font_priority = [
+                    'NanumSquareRoundB.ttf',
+                    'NanumGothicBold.ttf',
+                    'Pretendard-Bold.ttf',
+                    'NanumSquareB.ttf',
+                ]
+
+                # 메인 텍스트 폰트 크기 (이미지 높이의 10-12%)
+                main_font_size = int(height * 0.11)
+                sub_font_size = int(height * 0.07)
+
+                main_font = None
+                sub_font = None
+                for font_name in font_priority:
+                    font_path = os.path.join(font_dir, font_name)
+                    if os.path.exists(font_path):
+                        try:
+                            main_font = ImageFont.truetype(font_path, main_font_size)
+                            sub_font = ImageFont.truetype(font_path, sub_font_size)
+                            print(f"[THUMBNAIL-AI] 폰트 로드: {font_name}")
+                            break
+                        except Exception as font_err:
+                            print(f"[THUMBNAIL-AI] 폰트 로드 실패: {font_name} - {font_err}")
+                            continue
+
+                if not main_font:
+                    main_font = ImageFont.load_default()
+                    sub_font = ImageFont.load_default()
+                    print("[THUMBNAIL-AI] 기본 폰트 사용 (한글 미지원 가능)")
+
+                # 색상 설정 (뉴스: 흰색+검정 외곽선, 스토리: 노란색+검정 외곽선)
+                if style == 'news' or category == 'news':
+                    text_color = (255, 255, 255)  # 흰색
+                else:
+                    text_color = (255, 215, 0)  # 노란색 (골드)
+                outline_color = (0, 0, 0)  # 검정 외곽선
+
+                # 텍스트 위치 계산 (왼쪽 상단, 여백 5%)
+                x_margin = int(width * 0.05)
+                y_start = int(height * 0.15)
+
+                # 외곽선 두께
+                outline_width = 3
+
+                def draw_text_with_outline(draw, position, text, font, fill, outline):
+                    """외곽선이 있는 텍스트 그리기"""
+                    x, y = position
+                    # 외곽선 (8방향)
+                    for dx in range(-outline_width, outline_width + 1):
+                        for dy in range(-outline_width, outline_width + 1):
+                            if dx != 0 or dy != 0:
+                                draw.text((x + dx, y + dy), text, font=font, fill=outline)
+                    # 메인 텍스트
+                    draw.text((x, y), text, font=font, fill=fill)
+
+                # 메인 텍스트 그리기
+                draw_text_with_outline(draw, (x_margin, y_start), main_text, main_font, text_color, outline_color)
+                print(f"[THUMBNAIL-AI] 메인 텍스트 합성: '{main_text}'")
+
+                # 서브 텍스트 그리기 (있으면)
+                if sub_text:
+                    y_sub = y_start + main_font_size + int(height * 0.03)
+                    draw_text_with_outline(draw, (x_margin, y_sub), sub_text, sub_font, text_color, outline_color)
+                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성: '{sub_text}'")
+
+            except Exception as text_err:
+                print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패 (무시): {text_err}")
+                import traceback
+                traceback.print_exc()
+
+        # RGB 변환 후 JPEG 저장
         if img.mode == 'RGBA':
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
             img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
 
-        # 리사이즈
-        if img.width > 1280 or img.height > 720:
-            img.thumbnail((1280, 720), Image.LANCZOS)
-
-        # JPEG로 저장
         filename = f"thumb_{session_id}.jpg"
         filepath = os.path.join(upload_dir, filename)
-        img.save(filepath, 'JPEG', quality=85, optimize=True)
+        img.save(filepath, 'JPEG', quality=90, optimize=True)
 
         file_size = os.path.getsize(filepath)
         print(f"[THUMBNAIL-AI] 썸네일 저장: {filepath} ({file_size / 1024:.1f}KB)")
@@ -18315,8 +18395,79 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 is_news = detected_category == 'news'
                 print(f"[AUTOMATION][THUMB] GPT 감지 카테고리: {detected_category} → {'뉴스' if is_news else '스토리(웹툰)'} 스타일")
 
+                # ★ 뉴스 카테고리: 새로운 thumbnail 구조 활용 (이슈 해설 채널용)
+                news_thumbnail_text = thumbnail_data.get('text', {})
+                news_image_spec = thumbnail_data.get('image_spec', {})
+                news_keywords = thumbnail_data.get('keywords', {})
+
+                if is_news and news_image_spec:
+                    # 새로운 뉴스 썸네일 구조 사용
+                    print(f"[AUTOMATION][THUMB] 뉴스 이슈 해설 스타일 - 새 구조 사용")
+
+                    # image_spec에서 설정 추출
+                    has_face = news_image_spec.get('face', True)
+                    scene_type = news_image_spec.get('scene', 'generic')
+                    text_position = news_image_spec.get('text_position', 'left')
+                    expression = news_image_spec.get('expression', 'serious')
+
+                    # 텍스트 추출 (새 구조 우선, 없으면 best_combo 사용)
+                    line1 = news_thumbnail_text.get('line1', '')
+                    line2 = news_thumbnail_text.get('line2', '')
+                    if not line1 and best_combo:
+                        line1 = best_combo.get('chosen_thumbnail_text', '핵심 쟁점')
+
+                    # 키워드 로깅
+                    if news_keywords:
+                        print(f"[AUTOMATION][THUMB] 키워드: primary={news_keywords.get('primary', [])}, category={news_keywords.get('category_focus', '?')}")
+
+                    # scene 타입별 배경 설명
+                    scene_backgrounds = {
+                        'courtroom': 'courthouse or courtroom interior',
+                        'document': 'official documents, papers, or certificates',
+                        'chart': 'graphs, charts, or statistical data visualization',
+                        'city': 'city street or urban landscape',
+                        'office': 'government office or corporate building interior',
+                        'generic': 'professional news studio background'
+                    }
+                    scene_desc = scene_backgrounds.get(scene_type, scene_backgrounds['generic'])
+
+                    # 표정 맵핑 (뉴스 해설용 - 과장 금지)
+                    expression_map = {
+                        'serious': 'serious focused expression',
+                        'worried': 'concerned worried expression',
+                        'thinking': 'thoughtful contemplating expression',
+                        'confused': 'puzzled confused expression',
+                        'focused': 'attentive focused expression'
+                    }
+                    expression_desc = expression_map.get(expression, expression_map['serious'])
+
+                    # 프롬프트 생성 (face 유무에 따라 분기)
+                    if has_face:
+                        prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
+Korean webtoon character with {expression_desc} (NOT screaming, NOT exaggerated panic), 40-50 year old Korean man or woman in professional attire.
+Clean bold outlines, {scene_desc} background.
+Text space on {text_position} side (30% of frame).
+Credible news explainer tone, NOT sensational.
+NO extreme expression, NO text, NO letters, NO speech bubbles.
+NO photorealistic, NO stickman."""
+                    else:
+                        prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
+{scene_desc.capitalize()}, dramatic but credible news tone.
+Clean bold outlines, vibrant colors.
+Text space on {text_position} side (30% of frame).
+NO characters, focus on scene/objects.
+NO text, NO letters, NO signs, NO readable text.
+NO photorealistic."""
+
+                    thumb_prompt = {
+                        "prompt": prompt,
+                        "text_overlay": {"main": line1, "sub": line2},
+                        "style": "news"
+                    }
+                    print(f"[AUTOMATION][THUMB] 뉴스 썸네일: face={has_face}, scene={scene_type}, text='{line1}'")
+
                 # GPT가 생성한 ai_prompts.A 사용 (story 카테고리는 웹툰 스타일로 생성됨)
-                if ai_prompts and ai_prompts.get('A'):
+                elif ai_prompts and ai_prompts.get('A'):
                     thumb_prompt = ai_prompts.get('A').copy() if isinstance(ai_prompts.get('A'), dict) else ai_prompts.get('A')
                     # best_combo에서 선택된 텍스트가 있으면 text_overlay에 적용
                     if best_combo and best_combo.get('chosen_thumbnail_text'):
@@ -18330,12 +18481,13 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                             print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
                     print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (스타일: {thumb_prompt.get('style', 'unknown')})")
                 elif is_news:
-                    # 폴백: 뉴스 스타일 프롬프트
-                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 스타일 프롬프트")
-                    fallback_text = best_combo.get('chosen_thumbnail_text', '뉴스 헤드라인') if best_combo else '뉴스 헤드라인'
+                    # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때)
+                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 웹툰 스타일 프롬프트")
+                    fallback_text = best_combo.get('chosen_thumbnail_text', '핵심 쟁점') if best_combo else '핵심 쟁점'
                     thumb_prompt = {
-                        "prompt": "Korean TV news broadcast YouTube thumbnail. 16:9 aspect ratio. Large bold Korean headline text in WHITE or YELLOW. Dark blue gradient background. Professional broadcast journalism aesthetic.",
-                        "text_overlay": {"main": fallback_text, "sub": ""}
+                        "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit. Clean bold outlines, news studio background. Text space on left side. Credible news explainer tone. NO photorealistic, NO stickman.",
+                        "text_overlay": {"main": fallback_text, "sub": ""},
+                        "style": "news"
                     }
                 else:
                     # 폴백: 웹툰 스타일 프롬프트
