@@ -16579,27 +16579,26 @@ def api_thumbnail_ai_generate_single():
         text_instruction = ""
         if main_text:
             text_instruction = f"""
-IMPORTANT TEXT OVERLAY INSTRUCTIONS:
-- Add large, bold Korean text "{main_text}" prominently in the image
-- Text should be highly visible with strong contrast (white text with black outline or vice versa)
-- Text position: center or top area of the image
+★ TEXT REQUIREMENTS (CRITICAL!) ★
+- Add VERY LARGE, BOLD text "{main_text}" on LEFT side of image
+- Text color: PURE WHITE with THICK BLACK outline (3-4px stroke)
+- Split into 2-4 short lines for maximum impact
+- Text takes 30-40% of image width
+- NO yellow text, NO colored text - WHITE ONLY!
 """
             if sub_text:
-                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text\n'
+                text_instruction += f'- Subtitle below: "{sub_text}"\n'
 
         # 최종 프롬프트 구성
         enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
 
 {clean_prompt}
 
+LAYOUT: Character/subject on RIGHT side (30-40% of frame)
+
 {text_instruction}
 
-Style requirements:
-- High contrast, eye-catching colors
-- Professional YouTube thumbnail quality
-- Comic/illustration style (not photorealistic)
-- Clean composition suitable for small preview
-- {character_nationality} webtoon style"""
+Style: {character_nationality} webtoon style, comic illustration, clean bold outlines, vibrant colors. NOT photorealistic."""
 
         print(f"[THUMBNAIL-AI] Gemini 프롬프트 (텍스트 직접 생성): {enhanced_prompt[:200]}...")
 
@@ -18335,11 +18334,16 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     text_position = news_image_spec.get('text_position', 'left')
                     expression = news_image_spec.get('expression', 'serious')
 
-                    # 텍스트 추출 (새 구조 우선, 없으면 best_combo 사용)
+                    # 텍스트 추출 (우선순위: text.line1 > best_combo > ai_prompts.A > 제목)
                     line1 = news_thumbnail_text.get('line1', '')
                     line2 = news_thumbnail_text.get('line2', '')
                     if not line1 and best_combo:
-                        line1 = best_combo.get('chosen_thumbnail_text', '핵심 쟁점')
+                        line1 = best_combo.get('chosen_thumbnail_text', '')
+                    if not line1 and ai_prompts and ai_prompts.get('A'):
+                        line1 = ai_prompts['A'].get('text_overlay', {}).get('main', '')
+                    if not line1:
+                        # 최후 수단: 제목에서 앞 10자 사용
+                        line1 = (title or '')[:10]
 
                     # 키워드 로깅
                     if news_keywords:
