@@ -51,44 +51,6 @@ EDUCATION_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### ⚠️ THUMBNAIL TEXT RULES (주어 필수!)
-
-**RULE #0: SUBJECT NOUN IS MANDATORY**
-```
-Thumbnail text MUST include an explicit subject noun.
-The viewer may read ONLY the thumbnail text.
-If the subject is unclear, the thumbnail FAILS.
-```
-
-**Text Structure:**
-```
-[개념/현상/주제(명사)] + [상황/의문/행위]
-```
-
-**❌ BANNED (주어 없음):**
-- "왜 발생하나" → 무엇이?
-- "진짜 이유" → 무엇의?
-- "핵심 원리" → 무엇의?
-
-**✅ CORRECT (주어 명시):**
-- "이 현상은 왜 발생하나"
-- "이 개념은 어떻게 만들어졌나"
-- "이 원리는 왜 중요한가"
-- "이 구조는 어떻게 작동하나"
-
-**Text Length (시니어 기준):**
-- 14-22 chars recommended
-- 2 lines OK: [Subject] / [Question/Situation]
-
-**Example Patterns:**
-1. "이 현상은 왜 발생하나"
-2. "이 개념은 어떻게 만들어졌나"
-3. "이 방식은 왜 효과가 있나"
-4. "이 문제는 왜 반복되나"
-5. "이 차이는 왜 생기나"
-
----
-
 ### Thumbnail Style: COMIC STYLE (문화권에 맞게)
 ⚠️ Use comic/webtoon/manga style matching the script's language!
 ⚠️ Character shows "curious" or "explaining" expression
