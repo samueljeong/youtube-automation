@@ -16327,13 +16327,11 @@ def api_thumbnail_ai_analyze():
 def api_thumbnail_ai_generate():
     """
     Gemini 3 Pro Image로 썸네일 이미지 생성
-    ★ 텍스트 없이 이미지 생성 후 PIL로 한글 텍스트 오버레이 합성
+    한글 텍스트 렌더링 지원
     """
     try:
         import time
         import base64
-        from PIL import Image, ImageDraw, ImageFont
-        import io
 
         data = request.get_json() or {}
         prompt = data.get('prompt', '')
@@ -16347,32 +16345,39 @@ def api_thumbnail_ai_generate():
 
         print(f"[THUMBNAIL-AI] 이미지 생성 - 세션: {session_id}, 변형: {variant}")
 
+        # 텍스트 오버레이 지시 추가
         main_text = text_overlay.get('main', '')
         sub_text = text_overlay.get('sub', '')
 
-        # ★ 텍스트 없이 이미지만 생성하도록 프롬프트 수정
+        text_instruction = ""
+        if main_text:
+            text_instruction = f"""
+IMPORTANT TEXT OVERLAY INSTRUCTIONS:
+- Add VERY LARGE, BOLD Korean text "{main_text}" on the LEFT side of the image
+- Text style: WHITE text with THICK BLACK outline (3-4px stroke)
+- Text size: EXTRA LARGE, taking up 30-40% of image width
+- Text position: LEFT side, vertically centered
+- Split into 2-4 short lines (3-6 characters per line) for maximum impact
+- Add comic-style emphasis marks (!! or exclamation effects) if appropriate
+"""
+            if sub_text:
+                text_instruction += f'- Add subtitle "{sub_text}" below main text (smaller but still bold)\n'
+
+        # 최종 프롬프트 구성
         enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
 
 {prompt}
 
-COMPOSITION:
-- Character/subject on RIGHT side (30-40% of frame)
-- Leave LEFT side EMPTY (for text overlay to be added separately)
-- Background related to the topic
+{text_instruction}
 
 Style requirements:
 - High contrast, eye-catching colors
 - Professional YouTube thumbnail quality
 - Comic/illustration style (not photorealistic)
 - Clean composition suitable for small preview
-- {style} aesthetic
+- {style} aesthetic"""
 
-★★★ ABSOLUTE RESTRICTIONS ★★★
-- NO text, NO letters, NO words, NO numbers in the image
-- NO speech bubbles, NO signs, NO readable text anywhere
-- Text will be added separately using PIL"""
-
-        # Gemini 3 Pro로 이미지 생성 (텍스트 없이)
+        # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
         if not result.get("ok"):
             return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")}), 200
@@ -16381,118 +16386,16 @@ Style requirements:
         if not base64_image_data:
             return jsonify({"ok": False, "error": "이미지 데이터가 없습니다"}), 200
 
-        # 이미지 로드
-        image_bytes = base64.b64decode(base64_image_data)
-        img = Image.open(io.BytesIO(image_bytes))
-
-        # RGBA 변환
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
-
-        # 리사이즈 (1280x720)
-        target_width, target_height = 1280, 720
-        if img.width != target_width or img.height != target_height:
-            img = img.resize((target_width, target_height), Image.LANCZOS)
-
-        width, height = img.size
-
-        # ★ PIL로 텍스트 오버레이 합성
-        if main_text:
-            try:
-                draw = ImageDraw.Draw(img)
-
-                # 폰트 로드
-                font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
-                font_priority = [
-                    'NanumSquareRoundB.ttf',
-                    'NanumGothicBold.ttf',
-                    'Pretendard-Bold.ttf',
-                    'NanumSquareB.ttf',
-                ]
-
-                main_font_size = int(height * 0.12)  # 더 크게
-                sub_font_size = int(height * 0.07)
-
-                main_font = None
-                sub_font = None
-                font_path = None
-                for font_name in font_priority:
-                    fp = os.path.join(font_dir, font_name)
-                    if os.path.exists(fp):
-                        try:
-                            main_font = ImageFont.truetype(fp, main_font_size)
-                            sub_font = ImageFont.truetype(fp, sub_font_size)
-                            font_path = fp
-                            print(f"[THUMBNAIL-AI] 폰트 로드: {font_name}")
-                            break
-                        except:
-                            continue
-
-                if not main_font:
-                    main_font = ImageFont.load_default()
-                    sub_font = ImageFont.load_default()
-
-                # 색상 설정 (뉴스: 흰색, 스토리: 노란색)
-                if style == 'news':
-                    text_color = (255, 255, 255)  # 흰색
-                else:
-                    text_color = (255, 255, 255)  # 흰색으로 통일
-                outline_color = (0, 0, 0)  # 검정 외곽선
-                outline_width = 4
-
-                # 텍스트 위치 (왼쪽 상단)
-                x_margin = int(width * 0.05)
-                y_start = int(height * 0.15)
-
-                # 텍스트 줄 분할 (줄바꿈 처리)
-                text_lines = main_text.replace('\\n', '\n').split('\n')
-
-                def draw_text_with_outline(draw, position, text, font, fill, outline):
-                    x, y = position
-                    # 외곽선 (8방향)
-                    for dx in range(-outline_width, outline_width + 1):
-                        for dy in range(-outline_width, outline_width + 1):
-                            if dx != 0 or dy != 0:
-                                draw.text((x + dx, y + dy), text, font=font, fill=outline)
-                    # 메인 텍스트
-                    draw.text((x, y), text, font=font, fill=fill)
-
-                # 메인 텍스트 그리기
-                current_y = y_start
-                for line in text_lines:
-                    if line.strip():
-                        draw_text_with_outline(draw, (x_margin, current_y), line.strip(), main_font, text_color, outline_color)
-                        bbox = draw.textbbox((0, 0), line.strip(), font=main_font)
-                        line_height = bbox[3] - bbox[1]
-                        current_y += line_height + int(height * 0.02)
-
-                # 서브 텍스트 그리기
-                if sub_text:
-                    current_y += int(height * 0.02)
-                    draw_text_with_outline(draw, (x_margin, current_y), sub_text, sub_font, text_color, outline_color)
-
-                print(f"[THUMBNAIL-AI] PIL 텍스트 오버레이 완료: '{main_text}'")
-
-            except Exception as text_err:
-                print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패: {text_err}")
-                import traceback
-                traceback.print_exc()
-
-        # RGB 변환 후 저장
-        if img.mode == 'RGBA':
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[3])
-            img = background
-
         # 파일로 저장
         timestamp = int(time.time() * 1000)
-        filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.jpg"
+        filename = f"thumbnail_ai_{session_id}_{variant}_{timestamp}.png"
 
         output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
         os.makedirs(output_dir, exist_ok=True)
         filepath = os.path.join(output_dir, filename)
 
-        img.save(filepath, 'JPEG', quality=90)
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(base64_image_data))
 
         image_url = f'/output/{filename}'
         print(f"[THUMBNAIL-AI] 이미지 저장 완료: {image_url}")
