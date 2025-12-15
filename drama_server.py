@@ -16536,11 +16536,11 @@ def api_thumbnail_ai_history():
 def api_thumbnail_ai_generate_single():
     """
     단일 썸네일 생성 (자동화 파이프라인용 - A 하나만 생성)
-    ★ PIL로 텍스트 오버레이 합성 (AI가 텍스트 렌더링하면 깨지므로)
+    ★ Gemini가 직접 텍스트 렌더링
     """
     try:
         import base64
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image
         import io
 
         data = request.get_json() or {}
@@ -16548,7 +16548,7 @@ def api_thumbnail_ai_generate_single():
         session_id = data.get('session_id', '')
         category = data.get('category', '')
         lang = data.get('lang', 'ko')
-        style = prompt_data.get('style', '')  # 'news' 등
+        style = prompt_data.get('style', '')
 
         if not prompt_data.get('prompt'):
             return jsonify({"ok": False, "error": "prompt 필드가 필요합니다"}), 400
@@ -16572,36 +16572,35 @@ def api_thumbnail_ai_generate_single():
         for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
             clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-        # ★ 뉴스 스타일이거나 프롬프트에 이미 상세 지시가 있으면 그대로 사용
-        if style == 'news' or 'webtoon style illustration' in clean_prompt.lower():
-            # 뉴스/이슈 해설용 - 프롬프트 그대로 사용 (이미 상세하게 작성됨)
-            # 텍스트는 PIL로 합성하므로 NO text 강제
-            enhanced_prompt = clean_prompt
-            if 'NO text' not in enhanced_prompt.upper():
-                enhanced_prompt += "\n\nABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image."
-            print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 텍스트는 PIL로 합성")
-        else:
-            # 일반 스토리용 - 기존 웹툰 스타일 프롬프트
-            enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
+        # 텍스트 오버레이 지시 추가
+        text_instruction = ""
+        if main_text:
+            text_instruction = f"""
+IMPORTANT TEXT OVERLAY INSTRUCTIONS:
+- Add large, bold Korean text "{main_text}" prominently in the image
+- Text should be highly visible with strong contrast (white text with black outline or vice versa)
+- Text position: center or top area of the image
+"""
+            if sub_text:
+                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text\n'
 
-★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
+        # 최종 프롬프트 구성
+        enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
 
-CHARACTER REQUIREMENTS:
-- {character_nationality} webtoon/manhwa style character (NOT realistic, NOT anime, NOT stickman)
-- EXAGGERATED SHOCKED/SURPRISED EXPRESSION (mouth wide open, big eyes, sweating)
-- 30-40 year old {character_desc} (match the content)
-- Clean bold outlines, vibrant flat colors
-
-BACKGROUND: Related to topic, comic-style effect lines, bright colors
-COMPOSITION: Character on right/center, leave space on left for text
-
-Subject/Scene:
 {clean_prompt}
 
-ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render, NO text, NO letters, NO words
-MUST be {character_nationality} webtoon/manhwa illustration style"""
+{text_instruction}
 
-        # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
+Style requirements:
+- High contrast, eye-catching colors
+- Professional YouTube thumbnail quality
+- Comic/illustration style (not photorealistic)
+- Clean composition suitable for small preview
+- {character_nationality} webtoon style"""
+
+        print(f"[THUMBNAIL-AI] Gemini 프롬프트 (텍스트 직접 생성): {enhanced_prompt[:200]}...")
+
+        # Gemini 3 Pro로 이미지 생성 (텍스트 포함)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
         if not result.get("ok"):
             return jsonify({"ok": False, "error": result.get("error", "이미지 생성 실패")})
@@ -16617,99 +16616,18 @@ MUST be {character_nationality} webtoon/manhwa illustration style"""
         image_bytes = base64.b64decode(base64_image_data)
         img = Image.open(io.BytesIO(image_bytes))
 
-        # RGBA 변환 (텍스트 오버레이용)
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
-
         # 리사이즈 (1280x720 고정)
         target_width, target_height = 1280, 720
         if img.width != target_width or img.height != target_height:
             img = img.resize((target_width, target_height), Image.LANCZOS)
-
-        width, height = img.size
-
-        # ★ PIL로 텍스트 오버레이 합성
-        if main_text:
-            try:
-                draw = ImageDraw.Draw(img)
-
-                # 폰트 로드 (NanumSquareRoundB 또는 NanumGothicBold 우선)
-                font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
-                font_priority = [
-                    'NanumSquareRoundB.ttf',
-                    'NanumGothicBold.ttf',
-                    'Pretendard-Bold.ttf',
-                    'NanumSquareB.ttf',
-                ]
-
-                # 메인 텍스트 폰트 크기 (이미지 높이의 10-12%)
-                main_font_size = int(height * 0.11)
-                sub_font_size = int(height * 0.07)
-
-                main_font = None
-                sub_font = None
-                for font_name in font_priority:
-                    font_path = os.path.join(font_dir, font_name)
-                    if os.path.exists(font_path):
-                        try:
-                            main_font = ImageFont.truetype(font_path, main_font_size)
-                            sub_font = ImageFont.truetype(font_path, sub_font_size)
-                            print(f"[THUMBNAIL-AI] 폰트 로드: {font_name}")
-                            break
-                        except Exception as font_err:
-                            print(f"[THUMBNAIL-AI] 폰트 로드 실패: {font_name} - {font_err}")
-                            continue
-
-                if not main_font:
-                    main_font = ImageFont.load_default()
-                    sub_font = ImageFont.load_default()
-                    print("[THUMBNAIL-AI] 기본 폰트 사용 (한글 미지원 가능)")
-
-                # 색상 설정 (뉴스: 흰색+검정 외곽선, 스토리: 노란색+검정 외곽선)
-                if style == 'news' or category == 'news':
-                    text_color = (255, 255, 255)  # 흰색
-                else:
-                    text_color = (255, 215, 0)  # 노란색 (골드)
-                outline_color = (0, 0, 0)  # 검정 외곽선
-
-                # 텍스트 위치 계산 (왼쪽 상단, 여백 5%)
-                x_margin = int(width * 0.05)
-                y_start = int(height * 0.15)
-
-                # 외곽선 두께
-                outline_width = 3
-
-                def draw_text_with_outline(draw, position, text, font, fill, outline):
-                    """외곽선이 있는 텍스트 그리기"""
-                    x, y = position
-                    # 외곽선 (8방향)
-                    for dx in range(-outline_width, outline_width + 1):
-                        for dy in range(-outline_width, outline_width + 1):
-                            if dx != 0 or dy != 0:
-                                draw.text((x + dx, y + dy), text, font=font, fill=outline)
-                    # 메인 텍스트
-                    draw.text((x, y), text, font=font, fill=fill)
-
-                # 메인 텍스트 그리기
-                draw_text_with_outline(draw, (x_margin, y_start), main_text, main_font, text_color, outline_color)
-                print(f"[THUMBNAIL-AI] 메인 텍스트 합성: '{main_text}'")
-
-                # 서브 텍스트 그리기 (있으면)
-                if sub_text:
-                    y_sub = y_start + main_font_size + int(height * 0.03)
-                    draw_text_with_outline(draw, (x_margin, y_sub), sub_text, sub_font, text_color, outline_color)
-                    print(f"[THUMBNAIL-AI] 서브 텍스트 합성: '{sub_text}'")
-
-            except Exception as text_err:
-                print(f"[THUMBNAIL-AI] 텍스트 오버레이 실패 (무시): {text_err}")
-                import traceback
-                traceback.print_exc()
 
         # RGB 변환 후 JPEG 저장
         if img.mode == 'RGBA':
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
             img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
 
         filename = f"thumb_{session_id}.jpg"
         filepath = os.path.join(upload_dir, filename)
