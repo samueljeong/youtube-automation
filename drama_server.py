@@ -9991,13 +9991,16 @@ def api_image_analyze_script():
                 thumbnail_rules = """## 시니어용 썸네일 문구 규칙 (중요!)
 시니어 타겟(50-70대) 썸네일은 "경험을 떠올리게" 해야 합니다.
 
-1. **문구 길이**: 8-12자 (노안 고려, 읽기 쉽게)
+1. **문구 길이**: 14-22자 (주어 포함 필수, 시니어 기준 읽기 쉬운 길이)
 2. **문구 유형**:
    - 회상형: "그날을 잊지 않는다", "처음엔 몰랐다", "돌아보면 눈물이 난다"
    - 후회/교훈형: "하는 게 아니었다", "늦게 알았다", "왜 그랬을까"
    - 경험 공유형: "다 겪어봤다", "나도 그랬다", "누구나 그런 날 있다"
 3. **색상 조합**: 노랑+검정이 최고 CTR (text_color에 반영)
-4. **구도**: 왼쪽 상단 텍스트 + 오른쪽 인물/상황"""
+4. **구도 (하단 텍스트 집중형)**:
+   - 캐릭터/장면: 상단 65-70% (화면 위쪽)
+   - 텍스트: 하단 30-35% (가장 큰 요소, 단색 배경)
+   - ❌ 금지: 좌/우 텍스트, 노란 바, 리본 등 장식 요소"""
                 thumbnail_color = "#FFD700"
                 outline_color = "#000000"
 
@@ -10148,10 +10151,11 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 - 예: 옷가게+패딩, 수족관+물고기, 청구서+돈 등
 - 만화적 효과선, 충격 이펙트 (방사형 선, 번개 등)
 
-**구도:**
-- 캐릭터가 화면 오른쪽 또는 중앙에 배치
-- 왼쪽에 텍스트 공간 확보
-- 배경 소품이 상황 설명
+**구도 (하단 텍스트 집중형 - 시니어 최적화):**
+- 캐릭터/장면: 상단 65-70% (화면 위쪽, 중앙 또는 약간 오른쪽)
+- 텍스트 공간: 하단 30-35% (단색/반투명 배경으로 가독성 확보)
+- ❌ 금지: 좌/우 텍스트 배치, 노란 바/리본 등 장식 요소
+- 배경 소품은 상단 영역에서 상황 설명
 
 ### ★★★ 프롬프트 작성 규칙 ★★★
 **반드시 포함할 키워드:**
@@ -16640,7 +16644,7 @@ def api_thumbnail_ai_generate_single():
                 enhanced_prompt += "\n\nABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image."
             print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 텍스트는 PIL로 합성")
         else:
-            # 일반 스토리용 - 기존 웹툰 스타일 프롬프트
+            # 일반 스토리용 - 썸네일 설정 파일의 규칙 적용
             enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
 
 ★★★ CRITICAL STYLE: {character_nationality.upper()} WEBTOON/MANHWA ILLUSTRATION ★★★
@@ -16651,14 +16655,20 @@ CHARACTER REQUIREMENTS:
 - 30-40 year old {character_desc} (match the content)
 - Clean bold outlines, vibrant flat colors
 
-BACKGROUND: Related to topic, comic-style effect lines, bright colors
-COMPOSITION: Character on right/center, leave space on left for text
+BACKGROUND: Related to topic in upper 70% area, comic-style effect lines, bright colors
+
+★★★ COMPOSITION (BOTTOM TEXT LAYOUT - 시니어 최적화) ★★★
+- Character/Scene: TOP 65-70% of frame (center-top position)
+- LEAVE BOTTOM 30-35% EMPTY for text overlay (simple solid background)
+- NO left/right text placement
+- NO decorative elements (yellow bars, ribbons, etc.)
 
 Subject/Scene:
 {clean_prompt}
 
-ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render, NO text, NO letters, NO words
-MUST be {character_nationality} webtoon/manhwa illustration style"""
+ABSOLUTE RESTRICTIONS: NO photorealistic, NO stickman, NO 3D render, NO text, NO letters, NO words, NO decorative bars/ribbons
+MUST be {character_nationality} webtoon/manhwa illustration style
+MUST leave bottom 30% empty for text overlay"""
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
@@ -18502,22 +18512,23 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     }
                     expression_desc = expression_map.get(expression, expression_map['serious'])
 
-                    # 프롬프트 생성 (face 유무에 따라 분기)
+                    # 프롬프트 생성 (face 유무에 따라 분기) - 하단 텍스트 레이아웃
                     if has_face:
                         prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
 Korean webtoon character with {expression_desc} (NOT screaming, NOT exaggerated panic), 40-50 year old Korean man or woman in professional attire.
-Clean bold outlines, {scene_desc} background.
-Text space on {text_position} side (30% of frame).
+Character positioned in TOP 70% of frame (center-top).
+Clean bold outlines, {scene_desc} background in upper area.
+LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background.
 Credible news explainer tone, NOT sensational.
-NO extreme expression, NO text, NO letters, NO speech bubbles.
+NO extreme expression, NO text, NO letters, NO speech bubbles, NO decorative elements (yellow bars, ribbons).
 NO photorealistic, NO stickman."""
                     else:
                         prompt = f"""Korean webtoon style illustration, 16:9 aspect ratio.
-{scene_desc.capitalize()}, dramatic but credible news tone.
-Clean bold outlines, vibrant colors.
-Text space on {text_position} side (30% of frame).
-NO characters, focus on scene/objects.
-NO text, NO letters, NO signs, NO readable text.
+{scene_desc.capitalize()} positioned in TOP 70% of frame, dramatic but credible news tone.
+Clean bold outlines, vibrant colors in upper area.
+LEAVE BOTTOM 30% EMPTY for text overlay - simple solid or gradient background.
+NO characters, focus on scene/objects in upper area.
+NO text, NO letters, NO signs, NO readable text, NO decorative elements.
 NO photorealistic."""
 
                     thumb_prompt = {
@@ -18542,20 +18553,20 @@ NO photorealistic."""
                             print(f"[AUTOMATION][THUMB] best_combo 텍스트 적용: {chosen_text}")
                     print(f"[AUTOMATION][THUMB] GPT 생성 프롬프트 사용 (스타일: {thumb_prompt.get('style', 'unknown')})")
                 elif is_news:
-                    # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때)
-                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 웹툰 스타일 프롬프트")
+                    # 폴백: 뉴스 스타일 프롬프트 (새 구조 없을 때) - 하단 텍스트 레이아웃
+                    print(f"[AUTOMATION][THUMB] 폴백: 뉴스 웹툰 스타일 프롬프트 (하단 텍스트)")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '핵심 쟁점') if best_combo else '핵심 쟁점'
                     thumb_prompt = {
-                        "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit. Clean bold outlines, news studio background. Text space on left side. Credible news explainer tone. NO photorealistic, NO stickman.",
+                        "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit, positioned in TOP 70% of frame. Clean bold outlines, news studio background in upper area. LEAVE BOTTOM 30% EMPTY for text overlay with simple solid background. Credible news explainer tone. NO photorealistic, NO stickman, NO decorative elements, NO yellow bars.",
                         "text_overlay": {"main": fallback_text, "sub": ""},
                         "style": "news"
                     }
                 else:
-                    # 폴백: 웹툰 스타일 프롬프트
-                    print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트")
+                    # 폴백: 웹툰 스타일 프롬프트 - 하단 텍스트 레이아웃
+                    print(f"[AUTOMATION][THUMB] 폴백: 웹툰 스타일 프롬프트 (하단 텍스트)")
                     fallback_text = best_combo.get('chosen_thumbnail_text', '메인 텍스트') if best_combo else '메인 텍스트'
                     thumb_prompt = {
-                        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
+                        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION, positioned in TOP 70% of frame. Clean bold outlines, vibrant flat colors. Comic-style expression marks. LEAVE BOTTOM 30% EMPTY for text overlay. NO photorealistic, NO stickman, NO decorative elements.",
                         "text_overlay": {"main": fallback_text, "sub": ""}
                     }
 
