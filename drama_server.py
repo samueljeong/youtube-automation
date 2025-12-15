@@ -16415,16 +16415,25 @@ def api_thumbnail_ai_generate():
         text_instruction = ""
         if main_text:
             text_instruction = f"""
-IMPORTANT TEXT OVERLAY INSTRUCTIONS:
-- Add large, bold Korean text "{main_text}" prominently in the image
-- Text should be highly visible with strong contrast (white text with black outline or vice versa)
-- Text position: center or top area of the image
+IMPORTANT TEXT OVERLAY INSTRUCTIONS (하단 텍스트 레이아웃):
+- Add large, bold Korean text "{main_text}" in BOTTOM 30% of the image
+- Text should be highly visible with strong contrast (yellow text with black outline recommended)
+- Text position: BOTTOM area ONLY (30-35% from bottom)
+- Character/scene should be in TOP 70% of the frame
+- Bottom text area should have simple solid or gradient background for readability
 """
             if sub_text:
-                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text\n'
+                text_instruction += f'- Add smaller subtitle "{sub_text}" below the main text in bottom area\n'
 
-        # 최종 프롬프트 구성
+        # 최종 프롬프트 구성 (하단 텍스트 레이아웃)
         enhanced_prompt = f"""Create a YouTube thumbnail image in 16:9 landscape aspect ratio.
+
+★★★ CRITICAL LAYOUT (BOTTOM TEXT - 시니어 최적화) ★★★
+- Character/Scene: TOP 65-70% of frame (upper area)
+- Text space: BOTTOM 30-35% of frame (reserved for large text overlay)
+- NO left/right text placement - BOTTOM ONLY!
+- NO decorative elements (yellow bars, ribbons, banners at top)
+- Bottom area: simple solid or gradient background for text readability
 
 {prompt}
 
@@ -16435,7 +16444,9 @@ Style requirements:
 - Professional YouTube thumbnail quality
 - Comic/illustration style (not photorealistic)
 - Clean composition suitable for small preview
-- {style} aesthetic"""
+- {style} aesthetic
+- LEAVE BOTTOM 30% EMPTY or with simple background for text overlay
+- NO random decorative elements"""
 
         # Gemini 3 Pro로 이미지 생성 (image 모듈 사용)
         result = generate_image_base64(prompt=enhanced_prompt, model=GEMINI_PRO)
@@ -16635,14 +16646,21 @@ def api_thumbnail_ai_generate_single():
         for kw in ['stickman', 'stick man', 'photorealistic', 'realistic', 'photograph', 'photo', 'Ghibli', 'anime']:
             clean_prompt = clean_prompt.replace(kw, '').replace(kw.lower(), '').replace(kw.capitalize(), '')
 
-        # ★ 뉴스 스타일이거나 프롬프트에 이미 상세 지시가 있으면 그대로 사용
+        # ★ 뉴스 스타일이거나 프롬프트에 이미 상세 지시가 있어도 하단 레이아웃 강제 적용
         if style == 'news' or 'webtoon style illustration' in clean_prompt.lower():
-            # 뉴스/이슈 해설용 - 프롬프트 그대로 사용 (이미 상세하게 작성됨)
+            # 뉴스/이슈 해설용 - 하단 텍스트 레이아웃 강제 적용
             # 텍스트는 PIL로 합성하므로 NO text 강제
-            enhanced_prompt = clean_prompt
-            if 'NO text' not in enhanced_prompt.upper():
-                enhanced_prompt += "\n\nABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image."
-            print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 텍스트는 PIL로 합성")
+            enhanced_prompt = f"""★★★ CRITICAL LAYOUT (BOTTOM TEXT - 시니어 최적화) ★★★
+- Character/Scene: TOP 65-70% of frame (upper area)
+- LEAVE BOTTOM 30-35% EMPTY for text overlay (simple solid background)
+- NO left/right text placement - BOTTOM ONLY!
+- NO decorative elements (yellow bars, ribbons, banners)
+
+{clean_prompt}
+
+ABSOLUTE RESTRICTIONS: NO text, NO letters, NO words in image, NO decorative bars/ribbons.
+MUST leave bottom 30% empty for text overlay."""
+            print(f"[THUMBNAIL-AI] 뉴스/상세 프롬프트 모드 - 하단 텍스트 레이아웃 강제 적용")
         else:
             # 일반 스토리용 - 썸네일 설정 파일의 규칙 적용
             enhanced_prompt = f"""Create a {character_nationality} WEBTOON style YouTube thumbnail (16:9 landscape).
