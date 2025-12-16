@@ -10031,8 +10031,13 @@ def api_image_analyze_script():
     try:
         from openai import OpenAI
         import httpx
-        # GPT-5.1 응답 대기 시간 설정 (30분 이상 긴 대본 대응 - 최대 10분)
-        client = OpenAI(timeout=httpx.Timeout(600.0, connect=30.0))
+        # GPT-5.1 응답 대기 시간 설정 - 모든 타임아웃 명시적 설정
+        client = OpenAI(timeout=httpx.Timeout(
+            timeout=900.0,  # 전체 타임아웃 15분
+            connect=60.0,   # 연결 타임아웃 1분
+            read=900.0,     # 읽기 타임아웃 15분
+            write=60.0      # 쓰기 타임아웃 1분
+        ))
 
         data = request.get_json()
         script = data.get('script', '')
