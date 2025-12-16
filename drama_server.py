@@ -11083,6 +11083,14 @@ def api_image_generate_assets_zip():
                     print(f"[TTS-GEMINI] 실패: {result.get('error')}, Google Cloud TTS로 폴백")
                     # Gemini 실패 시 Google Cloud TTS로 폴백 (fallback_voice 사용)
                     voice_name = lang_ko.TTS.get('fallback_voice', 'ko-KR-Neural2-C')
+                    # ★ 폴백 시 Google Cloud API 키 사용 (중요!)
+                    fallback_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+                    if fallback_api_key:
+                        api_key = fallback_api_key
+                        print(f"[TTS-GEMINI] Google Cloud TTS 폴백 - 음성: {voice_name}")
+                    else:
+                        print(f"[TTS-GEMINI] 폴백 실패: GOOGLE_CLOUD_API_KEY 없음")
+                        return None
 
             # ===== Google Cloud TTS 처리 =====
             # SSML 태그 감지
@@ -11185,17 +11193,15 @@ def api_image_generate_assets_zip():
             ssml_tags = ['<speak>', '<prosody', '<emphasis', '<break']
             return any(tag in text for tag in ssml_tags)
 
-        # Gemini TTS Rate Limit 방지 딜레이 (10 req/min → 6초 간격)
+        # Gemini TTS Rate Limit: 배치 처리용 time_module
         import time as time_module
-        TTS_DELAY_SECONDS = 7 if using_gemini else 0
+
+        # ★ Gemini TTS Rate Limit: 전역 카운터 (10 req/min)
+        BATCH_SIZE = 9 if using_gemini else 999
+        gemini_request_count = 0  # 전역 요청 카운터
 
         # 1. 각 씬의 TTS 생성 (씬 단위)
         for scene_idx, scene in enumerate(scenes):
-            # Rate limit 방지: 첫 번째 씬 이후 딜레이
-            if scene_idx > 0 and TTS_DELAY_SECONDS > 0:
-                print(f"[ASSETS-ZIP] Rate limit 방지 대기 {TTS_DELAY_SECONDS}초...")
-                time_module.sleep(TTS_DELAY_SECONDS)
-
             narration = scene.get('text', '')
             image_url = scene.get('image_url', '')
             if not narration:
@@ -11316,11 +11322,18 @@ def api_image_generate_assets_zip():
             if not has_ssml:
                 # ★ 문장별 TTS 생성 (Gemini TTS 텍스트 길이 제한 대응)
                 sentences = tts_sentences
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences → 문장별 TTS")
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences → 문장별 TTS (총 요청: {gemini_request_count})")
 
                 for sent_idx, sentence in enumerate(sentences):
+                    # ★ Gemini Rate limit 배치 처리 (전역 카운터 사용)
+                    if using_gemini and gemini_request_count >= BATCH_SIZE:
+                        print(f"    [Rate limit] {gemini_request_count}문장 처리 완료, 60초 대기...")
+                        time_module.sleep(60)
+                        gemini_request_count = 0
+
                     # 문장별 TTS 생성
                     audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
+                    gemini_request_count += 1
 
                     if audio_bytes:
                         duration = get_mp3_duration(audio_bytes)
@@ -11361,7 +11374,19 @@ def api_image_generate_assets_zip():
                         current_time += duration
                         scene_relative_time += duration
                     else:
-                        print(f"[ASSETS-ZIP] Scene {scene_idx + 1} Sent {sent_idx + 1}: TTS 실패")
+                        print(f"[ASSETS-ZIP] Scene {scene_idx + 1} Sent {sent_idx + 1}: TTS 실패 - '{sentence[:40]}...'")
+                        # ★ 연속 실패 시 중단 (5회 연속 실패 = 심각한 문제)
+                        if not hasattr(generate_tts_for_sentence, '_consecutive_fails'):
+                            generate_tts_for_sentence._consecutive_fails = 0
+                        generate_tts_for_sentence._consecutive_fails += 1
+                        if generate_tts_for_sentence._consecutive_fails >= 5:
+                            error_msg = f"TTS 연속 5회 실패 - 중단 (Scene {scene_idx + 1}, Sent {sent_idx + 1})"
+                            print(f"[ASSETS-ZIP][ERROR] {error_msg}")
+                            return jsonify({"ok": False, "error": error_msg}), 500
+
+                    # 성공 시 연속 실패 카운터 리셋
+                    if audio_bytes:
+                        generate_tts_for_sentence._consecutive_fails = 0
 
             # 씬 메타데이터 저장
             scene_duration = current_time - scene_start_time
@@ -11376,7 +11401,12 @@ def api_image_generate_assets_zip():
             # 씬 간 짧은 간격 (무음 0.3초 추가 가능, 여기서는 시간만 조정)
             current_time += 0.3
 
-        print(f"[ASSETS-ZIP] Total: {len(srt_entries)} sentences, {current_time:.1f}s")
+        # ★ TTS 성공/실패 요약 로그
+        total_sentences = sum(len(s.get('subtitle_segments', [])) or 1 for s in scenes if s.get('text'))
+        successful_tts = len(all_sentence_audios)
+        print(f"[ASSETS-ZIP] Total: {successful_tts}/{total_sentences} sentences TTS 성공, {current_time:.1f}s")
+        if successful_tts < total_sentences:
+            print(f"[ASSETS-ZIP][WARNING] {total_sentences - successful_tts}개 문장 TTS 실패!")
 
         # 2. ZIP 파일 생성
         zip_buffer = io.BytesIO()
@@ -18573,7 +18603,7 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     "scenes": scenes_for_tts,
                     "voice": voice,
                     "include_images": False
-                }, timeout=600)  # 10분 (긴 대본용)
+                }, timeout=900)  # 15분 (긴 대본 + Gemini Rate Limit 배치 처리용)
 
                 assets_data = assets_resp.json()
                 if not assets_data.get('ok'):
