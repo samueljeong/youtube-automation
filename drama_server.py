@@ -10571,6 +10571,7 @@ Rules:
         print(f"[IMAGE-ANALYZE] GPT-4o generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
         # GPT-4o는 Chat Completions API 사용
+        # max_tokens=16384: 긴 대본(20분+)의 전체 narration을 포함하기 위해 필요
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -10578,6 +10579,7 @@ Rules:
                 {"role": "user", "content": user_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text, just pure JSON output."}
             ],
             temperature=0.7,
+            max_tokens=16384,
             response_format={"type": "json_object"}
         )
 
@@ -16695,6 +16697,7 @@ def api_thumbnail_ai_analyze():
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.8,
+            max_tokens=4096,
             response_format={"type": "json_object"}
         )
 
