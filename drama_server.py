@@ -18736,11 +18736,20 @@ NO photorealistic."""
                 print(f"[AUTOMATION][THUMB] 오류: {e}")
                 return None
 
-        # 병렬 실행
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        # ★ TTS 먼저 실행 (저비용, 실패 시 이미지 생성 비용 절약)
+        print(f"[AUTOMATION] 2a. TTS 생성 시작 (이미지보다 먼저 실행)...")
+        tts_success = generate_tts()
+
+        # TTS 실패 시 즉시 중단 (비싼 이미지 생성 방지)
+        if not tts_success or not any(s.get('audio_url') for s in scenes):
+            return {"ok": False, "error": f"TTS 생성 실패: {'; '.join(parallel_errors)}", "video_url": None, "cost": total_cost}
+
+        print(f"[AUTOMATION] 2b. TTS 성공, 이미지/썸네일 병렬 생성 시작...")
+
+        # TTS 성공 후 이미지/썸네일 병렬 실행
+        with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {
                 executor.submit(generate_images): "images",
-                executor.submit(generate_tts): "tts",
                 executor.submit(generate_thumbnail): "thumbnail"
             }
 
@@ -18752,10 +18761,6 @@ NO photorealistic."""
                 except Exception as e:
                     print(f"[AUTOMATION] 병렬 작업 실패: {task_name} - {e}")
                     parallel_errors.append(f"{task_name}: {str(e)}")
-
-        # TTS 실패 시 중단
-        if not any(s.get('audio_url') for s in scenes):
-            return {"ok": False, "error": f"TTS 생성 실패: {'; '.join(parallel_errors)}", "video_url": None, "cost": total_cost}
 
         # 이미지 실패 시 중단 (최소 1개 이상 필요)
         image_success_count = len([s for s in scenes if s.get('image_url')])
