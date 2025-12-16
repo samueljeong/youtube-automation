@@ -11220,30 +11220,31 @@ def api_image_generate_assets_zip():
             # 자막용 텍스트 분할 (SSML 태그 제거 후)
             plain_narration = strip_ssml_tags(narration) if has_ssml else narration
 
-            # VRCS 모드 여부 판단
-            vrcs_mode = bool(subtitle_segments)
+            # ★ 핵심 수정: 항상 대본 전체를 문장 분할하여 TTS 수행
+            # subtitle_segments는 자막 표시 여부만 제어 (TTS 대상을 제한하면 안됨!)
+            tts_sentences = split_sentences(plain_narration, detected_lang)
+            if not tts_sentences:
+                tts_sentences = [plain_narration]
 
-            if vrcs_mode:
-                # ★ VRCS 2.0 모드: 문장별 자막 ON/OFF 제어
-                # TTS용 문장 = subtitle_segments의 모든 sentence
-                tts_sentences = [seg.get('sentence', '') for seg in subtitle_segments if seg.get('sentence')]
-                # 자막용 = subtitle_on=true인 문장의 subtitle_text만
-                subtitle_map = {}  # {sentence_idx: subtitle_text}
+            print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(tts_sentences)}개 문장 TTS 예정")
+
+            # 자막 매핑: subtitle_segments가 있으면 VRCS 모드, 없으면 전체 자막
+            vrcs_mode = bool(subtitle_segments)
+            subtitle_map = {}  # {sentence_idx: subtitle_text}
+
+            if vrcs_mode and len(subtitle_segments) == len(tts_sentences):
+                # VRCS 2.0: subtitle_on=true인 문장만 자막 표시
                 for idx, seg in enumerate(subtitle_segments):
                     if seg.get('subtitle_on') and seg.get('subtitle_text'):
                         subtitle_map[idx] = seg.get('subtitle_text', '')
-
                 vrcs_on_count = len(subtitle_map)
-                vrcs_total_count = len(subtitle_segments)
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: VRCS 2.0 모드 - {vrcs_on_count}/{vrcs_total_count} 문장 자막 ON")
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: VRCS 모드 - {vrcs_on_count}/{len(tts_sentences)} 문장 자막 ON")
             else:
-                # 기존 모드 (fallback): narration을 문장별로 분할, 모든 문장 자막화
-                tts_sentences = split_sentences(plain_narration, detected_lang)
-                if not tts_sentences:
-                    tts_sentences = [plain_narration]
-                subtitle_map = {}  # 기존 모드에서는 모든 문장 자막화
+                # 기본: 모든 문장 자막화
                 for idx, sent in enumerate(tts_sentences):
-                    subtitle_map[idx] = sent  # 원문 그대로 자막
+                    subtitle_map[idx] = sent
+                if vrcs_mode:
+                    print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: VRCS 문장수 불일치 ({len(subtitle_segments)} vs {len(tts_sentences)}), 전체 자막 모드")
 
             scene_audios = []
             scene_start_time = current_time  # 씬 시작 시간
