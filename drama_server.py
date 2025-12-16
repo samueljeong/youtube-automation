@@ -10568,46 +10568,23 @@ Rules:
 4. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 5. ⚠️ ALL CHARACTERS = KOREAN WEBTOON/MANHWA STYLE! No photorealistic humans, no stickman. Use Korean webtoon style characters with exaggerated expressions."""
 
-        print(f"[IMAGE-ANALYZE] GPT-5.1 generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
+        print(f"[IMAGE-ANALYZE] GPT-4o generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
-        # GPT-5.1은 Responses API 사용
-        response = client.responses.create(
-            model="gpt-5.1",
-            input=[
-                {
-                    "role": "system",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": system_prompt
-                        }
-                    ]
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": user_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text, just pure JSON output."
-                        }
-                    ]
-                }
+        # GPT-4o는 Chat Completions API 사용
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text, just pure JSON output."}
             ],
-            temperature=0.7
+            temperature=0.7,
+            response_format={"type": "json_object"}
         )
 
-        print(f"[IMAGE-ANALYZE] GPT-5.1 응답 완료")
+        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료")
 
-        # Responses API 결과 추출
-        if getattr(response, "output_text", None):
-            result_text = response.output_text.strip()
-        else:
-            text_chunks = []
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text_chunks.append(getattr(content, "text", ""))
-            result_text = "\n".join(text_chunks).strip()
+        # Chat Completions API 결과 추출
+        result_text = response.choices[0].message.content.strip()
 
         # JSON 파싱 (마크다운 코드블록 제거)
         if result_text.startswith("```"):
@@ -10633,10 +10610,8 @@ Rules:
         print(f"[IMAGE-ANALYZE] video_effects keys: {list(video_effects.keys())}")
         if video_effects:
             print(f"[IMAGE-ANALYZE] bgm_mood: {video_effects.get('bgm_mood', '(없음)')}")
-            print(f"[IMAGE-ANALYZE] subtitle_highlights: {len(video_effects.get('subtitle_highlights', []))}개")
-            print(f"[IMAGE-ANALYZE] screen_overlays: {len(video_effects.get('screen_overlays', []))}개")
             print(f"[IMAGE-ANALYZE] sound_effects: {len(video_effects.get('sound_effects', []))}개")
-            print(f"[IMAGE-ANALYZE] shorts highlight_scenes: {video_effects.get('shorts', {}).get('highlight_scenes', [])}")
+            print(f"[IMAGE-ANALYZE] scene_bgm_changes: {len(video_effects.get('scene_bgm_changes', []))}개")
 
         # 유튜브 메타데이터 로깅
         youtube_meta = result.get("youtube", {})
@@ -11933,50 +11908,44 @@ def _update_job_status(job_id, **kwargs):
                 json.dump(status, f, ensure_ascii=False)
 
 def _get_subtitle_style(lang):
-    """언어별 자막 스타일 반환 (ASS 형식) - 노란색 + 검은 테두리
+    """언어별 자막 스타일 반환 (ASS 형식) - 반투명 검정박스 + 흰색 텍스트
 
-    VRCS 2.0: 시니어 시청자를 위해 큰 폰트 사이즈 사용 (52px)
+    깔끔한 스타일: 반투명 검정 배경 박스 위에 흰색 텍스트
     """
-    # 유튜브 스타일: 노란색 텍스트 + 검은색 테두리 (가독성 최우선)
-    # BorderStyle=1: 테두리 + 그림자 (박스 아님)
-    # Outline=4: 두꺼운 검은색 테두리
-    # Shadow=2: 입체감 있는 그림자
-    # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
-    # OutlineColour=&H00000000: 검은색 테두리
+    # 깔끔한 스타일: 흰색 텍스트 + 반투명 검정 박스
+    # BorderStyle=3: 불투명 박스 모드 (BackColour가 박스 색상으로 사용됨)
+    # PrimaryColour=&HFFFFFF: 흰색 텍스트 (BGR 순서)
+    # BackColour=&H80000000: 반투명 검정 박스 (80=약 50% 투명도)
+    # Outline=0: 테두리 없음 (박스 모드에서)
     if lang == 'ko':
-        # 한국어: lang/ko.py에서 관리하는 폰트 사용
-        # VRCS 2.0: 시니어용 큰 폰트 (52px)
         font_name = lang_ko.FONTS['default_name']
         return (
-            f"FontName={font_name},FontSize=52,PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize=48,PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=5,Shadow=3,MarginV=50,Bold=1"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=50,Bold=1"
         )
     elif lang == 'ja':
-        # 일본어: lang/ja.py에서 관리하는 폰트 사용
         font_name = lang_ja.FONTS['default_name']
         font_size = lang_ja.SUBTITLE['style']['font_size']
         return (
-            f"FontName={font_name},FontSize={font_size},PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize={font_size},PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
     elif lang == 'en':
-        # 영어: lang/en.py에서 관리하는 폰트 사용
         font_name = lang_en.FONTS['default_name']
         font_size = lang_en.SUBTITLE['style']['font_size']
         return (
-            f"FontName={font_name},FontSize={font_size},PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize={font_size},PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
     else:
-        # 기타 언어 - 영어 폰트로 fallback
         font_name = lang_en.FONTS['default_name']
         return (
-            f"FontName={font_name},FontSize=22,PrimaryColour=&H00FFFF,"
+            f"FontName={font_name},FontSize=22,PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=1,Outline=4,Shadow=2,MarginV=40,Bold=1"
+            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
         )
 
 def _hex_to_ass_color(hex_color):
@@ -16718,33 +16687,19 @@ def api_thumbnail_ai_analyze():
 {webtoon_style}로, 과장된 표정과 감정을 담아주세요.
 ★ 썸네일의 텍스트는 반드시 {lang_name}로 작성하세요! ★"""
 
-        # GPT-5.1 Responses API 호출
-        response = client.responses.create(
-            model="gpt-5.1",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": system_prompt}]
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}]
-                }
+        # GPT-4o Chat Completions API 호출
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
-            temperature=0.8
+            temperature=0.8,
+            response_format={"type": "json_object"}
         )
 
         # 결과 추출
-        result_text = ""
-        if getattr(response, "output_text", None):
-            result_text = response.output_text.strip()
-        else:
-            text_chunks = []
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text_chunks.append(getattr(content, "text", ""))
-            result_text = "\n".join(text_chunks).strip()
+        result_text = response.choices[0].message.content.strip()
 
         # JSON 파싱 (마크다운 코드블록 제거)
         if result_text.startswith("```"):
@@ -18573,15 +18528,36 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
             scenes = analyze_data.get('scenes', [])
             youtube_meta = analyze_data.get('youtube', {})
             thumbnail_data = analyze_data.get('thumbnail', {})
-            ai_prompts = thumbnail_data.get('ai_prompts', {})
-            video_effects = analyze_data.get('video_effects', {})  # 새 기능: BGM, 효과음, 자막 강조 등
+            video_effects = analyze_data.get('video_effects', {})  # BGM, 효과음 등
 
-            # ★ ai_prompts 디버깅 로그
-            print(f"[AUTOMATION] thumbnail_data 키: {list(thumbnail_data.keys()) if thumbnail_data else 'EMPTY'}")
-            print(f"[AUTOMATION] ai_prompts: {'있음 - ' + str(list(ai_prompts.keys())) if ai_prompts else 'EMPTY!'}")
-            if ai_prompts and ai_prompts.get('A'):
-                print(f"[AUTOMATION] ai_prompts.A.prompt: {str(ai_prompts['A'].get('prompt', ''))[:100]}...")
-                print(f"[AUTOMATION] ai_prompts.A.text_overlay: {ai_prompts['A'].get('text_overlay', {})}")
+            # ★ 전용 썸네일 분석 API 호출 (더 나은 프롬프트 생성)
+            print(f"[AUTOMATION] 전용 썸네일 분석 API 호출 시작...")
+            ai_prompts = {}
+            try:
+                # 내부 API 호출 (같은 서버)
+                thumb_analyze_response = requests.post(
+                    f"http://127.0.0.1:{os.environ.get('PORT', 5000)}/api/thumbnail-ai/analyze",
+                    json={"script": script, "title": youtube_meta.get('title', '')},
+                    timeout=120
+                )
+                if thumb_analyze_response.status_code == 200:
+                    thumb_result = thumb_analyze_response.json()
+                    if thumb_result.get('ok'):
+                        # prompts 구조: {"A": {"prompt": "...", "text_overlay": {...}}, "B": {...}}
+                        thumb_prompts = thumb_result.get('prompts', {})
+                        if thumb_prompts:
+                            ai_prompts = thumb_prompts
+                            print(f"[AUTOMATION] 전용 썸네일 분석 완료: {list(ai_prompts.keys())}")
+                            if ai_prompts.get('A'):
+                                print(f"[AUTOMATION] 썸네일 프롬프트 A: {str(ai_prompts['A'].get('prompt', ''))[:100]}...")
+                        else:
+                            print(f"[AUTOMATION] 전용 썸네일 분석 결과 비어있음, 폴백 사용")
+                    else:
+                        print(f"[AUTOMATION] 전용 썸네일 분석 실패: {thumb_result.get('error')}, 폴백 사용")
+                else:
+                    print(f"[AUTOMATION] 전용 썸네일 분석 HTTP 오류: {thumb_analyze_response.status_code}")
+            except Exception as te:
+                print(f"[AUTOMATION] 전용 썸네일 분석 예외: {te}")
 
             # 썸네일 전략 데이터 추출 (새 구조)
             thumbnail_text_candidates = thumbnail_data.get('thumbnail_text_candidates', [])

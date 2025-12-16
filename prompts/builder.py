@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-"""동적 프롬프트 빌더 - 언어/카테고리별 프롬프트 조합"""
+"""동적 프롬프트 빌더 - 언어/카테고리별 프롬프트 조합
+
+2025-12-16: VRCS 제거 - 자막은 Python 청킹으로 처리
+"""
 
 import re
 from .base import get_base_prompt
 from .lang import LANG_PROMPTS, LANG_CONFIGS
 from .category import CATEGORY_PROMPTS
-from .vrcs import get_vrcs_prompt
 
 
 def detect_language_simple(script: str) -> str:
@@ -155,7 +157,6 @@ def build_system_prompt(
     category: str = 'story',
     audience: str = 'senior',
     image_count: int = 5,
-    vrcs_enabled: bool = True,
 ) -> str:
     """언어와 카테고리에 맞는 시스템 프롬프트 동적 조합
 
@@ -164,7 +165,6 @@ def build_system_prompt(
         category: 'health', 'news', 'story'
         audience: 'senior', 'general'
         image_count: 생성할 씬 이미지 개수
-        vrcs_enabled: VRCS(시청 유지 제어 시스템) 적용 여부 (기본: True)
 
     Returns:
         조합된 시스템 프롬프트 문자열
@@ -196,12 +196,7 @@ Generate exactly {image_count} scenes.""")
     category_prompt_fn = CATEGORY_PROMPTS.get(category, CATEGORY_PROMPTS['story'])
     parts.append(category_prompt_fn())
 
-    # 5. VRCS 규칙 (시청 유지 제어 시스템) - 기본 적용
-    if vrcs_enabled:
-        parts.append(get_vrcs_prompt())
-
-    # 6. 최종 지시
-    vrcs_note = "\n7. Apply VRCS rules for subtitle/TTS/visual coordination" if vrcs_enabled else ""
+    # 5. 최종 지시
     parts.append(f"""
 ## FINAL INSTRUCTIONS
 1. Detect and confirm category as: {category}
@@ -209,7 +204,7 @@ Generate exactly {image_count} scenes.""")
 3. NARRATION = EXACT script text (no paraphrasing!)
 4. image_prompt = ALWAYS in English
 5. All other text = {lang_config['name']}
-6. Respond ONLY with valid JSON. No other text.{vrcs_note}""")
+6. Respond ONLY with valid JSON. No other text.""")
 
     return "\n\n".join(parts)
 
