@@ -10625,6 +10625,10 @@ def api_image_generate_assets_zip():
 
         def get_voice_for_language(lang, base_voice):
             """언어에 맞는 TTS 음성 반환 (lang/*.py에서 관리)"""
+            # Gemini TTS 음성이면 그대로 반환
+            if is_gemini_voice(base_voice):
+                return base_voice
+
             is_female = 'Neural2-A' in base_voice or 'Neural2-B' in base_voice or 'Wavenet-A' in base_voice
             voice_map = {
                 'ko': {'female': lang_ko.TTS['voices']['female'], 'male': lang_ko.TTS['voices']['male']},
