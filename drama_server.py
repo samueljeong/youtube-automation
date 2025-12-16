@@ -6388,7 +6388,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{subtitle_font},40,&H00FFFF,&H000000FF,&H00000000,&HC0000000,1,0,0,0,100,100,0,0,3,0,0,2,20,20,50,1
+Style: Default,{subtitle_font},40,&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,0,0,2,20,20,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -10571,6 +10571,7 @@ Rules:
         print(f"[IMAGE-ANALYZE] GPT-4o generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
 
         # GPT-4o는 Chat Completions API 사용
+        # max_tokens=16384: 긴 대본(20분+)의 전체 narration을 포함하기 위해 필요
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -10578,6 +10579,7 @@ Rules:
                 {"role": "user", "content": user_prompt + "\n\nIMPORTANT: Respond ONLY with valid JSON. No other text, just pure JSON output."}
             ],
             temperature=0.7,
+            max_tokens=16384,
             response_format={"type": "json_object"}
         )
 
@@ -11951,12 +11953,12 @@ def _get_subtitle_style(lang):
 def _hex_to_ass_color(hex_color):
     """HEX 색상을 ASS 포맷으로 변환 (#RRGGBB -> &HBBGGRR&)"""
     if not hex_color or not hex_color.startswith('#'):
-        return "&H00FFFF&"  # 기본 노란색
+        return "&HFFFFFF&"  # 기본 흰색
     hex_color = hex_color.lstrip('#')
     if len(hex_color) == 6:
         r, g, b = hex_color[0:2], hex_color[2:4], hex_color[4:6]
         return f"&H{b}{g}{r}&"
-    return "&H00FFFF&"
+    return "&HFFFFFF&"  # 기본 흰색
 
 
 def _apply_subtitle_highlights(text, highlights):
@@ -12100,14 +12102,14 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             return result
 
         # ASS 헤더 (반투명 박스 + 자동 줄바꿈)
-        # BorderStyle=4: 배경 박스 + 외곽선 (가독성 최고)
-        # BackColour=&HA0000000: 반투명 검정 배경 (A0 = 약 63% 투명)
-        # Outline=2: 얇은 검정 테두리
-        # Shadow=0: 그림자 제거 (박스가 있으므로 불필요)
+        # BorderStyle=3: 반투명 검정 박스 모드
+        # BackColour=&H80000000: 반투명 검정 배경 (80 = 약 50% 투명)
+        # PrimaryColour=&HFFFFFF: 흰색 텍스트 (BGR 순서)
+        # Outline=0: 테두리 없음 (박스 모드에서)
+        # Shadow=0: 그림자 제거
         # MarginL/R=100: 좌우 여백으로 자동 줄바꿈 영역 제한
         # MarginV=40: 하단 여백
         # WrapStyle=0: 스마트 줄바꿈 (긴 텍스트 자동 2줄)
-        # PrimaryColour=&H00FFFF: 노란색 (BGR 순서)
         ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1280
@@ -12116,7 +12118,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&H00FFFF,&H000000FF,&H00000000,&HA0000000,1,0,0,0,100,100,0,0,4,2,0,2,100,100,40,1
+Style: Default,{font_name},{font_size},&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,0,0,2,100,100,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -16695,6 +16697,7 @@ def api_thumbnail_ai_analyze():
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.8,
+            max_tokens=4096,
             response_format={"type": "json_object"}
         )
 
