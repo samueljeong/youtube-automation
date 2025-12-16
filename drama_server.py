@@ -11271,16 +11271,30 @@ def api_image_generate_assets_zip():
                     has_ssml = False  # 폴백하여 아래 문장별 처리로
 
             if not has_ssml:
-                # 일반 모드: 문장별 TTS 생성 (정확한 싱크)
+                # ★ 최적화: 씬 전체를 하나의 TTS로 처리 (API 호출 횟수 대폭 감소)
                 sentences = tts_sentences
-                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences, lang={detected_lang}")
+                print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences → 씬 단위 TTS")
 
-                for sent_idx, sentence in enumerate(sentences):
-                    audio_bytes = generate_tts_for_sentence(sentence, voice_name, language_code, api_key)
+                # 모든 문장을 하나로 결합
+                combined_text = ' '.join(sentences)
 
-                    if audio_bytes:
-                        duration = get_mp3_duration(audio_bytes)
-                        scene_audios.append(audio_bytes)
+                # 씬 전체에 대해 한 번의 TTS 호출
+                audio_bytes = generate_tts_for_sentence(combined_text, voice_name, language_code, api_key)
+
+                if audio_bytes:
+                    total_duration = get_mp3_duration(audio_bytes)
+                    scene_audios.append(audio_bytes)
+                    all_sentence_audios.append((scene_idx, 0, audio_bytes))
+
+                    # 문장별 duration 계산 (글자 수 비율)
+                    total_chars = sum(len(s) for s in sentences)
+                    if total_chars == 0:
+                        total_chars = 1
+
+                    for sent_idx, sentence in enumerate(sentences):
+                        # 글자 수 비율로 duration 계산
+                        char_ratio = len(sentence) / total_chars
+                        sent_duration = total_duration * char_ratio
 
                         # ★ VRCS 2.0: subtitle_on=true인 문장만 자막 추가
                         if sent_idx in subtitle_map:
@@ -11288,9 +11302,9 @@ def api_image_generate_assets_zip():
 
                             # ★ VRCS 타이밍: 자막이 0.3초 먼저 시작, 0.2초 늦게 끝남
                             sub_start = max(0, current_time - VRCS_SUBTITLE_LEAD)
-                            sub_end = current_time + duration + VRCS_SUBTITLE_TRAIL
+                            sub_end = current_time + sent_duration + VRCS_SUBTITLE_TRAIL
                             sub_relative_start = max(0, scene_relative_time - VRCS_SUBTITLE_LEAD)
-                            sub_relative_end = scene_relative_time + duration + VRCS_SUBTITLE_TRAIL
+                            sub_relative_end = scene_relative_time + sent_duration + VRCS_SUBTITLE_TRAIL
 
                             srt_entries.append({
                                 'index': len(srt_entries) + 1,
@@ -11305,20 +11319,18 @@ def api_image_generate_assets_zip():
                             })
 
                             if vrcs_mode:
-                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - 자막 ON - '{subtitle_text}'")
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - 자막 ON - '{subtitle_text}'")
                             else:
-                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - {sentence[:30]}...")
                         else:
                             # 자막 OFF - TTS만 재생
                             if vrcs_mode:
-                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - 자막 OFF")
-                            else:
-                                print(f"  Sent {sent_idx + 1}: {duration:.2f}s - {sentence[:30]}...")
+                                print(f"  Sent {sent_idx + 1}: {sent_duration:.2f}s - 자막 OFF")
 
-                        current_time += duration
-                        scene_relative_time += duration
-
-                        all_sentence_audios.append((scene_idx, sent_idx, audio_bytes))
+                        current_time += sent_duration
+                        scene_relative_time += sent_duration
+                else:
+                    print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: TTS 실패")
 
             # 씬 메타데이터 저장
             scene_duration = current_time - scene_start_time
