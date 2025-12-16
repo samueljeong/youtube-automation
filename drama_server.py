@@ -6388,7 +6388,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{subtitle_font},40,&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,0,0,2,20,20,50,1
+Style: Default,{subtitle_font},40,&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,4,1,0,2,20,20,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -10583,7 +10583,14 @@ Rules:
             response_format={"type": "json_object"}
         )
 
-        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료")
+        # 응답 완료 체크 (truncation 감지)
+        finish_reason = response.choices[0].finish_reason
+        usage = getattr(response, 'usage', None)
+        print(f"[IMAGE-ANALYZE] GPT-4o 응답 완료 - finish_reason: {finish_reason}")
+        if usage:
+            print(f"[IMAGE-ANALYZE] 토큰 사용량 - input: {usage.prompt_tokens}, output: {usage.completion_tokens}")
+        if finish_reason == 'length':
+            print(f"[IMAGE-ANALYZE] ⚠️ 경고: 응답이 max_tokens에 의해 잘렸습니다! 출력 토큰 부족")
 
         # Chat Completions API 결과 추출
         result_text = response.choices[0].message.content.strip()
@@ -10609,6 +10616,15 @@ Rules:
         detected_category = result.get("detected_category", "story")
 
         print(f"[IMAGE-ANALYZE] detected_category: {detected_category}")
+
+        # 씬 정보 로깅 (영상 길이 디버깅용)
+        scenes_data = result.get("scenes", [])
+        total_narration_len = sum(len(s.get('narration', '')) for s in scenes_data)
+        print(f"[IMAGE-ANALYZE] ★ 씬 개수: {len(scenes_data)}개, 총 나레이션 길이: {total_narration_len}자")
+        for i, scene in enumerate(scenes_data[:3]):  # 처음 3개 씬만 로깅
+            narr_preview = scene.get('narration', '')[:50]
+            print(f"[IMAGE-ANALYZE]   씬 {i+1}: narration {len(scene.get('narration', ''))}자 - '{narr_preview}...'")
+
         print(f"[IMAGE-ANALYZE] video_effects keys: {list(video_effects.keys())}")
         if video_effects:
             print(f"[IMAGE-ANALYZE] bgm_mood: {video_effects.get('bgm_mood', '(없음)')}")
@@ -11915,16 +11931,17 @@ def _get_subtitle_style(lang):
     깔끔한 스타일: 반투명 검정 배경 박스 위에 흰색 텍스트
     """
     # 깔끔한 스타일: 흰색 텍스트 + 반투명 검정 박스
-    # BorderStyle=3: 불투명 박스 모드 (BackColour가 박스 색상으로 사용됨)
+    # BorderStyle=4: 외곽선 + 배경 박스
     # PrimaryColour=&HFFFFFF: 흰색 텍스트 (BGR 순서)
     # BackColour=&H80000000: 반투명 검정 박스 (80=약 50% 투명도)
-    # Outline=0: 테두리 없음 (박스 모드에서)
+    # OutlineColour=&H00000000: 검정 외곽선
+    # Outline=1: 얇은 외곽선
     if lang == 'ko':
         font_name = lang_ko.FONTS['default_name']
         return (
             f"FontName={font_name},FontSize=48,PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=50,Bold=1"
+            "BorderStyle=4,Outline=1,Shadow=0,MarginV=50,Bold=1"
         )
     elif lang == 'ja':
         font_name = lang_ja.FONTS['default_name']
@@ -11932,7 +11949,7 @@ def _get_subtitle_style(lang):
         return (
             f"FontName={font_name},FontSize={font_size},PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "BorderStyle=4,Outline=1,Shadow=0,MarginV=40,Bold=1"
         )
     elif lang == 'en':
         font_name = lang_en.FONTS['default_name']
@@ -11940,14 +11957,14 @@ def _get_subtitle_style(lang):
         return (
             f"FontName={font_name},FontSize={font_size},PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "BorderStyle=4,Outline=1,Shadow=0,MarginV=40,Bold=1"
         )
     else:
         font_name = lang_en.FONTS['default_name']
         return (
             f"FontName={font_name},FontSize=22,PrimaryColour=&HFFFFFF,"
             "OutlineColour=&H00000000,BackColour=&H80000000,"
-            "BorderStyle=3,Outline=0,Shadow=0,MarginV=40,Bold=1"
+            "BorderStyle=4,Outline=1,Shadow=0,MarginV=40,Bold=1"
         )
 
 def _hex_to_ass_color(hex_color):
@@ -12102,10 +12119,11 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
             return result
 
         # ASS 헤더 (반투명 박스 + 자동 줄바꿈)
-        # BorderStyle=3: 반투명 검정 박스 모드
+        # BorderStyle=4: 외곽선 + 배경 박스
         # BackColour=&H80000000: 반투명 검정 배경 (80 = 약 50% 투명)
         # PrimaryColour=&HFFFFFF: 흰색 텍스트 (BGR 순서)
-        # Outline=0: 테두리 없음 (박스 모드에서)
+        # OutlineColour=&H00000000: 검정 외곽선
+        # Outline=1: 얇은 외곽선
         # Shadow=0: 그림자 제거
         # MarginL/R=100: 좌우 여백으로 자동 줄바꿈 영역 제한
         # MarginV=40: 하단 여백
@@ -12118,7 +12136,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,0,0,2,100,100,40,1
+Style: Default,{font_name},{font_size},&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,4,1,0,2,100,100,40,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

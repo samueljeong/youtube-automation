@@ -98,7 +98,7 @@ VIDEO_EFFECTS_STRUCTURE = """
 
 # 유튜브 메타데이터 출력 구조
 YOUTUBE_META_STRUCTURE = """
-## YOUTUBE METADATA OUTPUT STRUCTURE
+## YOUTUBE METADATA OUTPUT STRUCTURE (SEO OPTIMIZED)
 
 ### ⚠️⚠️⚠️ CRITICAL: TITLE MUST REFLECT SCRIPT CONTENT! ⚠️⚠️⚠️
 - Title MUST be about the ACTUAL TOPIC of the script!
@@ -112,21 +112,34 @@ YOUTUBE_META_STRUCTURE = """
 - Correct title: "Convenience store workers facing new challenges" ✓
 
 "youtube": {
-  "title": "main title - MUST reflect actual script topic!",
+  "title": "main title - MUST reflect actual script topic! (50-70 chars optimal)",
   "title_options": [
     {"style": "curiosity", "title": "curiosity-style title about SCRIPT TOPIC"},
     {"style": "solution", "title": "solution-style title about SCRIPT TOPIC"},
     {"style": "authority", "title": "authority-style title about SCRIPT TOPIC"}
   ],
   "description": {
-    "full_text": "full description about SCRIPT CONTENT (600-1200 chars)",
-    "preview_2_lines": "first 2 lines summarizing SCRIPT TOPIC",
-    "chapters": [{"time": "00:00", "title": "chapter from script"}]
+    "full_text": "SEO-optimized description (800-1500 chars). Include: 1) Hook sentence 2) Main topic summary 3) Key points covered 4) Call-to-action. Use natural keyword placement.",
+    "preview_2_lines": "First 2 lines are crucial for CTR - make them compelling and include main keyword!",
+    "chapters": [{"time": "00:00", "title": "chapter title"}]
   },
-  "hashtags": ["#relevant_to_script", "#topic_from_script"],
-  "tags": ["tags", "related", "to", "script", "content"],
-  "pin_comment": "engaging question about SCRIPT TOPIC"
+  "hashtags": ["#main_keyword", "#topic1", "#topic2", "#trending", "#category"],
+  "tags": [
+    "Generate 15-20 SEO tags:",
+    "- Main topic keywords (3-4)",
+    "- Related topic keywords (3-4)",
+    "- Long-tail keywords (3-4)",
+    "- Trending/popular related terms (3-4)",
+    "- Category/niche keywords (2-3)"
+  ],
+  "pin_comment": "engaging question about SCRIPT TOPIC (encourages comments)"
 }
+
+### ⚠️ SEO REQUIREMENTS:
+- **Tags**: Generate exactly 15-20 relevant tags. Mix short keywords and long-tail phrases.
+- **Hashtags**: Generate 3-5 hashtags. First hashtag = main keyword.
+- **Description**: Must be 800+ characters. Include timestamps, keywords naturally.
+- **Title**: 50-70 characters optimal for YouTube search.
 """
 
 # 씬 출력 구조 (단순화됨 - VRCS 제거)
