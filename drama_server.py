@@ -18423,6 +18423,13 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
             ai_prompts = thumbnail_data.get('ai_prompts', {})
             video_effects = analyze_data.get('video_effects', {})  # 새 기능: BGM, 효과음, 자막 강조 등
 
+            # ★ ai_prompts 디버깅 로그
+            print(f"[AUTOMATION] thumbnail_data 키: {list(thumbnail_data.keys()) if thumbnail_data else 'EMPTY'}")
+            print(f"[AUTOMATION] ai_prompts: {'있음 - ' + str(list(ai_prompts.keys())) if ai_prompts else 'EMPTY!'}")
+            if ai_prompts and ai_prompts.get('A'):
+                print(f"[AUTOMATION] ai_prompts.A.prompt: {str(ai_prompts['A'].get('prompt', ''))[:100]}...")
+                print(f"[AUTOMATION] ai_prompts.A.text_overlay: {ai_prompts['A'].get('text_overlay', {})}")
+
             # 썸네일 전략 데이터 추출 (새 구조)
             thumbnail_text_candidates = thumbnail_data.get('thumbnail_text_candidates', [])
             best_combo = thumbnail_data.get('best_combo', {})
@@ -18761,7 +18768,7 @@ NO photorealistic."""
                     if not fallback_text and ai_prompts and ai_prompts.get('A'):
                         fallback_text = ai_prompts['A'].get('text_overlay', {}).get('main', '')
                     if not fallback_text:
-                        fallback_text = (title or '')[:10]
+                        fallback_text = (title or '')[:20]  # 폴백: 제목 (20자)
                     thumb_prompt = {
                         "prompt": "Korean webtoon style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon character with SERIOUS FOCUSED expression (NOT screaming), 40-50 year old Korean man in suit. Clean bold outlines, news studio background. Text space on left side. Credible news explainer tone. NO photorealistic, NO stickman.",
                         "text_overlay": {"main": fallback_text, "sub": fallback_sub},
@@ -18781,7 +18788,7 @@ NO photorealistic."""
                     if not fallback_text and ai_prompts and ai_prompts.get('A'):
                         fallback_text = ai_prompts['A'].get('text_overlay', {}).get('main', '')
                     if not fallback_text:
-                        fallback_text = (title or '')[:10]
+                        fallback_text = (title or '')[:20]  # 폴백: 제목 (20자)
                     thumb_prompt = {
                         "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
                         "text_overlay": {"main": fallback_text, "sub": fallback_sub}
