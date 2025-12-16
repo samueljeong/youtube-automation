@@ -11034,7 +11034,6 @@ def api_image_generate_assets_zip():
                     if tag.startswith('</'):
                         clean_text = clean_text.replace(tag, '')
                     elif tag == '<break':
-                        import re
                         clean_text = re.sub(r'<break[^>]*/?>', ' ', clean_text)
                     else:
                         clean_text = re.sub(rf'{tag}[^>]*>', '', clean_text)
