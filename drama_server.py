@@ -18530,7 +18530,7 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     "scenes": scenes_for_tts,
                     "voice": voice,
                     "include_images": False
-                }, timeout=300)
+                }, timeout=600)  # 10분 (긴 대본용)
 
                 assets_data = assets_resp.json()
                 if not assets_data.get('ok'):
