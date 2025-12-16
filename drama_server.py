@@ -11206,8 +11206,8 @@ def api_image_generate_assets_zip():
             voice_name = get_voice_for_language(detected_lang, base_voice)
             language_code = get_language_code(detected_lang)
 
-            # SSML 감지: SSML이면 TTS는 전체로 처리하여 감정 표현 유지
-            has_ssml = is_ssml_content(narration)
+            # SSML 모드 비활성화 (Gemini TTS는 SSML 미지원, 속도 저하 원인)
+            has_ssml = False  # is_ssml_content(narration)
 
             # ★ VRCS 2.0: subtitle_segments로 문장별 ON/OFF 제어
             subtitle_segments = scene.get('subtitle_segments', [])
