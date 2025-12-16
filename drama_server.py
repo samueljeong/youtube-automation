@@ -11122,11 +11122,23 @@ def api_image_generate_assets_zip():
         if not scenes:
             return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
 
-        api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
-        if not api_key:
-            return jsonify({"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}), 500
+        # API 키 체크 (Gemini TTS vs Google Cloud TTS)
+        google_cloud_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+        google_api_key = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 
-        print(f"[ASSETS-ZIP] Starting sentence-by-sentence TTS for {len(scenes)} scenes")
+        # Gemini 음성인 경우 GOOGLE_API_KEY 필요, 아니면 GOOGLE_CLOUD_API_KEY 필요
+        using_gemini = is_gemini_voice(base_voice)
+        if using_gemini:
+            if not google_api_key:
+                return jsonify({"ok": False, "error": "GOOGLE_API_KEY가 설정되지 않았습니다 (Gemini TTS용)"}), 500
+            api_key = google_api_key
+            print(f"[ASSETS-ZIP] Gemini TTS 사용: {base_voice}")
+        else:
+            if not google_cloud_api_key:
+                return jsonify({"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}), 500
+            api_key = google_cloud_api_key
+
+        print(f"[ASSETS-ZIP] Starting TTS for {len(scenes)} scenes (voice: {base_voice})")
 
         # 결과 저장용
         all_sentence_audios = []  # [(scene_idx, sent_idx, audio_bytes, duration, text), ...]
