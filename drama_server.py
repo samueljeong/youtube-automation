@@ -12026,7 +12026,7 @@ def _generate_ass_subtitles(subtitles, highlights, output_path, lang='ko'):
         if lang == 'ko':
             font_name = lang_ko.FONTS['default_name']
             font_size = 48  # 24 → 48 (2배 크기)
-            max_chars_per_line = 26  # 한국어: 한 줄 최대 26자 (20→26 확장)
+            max_chars_per_line = 100  # ★ 청킹 방식: 줄바꿈 비활성화 (한 문장 = 한 자막)
         elif lang == 'ja':
             # 일본어: lang/ja.py에서 관리
             font_name = lang_ja.FONTS['default_name']
