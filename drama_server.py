@@ -4151,10 +4151,29 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
     """
     try:
         from google.cloud import texttospeech
+        from google.oauth2 import service_account
+        import json
 
         print(f"[CHIRP3-TTS] 시작 - 음성: {voice_name}, 텍스트: {len(text)}자", flush=True)
 
-        client = texttospeech.TextToSpeechClient()
+        # 서비스 계정 인증 (GOOGLE_SERVICE_ACCOUNT_JSON 환경변수 사용)
+        service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if not service_account_json:
+            print("[CHIRP3-TTS] 오류: GOOGLE_SERVICE_ACCOUNT_JSON 환경변수 없음", flush=True)
+            return {"ok": False, "error": "GOOGLE_SERVICE_ACCOUNT_JSON 환경변수가 설정되지 않았습니다"}
+
+        try:
+            service_account_info = json.loads(service_account_json)
+        except json.JSONDecodeError as e:
+            print(f"[CHIRP3-TTS] 오류: JSON 파싱 실패 - {e}", flush=True)
+            return {"ok": False, "error": f"서비스 계정 JSON 파싱 실패: {e}"}
+
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+
+        client = texttospeech.TextToSpeechClient(credentials=credentials)
 
         input_text = texttospeech.SynthesisInput(text=text)
 
