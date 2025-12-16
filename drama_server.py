@@ -109,6 +109,11 @@ VIDEO_JOBS_FILE = 'data/video_jobs.json'
 # cron job이 동시에 여러 worker에서 실행되는 것을 방지
 pipeline_lock = threading.Lock()
 
+# ===== 서버 시작 시간 (orphan 작업 감지용) =====
+# 서버 재시작 전에 시작된 "처리중" 작업을 자동 감지하여 실패 처리
+SERVER_START_TIME = dt.now()
+print(f"[SERVER] 시작 시간: {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
+
 # ===== 한글 숫자 → 아라비아 숫자 변환 (자막용) =====
 def korean_number_to_arabic(text):
     """
@@ -18312,18 +18317,32 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
             image_count, estimated_minutes = get_image_count_by_script(len(script))
             print(f"[AUTOMATION] 대본 {len(script)}자 → 예상 {estimated_minutes:.1f}분 → 이미지 {image_count}개")
 
-            analyze_resp = req.post(f"{base_url}/api/image/analyze-script", json={
+            # HTTP 호출 대신 직접 함수 호출 (self-deadlock 방지)
+            # Flask의 test_request_context를 사용하여 request 객체 시뮬레이션
+            analyze_request_data = {
                 "script": script,
                 "content_type": "drama",
-                "image_style": "animation",  # 스틱맨 스타일
+                "image_style": "animation",  # 웹툰 스타일
                 "image_count": image_count,
                 "audience": audience,
                 "category": category,  # 뉴스 등 카테고리
                 "output_language": "auto",
                 "channel_style": channel_style  # [TUBELENS] 채널별 스타일 정보
-            }, timeout=660)  # GPT-5.1 응답 대기 시간 (내부 OpenAI 600초 + 오버헤드)
+            }
 
-            analyze_data = analyze_resp.json()
+            with app.test_request_context(
+                '/api/image/analyze-script',
+                method='POST',
+                json=analyze_request_data,
+                content_type='application/json'
+            ):
+                analyze_response = api_image_analyze_script()
+                # Flask 응답 처리: (response, status_code) 튜플 또는 response 객체
+                if isinstance(analyze_response, tuple):
+                    analyze_data = analyze_response[0].get_json()
+                else:
+                    analyze_data = analyze_response.get_json()
+
             if not analyze_data.get('ok'):
                 return {"ok": False, "error": f"대본 분석 실패: {analyze_data.get('error')}", "video_url": None}
 
@@ -19370,6 +19389,15 @@ def api_sheets_check_and_process():
                         try:
                             work_dt = datetime.strptime(work_time, '%Y-%m-%d %H:%M:%S')
                             elapsed_minutes = (now - work_dt).total_seconds() / 60
+
+                            # 서버 재시작 감지: 작업 시작 시간이 서버 시작 시간보다 이전이면 orphan 작업
+                            if work_dt < SERVER_START_TIME:
+                                print(f"[SHEETS] [{sheet_name}] 행 {i}: 서버 재시작으로 orphan 작업 감지 - 대기로 변경")
+                                print(f"  - 작업 시작: {work_time}, 서버 시작: {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '상태', '대기')
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '에러메시지', '')
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '작업시간', '')
+                                continue  # 다음 행 확인
 
                             if elapsed_minutes > 40:
                                 # 40분 초과 → 실패로 변경
