@@ -18942,10 +18942,21 @@ NO photorealistic."""
                         fallback_text = ai_prompts['A'].get('text_overlay', {}).get('main', '')
                     if not fallback_text:
                         fallback_text = (title or '')[:20]  # 폴백: 제목 (20자)
-                    thumb_prompt = {
-                        "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
-                        "text_overlay": {"main": fallback_text, "sub": fallback_sub}
-                    }
+
+                    # ★ thumbnail_data.image_prompt가 있으면 사용, 없으면 기본 프롬프트
+                    base_prompt = thumbnail_data.get('image_prompt', '')
+                    if base_prompt and len(base_prompt) > 50:
+                        # GPT가 생성한 image_prompt를 웹툰 스타일로 변환
+                        thumb_prompt = {
+                            "prompt": f"Korean WEBTOON style YouTube thumbnail based on: {base_prompt}. Style: Korean webtoon/manhwa illustration, exaggerated expression, clean bold outlines, vibrant colors, comic style. NO photorealistic, NO stickman. 16:9 aspect ratio.",
+                            "text_overlay": {"main": fallback_text, "sub": fallback_sub}
+                        }
+                        print(f"[AUTOMATION][THUMB] thumbnail_data.image_prompt 사용: {base_prompt[:80]}...")
+                    else:
+                        thumb_prompt = {
+                            "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
+                            "text_overlay": {"main": fallback_text, "sub": fallback_sub}
+                        }
 
                 thumb_resp = req.post(f"{base_url}/api/thumbnail-ai/generate-single", json={
                     "session_id": f"thumb_{session_id}",
