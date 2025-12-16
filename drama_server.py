@@ -11186,6 +11186,7 @@ def api_image_generate_assets_zip():
             return any(tag in text for tag in ssml_tags)
 
         # Gemini TTS Rate Limit 방지 딜레이 (10 req/min → 6초 간격)
+        import time as time_module
         TTS_DELAY_SECONDS = 7 if using_gemini else 0
 
         # 1. 각 씬의 TTS 생성 (씬 단위)
@@ -11193,7 +11194,7 @@ def api_image_generate_assets_zip():
             # Rate limit 방지: 첫 번째 씬 이후 딜레이
             if scene_idx > 0 and TTS_DELAY_SECONDS > 0:
                 print(f"[ASSETS-ZIP] Rate limit 방지 대기 {TTS_DELAY_SECONDS}초...")
-                time.sleep(TTS_DELAY_SECONDS)
+                time_module.sleep(TTS_DELAY_SECONDS)
 
             narration = scene.get('text', '')
             image_url = scene.get('image_url', '')
