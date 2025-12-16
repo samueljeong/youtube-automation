@@ -4103,6 +4103,88 @@ def is_gemini_voice(voice_name):
     return voice_name.lower().startswith("gemini:")
 
 
+def is_chirp3_voice(voice_name):
+    """Chirp 3 HD 음성인지 확인 (chirp3: 접두사)"""
+    return voice_name.lower().startswith("chirp3:")
+
+
+def parse_chirp3_voice(voice_name, language_code="ko-KR"):
+    """
+    Chirp 3 HD 음성 설정 파싱
+
+    Args:
+        voice_name: "chirp3:Charon" 형식
+        language_code: 언어 코드 (기본: ko-KR)
+
+    Returns:
+        dict: {"voice": "ko-KR-Chirp3-HD-Charon", "voice_short": "Charon"}
+    """
+    parts = voice_name.split(":")
+    voice_short = parts[1] if len(parts) >= 2 else "Charon"
+
+    # 유효한 Chirp 3 HD 음성
+    valid_voices = ["Charon", "Puck", "Fenrir", "Orus", "Aoede", "Kore", "Leda", "Zephyr"]
+    if voice_short not in valid_voices:
+        print(f"[CHIRP3] 잘못된 음성: {voice_short}, 기본값 Charon 사용")
+        voice_short = "Charon"
+
+    # 전체 음성 이름: ko-KR-Chirp3-HD-Charon
+    full_voice_name = f"{language_code}-Chirp3-HD-{voice_short}"
+
+    return {
+        "voice": full_voice_name,
+        "voice_short": voice_short
+    }
+
+
+def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code="ko-KR"):
+    """
+    Google Cloud TTS Chirp 3 HD를 사용하여 음성 생성
+
+    Args:
+        text: 변환할 텍스트
+        voice_name: 전체 음성 이름 (예: ko-KR-Chirp3-HD-Charon)
+        language_code: 언어 코드 (예: ko-KR)
+
+    Returns:
+        dict: {"ok": True, "audio_data": bytes} 또는 {"ok": False, "error": str}
+    """
+    try:
+        from google.cloud import texttospeech
+
+        print(f"[CHIRP3-TTS] 시작 - 음성: {voice_name}, 텍스트: {len(text)}자")
+
+        client = texttospeech.TextToSpeechClient()
+
+        input_text = texttospeech.SynthesisInput(text=text)
+
+        voice = texttospeech.VoiceSelectionParams(
+            language_code=language_code,
+            name=voice_name,
+        )
+
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        response = client.synthesize_speech(
+            input=input_text,
+            voice=voice,
+            audio_config=audio_config,
+        )
+
+        print(f"[CHIRP3-TTS] 성공 - {len(response.audio_content)} bytes")
+
+        return {
+            "ok": True,
+            "audio_data": response.audio_content
+        }
+
+    except Exception as e:
+        print(f"[CHIRP3-TTS] 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def parse_gemini_voice(voice_name):
     """
     Gemini 음성 설정 파싱
@@ -11048,7 +11130,34 @@ def api_image_generate_assets_zip():
             return text
 
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
-            """단일 문장에 대한 TTS 생성 (SSML 자동 감지, Gemini TTS 지원)"""
+            """단일 문장에 대한 TTS 생성 (Chirp 3 HD, Gemini TTS, Google Cloud TTS 지원)"""
+
+            # ===== Chirp 3 HD 처리 (최고 품질 + 빠른 속도) =====
+            if is_chirp3_voice(voice_name):
+                chirp3_config = parse_chirp3_voice(voice_name, language_code)
+                print(f"[TTS-CHIRP3] 사용: {chirp3_config['voice']}")
+
+                # 한국어 숫자 변환
+                if language_code.startswith('ko'):
+                    text = convert_numbers_to_korean(text)
+
+                # SSML 태그 제거
+                clean_text = re.sub(r'<[^>]+>', '', text).strip()
+                if not clean_text:
+                    clean_text = text
+
+                result = generate_chirp3_tts(
+                    text=clean_text,
+                    voice_name=chirp3_config['voice'],
+                    language_code=language_code
+                )
+
+                if result.get("ok"):
+                    return result['audio_data']
+                else:
+                    print(f"[TTS-CHIRP3] 실패: {result.get('error')}, Neural2로 폴백")
+                    voice_name = lang_ko.TTS.get('fallback_voice', 'ko-KR-Neural2-C')
+                    # 아래 Google Cloud TTS 로직으로 폴백
 
             # ===== Gemini TTS 처리 =====
             if is_gemini_voice(voice_name):
@@ -11157,21 +11266,29 @@ def api_image_generate_assets_zip():
         if not scenes:
             return jsonify({"ok": False, "error": "씬 데이터가 없습니다"}), 400
 
-        # API 키 체크 (Gemini TTS vs Google Cloud TTS)
+        # API 키 체크 (Chirp 3 HD vs Gemini TTS vs Google Cloud TTS)
         google_cloud_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
         google_api_key = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 
-        # Gemini 음성인 경우 GOOGLE_API_KEY 필요, 아니면 GOOGLE_CLOUD_API_KEY 필요
+        # TTS 타입 판별
+        using_chirp3 = is_chirp3_voice(base_voice)
         using_gemini = is_gemini_voice(base_voice)
-        if using_gemini:
+
+        if using_chirp3:
+            # Chirp 3 HD: Google Cloud 서비스 계정 (GOOGLE_APPLICATION_CREDENTIALS) 사용
+            # API 키 불필요, 서비스 계정 인증 사용
+            api_key = google_cloud_api_key  # 폴백용
+            print(f"[ASSETS-ZIP] Chirp 3 HD 사용: {base_voice} (100 req/min)")
+        elif using_gemini:
             if not google_api_key:
                 return jsonify({"ok": False, "error": "GOOGLE_API_KEY가 설정되지 않았습니다 (Gemini TTS용)"}), 500
             api_key = google_api_key
-            print(f"[ASSETS-ZIP] Gemini TTS 사용: {base_voice}")
+            print(f"[ASSETS-ZIP] Gemini TTS 사용: {base_voice} (10 req/min - 느림!)")
         else:
             if not google_cloud_api_key:
                 return jsonify({"ok": False, "error": "GOOGLE_CLOUD_API_KEY가 설정되지 않았습니다"}), 500
             api_key = google_cloud_api_key
+            print(f"[ASSETS-ZIP] Google Cloud TTS 사용: {base_voice}")
 
         print(f"[ASSETS-ZIP] Starting TTS for {len(scenes)} scenes (voice: {base_voice})")
 
@@ -11325,13 +11442,15 @@ def api_image_generate_assets_zip():
                     has_ssml = False  # 폴백하여 아래 문장별 처리로
 
             if not has_ssml:
-                # ★ 문장별 TTS 생성 (Gemini TTS 텍스트 길이 제한 대응)
+                # ★ 문장별 TTS 생성
                 sentences = tts_sentences
                 print(f"[ASSETS-ZIP] Scene {scene_idx + 1}: {len(sentences)} sentences → 문장별 TTS")
 
                 for sent_idx, sentence in enumerate(sentences):
-                    # ★ Gemini Rate limit 방지: 문장 간 짧은 딜레이 (1.5초)
-                    # 429 에러 발생 시 generate_gemini_tts 내부 재시도 로직이 처리
+                    # Rate limit 대응:
+                    # - Chirp 3 HD: 100 req/min → 딜레이 불필요
+                    # - Gemini TTS: 10 req/min → 1.5초 딜레이 필요
+                    # - Google Cloud TTS: 600 req/min → 딜레이 불필요
                     if using_gemini and sent_idx > 0:
                         time_module.sleep(1.5)
 

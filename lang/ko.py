@@ -218,11 +218,25 @@ TTS = {
         'male': 'ko-KR-Neural2-C',      # 남성 (고품질)
         'female': 'ko-KR-Neural2-A',    # 여성 (고품질)
     },
-    'default_voice': 'gemini:Charon',  # 기본: Gemini Flash 남성 (빠르고 저렴)
-    'fallback_voice': 'ko-KR-Neural2-C', # 대체 음성 (Gemini 실패 시)
+    'default_voice': 'chirp3:Charon',   # 기본: Chirp 3 HD 남성 (고품질 + 빠름!)
+    'fallback_voice': 'ko-KR-Neural2-C', # 대체 음성 (실패 시)
 
-    # Gemini TTS 음성 (2025년 신규) - "gemini:음성명" 형식으로 사용
-    # 사용법: Google Sheets 음성 열에 "gemini:Kore" 입력
+    # ★ Chirp 3 HD 음성 (2025년 최신) - "chirp3:음성명" 형식으로 사용
+    # 사용법: Google Sheets 음성 열에 "chirp3:Charon" 입력
+    # Rate limit: 100 req/min (Gemini의 10배!)
+    'chirp3_voices': {
+        'Kore': '여성, 차분하고 따뜻한 톤',
+        'Charon': '남성, 깊고 신뢰감 있는 톤',
+        'Puck': '남성, 활기차고 친근한 톤',
+        'Fenrir': '남성, 힘있고 웅장한 톤',
+        'Orus': '남성, 차분한 톤',
+        'Aoede': '여성, 부드럽고 감성적인 톤',
+        'Leda': '여성, 밝고 활기찬 톤',
+        'Zephyr': '여성, 따뜻하고 친근한 톤',
+    },
+
+    # Gemini TTS 음성 (느림 - 10 req/min 제한!) - "gemini:음성명" 형식
+    # ⚠️ 긴 영상에는 비추천, 쇼츠용으로만 사용
     'gemini_voices': {
         'Kore': '여성, 차분하고 따뜻한 톤',
         'Charon': '남성, 깊고 신뢰감 있는 톤',
@@ -238,6 +252,7 @@ TTS = {
 
     # 비용 (100만 글자당)
     'cost_per_million_chars': {
+        'chirp3_hd': 30.0,      # $30/100만 글자 (최고 품질)
         'neural2': 16.0,        # $16/100만 글자
         'wavenet': 4.0,         # $4/100만 글자
         'gemini_flash': 0.6,    # Gemini Flash TTS (토큰 기반 환산)
