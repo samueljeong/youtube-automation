@@ -19589,7 +19589,23 @@ def api_sheets_check_and_process():
             'scheduled_time': get_row_value(row_data, col_map, '예약시간'),
         }
 
-        result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
+        print(f"[SHEETS] ★★★ 파이프라인 호출 직전 ★★★")
+        print(f"[SHEETS]   - 시트: {sheet_name}, 행: {row_num}")
+        print(f"[SHEETS]   - 채널: {channel_id}")
+        print(f"[SHEETS]   - 대본 길이: {len(pipeline_data.get('script', ''))}자")
+
+        try:
+            result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
+            print(f"[SHEETS] ★★★ 파이프라인 완료 ★★★ - ok: {result.get('ok')}")
+        except Exception as pipeline_err:
+            import traceback
+            print(f"[SHEETS] ★★★ 파이프라인 예외 발생 ★★★")
+            print(f"[SHEETS] 에러: {type(pipeline_err).__name__}: {pipeline_err}")
+            traceback.print_exc()
+            # 시트에 실패 기록
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '에러메시지', f'예외: {str(pipeline_err)[:200]}')
+            raise  # 다시 던져서 상위에서 처리
 
         # ========== 6. 결과 기록 ==========
         # 비용 기록 (원화로 변환, 1 USD = 1,350 KRW)
