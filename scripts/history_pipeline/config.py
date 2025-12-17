@@ -284,6 +284,7 @@ SHEET_HEADERS = {
         "source_url",        # 출처 URL
         "materials_pack",    # 자료 발췌/요약 묶음 (핵심포인트 포함)
         "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품 (한 셀 복붙)
+        "thumbnail_copy",    # 썸네일 문구 추천
         "status",            # PENDING/DONE
         "created_at",        # 생성 시간 (ISO)
     ],

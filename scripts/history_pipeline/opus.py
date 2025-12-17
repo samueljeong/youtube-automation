@@ -71,13 +71,14 @@ def generate_opus_input(
 
     if should_call_llm:
         print(f"[HISTORY] LLM 호출 (점수 {score_total} >= 최소 {llm_min_score})")
-        core_facts = _llm_generate_core_facts(
+        core_facts, thumbnail_copy = _llm_generate_core_facts(
             era, era_name, period, topic, title, summary, url
         )
     else:
         if llm_enabled and score_total < llm_min_score:
             print(f"[HISTORY] LLM 스킵 (점수 {score_total} < 최소 {llm_min_score})")
         core_facts = _generate_default_core_facts(era_name, topic, title, summary)
+        thumbnail_copy = _generate_default_thumbnail(era_name, topic, title)
 
     # ========================================
     # materials_pack: 자료 발췌/요약 묶음
@@ -105,6 +106,7 @@ def generate_opus_input(
         url,              # source_url
         materials_pack,   # materials_pack
         opus_prompt_pack, # opus_prompt_pack ★ 이것만 복붙
+        thumbnail_copy,   # thumbnail_copy (썸네일 문구 추천)
         "PENDING",        # status
         created_at,       # created_at
     ]]
@@ -239,6 +241,19 @@ def _generate_default_core_facts(
 """
 
 
+def _generate_default_thumbnail(
+    era_name: str,
+    topic: str,
+    title: str
+) -> str:
+    """기본 썸네일 문구 템플릿"""
+    return f"""[썸네일 문구 추천]
+
+1. {era_name}의 비밀
+2. {topic} - 역사가 숨긴 진실
+3. {title[:20]}...의 충격적 결말"""
+
+
 def _llm_generate_core_facts(
     era: str,
     era_name: str,
@@ -247,13 +262,21 @@ def _llm_generate_core_facts(
     title: str,
     summary: str,
     url: str
-) -> str:
-    """LLM으로 핵심포인트 생성 (구조 마커 포함)"""
+) -> Tuple[str, str]:
+    """
+    LLM으로 핵심포인트 생성 (구조 마커 포함)
+
+    Returns:
+        (core_facts, thumbnail_copy)
+    """
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("[HISTORY] OPENAI_API_KEY 환경변수 없음, 기본 템플릿 사용")
-        return _generate_default_core_facts(era_name, topic, title, summary)
+        return (
+            _generate_default_core_facts(era_name, topic, title, summary),
+            _generate_default_thumbnail(era_name, topic, title)
+        )
 
     try:
         from openai import OpenAI
@@ -310,6 +333,11 @@ def _llm_generate_core_facts(
 
 [#NEXT] 다음 시대 연결
 - (다음 시대로 이어지는 질문 1개)
+
+[썸네일 문구 3안]
+1. (클릭 유도 문구 - 짧고 임팩트 있게)
+2. (호기심 자극 문구)
+3. (반전/놀라움 문구)
 """
 
         model = os.environ.get("OPENAI_MODEL", LLM_MODEL_DEFAULT)
@@ -343,16 +371,48 @@ def _llm_generate_core_facts(
             )
             text = response.choices[0].message.content.strip()
 
+        # 썸네일 문구 추출
+        core_facts, thumbnail_copy = _parse_llm_response_with_thumbnail(text)
+
         print(f"[HISTORY] LLM 핵심포인트 생성 완료 (모델: {model})")
-        return text
+        return core_facts, thumbnail_copy
 
     except Exception as e:
         print(f"[HISTORY] LLM 호출 실패: {e}")
-        return _generate_default_core_facts(era_name, topic, title, summary)
+        return (
+            _generate_default_core_facts(era_name, topic, title, summary),
+            _generate_default_thumbnail(era_name, topic, title)
+        )
+
+
+def _parse_llm_response_with_thumbnail(text: str) -> Tuple[str, str]:
+    """
+    LLM 응답을 파싱하여 핵심포인트와 썸네일 문구 추출
+
+    Returns:
+        (core_facts, thumbnail_copy)
+    """
+    import re
+
+    # 썸네일 문구 추출 (썸네일 이후 부분)
+    thumb_match = re.search(
+        r'썸네일.*',
+        text,
+        re.DOTALL | re.IGNORECASE
+    )
+    thumbnail_copy = thumb_match.group(0).strip() if thumb_match else ""
+
+    # 핵심포인트 = 썸네일 전까지 전체
+    if thumb_match:
+        core_facts = text[:thumb_match.start()].strip()
+    else:
+        core_facts = text.strip()
+
+    return core_facts, thumbnail_copy
 
 
 def _parse_llm_response(text: str) -> Tuple[str, str, str]:
-    """LLM 응답을 섹션별로 파싱"""
+    """LLM 응답을 섹션별로 파싱 (레거시, 미사용)"""
     import re
 
     core_facts = ""

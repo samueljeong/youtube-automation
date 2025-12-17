@@ -1,11 +1,24 @@
 """
 OPUS 입력 생성 (LLM 포함)
+
+반자동 운영 최적화:
+- opus_prompt_pack: Opus에 한 번에 붙여넣을 완제품 (썸네일 제외)
 """
 
 import os
+from datetime import datetime, timezone
 
 from .config import CHANNELS
 from .utils import get_weekday_angle
+
+
+# ============================================================
+# 대본 분량 설정 (2024-12 개편: 10-15분)
+# ============================================================
+SCRIPT_DURATION_MIN = 10  # 분
+SCRIPT_DURATION_MAX = 15  # 분
+SCRIPT_LEN_MIN = 9300     # 한국어 TTS 기준 약 620자/분
+SCRIPT_LEN_MAX = 14000
 
 
 def generate_opus_input(
@@ -41,21 +54,21 @@ def generate_opus_input(
     priority = min(5, max(1, int(score_total / 20) + 1))
 
     weekday_angle = get_weekday_angle()
+    channel_name = CHANNELS.get(channel, {}).get("name", channel)
 
     # LLM 호출 조건
     should_call_llm = llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
 
     if should_call_llm:
         print(f"[NEWS] LLM 호출 (점수 {score_total} >= 최소 {llm_min_score})")
-        core_points, brief, shorts, thumb = _llm_make_opus_input(
+        core_points, brief, thumb = _llm_make_opus_input(
             category, title, summary, link, channel
         )
     elif llm_enabled and score_total < llm_min_score:
         print(f"[NEWS] LLM 스킵 (점수 {score_total} < 최소 {llm_min_score})")
-        core_points, brief, shorts, thumb = "", "", "", ""
+        core_points, brief, thumb = "", "", ""
     else:
         # LLM 없이 기본 템플릿
-        channel_name = CHANNELS.get(channel, {}).get("name", channel)
         core_points = f"""[핵심포인트]
 • 이슈: {title}
 • 출처: {link}
@@ -70,30 +83,98 @@ def generate_opus_input(
 5."""
 
         brief = f"""[대본 지시문]
-- 분량: 7~10분 (3,000~3,800자)
+- 분량: {SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분 ({SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자)
 - 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
-- 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
+- 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리
 - 금지: 속보 요약, 과장, 공포 조장"""
 
-        shorts = ""
         thumb = ""
+
+    # opus_prompt_pack 생성 (썸네일 제외, Opus 복붙용)
+    opus_prompt_pack = _build_opus_prompt_pack(
+        channel_name, category, title, link, weekday_angle, core_points
+    )
+
+    # 생성 시간
+    created_at = datetime.now(timezone.utc).isoformat()
 
     opus_row = [[
         run_id,
         1,  # selected_rank
         category,
-        title[:50],  # issue_one_line
+        title[:50],       # issue_one_line
         core_points,
         brief,
-        shorts,
-        thumb,
-        "PENDING",  # status
-        "",  # opus_script
+        thumb,            # thumbnail_copy
+        opus_prompt_pack, # ★ Opus에 붙여넣을 완제품 (썸네일 제외)
+        "PENDING",        # status
+        created_at,       # created_at
     ]]
 
     print(f"[NEWS] OPUS_INPUT 생성 완료: {title[:30]}...")
     return opus_row
+
+
+def _build_opus_prompt_pack(
+    channel_name: str,
+    category: str,
+    title: str,
+    link: str,
+    weekday_angle: str,
+    core_points: str
+) -> str:
+    """
+    Opus에 붙여넣을 완제품 프롬프트 생성 (썸네일 제외)
+    """
+    return f"""당신은 뉴스 전문 유튜브 채널의 대본 작가입니다.
+아래 정보를 바탕으로 **{SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분 분량({SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자)**의 나레이션 대본을 작성하세요.
+
+════════════════════════════════════════
+[CONTEXT]
+════════════════════════════════════════
+- 채널: {channel_name}
+- 카테고리: {category}
+- 이슈: {title}
+- 출처: {link}
+- 오늘 톤: {weekday_angle}
+
+════════════════════════════════════════
+[STRUCTURE POINTS]
+════════════════════════════════════════
+{core_points}
+
+════════════════════════════════════════
+[SCRIPT BRIEF]
+════════════════════════════════════════
+📌 분량 (필수)
+- 시간: {SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분
+- 문자수: {SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자 (한국어 기준) ← 반드시 준수
+- TTS 속도: 약 620~930자/분
+
+📌 관점
+- "내 돈/내 생활"에 미치는 영향 중심
+- 시청자가 오늘 뉴스를 왜 봐야 하는지
+
+📌 구조
+- 서론: 불안/의문 유발 (15%)
+- 본론: 핵심 정리 + 인과 설명 (60%)
+- 전망: 앞으로 주목할 포인트 (20%)
+- 마무리: 한 줄 요약 (5%)
+
+🚫 금지
+- 속보 요약 스타일
+- 과장, 공포 조장
+- "~해야 합니다", "~를 기억합시다" 같은 훈계
+
+════════════════════════════════════════
+⚠️ 최종 체크리스트 (작성 후 반드시 확인)
+════════════════════════════════════════
+□ 총 글자수 {SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자 사이인가?
+□ "내 돈/내 생활"에 미치는 영향이 명확한가?
+□ 과장/공포 조장 표현이 없는가?
+□ 훈계형 표현이 없는가?
+"""
 
 
 def _parse_llm_response(text: str) -> tuple:
@@ -101,32 +182,22 @@ def _parse_llm_response(text: str) -> tuple:
     LLM 응답을 섹션별로 파싱
 
     Returns:
-        (core_points, shorts_hook, thumbnail_copy)
+        (core_points, thumbnail_copy)
     """
     import re
 
     # 기본값
     core_points = ""
-    shorts_hook = ""
     thumb_copy = ""
 
-    # 핵심포인트 + 오프닝 감정유도 추출 (엔딩 전까지)
+    # 핵심포인트 추출 (썸네일 전까지)
     core_match = re.search(
-        r'핵심포인트.*?(?=엔딩|$)',
+        r'핵심포인트.*?(?=썸네일|$)',
         text,
         re.DOTALL | re.IGNORECASE
     )
     if core_match:
         core_points = core_match.group(0).strip()
-
-    # 엔딩 루틴예고 추출 (썸네일 전까지)
-    shorts_match = re.search(
-        r'엔딩\s*루틴.*?(?=썸네일|$)',
-        text,
-        re.DOTALL | re.IGNORECASE
-    )
-    if shorts_match:
-        shorts_hook = shorts_match.group(0).strip()
 
     # 썸네일 문구 추출
     thumb_match = re.search(
@@ -141,7 +212,7 @@ def _parse_llm_response(text: str) -> tuple:
     if not core_points:
         core_points = text
 
-    return core_points, shorts_hook, thumb_copy
+    return core_points, thumb_copy
 
 
 def _llm_make_opus_input(
@@ -151,11 +222,16 @@ def _llm_make_opus_input(
     link: str,
     channel: str
 ) -> tuple:
-    """LLM으로 핵심포인트 생성"""
+    """
+    LLM으로 핵심포인트 생성
+
+    Returns:
+        (core_points, brief, thumbnail_copy)
+    """
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("[NEWS] OPENAI_API_KEY 환경변수 없음, LLM 스킵")
-        return "", "", "", ""
+        return "", "", ""
 
     try:
         from openai import OpenAI
@@ -223,9 +299,6 @@ def _llm_make_opus_input(
 4. (구조/인과/방향 문장)
 5. (구조/인과/방향 문장)
 
-엔딩 루틴예고:
--
-
 썸네일 문구 3안:
 1.
 2.
@@ -263,18 +336,18 @@ def _llm_make_opus_input(
             text = response.choices[0].message.content.strip()
 
         # LLM 응답 파싱 (섹션별 분리)
-        core_points, shorts, thumb = _parse_llm_response(text)
+        core_points, thumb = _parse_llm_response(text)
 
         brief = f"""[대본 지시문]
-- 분량: 7~10분 (3,000~3,800자)
+- 분량: {SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분 ({SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자)
 - 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
-- 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
+- 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리
 - 금지: 속보 요약, 과장, 공포 조장"""
 
         print(f"[NEWS] LLM 핵심포인트 생성 완료 (모델: {model})")
-        return core_points, brief, shorts, thumb
+        return core_points, brief, thumb
 
     except Exception as e:
         print(f"[NEWS] LLM 호출 실패: {e}")
-        return "", "", "", ""
+        return "", "", ""
