@@ -67,18 +67,44 @@ def collect_materials(
     all_items = []
     all_rows = []
 
-    # 1) Google Custom Search로 수집
-    search_items = _search_google_custom(
-        era_name,
-        primary_keywords[:5],  # 상위 5개 키워드만 사용
-        max_results
-    )
-    all_items.extend(search_items)
-    print(f"[HISTORY] 검색 결과: {len(search_items)}개 아이템")
+    # ========== 1) 공개 API 수집 (우선 - 신뢰성 높음) ==========
 
-    # 2) 위키백과/나무위키 등 백과사전 수집 (선택)
-    # encyclopedia_items = _search_encyclopedia(era_name, primary_keywords)
-    # all_items.extend(encyclopedia_items)
+    # 1a) 한국민족문화대백과사전 (한국학중앙연구원)
+    encykorea_items = _search_encykorea(
+        era_name,
+        primary_keywords[:3],
+        max_results=10
+    )
+    all_items.extend(encykorea_items)
+
+    # 1b) 국립중앙박물관 e뮤지엄 (EMUSEUM_API_KEY 필요)
+    emuseum_items = _search_emuseum(
+        era_name,
+        primary_keywords[:3],
+        max_results=10
+    )
+    all_items.extend(emuseum_items)
+
+    # 1c) 국사편찬위원회 한국사데이터베이스
+    history_db_items = _search_history_db(
+        era_name,
+        primary_keywords[:3],
+        max_results=10
+    )
+    all_items.extend(history_db_items)
+
+    print(f"[HISTORY] 공개 API: {len(all_items)}개 수집 (대백과 {len(encykorea_items)}, 박물관 {len(emuseum_items)}, 국사편찬 {len(history_db_items)})")
+
+    # ========== 2) Google Custom Search (보조) ==========
+    # 공개 API에서 충분한 자료를 얻지 못한 경우에만
+    if len(all_items) < max_results // 2:
+        search_items = _search_google_custom(
+            era_name,
+            primary_keywords[:5],
+            max_results - len(all_items)
+        )
+        all_items.extend(search_items)
+        print(f"[HISTORY] Google 보조 검색: {len(search_items)}개 추가")
 
     # 3) 중복 제거 및 필터링
     now = datetime.now(timezone.utc).isoformat()
@@ -216,6 +242,225 @@ def _search_google_custom(
 
     print(f"[HISTORY] Google Custom Search: {len(items)}개 결과")
     return items[:max_results]
+
+
+# ============================================================
+# 공개 API 연동 (신뢰성 높은 자료)
+# ============================================================
+
+def _search_encykorea(
+    era_name: str,
+    keywords: List[str],
+    max_results: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    한국민족문화대백과사전 검색 (한국학중앙연구원)
+
+    https://encykorea.aks.ac.kr
+    - 65,000개 이상 항목
+    - 한국 역사/문화 전문 백과사전
+    """
+    import requests
+
+    items = []
+    base_url = "https://encykorea.aks.ac.kr/api/search"
+
+    # 시대명 + 주요 키워드로 검색
+    search_terms = [era_name] + keywords[:3]
+
+    for term in search_terms:
+        try:
+            # 한국민족문화대백과 검색 API
+            params = {
+                "q": term,
+                "type": "entry",
+                "limit": max_results // len(search_terms)
+            }
+
+            response = requests.get(
+                base_url,
+                params=params,
+                timeout=10,
+                headers={"Accept": "application/json"}
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                for entry in data.get("items", [])[:5]:
+                    items.append({
+                        "title": entry.get("title", ""),
+                        "url": f"https://encykorea.aks.ac.kr/Article/{entry.get('id', '')}",
+                        "content": entry.get("summary", entry.get("description", "")),
+                        "source_type": "encyclopedia",
+                        "source_name": "한국민족문화대백과사전",
+                    })
+
+            if len(items) >= max_results:
+                break
+
+        except Exception as e:
+            print(f"[HISTORY] 한국민족문화대백과 검색 실패 ({term}): {e}")
+            continue
+
+    if items:
+        print(f"[HISTORY] 한국민족문화대백과: {len(items)}개 수집")
+
+    return items
+
+
+def _search_emuseum(
+    era_name: str,
+    keywords: List[str],
+    max_results: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    국립중앙박물관 e뮤지엄 API
+
+    공공데이터포털: https://www.data.go.kr/data/15104964/openapi.do
+    - 20만건 이상 유물 정보
+    - 유물명, 시대, 재질, 크기 등 제공
+
+    환경변수:
+    - EMUSEUM_API_KEY: 공공데이터포털 인증키
+    """
+    import requests
+
+    api_key = os.environ.get("EMUSEUM_API_KEY")
+    if not api_key:
+        return []
+
+    items = []
+    base_url = "http://www.emuseum.go.kr/openapi/relic/list"
+
+    # 시대 매핑
+    era_mapping = {
+        "고조선": "청동기",
+        "부여/옥저/동예": "원삼국",
+        "삼국시대": "삼국",
+        "남북국시대": "통일신라",
+        "고려": "고려",
+        "조선 전기": "조선",
+        "조선 후기": "조선",
+        "대한제국": "대한제국",
+    }
+
+    search_era = era_mapping.get(era_name, era_name)
+
+    try:
+        params = {
+            "serviceKey": api_key,
+            "pageNo": 1,
+            "numOfRows": max_results,
+            "prdctNmNtnl": "",  # 유물명
+            "mnfctDt": search_era,  # 시대
+            "type": "json"
+        }
+
+        response = requests.get(base_url, params=params, timeout=15)
+
+        if response.status_code == 200:
+            data = response.json()
+            relics = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+
+            if isinstance(relics, dict):
+                relics = [relics]
+
+            for relic in relics:
+                title = relic.get("prdctNmNtnl", "") or relic.get("prdctNmEng", "")
+                if not title:
+                    continue
+
+                content = f"{relic.get('mnfctDt', '')} 시대 유물. "
+                content += f"재질: {relic.get('mtrlNtnl', '')}. "
+                content += f"크기: {relic.get('sizeNtnl', '')}. "
+                content += relic.get("dscNtnl", "")[:300]
+
+                items.append({
+                    "title": title,
+                    "url": f"https://www.emuseum.go.kr/relic/{relic.get('relicId', '')}",
+                    "content": content.strip(),
+                    "source_type": "museum",
+                    "source_name": "국립중앙박물관",
+                })
+
+        if items:
+            print(f"[HISTORY] 국립중앙박물관 e뮤지엄: {len(items)}개 수집")
+
+    except Exception as e:
+        print(f"[HISTORY] e뮤지엄 API 실패: {e}")
+
+    return items
+
+
+def _search_history_db(
+    era_name: str,
+    keywords: List[str],
+    max_results: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    국사편찬위원회 한국사데이터베이스 검색
+
+    https://db.history.go.kr
+    - 1,100만건 이상 역사 자료
+    - 삼국사기, 조선왕조실록 등 1차 사료
+
+    웹 스크래핑 방식 (공식 API 없음)
+    """
+    import requests
+    from urllib.parse import quote
+
+    items = []
+    base_url = "https://db.history.go.kr/search/searchResult.do"
+
+    search_query = f"{era_name} {' '.join(keywords[:2])}"
+
+    try:
+        params = {
+            "searchWord": search_query,
+            "searchWordType": "BI",
+            "topSearchWord": "",
+            "topSearchWordType": "BI",
+            "pageUnit": str(max_results),
+            "pageIndex": "1",
+        }
+
+        response = requests.get(
+            base_url,
+            params=params,
+            timeout=15,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; HistoryBot/1.0)",
+                "Accept": "text/html,application/xhtml+xml",
+            }
+        )
+
+        if response.status_code == 200:
+            # HTML 파싱 (간단한 정규식 사용)
+            import re
+
+            # 검색 결과 제목과 링크 추출
+            pattern = r'<a[^>]*href="(/item/[^"]+)"[^>]*>([^<]+)</a>'
+            matches = re.findall(pattern, response.text)
+
+            for url_path, title in matches[:max_results]:
+                if not title.strip():
+                    continue
+
+                items.append({
+                    "title": title.strip(),
+                    "url": f"https://db.history.go.kr{url_path}",
+                    "content": f"국사편찬위원회 한국사데이터베이스 자료. {era_name} 관련 역사 기록.",
+                    "source_type": "university",
+                    "source_name": "국사편찬위원회",
+                })
+
+        if items:
+            print(f"[HISTORY] 한국사데이터베이스: {len(items)}개 수집")
+
+    except Exception as e:
+        print(f"[HISTORY] 한국사DB 검색 실패: {e}")
+
+    return items
 
 
 def _classify_source(url: str) -> str:
