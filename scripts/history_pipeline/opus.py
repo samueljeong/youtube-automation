@@ -724,6 +724,65 @@ def _get_next_era_info(era: str) -> Dict[str, str]:
     return {"era": "", "name": "다음 시대", "period": ""}
 
 
+def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
+    """
+    에피소드 위치별 역할 정의
+
+    시리즈 구조:
+    - 초반 (1-2화): 형성기 - 국가의 탄생과 구조
+    - 중반 (3화): 제도기 - 법, 제도, 통치 체계
+    - 후반 (4화): 변동기 - 멸망/붕괴 이후, 사람들의 이동
+    - 종반 (5-6화): 전환기 - 다음 시대로의 연결
+    """
+    # 비율로 계산 (총 편수가 달라도 적용 가능)
+    position_ratio = era_episode / total_episodes
+
+    if position_ratio <= 0.33:  # 초반 1/3
+        return {
+            "phase": "형성기",
+            "role": "국가의 탄생과 구조",
+            "allowed": "건국, 위치, 초기 구조, 지배층 형성",
+            "forbidden": "멸망, 붕괴, 다음 시대 세력",
+            "body1_focus": "국가 형성 과정의 사실",
+            "turn_focus": "왜 국가가 필요했는가",
+            "body2_focus": "초기 지배층의 선택과 갈등",
+            "impact_limit": "이 시대 내부의 영향만",
+        }
+    elif position_ratio <= 0.5:  # 중반 1/3
+        return {
+            "phase": "제도기",
+            "role": "법, 제도, 통치 체계",
+            "allowed": "법, 제도, 통치 방식, 사회 구조",
+            "forbidden": "건국 신화, 멸망, 다음 시대",
+            "body1_focus": "제도/법의 존재 사실",
+            "turn_focus": "왜 기존 관습이 한계에 도달했는가",
+            "body2_focus": "제도의 강제성, 저항, 불편",
+            "impact_limit": "제도가 사회에 미친 영향만",
+        }
+    elif position_ratio <= 0.75:  # 후반
+        return {
+            "phase": "변동기",
+            "role": "멸망/붕괴 이후, 사람들의 이동",
+            "allowed": "멸망 이후 상황, 사람들의 이동, 흩어짐",
+            "forbidden": "건국, 위치, 문화 개요, 영웅 서사, 다음 시대 국가명",
+            "body1_focus": "멸망 이후 상황만 (건국/위치/문화 개요 금지)",
+            "turn_focus": "국가가 사라진 후 선택의 강요",
+            "body2_focus": "집단의 이동, 남음/떠남, 혼란 (개인 영웅 금지)",
+            "impact_limit": "여러 세력 등장 배경까지만 (다음 시대 국가 직접 언급 금지)",
+        }
+    else:  # 종반
+        return {
+            "phase": "전환기",
+            "role": "다음 시대로의 연결",
+            "allowed": "이 시대의 유산, 다음 시대와의 연결고리",
+            "forbidden": "건국 신화, 초기 구조 반복",
+            "body1_focus": "이 시대가 남긴 것들",
+            "turn_focus": "왜 새로운 시대가 필요했는가",
+            "body2_focus": "다음 시대를 준비하는 움직임",
+            "impact_limit": "다음 시대 예고 가능",
+        }
+
+
 def _generate_episode_core_facts(
     era_name: str,
     period: str,
@@ -737,6 +796,7 @@ def _generate_episode_core_facts(
     """에피소드용 핵심포인트 템플릿 생성"""
 
     is_last = era_episode >= total_episodes
+    episode_role = _get_episode_role(era_episode, total_episodes)
 
     ending_hint = f"""[#NEXT] 다음 시대 연결
 - {next_era_info['name']}으로 이어지는 질문
@@ -752,25 +812,35 @@ def _generate_episode_core_facts(
 ▶ 출처: {title}
 ▶ 진행상황: {era_name} 시리즈 {era_episode}/{total_episodes}화
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ 이 에피소드의 역할: {episode_role['phase']} - {episode_role['role']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 허용: {episode_role['allowed']}
+❌ 금지: {episode_role['forbidden']}
+
 [#OPEN] 오프닝 질문
 - 이 에피소드의 핵심 질문
 - 시청자가 알고 싶어할 포인트
 
 [#BODY1_FACTS_ONLY] 핵심 사실 (5개)
+⚠️ 이 화의 초점: {episode_role['body1_focus']}
 1. (사실 1 - 시간/장소/인물 중심)
 2. (사실 2)
 3. (사실 3)
 4. (사실 4)
 5. (사실 5)
 
-[#TURN] 전환점 (이전 방식의 한계)
+[#TURN] 전환점
+⚠️ 이 화의 초점: {episode_role['turn_focus']}
 - 왜 기존 방식이 더 이상 통하지 않았나?
 
-[#BODY2_HUMAN_ALLOWED] 스토리 전개 (긴장·저항 포함)
-- 주요 인물이 한 행동과 결정 (구체적 행위)
+[#BODY2_HUMAN_ALLOWED] 스토리 전개
+⚠️ 이 화의 초점: {episode_role['body2_focus']}
+- 주요 인물/집단이 한 행동과 결정 (구체적 행위)
 - 긴장, 저항, 불편, 강제성 요소
 
-[#IMPACT] 역사적 의의 (현대 용어 금지)
+[#IMPACT] 역사적 의의
+⚠️ 범위 제한: {episode_role['impact_limit']}
 - 이후 역사에 미친 영향 (중립 표현만)
 
 {ending_hint}
@@ -842,6 +912,7 @@ def _build_episode_opus_prompt_pack(
     """에피소드용 Opus 프롬프트 생성"""
 
     is_last = era_episode >= total_episodes
+    episode_role = _get_episode_role(era_episode, total_episodes)
 
     next_hint = f"""- 시대 마무리: {era_name} 시대의 역사적 의의로 마무리
 - 다음 시대 예고: "{next_era_info['name']}이 시작됩니다. 다음 시간에..."
@@ -860,12 +931,18 @@ def _build_episode_opus_prompt_pack(
 ⏱️ 분량: 15~20분 (13,650~18,200자)
 
 ════════════════════════════════════════
+⚠️ 이 에피소드의 역할: {episode_role['phase']} - {episode_role['role']}
+════════════════════════════════════════
+✅ 이 화에서 다룰 것: {episode_role['allowed']}
+❌ 이 화에서 금지: {episode_role['forbidden']}
+
+════════════════════════════════════════
 [CONTEXT]
 ════════════════════════════════════════
 - 시대: {era_name} ({period})
 - 자료 출처: {title}
 - URL: {url}
-- 오늘의 핵심 질문: {topic}의 구조와 변화 - 누가, 어떻게, 왜?
+- 오늘의 핵심 질문: {episode_role['role']} - 누가, 어떻게, 왜?
 
 ════════════════════════════════════════
 [STRUCTURE POINTS]
