@@ -224,16 +224,16 @@ def _generate_default_core_facts(
 4. (사실 4)
 5. (사실 5)
 
-[#TURN] 전환점
-- 결정적 순간은 언제였나?
-- 어떤 선택의 갈림길이 있었나?
+[#TURN] 전환점 (이전 방식의 한계)
+- 왜 기존 방식이 더 이상 통하지 않았나?
+- 어떤 상황 변화가 있었나?
 
-[#BODY2_HUMAN_ALLOWED] 스토리 전개
+[#BODY2_HUMAN_ALLOWED] 스토리 전개 (긴장·저항 포함)
 - 주요 인물이 한 행동과 결정 (구체적 행위)
-- 사건의 전개 과정 (원인→결과)
+- 긴장, 저항, 불편, 강제성 요소
 
-[#IMPACT] 역사적 의의
-- 이후 역사에 미친 영향
+[#IMPACT] 역사적 의의 (현대 용어 금지)
+- 이후 역사에 미친 영향 (중립 표현만)
 
 [#NEXT] 다음 시대 연결
 - 다음 시대로 이어지는 질문
@@ -285,59 +285,95 @@ def _llm_generate_core_facts(
         client = OpenAI(api_key=api_key)
 
         prompt = f"""당신은 한국사 교육 콘텐츠 기획자입니다.
-아래 자료를 바탕으로 YouTube 역사 영상의 대본 작성을 위한 '구조적 핵심포인트'를 생성하세요.
+아래 자료를 바탕으로 YouTube 역사 영상의 대본 작성을 위한 '독립 논리 블록'을 생성하세요.
+
+════════════════════════════════════════
+🚨 가장 중요한 원칙: 에피소드 번호 비의존 생성
+════════════════════════════════════════
+- 이것은 "n/6화"가 아니라 **하나의 독립된 다큐 논리 블록**이다
+- "몇 화인지"는 절대 고려하지 말 것
+- 다른 에피소드와 내용이 겹치는지 여부도 고려하지 말 것
+- 오직 이 자료가 담고 있는 논리 구조만 추출할 것
 
 [시대 정보]
 - 시대: {era_name}
 - 기간: {period}
 - 주제 분류: {topic}
 
-[자료 정보]
+[자료 정보] ⚠️ 참고 범위일 뿐, '정답'이 아님
 - 제목: {title}
 - 요약: {summary}
 - 출처: {url}
 
-[핵심포인트의 정체성]
-이 단계는 '대본을 쓰기 위한 재료'를 제공하는 것입니다.
-시청자를 설득하거나 감정을 유도하는 문장이 아닙니다.
+════════════════════════════════════════
+🔗 핵심 질문 → 구조 강제 연결
+════════════════════════════════════════
+핵심 질문은 장식 문구가 아니라 '전개 축'이다.
+아래 구조를 반드시 따를 것:
+
+BODY1 = "누가" (행위 주체와 관찰 가능한 사실)
+TURN = "왜 바뀌었는가" (기존 질서의 한계 노출 사건)
+BODY2 = "어떻게 작동했는가" (인간의 선택과 행동)
+IMPACT = "그 결과 무엇이 달라졌는가" (이후 변화)
 
 [절대 금지]
 ❌ 감정 표현 (흥미롭다, 놀랍다, 안타깝다)
 ❌ 평가/판단 (위대하다, 중요하다, ~해야 한다)
 ❌ 추측 (아마도, ~했을 것이다)
+❌ 민족주의 표현 (민족 저항, 외세 침략, 자주 정신, 찬란한)
+❌ 시청자 직접 호칭 (궁금하지 않은가?, 여러분, 우리)
 
-[허용 요소]
-⭕ 시간/장소/인물 정보
-⭕ 사건의 원인과 결과
-⭕ 역사적 맥락
+════════════════════════════════════════
+[#BODY1_FACTS_ONLY] "누가" - 관찰 가능한 사실만
+════════════════════════════════════════
+⚠️ 의도/해석/평가 절대 금지
+❌ 금지 동사: "결심했다", "강화하려 했다", "~하였다", "기여했다"
+❌ 금지 표현: "영향을 미쳤다", "기초를 마련", "안정에 기여", "~을 의미한다"
+❌ 나쁜 예: "왕은 영토 확장을 결심했다" (의도)
+❌ 나쁜 예: "이 제도는 사회 안정에 기여했다" (평가)
+⭕ 좋은 예: "BC 108년 한나라 군대가 왕검성을 포위했다" (관찰 사실)
+⭕ 좋은 예: "8조법 중 3개 조항이 현재까지 전해진다" (관찰 사실)
 
-[출력 형식 - 반드시 아래 구조 마커를 포함할 것]
+1. (시간/장소/인물 - 관찰 가능한 사실)
+2. (관찰 가능한 사실)
+3. (관찰 가능한 사실)
+4. (관찰 가능한 사실)
+5. (관찰 가능한 사실)
 
-[#OPEN] 오프닝 질문
-- (시청자의 호기심을 자극할 질문 1~2개)
+════════════════════════════════════════
+[#TURN] "왜 바뀌었는가" - 전환 사건 (요약 문장 금지)
+════════════════════════════════════════
+⚠️ TURN은 요약이 아니라 '사건'이어야 한다
+반드시 아래 중 하나를 포함:
+- 긴장 발생
+- 충돌
+- 기존 구조의 한계 노출
 
-[#BODY1_FACTS_ONLY] 핵심 사실 (5개)
-1. (역사적 사실 - 시간/장소/인물 중심, 25~40자)
-2. (역사적 사실)
-3. (역사적 사실)
-4. (역사적 사실)
-5. (역사적 사실)
+❌ 나쁜 예: "8조법 제정은 통치에 중대한 변화를 가져왔다" (요약)
+❌ 나쁜 예: "이것이 계기가 되었다" (요약)
+⭕ 좋은 예: "인구가 늘면서 마을 간 분쟁이 잦아졌고, 관습만으로는 해결이 어려워졌다" (사건)
+⭕ 좋은 예: "한나라 군대가 국경을 넘자, 지방 세력들은 각자 다른 선택을 해야 했다" (사건)
 
-[#TURN] 전환점
-- (결정적 순간/선택의 갈림길)
+════════════════════════════════════════
+[#BODY2_HUMAN_ALLOWED] "어떻게 작동했는가" - 인간의 선택
+════════════════════════════════════════
+⚠️ 긴장·저항 요소 필수
+- 인물/집단이 한 구체적 행동과 결정
+- 긴장, 저항, 불편, 강제성 중 최소 1개 포함
+❌ 나쁜 예: "법 제정 → 범죄 감소 → 신뢰 형성" (긍정만 나열)
+⭕ 좋은 예: "법은 질서를 만들었지만, 모든 사람이 받아들인 건 아니었다"
 
-[#BODY2_HUMAN_ALLOWED] 스토리 전개 힌트
-- (인물이 한 구체적 행동과 결정)
-- (사건 전개 과정: 원인→결과)
+════════════════════════════════════════
+[#IMPACT] "그 결과 무엇이 달라졌는가" - 이후 변화
+════════════════════════════════════════
+❌ 금지: "법치주의", "민주주의", "근대 국가" 등 현대 개념
+⭕ 허용: "방식", "형태", "기준" 등 중립 표현
 
-[#IMPACT] 역사적 의의
-- (이후 역사에 미친 영향)
-
-[#NEXT] 다음 시대 연결
-- (다음 시대로 이어지는 질문 1개)
+[#NEXT] 다음으로 이어지는 질문
+- (이 논리 블록 다음에 자연스럽게 따라올 질문 1개)
 
 [썸네일 문구 3안]
-1. (클릭 유도 문구 - 짧고 임팩트 있게)
+1. (클릭 유도 문구)
 2. (호기심 자극 문구)
 3. (반전/놀라움 문구)
 """
@@ -634,15 +670,15 @@ def generate_episode_opus_input(
     should_call_llm = llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
 
     if should_call_llm:
-        print(f"[HISTORY] LLM 호출 (에피소드 {episode}, 점수 {score_total})")
+        print(f"[HISTORY] LLM 호출 (에피소드 {episode}, 점수 {score_total}, 새 시대: {is_new_era})")
         core_facts, thumbnail_copy = _llm_generate_episode_content(
             era, era_name, period, era_episode, total_episodes,
-            topic, title, summary, url, next_era_info
+            topic, title, summary, url, next_era_info, is_new_era
         )
     else:
         core_facts = _generate_episode_core_facts(
             era_name, period, era_episode, total_episodes,
-            topic, title, summary, next_era_info
+            topic, title, summary, next_era_info, is_new_era
         )
         thumbnail_copy = _generate_episode_thumbnail(
             era_name, era_episode, total_episodes, topic, title
@@ -703,6 +739,85 @@ def _get_next_era_info(era: str) -> Dict[str, str]:
     return {"era": "", "name": "다음 시대", "period": ""}
 
 
+def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
+    """
+    에피소드 위치별 역할 정의 (비율 기반 - 총 편수 무관)
+
+    시리즈 구조:
+    - 초반 (~33%): 형성기 - 국가의 탄생과 구조
+    - 중반 (34~50%): 제도기 - 법, 제도, 통치 체계
+    - 후반 (51~70%): 변동기 - 멸망/붕괴 이후, 사람들의 이동
+    - 끝에서 두 번째: 유산기 - 국가는 사라졌지만 남은 것들
+    - 최종화: 연결기 - 다음 시대로의 연결
+
+    예시:
+    - 4부작: 1화(형성) → 2화(제도) → 3화(유산) → 4화(연결)
+    - 6부작: 1-2화(형성) → 3화(제도) → 4화(변동) → 5화(유산) → 6화(연결)
+    - 8부작: 1-2화(형성) → 3-4화(제도) → 5화(변동) → 6-7화(유산) → 8화(연결)
+    """
+    # 비율로 계산 (총 편수가 달라도 적용 가능)
+    position_ratio = era_episode / total_episodes
+    is_last = era_episode >= total_episodes
+    is_second_last = era_episode == total_episodes - 1
+
+    # ⚠️ 최종화와 끝에서 두 번째는 비율과 무관하게 고정 역할
+    if is_last:  # 최종화 = 연결기 (시대 봉인 + 다음 시대 연결)
+        return {
+            "phase": "연결기",
+            "role": "시대를 닫고, 다음 시대로 넘기는 화 (사건 설명 ❌)",
+            "allowed": "행정·지배 공백, 사람들의 이동, 지배 구조 해체, 남겨진 제도적 흔적, 통치 감각의 재활용",
+            "forbidden": "⚠️ 전투·전쟁·침략·멸망 서술 금지 (이미 앞 화에서 소화됨), 왕·영웅 중심 금지, '저항 촉발' 표현 금지, '배웠다/의미있었다' 감정적 결론 금지",
+            "body1_focus": "사건이 아닌 구조 정리 - 멸망 이후 공백, 이동, 해체된 것들",
+            "turn_focus": "'패배의 순간' ❌ → '질서가 무너지고 흩어지는 과정' ⭕",
+            "body2_focus": "떠나는 사람들, 남은 사람들, 새로운 선택을 해야 했던 집단들 (절제된 관찰 톤)",
+            "impact_limit": "이후 정치 집단들이 이 시대의 통치 감각을 재활용했다는 점 강조, 다음 시대가 '자연 발생'처럼 연결",
+        }
+    elif is_second_last:  # 끝에서 두 번째 = 유산기
+        return {
+            "phase": "유산기",
+            "role": "국가는 사라졌지만 남은 것들",
+            "allowed": "지배 구조의 흔적, 법과 질서의 지속, 공동체 운영 방식, 이후 국가들이 계승한 요소",
+            "forbidden": "⚠️ 건국 관련 모든 내용 절대 금지 (초반 내용 재탕 방지)",
+            "body1_focus": "통치 방식과 질서가 어떻게 지속되었는가",
+            "turn_focus": "멸망 → 단절이 아니라 '형태 없는 계승'",
+            "body2_focus": "평범한 사람들의 삶 속에서 방식이 유지되는 장면 (영웅/왕 금지)",
+            "impact_limit": "이후 여러 정치 집단이 같은 방식을 사용했다까지만",
+        }
+    elif position_ratio <= 0.33:  # 초반 ~33%
+        return {
+            "phase": "형성기",
+            "role": "국가의 탄생과 구조",
+            "allowed": "건국, 위치, 초기 구조, 지배층 형성",
+            "forbidden": "멸망, 붕괴, 다음 시대 세력",
+            "body1_focus": "국가 형성 과정의 사실",
+            "turn_focus": "왜 국가가 필요했는가",
+            "body2_focus": "초기 지배층의 선택과 갈등",
+            "impact_limit": "이 시대 내부의 영향만",
+        }
+    elif position_ratio <= 0.5:  # 중반 34~50%
+        return {
+            "phase": "제도기",
+            "role": "법, 제도, 통치 체계",
+            "allowed": "법, 제도, 통치 방식, 사회 구조",
+            "forbidden": "건국 신화, 멸망, 다음 시대",
+            "body1_focus": "제도/법의 존재 사실",
+            "turn_focus": "왜 기존 관습이 한계에 도달했는가",
+            "body2_focus": "제도의 강제성, 저항, 불편",
+            "impact_limit": "제도가 사회에 미친 영향만",
+        }
+    else:  # 후반 51~70% (유산기/연결기 이전의 나머지)
+        return {
+            "phase": "변동기",
+            "role": "멸망/붕괴 이후, 사람들의 이동",
+            "allowed": "멸망 이후 상황, 사람들의 이동, 흩어짐",
+            "forbidden": "건국, 위치, 문화 개요, 영웅 서사, 다음 시대 국가명",
+            "body1_focus": "멸망 이후 상황만 (건국/위치/문화 개요 금지)",
+            "turn_focus": "국가가 사라진 후 선택의 강요",
+            "body2_focus": "집단의 이동, 남음/떠남, 혼란 (개인 영웅 금지)",
+            "impact_limit": "여러 세력 등장 배경까지만 (다음 시대 국가 직접 언급 금지)",
+        }
+
+
 def _generate_episode_core_facts(
     era_name: str,
     period: str,
@@ -711,11 +826,24 @@ def _generate_episode_core_facts(
     topic: str,
     title: str,
     summary: str,
-    next_era_info: Dict[str, str]
+    next_era_info: Dict[str, str],
+    is_new_era: bool = False
 ) -> str:
     """에피소드용 핵심포인트 템플릿 생성"""
 
     is_last = era_episode >= total_episodes
+    episode_role = _get_episode_role(era_episode, total_episodes)
+
+    # 시대 블록 리셋 규칙 (새 시대 시작 시)
+    era_reset_section = ""
+    if is_new_era:
+        era_reset_section = f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 시대 블록 리셋 (새로운 {era_name} 시작)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- 핵심 질문: "{era_name}은 어떻게 형성되었는가?"로 새로 시작
+- 이전 시대 참조 금지 / 이 시대 자료만 사용
+"""
 
     ending_hint = f"""[#NEXT] 다음 시대 연결
 - {next_era_info['name']}으로 이어지는 질문
@@ -730,12 +858,19 @@ def _generate_episode_core_facts(
 ▶ 주제: {topic}
 ▶ 출처: {title}
 ▶ 진행상황: {era_name} 시리즈 {era_episode}/{total_episodes}화
+{era_reset_section}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ 이 에피소드의 역할: {episode_role['phase']} - {episode_role['role']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 허용: {episode_role['allowed']}
+❌ 금지: {episode_role['forbidden']}
 
 [#OPEN] 오프닝 질문
 - 이 에피소드의 핵심 질문
 - 시청자가 알고 싶어할 포인트
 
 [#BODY1_FACTS_ONLY] 핵심 사실 (5개)
+⚠️ 이 화의 초점: {episode_role['body1_focus']}
 1. (사실 1 - 시간/장소/인물 중심)
 2. (사실 2)
 3. (사실 3)
@@ -743,14 +878,17 @@ def _generate_episode_core_facts(
 5. (사실 5)
 
 [#TURN] 전환점
-- 결정적 순간은 언제였나?
+⚠️ 이 화의 초점: {episode_role['turn_focus']}
+- 왜 기존 방식이 더 이상 통하지 않았나?
 
 [#BODY2_HUMAN_ALLOWED] 스토리 전개
-- 주요 인물이 한 행동과 결정 (구체적 행위)
-- 사건의 전개 과정 (원인→결과)
+⚠️ 이 화의 초점: {episode_role['body2_focus']}
+- 주요 인물/집단이 한 행동과 결정 (구체적 행위)
+- 긴장, 저항, 불편, 강제성 요소
 
 [#IMPACT] 역사적 의의
-- 이후 역사에 미친 영향
+⚠️ 범위 제한: {episode_role['impact_limit']}
+- 이후 역사에 미친 영향 (중립 표현만)
 
 {ending_hint}
 
@@ -821,9 +959,22 @@ def _build_episode_opus_prompt_pack(
     """에피소드용 Opus 프롬프트 생성"""
 
     is_last = era_episode >= total_episodes
+    episode_role = _get_episode_role(era_episode, total_episodes)
 
-    next_hint = f"""- 시대 마무리: {era_name} 시대의 역사적 의의로 마무리
-- 다음 시대 예고: "{next_era_info['name']}이 시작됩니다. 다음 시간에..."
+    # 최종화 특별 규칙
+    final_episode_rule = """
+════════════════════════════════════════
+🚨 최종화 필수 규칙 (Opus 메모리)
+════════════════════════════════════════
+- 마지막 화에서는 사건을 설명하지 않는다
+- 마지막 화는 의미를 정리하고 방향을 남긴다
+- "그래서 우리는 배웠다", "의미 있었다" 금지
+- 다음 시대가 '이어서 시작될 수밖에 없게' 구조적으로 연결
+- 예: "고조선 이후의 세계는, 완전히 새로 시작된 것이 아니었다."
+""" if is_last else ""
+
+    next_hint = f"""- 시대 마무리: 사건 회고 ❌ → 구조적 의미 정리 ⭕
+- 다음 시대 자연 연결: "{next_era_info['name']}은 고조선과 완전히 단절된 것이 아니었다..."
 """ if is_last else f"""- 다음 에피소드 예고: "{era_name} {era_episode + 1}화에서 계속됩니다"
 - 시청자 유지: 다음 화에서 다룰 흥미로운 주제 언급
 """
@@ -839,12 +990,18 @@ def _build_episode_opus_prompt_pack(
 ⏱️ 분량: 15~20분 (13,650~18,200자)
 
 ════════════════════════════════════════
+⚠️ 이 에피소드의 역할: {episode_role['phase']} - {episode_role['role']}
+════════════════════════════════════════
+✅ 이 화에서 다룰 것: {episode_role['allowed']}
+❌ 이 화에서 금지: {episode_role['forbidden']}
+{final_episode_rule}
+════════════════════════════════════════
 [CONTEXT]
 ════════════════════════════════════════
 - 시대: {era_name} ({period})
 - 자료 출처: {title}
 - URL: {url}
-- 오늘의 핵심 질문: {topic}의 구조와 변화 - 누가, 어떻게, 왜?
+- 오늘의 핵심 질문: {episode_role['role']} - 누가, 어떻게, 왜?
 
 ════════════════════════════════════════
 [STRUCTURE POINTS]
@@ -879,7 +1036,8 @@ def _llm_generate_episode_content(
     title: str,
     summary: str,
     url: str,
-    next_era_info: Dict[str, str]
+    next_era_info: Dict[str, str],
+    is_new_era: bool = False
 ) -> Tuple[str, str]:
     """LLM으로 에피소드 콘텐츠 생성"""
 
@@ -890,6 +1048,32 @@ def _llm_generate_episode_content(
 
     # 에피소드 정보 추가
     episode_info = f"\n\n[에피소드 정보: {era_name} {era_episode}/{total_episodes}화]"
+
+    # 시대 블록 변경 시 질문 프레임 리셋 규칙 추가
+    if is_new_era:
+        era_reset_rule = f"""
+
+════════════════════════════════════════
+🔄 시대 블록 리셋 (새로운 시대 시작)
+════════════════════════════════════════
+⚠️ 이전 시대의 분석 프레임을 완전히 리셋합니다.
+
+[리셋 대상]
+- 핵심 질문: "{era_name}은 어떻게 형성되었는가?"로 새로 시작
+- 분석 단위: 이전 시대의 인물/사건/제도 참조 금지
+- 관점 전환: 이전 시대의 결론이 이 시대의 전제가 되면 안 됨
+
+[허용]
+- 이 시대 자료에서 직접 추출한 정보만 사용
+- 이 시대의 시간/장소/인물부터 새로 설명
+
+[금지]
+- "앞서 본 것처럼", "이전 시대에서 보았듯이" 등 연결 표현
+- 이전 시대 결론의 연장선상에서 서술
+- 이전 시대 인물/사건을 비교 대상으로 언급
+"""
+        episode_info = era_reset_rule + episode_info
+
     core_facts = core_facts + episode_info
 
     return core_facts, thumbnail_copy
