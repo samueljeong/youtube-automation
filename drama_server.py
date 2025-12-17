@@ -4798,6 +4798,42 @@ def api_generate_subtitle():
 
         sentences = [s for s in final_sentences if s.strip()]
 
+        # ★ 짧은 자막 합치기 (10글자 미만은 인접 문장과 합침)
+        MIN_SUBTITLE_LEN = 10
+        if len(sentences) > 1:
+            merged = []
+            i = 0
+            while i < len(sentences):
+                current = sentences[i]
+                # 충분히 길면 그냥 추가
+                if len(current) >= MIN_SUBTITLE_LEN:
+                    merged.append(current)
+                    i += 1
+                    continue
+                # 짧으면 다음과 합치기
+                if i + 1 < len(sentences):
+                    next_sent = sentences[i + 1]
+                    combined = current + " " + next_sent
+                    if len(combined) <= MAX_CHARS:
+                        merged.append(combined)
+                    else:
+                        # 두 줄로 (줄바꿈)
+                        merged.append(current + "\n" + next_sent)
+                    i += 2
+                elif merged:
+                    # 마지막 짧은 문장은 이전과 합침
+                    prev = merged.pop()
+                    combined = prev + " " + current
+                    if len(combined) <= MAX_CHARS:
+                        merged.append(combined)
+                    else:
+                        merged.append(prev + "\n" + current)
+                    i += 1
+                else:
+                    merged.append(current)
+                    i += 1
+            sentences = merged
+
         # 문장이 없으면 전체 텍스트를 하나의 문장으로
         if not sentences and text.strip():
             sentences = [text.strip()[:MAX_CHARS]]
@@ -10879,7 +10915,63 @@ def api_image_generate_assets_zip():
                     chunks = split_by_meaning_fallback(sentence, max_chars)
                     result.extend(chunks)
 
+            # ★ 후처리: 짧은 자막 합치기 (10글자 미만은 이전/다음과 합침)
+            MIN_SUBTITLE_LEN = 10  # 최소 자막 길이
+            result = merge_short_subtitles(result, MIN_SUBTITLE_LEN, max_chars)
+
             return result
+
+        def merge_short_subtitles(chunks, min_len=10, max_len=35):
+            """짧은 자막을 이전/다음과 합치기
+
+            - 10글자 미만 자막은 인접 자막과 합침
+            - 합쳐도 max_len을 초과하면 두 줄로 표시 (줄바꿈)
+            """
+            if not chunks or len(chunks) <= 1:
+                return chunks
+
+            merged = []
+            i = 0
+
+            while i < len(chunks):
+                current = chunks[i]
+
+                # 현재가 충분히 길면 그냥 추가
+                if len(current) >= min_len:
+                    merged.append(current)
+                    i += 1
+                    continue
+
+                # 짧은 자막: 다음과 합치기 시도
+                if i + 1 < len(chunks):
+                    next_chunk = chunks[i + 1]
+                    combined = current + " " + next_chunk
+
+                    if len(combined) <= max_len:
+                        # 한 줄로 합침
+                        merged.append(combined)
+                        i += 2  # 다음 청크도 건너뜀
+                    else:
+                        # 두 줄로 합침 (줄바꿈 사용)
+                        merged.append(current + "\\N" + next_chunk)
+                        i += 2
+                # 마지막 짧은 자막: 이전과 합치기
+                elif merged:
+                    prev = merged.pop()
+                    combined = prev + " " + current
+
+                    if len(combined) <= max_len:
+                        merged.append(combined)
+                    else:
+                        # 두 줄로 합침
+                        merged.append(prev + "\\N" + current)
+                    i += 1
+                else:
+                    # 첫 번째이면서 짧은 경우 그냥 추가
+                    merged.append(current)
+                    i += 1
+
+            return merged
 
         def split_by_meaning_fallback(text, max_chars=35, lang='ko'):
             """GPT 실패 시 폴백: 의미 단위로 텍스트 분리
@@ -10995,6 +11087,13 @@ def api_image_generate_assets_zip():
               200원 → 이백원, 15층 → 십오층
             """
             import re
+
+            # ★ 전처리: 쉼표가 포함된 숫자 처리 (1,350 → 1350)
+            # 숫자+쉼표+숫자 패턴에서 쉼표 제거 (천 단위 구분자)
+            text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+            # 연속된 쉼표 패턴도 처리 (1,234,567 → 1234567)
+            while re.search(r'(\d),(\d{3})', text):
+                text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
 
             # 고유어 숫자 (1~99)
             native_units = ['번', '개', '명', '살', '시', '마리', '잔', '병', '권', '대', '채', '장', '벌', '켤레', '그루', '송이', '군데', '가지', '줄', '쌍']
