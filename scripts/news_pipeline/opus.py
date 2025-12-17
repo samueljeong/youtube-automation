@@ -32,10 +32,13 @@ def generate_opus_input(
     top1 = candidate_rows[0]
     run_id = top1[0]
     category = top1[2]
-    score_total = top1[4]
+    score_total = float(top1[4]) if top1[4] else 0
     title = top1[8]
     link = top1[9]
     summary = ""
+
+    # score_total을 1~5 중요도로 변환 (0~100점 → 1~5)
+    priority = min(5, max(1, int(score_total / 20) + 1))
 
     weekday_angle = get_weekday_angle()
 
@@ -53,21 +56,22 @@ def generate_opus_input(
     else:
         # LLM 없이 기본 템플릿
         channel_name = CHANNELS.get(channel, {}).get("name", channel)
-        core_points = f"""[핵심포인트 - 수동 작성]
+        core_points = f"""[핵심포인트]
 • 이슈: {title}
-• 카테고리: {category} ({channel_name} 채널)
 • 출처: {link}
+• 중요도: {priority}/5
+• 채널: {channel}
 
-핵심포인트 5~7개:
+핵심포인트 (총 5개):
 1.
 2.
 3.
 4.
-5. """
+5."""
 
         brief = f"""[대본 지시문]
-- 분량: 2~3분 (1,800~2,400자)
-- 톤: {weekday_angle}
+- 분량: 7~10분 (3,000~3,800자)
+- 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
 - 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
 - 금지: 속보 요약, 과장, 공포 조장"""
