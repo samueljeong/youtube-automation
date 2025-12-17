@@ -415,3 +415,46 @@ def check_opus_input_exists(
         # 시트가 없거나 읽기 실패 시 False (새로 생성 허용)
         print(f"[HISTORY] OPUS_INPUT 확인 실패 (무시): {e}")
         return False
+
+
+def get_existing_opus_titles(
+    service,
+    spreadsheet_id: str,
+    era: str,
+    title_column: str = "D"
+) -> set:
+    """
+    OPUS_INPUT 시트에서 기존 title 목록 조회 (중복 방지용)
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        spreadsheet_id: 스프레드시트 ID
+        era: 시대 키
+        title_column: title이 저장된 열 (기본: D열)
+
+    Returns:
+        기존 title 집합
+    """
+    try:
+        opus_sheet = get_era_sheet_name("OPUS_INPUT", era)
+
+        result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"{opus_sheet}!{title_column}:{title_column}"
+        ).execute()
+
+        rows = result.get('values', [])
+
+        # 헤더 제외
+        titles = set()
+        for row in rows[1:]:
+            if row and row[0]:
+                # 제목에서 앞 100자만 비교 (저장 시 truncate되므로)
+                titles.add(row[0].strip()[:100])
+
+        print(f"[HISTORY] {opus_sheet}에서 기존 title {len(titles)}개 로드")
+        return titles
+
+    except Exception as e:
+        print(f"[HISTORY] OPUS_INPUT title 조회 실패 (무시): {e}")
+        return set()

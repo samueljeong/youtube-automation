@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from .rss import deduplicate_items
 from .utils import (
+    get_kst_now,
     get_weekday_angle,
     guess_category,
     calculate_relevance_score,
@@ -26,9 +27,8 @@ def score_and_select_candidates(items: list, channel: str, top_k: int = 5) -> li
     Returns:
         CANDIDATES 시트용 행 데이터 리스트
     """
-    now = datetime.now(timezone.utc)
-    kst = timezone(timedelta(hours=9))
-    run_id = datetime.now(kst).strftime("%Y-%m-%d")
+    now = get_kst_now()
+    run_id = now.strftime("%Y-%m-%d")
     weekday_angle = get_weekday_angle()
 
     # 중복 제거

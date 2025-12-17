@@ -34,6 +34,7 @@ from .sheets import (
     append_rows,
     read_recent_hashes,
     check_opus_input_exists,
+    get_existing_opus_titles,
     SheetsSaveError,
 )
 from .collector import collect_materials
@@ -180,8 +181,29 @@ def run_history_pipeline(
 
         # 6) OPUS 입력 생성
         print(f"[HISTORY] === 3단계: OPUS 입력 생성 ===")
+
+        # ★ 기존 OPUS_INPUT title 로드 (중복 방지)
+        existing_titles = set()
+        if service and sheet_id:
+            existing_titles = get_existing_opus_titles(service, sheet_id, era)
+
+        # 중복되지 않은 후보만 필터링
+        filtered_candidates = []
+        for row in candidate_rows:
+            candidate_title = row[8][:100] if len(row) > 8 else ""  # title 컬럼 (index 8)
+            if candidate_title and candidate_title not in existing_titles:
+                filtered_candidates.append(row)
+            else:
+                print(f"[HISTORY] ★ 중복 title 스킵: {candidate_title[:50]}...")
+
+        if not filtered_candidates:
+            print(f"[HISTORY] 모든 후보가 이미 OPUS_INPUT에 존재, 생성 스킵")
+            result["opus_generated"] = False
+            result["success"] = True
+            return result
+
         opus_rows = generate_opus_input(
-            candidate_rows, era, llm_enabled, llm_min_score
+            filtered_candidates, era, llm_enabled, llm_min_score
         )
 
         if opus_rows:

@@ -28,6 +28,7 @@ from .utils import (
     detect_keywords,
     passes_era_filter,
     format_keywords_for_sheet,
+    get_kst_now,
 )
 
 
@@ -79,7 +80,7 @@ def collect_materials(
     # all_items.extend(encyclopedia_items)
 
     # 3) 중복 제거 및 필터링
-    now = datetime.now(timezone.utc).isoformat()
+    now = get_kst_now().isoformat()
     new_count = 0
     duplicate_count = 0
 

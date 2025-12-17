@@ -5,7 +5,7 @@ RSS 피드 수집
 from datetime import datetime, timezone
 
 from .config import NEWS_FEEDS, google_news_rss_url
-from .utils import normalize_text, compute_hash
+from .utils import normalize_text, compute_hash, get_kst_now
 
 try:
     import feedparser
@@ -30,7 +30,7 @@ def ingest_rss_feeds(max_per_feed: int = 30) -> tuple[list, list]:
         print("[NEWS] feedparser 모듈이 설치되지 않음")
         return [], []
 
-    now = datetime.now(timezone.utc)
+    now = get_kst_now()
     raw_rows = []
     items = []
 
