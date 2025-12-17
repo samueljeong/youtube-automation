@@ -96,6 +96,54 @@ def generate_opus_input(
     return opus_row
 
 
+def _parse_llm_response(text: str) -> tuple:
+    """
+    LLM 응답을 섹션별로 파싱
+
+    Returns:
+        (core_points, shorts_hook, thumbnail_copy)
+    """
+    import re
+
+    # 기본값
+    core_points = ""
+    shorts_hook = ""
+    thumb_copy = ""
+
+    # 핵심포인트 추출 (오프닝 감정유도 포함)
+    core_match = re.search(
+        r'핵심포인트.*?(?=썸네일|$)',
+        text,
+        re.DOTALL | re.IGNORECASE
+    )
+    if core_match:
+        core_points = core_match.group(0).strip()
+
+    # 엔딩 루틴예고 추출 → shorts_hook_lines
+    shorts_match = re.search(
+        r'엔딩\s*루틴예고.*?(?=썸네일|$)',
+        text,
+        re.DOTALL | re.IGNORECASE
+    )
+    if shorts_match:
+        shorts_hook = shorts_match.group(0).strip()
+
+    # 썸네일 문구 추출 → thumbnail_copy
+    thumb_match = re.search(
+        r'썸네일.*',
+        text,
+        re.DOTALL | re.IGNORECASE
+    )
+    if thumb_match:
+        thumb_copy = thumb_match.group(0).strip()
+
+    # 핵심포인트가 비어있으면 전체 텍스트 사용
+    if not core_points:
+        core_points = text
+
+    return core_points, shorts_hook, thumb_copy
+
+
 def _llm_make_opus_input(
     category: str,
     title: str,
@@ -199,15 +247,15 @@ Opus가 대본을 쓸 때 참고할 '핵심포인트'를 설계하는 역할이�
             )
             text = response.choices[0].message.content.strip()
 
-        core_points = text
+        # LLM 응답 파싱 (섹션별 분리)
+        core_points, shorts, thumb = _parse_llm_response(text)
+
         brief = f"""[대본 지시문]
 - 분량: 7~10분 (3,000~3,800자)
 - 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
 - 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
 - 금지: 속보 요약, 과장, 공포 조장"""
-        shorts = ""
-        thumb = ""
 
         print(f"[NEWS] LLM 핵심포인트 생성 완료 (모델: {model})")
         return core_points, brief, shorts, thumb
