@@ -467,28 +467,28 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 
 ---
 
-## 뉴스 자동화 파이프라인 (MVP)
+## 뉴스 자동화 파이프라인 (채널 기반 A안)
 
 ### 개요
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  1. Google News RSS 수집                                │
-│     └── 4개 카테고리 피드에서 기사 수집                  │
+│     └── 4개 카테고리 피드에서 기사 수집 → RAW_FEED       │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
-│  2. 후보 선정 (규칙 기반, LLM ❌)                        │
+│  2. 채널별 필터링 + 후보 선정 (규칙 기반, LLM ❌)         │
+│     ├── 채널 필터 적용 (include/exclude 키워드)         │
 │     ├── 중복 제거 (해시 기반)                           │
-│     ├── 카테고리 분류 (키워드 매칭)                      │
-│     └── 점수화 (관련도 + 신선도)                        │
+│     └── 점수화 (관련도 + 신선도) → CANDIDATES_{CHANNEL}  │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────┐
 │  3. OPUS 입력 생성 (TOP 1만 LLM)                        │
-│     └── 핵심포인트 8개 + 대본 지시문                    │
+│     └── 핵심포인트 + 요일별 앵글 → OPUS_INPUT_{CHANNEL}  │
 └─────────────────────────────────────────────────────────┘
                           │
                           ▼
@@ -498,9 +498,64 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 └─────────────────────────────────────────────────────────┘
 ```
 
+### 채널 구조 (A안)
+
+```
+Google Sheets 파일 (NEWS_SHEET_ID)
+├── RAW_FEED              ← 모든 채널 공용 (RSS 원본)
+├── CANDIDATES_ECON       ← 경제채널 후보
+├── OPUS_INPUT_ECON       ← 경제채널 대본 입력
+├── CANDIDATES_POLICY     ← (확장용) 정책채널
+├── OPUS_INPUT_POLICY     ← (확장용)
+├── CANDIDATES_SOCIETY    ← (확장용) 사회채널
+├── OPUS_INPUT_SOCIETY    ← (확장용)
+├── CANDIDATES_WORLD      ← (확장용) 국제채널
+└── OPUS_INPUT_WORLD      ← (확장용)
+```
+
+**현재 활성 채널**: ECON (경제) - 나머지는 확장 가능 구조만 확보
+
+### 채널별 설정
+
+| 채널 | 이름 | 설명 | 상태 |
+|------|------|------|------|
+| ECON | 경제 | 내 돈·내 자산에 영향을 주는 경제 뉴스 | **활성** |
+| POLICY | 정책 | 내 세금·내 복지에 영향을 주는 정책 뉴스 | 비활성 |
+| SOCIETY | 사회 | 내 가족·내 동네에 영향을 주는 사회 뉴스 | 비활성 |
+| WORLD | 국제 | 내 지갑에 영향을 주는 국제 뉴스 | 비활성 |
+
+### 채널 필터 (ECON 예시)
+
+```python
+CHANNEL_FILTERS = {
+    "ECON": {
+        "include": ["금리", "기준금리", "환율", "물가", "부동산", "집값",
+                    "전세", "연금", "주식", "대출", "예금", "적금", ...],
+        "exclude": ["정치 공방", "여야 대립", "탄핵"],  # 정치 뉴스 제외
+        "weight": 2.0,  # 점수 가중치
+    },
+}
+```
+
+- **include**: 이 키워드 중 하나라도 포함되어야 후보 선정
+- **exclude**: 이 키워드 포함 시 제외
+- **weight**: 채널별 점수 가중치
+
+### 요일별 앵글
+
+| 요일 | 앵글 |
+|------|------|
+| 월 | 지난주 흐름 + 이번 주 예고 |
+| 화 | 이슈 정리 |
+| 수 | 심층 분석 |
+| 목 | 실생활 영향 |
+| 금 | 주간 총정리 |
+| 토 | 주간 베스트/위클리 (확장 예정) |
+| 일 | 큰 흐름 + 다음 주 예고 |
+
 ### Google Sheets 탭 구조
 
-**TAB 1) RAW_FEED** - RSS 원본 기사
+**TAB: RAW_FEED** - RSS 원본 기사 (공용)
 | 컬럼 | 설명 |
 |------|------|
 | ingested_at | 수집 시간 (ISO) |
@@ -513,13 +568,13 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 | keywords | 감지된 키워드 (금리\|대출\|...) |
 | hash | 중복 방지용 해시 |
 
-**TAB 2) CANDIDATES** - TOP K 후보
+**TAB: CANDIDATES_{CHANNEL}** - 채널별 TOP K 후보
 | 컬럼 | 설명 |
 |------|------|
 | run_id | 실행 날짜 (2025-12-17) |
 | rank | 순위 (1~5) |
 | category | 경제/정책/사회/국제 |
-| angle | 내 돈·내 생활 관점 |
+| angle | 요일별 앵글 (자동 설정) |
 | score_total | 총점 |
 | score_recency | 신선도 점수 |
 | score_relevance | 관련도 점수 |
@@ -529,7 +584,7 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 | published_at | 발행 시간 |
 | why_selected | 선정 근거 |
 
-**TAB 3) OPUS_INPUT** - 대본 작성용
+**TAB: OPUS_INPUT_{CHANNEL}** - 채널별 대본 작성용
 | 컬럼 | 설명 |
 |------|------|
 | run_id | 실행 날짜 |
@@ -547,18 +602,38 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 
 | 엔드포인트 | 메서드 | 설명 |
 |-----------|--------|------|
-| `/api/news/run-pipeline` | POST | 전체 파이프라인 실행 (Cron 매일) |
-| `/api/news/test-rss` | GET | RSS 테스트 (시트 저장 ❌) |
+| `/api/news/run-pipeline?channel=ECON` | POST | 채널별 파이프라인 실행 |
+| `/api/news/run-pipeline?channel=ECON&force=1` | POST | 강제 실행 (중복 무시) |
+| `/api/news/test-rss?channel=ECON` | GET | 채널별 RSS 테스트 (시트 저장 ❌) |
 
 ### 환경변수
 
 | 변수명 | 필수 | 설명 |
 |--------|------|------|
 | `NEWS_SHEET_ID` | 선택 | 뉴스용 시트 ID (없으면 AUTOMATION_SHEET_ID 사용) |
+| `NEWS_CRON_KEY` | 권장 | 보안 키 (설정 시 X-Cron-Key 헤더 필수) |
 | `LLM_ENABLED` | 선택 | "1"이면 TOP 1에 LLM 핵심포인트 생성 |
+| `LLM_MIN_SCORE` | 선택 | LLM 호출 최소 점수 (기본 0, 비용 절감용) |
 | `MAX_PER_FEED` | 선택 | 피드당 최대 기사 수 (기본 30) |
 | `TOP_K` | 선택 | 선정할 후보 수 (기본 5) |
 | `OPENAI_MODEL` | 선택 | LLM 모델 (기본 gpt-4o-mini) |
+
+### 안전장치
+
+**보안**: NEWS_CRON_KEY 설정 시 X-Cron-Key 헤더 검증
+```bash
+# Render Cron에서 호출 시
+curl -X POST -H "X-Cron-Key: YOUR_SECRET_KEY" \
+  "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON"
+```
+
+**Idempotency**: 같은 날 같은 채널 2회 이상 실행 시 자동 스킵 (OPUS_INPUT_{CHANNEL}의 run_id 확인)
+```bash
+# 강제 실행 시
+curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON&force=1"
+```
+
+**시트 자동 생성**: RAW_FEED + CANDIDATES_{CHANNEL} + OPUS_INPUT_{CHANNEL} 탭이 없으면 헤더와 함께 자동 생성
 
 ### RSS 피드 설정
 
@@ -571,23 +646,19 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 | society_life | 고용 OR 실업 OR 집값 OR 전세 OR 의료 OR 교육비 |
 | global_macro | 미국 금리 OR 달러 OR 유가 OR 반도체 수출 OR 중국 경기 |
 
-### 카테고리 키워드
-
-| 카테고리 | 키워드 |
-|---------|--------|
-| 경제 | 금리, 대출, 예금, 물가, 환율, 부동산, 전세, 주식, 채권, 달러, 유가, 수출, 경기 |
-| 정책 | 세금, 연금, 건강보험, 보험료, 복지, 규제, 지원금, 보조금, 요금, 전기요금, 가스요금 |
-| 사회 | 고용, 실업, 임금, 의료, 교육, 사기, 전세사기, 물가, 집값 |
-| 국제 | 미국, 연준, 중국, 일본, 유럽, 전쟁, 유가, 달러, 환율, 수출 |
-
 ### Render Cron 설정 예시
 
-```
-# 매일 오전 7시 KST (전날 22:00 UTC)
-0 22 * * * curl -X POST https://drama-s2ns.onrender.com/api/news/run-pipeline
+```bash
+# 매일 오전 7시 KST (전날 22:00 UTC) - 경제 채널
+0 22 * * * curl -X POST -H "X-Cron-Key: $NEWS_CRON_KEY" \
+  "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON"
+
+# 다른 채널 추가 시 (예: 정책 채널, 오전 8시)
+# 0 23 * * * curl -X POST -H "X-Cron-Key: $NEWS_CRON_KEY" \
+#   "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=POLICY"
 ```
 
 ### 참고 파일
 
-- `scripts/news_pipeline/run.py` - 메인 파이프라인
+- `scripts/news_pipeline/run.py` - 메인 파이프라인 (채널 기반)
 - `scripts/news_pipeline/__init__.py` - 모듈 export
