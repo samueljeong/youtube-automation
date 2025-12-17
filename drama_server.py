@@ -20263,6 +20263,123 @@ def api_sheets_update():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ========== 뉴스 자동화 파이프라인 API ==========
+
+@app.route('/api/news/run-pipeline', methods=['POST'])
+def api_news_run_pipeline():
+    """
+    뉴스 자동화 파이프라인 실행
+    Render Cron Job에서 매일 호출 (예: 오전 7시 KST)
+
+    Google News RSS → 후보 선정 → OPUS 입력 생성
+
+    환경변수:
+    - NEWS_SHEET_ID: 뉴스용 Google Sheets ID (없으면 AUTOMATION_SHEET_ID 사용)
+    - LLM_ENABLED: "1"이면 TOP 1에 LLM 핵심포인트 생성
+    - MAX_PER_FEED: 피드당 최대 기사 수 (기본 30)
+    - TOP_K: 선정할 후보 수 (기본 5)
+
+    시트 구조 (3개 탭 필요):
+    - RAW_FEED: RSS 원본 기사
+    - CANDIDATES: TOP K 후보
+    - OPUS_INPUT: 대본 작성용 입력
+    """
+    print("[NEWS] ===== run-pipeline 호출됨 =====")
+
+    try:
+        from scripts.news_pipeline import run_news_pipeline
+
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # 시트 ID (뉴스용 또는 기존 자동화용)
+        sheet_id = os.environ.get('NEWS_SHEET_ID') or os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "NEWS_SHEET_ID 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 설정
+        max_per_feed = int(os.environ.get('MAX_PER_FEED', '30'))
+        top_k = int(os.environ.get('TOP_K', '5'))
+        llm_enabled = os.environ.get('LLM_ENABLED', '0') == '1'
+
+        print(f"[NEWS] 설정: sheet_id={sheet_id[:20]}..., max_per_feed={max_per_feed}, top_k={top_k}, llm_enabled={llm_enabled}")
+
+        # 파이프라인 실행
+        result = run_news_pipeline(
+            sheet_id=sheet_id,
+            service=service,
+            max_per_feed=max_per_feed,
+            top_k=top_k,
+            llm_enabled=llm_enabled
+        )
+
+        return jsonify({
+            "ok": result["success"],
+            "result": result
+        })
+
+    except ImportError as e:
+        print(f"[NEWS] 모듈 import 실패: {e}")
+        return jsonify({
+            "ok": False,
+            "error": f"뉴스 파이프라인 모듈 로드 실패: {e}. feedparser, python-dateutil 설치 확인"
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/news/test-rss', methods=['GET'])
+def api_news_test_rss():
+    """
+    RSS 수집 테스트 (시트 저장 없이 결과만 반환)
+    """
+    try:
+        from scripts.news_pipeline import ingest_rss_feeds, score_and_select_candidates
+
+        max_per_feed = int(request.args.get('max_per_feed', '10'))
+        top_k = int(request.args.get('top_k', '5'))
+
+        # RSS 수집
+        raw_rows, items = ingest_rss_feeds(max_per_feed)
+
+        # 후보 선정
+        candidates = score_and_select_candidates(items, top_k)
+
+        return jsonify({
+            "ok": True,
+            "raw_count": len(raw_rows),
+            "candidate_count": len(candidates),
+            "candidates": [
+                {
+                    "rank": c[1],
+                    "category": c[2],
+                    "score": c[4],
+                    "title": c[8],
+                    "link": c[9]
+                }
+                for c in candidates
+            ]
+        })
+
+    except ImportError as e:
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 로드 실패: {e}. feedparser, python-dateutil 설치 확인"
+        }), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
