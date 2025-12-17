@@ -38,6 +38,7 @@ from .opus import (
 from .sheets import (
     append_rows,
     SheetsSaveError,
+    cleanup_old_rows,
 )
 
 from .run import (
@@ -72,6 +73,7 @@ __all__ = [
     # Sheets
     'append_rows',
     'SheetsSaveError',
+    'cleanup_old_rows',
     # Main
     'run_news_pipeline',
 ]

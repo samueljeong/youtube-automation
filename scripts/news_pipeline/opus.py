@@ -32,10 +32,13 @@ def generate_opus_input(
     top1 = candidate_rows[0]
     run_id = top1[0]
     category = top1[2]
-    score_total = top1[4]
+    score_total = float(top1[4]) if top1[4] else 0
     title = top1[8]
     link = top1[9]
     summary = ""
+
+    # score_total을 1~5 중요도로 변환 (0~100점 → 1~5)
+    priority = min(5, max(1, int(score_total / 20) + 1))
 
     weekday_angle = get_weekday_angle()
 
@@ -53,21 +56,22 @@ def generate_opus_input(
     else:
         # LLM 없이 기본 템플릿
         channel_name = CHANNELS.get(channel, {}).get("name", channel)
-        core_points = f"""[핵심포인트 - 수동 작성]
+        core_points = f"""[핵심포인트]
 • 이슈: {title}
-• 카테고리: {category} ({channel_name} 채널)
 • 출처: {link}
+• 중요도: {priority}/5
+• 채널: {channel}
 
-핵심포인트 5~7개:
+핵심포인트 (총 5개):
 1.
 2.
 3.
 4.
-5. """
+5."""
 
         brief = f"""[대본 지시문]
-- 분량: 2~3분 (1,800~2,400자)
-- 톤: {weekday_angle}
+- 분량: 7~10분 (3,000~3,800자)
+- 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
 - 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
 - 금지: 속보 요약, 과장, 공포 조장"""
@@ -113,23 +117,43 @@ def _llm_make_opus_input(
         weekday_angle = get_weekday_angle()
 
         prompt = f"""너는 '속보가 아니라 정리' 뉴스 채널의 기획자다.
+Opus가 대본을 쓸 때 참고할 '핵심포인트'를 설계하는 역할이다.
 
-채널: {channel_name}
-오늘 톤: {weekday_angle}
+[채널 정보]
+- 채널: {channel_name} ({channel})
+- 오늘 톤: {weekday_angle}
+- 타겟: 50대 이상 시청자
 
-목표: 2~3분 분량(대본 1,800~2,400자)으로, 50대 이상 시청자가 '내 돈/내 생활' 관점에서 이해하도록 정리한다.
+[이슈 정보]
+- 카테고리: {category}
+- 제목: {title}
+- 요약: {summary}
+- 출처: {link}
 
-카테고리: {category}
-이슈 제목: {title}
-요약: {summary}
-링크: {link}
+[핵심 원칙 - 반드시 지켜라]
+❌ 기사 요약 금지 - 뉴스 앵커처럼 사실 나열하지 마라
+❌ 과장/공포 조장 금지
+⭕ "내 돈/내 생활에 어떤 영향?" 관점으로만 정리
+⭕ 시청자가 "그래서 나는 뭘 해야 해?"를 알 수 있게
 
-출력 형식:
-1) 핵심포인트 6~8개 (불릿, 각 1문장)
-2) 오프닝 감정 유도 2문장 (불안/의문)
-3) 엔딩 루틴 예고 2문장
-4) Opus에 붙여넣을 대본 지시문
-5) 썸네일 문구 3안 (사건명 X, 시청자 상태 O)"""
+[출력 형식 - 정확히 이 형태로]
+핵심포인트 (총 5개):
+1. (내 돈/생활 영향 관점)
+2. (내 돈/생활 영향 관점)
+3. (내 돈/생활 영향 관점)
+4. (내 돈/생활 영향 관점)
+5. (내 돈/생활 영향 관점)
+
+오프닝 감정유도 (불안/의문):
+-
+
+엔딩 루틴예고:
+-
+
+썸네일 문구 3안 (사건명X, 시청자상태O):
+1.
+2.
+3. """
 
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -163,7 +187,12 @@ def _llm_make_opus_input(
             text = response.choices[0].message.content.strip()
 
         core_points = text
-        brief = "위 핵심포인트 기반으로 2~3분 대본 작성. 속보 요약 금지, 맥락+파장 중심 정리."
+        brief = f"""[대본 지시문]
+- 분량: 7~10분 (3,000~3,800자)
+- 요일: {weekday_angle}
+- 관점: "내 돈/내 생활"에 미치는 영향
+- 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리(루틴 예고)
+- 금지: 속보 요약, 과장, 공포 조장"""
         shorts = ""
         thumb = ""
 

@@ -21,7 +21,7 @@ from .utils import get_tab_name
 from .rss import ingest_rss_feeds
 from .scoring import score_and_select_candidates
 from .opus import generate_opus_input
-from .sheets import append_rows, SheetsSaveError
+from .sheets import append_rows, SheetsSaveError, cleanup_old_rows
 
 
 def run_news_pipeline(
@@ -55,6 +55,7 @@ def run_news_pipeline(
         "candidate_count": 0,
         "opus_generated": False,
         "sheets_saved": [],  # 성공적으로 저장된 시트 목록
+        "cleaned_rows": 0,   # 정리된 오래된 행 수
         "error": None,
     }
 
@@ -68,6 +69,12 @@ def run_news_pipeline(
         return result
 
     try:
+        # 0) 오래된 데이터 정리 (7일 기준)
+        if service and sheet_id:
+            print(f"[NEWS] === 0단계: 오래된 데이터 정리 ===")
+            cleaned = cleanup_old_rows(service, sheet_id, "RAW_FEED", days=7)
+            result["cleaned_rows"] = cleaned
+
         # 1) RSS 수집 (공용)
         print(f"[NEWS] === 1단계: RSS 수집 (채널: {channel}) ===")
         raw_rows, items = ingest_rss_feeds(max_per_feed)
