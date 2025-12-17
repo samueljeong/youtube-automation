@@ -97,10 +97,14 @@ def passes_era_filter(title: str, content: str, era: str) -> bool:
     # 제외 키워드 체크
     for kw in exclude:
         if kw in text:
+            print(f"[FILTER] 제외 키워드 발견: {kw}")
             return False
 
     # 주요 키워드 1개 이상 필요
-    return any(kw in text for kw in primary)
+    has_primary = any(kw in text for kw in primary)
+    if not has_primary:
+        print(f"[FILTER] primary 키워드 없음 (era={era}, primary 샘플={primary[:3]})")
+    return has_primary
 
 
 def calculate_relevance_score(title: str, content: str, era: str) -> int:

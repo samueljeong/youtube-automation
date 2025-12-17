@@ -62,6 +62,7 @@ def collect_materials(
     primary_keywords = keywords.get("primary", [])
 
     print(f"[HISTORY] === 자료 수집 시작: {era_name} ===")
+    print(f"[HISTORY] 키워드: {primary_keywords[:3]}")
 
     all_items = []
     all_rows = []
@@ -73,6 +74,7 @@ def collect_materials(
         max_results
     )
     all_items.extend(search_items)
+    print(f"[HISTORY] 검색 결과: {len(search_items)}개 아이템")
 
     # 2) 위키백과/나무위키 등 백과사전 수집 (선택)
     # encyclopedia_items = _search_encyclopedia(era_name, primary_keywords)
@@ -101,6 +103,7 @@ def collect_materials(
 
         # 시대 필터 통과 여부
         if not passes_era_filter(title, content, era):
+            print(f"[HISTORY] 필터 제외: {title[:30]}...")
             continue
 
         # 키워드 감지
