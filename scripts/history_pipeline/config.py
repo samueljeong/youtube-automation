@@ -277,10 +277,12 @@ SHEET_HEADERS = {
     ],
     # HISTORY_OPUS_INPUT (단일 통합 시트) 헤더
     "OPUS_INPUT": [
-        "run_date",          # 실행 날짜 (YYYY-MM-DD)
-        "era",               # 시대 키 ★ Idempotency 체크용
+        "episode",           # ★ 전체 에피소드 번호 (1, 2, 3, ...)
+        "era",               # 시대 키
+        "era_episode",       # ★ 시대 내 에피소드 번호 (고조선 1화, 2화, ...)
+        "total_episodes",    # ★ 해당 시대 총 에피소드 수 (AI가 결정)
         "era_name",          # 시대 한글명
-        "title",             # 자료 제목
+        "title",             # 에피소드 제목
         "source_url",        # 출처 URL
         "materials_pack",    # 자료 발췌/요약 묶음 (핵심포인트 포함)
         "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품 (한 셀 복붙)
@@ -289,6 +291,9 @@ SHEET_HEADERS = {
         "created_at",        # 생성 시간 (ISO)
     ],
 }
+
+# PENDING 유지 개수 (항상 이 개수만큼 PENDING 상태 유지)
+PENDING_TARGET_COUNT = 10
 
 
 # ============================================================

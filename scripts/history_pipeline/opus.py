@@ -17,10 +17,12 @@ from typing import List, Dict, Any, Tuple
 
 from .config import (
     ERAS,
+    ERA_ORDER,
     SCRIPT_BRIEF_TEMPLATE,
     LLM_ENABLED_DEFAULT,
     LLM_MIN_SCORE_DEFAULT,
     LLM_MODEL_DEFAULT,
+    PENDING_TARGET_COUNT,
 )
 from .utils import (
     get_run_id,
@@ -451,3 +453,443 @@ def _parse_llm_response(text: str) -> Tuple[str, str, str]:
         core_facts = text
 
     return core_facts, narrative_arc, thumbnail_ideas
+
+
+# ============================================================
+# 에피소드 기반 OPUS 입력 생성 (새 구조)
+# ============================================================
+
+def determine_era_episodes(era: str, materials: List[Dict[str, Any]]) -> int:
+    """
+    AI가 시대별 에피소드 수 결정
+
+    Args:
+        era: 시대 키
+        materials: 수집된 자료 목록
+
+    Returns:
+        해당 시대의 총 에피소드 수 (3~10)
+    """
+    era_name = get_era_display_name(era)
+    period = get_era_period(era)
+
+    # 기본 에피소드 수 (자료 수 기반)
+    material_count = len(materials)
+
+    # 시대별 중요도 가중치
+    era_weights = {
+        "GOJOSEON": 1.0,      # 고조선 (기본)
+        "BUYEO": 0.8,         # 부여/옥저/동예
+        "SAMGUK": 1.5,        # 삼국시대 (많은 이야기)
+        "NAMBUK": 1.0,        # 남북국시대
+        "GORYEO": 1.3,        # 고려 (다양한 사건)
+        "JOSEON_EARLY": 1.4,  # 조선 전기 (세종 등)
+        "JOSEON_LATE": 1.5,   # 조선 후기 (격변기)
+        "DAEHAN": 1.0,        # 대한제국
+    }
+
+    weight = era_weights.get(era, 1.0)
+
+    # LLM으로 에피소드 수 결정
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key and os.environ.get("LLM_ENABLED", "0") == "1":
+        episodes = _llm_determine_episodes(era, era_name, period, materials)
+        if episodes:
+            return episodes
+
+    # 기본 계산: 자료 수 * 가중치, 최소 3, 최대 10
+    base_episodes = max(3, min(10, int(material_count * 0.5 * weight)))
+
+    print(f"[HISTORY] {era_name} 에피소드 수 결정: {base_episodes}편 (자료 {material_count}개, 가중치 {weight})")
+    return base_episodes
+
+
+def _llm_determine_episodes(
+    era: str,
+    era_name: str,
+    period: str,
+    materials: List[Dict[str, Any]]
+) -> int:
+    """LLM으로 에피소드 수 결정"""
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return 0
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        # 자료 요약
+        material_summaries = []
+        for m in materials[:10]:
+            material_summaries.append(f"- {m.get('title', '')[:50]}")
+
+        prompt = f"""당신은 한국사 YouTube 시리즈 기획자입니다.
+
+[시대 정보]
+- 시대: {era_name}
+- 기간: {period}
+
+[수집된 자료 (총 {len(materials)}개)]
+{chr(10).join(material_summaries)}
+
+이 시대를 몇 편의 에피소드로 구성할지 결정하세요.
+
+[고려 사항]
+1. 각 에피소드는 15~20분 분량 (하나의 주제에 집중)
+2. 시대의 중요도와 복잡성
+3. 시청자 관심도 유지를 위한 적정 분량
+4. 자료의 다양성과 깊이
+
+[답변 형식]
+숫자만 답하세요 (예: 5)
+최소 3편, 최대 10편 사이로 답하세요.
+"""
+
+        model = os.environ.get("OPENAI_MODEL", LLM_MODEL_DEFAULT)
+
+        if "gpt-5" in model:
+            response = client.responses.create(
+                model=model,
+                input=[
+                    {"role": "user", "content": [{"type": "input_text", "text": prompt}]}
+                ],
+                temperature=0.3
+            )
+            if getattr(response, "output_text", None):
+                text = response.output_text.strip()
+            else:
+                text_chunks = []
+                for item in getattr(response, "output", []) or []:
+                    for content in getattr(item, "content", []) or []:
+                        if getattr(content, "type", "") == "text":
+                            text_chunks.append(getattr(content, "text", ""))
+                text = "\n".join(text_chunks).strip()
+        else:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            text = response.choices[0].message.content.strip()
+
+        # 숫자 추출
+        import re
+        numbers = re.findall(r'\d+', text)
+        if numbers:
+            episodes = int(numbers[0])
+            episodes = max(3, min(10, episodes))
+            print(f"[HISTORY] LLM이 결정한 에피소드 수: {episodes}편")
+            return episodes
+
+    except Exception as e:
+        print(f"[HISTORY] LLM 에피소드 수 결정 실패: {e}")
+
+    return 0
+
+
+def generate_episode_opus_input(
+    episode: int,
+    era: str,
+    era_episode: int,
+    total_episodes: int,
+    candidate_row: List[Any],
+    is_new_era: bool = False
+) -> List[List[Any]]:
+    """
+    에피소드 기반 OPUS 입력 생성
+
+    Args:
+        episode: 전체 에피소드 번호 (1, 2, 3, ...)
+        era: 시대 키
+        era_episode: 시대 내 에피소드 번호 (1, 2, 3, ...)
+        total_episodes: 해당 시대 총 에피소드 수
+        candidate_row: CANDIDATES 행 데이터
+        is_new_era: 새 시대 시작 여부
+
+    Returns:
+        OPUS_INPUT 시트용 행 데이터
+    """
+    if not candidate_row:
+        print("[HISTORY] 후보 없음, OPUS_INPUT 생성 스킵")
+        return []
+
+    # CANDIDATES 행 파싱
+    topic = candidate_row[3] if len(candidate_row) > 3 else ""
+    score_total = float(candidate_row[4]) if len(candidate_row) > 4 and candidate_row[4] else 0
+    title = candidate_row[8] if len(candidate_row) > 8 else ""
+    url = candidate_row[9] if len(candidate_row) > 9 else ""
+    summary = candidate_row[10] if len(candidate_row) > 10 else ""
+
+    era_name = get_era_display_name(era)
+    period = get_era_period(era)
+
+    # 다음 시대 정보 (엔딩용)
+    next_era_info = _get_next_era_info(era)
+
+    # LLM 호출 조건
+    llm_enabled = os.environ.get("LLM_ENABLED", "0") == "1"
+    llm_min_score = float(os.environ.get("LLM_MIN_SCORE", LLM_MIN_SCORE_DEFAULT))
+    should_call_llm = llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
+
+    if should_call_llm:
+        print(f"[HISTORY] LLM 호출 (에피소드 {episode}, 점수 {score_total})")
+        core_facts, thumbnail_copy = _llm_generate_episode_content(
+            era, era_name, period, era_episode, total_episodes,
+            topic, title, summary, url, next_era_info
+        )
+    else:
+        core_facts = _generate_episode_core_facts(
+            era_name, period, era_episode, total_episodes,
+            topic, title, summary, next_era_info
+        )
+        thumbnail_copy = _generate_episode_thumbnail(
+            era_name, era_episode, total_episodes, topic, title
+        )
+
+    # materials_pack 생성
+    materials_pack = _build_episode_materials_pack(
+        era_name, period, era_episode, total_episodes,
+        topic, title, url, summary, core_facts
+    )
+
+    # opus_prompt_pack 생성
+    opus_prompt_pack = _build_episode_opus_prompt_pack(
+        era_name, period, era_episode, total_episodes,
+        topic, title, url, core_facts, next_era_info
+    )
+
+    # 생성 시간
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    # 에피소드 제목 생성
+    episode_title = f"{era_name} {era_episode}화: {title[:50]}" if title else f"{era_name} {era_episode}화"
+
+    # 시트 행 생성 (새 컬럼 구조)
+    opus_row = [[
+        episode,          # episode (전체 번호)
+        era,              # era
+        era_episode,      # era_episode (시대 내 번호)
+        total_episodes,   # total_episodes (시대 총 에피소드)
+        era_name,         # era_name
+        episode_title,    # title
+        url,              # source_url
+        materials_pack,   # materials_pack
+        opus_prompt_pack, # opus_prompt_pack
+        thumbnail_copy,   # thumbnail_copy
+        "PENDING",        # status
+        created_at,       # created_at
+    ]]
+
+    print(f"[HISTORY] 에피소드 {episode} 생성: {era_name} {era_episode}/{total_episodes}화")
+    return opus_row
+
+
+def _get_next_era_info(era: str) -> Dict[str, str]:
+    """다음 시대 정보 반환"""
+    try:
+        idx = ERA_ORDER.index(era)
+        if idx + 1 < len(ERA_ORDER):
+            next_era = ERA_ORDER[idx + 1]
+            return {
+                "era": next_era,
+                "name": get_era_display_name(next_era),
+                "period": get_era_period(next_era),
+            }
+    except ValueError:
+        pass
+
+    return {"era": "", "name": "다음 시대", "period": ""}
+
+
+def _generate_episode_core_facts(
+    era_name: str,
+    period: str,
+    era_episode: int,
+    total_episodes: int,
+    topic: str,
+    title: str,
+    summary: str,
+    next_era_info: Dict[str, str]
+) -> str:
+    """에피소드용 핵심포인트 템플릿 생성"""
+
+    is_last = era_episode >= total_episodes
+
+    ending_hint = f"""[#NEXT] 다음 시대 연결
+- {next_era_info['name']}으로 이어지는 질문
+- "이 시대가 끝나고, {next_era_info['name']}이 시작됩니다. 다음 시간에 만나요."
+""" if is_last else f"""[#NEXT] 다음 에피소드 예고
+- {era_name} {era_episode + 1}화에서 다룰 내용 예고
+- "다음 시간에는 {era_name}의 또 다른 이야기를 들려드리겠습니다."
+"""
+
+    return f"""[핵심포인트 - {era_name} {era_episode}/{total_episodes}화]
+
+▶ 주제: {topic}
+▶ 출처: {title}
+▶ 진행상황: {era_name} 시리즈 {era_episode}/{total_episodes}화
+
+[#OPEN] 오프닝 질문
+- 이 에피소드의 핵심 질문
+- 시청자가 알고 싶어할 포인트
+
+[#BODY1_FACTS_ONLY] 핵심 사실 (5개)
+1. (사실 1 - 시간/장소/인물 중심)
+2. (사실 2)
+3. (사실 3)
+4. (사실 4)
+5. (사실 5)
+
+[#TURN] 전환점
+- 결정적 순간은 언제였나?
+
+[#BODY2_HUMAN_ALLOWED] 스토리 전개
+- 주요 인물의 행동과 심리
+- 드라마틱한 전개
+
+[#IMPACT] 역사적 의의
+- 이후 역사에 미친 영향
+
+{ending_hint}
+
+▶ 참고 요약:
+{summary[:400]}
+"""
+
+
+def _generate_episode_thumbnail(
+    era_name: str,
+    era_episode: int,
+    total_episodes: int,
+    topic: str,
+    title: str
+) -> str:
+    """에피소드용 썸네일 문구 생성"""
+    return f"""[썸네일 문구 추천 - {era_name} {era_episode}화]
+
+1. {era_name} {era_episode}화 | {topic}
+2. {title[:20]}...의 진실
+3. 역사가 숨긴 {era_name}의 비밀 #{era_episode}"""
+
+
+def _build_episode_materials_pack(
+    era_name: str,
+    period: str,
+    era_episode: int,
+    total_episodes: int,
+    topic: str,
+    title: str,
+    url: str,
+    summary: str,
+    core_facts: str
+) -> str:
+    """에피소드용 자료 발췌 묶음"""
+
+    return f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📺 {era_name} 시리즈 {era_episode}/{total_episodes}화
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+시대: {era_name} ({period})
+주제: {topic}
+제목: {title}
+출처: {url}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 자료 요약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{summary[:500]}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 핵심포인트
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{core_facts}
+"""
+
+
+def _build_episode_opus_prompt_pack(
+    era_name: str,
+    period: str,
+    era_episode: int,
+    total_episodes: int,
+    topic: str,
+    title: str,
+    url: str,
+    core_facts: str,
+    next_era_info: Dict[str, str]
+) -> str:
+    """에피소드용 Opus 프롬프트 생성"""
+
+    is_last = era_episode >= total_episodes
+
+    next_hint = f"""- 시대 마무리: {era_name} 시대의 역사적 의의로 마무리
+- 다음 시대 예고: "{next_era_info['name']}이 시작됩니다. 다음 시간에..."
+""" if is_last else f"""- 다음 에피소드 예고: "{era_name} {era_episode + 1}화에서 계속됩니다"
+- 시청자 유지: 다음 화에서 다룰 흥미로운 주제 언급
+"""
+
+    return f"""당신은 한국사 전문 유튜브 채널의 대본 작가입니다.
+아래 정보를 바탕으로 **15~20분 분량(6,000~8,000자)**의 나레이션 대본을 작성하세요.
+
+════════════════════════════════════════
+[SERIES INFO]
+════════════════════════════════════════
+📺 시리즈: 한국사 - {era_name}
+📍 현재 에피소드: {era_episode}/{total_episodes}화
+⏱️ 분량: 15~20분 (6,000~8,000자)
+
+════════════════════════════════════════
+[CONTEXT]
+════════════════════════════════════════
+- 시대: {era_name} ({period})
+- 자료 출처: {title}
+- URL: {url}
+- 오늘의 핵심 질문: {topic}에 대해 무엇을 알아야 하는가?
+
+════════════════════════════════════════
+[STRUCTURE POINTS]
+════════════════════════════════════════
+{core_facts}
+
+════════════════════════════════════════
+{SCRIPT_BRIEF_TEMPLATE}
+
+════════════════════════════════════════
+[ENDING PROMISE] - {era_episode}/{total_episodes}화
+════════════════════════════════════════
+{next_hint}
+
+════════════════════════════════════════
+⚠️ 최종 체크리스트
+════════════════════════════════════════
+□ 총 글자수 6,000~8,000자 사이인가?
+□ 전반부(0~60%)에 감정/행동/공감 표현이 없는가?
+□ 시리즈 {era_episode}/{total_episodes}화임을 명시했는가?
+□ 다음 에피소드/시대 예고가 있는가?
+"""
+
+
+def _llm_generate_episode_content(
+    era: str,
+    era_name: str,
+    period: str,
+    era_episode: int,
+    total_episodes: int,
+    topic: str,
+    title: str,
+    summary: str,
+    url: str,
+    next_era_info: Dict[str, str]
+) -> Tuple[str, str]:
+    """LLM으로 에피소드 콘텐츠 생성"""
+
+    # 기존 LLM 함수 활용
+    core_facts, thumbnail_copy = _llm_generate_core_facts(
+        era, era_name, period, topic, title, summary, url
+    )
+
+    # 에피소드 정보 추가
+    episode_info = f"\n\n[에피소드 정보: {era_name} {era_episode}/{total_episodes}화]"
+    core_facts = core_facts + episode_info
+
+    return core_facts, thumbnail_copy

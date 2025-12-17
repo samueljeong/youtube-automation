@@ -16,6 +16,9 @@ from .config import (
     ARCHIVE_THRESHOLD_RATIO,
     ROWS_TO_KEEP_AFTER_ARCHIVE,
     HISTORY_OPUS_INPUT_SHEET,
+    PENDING_TARGET_COUNT,
+    ERA_ORDER,
+    ERAS,
     get_era_sheet_name,
     get_archive_sheet_name,
 )
@@ -405,49 +408,234 @@ def read_recent_hashes(
         return set()
 
 
-def check_opus_input_exists(
-    service,
-    spreadsheet_id: str,
-    era: str,
-    run_id: str
-) -> bool:
+def get_series_progress(service, spreadsheet_id: str) -> Dict[str, Any]:
     """
-    같은 날 + 같은 시대의 OPUS_INPUT이 이미 생성되었는지 확인 (Idempotency)
+    시리즈 진행 상황 조회
 
-    단일 통합 시트(HISTORY_OPUS_INPUT)에서 run_date + era 조합으로 체크
-    - 같은 날짜 + 같은 era: 스킵 (중복)
-    - 같은 날짜 + 다른 era: 허용
+    Returns:
+        {
+            "total_episodes": 전체 에피소드 수,
+            "pending_count": PENDING 상태 에피소드 수,
+            "last_episode": 마지막 에피소드 번호,
+            "current_era": 현재 진행 중인 시대,
+            "current_era_episode": 현재 시대의 마지막 에피소드 번호,
+            "current_era_total": 현재 시대의 총 에피소드 수 (AI 결정),
+            "all_rows": 전체 데이터 (분석용)
+        }
+    """
+    result = {
+        "total_episodes": 0,
+        "pending_count": 0,
+        "last_episode": 0,
+        "current_era": None,
+        "current_era_episode": 0,
+        "current_era_total": 0,
+        "all_rows": [],
+    }
+
+    try:
+        # 전체 데이터 읽기
+        # 헤더: episode, era, era_episode, total_episodes, era_name, title, ...
+        response = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"{HISTORY_OPUS_INPUT_SHEET}!A:L"
+        ).execute()
+
+        rows = response.get('values', [])
+
+        if len(rows) <= 1:
+            # 헤더만 있거나 비어있음
+            return result
+
+        headers = rows[0]
+        data_rows = rows[1:]
+
+        result["total_episodes"] = len(data_rows)
+        result["all_rows"] = data_rows
+
+        # 컬럼 인덱스 찾기
+        col_idx = {h: i for i, h in enumerate(headers)}
+
+        episode_idx = col_idx.get("episode", 0)
+        era_idx = col_idx.get("era", 1)
+        era_episode_idx = col_idx.get("era_episode", 2)
+        total_episodes_idx = col_idx.get("total_episodes", 3)
+        status_idx = col_idx.get("status", 10)
+
+        # PENDING 개수 세기
+        for row in data_rows:
+            if len(row) > status_idx and row[status_idx] == "PENDING":
+                result["pending_count"] += 1
+
+        # 마지막 에피소드 정보
+        if data_rows:
+            last_row = data_rows[-1]
+            try:
+                result["last_episode"] = int(last_row[episode_idx]) if len(last_row) > episode_idx and last_row[episode_idx] else 0
+            except (ValueError, IndexError):
+                result["last_episode"] = len(data_rows)
+
+            if len(last_row) > era_idx:
+                result["current_era"] = last_row[era_idx]
+
+            try:
+                result["current_era_episode"] = int(last_row[era_episode_idx]) if len(last_row) > era_episode_idx and last_row[era_episode_idx] else 0
+            except (ValueError, IndexError):
+                result["current_era_episode"] = 0
+
+            try:
+                result["current_era_total"] = int(last_row[total_episodes_idx]) if len(last_row) > total_episodes_idx and last_row[total_episodes_idx] else 0
+            except (ValueError, IndexError):
+                result["current_era_total"] = 0
+
+        print(f"[HISTORY] 진행 상황: 에피소드 {result['last_episode']}개, PENDING {result['pending_count']}개, 현재 시대 {result['current_era']}")
+        return result
+
+    except Exception as e:
+        print(f"[HISTORY] 진행 상황 조회 실패: {e}")
+        return result
+
+
+def get_next_episode_info(service, spreadsheet_id: str) -> Dict[str, Any]:
+    """
+    다음 에피소드 정보 계산
+
+    Returns:
+        {
+            "next_episode": 다음 전체 에피소드 번호,
+            "era": 시대 키,
+            "era_name": 시대 한글명,
+            "era_episode": 시대 내 에피소드 번호,
+            "is_new_era": 새 시대 시작 여부,
+            "need_more": 더 추가 필요한지 (PENDING < 10),
+            "pending_count": 현재 PENDING 개수
+        }
+    """
+    progress = get_series_progress(service, spreadsheet_id)
+
+    result = {
+        "next_episode": progress["last_episode"] + 1,
+        "era": None,
+        "era_name": None,
+        "era_episode": 1,
+        "is_new_era": False,
+        "need_more": progress["pending_count"] < PENDING_TARGET_COUNT,
+        "pending_count": progress["pending_count"],
+    }
+
+    # 시트가 비어있으면 첫 번째 시대부터 시작
+    if progress["last_episode"] == 0 or not progress["current_era"]:
+        first_era = ERA_ORDER[0] if ERA_ORDER else "GOJOSEON"
+        result["era"] = first_era
+        result["era_name"] = ERAS.get(first_era, {}).get("name", first_era)
+        result["era_episode"] = 1
+        result["is_new_era"] = True
+        return result
+
+    current_era = progress["current_era"]
+    current_era_episode = progress["current_era_episode"]
+    current_era_total = progress["current_era_total"]
+
+    # 현재 시대가 완료되었는지 확인
+    if current_era_total > 0 and current_era_episode >= current_era_total:
+        # 다음 시대로 이동
+        try:
+            current_idx = ERA_ORDER.index(current_era)
+            if current_idx + 1 < len(ERA_ORDER):
+                next_era = ERA_ORDER[current_idx + 1]
+                result["era"] = next_era
+                result["era_name"] = ERAS.get(next_era, {}).get("name", next_era)
+                result["era_episode"] = 1
+                result["is_new_era"] = True
+            else:
+                # 모든 시대 완료 (대한제국까지)
+                result["era"] = None
+                result["era_name"] = None
+                result["need_more"] = False
+                print("[HISTORY] 모든 시대 완료!")
+        except ValueError:
+            # current_era가 ERA_ORDER에 없는 경우
+            result["era"] = current_era
+            result["era_name"] = ERAS.get(current_era, {}).get("name", current_era)
+            result["era_episode"] = current_era_episode + 1
+    else:
+        # 같은 시대 계속
+        result["era"] = current_era
+        result["era_name"] = ERAS.get(current_era, {}).get("name", current_era)
+        result["era_episode"] = current_era_episode + 1
+        result["is_new_era"] = False
+
+    return result
+
+
+def count_pending_episodes(service, spreadsheet_id: str) -> int:
+    """
+    PENDING 상태 에피소드 개수 반환
 
     Args:
         service: Google Sheets API 서비스 객체
         spreadsheet_id: 스프레드시트 ID
-        era: 시대 키
-        run_id: 실행 ID (YYYY-MM-DD)
 
     Returns:
-        이미 존재하면 True
+        PENDING 상태 에피소드 수
+    """
+    progress = get_series_progress(service, spreadsheet_id)
+    return progress["pending_count"]
+
+
+def mark_episode_done(
+    service,
+    spreadsheet_id: str,
+    episode: int
+) -> bool:
+    """
+    특정 에피소드를 DONE으로 표시
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        spreadsheet_id: 스프레드시트 ID
+        episode: 에피소드 번호
+
+    Returns:
+        성공 여부
     """
     try:
-        # A열: run_date, B열: era
-        result = service.spreadsheets().values().get(
+        # 전체 데이터 읽기
+        response = service.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id,
-            range=f"{HISTORY_OPUS_INPUT_SHEET}!A:B"
+            range=f"{HISTORY_OPUS_INPUT_SHEET}!A:L"
         ).execute()
 
-        rows = result.get('values', [])
+        rows = response.get('values', [])
+        if len(rows) <= 1:
+            return False
 
-        # 헤더 제외하고 run_date + era 조합 확인
-        for row in rows[1:]:
-            if len(row) >= 2:
-                row_date = row[0]
-                row_era = row[1]
-                if row_date == run_id and row_era == era:
-                    print(f"[HISTORY] 이미 존재: {run_id} + {era}")
-                    return True
+        headers = rows[0]
+        col_idx = {h: i for i, h in enumerate(headers)}
+        episode_idx = col_idx.get("episode", 0)
+        status_idx = col_idx.get("status", 10)
+
+        # 해당 에피소드 찾아서 DONE으로 변경
+        for i, row in enumerate(rows[1:], start=2):
+            try:
+                row_episode = int(row[episode_idx]) if len(row) > episode_idx and row[episode_idx] else 0
+            except ValueError:
+                continue
+
+            if row_episode == episode:
+                # status 열 업데이트
+                status_cell = f"{HISTORY_OPUS_INPUT_SHEET}!{chr(65 + status_idx)}{i}"
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=status_cell,
+                    valueInputOption="RAW",
+                    body={"values": [["DONE"]]}
+                ).execute()
+                print(f"[HISTORY] 에피소드 {episode} → DONE")
+                return True
 
         return False
 
     except Exception as e:
-        # 시트가 없거나 읽기 실패 시 False (새로 생성 허용)
-        print(f"[HISTORY] OPUS_INPUT 확인 실패 (무시): {e}")
+        print(f"[HISTORY] 에피소드 상태 변경 실패: {e}")
         return False

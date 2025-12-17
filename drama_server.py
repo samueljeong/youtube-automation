@@ -20659,48 +20659,37 @@ def api_news_test_rss():
 @app.route('/api/history/run-pipeline', methods=['GET', 'POST'])
 def api_history_run_pipeline():
     """
-    한국사 자동화 파이프라인 실행 (시대별)
+    한국사 자동화 파이프라인 실행 (에피소드 자동 관리)
     브라우저에서 직접 호출 가능 (GET 지원)
 
-    자료 수집 → 시대별 후보 선정 → OPUS 입력 생성
+    ★ 자동으로 PENDING 10개 유지
+    ★ 시대 순서: 고조선 → 부여 → 삼국 → 남북국 → 고려 → 조선전기 → 조선후기 → 대한제국
+    ★ AI가 시대별 에피소드 수 결정
 
     파라미터:
-    - era: 시대 키 (GOJOSEON, BUYEO, SAMGUK, NAMBUK, GORYEO, JOSEON_EARLY, JOSEON_LATE, DAEHAN)
-    - force: "1"이면 오늘 이미 실행했어도 강제 실행
+    - force: "1"이면 PENDING 10개 이상이어도 1개 추가
 
     환경변수:
     - NEWS_SHEET_ID: 뉴스 파이프라인과 같은 시트 사용 (권장)
     - HISTORY_SHEET_ID: 한국사 전용 시트 (선택)
-    - LLM_ENABLED: "1"이면 TOP 1에 LLM 핵심포인트 생성
-    - LLM_MIN_SCORE: LLM 호출 최소 점수 (기본 0)
+    - LLM_ENABLED: "1"이면 AI가 에피소드 수 결정 및 핵심포인트 생성
     - MAX_RESULTS: 수집할 최대 자료 수 (기본 30)
     - TOP_K: 선정할 후보 수 (기본 5)
 
     시트 구조:
-    - {ERA}_RAW: 수집된 원문 자료 (시대별 분리)
-    - {ERA}_CANDIDATES: 점수화된 후보 (시대별 분리)
-    - HISTORY_OPUS_INPUT: Opus 입력 (★ 단일 통합 시트, 모든 시대 누적)
-
-    Idempotency:
-    - 같은 날짜 + 같은 시대: 스킵 (중복)
-    - 같은 날짜 + 다른 시대: 허용
+    - HISTORY_OPUS_INPUT: 에피소드별 대본 자료 (★ 단일 통합 시트)
+      - episode: 전체 에피소드 번호 (1, 2, 3, ...)
+      - era: 시대 키
+      - era_episode: 시대 내 에피소드 번호 (1화, 2화, ...)
+      - total_episodes: 해당 시대 총 에피소드 수 (AI 결정)
+      - status: PENDING/DONE
+    - {ERA}_RAW: 원문 자료 (시대별)
+    - {ERA}_CANDIDATES: 후보 자료 (시대별)
     """
     print("[HISTORY] ===== run-pipeline 호출됨 =====")
 
     try:
-        from scripts.history_pipeline import run_history_pipeline, ERAS
-
-        # 시대 파라미터
-        era = request.args.get('era') or os.environ.get('HISTORY_ERA', 'GOJOSEON')
-        era = era.upper()
-
-        # 시대 유효성 검사
-        if era not in ERAS:
-            return jsonify({
-                "ok": False,
-                "error": f"알 수 없는 시대: {era}",
-                "valid_eras": list(ERAS.keys())
-            }), 400
+        from scripts.history_pipeline import run_history_pipeline
 
         # 서비스 계정 인증
         service = get_sheets_service_account()
@@ -20724,44 +20713,37 @@ def api_history_run_pipeline():
 
         # 설정
         force = request.args.get('force', '0') == '1'
-        llm_enabled = os.environ.get('LLM_ENABLED', '0') == '1'
-        llm_min_score = float(os.environ.get('LLM_MIN_SCORE', '0'))
         max_results = int(os.environ.get('MAX_RESULTS', '30'))
         top_k = int(os.environ.get('TOP_K', '5'))
 
-        print(f"[HISTORY] 시대: {era}, force: {force}, LLM: {llm_enabled}")
-        print(f"[HISTORY] 시트 ID: {sheet_id}")
+        print(f"[HISTORY] force: {force}, 시트 ID: {sheet_id}")
 
-        # 파이프라인 실행
+        # 파이프라인 실행 (자동 에피소드 관리)
         result = run_history_pipeline(
             sheet_id=sheet_id,
             service=service,
-            era=era,
             max_results=max_results,
             top_k=top_k,
-            llm_enabled=llm_enabled,
-            llm_min_score=llm_min_score,
             force=force
         )
 
         if result.get("success"):
             return jsonify({
                 "ok": True,
-                "era": era,
-                "era_name": result.get("era_name"),
-                "raw_count": result.get("raw_count", 0),
-                "candidate_count": result.get("candidate_count", 0),
-                "opus_generated": result.get("opus_generated", False),
-                "archived": result.get("archived", 0),
-                "sheets_created": result.get("sheets_created", []),
-                "sheets_saved": result.get("sheets_saved", []),
-                "message": f"{result.get('era_name')} 파이프라인 실행 완료"
+                "pending_before": result.get("pending_before", 0),
+                "pending_after": result.get("pending_after", 0),
+                "episodes_added": result.get("episodes_added", 0),
+                "current_era": result.get("current_era"),
+                "current_episode": result.get("current_episode", 0),
+                "all_complete": result.get("all_complete", False),
+                "details": result.get("details", []),
+                "message": f"{result.get('episodes_added', 0)}개 에피소드 추가, PENDING {result.get('pending_after', 0)}개"
             })
         else:
             return jsonify({
                 "ok": False,
-                "era": era,
-                "error": result.get("error", "알 수 없는 오류")
+                "error": result.get("error", "알 수 없는 오류"),
+                "details": result.get("details", [])
             }), 500
 
     except ImportError as e:
