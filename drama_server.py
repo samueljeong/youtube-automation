@@ -20654,6 +20654,188 @@ def api_news_test_rss():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ========== 한국사 자동화 파이프라인 API ==========
+
+@app.route('/api/history/run-pipeline', methods=['GET', 'POST'])
+def api_history_run_pipeline():
+    """
+    한국사 자동화 파이프라인 실행 (시대별)
+    브라우저에서 직접 호출 가능 (GET 지원)
+
+    자료 수집 → 시대별 후보 선정 → OPUS 입력 생성
+
+    파라미터:
+    - era: 시대 키 (GOJOSEON, BUYEO, SAMGUK, NAMBUK, GORYEO, JOSEON_EARLY, JOSEON_LATE, DAEHAN)
+    - force: "1"이면 오늘 이미 실행했어도 강제 실행
+
+    환경변수:
+    - HISTORY_SHEET_ID: 한국사용 Google Sheets ID (없으면 AUTOMATION_SHEET_ID 사용)
+    - LLM_ENABLED: "1"이면 TOP 1에 LLM 핵심포인트 생성
+    - LLM_MIN_SCORE: LLM 호출 최소 점수 (기본 0)
+    - MAX_RESULTS: 수집할 최대 자료 수 (기본 30)
+    - TOP_K: 선정할 후보 수 (기본 5)
+
+    시트 구조 (시대별 탭):
+    - {ERA}_RAW: 수집된 원문 자료
+    - {ERA}_CANDIDATES: 점수화된 후보
+    - {ERA}_OPUS_INPUT: Opus에 붙여넣을 완제품 프롬프트
+    """
+    print("[HISTORY] ===== run-pipeline 호출됨 =====")
+
+    try:
+        from scripts.history_pipeline import run_history_pipeline, ERAS
+
+        # 시대 파라미터
+        era = request.args.get('era') or os.environ.get('HISTORY_ERA', 'GOJOSEON')
+        era = era.upper()
+
+        # 시대 유효성 검사
+        if era not in ERAS:
+            return jsonify({
+                "ok": False,
+                "error": f"알 수 없는 시대: {era}",
+                "valid_eras": list(ERAS.keys())
+            }), 400
+
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # 시트 ID
+        sheet_id = os.environ.get('HISTORY_SHEET_ID') or os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "HISTORY_SHEET_ID 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 설정
+        force = request.args.get('force', '0') == '1'
+        llm_enabled = os.environ.get('LLM_ENABLED', '0') == '1'
+        llm_min_score = float(os.environ.get('LLM_MIN_SCORE', '0'))
+        max_results = int(os.environ.get('MAX_RESULTS', '30'))
+        top_k = int(os.environ.get('TOP_K', '5'))
+
+        print(f"[HISTORY] 시대: {era}, force: {force}, LLM: {llm_enabled}")
+        print(f"[HISTORY] 시트 ID: {sheet_id}")
+
+        # 파이프라인 실행
+        result = run_history_pipeline(
+            sheet_id=sheet_id,
+            service=service,
+            era=era,
+            max_results=max_results,
+            top_k=top_k,
+            llm_enabled=llm_enabled,
+            llm_min_score=llm_min_score,
+            force=force
+        )
+
+        if result.get("success"):
+            return jsonify({
+                "ok": True,
+                "era": era,
+                "era_name": result.get("era_name"),
+                "raw_count": result.get("raw_count", 0),
+                "candidate_count": result.get("candidate_count", 0),
+                "opus_generated": result.get("opus_generated", False),
+                "archived": result.get("archived", 0),
+                "sheets_created": result.get("sheets_created", []),
+                "sheets_saved": result.get("sheets_saved", []),
+                "message": f"{result.get('era_name')} 파이프라인 실행 완료"
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "era": era,
+                "error": result.get("error", "알 수 없는 오류")
+            }), 500
+
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 로드 실패: {e}"
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/history/test', methods=['GET'])
+def api_history_test():
+    """
+    한국사 파이프라인 테스트 (시트 저장 없이 결과만 반환)
+
+    파라미터:
+    - era: 시대 키 (기본 GOJOSEON)
+    - max_results: 수집할 최대 자료 수 (기본 10)
+    - top_k: 후보 수 (기본 3)
+    """
+    try:
+        from scripts.history_pipeline import ERAS, ERA_ORDER
+        from scripts.history_pipeline.collector import collect_materials
+        from scripts.history_pipeline.scoring import score_and_select_candidates
+
+        era = request.args.get('era', 'GOJOSEON').upper()
+        max_results = int(request.args.get('max_results', '10'))
+        top_k = int(request.args.get('top_k', '3'))
+
+        if era not in ERAS:
+            return jsonify({
+                "ok": False,
+                "error": f"알 수 없는 시대: {era}",
+                "valid_eras": list(ERAS.keys())
+            }), 400
+
+        era_info = ERAS[era]
+
+        # 자료 수집 (시트 저장 안함)
+        raw_rows, items = collect_materials(era, max_results)
+
+        # 후보 선정
+        candidates = score_and_select_candidates(items, era, top_k)
+
+        return jsonify({
+            "ok": True,
+            "era": era,
+            "era_name": era_info.get("name"),
+            "period": era_info.get("period"),
+            "raw_count": len(raw_rows),
+            "candidate_count": len(candidates),
+            "candidates": [
+                {
+                    "rank": c[1],
+                    "topic": c[3],
+                    "score": c[4],
+                    "title": c[8],
+                    "url": c[9]
+                }
+                for c in candidates
+            ],
+            "all_eras": [
+                {"key": e, "name": ERAS[e].get("name"), "active": ERAS[e].get("active", False)}
+                for e in ERA_ORDER
+            ]
+        })
+
+    except ImportError as e:
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 로드 실패: {e}"
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
