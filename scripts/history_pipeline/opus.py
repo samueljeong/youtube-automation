@@ -23,6 +23,11 @@ from .config import (
     LLM_MIN_SCORE_DEFAULT,
     LLM_MODEL_DEFAULT,
     PENDING_TARGET_COUNT,
+    # 시리즈 정합성 규칙
+    GLOBAL_SERIES_RULE,
+    BODY1_FACTS_ONLY_DEFINITION,
+    FINAL_EPISODE_OVERRIDE,
+    ROLE_FORBIDDEN_KEYWORDS,
 )
 from .utils import (
     get_run_id,
@@ -492,6 +497,102 @@ def _parse_llm_response(text: str) -> Tuple[str, str, str]:
 
 
 # ============================================================
+# STRUCTURE POINTS 검증 및 필터링
+# ============================================================
+
+def validate_structure_points(
+    core_facts: str,
+    phase: str,
+    era_episode: int,
+    total_episodes: int
+) -> str:
+    """
+    STRUCTURE POINTS를 역할에 따라 검증/필터링
+
+    - 역할별 금지 키워드가 포함된 항목에 경고 추가
+    - 최종화인 경우 FINAL_EPISODE_OVERRIDE 적용
+
+    Args:
+        core_facts: 원본 핵심포인트
+        phase: 에피소드 역할 (형성기/제도기/변동기/유산기/연결기)
+        era_episode: 시대 내 에피소드 번호
+        total_episodes: 시대 총 에피소드 수
+
+    Returns:
+        검증된 핵심포인트 (경고 포함)
+    """
+    is_last = era_episode >= total_episodes
+    forbidden_keywords = ROLE_FORBIDDEN_KEYWORDS.get(phase, [])
+
+    # 금지 키워드 체크
+    warnings = []
+    for keyword in forbidden_keywords:
+        if keyword in core_facts:
+            warnings.append(f"⚠️ '{keyword}' - {phase}에서 금지된 소재 (무시하거나 재해석)")
+
+    # 경고 메시지 추가
+    if warnings:
+        warning_block = f"""
+════════════════════════════════════════
+⚠️ STRUCTURE POINTS 검증 결과 ({phase})
+════════════════════════════════════════
+아래 소재는 현재 역할({phase})에서 금지됨:
+{chr(10).join(warnings)}
+
+→ 해당 소재를 사용하지 않거나, 역할에 맞게 재해석할 것
+════════════════════════════════════════
+"""
+        core_facts = warning_block + core_facts
+
+    return core_facts
+
+
+def get_role_specific_rules(phase: str, is_last: bool = False) -> str:
+    """
+    역할별 추가 규칙 반환
+
+    Args:
+        phase: 에피소드 역할
+        is_last: 최종화 여부
+
+    Returns:
+        역할별 규칙 문자열
+    """
+    if is_last:
+        return FINAL_EPISODE_OVERRIDE
+
+    # 역할별 추가 힌트
+    role_hints = {
+        "형성기": """
+[형성기 추가 규칙]
+- 건국 과정과 초기 구조에 집중
+- 이후 시대 내용 언급 금지
+- "왜 국가가 필요했는가"를 TURN으로 설정
+""",
+        "제도기": """
+[제도기 추가 규칙]
+- 법, 제도, 통치 체계에 집중
+- 건국 신화 재언급 금지
+- "왜 관습이 한계에 도달했는가"를 TURN으로 설정
+""",
+        "변동기": """
+[변동기 추가 규칙]
+- 멸망 이후 상황에 집중 (멸망 사건 자체는 이전 화에서 다룸)
+- 건국/위치 설명 재언급 금지
+- 사람들의 이동과 선택에 초점
+""",
+        "유산기": """
+[유산기 추가 규칙]
+- 국가는 사라졌지만 남은 것들에 집중
+- 건국/전투 재언급 절대 금지
+- 제도와 방식의 지속에 초점
+""",
+    }
+
+    return role_hints.get(phase, "")
+
+
+# ============================================================
 # 에피소드 기반 OPUS 입력 생성 (새 구조)
 # ============================================================
 
@@ -956,31 +1057,30 @@ def _build_episode_opus_prompt_pack(
     core_facts: str,
     next_era_info: Dict[str, str]
 ) -> str:
-    """에피소드용 Opus 프롬프트 생성"""
+    """에피소드용 Opus 프롬프트 생성 (GLOBAL_SERIES_RULE 포함)"""
 
     is_last = era_episode >= total_episodes
     episode_role = _get_episode_role(era_episode, total_episodes)
+    phase = episode_role['phase']
 
-    # 최종화 특별 규칙
-    final_episode_rule = """
-════════════════════════════════════════
-🚨 최종화 필수 규칙 (Opus 메모리)
-════════════════════════════════════════
-- 마지막 화에서는 사건을 설명하지 않는다
-- 마지막 화는 의미를 정리하고 방향을 남긴다
-- "그래서 우리는 배웠다", "의미 있었다" 금지
-- 다음 시대가 '이어서 시작될 수밖에 없게' 구조적으로 연결
-- 예: "고조선 이후의 세계는, 완전히 새로 시작된 것이 아니었다."
-""" if is_last else ""
+    # STRUCTURE POINTS 검증 (역할별 금지 키워드 체크)
+    validated_core_facts = validate_structure_points(
+        core_facts, phase, era_episode, total_episodes
+    )
+
+    # 역할별 추가 규칙 (최종화면 FINAL_EPISODE_OVERRIDE)
+    role_specific_rules = get_role_specific_rules(phase, is_last)
 
     next_hint = f"""- 시대 마무리: 사건 회고 ❌ → 구조적 의미 정리 ⭕
-- 다음 시대 자연 연결: "{next_era_info['name']}은 고조선과 완전히 단절된 것이 아니었다..."
+- 다음 시대 자연 연결: "{next_era_info['name']}은 {era_name}과 완전히 단절된 것이 아니었다..."
 """ if is_last else f"""- 다음 에피소드 예고: "{era_name} {era_episode + 1}화에서 계속됩니다"
 - 시청자 유지: 다음 화에서 다룰 흥미로운 주제 언급
 """
 
     return f"""당신은 한국사 전문 유튜브 채널의 대본 작가입니다.
 아래 정보를 바탕으로 **15~20분 분량(13,650~18,200자)**의 나레이션 대본을 작성하세요.
+
+{GLOBAL_SERIES_RULE}
 
 ════════════════════════════════════════
 [SERIES INFO]
@@ -990,11 +1090,11 @@ def _build_episode_opus_prompt_pack(
 ⏱️ 분량: 15~20분 (13,650~18,200자)
 
 ════════════════════════════════════════
-⚠️ 이 에피소드의 역할: {episode_role['phase']} - {episode_role['role']}
+⚠️ 이 에피소드의 역할: {phase} - {episode_role['role']}
 ════════════════════════════════════════
 ✅ 이 화에서 다룰 것: {episode_role['allowed']}
 ❌ 이 화에서 금지: {episode_role['forbidden']}
-{final_episode_rule}
+{role_specific_rules}
 ════════════════════════════════════════
 [CONTEXT]
 ════════════════════════════════════════
@@ -1003,10 +1103,12 @@ def _build_episode_opus_prompt_pack(
 - URL: {url}
 - 오늘의 핵심 질문: {episode_role['role']} - 누가, 어떻게, 왜?
 
+{BODY1_FACTS_ONLY_DEFINITION}
+
 ════════════════════════════════════════
-[STRUCTURE POINTS]
+[STRUCTURE POINTS] ⚠️ 역할 검증 완료
 ════════════════════════════════════════
-{core_facts}
+{validated_core_facts}
 
 ════════════════════════════════════════
 {SCRIPT_BRIEF_TEMPLATE}
@@ -1017,10 +1119,13 @@ def _build_episode_opus_prompt_pack(
 {next_hint}
 
 ════════════════════════════════════════
-⚠️ 최종 체크리스트
+⚠️ 최종 체크리스트 (역할 검증 포함)
 ════════════════════════════════════════
 □ 총 글자수 13,650~18,200자 사이인가?
 □ 전반부(0~60%)에 감정/행동/공감 표현이 없는가?
+□ BODY1에 해석/평가 표현이 없는가? (FACTS_ONLY 준수)
+□ 역할({phase})에 맞는 소재만 사용했는가?
+□ 금지 소재가 포함되지 않았는가?
 □ 시리즈 {era_episode}/{total_episodes}화임을 명시했는가?
 □ 다음 에피소드/시대 예고가 있는가?
 """
