@@ -726,21 +726,49 @@ def _get_next_era_info(era: str) -> Dict[str, str]:
 
 def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
     """
-    에피소드 위치별 역할 정의
+    에피소드 위치별 역할 정의 (비율 기반 - 총 편수 무관)
 
-    시리즈 구조 (6부작 기준):
-    - 1-2화: 형성기 - 국가의 탄생과 구조
-    - 3화: 제도기 - 법, 제도, 통치 체계
-    - 4화: 변동기 - 멸망/붕괴 이후, 사람들의 이동
-    - 5화: 유산기 - 국가는 사라졌지만 남은 것들 (⚠️ 건국 재탕 절대 금지)
-    - 6화: 연결기 - 다음 시대로의 연결
+    시리즈 구조:
+    - 초반 (~33%): 형성기 - 국가의 탄생과 구조
+    - 중반 (34~50%): 제도기 - 법, 제도, 통치 체계
+    - 후반 (51~70%): 변동기 - 멸망/붕괴 이후, 사람들의 이동
+    - 끝에서 두 번째: 유산기 - 국가는 사라졌지만 남은 것들
+    - 최종화: 연결기 - 다음 시대로의 연결
+
+    예시:
+    - 4부작: 1화(형성) → 2화(제도) → 3화(유산) → 4화(연결)
+    - 6부작: 1-2화(형성) → 3화(제도) → 4화(변동) → 5화(유산) → 6화(연결)
+    - 8부작: 1-2화(형성) → 3-4화(제도) → 5화(변동) → 6-7화(유산) → 8화(연결)
     """
     # 비율로 계산 (총 편수가 달라도 적용 가능)
     position_ratio = era_episode / total_episodes
     is_last = era_episode >= total_episodes
     is_second_last = era_episode == total_episodes - 1
 
-    if position_ratio <= 0.33:  # 초반 1/3 (1-2화)
+    # ⚠️ 최종화와 끝에서 두 번째는 비율과 무관하게 고정 역할
+    if is_last:  # 최종화 = 연결기
+        return {
+            "phase": "연결기",
+            "role": "다음 시대로의 연결",
+            "allowed": "이 시대의 유산이 다음 시대에 어떻게 이어졌는가, 시대 전환의 감각",
+            "forbidden": "건국 신화, 초기 구조 반복, 초반 내용 재탕",
+            "body1_focus": "다음 시대와의 연결점",
+            "turn_focus": "왜 새로운 시대가 필요했는가",
+            "body2_focus": "다음 시대를 준비하는 움직임과 계승",
+            "impact_limit": "다음 시대 예고 및 시리즈 마무리",
+        }
+    elif is_second_last:  # 끝에서 두 번째 = 유산기
+        return {
+            "phase": "유산기",
+            "role": "국가는 사라졌지만 남은 것들",
+            "allowed": "지배 구조의 흔적, 법과 질서의 지속, 공동체 운영 방식, 이후 국가들이 계승한 요소",
+            "forbidden": "⚠️ 건국 관련 모든 내용 절대 금지 (초반 내용 재탕 방지)",
+            "body1_focus": "통치 방식과 질서가 어떻게 지속되었는가",
+            "turn_focus": "멸망 → 단절이 아니라 '형태 없는 계승'",
+            "body2_focus": "평범한 사람들의 삶 속에서 방식이 유지되는 장면 (영웅/왕 금지)",
+            "impact_limit": "이후 여러 정치 집단이 같은 방식을 사용했다까지만",
+        }
+    elif position_ratio <= 0.33:  # 초반 ~33%
         return {
             "phase": "형성기",
             "role": "국가의 탄생과 구조",
@@ -751,7 +779,7 @@ def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
             "body2_focus": "초기 지배층의 선택과 갈등",
             "impact_limit": "이 시대 내부의 영향만",
         }
-    elif position_ratio <= 0.5:  # 중반 (3화)
+    elif position_ratio <= 0.5:  # 중반 34~50%
         return {
             "phase": "제도기",
             "role": "법, 제도, 통치 체계",
@@ -762,7 +790,7 @@ def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
             "body2_focus": "제도의 강제성, 저항, 불편",
             "impact_limit": "제도가 사회에 미친 영향만",
         }
-    elif position_ratio <= 0.7:  # 후반 (4화)
+    else:  # 후반 51~70% (유산기/연결기 이전의 나머지)
         return {
             "phase": "변동기",
             "role": "멸망/붕괴 이후, 사람들의 이동",
@@ -772,28 +800,6 @@ def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
             "turn_focus": "국가가 사라진 후 선택의 강요",
             "body2_focus": "집단의 이동, 남음/떠남, 혼란 (개인 영웅 금지)",
             "impact_limit": "여러 세력 등장 배경까지만 (다음 시대 국가 직접 언급 금지)",
-        }
-    elif is_second_last or (position_ratio <= 0.85 and not is_last):  # 5화 (끝에서 두 번째)
-        return {
-            "phase": "유산기",
-            "role": "국가는 사라졌지만 남은 것들",
-            "allowed": "지배 구조의 흔적, 법과 질서의 지속, 공동체 운영 방식, 이후 국가들이 계승한 요소",
-            "forbidden": "⚠️ 건국, 단군, 아사달, 비파형 동검, 고인돌, 위치, 초기 구조 (1화 내용 절대 금지)",
-            "body1_focus": "통치 방식과 질서가 어떻게 지속되었는가 (건국 재탕 금지!)",
-            "turn_focus": "멸망 → 단절이 아니라 '형태 없는 계승'",
-            "body2_focus": "평범한 사람들의 삶 속에서 방식이 유지되는 장면 (영웅/왕 금지)",
-            "impact_limit": "이후 여러 정치 집단이 같은 방식을 사용했다까지만 (삼국 직접 언급 금지)",
-        }
-    else:  # 6화 (최종화)
-        return {
-            "phase": "연결기",
-            "role": "다음 시대로의 연결",
-            "allowed": "이 시대의 유산이 다음 시대에 어떻게 이어졌는가, 시대 전환의 감각",
-            "forbidden": "건국 신화, 초기 구조 반복, 1-2화 내용 재탕",
-            "body1_focus": "다음 시대(고구려/부여 등)와의 연결점",
-            "turn_focus": "왜 새로운 시대가 필요했는가",
-            "body2_focus": "다음 시대를 준비하는 움직임과 계승",
-            "impact_limit": "다음 시대 예고 및 시리즈 마무리",
         }
 
 
