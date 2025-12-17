@@ -12,6 +12,7 @@ OPUS 입력 생성 모듈
 """
 
 import os
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple
 
 from .config import (
@@ -92,16 +93,20 @@ def generate_opus_input(
         era_name, period, topic, title, url, core_facts
     )
 
-    # 시트 행 생성 (새 컬럼 구조)
+    # 생성 시간
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    # 시트 행 생성 (HISTORY_OPUS_INPUT 컬럼 구조)
     opus_row = [[
         run_date,         # run_date
-        era,              # era
+        era,              # era ★ Idempotency 체크용
         era_name,         # era_name
         title[:100],      # title
         url,              # source_url
         materials_pack,   # materials_pack
         opus_prompt_pack, # opus_prompt_pack ★ 이것만 복붙
         "PENDING",        # status
+        created_at,       # created_at
     ]]
 
     print(f"[HISTORY] OPUS_INPUT 생성 완료: {title[:30]}...")

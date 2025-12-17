@@ -15,6 +15,7 @@ from .config import (
     MAX_ROWS_PER_SHEET,
     ARCHIVE_THRESHOLD_RATIO,
     ROWS_TO_KEEP_AFTER_ARCHIVE,
+    HISTORY_OPUS_INPUT_SHEET,
     get_era_sheet_name,
     get_archive_sheet_name,
 )
@@ -98,7 +99,9 @@ def ensure_sheet_exists(
 
 def ensure_era_sheets(service, spreadsheet_id: str, era: str) -> Dict[str, bool]:
     """
-    시대별 필수 시트 3개 자동 생성
+    시대별 수집/후보 시트 자동 생성 (RAW, CANDIDATES만)
+
+    OPUS_INPUT은 단일 통합 시트(HISTORY_OPUS_INPUT)로 별도 관리
 
     Args:
         service: Google Sheets API 서비스 객체
@@ -106,11 +109,12 @@ def ensure_era_sheets(service, spreadsheet_id: str, era: str) -> Dict[str, bool]
         era: 시대 키 (예: "GOJOSEON")
 
     Returns:
-        {"RAW": True/False, "CANDIDATES": True/False, "OPUS_INPUT": True/False}
+        {"RAW": True/False, "CANDIDATES": True/False}
     """
     results = {}
 
-    for prefix in ["RAW", "CANDIDATES", "OPUS_INPUT"]:
+    # RAW, CANDIDATES만 시대별로 생성
+    for prefix in ["RAW", "CANDIDATES"]:
         sheet_name = get_era_sheet_name(prefix, era)
         headers = SHEET_HEADERS.get(prefix, [])
 
@@ -124,6 +128,31 @@ def ensure_era_sheets(service, spreadsheet_id: str, era: str) -> Dict[str, bool]
             results[prefix] = False
 
     return results
+
+
+def ensure_history_opus_input_sheet(service, spreadsheet_id: str) -> bool:
+    """
+    단일 통합 OPUS_INPUT 시트 자동 생성 (HISTORY_OPUS_INPUT)
+
+    모든 시대의 OPUS 입력이 여기에 누적됨
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        spreadsheet_id: 스프레드시트 ID
+
+    Returns:
+        True: 새로 생성됨, False: 이미 존재
+    """
+    headers = SHEET_HEADERS.get("OPUS_INPUT", [])
+
+    try:
+        created = ensure_sheet_exists(
+            service, spreadsheet_id, HISTORY_OPUS_INPUT_SHEET, headers
+        )
+        return created
+    except Exception as e:
+        print(f"[HISTORY] OPUS_INPUT 시트 생성 오류: {e}")
+        return False
 
 
 def get_sheet_row_count(service, spreadsheet_id: str, sheet_name: str) -> int:
@@ -383,7 +412,11 @@ def check_opus_input_exists(
     run_id: str
 ) -> bool:
     """
-    같은 날 OPUS_INPUT이 이미 생성되었는지 확인 (Idempotency)
+    같은 날 + 같은 시대의 OPUS_INPUT이 이미 생성되었는지 확인 (Idempotency)
+
+    단일 통합 시트(HISTORY_OPUS_INPUT)에서 run_date + era 조합으로 체크
+    - 같은 날짜 + 같은 era: 스킵 (중복)
+    - 같은 날짜 + 다른 era: 허용
 
     Args:
         service: Google Sheets API 서비스 객체
@@ -395,19 +428,22 @@ def check_opus_input_exists(
         이미 존재하면 True
     """
     try:
-        opus_sheet = get_era_sheet_name("OPUS_INPUT", era)
-
+        # A열: run_date, B열: era
         result = service.spreadsheets().values().get(
             spreadsheetId=spreadsheet_id,
-            range=f"{opus_sheet}!A:A"
+            range=f"{HISTORY_OPUS_INPUT_SHEET}!A:B"
         ).execute()
 
         rows = result.get('values', [])
 
-        # 헤더 제외하고 run_id 확인
+        # 헤더 제외하고 run_date + era 조합 확인
         for row in rows[1:]:
-            if row and row[0] == run_id:
-                return True
+            if len(row) >= 2:
+                row_date = row[0]
+                row_era = row[1]
+                if row_date == run_id and row_era == era:
+                    print(f"[HISTORY] 이미 존재: {run_id} + {era}")
+                    return True
 
         return False
 

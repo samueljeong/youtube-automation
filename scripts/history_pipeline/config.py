@@ -237,13 +237,16 @@ SEARCH_QUERY_TEMPLATES = [
 # Google Sheets 시트 구조
 # ============================================================
 
-# 시트 접두사 (시대 키와 조합)
+# 시대별 시트 접두사 (시대 키와 조합)
+# RAW/CANDIDATES는 시대별로 분리
 SHEET_PREFIXES = {
     "RAW": "원문 수집 데이터",
     "CANDIDATES": "점수화된 후보",
-    "OPUS_INPUT": "대본 작성용 입력",
     "ARCHIVE": "아카이브",
 }
+
+# OPUS 입력은 단일 통합 시트 (시대 무관하게 누적)
+HISTORY_OPUS_INPUT_SHEET = "HISTORY_OPUS_INPUT"
 
 # 각 시트의 헤더 정의
 SHEET_HEADERS = {
@@ -272,15 +275,17 @@ SHEET_HEADERS = {
         "summary",           # 요약
         "why_selected",      # 선정 근거
     ],
+    # HISTORY_OPUS_INPUT (단일 통합 시트) 헤더
     "OPUS_INPUT": [
         "run_date",          # 실행 날짜 (YYYY-MM-DD)
-        "era",               # 시대 키
+        "era",               # 시대 키 ★ Idempotency 체크용
         "era_name",          # 시대 한글명
         "title",             # 자료 제목
         "source_url",        # 출처 URL
         "materials_pack",    # 자료 발췌/요약 묶음 (핵심포인트 포함)
         "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품 (한 셀 복붙)
         "status",            # PENDING/DONE
+        "created_at",        # 생성 시간 (ISO)
     ],
 }
 

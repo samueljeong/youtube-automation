@@ -20669,16 +20669,21 @@ def api_history_run_pipeline():
     - force: "1"이면 오늘 이미 실행했어도 강제 실행
 
     환경변수:
-    - HISTORY_SHEET_ID: 한국사용 Google Sheets ID (없으면 AUTOMATION_SHEET_ID 사용)
+    - NEWS_SHEET_ID: 뉴스 파이프라인과 같은 시트 사용 (권장)
+    - HISTORY_SHEET_ID: 한국사 전용 시트 (선택)
     - LLM_ENABLED: "1"이면 TOP 1에 LLM 핵심포인트 생성
     - LLM_MIN_SCORE: LLM 호출 최소 점수 (기본 0)
     - MAX_RESULTS: 수집할 최대 자료 수 (기본 30)
     - TOP_K: 선정할 후보 수 (기본 5)
 
-    시트 구조 (시대별 탭):
-    - {ERA}_RAW: 수집된 원문 자료
-    - {ERA}_CANDIDATES: 점수화된 후보
-    - {ERA}_OPUS_INPUT: Opus에 붙여넣을 완제품 프롬프트
+    시트 구조:
+    - {ERA}_RAW: 수집된 원문 자료 (시대별 분리)
+    - {ERA}_CANDIDATES: 점수화된 후보 (시대별 분리)
+    - HISTORY_OPUS_INPUT: Opus 입력 (★ 단일 통합 시트, 모든 시대 누적)
+
+    Idempotency:
+    - 같은 날짜 + 같은 시대: 스킵 (중복)
+    - 같은 날짜 + 다른 시대: 허용
     """
     print("[HISTORY] ===== run-pipeline 호출됨 =====")
 
@@ -20705,12 +20710,16 @@ def api_history_run_pipeline():
                 "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
             }), 400
 
-        # 시트 ID
-        sheet_id = os.environ.get('HISTORY_SHEET_ID') or os.environ.get('AUTOMATION_SHEET_ID')
+        # 시트 ID (뉴스 파이프라인과 같은 시트 사용 가능)
+        sheet_id = (
+            os.environ.get('HISTORY_SHEET_ID') or
+            os.environ.get('NEWS_SHEET_ID') or
+            os.environ.get('AUTOMATION_SHEET_ID')
+        )
         if not sheet_id:
             return jsonify({
                 "ok": False,
-                "error": "HISTORY_SHEET_ID 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+                "error": "HISTORY_SHEET_ID, NEWS_SHEET_ID, 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
             }), 400
 
         # 설정

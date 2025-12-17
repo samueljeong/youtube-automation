@@ -1,10 +1,14 @@
 """
 한국사 자동화 파이프라인 메인 오케스트레이션
 
-구조:
-- {ERA}_RAW: 원문 수집 데이터
-- {ERA}_CANDIDATES: 점수화된 후보
-- {ERA}_OPUS_INPUT: 대본 작성용 입력
+구조 (2024-12 개편):
+- {ERA}_RAW: 원문 수집 데이터 (시대별 분리)
+- {ERA}_CANDIDATES: 점수화된 후보 (시대별 분리)
+- HISTORY_OPUS_INPUT: 대본 작성용 입력 (★ 단일 통합 시트, 모든 시대 누적)
+
+Idempotency:
+- 같은 날짜 + 같은 시대: 스킵 (중복)
+- 같은 날짜 + 다른 시대: 허용
 
 사용법:
     from scripts.history_pipeline import run_history_pipeline
@@ -23,12 +27,14 @@ from .config import (
     DEFAULT_TOP_K,
     LLM_ENABLED_DEFAULT,
     LLM_MIN_SCORE_DEFAULT,
+    HISTORY_OPUS_INPUT_SHEET,
     get_era_sheet_name,
     get_active_eras,
 )
 from .utils import get_run_id
 from .sheets import (
     ensure_era_sheets,
+    ensure_history_opus_input_sheet,
     check_archive_needed,
     archive_old_rows,
     append_rows,
@@ -110,8 +116,12 @@ def run_history_pipeline(
         # 1) 시트 자동 생성
         if service and sheet_id:
             print(f"[HISTORY] === 0단계: 시트 생성 확인 ===")
+            # 시대별 시트 (RAW, CANDIDATES)
             created = ensure_era_sheets(service, sheet_id, era)
             result["sheets_created"] = [k for k, v in created.items() if v]
+            # 단일 통합 OPUS_INPUT 시트
+            if ensure_history_opus_input_sheet(service, sheet_id):
+                result["sheets_created"].append("HISTORY_OPUS_INPUT")
 
         # 2) 아카이브 필요 여부 확인
         if service and sheet_id:
@@ -178,7 +188,7 @@ def run_history_pipeline(
                 print(f"[HISTORY] {result['error']}")
                 return result
 
-        # 6) OPUS 입력 생성
+        # 6) OPUS 입력 생성 (단일 통합 시트에 저장)
         print(f"[HISTORY] === 3단계: OPUS 입력 생성 ===")
         opus_rows = generate_opus_input(
             candidate_rows, era, llm_enabled, llm_min_score
@@ -188,11 +198,11 @@ def run_history_pipeline(
             result["opus_generated"] = True
 
             if service and sheet_id:
-                opus_sheet = get_era_sheet_name("OPUS_INPUT", era)
+                # 단일 통합 시트 HISTORY_OPUS_INPUT에 저장
                 try:
-                    append_rows(service, sheet_id, f"{opus_sheet}!A1", opus_rows)
-                    result["sheets_saved"].append(opus_sheet)
-                    print(f"[HISTORY] {opus_sheet}에 저장 완료")
+                    append_rows(service, sheet_id, f"{HISTORY_OPUS_INPUT_SHEET}!A1", opus_rows)
+                    result["sheets_saved"].append(HISTORY_OPUS_INPUT_SHEET)
+                    print(f"[HISTORY] {HISTORY_OPUS_INPUT_SHEET}에 저장 완료 (era={era})")
                 except SheetsSaveError as e:
                     result["error"] = f"OPUS_INPUT 저장 실패: {e}"
                     print(f"[HISTORY] {result['error']}")
@@ -260,14 +270,20 @@ if __name__ == "__main__":
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
 
-    sheet_id = os.environ.get("HISTORY_SHEET_ID") or os.environ.get("SHEET_ID")
+    # 뉴스 파이프라인과 같은 시트 사용 가능
+    sheet_id = (
+        os.environ.get("HISTORY_SHEET_ID") or
+        os.environ.get("NEWS_SHEET_ID") or
+        os.environ.get("AUTOMATION_SHEET_ID") or
+        os.environ.get("SHEET_ID")
+    )
     service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
     llm_enabled = os.environ.get("LLM_ENABLED", "0") == "1"
     era = os.environ.get("HISTORY_ERA", "GOJOSEON")
     force = os.environ.get("FORCE", "0") == "1"
 
     if not sheet_id:
-        print("ERROR: HISTORY_SHEET_ID 또는 SHEET_ID 환경변수 필요")
+        print("ERROR: HISTORY_SHEET_ID, NEWS_SHEET_ID, 또는 AUTOMATION_SHEET_ID 환경변수 필요")
         exit(1)
 
     service = None
