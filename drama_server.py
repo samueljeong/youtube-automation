@@ -10485,10 +10485,23 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 
 **캐릭터 스타일:**
 - 웹툰 스타일 캐릭터 (webtoon style character)
-- 과장된 표정 (exaggerated shocked/surprised expression)
-- 큰 눈, 입 벌린 충격 표정, 땀방울
+- ⚠️ 극단적으로 과장된 표정 필수! (THIS IS A THUMBNAIL - EXAGGERATE!)
 - 30-40대 남성/여성 (상황에 맞게, 국적은 위 규칙 따름)
 - 선명한 외곽선, 깔끔한 채색
+
+**★★★ 표정 필수 요구사항 (가장 중요!) ★★★**
+⚠️ 썸네일은 클릭을 유도해야 합니다! 무표정/차분한 표정 절대 금지!
+- 눈: 평소의 2배 크기로 극단적으로 크게, 흰자위가 보이게
+- 입: 크게 벌려서 이빨이 보이거나, 꽉 다물고 긴장한 표정
+- 눈썹: 극단적으로 치켜올리거나(놀람) 깊이 찌푸리기(충격/분노)
+- 얼굴: 땀방울, 눈물, 홍조, 감정선 등 만화적 효과 필수
+- 몸: 뺨에 손 대기, 머리 쥐어뜯기, 손가락 가리키기 등 과장된 포즈
+- 참고: 한국 웹툰 리액션 장면, 😱😨😲 이모지 표정 수준으로 과장!
+
+**⛔ 절대 금지 (무조건 피할 것!):**
+- 차분한 표정, 무표정, 살짝 미소
+- 평화로운 표정, 미묘한 감정
+- 현실적인 표정 비율 (만화니까 과장해야 함!)
 
 **배경 스타일:**
 - 주제와 관련된 배경/소품 포함
@@ -10503,20 +10516,22 @@ The "ai_prompts" field generates 3 different YouTube thumbnails for A/B testing.
 ### ★★★ 프롬프트 작성 규칙 ★★★
 **반드시 포함할 키워드:**
 - "[국적] webtoon style illustration" (예: "Korean/Japanese/Western webtoon style")
-- "exaggerated shocked expression" 또는 "surprised face"
-- "comic style, clean lines, vibrant colors"
+- "EXTREMELY exaggerated shocked expression" (극단적 과장 필수!)
+- "eyes wide open 2x larger than normal, mouth wide open showing teeth" (구체적 표정 묘사)
+- "comic style expression marks, sweat drops, impact lines"
+- "NO calm face, NO neutral expression" (무표정 금지 명시!)
 - "YouTube thumbnail, 16:9"
 
 **프롬프트 예시 (한국어 대본):**
-- "Korean webtoon style illustration, shocked Korean man in his 30s with exaggerated surprised expression, sweating, mouth wide open, standing in front of clothing store with colorful padded jackets, comic style impact lines, clean lines, vibrant colors, YouTube thumbnail 16:9"
+- "Korean webtoon style illustration, Korean man in his 30s with EXTREMELY EXAGGERATED SHOCKED EXPRESSION - eyes 2x larger than normal with visible whites, mouth WIDE OPEN showing teeth, eyebrows raised extremely high, multiple sweat drops, hands on cheeks in disbelief, standing in front of clothing store with colorful padded jackets, comic style impact lines radiating from face, clean lines, vibrant colors, NO calm face, YouTube thumbnail 16:9"
 
 **프롬프트 예시 (일본어 대본):**
-- "Japanese webtoon style illustration, shocked Japanese man in his 30s with exaggerated surprised expression, sweating, mouth wide open, standing in front of office building, comic style impact lines, clean lines, vibrant colors, YouTube thumbnail 16:9"
+- "Japanese webtoon style illustration, Japanese man in his 30s with EXTREMELY EXAGGERATED SHOCKED EXPRESSION - eyes 2x larger than normal, pupils dilated, jaw dropped with mouth wide open, visible sweat drops, dramatic body language, standing in front of office building, comic style impact lines, clean lines, vibrant colors, NO neutral expression, YouTube thumbnail 16:9"
 
 ### ★★★ A/B/C 스타일 가이드 ★★★
-- **A**: 캐릭터 중심 - 과장된 표정의 캐릭터 + 관련 배경
-- **B**: 상황 중심 - 캐릭터 + 문제 상황을 보여주는 소품/배경
-- **C**: 대비/비교 - 분할 화면 또는 Before/After 느낌
+- **A**: 캐릭터 중심 - 극단적으로 과장된 표정의 캐릭터 (😱 수준) + 관련 배경
+- **B**: 상황 중심 - 충격받은 캐릭터 + 문제 상황을 보여주는 소품/배경
+- **C**: 대비/비교 - 분할 화면 또는 Before/After 느낌 (캐릭터 표정은 여전히 과장!)
 
 ## ⚠️ CRITICAL: TEXT_OVERLAY RULES (썸네일 텍스트 규칙) ⚠️
 The "text_overlay" text MUST match the OUTPUT LANGUAGE!
@@ -10563,19 +10578,30 @@ Split this script into exactly {image_count} scenes and generate "KOREAN WEBTOON
 Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
 
 Core Style (MUST follow):
-- Character = Korean WEBTOON/manhwa style with EXAGGERATED EXPRESSIONS (shocked face, wide eyes, open mouth, sweat drops)
+- Character = Korean WEBTOON/manhwa style with EXTREMELY EXAGGERATED EXPRESSIONS
 - Character age = 30-50 year old Korean man or woman (match the story context)
 - Style = Clean bold outlines, vibrant flat colors, comic-style expression marks
 - Background = Detailed backgrounds related to the scene context
 
+★★★ THUMBNAIL CHARACTER EXPRESSION (MOST IMPORTANT!) ★★★
+This is for YouTube thumbnails - characters MUST have OVER-THE-TOP dramatic expressions!
+- Eyes: 2x larger than normal, visible whites of eyes, pupils tiny or dilated
+- Mouth: Wide open showing teeth OR tightly clenched with tension
+- Eyebrows: Extremely raised (surprised) OR deeply furrowed (shocked)
+- Face: Sweat drops, tears, emotion lines, blush marks
+- Body: Hands on cheeks, pulling hair, dramatic pointing, defensive pose
+- Reference: Like 😱😨😲 emoji expressions
+
+⛔ FORBIDDEN: NO calm face, NO neutral expression, NO slight smile, NO subtle emotions!
+
 Rules:
 1. Generate exactly {image_count} scenes (no more, no less)
 2. Character MUST be KOREAN WEBTOON/MANHWA style - NO photorealistic, NO stickman!
-3. Character: "Korean WEBTOON/manhwa style character with EXAGGERATED EXPRESSION, 30-50 year old Korean man or woman, clean bold outlines"
-4. Character face MUST have: exaggerated expression matching the emotion - CONSISTENT character style in every scene!
+3. Character: "Korean WEBTOON/manhwa style character with EXTREMELY EXAGGERATED EXPRESSION (eyes 2x larger, mouth wide open), 30-50 year old Korean man or woman, clean bold outlines"
+4. Character face MUST have: EXTREME exaggerated expression - NO calm or neutral faces allowed!
 5. NO photorealistic humans, NO stickman/stick figures, NO Japanese anime style!
-6. Express emotion through exaggerated facial expressions (wide eyes, open mouth, sweat drops, impact lines)
-7. Add these tags to every image_prompt: Korean webtoon style, manhwa illustration, exaggerated expression, clean bold outlines, NO photorealistic, NO stickman
+6. Express emotion through EXTREME facial expressions (eyes 2x size, jaw dropped, visible sweat drops, impact lines radiating from face)
+7. Add these tags to every image_prompt: Korean webtoon style, manhwa illustration, EXTREMELY exaggerated shocked expression, eyes wide open, mouth open, clean bold outlines, NO photorealistic, NO stickman, NO calm face
 8. {thumb_instruction}
 9. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
 
@@ -19147,7 +19173,7 @@ NO photorealistic."""
                         print(f"[AUTOMATION][THUMB] thumbnail_data.image_prompt 사용: {base_prompt[:80]}...")
                     else:
                         thumb_prompt = {
-                            "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXAGGERATED SHOCKED/SURPRISED EXPRESSION. Clean bold outlines, vibrant flat colors. Comic-style expression marks. NO photorealistic, NO stickman.",
+                            "prompt": "Korean WEBTOON style YouTube thumbnail, 16:9 aspect ratio. Korean webtoon/manhwa style character with EXTREMELY EXAGGERATED SHOCKED EXPRESSION - eyes 2x larger than normal with visible whites, mouth WIDE OPEN showing teeth, eyebrows raised extremely high, multiple sweat drops, hands on cheeks in disbelief. Clean bold outlines, vibrant flat colors. Comic-style expression marks, impact lines radiating from face. NO photorealistic, NO stickman, NO calm face, NO neutral expression.",
                             "text_overlay": {"main": fallback_text, "sub": fallback_sub}
                         }
 
