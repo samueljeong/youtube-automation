@@ -276,16 +276,18 @@ SHEET_HEADERS = {
         "why_selected",      # 선정 근거
     ],
     # HISTORY_OPUS_INPUT (단일 통합 시트) 헤더
+    # ⚠️ 패러다임: episode_slot은 순서가 아닌 슬롯 번호
+    # ⚠️ code는 정렬/연결/중복판단 하지 않음 - 사고 재료 전달만
     "OPUS_INPUT": [
-        "episode",           # ★ 전체 에피소드 번호 (1, 2, 3, ...)
-        "era",               # 시대 키
-        "era_episode",       # ★ 시대 내 에피소드 번호 (고조선 1화, 2화, ...)
-        "total_episodes",    # ★ 해당 시대 총 에피소드 수 (AI가 결정)
-        "era_name",          # 시대 한글명
-        "title",             # 에피소드 제목
+        "era",               # 시대 (고조선, 부여·옥저·동예, ...)
+        "episode_slot",      # ★ 슬롯 번호 (1~6) - 순서 의미 ❌
+        "structure_role",    # 형성기/제도기/변동기/유산기/연결기
+        "core_question",     # 이 슬롯의 핵심 질문 (누가/어떻게/왜)
+        "facts",             # 관찰 가능한 사실 (연도/사건 섞여도 OK)
+        "human_choices",     # 인간의 선택 가능 지점 (행동/판단)
+        "impact_candidates", # 구조 변화 후보 (결론 ❌, 재료 ⭕)
         "source_url",        # 출처 URL
-        "materials_pack",    # 자료 발췌/요약 묶음 (핵심포인트 포함)
-        "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품 (한 셀 복붙)
+        "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품
         "thumbnail_copy",    # 썸네일 문구 추천
         "status",            # PENDING/DONE
         "created_at",        # 생성 시간 (ISO)
@@ -620,10 +622,10 @@ FINAL_EPISODE_OVERRIDE = """
 
 ⚠️ 이 규칙은 다른 모든 규칙보다 우선함
 
-■ 최종화의 역할: 연결기
+■ 최종화(6번 슬롯)의 역할: 연결기
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- 시대를 닫고, 다음 시대로 넘기는 화
-- 사건을 설명하지 않음 (이미 앞 화에서 소화됨)
+- 시대를 닫고, 다음 시대로 넘기는 슬롯
+- 사건을 설명하지 않음 (이 슬롯의 질문은 "연결"이지 "사건"이 아님)
 - 의미를 정리하고 방향을 남김
 
 ■ STRUCTURE POINTS 자동 필터링
