@@ -555,10 +555,28 @@ GPT-5.1이 대본 분석 시 자동 생성하는 영상 효과 설정:
 | 변수명 | 필수 | 설명 |
 |--------|------|------|
 | `NEWS_SHEET_ID` | 선택 | 뉴스용 시트 ID (없으면 AUTOMATION_SHEET_ID 사용) |
+| `NEWS_CRON_KEY` | 권장 | 보안 키 (설정 시 X-Cron-Key 헤더 필수) |
 | `LLM_ENABLED` | 선택 | "1"이면 TOP 1에 LLM 핵심포인트 생성 |
+| `LLM_MIN_SCORE` | 선택 | LLM 호출 최소 점수 (기본 0, 비용 절감용) |
 | `MAX_PER_FEED` | 선택 | 피드당 최대 기사 수 (기본 30) |
 | `TOP_K` | 선택 | 선정할 후보 수 (기본 5) |
 | `OPENAI_MODEL` | 선택 | LLM 모델 (기본 gpt-4o-mini) |
+
+### 안전장치
+
+**보안**: NEWS_CRON_KEY 설정 시 X-Cron-Key 헤더 검증
+```bash
+# Render Cron에서 호출 시
+curl -X POST -H "X-Cron-Key: YOUR_SECRET_KEY" https://drama-s2ns.onrender.com/api/news/run-pipeline
+```
+
+**Idempotency**: 같은 날 2회 이상 실행 시 자동 스킵 (OPUS_INPUT의 run_id 확인)
+```bash
+# 강제 실행 시
+curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?force=1"
+```
+
+**시트 자동 생성**: 3개 탭(RAW_FEED, CANDIDATES, OPUS_INPUT)이 없으면 헤더와 함께 자동 생성
 
 ### RSS 피드 설정
 

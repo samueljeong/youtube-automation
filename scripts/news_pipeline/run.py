@@ -267,13 +267,14 @@ def score_and_select_candidates(items: list, top_k: int = 5) -> list:
     return candidate_rows
 
 
-def generate_opus_input(candidate_rows: list, llm_enabled: bool = False) -> list:
+def generate_opus_input(candidate_rows: list, llm_enabled: bool = False, llm_min_score: int = 0) -> list:
     """
     OPUS 입력 생성 (TOP 1만 LLM 사용)
 
     Args:
         candidate_rows: CANDIDATES 행들
         llm_enabled: LLM 사용 여부
+        llm_min_score: LLM 호출 최소 점수 (비용 절감용)
 
     반환: OPUS_INPUT 시트에 저장할 행들
     """
@@ -284,14 +285,22 @@ def generate_opus_input(candidate_rows: list, llm_enabled: bool = False) -> list
     top1 = candidate_rows[0]
     run_id = top1[0]
     category = top1[2]
+    score_total = top1[4]  # score_total
     title = top1[8]
     link = top1[9]
 
     # 요약 정보 (CANDIDATES에는 없으므로 title로 대체)
     summary = ""
 
-    if llm_enabled:
+    # LLM 호출 조건: llm_enabled AND score >= llm_min_score
+    should_call_llm = llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
+
+    if should_call_llm:
+        print(f"[NEWS] LLM 호출 (점수 {score_total} >= 최소 {llm_min_score})")
         core_points, brief, shorts, thumb = _llm_make_opus_input(category, title, summary, link)
+    elif llm_enabled and score_total < llm_min_score:
+        print(f"[NEWS] LLM 스킵 (점수 {score_total} < 최소 {llm_min_score})")
+        core_points, brief, shorts, thumb = "", "", "", ""
     else:
         # LLM 없이 기본 템플릿
         core_points = f"""[수동 작성 필요]
@@ -412,7 +421,8 @@ def run_news_pipeline(
     service,
     max_per_feed: int = 30,
     top_k: int = 5,
-    llm_enabled: bool = False
+    llm_enabled: bool = False,
+    llm_min_score: int = 0
 ) -> dict:
     """
     뉴스 파이프라인 전체 실행
@@ -423,6 +433,7 @@ def run_news_pipeline(
         max_per_feed: 피드당 최대 기사 수
         top_k: 선정할 후보 수
         llm_enabled: LLM 사용 여부 (TOP 1만)
+        llm_min_score: LLM 호출 최소 점수 (비용 절감용)
 
     반환: {
         "success": bool,
@@ -471,7 +482,7 @@ def run_news_pipeline(
 
         # 3) OPUS 입력 생성 (TOP 1만)
         print("[NEWS] === 3단계: OPUS 입력 생성 ===")
-        opus_rows = generate_opus_input(candidate_rows, llm_enabled)
+        opus_rows = generate_opus_input(candidate_rows, llm_enabled, llm_min_score)
 
         if opus_rows:
             result["opus_generated"] = True

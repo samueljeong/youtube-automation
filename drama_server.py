@@ -20265,6 +20265,102 @@ def api_sheets_update():
 
 # ========== 뉴스 자동화 파이프라인 API ==========
 
+def _verify_news_cron_key():
+    """
+    NEWS_CRON_KEY 검증 (보안)
+    환경변수가 설정되어 있으면 X-Cron-Key 헤더와 비교
+    """
+    expected_key = os.environ.get('NEWS_CRON_KEY')
+    if not expected_key:
+        return True  # 키 미설정 시 검증 스킵 (개발용)
+
+    provided_key = request.headers.get('X-Cron-Key')
+    return provided_key == expected_key
+
+
+def _check_today_already_run(service, sheet_id: str) -> bool:
+    """
+    오늘 이미 파이프라인이 실행되었는지 확인 (idempotency)
+    OPUS_INPUT 탭의 run_id를 확인
+    """
+    from datetime import datetime, timedelta, timezone
+    kst = timezone(timedelta(hours=9))
+    today = datetime.now(kst).strftime("%Y-%m-%d")
+
+    try:
+        # OPUS_INPUT에서 최근 10개 행 확인
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range='OPUS_INPUT!A2:A11'  # run_id 컬럼
+        ).execute()
+        rows = result.get('values', [])
+
+        for row in rows:
+            if row and row[0] == today:
+                return True
+        return False
+    except Exception as e:
+        print(f"[NEWS] 오늘 실행 여부 확인 실패 (계속 진행): {e}")
+        return False
+
+
+def _ensure_news_sheets_exist(service, sheet_id: str) -> dict:
+    """
+    뉴스 파이프라인용 3개 탭 존재 확인
+    없으면 자동 생성
+    """
+    required_tabs = ['RAW_FEED', 'CANDIDATES', 'OPUS_INPUT']
+    headers = {
+        'RAW_FEED': ['ingested_at', 'source', 'feed_name', 'title', 'link', 'published_at', 'summary', 'keywords', 'hash'],
+        'CANDIDATES': ['run_id', 'rank', 'category', 'angle', 'score_total', 'score_recency', 'score_relevance', 'score_uniqueness', 'title', 'link', 'published_at', 'why_selected'],
+        'OPUS_INPUT': ['run_id', 'selected_rank', 'category', 'issue_one_line', 'core_points', 'script_brief', 'shorts_hook_lines', 'thumbnail_copy', 'status', 'opus_script']
+    }
+
+    result = {"checked": [], "created": [], "error": None}
+
+    try:
+        # 기존 시트 목록 가져오기
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        existing_tabs = [s['properties']['title'] for s in spreadsheet.get('sheets', [])]
+
+        for tab in required_tabs:
+            if tab in existing_tabs:
+                result["checked"].append(tab)
+            else:
+                # 탭 생성
+                try:
+                    service.spreadsheets().batchUpdate(
+                        spreadsheetId=sheet_id,
+                        body={
+                            "requests": [{
+                                "addSheet": {
+                                    "properties": {"title": tab}
+                                }
+                            }]
+                        }
+                    ).execute()
+
+                    # 헤더 추가
+                    service.spreadsheets().values().update(
+                        spreadsheetId=sheet_id,
+                        range=f'{tab}!A1',
+                        valueInputOption='RAW',
+                        body={'values': [headers[tab]]}
+                    ).execute()
+
+                    result["created"].append(tab)
+                    print(f"[NEWS] 탭 생성: {tab}")
+                except Exception as e:
+                    print(f"[NEWS] 탭 생성 실패 ({tab}): {e}")
+                    result["error"] = str(e)
+
+    except Exception as e:
+        result["error"] = str(e)
+        print(f"[NEWS] 시트 확인 실패: {e}")
+
+    return result
+
+
 @app.route('/api/news/run-pipeline', methods=['POST'])
 def api_news_run_pipeline():
     """
@@ -20275,16 +20371,32 @@ def api_news_run_pipeline():
 
     환경변수:
     - NEWS_SHEET_ID: 뉴스용 Google Sheets ID (없으면 AUTOMATION_SHEET_ID 사용)
+    - NEWS_CRON_KEY: 보안 키 (설정 시 X-Cron-Key 헤더 필수)
     - LLM_ENABLED: "1"이면 TOP 1에 LLM 핵심포인트 생성
+    - LLM_MIN_SCORE: LLM 호출 최소 점수 (기본 0, 비용 절감용)
     - MAX_PER_FEED: 피드당 최대 기사 수 (기본 30)
     - TOP_K: 선정할 후보 수 (기본 5)
 
-    시트 구조 (3개 탭 필요):
+    시트 구조 (3개 탭 - 자동 생성됨):
     - RAW_FEED: RSS 원본 기사
     - CANDIDATES: TOP K 후보
     - OPUS_INPUT: 대본 작성용 입력
+
+    보안:
+    - NEWS_CRON_KEY 설정 시 X-Cron-Key 헤더 검증
+
+    Idempotency:
+    - 같은 날 2회 이상 실행 시 스킵 (OPUS_INPUT의 run_id 확인)
     """
     print("[NEWS] ===== run-pipeline 호출됨 =====")
+
+    # 보안 키 검증
+    if not _verify_news_cron_key():
+        print("[NEWS] 보안 키 검증 실패")
+        return jsonify({
+            "ok": False,
+            "error": "인증 실패: X-Cron-Key 헤더가 올바르지 않습니다"
+        }), 403
 
     try:
         from scripts.news_pipeline import run_news_pipeline
@@ -20305,12 +20417,29 @@ def api_news_run_pipeline():
                 "error": "NEWS_SHEET_ID 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
             }), 400
 
+        # 시트 탭 존재 확인/생성
+        sheets_result = _ensure_news_sheets_exist(service, sheet_id)
+        if sheets_result["created"]:
+            print(f"[NEWS] 새로 생성된 탭: {sheets_result['created']}")
+
+        # 오늘 이미 실행했는지 확인 (idempotency)
+        force = request.args.get('force', '0') == '1'
+        if not force and _check_today_already_run(service, sheet_id):
+            print("[NEWS] 오늘 이미 실행됨 - 스킵 (force=1로 강제 실행 가능)")
+            return jsonify({
+                "ok": True,
+                "skipped": True,
+                "message": "오늘 이미 파이프라인이 실행되었습니다",
+                "hint": "force=1 파라미터로 강제 실행 가능"
+            })
+
         # 설정
         max_per_feed = int(os.environ.get('MAX_PER_FEED', '30'))
         top_k = int(os.environ.get('TOP_K', '5'))
         llm_enabled = os.environ.get('LLM_ENABLED', '0') == '1'
+        llm_min_score = int(os.environ.get('LLM_MIN_SCORE', '0'))
 
-        print(f"[NEWS] 설정: sheet_id={sheet_id[:20]}..., max_per_feed={max_per_feed}, top_k={top_k}, llm_enabled={llm_enabled}")
+        print(f"[NEWS] 설정: sheet_id={sheet_id[:20]}..., max_per_feed={max_per_feed}, top_k={top_k}, llm_enabled={llm_enabled}, llm_min_score={llm_min_score}")
 
         # 파이프라인 실행
         result = run_news_pipeline(
@@ -20318,12 +20447,14 @@ def api_news_run_pipeline():
             service=service,
             max_per_feed=max_per_feed,
             top_k=top_k,
-            llm_enabled=llm_enabled
+            llm_enabled=llm_enabled,
+            llm_min_score=llm_min_score
         )
 
         return jsonify({
             "ok": result["success"],
-            "result": result
+            "result": result,
+            "sheets_setup": sheets_result
         })
 
     except ImportError as e:
