@@ -286,6 +286,10 @@ def _get_sample_data(era_name: str, keywords: List[str]) -> List[Dict[str, Any]]
 
     실제 운영 시에는 Google Custom Search API 필수
     """
+    import uuid
+    # 매 호출마다 고유 ID 생성 (중복 방지)
+    unique_id = uuid.uuid4().hex[:8]
+
     samples = {
         "고조선": [
             {
@@ -486,8 +490,15 @@ def _get_sample_data(era_name: str, keywords: List[str]) -> List[Dict[str, Any]]
             })
         return default_samples
 
-    print(f"[HISTORY] 샘플 데이터 사용: {era_name} ({len(samples[era_name])}개)")
-    return samples.get(era_name, [])
+    # 모든 URL에 고유 ID 추가 (중복 방지)
+    result = []
+    for item in samples.get(era_name, []):
+        item_copy = item.copy()
+        item_copy["url"] = f"{item['url']}-{unique_id}"
+        result.append(item_copy)
+
+    print(f"[HISTORY] 샘플 데이터 사용: {era_name} ({len(result)}개, ID: {unique_id})")
+    return result
 
 
 def deduplicate_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
