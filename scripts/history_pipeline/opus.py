@@ -746,16 +746,16 @@ def _get_episode_role(era_episode: int, total_episodes: int) -> Dict[str, str]:
     is_second_last = era_episode == total_episodes - 1
 
     # ⚠️ 최종화와 끝에서 두 번째는 비율과 무관하게 고정 역할
-    if is_last:  # 최종화 = 연결기
+    if is_last:  # 최종화 = 연결기 (시대 봉인 + 다음 시대 연결)
         return {
             "phase": "연결기",
-            "role": "다음 시대로의 연결",
-            "allowed": "이 시대의 유산이 다음 시대에 어떻게 이어졌는가, 시대 전환의 감각",
-            "forbidden": "건국 신화, 초기 구조 반복, 초반 내용 재탕",
-            "body1_focus": "다음 시대와의 연결점",
-            "turn_focus": "왜 새로운 시대가 필요했는가",
-            "body2_focus": "다음 시대를 준비하는 움직임과 계승",
-            "impact_limit": "다음 시대 예고 및 시리즈 마무리",
+            "role": "시대를 닫고, 다음 시대로 넘기는 화 (사건 설명 ❌)",
+            "allowed": "행정·지배 공백, 사람들의 이동, 지배 구조 해체, 남겨진 제도적 흔적, 통치 감각의 재활용",
+            "forbidden": "⚠️ 전투·전쟁·침략·멸망 서술 금지 (이미 앞 화에서 소화됨), 왕·영웅 중심 금지, '저항 촉발' 표현 금지, '배웠다/의미있었다' 감정적 결론 금지",
+            "body1_focus": "사건이 아닌 구조 정리 - 멸망 이후 공백, 이동, 해체된 것들",
+            "turn_focus": "'패배의 순간' ❌ → '질서가 무너지고 흩어지는 과정' ⭕",
+            "body2_focus": "떠나는 사람들, 남은 사람들, 새로운 선택을 해야 했던 집단들 (절제된 관찰 톤)",
+            "impact_limit": "이후 정치 집단들이 이 시대의 통치 감각을 재활용했다는 점 강조, 다음 시대가 '자연 발생'처럼 연결",
         }
     elif is_second_last:  # 끝에서 두 번째 = 유산기
         return {
@@ -934,8 +934,20 @@ def _build_episode_opus_prompt_pack(
     is_last = era_episode >= total_episodes
     episode_role = _get_episode_role(era_episode, total_episodes)
 
-    next_hint = f"""- 시대 마무리: {era_name} 시대의 역사적 의의로 마무리
-- 다음 시대 예고: "{next_era_info['name']}이 시작됩니다. 다음 시간에..."
+    # 최종화 특별 규칙
+    final_episode_rule = """
+════════════════════════════════════════
+🚨 최종화 필수 규칙 (Opus 메모리)
+════════════════════════════════════════
+- 마지막 화에서는 사건을 설명하지 않는다
+- 마지막 화는 의미를 정리하고 방향을 남긴다
+- "그래서 우리는 배웠다", "의미 있었다" 금지
+- 다음 시대가 '이어서 시작될 수밖에 없게' 구조적으로 연결
+- 예: "고조선 이후의 세계는, 완전히 새로 시작된 것이 아니었다."
+""" if is_last else ""
+
+    next_hint = f"""- 시대 마무리: 사건 회고 ❌ → 구조적 의미 정리 ⭕
+- 다음 시대 자연 연결: "{next_era_info['name']}은 고조선과 완전히 단절된 것이 아니었다..."
 """ if is_last else f"""- 다음 에피소드 예고: "{era_name} {era_episode + 1}화에서 계속됩니다"
 - 시청자 유지: 다음 화에서 다룰 흥미로운 주제 언급
 """
@@ -955,7 +967,7 @@ def _build_episode_opus_prompt_pack(
 ════════════════════════════════════════
 ✅ 이 화에서 다룰 것: {episode_role['allowed']}
 ❌ 이 화에서 금지: {episode_role['forbidden']}
-
+{final_episode_rule}
 ════════════════════════════════════════
 [CONTEXT]
 ════════════════════════════════════════
