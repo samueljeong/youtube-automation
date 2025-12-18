@@ -11296,8 +11296,10 @@ def api_image_generate_assets_zip():
             """단일 문장에 대한 TTS 생성 (Chirp 3 HD, Gemini TTS, Google Cloud TTS 지원)"""
 
             # ===== TTS 전처리 (줄바꿈, 소수점, 쉼표) =====
-            # 0) 줄바꿈 제거 (\n, \\n 모두)
-            text = text.replace('\\n', ' ').replace('\n', ' ')
+            # 0) 줄바꿈 제거 (모든 형태: \n, \\n, \N, \\N)
+            text = text.replace('\\N', ' ').replace('\\n', ' ')  # 이스케이프된 형태 먼저
+            text = text.replace('\N', ' ').replace('\n', ' ')    # 실제 문자
+            text = re.sub(r'[/\\][nN]', ' ', text)               # 슬래시 형태까지
             # 1) 소수점을 "점"으로 변환 (1.5톤 → 1점5톤)
             text = re.sub(r'(\d+)\.(\d+)', lambda m: m.group(0).replace('.', '점'), text)
             # 2) 쉼표 뒤 공백 확보 (자연스러운 휴지)
