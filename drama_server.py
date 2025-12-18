@@ -20889,17 +20889,13 @@ def api_history_run_pipeline():
 
         # 설정
         force = request.args.get('force', '0') == '1'
-        max_results = int(os.environ.get('MAX_RESULTS', '30'))
-        top_k = int(os.environ.get('TOP_K', '5'))
 
         print(f"[HISTORY] force: {force}, 시트 ID: {sheet_id}")
 
-        # 파이프라인 실행 (자동 에피소드 관리)
+        # 파이프라인 실행 (주제 기반 자동 에피소드 관리)
         result = run_history_pipeline(
             sheet_id=sheet_id,
             service=service,
-            max_results=max_results,
-            top_k=top_k,
             force=force
         )
 
