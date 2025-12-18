@@ -20,6 +20,100 @@ def utf8_len(text: str) -> int:
     return len(text.encode("utf-8"))
 
 
+def _protect_numbers(text: str) -> tuple[str, dict]:
+    """
+    숫자+마침표+숫자 패턴(소수점, 버전 등)을 임시 플레이스홀더로 치환
+    예: 1.5톤 → __NUM_0__톤
+
+    Returns:
+        (치환된 텍스트, 복원용 딕셔너리)
+    """
+    import re
+    placeholders = {}
+    counter = [0]
+
+    def replacer(match):
+        key = f"__NUM_{counter[0]}__"
+        placeholders[key] = match.group(0)
+        counter[0] += 1
+        return key
+
+    # 숫자.숫자 패턴 (1.5, 3.14, 2.0 등)
+    protected = re.sub(r'(\d+\.\d+)', replacer, text)
+    return protected, placeholders
+
+
+def _restore_numbers(text: str, placeholders: dict) -> str:
+    """플레이스홀더를 원래 숫자로 복원"""
+    for key, value in placeholders.items():
+        text = text.replace(key, value)
+    return text
+
+
+def preprocess_for_tts(text: str) -> str:
+    """
+    TTS 전송 전 텍스트 전처리
+
+    1. 숫자.숫자 패턴 보호 (소수점)
+    2. 쉼표 뒤에 휴지 추가 (자연스러운 발음)
+    3. 단위 표기 개선 (1.5톤 → 1점5톤)
+
+    Args:
+        text: 원본 텍스트
+
+    Returns:
+        TTS에 최적화된 텍스트
+    """
+    import re
+
+    if not text:
+        return text
+
+    # 1) 숫자.숫자 패턴을 "숫자점숫자"로 변환 (TTS가 자연스럽게 읽도록)
+    # 예: 1.5톤 → 1점5톤, 3.14 → 3점14
+    def replace_decimal(match):
+        num = match.group(0)
+        return num.replace('.', '점')
+
+    text = re.sub(r'(\d+)\.(\d+)', replace_decimal, text)
+
+    # 2) 쉼표 뒤에 공백이 없으면 추가 (TTS 휴지 개선)
+    text = re.sub(r',(\S)', r', \1', text)
+
+    # 3) 연속 쉼표 정리
+    text = re.sub(r',\s*,+', ',', text)
+
+    return text
+
+
+def preprocess_for_tts_ssml(text: str) -> str:
+    """
+    SSML 모드용 TTS 전처리 (쉼표에 명시적 휴지 추가)
+
+    Args:
+        text: 원본 텍스트
+
+    Returns:
+        SSML 휴지가 포함된 텍스트 (아직 <speak> 태그 없음)
+    """
+    import re
+    import html
+
+    if not text:
+        return text
+
+    # 1) 먼저 기본 전처리 적용
+    text = preprocess_for_tts(text)
+
+    # 2) XML 특수문자 이스케이프
+    text = html.escape(text, quote=False)
+
+    # 3) 쉼표 뒤에 SSML 휴지 추가 (150ms - 자연스러운 짧은 휴지)
+    text = re.sub(r',\s*', ',<break time="150ms"/> ', text)
+
+    return text
+
+
 # 마침표, 물음표, 느낌표, 말줄임표 기준으로 분리
 SENTENCE_SPLIT_REGEX = re.compile(r'([^.?!…]*[.?!…]+\s*)')
 
@@ -27,25 +121,32 @@ SENTENCE_SPLIT_REGEX = re.compile(r'([^.?!…]*[.?!…]+\s*)')
 def split_korean_sentences(text: str) -> List[str]:
     """
     한글 텍스트를 문장 단위로 분리
-    
+    (숫자.숫자 패턴은 분리하지 않음 - 1.5톤, 3.14 등)
+
     Args:
         text: 분리할 텍스트
-        
+
     Returns:
         문장 리스트
     """
     text = text.strip()
     if not text:
         return []
-    
-    # 정규식으로 문장 분리
-    parts = SENTENCE_SPLIT_REGEX.findall(text + " ")
+
+    # 1) 숫자.숫자 패턴 보호 (소수점)
+    protected_text, placeholders = _protect_numbers(text)
+
+    # 2) 정규식으로 문장 분리
+    parts = SENTENCE_SPLIT_REGEX.findall(protected_text + " ")
     sentences = [s.strip() for s in parts if s.strip()]
-    
+
     # 마침표 없는 텍스트가 남으면 그대로 반환
     if not sentences:
-        return [text]
-    
+        return [_restore_numbers(text, placeholders)]
+
+    # 3) 숫자 복원
+    sentences = [_restore_numbers(s, placeholders) for s in sentences]
+
     return sentences
 
 

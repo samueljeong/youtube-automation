@@ -11278,6 +11278,12 @@ def api_image_generate_assets_zip():
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
             """단일 문장에 대한 TTS 생성 (Chirp 3 HD, Gemini TTS, Google Cloud TTS 지원)"""
 
+            # ===== TTS 전처리 (소수점, 쉼표) =====
+            # 1) 소수점을 "점"으로 변환 (1.5톤 → 1점5톤)
+            text = re.sub(r'(\d+)\.(\d+)', lambda m: m.group(0).replace('.', '점'), text)
+            # 2) 쉼표 뒤 공백 확보 (자연스러운 휴지)
+            text = re.sub(r',(\S)', r', \1', text)
+
             # ===== Chirp 3 HD 처리 (최고 품질 + 빠른 속도) =====
             if is_chirp3_voice(voice_name):
                 chirp3_config = parse_chirp3_voice(voice_name, language_code)
