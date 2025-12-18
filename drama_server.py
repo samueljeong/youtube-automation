@@ -11302,8 +11302,9 @@ def api_image_generate_assets_zip():
             text = re.sub(r'[/\\][nN]', ' ', text)               # 슬래시 형태까지
             # 1) 소수점을 "점"으로 변환 (1.5톤 → 1점5톤)
             text = re.sub(r'(\d+)\.(\d+)', lambda m: m.group(0).replace('.', '점'), text)
-            # 2) 쉼표 뒤 공백 확보 (자연스러운 휴지)
-            text = re.sub(r',(\S)', r', \1', text)
+            # 2) 쉼표를 마침표로 대체 (TTS 휴지 강화)
+            # 쉼표 뒤에 충분한 휴지가 없어서 발음이 빠름 → 마침표로 대체하여 휴지 확보
+            text = text.replace(',', '.')
             # 3) 연속 공백 정리
             text = re.sub(r'\s+', ' ', text).strip()
 
