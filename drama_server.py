@@ -21003,6 +21003,146 @@ def api_history_test():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/api/history/test-topic', methods=['GET'])
+def api_history_test_topic():
+    """
+    주제 기반 자료 수집 테스트 (2024-12 개편)
+
+    파라미터:
+    - era: 시대 키 (기본 GOJOSEON)
+    - episode: 시대 내 에피소드 번호 (기본 1)
+
+    예시:
+    - /api/history/test-topic?era=GOJOSEON&episode=1  → 고조선 1화 (단군 건국)
+    - /api/history/test-topic?era=SAMGUK&episode=3   → 삼국시대 3화
+    """
+    try:
+        from scripts.history_pipeline import (
+            ERAS, ERA_ORDER, HISTORY_TOPICS,
+            collect_topic_materials,
+            get_total_episode_count,
+        )
+
+        era = request.args.get('era', 'GOJOSEON').upper()
+        episode = int(request.args.get('episode', '1'))
+
+        if era not in ERAS:
+            return jsonify({
+                "ok": False,
+                "error": f"알 수 없는 시대: {era}",
+                "valid_eras": list(ERAS.keys())
+            }), 400
+
+        topics = HISTORY_TOPICS.get(era, [])
+        if episode < 1 or episode > len(topics):
+            return jsonify({
+                "ok": False,
+                "error": f"{era}에 {episode}화 없음 (1~{len(topics)}화 가능)",
+                "available_episodes": [
+                    {"episode": i+1, "title": t.get("title")}
+                    for i, t in enumerate(topics)
+                ]
+            }), 400
+
+        era_info = ERAS[era]
+        topic_info = topics[episode - 1]
+
+        # 자료 수집 (시트 저장 안함)
+        collected = collect_topic_materials(era, episode)
+
+        return jsonify({
+            "ok": True,
+            "era": era,
+            "era_name": era_info.get("name"),
+            "period": era_info.get("period"),
+            "episode": episode,
+            "total_episodes": len(topics),
+            "topic": {
+                "title": topic_info.get("title"),
+                "topic": topic_info.get("topic"),
+                "keywords": topic_info.get("keywords"),
+                "description": topic_info.get("description"),
+                "reference_links": topic_info.get("reference_links"),
+            },
+            "collected": {
+                "materials_count": len(collected.get("materials", [])),
+                "content_length": len(collected.get("full_content", "")),
+                "sources": collected.get("sources", []),
+                "content_preview": collected.get("full_content", "")[:2000],
+            },
+            "all_topics": [
+                {"episode": i+1, "title": t.get("title"), "topic": t.get("topic")}
+                for i, t in enumerate(topics)
+            ],
+            "total_series_episodes": get_total_episode_count(),
+        })
+
+    except ImportError as e:
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 로드 실패: {e}"
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/history/status', methods=['GET'])
+def api_history_status():
+    """
+    한국사 시리즈 전체 현황 조회
+
+    응답:
+    - 전체 에피소드 수 (60화)
+    - 시대별 에피소드 목록
+    - 현재 진행 상황 (시트 연결 시)
+    """
+    try:
+        from scripts.history_pipeline import (
+            ERAS, ERA_ORDER, HISTORY_TOPICS,
+            get_total_episode_count,
+        )
+
+        status = {
+            "ok": True,
+            "total_episodes": get_total_episode_count(),
+            "eras": [],
+        }
+
+        episode_num = 0
+        for era in ERA_ORDER:
+            topics = HISTORY_TOPICS.get(era, [])
+            era_info = ERAS.get(era, {})
+
+            era_data = {
+                "key": era,
+                "name": era_info.get("name", era),
+                "period": era_info.get("period", ""),
+                "episode_count": len(topics),
+                "start_episode": episode_num + 1,
+                "end_episode": episode_num + len(topics),
+                "topics": [
+                    {
+                        "global_episode": episode_num + i + 1,
+                        "era_episode": i + 1,
+                        "title": t.get("title"),
+                        "topic": t.get("topic"),
+                    }
+                    for i, t in enumerate(topics)
+                ]
+            }
+            status["eras"].append(era_data)
+            episode_num += len(topics)
+
+        return jsonify(status)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
