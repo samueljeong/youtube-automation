@@ -1,15 +1,16 @@
 """
-한국사 자동화 파이프라인
+한국사 자동화 파이프라인 (주제 기반 구조)
 
-에피소드 기반 시리즈 구조 (2024-12 개편):
-- 고조선부터 대한제국까지 시대별 순차 진행
-- PENDING 10개 자동 유지
-- AI가 시대별 에피소드 수 결정 (자료량에 따라 3~10편)
+2024-12 개편:
+- HISTORY_TOPICS에 정의된 주제별로 자료 수집
+- 한국민족문화대백과, e뮤지엄 등에서 실제 자료 추출
+- 수집된 내용을 Opus에게 전달하여 대본 작성
 
 시트 구조:
 - HISTORY_OPUS_INPUT: 에피소드 관리 (단일 통합 시트)
   - episode: 전체 에피소드 번호
   - era_episode: 시대 내 에피소드 번호
+  - opus_prompt_pack: 실제 자료가 포함된 Opus 프롬프트
   - status: PENDING/DONE
 
 사용법:
@@ -26,47 +27,61 @@ from .config import (
     ERAS,
     ERA_ORDER,
     ERA_KEYWORDS,
+    HISTORY_TOPICS,
     HISTORY_OPUS_INPUT_SHEET,
     PENDING_TARGET_COUNT,
     get_active_eras,
-    get_era_sheet_name,
-    get_archive_sheet_name,
 )
 
 from .run import (
     run_history_pipeline,
-    run_single_era,
+    run_single_episode,
+    get_pipeline_status,
 )
 
 from .sheets import (
     SheetsSaveError,
-    ensure_era_sheets,
     ensure_history_opus_input_sheet,
-    archive_old_rows,
     get_series_progress,
     get_next_episode_info,
     count_pending_episodes,
+    get_topic_by_global_episode,
+    get_total_episode_count,
+    get_era_episode_count,
+)
+
+from .collector import (
+    collect_topic_materials,
+)
+
+from .opus import (
+    generate_topic_opus_input,
 )
 
 __all__ = [
     # 메인 함수
     "run_history_pipeline",
-    "run_single_era",
+    "run_single_episode",
+    "get_pipeline_status",
     # 설정
     "ERAS",
     "ERA_ORDER",
     "ERA_KEYWORDS",
+    "HISTORY_TOPICS",
     "HISTORY_OPUS_INPUT_SHEET",
     "PENDING_TARGET_COUNT",
     "get_active_eras",
-    "get_era_sheet_name",
-    "get_archive_sheet_name",
     # 시트 관리
     "SheetsSaveError",
-    "ensure_era_sheets",
     "ensure_history_opus_input_sheet",
-    "archive_old_rows",
     "get_series_progress",
     "get_next_episode_info",
     "count_pending_episodes",
+    "get_topic_by_global_episode",
+    "get_total_episode_count",
+    "get_era_episode_count",
+    # 자료 수집
+    "collect_topic_materials",
+    # OPUS 생성
+    "generate_topic_opus_input",
 ]
