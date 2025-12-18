@@ -64,8 +64,8 @@ def generate_opus_input(
         # score_total을 1~5 중요도로 변환 (0~100점 → 1~5)
         priority = min(5, max(1, int(score_total / 20) + 1))
 
-        # LLM은 TOP 1에만 적용 (비용 절감)
-        should_call_llm = (rank == 1) and llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
+        # LLM은 TOP N 모두 적용
+        should_call_llm = llm_enabled and (llm_min_score == 0 or score_total >= llm_min_score)
 
         if should_call_llm:
             print(f"[NEWS] LLM 호출 (rank {rank}, 점수 {score_total})")
