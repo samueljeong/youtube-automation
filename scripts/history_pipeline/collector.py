@@ -15,6 +15,7 @@
 import os
 import re
 import time
+import html
 import requests
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -170,7 +171,7 @@ def _fetch_encykorea_content(url: str) -> Optional[str]:
             print(f"[HISTORY] 대백과사전 응답 실패: {response.status_code}")
             return None
 
-        html = response.text
+        page_html = response.text
 
         # 본문 내용 추출 (여러 패턴 시도)
         content_patterns = [
@@ -182,7 +183,7 @@ def _fetch_encykorea_content(url: str) -> Optional[str]:
 
         content = ""
         for pattern in content_patterns:
-            matches = re.findall(pattern, html, re.DOTALL | re.IGNORECASE)
+            matches = re.findall(pattern, page_html, re.DOTALL | re.IGNORECASE)
             if matches:
                 # HTML 태그 제거
                 raw_content = matches[0]
@@ -195,18 +196,21 @@ def _fetch_encykorea_content(url: str) -> Optional[str]:
         if len(content) < 100:
             meta_match = re.search(
                 r'<meta name="description" content="([^"]+)"',
-                html,
+                page_html,
                 re.IGNORECASE
             )
             if meta_match:
                 content = meta_match.group(1)
 
         # 제목 추출
-        title_match = re.search(r'<title>([^<]+)</title>', html, re.IGNORECASE)
+        title_match = re.search(r'<title>([^<]+)</title>', page_html, re.IGNORECASE)
         title = title_match.group(1) if title_match else ""
         title = title.replace(" - 한국민족문화대백과사전", "").strip()
 
         if content:
+            # HTML 엔티티 디코딩 (&#xACE0; → 고)
+            content = html.unescape(content)
+            title = html.unescape(title)
             # 내용 정리 (최대 3000자)
             content = content[:3000]
             return f"[{title}]\n{content}"
