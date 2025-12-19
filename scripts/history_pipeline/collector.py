@@ -94,11 +94,11 @@ def collect_topic_materials(
             sources.append(link)
         time.sleep(0.5)  # API 호출 간격
 
-    # 2. 키워드로 추가 검색 (한국민족문화대백과) - 5개 키워드
+    # 2. 키워드로 추가 검색 (한국민족문화대백과) - 주요 공식 소스
     keywords = topic_info.get("keywords", [])
-    for keyword in keywords[:5]:
+    for keyword in keywords[:6]:
         print(f"[HISTORY] 대백과 키워드 검색: {keyword}")
-        search_results = _search_encykorea(keyword, max_results=2)
+        search_results = _search_encykorea(keyword, max_results=3)
         for result in search_results:
             if result["url"] not in sources:
                 materials.append(result)
@@ -107,43 +107,10 @@ def collect_topic_materials(
                     sources.append(result["url"])
         time.sleep(0.3)
 
-    # 3. 나무위키 검색 (주제, 제목, 핵심 키워드)
-    namu_keywords = [topic_info.get("topic", ""), topic_info.get("title", "")] + keywords[:2]
-    for keyword in namu_keywords[:3]:
-        if not keyword:
-            continue
-        print(f"[HISTORY] 나무위키 검색: {keyword}")
-        namu_results = _search_namu_wiki(keyword, max_results=1)
-        for result in namu_results:
-            if result["url"] not in sources:
-                materials.append(result)
-                if result.get("content"):
-                    full_content_parts.append(f"[출처: 나무위키 - {result.get('title', '')}]\n{result['content']}")
-                    sources.append(result["url"])
-        time.sleep(0.3)
-
-    # 4. 위키백과 검색 (주제 + 핵심 키워드) - 실패해도 계속 진행
+    # 3. 국사편찬위원회 한국사DB 검색 (공식 소스)
     try:
-        wiki_keywords = [topic_info.get("topic", ""), topic_info.get("title", "")] + keywords[:2]
-        for keyword in wiki_keywords[:2]:  # 2개만 시도 (403 오류 시 빠르게 건너뛰기)
-            if not keyword:
-                continue
-            print(f"[HISTORY] 위키백과 검색: {keyword}")
-            wiki_results = _search_wikipedia_ko(keyword, max_results=2)
-            for result in wiki_results:
-                if result["url"] not in sources:
-                    materials.append(result)
-                    if result.get("content"):
-                        full_content_parts.append(f"[출처: 위키백과 - {result['title']}]\n{result['content']}")
-                        sources.append(result["url"])
-            time.sleep(0.3)
-    except Exception as e:
-        print(f"[HISTORY] 위키백과 검색 스킵: {e}")
-
-    # 5. 국사편찬위원회 한국사DB 검색 - 실패해도 계속 진행
-    try:
-        history_keywords = [topic_info.get("title", ""), topic_info.get("topic", "")] + keywords[:2]
-        for keyword in history_keywords[:2]:  # 2개만 시도
+        history_keywords = [topic_info.get("title", ""), topic_info.get("topic", "")] + keywords[:3]
+        for keyword in history_keywords[:4]:
             if not keyword:
                 continue
             print(f"[HISTORY] 한국사DB 검색: {keyword}")
@@ -158,9 +125,9 @@ def collect_topic_materials(
     except Exception as e:
         print(f"[HISTORY] 한국사DB 검색 스킵: {e}")
 
-    # 6. 문화재청 국가문화유산포털 검색 - 실패해도 계속 진행
+    # 4. 문화재청 국가문화유산포털 검색 (공식 소스)
     try:
-        heritage_keywords = keywords[:2]  # 2개만 시도
+        heritage_keywords = keywords[:4]
         for keyword in heritage_keywords:
             if not keyword:
                 continue
@@ -176,7 +143,7 @@ def collect_topic_materials(
     except Exception as e:
         print(f"[HISTORY] 문화재청 검색 스킵: {e}")
 
-    # 7. e뮤지엄 검색 (API 키 있을 경우)
+    # 5. e뮤지엄 검색 (API 키 있을 경우 - 공식 소스)
     emuseum_results = _search_emuseum(era_name, keywords[:2])
     for result in emuseum_results:
         materials.append(result)
