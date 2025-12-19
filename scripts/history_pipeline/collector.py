@@ -808,11 +808,10 @@ def _search_emuseum(
 
     for keyword in search_keywords[:2]:  # 최대 2개 키워드만
         try:
-            # 국립중앙박물관 소장품 검색 URL
-            search_url = "https://www.museum.go.kr/MUSEUM/contents/M0502000000.do"
+            # 국립중앙박물관 소장품 검색 URL (실제 소장품 검색 페이지)
+            search_url = "https://www.museum.go.kr/site/main/relic/search/list"
             params = {
-                "schM": "search",
-                "schKeyword": keyword,
+                "searchWord": keyword,
             }
 
             print(f"[HISTORY] 국립중앙박물관 검색: {keyword}")
@@ -825,14 +824,14 @@ def _search_emuseum(
             page_html = response.text
 
             # 검색 결과에서 유물 정보 추출
-            # 소장품 목록 패턴
+            # 소장품 목록 패턴 (relicId 기반)
             patterns = [
-                # 소장품 상세 링크
-                r'href="([^"]*schM=view[^"]*)"[^>]*>([^<]+)</a>',
-                r'<a[^>]*href="([^"]*M0502[^"]*view[^"]*)"[^>]*>([^<]+)</a>',
-                # 유물 제목
+                # 소장품 상세 링크 (relicId 포함)
+                r'href="([^"]*relicId=\d+[^"]*)"[^>]*>\s*([^<]+)</a>',
+                r'href="(/site/main/relic/search/view\?relicId=\d+)"[^>]*>([^<]+)</a>',
+                # 유물 제목 링크
                 r'class="[^"]*tit[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
-                r'<dt[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
+                r'<strong[^>]*>\s*<a[^>]*href="([^"]*relic[^"]*)"[^>]*>([^<]+)</a>',
             ]
 
             matches = []
