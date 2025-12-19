@@ -21359,6 +21359,210 @@ def api_mystery_list():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ========== 통합 시트 생성 API ==========
+
+# 통합 시트 설정
+UNIFIED_SHEETS_CONFIG = {
+    "NEWS": {
+        "description": "뉴스 채널 - 수집부터 영상 업로드까지",
+        "collect_headers": [
+            "run_id",           # 실행 날짜
+            "selected_rank",    # 순위 (1, 2, 3)
+            "category",         # 카테고리 (경제/정책/사회/국제)
+            "issue_one_line",   # 이슈 한 줄 요약
+            "core_points",      # 핵심포인트 (LLM 생성)
+            "brief",            # 대본 지시문
+            "thumbnail_copy",   # 썸네일 문구 추천
+            "opus_prompt_pack", # Opus 프롬프트
+        ],
+    },
+    "HISTORY": {
+        "description": "역사 채널 - 수집부터 영상 업로드까지",
+        "collect_headers": [
+            "era",              # 시대
+            "episode_slot",     # 슬롯 번호
+            "structure_role",   # 형성기/제도기/변동기/유산기/연결기
+            "core_question",    # 핵심 질문
+            "facts",            # 관찰 가능한 사실
+            "human_choices",    # 인간의 선택 가능 지점
+            "impact_candidates",# 구조 변화 후보
+            "source_url",       # 출처 URL
+            "opus_prompt_pack", # Opus 프롬프트
+            "thumbnail_copy",   # 썸네일 문구 추천
+        ],
+    },
+    "MYSTERY": {
+        "description": "미스테리 채널 - 수집부터 영상 업로드까지",
+        "collect_headers": [
+            "episode",          # 에피소드 번호
+            "category",         # 카테고리 (실종/사망/장소/사건/현상)
+            "title_en",         # 영문 제목
+            "title_ko",         # 한글 제목
+            "wiki_url",         # 위키백과 URL
+            "summary",          # 사건 요약
+            "full_content",     # 전체 내용 (Opus용)
+            "opus_prompt",      # Opus 프롬프트
+            "thumbnail_copy",   # 썸네일 문구 추천
+        ],
+    },
+}
+
+# 영상 자동화 공통 헤더
+VIDEO_AUTOMATION_HEADERS = [
+    "상태",             # 대기/처리중/완료/실패
+    "대본",             # 영상 대본 (★ 핵심)
+    "제목(GPT생성)",    # GPT가 생성한 제목
+    "제목(입력)",       # 사용자 입력 제목 (GPT 대신 사용)
+    "썸네일문구(입력)", # 사용자 입력 썸네일 문구
+    "공개설정",         # public/private/unlisted
+    "예약시간",         # YouTube 예약 공개 시간
+    "플레이리스트ID",   # YouTube 플레이리스트 ID
+    "음성",             # TTS 음성 설정
+    "영상URL",          # 업로드된 YouTube URL
+    "쇼츠URL",          # 쇼츠 URL
+    "제목2",            # 대안 제목 (CTR 자동화용)
+    "제목3",            # 대안 제목 (CTR 자동화용)
+    "비용",             # 생성 비용
+    "에러메시지",       # 실패 시 에러
+    "작업시간",         # 파이프라인 실행 시간
+]
+
+
+@app.route('/api/sheets/create-unified', methods=['GET', 'POST'])
+def api_create_unified_sheets():
+    """
+    통합 시트 생성 API
+
+    NEWS, HISTORY, MYSTERY 3개의 통합 시트를 생성합니다.
+    - 행 1: 채널ID 설정
+    - 행 2: 헤더 (수집 데이터 + 영상 자동화)
+
+    파라미터:
+    - sheets: 생성할 시트 목록 (콤마 구분, 기본: NEWS,HISTORY,MYSTERY)
+    - channel_id_{name}: 각 시트의 채널 ID (예: channel_id_NEWS=UCxxx)
+
+    예시:
+    - GET /api/sheets/create-unified
+    - GET /api/sheets/create-unified?sheets=NEWS,MYSTERY
+    - GET /api/sheets/create-unified?channel_id_NEWS=UCxxx&channel_id_MYSTERY=UCyyy
+    """
+    print("[UNIFIED] ===== create-unified 호출됨 =====")
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = (
+            os.environ.get('AUTOMATION_SHEET_ID') or
+            os.environ.get('NEWS_SHEET_ID')
+        )
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 생성할 시트 목록
+        sheets_param = request.args.get('sheets', 'NEWS,HISTORY,MYSTERY')
+        sheet_names = [s.strip().upper() for s in sheets_param.split(',')]
+
+        # 유효한 시트만 필터링
+        valid_sheets = [s for s in sheet_names if s in UNIFIED_SHEETS_CONFIG]
+        if not valid_sheets:
+            return jsonify({
+                "ok": False,
+                "error": f"유효한 시트가 없습니다. 가능한 값: {list(UNIFIED_SHEETS_CONFIG.keys())}"
+            }), 400
+
+        print(f"[UNIFIED] 생성할 시트: {valid_sheets}")
+
+        # 기존 시트 목록 확인
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        existing_sheets = [
+            sheet['properties']['title']
+            for sheet in spreadsheet.get('sheets', [])
+        ]
+
+        results = []
+        created_count = 0
+
+        for sheet_name in valid_sheets:
+            config = UNIFIED_SHEETS_CONFIG[sheet_name]
+
+            # 채널 ID 파라미터
+            channel_id = request.args.get(f'channel_id_{sheet_name}', '')
+
+            if sheet_name in existing_sheets:
+                results.append({
+                    "sheet": sheet_name,
+                    "status": "already_exists",
+                    "message": f"시트 '{sheet_name}'이(가) 이미 존재합니다"
+                })
+                continue
+
+            try:
+                # 1) 시트 생성
+                requests_body = [{
+                    "addSheet": {
+                        "properties": {"title": sheet_name}
+                    }
+                }]
+                service.spreadsheets().batchUpdate(
+                    spreadsheetId=sheet_id,
+                    body={"requests": requests_body}
+                ).execute()
+
+                # 2) 행 1: 채널ID
+                row1 = ["채널ID", channel_id]
+
+                # 3) 행 2: 헤더 (수집 + 영상 자동화)
+                collect_headers = config.get("collect_headers", [])
+                row2 = collect_headers + VIDEO_AUTOMATION_HEADERS
+
+                # 4) 시트에 쓰기
+                service.spreadsheets().values().update(
+                    spreadsheetId=sheet_id,
+                    range=f"{sheet_name}!A1",
+                    valueInputOption="RAW",
+                    body={"values": [row1, row2]}
+                ).execute()
+
+                created_count += 1
+                results.append({
+                    "sheet": sheet_name,
+                    "status": "created",
+                    "collect_headers": len(collect_headers),
+                    "video_headers": len(VIDEO_AUTOMATION_HEADERS),
+                    "total_columns": len(row2),
+                    "message": f"시트 '{sheet_name}' 생성 완료 ({len(row2)}개 열)"
+                })
+                print(f"[UNIFIED] 시트 '{sheet_name}' 생성 완료")
+
+            except Exception as e:
+                results.append({
+                    "sheet": sheet_name,
+                    "status": "error",
+                    "message": str(e)
+                })
+                print(f"[UNIFIED] 시트 '{sheet_name}' 생성 실패: {e}")
+
+        return jsonify({
+            "ok": True,
+            "created_count": created_count,
+            "results": results,
+            "message": f"{created_count}개 시트 생성됨"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""

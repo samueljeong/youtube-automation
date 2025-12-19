@@ -169,6 +169,65 @@ estimated_minutes = len(script) / 910
 - `GET /api/sheets/read` - 시트 데이터 읽기
 - `POST /api/sheets/update` - 시트 셀 업데이트
 
+### 시트 관리
+- `GET /api/sheets/create-unified` - 통합 시트 생성 (NEWS, HISTORY, MYSTERY)
+
+---
+
+## 통합 시트 구조 (2025-12-19)
+
+### 개요
+
+기존 수집 전용 시트(OPUS_INPUT_ECON, HISTORY_OPUS_INPUT, MYSTERY_OPUS_INPUT)를
+**수집 + 영상 자동화** 통합 시트로 변경:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ NEWS / HISTORY / MYSTERY 통합 시트                              │
+├─────────────────────────────────────────────────────────────────┤
+│ 행 1: 채널ID | UCxxxxxxxxxxxx                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ 행 2: 헤더                                                       │
+│                                                                  │
+│ [수집 영역]                    [영상 자동화 영역]                │
+│ ├── category                  ├── 상태 (대기/처리중/완료)       │
+│ ├── core_points               ├── 대본 ★                       │
+│ ├── opus_prompt_pack          ├── 제목(GPT생성)                 │
+│ └── thumbnail_copy            ├── 제목(입력) ★                 │
+│                               ├── 썸네일문구(입력) ★            │
+│                               ├── 공개설정                      │
+│                               ├── 예약시간                      │
+│                               └── 영상URL                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 행 3~: 데이터                                                    │
+│                                                                  │
+│ 흐름: 수집 → opus_prompt_pack 생성 →                            │
+│       (사용자/자동) 대본 작성 → 상태='대기' →                    │
+│       영상 생성 파이프라인 자동 시작                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### API: 통합 시트 생성
+
+```bash
+# 3개 시트 모두 생성
+curl "https://drama-s2ns.onrender.com/api/sheets/create-unified"
+
+# 특정 시트만 생성
+curl "https://drama-s2ns.onrender.com/api/sheets/create-unified?sheets=NEWS,MYSTERY"
+
+# 채널 ID 포함
+curl "https://drama-s2ns.onrender.com/api/sheets/create-unified?channel_id_NEWS=UCxxx&channel_id_MYSTERY=UCyyy"
+```
+
+### 시트별 헤더 구조
+
+| 시트 | 수집 헤더 | 영상 자동화 헤더 |
+|------|----------|-----------------|
+| NEWS | run_id, selected_rank, category, issue_one_line, core_points, brief, thumbnail_copy, opus_prompt_pack | 상태, 대본, 제목(GPT생성), 제목(입력), 썸네일문구(입력), 공개설정, 예약시간, 플레이리스트ID, 음성, 영상URL, 쇼츠URL, 제목2, 제목3, 비용, 에러메시지, 작업시간 |
+| HISTORY | era, episode_slot, structure_role, core_question, facts, human_choices, impact_candidates, source_url, opus_prompt_pack, thumbnail_copy | (동일) |
+| MYSTERY | episode, category, title_en, title_ko, wiki_url, summary, full_content, opus_prompt, thumbnail_copy | (동일) |
+
 ---
 
 ## 타임아웃 설정
