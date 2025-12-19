@@ -107,49 +107,8 @@ def collect_topic_materials(
                     sources.append(result["url"])
         time.sleep(0.3)
 
-    # 3. 국사편찬위원회 한국사DB 검색 (공식 소스)
-    try:
-        history_keywords = [topic_info.get("title", ""), topic_info.get("topic", "")] + keywords[:3]
-        for keyword in history_keywords[:4]:
-            if not keyword:
-                continue
-            print(f"[HISTORY] 한국사DB 검색: {keyword}")
-            history_results = _search_history_db(keyword, max_results=2)
-            for result in history_results:
-                if result["url"] not in sources:
-                    materials.append(result)
-                    if result.get("content"):
-                        full_content_parts.append(f"[출처: 국사편찬위원회 - {result['title']}]\n{result['content']}")
-                        sources.append(result["url"])
-            time.sleep(0.3)
-    except Exception as e:
-        print(f"[HISTORY] 한국사DB 검색 스킵: {e}")
-
-    # 4. 문화재청 국가문화유산포털 검색 (공식 소스)
-    try:
-        heritage_keywords = keywords[:4]
-        for keyword in heritage_keywords:
-            if not keyword:
-                continue
-            print(f"[HISTORY] 문화재청 검색: {keyword}")
-            heritage_results = _search_heritage(keyword, max_results=2)
-            for result in heritage_results:
-                if result["url"] not in sources:
-                    materials.append(result)
-                    if result.get("content"):
-                        full_content_parts.append(f"[출처: 문화재청 - {result['title']}]\n{result['content']}")
-                        sources.append(result["url"])
-            time.sleep(0.3)
-    except Exception as e:
-        print(f"[HISTORY] 문화재청 검색 스킵: {e}")
-
-    # 5. e뮤지엄 검색 (API 키 있을 경우 - 공식 소스)
-    emuseum_results = _search_emuseum(era_name, keywords[:2])
-    for result in emuseum_results:
-        materials.append(result)
-        if result.get("content"):
-            full_content_parts.append(f"[출처: 국립중앙박물관]\n{result['content']}")
-            sources.append(result.get("url", "국립중앙박물관"))
+    # NOTE: 한국사DB, 문화재청, 국립중앙박물관은 404/500 에러로 비활성화 (2024-12)
+    # 대백과사전만으로 충분한 자료 수집 가능 (7000자+)
 
     # 전체 내용 합치기
     full_content = "\n\n---\n\n".join(full_content_parts)
