@@ -789,10 +789,10 @@ def _search_emuseum(
     max_results: int = 5
 ) -> List[Dict[str, Any]]:
     """
-    국립중앙박물관 e뮤지엄 웹 검색 (API 대신 웹 스크래핑)
+    국립중앙박물관 소장품 검색 (museum.go.kr)
 
-    공공데이터포털 API는 IP 화이트리스트 제한이 있어
-    웹 스크래핑 방식으로 대체 구현
+    e뮤지엄(emuseum.go.kr)은 500 에러가 발생하여
+    국립중앙박물관 본 사이트에서 검색
     """
     items = []
 
@@ -803,30 +803,36 @@ def _search_emuseum(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "ko-KR,ko;q=0.9",
+        "Referer": "https://www.museum.go.kr/",
     }
 
     for keyword in search_keywords[:2]:  # 최대 2개 키워드만
         try:
-            # e뮤지엄 검색 URL
-            search_url = f"https://www.emuseum.go.kr/search?keyword={quote_plus(keyword)}"
+            # 국립중앙박물관 소장품 검색 URL
+            search_url = "https://www.museum.go.kr/MUSEUM/contents/M0502000000.do"
+            params = {
+                "schM": "search",
+                "schKeyword": keyword,
+            }
 
-            print(f"[HISTORY] e뮤지엄 검색: {keyword}")
-            response = requests.get(search_url, headers=headers, timeout=15)
+            print(f"[HISTORY] 국립중앙박물관 검색: {keyword}")
+            response = requests.get(search_url, params=params, headers=headers, timeout=15)
 
             if response.status_code != 200:
-                print(f"[HISTORY] e뮤지엄 검색 실패: HTTP {response.status_code}")
+                print(f"[HISTORY] 국립중앙박물관 검색 실패: HTTP {response.status_code}")
                 continue
 
             page_html = response.text
 
-            # 검색 결과에서 유물 정보 추출 (다양한 패턴)
+            # 검색 결과에서 유물 정보 추출
+            # 소장품 목록 패턴
             patterns = [
-                # 유물 상세 링크 패턴
-                r'href="(/detail/[^"]+)"[^>]*>\s*<[^>]*>([^<]+)',
-                r'<a[^>]*href="([^"]*detail[^"]*)"[^>]*>([^<]+)</a>',
-                r'class="[^"]*relic[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)',
-                # 유물명 + 링크
-                r'<h[23][^>]*><a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
+                # 소장품 상세 링크
+                r'href="([^"]*schM=view[^"]*)"[^>]*>([^<]+)</a>',
+                r'<a[^>]*href="([^"]*M0502[^"]*view[^"]*)"[^>]*>([^<]+)</a>',
+                # 유물 제목
+                r'class="[^"]*tit[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
+                r'<dt[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
             ]
 
             matches = []
@@ -834,37 +840,39 @@ def _search_emuseum(
                 found = re.findall(pattern, page_html, re.IGNORECASE | re.DOTALL)
                 if found:
                     matches.extend(found)
-                    break
+                    if len(matches) >= max_results:
+                        break
 
             for url_path, title in matches[:max_results]:
                 # 중복 제거
-                if any(item.get("title") == title.strip() for item in items):
+                title_clean = re.sub(r'<[^>]+>', '', title)
+                title_clean = html.unescape(title_clean.strip())
+
+                if any(item.get("title") == title_clean for item in items):
                     continue
 
+                if not title_clean or len(title_clean) < 2:
+                    continue
+
+                # URL 정리
                 if url_path.startswith('/'):
-                    full_url = f"https://www.emuseum.go.kr{url_path}"
+                    full_url = f"https://www.museum.go.kr{url_path}"
                 elif url_path.startswith('http'):
                     full_url = url_path
                 else:
-                    full_url = f"https://www.emuseum.go.kr/{url_path}"
-
-                title = re.sub(r'<[^>]+>', '', title)
-                title = html.unescape(title.strip())
-
-                if not title or len(title) < 2:
-                    continue
+                    full_url = f"https://www.museum.go.kr/MUSEUM/contents/{url_path}"
 
                 # 상세 페이지에서 정보 추출
-                content = _fetch_emuseum_content(full_url)
+                content = _fetch_museum_content(full_url, headers)
 
                 items.append({
-                    "title": title,
+                    "title": title_clean,
                     "url": full_url,
-                    "content": content or f"[{title}] 국립중앙박물관 e뮤지엄 소장 유물",
+                    "content": content or f"[{title_clean}] 국립중앙박물관 소장 유물",
                     "source_type": "museum",
                     "source_name": "국립중앙박물관",
                 })
-                print(f"[HISTORY] e뮤지엄: {title[:40]}...")
+                print(f"[HISTORY] 국립중앙박물관: {title_clean[:40]}...")
 
                 if len(items) >= max_results:
                     break
@@ -872,25 +880,26 @@ def _search_emuseum(
             time.sleep(0.3)
 
         except Exception as e:
-            print(f"[HISTORY] e뮤지엄 검색 오류 ({keyword}): {e}")
+            print(f"[HISTORY] 국립중앙박물관 검색 오류 ({keyword}): {e}")
 
     if items:
         print(f"[HISTORY] 국립중앙박물관: 총 {len(items)}개 유물 정보 수집")
-    elif not items:
-        print(f"[HISTORY] e뮤지엄: 검색 결과 없음 (시대: {era_name})")
+    else:
+        print(f"[HISTORY] 국립중앙박물관: 검색 결과 없음 (시대: {era_name})")
 
     return items
 
 
-def _fetch_emuseum_content(url: str) -> Optional[str]:
+def _fetch_museum_content(url: str, headers: dict = None) -> Optional[str]:
     """
-    e뮤지엄 상세 페이지에서 유물 정보 추출
+    국립중앙박물관 상세 페이지에서 유물 정보 추출
     """
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-        }
+        if not headers:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+            }
 
         response = requests.get(url, headers=headers, timeout=10)
 
@@ -903,12 +912,12 @@ def _fetch_emuseum_content(url: str) -> Optional[str]:
         # 유물 기본 정보 추출
         info_patterns = [
             (r'<th[^>]*>명\s*칭</th>\s*<td[^>]*>([^<]+)</td>', "명칭"),
-            (r'<th[^>]*>국\s*적</th>\s*<td[^>]*>([^<]+)</td>', "국적"),
-            (r'<th[^>]*>시\s*대</th>\s*<td[^>]*>([^<]+)</td>', "시대"),
+            (r'<th[^>]*>국\s*적[/시대]*</th>\s*<td[^>]*>([^<]+)</td>', "시대"),
             (r'<th[^>]*>재\s*질</th>\s*<td[^>]*>([^<]+)</td>', "재질"),
             (r'<th[^>]*>크\s*기</th>\s*<td[^>]*>([^<]+)</td>', "크기"),
             (r'<th[^>]*>지정구분</th>\s*<td[^>]*>([^<]+)</td>', "지정"),
             (r'<th[^>]*>출토지</th>\s*<td[^>]*>([^<]+)</td>', "출토지"),
+            (r'<th[^>]*>소장품번호</th>\s*<td[^>]*>([^<]+)</td>', "소장품번호"),
         ]
 
         for pattern, label in info_patterns:
@@ -916,14 +925,15 @@ def _fetch_emuseum_content(url: str) -> Optional[str]:
             if match:
                 value = re.sub(r'<[^>]+>', '', match.group(1)).strip()
                 value = html.unescape(value)
-                if value and value != "-":
+                if value and value != "-" and value.strip():
                     content_parts.append(f"[{label}] {value}")
 
         # 상세 설명 추출
         desc_patterns = [
             r'<div class="[^"]*desc[^"]*"[^>]*>(.*?)</div>',
-            r'<div class="[^"]*content[^"]*"[^>]*>(.*?)</div>',
-            r'<p class="[^"]*detail[^"]*"[^>]*>(.*?)</p>',
+            r'<div class="[^"]*cont[^"]*"[^>]*>(.*?)</div>',
+            r'<dd class="[^"]*txt[^"]*"[^>]*>(.*?)</dd>',
+            r'<p class="[^"]*info[^"]*"[^>]*>(.*?)</p>',
         ]
 
         for pattern in desc_patterns:
@@ -942,7 +952,7 @@ def _fetch_emuseum_content(url: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        print(f"[HISTORY] e뮤지엄 상세 추출 오류: {e}")
+        print(f"[HISTORY] 국립중앙박물관 상세 추출 오류: {e}")
         return None
 
 
