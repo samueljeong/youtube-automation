@@ -21563,6 +21563,336 @@ def api_create_unified_sheets():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# 기존 시트 → 새 시트 매핑
+MIGRATION_MAPPING = {
+    "NEWS": {
+        "source": "OPUS_INPUT_ECON",
+        "header_map": {
+            # 기존 헤더 → 새 헤더 (동일하면 생략)
+            "run_id": "run_id",
+            "selected_rank": "selected_rank",
+            "category": "category",
+            "issue_one_line": "issue_one_line",
+            "core_points": "core_points",
+            "brief": "brief",
+            "thumbnail_copy": "thumbnail_copy",
+            "opus_prompt_pack": "opus_prompt_pack",
+            "status": "상태",  # PENDING → (빈값), 상태 열로 매핑
+            "created_at": None,  # 무시
+            "selected": None,  # 무시
+        },
+        "status_map": {
+            "PENDING": "",  # 대기로 쓰지 않음 (대본이 없으므로)
+            "WRITING": "",
+            "DONE": "",
+        }
+    },
+    "HISTORY": {
+        "source": "HISTORY_OPUS_INPUT",
+        "header_map": {
+            "era": "era",
+            "episode_slot": "episode_slot",
+            "structure_role": "structure_role",
+            "core_question": "core_question",
+            "facts": "facts",
+            "human_choices": "human_choices",
+            "impact_candidates": "impact_candidates",
+            "source_url": "source_url",
+            "opus_prompt_pack": "opus_prompt_pack",
+            "thumbnail_copy": "thumbnail_copy",
+            "status": "상태",
+            "created_at": None,
+        }
+    },
+    "MYSTERY": {
+        "source": "MYSTERY_OPUS_INPUT",
+        "header_map": {
+            "run_id": None,  # 무시
+            "episode": "episode",
+            "category": "category",
+            "title_en": "title_en",
+            "title_ko": "title_ko",
+            "wiki_url": "wiki_url",
+            "summary": "summary",
+            "full_content": "full_content",
+            "opus_prompt": "opus_prompt",
+            "status": "상태",
+            "created_at": None,
+        }
+    }
+}
+
+
+@app.route('/api/sheets/migrate-data', methods=['GET', 'POST'])
+def api_migrate_sheet_data():
+    """
+    기존 시트 데이터를 새 통합 시트로 마이그레이션
+
+    기존 시트:
+    - OPUS_INPUT_ECON → NEWS
+    - HISTORY_OPUS_INPUT → HISTORY
+    - MYSTERY_OPUS_INPUT → MYSTERY
+
+    파라미터:
+    - sheets: 마이그레이션할 시트 (콤마 구분, 기본: NEWS,HISTORY,MYSTERY)
+    - dry_run: "1"이면 실제 쓰기 없이 미리보기만
+
+    예시:
+    - GET /api/sheets/migrate-data
+    - GET /api/sheets/migrate-data?sheets=NEWS&dry_run=1
+    """
+    print("[MIGRATE] ===== migrate-data 호출됨 =====")
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = (
+            os.environ.get('AUTOMATION_SHEET_ID') or
+            os.environ.get('NEWS_SHEET_ID')
+        )
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 파라미터
+        sheets_param = request.args.get('sheets', 'NEWS,HISTORY,MYSTERY')
+        sheet_names = [s.strip().upper() for s in sheets_param.split(',')]
+        dry_run = request.args.get('dry_run', '0') == '1'
+
+        valid_sheets = [s for s in sheet_names if s in MIGRATION_MAPPING]
+        if not valid_sheets:
+            return jsonify({
+                "ok": False,
+                "error": f"유효한 시트가 없습니다. 가능한 값: {list(MIGRATION_MAPPING.keys())}"
+            }), 400
+
+        print(f"[MIGRATE] 대상 시트: {valid_sheets}, dry_run: {dry_run}")
+
+        results = []
+
+        for target_sheet in valid_sheets:
+            mapping = MIGRATION_MAPPING[target_sheet]
+            source_sheet = mapping["source"]
+            header_map = mapping["header_map"]
+
+            try:
+                # 1) 소스 시트 데이터 읽기
+                source_range = f"{source_sheet}!A:Z"
+                source_result = service.spreadsheets().values().get(
+                    spreadsheetId=sheet_id,
+                    range=source_range
+                ).execute()
+                source_rows = source_result.get('values', [])
+
+                if len(source_rows) < 2:
+                    results.append({
+                        "sheet": target_sheet,
+                        "source": source_sheet,
+                        "status": "skipped",
+                        "message": f"소스 시트 '{source_sheet}'에 데이터가 없습니다"
+                    })
+                    continue
+
+                source_headers = source_rows[0]
+                source_data = source_rows[1:]
+
+                print(f"[MIGRATE] {source_sheet}: {len(source_data)}개 행 발견")
+
+                # 2) 타겟 시트 헤더 읽기
+                target_range = f"{target_sheet}!A1:Z2"
+                target_result = service.spreadsheets().values().get(
+                    spreadsheetId=sheet_id,
+                    range=target_range
+                ).execute()
+                target_rows = target_result.get('values', [])
+
+                if len(target_rows) < 2:
+                    results.append({
+                        "sheet": target_sheet,
+                        "source": source_sheet,
+                        "status": "error",
+                        "message": f"타겟 시트 '{target_sheet}'의 헤더가 없습니다"
+                    })
+                    continue
+
+                target_headers = target_rows[1]  # 행 2가 헤더
+
+                # 3) 소스 → 타겟 인덱스 매핑 생성
+                source_idx = {h: i for i, h in enumerate(source_headers)}
+                target_idx = {h: i for i, h in enumerate(target_headers)}
+
+                # 4) 데이터 변환
+                migrated_rows = []
+                for source_row in source_data:
+                    new_row = [''] * len(target_headers)
+
+                    for src_header, tgt_header in header_map.items():
+                        if tgt_header is None:
+                            continue  # 무시
+                        if src_header not in source_idx:
+                            continue
+                        if tgt_header not in target_idx:
+                            continue
+
+                        src_i = source_idx[src_header]
+                        tgt_i = target_idx[tgt_header]
+
+                        value = source_row[src_i] if src_i < len(source_row) else ''
+
+                        # 상태 매핑 (PENDING/WRITING/DONE → 빈값)
+                        if tgt_header == "상태" and "status_map" in mapping:
+                            value = mapping["status_map"].get(value, '')
+
+                        new_row[tgt_i] = value
+
+                    migrated_rows.append(new_row)
+
+                print(f"[MIGRATE] {target_sheet}: {len(migrated_rows)}개 행 변환 완료")
+
+                # 5) 타겟 시트에 쓰기 (dry_run이 아닌 경우)
+                if not dry_run and migrated_rows:
+                    # 행 3부터 쓰기
+                    write_range = f"{target_sheet}!A3"
+                    service.spreadsheets().values().update(
+                        spreadsheetId=sheet_id,
+                        range=write_range,
+                        valueInputOption="RAW",
+                        body={"values": migrated_rows}
+                    ).execute()
+                    print(f"[MIGRATE] {target_sheet}: {len(migrated_rows)}개 행 쓰기 완료")
+
+                results.append({
+                    "sheet": target_sheet,
+                    "source": source_sheet,
+                    "status": "success" if not dry_run else "dry_run",
+                    "rows_migrated": len(migrated_rows),
+                    "message": f"{len(migrated_rows)}개 행 {'마이그레이션 완료' if not dry_run else '미리보기'}"
+                })
+
+            except Exception as e:
+                results.append({
+                    "sheet": target_sheet,
+                    "source": mapping.get("source", "?"),
+                    "status": "error",
+                    "message": str(e)
+                })
+                print(f"[MIGRATE] {target_sheet} 오류: {e}")
+
+        total_migrated = sum(r.get("rows_migrated", 0) for r in results if r["status"] in ["success", "dry_run"])
+
+        return jsonify({
+            "ok": True,
+            "dry_run": dry_run,
+            "total_rows_migrated": total_migrated,
+            "results": results,
+            "message": f"{'[DRY RUN] ' if dry_run else ''}{total_migrated}개 행 마이그레이션 {'예정' if dry_run else '완료'}"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/sheets/hide-old-sheets', methods=['GET', 'POST'])
+def api_hide_old_sheets():
+    """
+    기존 시트 숨기기 (삭제하지 않음)
+
+    대상:
+    - OPUS_INPUT_ECON
+    - HISTORY_OPUS_INPUT
+    - MYSTERY_OPUS_INPUT
+
+    파라미터:
+    - action: "hide" (숨기기, 기본값) 또는 "show" (다시 보이기)
+    """
+    print("[SHEETS] ===== hide-old-sheets 호출됨 =====")
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = (
+            os.environ.get('AUTOMATION_SHEET_ID') or
+            os.environ.get('NEWS_SHEET_ID')
+        )
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        action = request.args.get('action', 'hide')
+        hide = (action == 'hide')
+
+        old_sheets = ["OPUS_INPUT_ECON", "HISTORY_OPUS_INPUT", "MYSTERY_OPUS_INPUT"]
+
+        # 스프레드시트 정보 가져오기
+        spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        sheet_info = {
+            sheet['properties']['title']: sheet['properties']['sheetId']
+            for sheet in spreadsheet.get('sheets', [])
+        }
+
+        results = []
+        requests_body = []
+
+        for sheet_name in old_sheets:
+            if sheet_name not in sheet_info:
+                results.append({
+                    "sheet": sheet_name,
+                    "status": "not_found",
+                    "message": f"시트 '{sheet_name}'을(를) 찾을 수 없습니다"
+                })
+                continue
+
+            sheet_id_num = sheet_info[sheet_name]
+            requests_body.append({
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": sheet_id_num,
+                        "hidden": hide
+                    },
+                    "fields": "hidden"
+                }
+            })
+            results.append({
+                "sheet": sheet_name,
+                "status": "hidden" if hide else "visible",
+                "message": f"시트 '{sheet_name}' {'숨김' if hide else '표시'} 처리"
+            })
+
+        if requests_body:
+            service.spreadsheets().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"requests": requests_body}
+            ).execute()
+
+        return jsonify({
+            "ok": True,
+            "action": action,
+            "results": results,
+            "message": f"{len([r for r in results if r['status'] in ['hidden', 'visible']])}개 시트 {'숨김' if hide else '표시'} 처리"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
