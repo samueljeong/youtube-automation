@@ -796,13 +796,14 @@ def _search_emuseum(
     """
     api_key = os.environ.get("EMUSEUM_API_KEY")
     if not api_key:
+        print("[HISTORY] e뮤지엄: API 키 없음 (EMUSEUM_API_KEY 환경변수 필요)")
         return []
 
     items = []
 
-    # 시대 매핑
+    # 시대 매핑 (e뮤지엄 API 시대 코드)
     era_mapping = {
-        "고조선": "청동기",
+        "고조선": "선사",
         "부여/옥저/동예": "원삼국",
         "삼국시대": "삼국",
         "남북국시대": "통일신라",
@@ -810,59 +811,108 @@ def _search_emuseum(
         "조선 전기": "조선",
         "조선 후기": "조선",
         "대한제국": "대한제국",
-        "일제강점기": "일제강점기",
+        "일제강점기": "근대",
+        "분단과 전쟁": "근대",
+        "현대": "현대",
     }
 
-    search_era = era_mapping.get(era_name, era_name)
+    search_era = era_mapping.get(era_name, "")
 
     try:
+        # e뮤지엄 OpenAPI
         base_url = "http://www.emuseum.go.kr/openapi/relic/list"
 
         params = {
             "serviceKey": api_key,
             "pageNo": 1,
             "numOfRows": max_results,
-            "mnfctDt": search_era,
             "type": "json"
         }
 
+        # 시대 파라미터 추가 (있으면)
+        if search_era:
+            params["mnfctDt"] = search_era
+
+        print(f"[HISTORY] e뮤지엄 API 호출 중... (시대: {search_era or '전체'})")
         response = requests.get(base_url, params=params, timeout=15)
+        print(f"[HISTORY] e뮤지엄 응답: HTTP {response.status_code}")
 
         if response.status_code == 200:
+            # 응답 미리보기 (디버깅)
+            response_preview = response.text[:300] if response.text else "(빈 응답)"
+            print(f"[HISTORY] e뮤지엄 응답 미리보기: {response_preview}...")
+
             try:
                 data = response.json()
-                relics = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+
+                # 응답 구조 파악
+                relics = []
+                if "response" in data:
+                    body = data.get("response", {}).get("body", {})
+                    items_data = body.get("items", {})
+                    if items_data:
+                        relics = items_data.get("item", [])
+                elif "body" in data:
+                    relics = data.get("body", {}).get("items", [])
+                elif "items" in data:
+                    relics = data.get("items", [])
+                elif isinstance(data, list):
+                    relics = data
 
                 if isinstance(relics, dict):
                     relics = [relics]
 
-                for relic in relics:
-                    title = relic.get("prdctNmNtnl", "") or relic.get("prdctNmEng", "")
+                print(f"[HISTORY] e뮤지엄: {len(relics)}개 유물 데이터 발견")
+
+                for relic in relics[:max_results]:
+                    # 유물명 추출 (다양한 필드 시도)
+                    title = (
+                        relic.get("prdctNmNtnl") or
+                        relic.get("relicName") or
+                        relic.get("name") or
+                        relic.get("prdctNmEng") or
+                        ""
+                    )
                     if not title:
                         continue
 
+                    # 설명 추출
+                    description = relic.get("dscNtnl") or relic.get("description") or ""
+
                     content = f"[유물명] {title}\n"
-                    content += f"[시대] {relic.get('mnfctDt', '')} 시대\n"
-                    content += f"[재질] {relic.get('mtrlNtnl', '')}\n"
-                    content += f"[크기] {relic.get('sizeNtnl', '')}\n"
-                    content += f"[설명] {relic.get('dscNtnl', '')[:500]}"
+                    if relic.get("mnfctDt"):
+                        content += f"[시대] {relic.get('mnfctDt')}\n"
+                    if relic.get("mtrlNtnl"):
+                        content += f"[재질] {relic.get('mtrlNtnl')}\n"
+                    if relic.get("sizeNtnl"):
+                        content += f"[크기] {relic.get('sizeNtnl')}\n"
+                    if description:
+                        content += f"[설명] {description[:1000]}"
+
+                    relic_id = relic.get("relicId") or relic.get("id") or ""
 
                     items.append({
                         "title": title,
-                        "url": f"https://www.emuseum.go.kr/relic/{relic.get('relicId', '')}",
+                        "url": f"https://www.emuseum.go.kr/detail/{relic_id}" if relic_id else "https://www.emuseum.go.kr",
                         "content": content.strip(),
                         "source_type": "museum",
                         "source_name": "국립중앙박물관",
                     })
+                    print(f"[HISTORY] e뮤지엄 유물: {title[:40]}...")
 
-            except ValueError:
-                print(f"[HISTORY] e뮤지엄 JSON 파싱 실패")
+            except ValueError as e:
+                print(f"[HISTORY] e뮤지엄 JSON 파싱 실패: {e}")
+                print(f"[HISTORY] 응답이 JSON이 아님. 응답 시작: {response.text[:200]}")
+        else:
+            print(f"[HISTORY] e뮤지엄 API 오류: HTTP {response.status_code}")
+            if response.text:
+                print(f"[HISTORY] 오류 응답: {response.text[:200]}")
 
         if items:
-            print(f"[HISTORY] 국립중앙박물관: {len(items)}개 유물 정보 수집")
+            print(f"[HISTORY] 국립중앙박물관: 총 {len(items)}개 유물 정보 수집 완료")
 
     except Exception as e:
-        print(f"[HISTORY] e뮤지엄 API 오류: {e}")
+        print(f"[HISTORY] e뮤지엄 API 예외: {e}")
 
     return items
 
