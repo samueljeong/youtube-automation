@@ -284,8 +284,8 @@ HISTORY_TOPICS: Dict[str, List[Dict[str, Any]]] = {
             "topic": "청동기 문화",
             "keywords": ["비파형동검", "고인돌", "청동기", "미송리식토기", "탁자식고인돌"],
             "reference_links": [
-                "https://encykorea.aks.ac.kr/Article/E0051570",  # 비파형동검
-                "https://encykorea.aks.ac.kr/Article/E0004849",  # 고인돌
+                "https://encykorea.aks.ac.kr/Article/E0025256",  # 비파형동검
+                "https://encykorea.aks.ac.kr/Article/E0003901",  # 고인돌
             ],
             "description": "고조선의 영역을 보여주는 청동기 유물, 고인돌 분포와 의미",
         },
