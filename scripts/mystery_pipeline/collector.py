@@ -81,15 +81,15 @@ def search_wikipedia_en(keyword: str, max_results: int = 5) -> List[Dict[str, An
     return items
 
 
-def get_wikipedia_content(title: str) -> Optional[Dict[str, Any]]:
+def get_wikipedia_info(title: str) -> Optional[Dict[str, Any]]:
     """
-    위키백과 문서 전체 내용 가져오기
+    위키백과 문서 기본 정보만 가져오기 (Opus가 직접 URL을 열어서 읽음)
 
     Args:
         title: 문서 제목 (예: "Dyatlov_Pass_incident")
 
     Returns:
-        문서 정보 딕셔너리 또는 None
+        문서 기본 정보 딕셔너리 또는 None
     """
     try:
         headers = {
@@ -97,68 +97,24 @@ def get_wikipedia_content(title: str) -> Optional[Dict[str, Any]]:
             "Accept": "application/json",
         }
 
-        print(f"[MYSTERY] Wikipedia 문서 가져오는 중: {title}")
+        print(f"[MYSTERY] Wikipedia 문서 정보 확인 중: {title}")
 
-        # 1) Wikipedia REST API로 전체 내용 가져오기 (더 긴 내용 반환)
-        rest_url = f"https://en.wikipedia.org/api/rest_v1/page/html/{quote_plus(title)}"
-
-        try:
-            response = requests.get(rest_url, headers=headers, timeout=30)
-
-            if response.status_code == 200:
-                # HTML에서 텍스트 추출
-                html_content = response.text
-
-                # 스크립트, 스타일 태그 제거
-                html_content = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-                html_content = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-
-                # 참조, 각주 제거 (보통 [1], [2] 형태)
-                html_content = re.sub(r'<sup[^>]*class="[^"]*reference[^"]*"[^>]*>.*?</sup>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-
-                # 테이블 제거 (데이터가 복잡해서)
-                html_content = re.sub(r'<table[^>]*>.*?</table>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-
-                # 모든 HTML 태그를 공백으로
-                text_content = re.sub(r'<[^>]+>', ' ', html_content)
-
-                # 연속 공백 정리
-                text_content = re.sub(r'\s+', ' ', text_content).strip()
-
-                # HTML 엔티티 디코딩
-                text_content = html.unescape(text_content)
-
-                if len(text_content) > 5000:
-                    print(f"[MYSTERY] REST API 성공: {len(text_content):,}자")
-
-                    return {
-                        "title": title.replace("_", " "),
-                        "url": f"https://en.wikipedia.org/wiki/{title}",
-                        "content": text_content[:50000],  # 최대 50,000자
-                        "categories": [],
-                        "length": len(text_content[:50000]),
-                    }
-        except Exception as e:
-            print(f"[MYSTERY] REST API 실패, 기본 API로 시도: {e}")
-
-        # 2) 기본 API로 fallback (짧은 내용)
+        # 문서 존재 여부 및 기본 정보만 확인
         params = {
             "action": "query",
             "titles": title.replace("_", " "),
-            "prop": "extracts|info|categories",
-            "exintro": False,  # 전체 내용
-            "explaintext": True,  # 평문으로
-            "exchars": 50000,  # 최대 문자 수
+            "prop": "info|extracts",
+            "exintro": True,  # 서론만 (간단한 요약용)
+            "explaintext": True,
             "inprop": "url",
-            "cllimit": 10,
             "format": "json",
             "utf8": 1,
         }
 
-        response = requests.get(WIKI_API_BASE, params=params, headers=headers, timeout=30)
+        response = requests.get(WIKI_API_BASE, params=params, headers=headers, timeout=15)
 
         if response.status_code != 200:
-            print(f"[MYSTERY] Wikipedia 문서 가져오기 실패: {response.status_code}")
+            print(f"[MYSTERY] Wikipedia 정보 확인 실패: {response.status_code}")
             return None
 
         data = response.json()
@@ -171,32 +127,23 @@ def get_wikipedia_content(title: str) -> Optional[Dict[str, Any]]:
 
             extract = page_data.get("extract", "")
             full_url = page_data.get("fullurl", f"https://en.wikipedia.org/wiki/{title}")
-            categories = [c.get("title", "").replace("Category:", "")
-                         for c in page_data.get("categories", [])]
 
-            if not extract:
-                print(f"[MYSTERY] 내용이 비어있음: {title}")
-                return None
+            # 서론만 요약으로 사용 (Opus가 URL에서 직접 전체 내용을 읽음)
+            summary = extract.strip()[:1000] if extract else ""
 
-            # 내용 정리 (최대 50,000자 - Opus가 처리할 수 있는 충분한 양)
-            extract = extract.strip()
-            if len(extract) > 50000:
-                extract = extract[:50000] + "\n\n[... 내용 생략 ...]"
-
-            print(f"[MYSTERY] 문서 가져오기 성공: {title} ({len(extract):,}자)")
+            print(f"[MYSTERY] 문서 정보 확인 성공: {title}")
+            print(f"[MYSTERY] → Opus가 직접 URL에서 읽을 예정: {full_url}")
 
             return {
                 "title": page_data.get("title", title),
                 "url": full_url,
-                "content": extract,
-                "categories": categories,
-                "length": len(extract),
+                "summary": summary,  # 서론만 (참고용)
             }
 
         return None
 
     except Exception as e:
-        print(f"[MYSTERY] Wikipedia 문서 가져오기 오류 ({title}): {e}")
+        print(f"[MYSTERY] Wikipedia 정보 확인 오류 ({title}): {e}")
         return None
 
 
@@ -206,7 +153,7 @@ def collect_mystery_article(
     category: str = None,
 ) -> Dict[str, Any]:
     """
-    미스테리 사건 자료 수집
+    미스테리 사건 기본 정보 수집 (Opus가 직접 URL에서 읽음)
 
     Args:
         title: 위키백과 문서 제목 (영문)
@@ -214,7 +161,7 @@ def collect_mystery_article(
         category: 카테고리 키
 
     Returns:
-        수집된 자료 딕셔너리
+        기본 정보 딕셔너리 (Opus가 URL에서 직접 내용 수집)
     """
     result = {
         "success": False,
@@ -222,14 +169,13 @@ def collect_mystery_article(
         "title_ko": title_ko or "",
         "category": category or "",
         "url": "",
-        "content": "",
         "summary": "",
         "error": None,
     }
 
     try:
-        # 위키백과에서 내용 가져오기
-        wiki_data = get_wikipedia_content(title)
+        # 위키백과 문서 존재 확인 및 기본 정보만 가져오기
+        wiki_data = get_wikipedia_info(title)
 
         if not wiki_data:
             result["error"] = "위키백과에서 문서를 찾을 수 없습니다"
@@ -237,23 +183,14 @@ def collect_mystery_article(
 
         result["success"] = True
         result["url"] = wiki_data["url"]
-        result["content"] = wiki_data["content"]
+        result["summary"] = wiki_data.get("summary", "")
 
-        # 요약 생성 (첫 500자)
-        content = wiki_data["content"]
-        first_para_end = content.find("\n\n")
-        if first_para_end > 0 and first_para_end < 1000:
-            result["summary"] = content[:first_para_end].strip()
-        else:
-            result["summary"] = content[:500].strip() + "..."
-
-        print(f"[MYSTERY] 자료 수집 완료: {title}")
-        print(f"[MYSTERY] - 전체 내용: {len(result['content']):,}자")
-        print(f"[MYSTERY] - 요약: {len(result['summary'])}자")
+        print(f"[MYSTERY] 기본 정보 수집 완료: {title}")
+        print(f"[MYSTERY] → Opus가 직접 URL에서 전체 내용을 읽습니다")
 
     except Exception as e:
         result["error"] = str(e)
-        print(f"[MYSTERY] 자료 수집 오류 ({title}): {e}")
+        print(f"[MYSTERY] 정보 수집 오류 ({title}): {e}")
 
     return result
 

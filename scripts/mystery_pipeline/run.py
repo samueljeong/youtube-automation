@@ -198,10 +198,10 @@ def get_next_episode_number(service, sheet_id: str) -> int:
 
 def generate_opus_prompt(mystery_data: Dict[str, Any]) -> str:
     """
-    Opus 프롬프트 생성
+    Opus 프롬프트 생성 (Opus가 URL에서 직접 자료 수집)
 
     Args:
-        mystery_data: 수집된 미스테리 데이터
+        mystery_data: 미스테리 기본 정보
 
     Returns:
         Opus 프롬프트 문자열
@@ -217,7 +217,8 @@ def generate_opus_prompt(mystery_data: Dict[str, Any]) -> str:
         category=category_name,
         year=mystery_data.get("year", "알 수 없음"),
         country=mystery_data.get("country", "알 수 없음"),
-        full_content=mystery_data.get("content", ""),
+        hook=mystery_data.get("hook", ""),
+        wiki_url=mystery_data.get("url", ""),
     )
 
     return prompt
@@ -255,8 +256,8 @@ def append_mystery_row(
             mystery_data.get("title_en", ""),          # title_en
             mystery_data.get("title_ko", ""),          # title_ko
             mystery_data.get("url", ""),               # wiki_url
-            mystery_data.get("summary", ""),           # summary
-            mystery_data.get("content", "")[:30000],   # full_content (시트 셀 한계)
+            mystery_data.get("summary", ""),           # summary (서론만)
+            "",                                        # full_content (Opus가 직접 수집)
             opus_prompt[:30000],                       # opus_prompt (시트 셀 한계)
             "PENDING",                                 # status
             now.isoformat(),                           # created_at
