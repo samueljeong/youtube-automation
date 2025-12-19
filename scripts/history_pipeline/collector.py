@@ -234,20 +234,14 @@ def _fetch_encykorea_content(url: str) -> Optional[str]:
 
         # 본문 내용 추출 (여러 패턴 시도 - 우선순위순)
         content_patterns = [
-            # 1. 본문 전체 영역
-            r'<div[^>]*class="[^"]*article[^"]*"[^>]*>(.*?)</div>\s*(?:<div[^>]*class="[^"]*(?:footer|related|sidebar)',
-            # 2. 정의/개요 섹션
-            r'<section[^>]*class="[^"]*definition[^"]*"[^>]*>(.*?)</section>',
-            # 3. 내용 섹션
-            r'<section[^>]*class="[^"]*content[^"]*"[^>]*>(.*?)</section>',
-            # 4. article 태그 전체
+            # 1. article 태그 전체
             r'<article[^>]*>(.*?)</article>',
-            # 5. 본문 div
+            # 2. 본문 div
             r'<div class="article-body"[^>]*>(.*?)</div>',
             r'<div class="content"[^>]*>(.*?)</div>',
             r'<div id="article"[^>]*>(.*?)</div>',
-            # 6. 모든 p 태그 수집
-            r'(<p[^>]*>.*?</p>)',
+            # 3. section 태그
+            r'<section[^>]*>(.*?)</section>',
         ]
 
         content = ""
@@ -412,10 +406,15 @@ def _search_wikipedia_ko(keyword: str, max_results: int = 2) -> List[Dict[str, A
         response = requests.get(search_url, params=params, timeout=10)
 
         if response.status_code != 200:
+            print(f"[HISTORY] 위키백과 검색 실패: {response.status_code}")
             return items
 
         data = response.json()
         search_results = data.get("query", {}).get("search", [])
+
+        if not search_results:
+            print(f"[HISTORY] 위키백과: '{keyword}' 검색 결과 없음")
+            return items
 
         for result in search_results:
             title = result.get("title", "")
@@ -436,6 +435,7 @@ def _search_wikipedia_ko(keyword: str, max_results: int = 2) -> List[Dict[str, A
                 "source_type": "encyclopedia",
                 "source_name": "위키백과",
             })
+            print(f"[HISTORY] 위키백과: {title[:30]}... ({len(content or snippet)}자)")
 
     except Exception as e:
         print(f"[HISTORY] 위키백과 검색 오류 ({keyword}): {e}")
@@ -484,25 +484,28 @@ def _fetch_wikipedia_content(title: str) -> Optional[str]:
 def _search_history_db(keyword: str, max_results: int = 3) -> List[Dict[str, Any]]:
     """
     국사편찬위원회 한국사데이터베이스 검색
-    http://db.history.go.kr
+    https://db.history.go.kr
     """
     items = []
 
     try:
-        # 한국사DB 검색
-        search_url = f"http://db.history.go.kr/search/searchResultList.do"
+        # 한국사DB 통합검색 URL
+        search_url = "https://db.history.go.kr/search/searchTotalList.do"
         params = {
+            "searchType": "TA",
             "searchWord": keyword,
-            "searchWordType": "SIMPLE",
-            "pageSize": max_results,
+            "searchMethod": "EXACT",
+            "itemCount": max_results,
         }
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9",
+            "Referer": "https://db.history.go.kr/",
         }
 
-        response = requests.get(search_url, params=params, headers=headers, timeout=10)
+        response = requests.get(search_url, params=params, headers=headers, timeout=15)
 
         if response.status_code != 200:
             print(f"[HISTORY] 한국사DB 검색 실패: {response.status_code}")
@@ -510,28 +513,46 @@ def _search_history_db(keyword: str, max_results: int = 3) -> List[Dict[str, Any
 
         page_html = response.text
 
-        # 검색 결과에서 링크 추출
-        pattern = r'href="(/item/[^"]+)"[^>]*>([^<]+)</a>'
-        matches = re.findall(pattern, page_html)
+        # 검색 결과에서 링크 추출 (다양한 패턴 시도)
+        patterns = [
+            r'href="(https?://db\.history\.go\.kr/[^"]+)"[^>]*>([^<]+)</a>',
+            r'href="(/[^"]*item[^"]*)"[^>]*>([^<]+)</a>',
+            r'<a[^>]*href="([^"]+)"[^>]*class="[^"]*title[^"]*"[^>]*>([^<]+)</a>',
+        ]
+
+        matches = []
+        for pattern in patterns:
+            found = re.findall(pattern, page_html, re.IGNORECASE)
+            if found:
+                matches.extend(found)
+                break
 
         for url_path, title in matches[:max_results]:
-            full_url = f"http://db.history.go.kr{url_path}"
+            if url_path.startswith('/'):
+                full_url = f"https://db.history.go.kr{url_path}"
+            else:
+                full_url = url_path
+
             title = html.unescape(title.strip())
+            if not title or len(title) < 2:
+                continue
 
             # 내용 추출
             content = _fetch_history_db_content(full_url)
 
-            if content:
-                items.append({
-                    "title": title,
-                    "url": full_url,
-                    "content": content,
-                    "source_type": "archive",
-                    "source_name": "국사편찬위원회",
-                })
-                print(f"[HISTORY] 한국사DB: {title[:30]}...")
+            items.append({
+                "title": title,
+                "url": full_url,
+                "content": content or f"[{title}] 국사편찬위원회 한국사데이터베이스 자료",
+                "source_type": "archive",
+                "source_name": "국사편찬위원회",
+            })
+            print(f"[HISTORY] 한국사DB: {title[:30]}...")
 
             time.sleep(0.3)
+
+        if not items:
+            print(f"[HISTORY] 한국사DB: '{keyword}' 검색 결과 없음")
 
     except Exception as e:
         print(f"[HISTORY] 한국사DB 검색 오류 ({keyword}): {e}")
@@ -547,21 +568,23 @@ def _search_heritage(keyword: str, max_results: int = 3) -> List[Dict[str, Any]]
     items = []
 
     try:
-        # 문화재청 검색 API
-        search_url = "https://www.heritage.go.kr/heri/cul/culSelectSearchList.do"
+        # 국가문화유산포털 검색 (새 URL)
+        search_url = "https://www.heritage.go.kr/heri/cul/culSelectTotalList.do"
         params = {
-            "searchCondition": "02",  # 문화재명
-            "searchKeyword": keyword,
+            "culMainSearchWord": keyword,
+            "culSearchWord": keyword,
             "pageUnit": max_results,
+            "pageIndex": 1,
         }
 
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-            "Referer": "https://www.heritage.go.kr",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9",
+            "Referer": "https://www.heritage.go.kr/heri/cul/culSelectTotalList.do",
         }
 
-        response = requests.get(search_url, params=params, headers=headers, timeout=10)
+        response = requests.get(search_url, params=params, headers=headers, timeout=15)
 
         if response.status_code != 200:
             print(f"[HISTORY] 문화재청 검색 실패: {response.status_code}")
@@ -569,29 +592,47 @@ def _search_heritage(keyword: str, max_results: int = 3) -> List[Dict[str, Any]]
 
         page_html = response.text
 
-        # 검색 결과에서 문화재 정보 추출
-        # 문화재명과 링크 패턴
-        pattern = r'href="(/heri/cul/culSelectDetail\.do\?[^"]+)"[^>]*>([^<]+)</a>'
-        matches = re.findall(pattern, page_html)
+        # 검색 결과에서 문화재 정보 추출 (다양한 패턴)
+        patterns = [
+            r'href="(/heri/cul/culSelectDetail\.do[^"]*)"[^>]*>\s*<[^>]*>([^<]+)',
+            r'<a[^>]*href="([^"]*culSelectDetail[^"]*)"[^>]*>([^<]+)</a>',
+            r'class="[^"]*title[^"]*"[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>',
+        ]
+
+        matches = []
+        for pattern in patterns:
+            found = re.findall(pattern, page_html, re.IGNORECASE | re.DOTALL)
+            if found:
+                matches.extend(found)
+                break
 
         for url_path, title in matches[:max_results]:
-            full_url = f"https://www.heritage.go.kr{url_path}"
+            if url_path.startswith('/'):
+                full_url = f"https://www.heritage.go.kr{url_path}"
+            else:
+                full_url = url_path
+
+            title = re.sub(r'<[^>]+>', '', title)  # HTML 태그 제거
             title = html.unescape(title.strip())
+            if not title or len(title) < 2:
+                continue
 
             # 상세 정보 추출
             content = _fetch_heritage_content(full_url)
 
-            if content:
-                items.append({
-                    "title": title,
-                    "url": full_url,
-                    "content": content,
-                    "source_type": "heritage",
-                    "source_name": "문화재청",
-                })
-                print(f"[HISTORY] 문화재청: {title[:30]}...")
+            items.append({
+                "title": title,
+                "url": full_url,
+                "content": content or f"[{title}] 국가문화유산포털 문화재 정보",
+                "source_type": "heritage",
+                "source_name": "문화재청",
+            })
+            print(f"[HISTORY] 문화재청: {title[:30]}...")
 
             time.sleep(0.3)
+
+        if not items:
+            print(f"[HISTORY] 문화재청: '{keyword}' 검색 결과 없음")
 
     except Exception as e:
         print(f"[HISTORY] 문화재청 검색 오류 ({keyword}): {e}")
