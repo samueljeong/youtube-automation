@@ -98,8 +98,17 @@ def generate_topic_opus_input(
     # 에피소드 제목
     episode_title = f"{era_name} {era_episode}화: {title}"
 
-    # 대표 출처 URL
-    source_url = reference_links[0] if reference_links else (sources[0] if sources else "")
+    # 출처 URL 목록 (최대 10개, 줄바꿈으로 구분)
+    all_sources = []
+    # 참고 링크 먼저
+    for link in reference_links[:3]:
+        if link not in all_sources:
+            all_sources.append(link)
+    # 나머지 소스 추가
+    for src in sources:
+        if src not in all_sources and len(all_sources) < 10:
+            all_sources.append(src)
+    source_url = "\n".join(all_sources) if all_sources else ""
 
     # 시트 행 생성
     opus_row = [[
