@@ -3935,6 +3935,37 @@ def merge_audio_chunks_ffmpeg(audio_data_list):
         return b''.join(audio_data_list)
 
 
+# ===== TTS 텍스트 전처리 (영문 인명 괄호 제거) =====
+def preprocess_tts_text(text: str) -> str:
+    """
+    TTS용 텍스트 전처리 - 영문 인명 괄호 제거
+
+    자막: 니콜라이 티보-브리뇰(Nikolay Thibeaux-Brignolle)
+    TTS: "니콜라이 티보-브리뇰" (영문 부분은 읽지 않음)
+
+    단체명(KGB, FBI 등)은 괄호 없이 사용되므로 영향 없음
+
+    Args:
+        text: 원본 텍스트
+
+    Returns:
+        영문 인명 괄호가 제거된 텍스트
+    """
+    import re
+
+    # 영문 인명 패턴: (대문자로 시작하는 영문 이름)
+    # 예: (Igor Dyatlov), (Nikolay Thibeaux-Brignolle), (Mary Celeste)
+    # 패턴: ( + 대문자 + 영문/공백/하이픈/아포스트로피 + )
+    pattern = r'\([A-Z][a-zA-Z\-\s\'\.]+\)'
+
+    result = re.sub(pattern, '', text)
+
+    # 연속 공백 정리
+    result = re.sub(r'  +', ' ', result)
+
+    return result
+
+
 # ===== Gemini TTS 함수 (2025년 신규) =====
 def generate_gemini_tts(text, voice_name="Kore", model="gemini-2.5-flash-preview-tts"):
     """
@@ -3950,6 +3981,9 @@ def generate_gemini_tts(text, voice_name="Kore", model="gemini-2.5-flash-preview
     """
     import wave
     import io
+
+    # 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
+    text = preprocess_tts_text(text)
 
     api_key = os.getenv("GOOGLE_API_KEY", "")
     if not api_key:
@@ -4149,6 +4183,9 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
     Returns:
         dict: {"ok": True, "audio_data": bytes} 또는 {"ok": False, "error": str}
     """
+    # 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
+    text = preprocess_tts_text(text)
+
     try:
         from google.cloud import texttospeech
         from google.oauth2 import service_account
@@ -11316,8 +11353,11 @@ def api_image_generate_assets_zip():
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
             """단일 문장에 대한 TTS 생성 (Chirp 3 HD, Gemini TTS, Google Cloud TTS 지원)"""
 
-            # ===== TTS 전처리 (줄바꿈, 소수점, 쉼표) =====
-            # 0) 줄바꿈 제거 (모든 형태: \n, \\n, \N, \\N)
+            # ===== TTS 전처리 =====
+            # 0-1) 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
+            text = preprocess_tts_text(text)
+
+            # 0-2) 줄바꿈 제거 (모든 형태: \n, \\n, \N, \\N)
             text = text.replace('\\N', ' ').replace('\\n', ' ')  # 이스케이프된 형태 먼저
             text = text.replace('\n', ' ')                        # 실제 줄바꿈 문자
             text = re.sub(r'[/\\][nN]', ' ', text)               # 슬래시 형태까지
