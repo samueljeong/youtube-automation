@@ -32,7 +32,9 @@ from .auth import (
     get_user_credits, use_credit
 )
 from .prompt import (
-    get_system_prompt_for_step, build_prompt_from_json, build_step3_prompt_from_json
+    get_system_prompt_for_step, build_prompt_from_json, build_step3_prompt_from_json,
+    validate_step1_output, validate_step2_output,
+    parse_step3_self_check, validate_step3_self_check, build_step3_retry_prompt
 )
 from .strongs import analyze_verse_strongs, format_strongs_for_prompt
 from .commentary import (
@@ -594,9 +596,45 @@ def process_step():
                 cleaned_result = '\n'.join(lines).strip()
 
             json_data = json.loads(cleaned_result)
+
+            # Step1인 경우: meta를 코드에서 강제 주입 (LLM 생성 금지)
+            step1_validation = None
+            if step_type == "step1" or step_id == "step1":
+                injected_meta = {
+                    "step": "STEP1",
+                    "reference": reference,
+                    "target_audience": data.get("target", data.get("audienceType", "")),
+                    "service_type": data.get("worshipType", data.get("serviceType", "")),
+                    "duration_min": data.get("duration", data.get("durationMin", 0)),
+                    "special_notes": data.get("specialNotes", data.get("notes", ""))
+                }
+                # LLM이 생성한 meta가 있으면 덮어쓰기
+                json_data["meta"] = injected_meta
+                print(f"[PROCESS] Step1 meta 강제 주입: {injected_meta}")
+
+                # Step1 출력 검증 (placeholder, 최소 개수 등)
+                step1_validation = validate_step1_output(json_data)
+                if step1_validation["valid"]:
+                    print(f"[PROCESS] Step1 검증 통과")
+                else:
+                    print(f"[PROCESS] Step1 검증 실패: {step1_validation['errors']}")
+                if step1_validation.get("warnings"):
+                    print(f"[PROCESS] Step1 경고: {step1_validation['warnings']}")
+
             formatted_result = format_json_result(json_data)
 
             print(f"[PROCESS][SUCCESS] JSON 형식으로 응답받아 포맷팅 완료")
+
+            # Step2인 경우 출력 검증
+            step2_validation = None
+            if step_type == "step2" or (step_id and "step2" in step_id.lower()):
+                step2_validation = validate_step2_output(json_data)
+                if step2_validation["valid"]:
+                    print(f"[PROCESS] Step2 검증 통과")
+                else:
+                    print(f"[PROCESS] Step2 검증 실패: {step2_validation['errors']}")
+                if step2_validation.get("warnings"):
+                    print(f"[PROCESS] Step2 경고: {step2_validation['warnings']}")
 
             # Step1인 경우 백그라운드로 DB 저장
             if step_type == "step1" or step_id == "step1":
@@ -614,6 +652,12 @@ def process_step():
             response = {"ok": True, "result": formatted_result, "usage": usage_data}
             if extra_info:
                 response["extraInfo"] = extra_info
+            # Step1 검증 결과 포함
+            if step1_validation:
+                response["validation"] = step1_validation
+            # Step2 검증 결과 포함
+            if step2_validation:
+                response["validation"] = step2_validation
             return jsonify(response)
 
         except json.JSONDecodeError:
@@ -1151,6 +1195,76 @@ def gpt_pro():
         if not result:
             raise RuntimeError(f"{gpt_pro_model} API로부터 결과를 받지 못했습니다.")
 
+        # ═══════════════════════════════════════════════════════════════
+        # self_check 파싱 및 검증 (최대 1회 재시도)
+        # ═══════════════════════════════════════════════════════════════
+        self_check_info = None
+        sermon_text, self_check, parse_error = parse_step3_self_check(result)
+
+        if self_check:
+            validation = validate_step3_self_check(self_check)
+            self_check_info = {
+                "parsed": True,
+                "valid": validation["valid"],
+                "errors": validation.get("errors", [])
+            }
+            print(f"[GPT-PRO/Step3] self_check 파싱 성공: valid={validation['valid']}, errors={validation.get('errors', [])}")
+
+            # 검증 실패 시 1회 재시도
+            if validation.get("should_retry", False) and is_json_mode:
+                print(f"[GPT-PRO/Step3] self_check 검증 실패, 재시도 시작...")
+
+                retry_prompt = build_step3_retry_prompt(sermon_text, validation)
+                retry_messages = [
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content},
+                    {"role": "assistant", "content": result},
+                    {"role": "user", "content": retry_prompt}
+                ]
+
+                try:
+                    retry_kwargs = {"model": gpt_pro_model, "messages": retry_messages}
+                    if gpt_pro_model in ["gpt-5", "gpt-5.1"]:
+                        retry_kwargs["max_completion_tokens"] = max_tokens
+                    else:
+                        retry_kwargs["temperature"] = 0.7
+                        retry_kwargs["max_tokens"] = max_tokens
+
+                    retry_completion = client.chat.completions.create(**retry_kwargs)
+                    retry_result = retry_completion.choices[0].message.content.strip()
+
+                    if retry_result:
+                        # 재시도 결과 파싱
+                        retry_sermon, retry_self_check, retry_error = parse_step3_self_check(retry_result)
+                        if retry_self_check:
+                            retry_validation = validate_step3_self_check(retry_self_check)
+                            if retry_validation["valid"] or len(retry_validation.get("errors", [])) < len(validation.get("errors", [])):
+                                # 재시도 결과가 더 나으면 사용
+                                sermon_text = retry_sermon
+                                self_check = retry_self_check
+                                self_check_info["retry_used"] = True
+                                self_check_info["retry_valid"] = retry_validation["valid"]
+                                print(f"[GPT-PRO/Step3] 재시도 성공: valid={retry_validation['valid']}")
+
+                                # 재시도 토큰 사용량 추가
+                                if hasattr(retry_completion, 'usage') and retry_completion.usage:
+                                    usage_data["input_tokens"] += getattr(retry_completion.usage, 'prompt_tokens', 0)
+                                    usage_data["output_tokens"] += getattr(retry_completion.usage, 'completion_tokens', 0)
+                                    usage_data["total_tokens"] += getattr(retry_completion.usage, 'total_tokens', 0)
+                            else:
+                                print(f"[GPT-PRO/Step3] 재시도했으나 개선 없음, 원본 사용")
+                        else:
+                            print(f"[GPT-PRO/Step3] 재시도 결과 파싱 실패: {retry_error}")
+                except Exception as retry_e:
+                    print(f"[GPT-PRO/Step3] 재시도 API 호출 실패 (무시): {str(retry_e)}")
+
+        else:
+            self_check_info = {"parsed": False, "parse_error": parse_error}
+            print(f"[GPT-PRO/Step3] self_check 파싱 실패: {parse_error}")
+
+        # self_check 구분자 이전의 설교문만 사용
+        result = sermon_text if sermon_text else result
+
         if usage_data:
             log_api_usage(
                 step_name='step3',
@@ -1175,7 +1289,7 @@ def gpt_pro():
                 final_result += f"본문: {reference}\n\n"
             final_result += result
 
-        print(f"[GPT-PRO] 완료")
+        print(f"[GPT-PRO] 완료 (self_check: {self_check_info})")
 
         # 설교문 자동 분석 및 DB 저장
         try:
@@ -1205,12 +1319,18 @@ def gpt_pro():
             print(f"[GPT-PRO/Step3] 크레딧 차감 - 사용자: {user_id}, 남은 크레딧: {remaining_credits}")
 
         print(f"[GPT-PRO/Step3] 완료 - 토큰: {usage_data}")
-        return jsonify({
+        response_data = {
             "ok": True,
             "result": final_result,
             "usage": usage_data,
             "credits": remaining_credits if not is_admin else -1
-        })
+        }
+
+        # self_check 검증 정보 포함 (프론트엔드에서 참고용)
+        if self_check_info:
+            response_data["self_check"] = self_check_info
+
+        return jsonify(response_data)
 
     except Exception as e:
         print(f"[GPT-PRO/Step3][ERROR] {str(e)}")
