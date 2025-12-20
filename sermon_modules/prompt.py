@@ -527,14 +527,22 @@ def build_step2_design_prompt():
    - U1(1-2절) → section_1
    - U2(3-5절) → section_2
    - U3(6-7절) → section_3
-3) 각 sub는 반드시 아래 4요소를 포함한다:
-   - passage_anchors: Step1의 A* 2개 이상
-   - supporting_verses: 정확히 2개(성경구절 표기만, 본문 인용문 금지)
-   - background_support: Step1의 H/G/P 중 1개 이상
-   - guardrail_refs: D* 또는 M* 중 1개 이상(해당 sub에서 주의할 경계 표시)
-4) supporting_verses는 "Step1 본문"과 논리적으로 연결되는 보충구절로 선택하되,
-   - 정확히 2개만
-   - 중복 최소화(가능하면 sub끼리 동일 구절 반복 피하기)
+3) 각 sub는 반드시 아래 5요소를 포함한다:
+   - anchor_ids: Step1의 A* 2개 이상
+   - outline_blocks: Anchor와 Supporting Verse의 배치 순서 (아래 참고)
+   - supporting_verses (outline_blocks 안에서 정확히 2개)
+   - guardrail_refs: D* 중 1개 이상
+   - misread_refs: M* 중 1개 이상 (해당 sub에서 주의할 경계)
+4) outline_blocks 패턴 (★ 중요):
+   - supporting_verses는 "sub 마지막에 몰아서" 쓰지 말고, outline_blocks 배열 안에 필요한 위치에 배치한다.
+   - 권장 패턴: anchor → supporting → anchor → supporting
+   - 예시:
+     [
+       { "type": "anchor", "id": "A1", "note": "앵커 설명" },
+       { "type": "supporting_verse", "ref": "시편 23:4", "note": "보충구절 연결 이유" },
+       { "type": "anchor", "id": "A2", "note": "앵커 설명" },
+       { "type": "supporting_verse", "ref": "요한복음 1:5", "note": "보충구절 연결 이유" }
+     ]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【 ★★★ Unit-Anchor 범위 매칭 규칙 (필수) ★★★ 】
@@ -594,60 +602,72 @@ Step2에서 사용 가능한 ID:
 
   "intro": {
     "intro_question": "<한 문장 질문>",
+    "flow_preview_only": ["U1(1-2절): 어둠→빛", "U2(3-5절): 압제→해방", "U3(6-7절): 왕권→정의"],
     "constraints": ["시사/뉴스/통계 금지", "예화/적용 문장 금지", "본문 흐름(U1→U2→U3)만 예고"]
   },
 
   "section_1": {
     "unit_id": "U1",
     "range": "1-2절",
-    "background_support": ["H*", "G*"],
+    "background_support": ["H1", "G1"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A1", "A2"],
+      "outline_blocks": [
+        { "type": "anchor", "id": "A1", "note": "앵커 설명" },
+        { "type": "supporting_verse", "ref": "시편 23:4", "note": "보충구절 연결 이유" },
+        { "type": "anchor", "id": "A2", "note": "앵커 설명" },
+        { "type": "supporting_verse", "ref": "요한복음 1:5", "note": "보충구절 연결 이유" }
+      ],
+      "guardrail_refs": ["D1"],
+      "misread_refs": ["M1"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A1", "A2"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D2"],
+      "misread_refs": ["M2"]
     }
   },
 
   "section_2": {
     "unit_id": "U2",
     "range": "3-5절",
-    "background_support": ["H*"],
+    "background_support": ["H2"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A3", "A4"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D1"],
+      "misread_refs": ["M1"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A4", "A5"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D3"],
+      "misread_refs": ["M3"]
     }
   },
 
   "section_3": {
     "unit_id": "U3",
     "range": "6-7절",
-    "background_support": ["H*"],
+    "background_support": ["H3"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A6", "A7"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D5"],
+      "misread_refs": ["M2"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A9", "A10"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D2"],
+      "misread_refs": ["M2"]
     }
   },
 
@@ -659,16 +679,15 @@ Step2에서 사용 가능한 ID:
   },
 
   "self_check": [
-    { "check": "all_anchor_ids_exist_in_step1", "pass": true, "notes": "사용된 A* ID가 모두 Step1에 존재하는지" },
-    { "check": "all_anchors_in_correct_unit_range", "pass": true, "notes": "각 section의 A*가 해당 절 범위 안에 있는지" },
-    { "check": "all_guardrail_ids_exist_in_step1", "pass": true, "notes": "사용된 D*, M* ID가 모두 Step1에 존재하는지" },
-    { "check": "all_background_ids_exist_in_step1", "pass": true, "notes": "사용된 H*, G*, P* ID가 모두 Step1에 존재하는지" },
+    { "check": "all_anchor_ids_exist_in_step1", "pass": true, "notes": "" },
+    { "check": "anchors_within_unit_range", "pass": true, "notes": "" },
     { "check": "each_sub_has_2plus_anchors", "pass": true, "notes": "" },
     { "check": "each_sub_has_exactly_2_supporting_verses", "pass": true, "notes": "" },
     { "check": "each_section_has_background_support", "pass": true, "notes": "" },
-    { "check": "flow_follows_U1_U2_U3", "pass": true, "notes": "" },
-    { "check": "does_not_claim_respected", "pass": true, "notes": "" },
-    { "check": "no_sermon_paragraphs_or_applications", "pass": true, "notes": "" }
+    { "check": "misread_ids_exist_in_step1_only", "pass": true, "notes": "M1~M3만 사용" },
+    { "check": "does_not_claim_ids_exist_in_step1_only", "pass": true, "notes": "D1~D5만 사용" },
+    { "check": "no_sermon_paragraphs_or_applications", "pass": true, "notes": "" },
+    { "check": "no_news_stats_examples", "pass": true, "notes": "" }
   ]
 }
 ```
@@ -708,28 +727,37 @@ def build_step2_user_prompt(reference: str, step1_result: dict, title: str = "")
 
     title_line = title if title else "(없음 - Step1 big idea 후보 기반으로 생성)"
 
-    return f"""[STEP2 요청: 구조 전용 출력]
+    return f"""[STEP2 입력]
 
-아래 Step1 결과(신규 ID 스키마)를 기반으로,
-설교 스타일/예화/적용 없이 "구조 전용 STEP2 JSON"을 출력하세요.
+Reference: {reference}
+Mode: structure_only
+Title candidate: {title_line}
 
-[기본 입력]
-- reference: {reference}
-- title(선택): {title_line}
-- time_map_percent(고정): intro 10, s1 27, s2 27, s3 27, ending 9
+Time map percent:
+- intro: 10
+- s1: 27
+- s2: 27
+- s3: 27
+- ending: 9
 
-[필수 규칙]
-1) U1(1-2절)→section_1, U2(3-5절)→section_2, U3(6-7절)→section_3 고정
-2) 각 sub는:
-   - passage_anchors: A* 2개 이상(반드시 Step1에 있는 A*만)
-   - supporting_verses: 정확히 2개(구절 표기만)
-   - background_support: H/G/P 중 1개 이상(반드시 Step1에 있는 ID만)
-   - guardrail_refs: D* 또는 M* 중 1개 이상(반드시 Step1에 있는 ID만)
-3) Step2에서는 시사/뉴스/통계/논쟁 정보 사용 금지
-4) Step2에서는 예화/적용/설교 문단 작성 금지(구조/근거만)
-
-[Step1 결과(JSON)]
+[Step1 Result JSON]
 {step1_json}
+
+[작성 지시]
+1) Step1의 Structure Outline(Unit U1→U2→U3)을 그대로 사용해 Section_1~3을 구성하세요.
+2) 각 sub는 anchor_ids 2개 이상 + outline_blocks(supporting_verses 정확히 2개 포함)를 포함하세요.
+3) outline_blocks 안에서 supporting_verses는 "필요한 위치"에 배치하세요.
+   (anchor → supporting → anchor → supporting 패턴 권장)
+4) guardrail_refs는 D1~D5 중에서, misread_refs는 M1~M3 중에서만 참조하세요.
+   (Step1에 존재하는 ID만 사용!)
+5) 예화/적용/설교문 문장/시사/뉴스/통계는 절대 쓰지 마세요.
+6) 출력은 JSON 1개만 (설명 텍스트 금지).
+
+[Unit-Anchor 범위 규칙]
+- section_1(U1, 1-2절) → A1, A2만 사용 가능
+- section_2(U2, 3-5절) → A3, A4, A5만 사용 가능
+- section_3(U3, 6-7절) → A6~A11 등 6-7절 Anchor만 사용 가능
+- 범위 밖 Anchor 사용 금지!
 
 [출력]
 - System Prompt에 정의된 STEP2 JSON 스키마 그대로 출력
