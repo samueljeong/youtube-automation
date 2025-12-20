@@ -33,8 +33,8 @@ from .auth import (
 )
 from .prompt import (
     get_system_prompt_for_step, build_prompt_from_json, build_step3_prompt_from_json,
-    validate_step2_output, parse_step3_self_check, validate_step3_self_check,
-    build_step3_retry_prompt
+    validate_step1_output, validate_step2_output,
+    parse_step3_self_check, validate_step3_self_check, build_step3_retry_prompt
 )
 from .strongs import analyze_verse_strongs, format_strongs_for_prompt
 from .commentary import (
@@ -596,6 +596,31 @@ def process_step():
                 cleaned_result = '\n'.join(lines).strip()
 
             json_data = json.loads(cleaned_result)
+
+            # Step1인 경우: meta를 코드에서 강제 주입 (LLM 생성 금지)
+            step1_validation = None
+            if step_type == "step1" or step_id == "step1":
+                injected_meta = {
+                    "step": "STEP1",
+                    "reference": reference,
+                    "target_audience": data.get("target", data.get("audienceType", "")),
+                    "service_type": data.get("worshipType", data.get("serviceType", "")),
+                    "duration_min": data.get("duration", data.get("durationMin", 0)),
+                    "special_notes": data.get("specialNotes", data.get("notes", ""))
+                }
+                # LLM이 생성한 meta가 있으면 덮어쓰기
+                json_data["meta"] = injected_meta
+                print(f"[PROCESS] Step1 meta 강제 주입: {injected_meta}")
+
+                # Step1 출력 검증 (placeholder, 최소 개수 등)
+                step1_validation = validate_step1_output(json_data)
+                if step1_validation["valid"]:
+                    print(f"[PROCESS] Step1 검증 통과")
+                else:
+                    print(f"[PROCESS] Step1 검증 실패: {step1_validation['errors']}")
+                if step1_validation.get("warnings"):
+                    print(f"[PROCESS] Step1 경고: {step1_validation['warnings']}")
+
             formatted_result = format_json_result(json_data)
 
             print(f"[PROCESS][SUCCESS] JSON 형식으로 응답받아 포맷팅 완료")
@@ -627,6 +652,9 @@ def process_step():
             response = {"ok": True, "result": formatted_result, "usage": usage_data}
             if extra_info:
                 response["extraInfo"] = extra_info
+            # Step1 검증 결과 포함
+            if step1_validation:
+                response["validation"] = step1_validation
             # Step2 검증 결과 포함
             if step2_validation:
                 response["validation"] = step2_validation

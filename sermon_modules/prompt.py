@@ -259,19 +259,12 @@ def build_step1_research_prompt():
 
 반드시 아래 JSON 스키마 그대로만 출력하십시오(추가 텍스트 금지).
 (스키마 내 모든 배열은 최소 개수를 충족해야 함:
- anchors 10개 이상, historical_background 3개 이상, places 2개 이상, does_not_claim 5개 이상)
+ anchors 10개 이상, historical_background 3개 이상, places 3개 이상, does_not_claim 5개 이상)
+
+⚠️ meta는 생성하지 마세요. 시스템이 자동 주입합니다.
 
 ```json
 {
-  "meta": {
-    "step": "STEP1",
-    "reference": "",
-    "target_audience": "",
-    "service_type": "",
-    "duration_min": 0,
-    "special_notes": ""
-  },
-
   "passage_overview": {
     "one_paragraph_summary": "본문의 전체 흐름을 2-3문장으로 요약",
     "flow_tags": ["어둠→빛", "압제→해방", "전쟁→평화", "왕권→정의·공의"]
@@ -280,19 +273,19 @@ def build_step1_research_prompt():
   "historical_background": [
     {
       "id": "H1",
-      "topic": "역사적 배경 주제",
-      "what_happened": "당시 무슨 일이 있었는가",
+      "topic": "★ 구체 명사 필수 (예: 아하스 시대의 아람-에브라임 동맹 위기)",
+      "what_happened": "당시 무슨 일이 있었는가 (구체적 사건/상황)",
       "why_it_matters_for_this_text": "이 본문 이해에 왜 중요한가"
     },
     {
       "id": "H2",
-      "topic": "정치적 배경",
+      "topic": "★ 구체 명사 필수 (예: 앗수르의 갈릴리 정복과 deportation)",
       "what_happened": "",
       "why_it_matters_for_this_text": ""
     },
     {
       "id": "H3",
-      "topic": "사회/종교적 배경",
+      "topic": "★ 구체 명사 필수 (예: 심판-구원 교차 구조의 문학적 배경)",
       "what_happened": "",
       "why_it_matters_for_this_text": ""
     }
@@ -302,13 +295,19 @@ def build_step1_research_prompt():
     "places": [
       {
         "id": "G1",
-        "name": "장소명",
+        "name": "★ 구체 지명 (예: 스불론/납달리)",
         "where_in_bible_context": "성경적 맥락에서 이 장소의 위치",
         "significance_in_this_passage": "이 본문에서 이 장소가 중요한 이유"
       },
       {
         "id": "G2",
-        "name": "",
+        "name": "★ 구체 지명 (예: 요단 저편)",
+        "where_in_bible_context": "",
+        "significance_in_this_passage": ""
+      },
+      {
+        "id": "G3",
+        "name": "★ 구체 지명 (예: 이방의 갈릴리)",
         "where_in_bible_context": "",
         "significance_in_this_passage": ""
       }
@@ -387,21 +386,21 @@ def build_step1_research_prompt():
 
   "guardrails": {
     "clearly_affirms": [
-      { "id": "C1", "claim": "본문이 명확히 말하는 것 1", "anchor_ids": ["A1"] },
-      { "id": "C2", "claim": "본문이 명확히 말하는 것 2", "anchor_ids": ["A2", "A3"] },
+      { "id": "C1", "claim": "본문이 명확히 말하는 것 1 (앵커 기반)", "anchor_ids": ["A1"] },
+      { "id": "C2", "claim": "본문이 명확히 말하는 것 2 (앵커 기반)", "anchor_ids": ["A2", "A3"] },
       { "id": "C3", "claim": "", "anchor_ids": [] },
       { "id": "C4", "claim": "", "anchor_ids": [] },
       { "id": "C5", "claim": "", "anchor_ids": [] }
     ],
     "does_not_claim": [
-      { "id": "D1", "claim": "본문이 말하지 않는 것 1", "reason": "왜 이것을 주장할 수 없는지", "avoid_in_step2_3": true },
-      { "id": "D2", "claim": "", "reason": "", "avoid_in_step2_3": true },
-      { "id": "D3", "claim": "", "reason": "", "avoid_in_step2_3": true },
-      { "id": "D4", "claim": "", "reason": "", "avoid_in_step2_3": true },
+      { "id": "D1", "claim": "★ 본문 경계만 기술: 본문은 [X]를 즉시/자동 보장한다고 말하지 않는다", "reason": "본문 텍스트에 해당 표현이 없음", "avoid_in_step2_3": true },
+      { "id": "D2", "claim": "★ 본문은 구체적 시기/정치 체제/국경선 확정을 제공하지 않는다", "reason": "", "avoid_in_step2_3": true },
+      { "id": "D3", "claim": "★ 본문은 [특정 이미지]를 [특정 시간표]로 확정하지 않는다", "reason": "", "avoid_in_step2_3": true },
+      { "id": "D4", "claim": "★ 본문은 [X]가 모든 개인에게 동일하게 적용된다고 단정하지 않는다", "reason": "", "avoid_in_step2_3": true },
       { "id": "D5", "claim": "", "reason": "", "avoid_in_step2_3": true }
     ],
     "common_misreads": [
-      { "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지", "correct_boundary": "올바른 해석의 경계" },
+      { "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "올바른 해석의 경계" },
       { "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "" },
       { "id": "M3", "misread": "", "why_wrong": "", "correct_boundary": "" }
     ]
@@ -429,11 +428,36 @@ def build_step1_research_prompt():
 
 - anchors: 최소 10개 (A1~A10+)
 - historical_background: 최소 3개 (H1~H3+)
-- places: 최소 2개 (G1~G2+)
+- places: 최소 3개 (G1~G3+) ★ 3개 필수
 - clearly_affirms: 최소 5개 (C1~C5+)
 - does_not_claim: 최소 5개 (D1~D5+)
 - common_misreads: 최소 3개 (M1~M3+)
 - key_terms: 최대 6개 (T1~T6)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ⚠️ Placeholder 금지 규칙 (필수) 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+다음과 같은 포괄어/placeholder는 사용 금지:
+- "역사적 배경 주제" → ❌ 금지
+- "정치적 배경" → ❌ 금지 (구체 명사로 대체: "아하스 시대 아람-에브라임 동맹 위기")
+- "장소명" → ❌ 금지 (구체 지명으로 대체: "스불론", "이방의 갈릴리")
+
+★ topic, name 필드는 반드시 구체적인 고유명사/사건명으로 채우세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ⚠️ Guardrails does_not_claim 작성 규칙 (필수) 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+does_not_claim은 '신학 해석/결론'이 아니라 '본문이 말하지 않는 범위'만 기술:
+
+✅ 올바른 예시:
+- "본문은 '평화'를 모든 개인이 즉시 체감하는 심리 상태로 자동 보장한다고 말하지 않는다"
+- "본문은 구체적인 시기/정치 체제/국경선 확정을 제공하지 않는다"
+- "본문은 '전쟁 도구의 불사름'을 모든 전쟁의 종결 시간표로 확정하지 않는다"
+
+❌ 금지된 예시 (신학 해석):
+- "평화는 선택적 반응과 연결된다" ← 이건 해석/신학 결론, STEP1에서 금지
 
 ⚠️ 중요: 반드시 위 JSON 스키마 그대로만 출력하세요. 추가 텍스트 금지.
 ⚠️ 설교 톤, 적용, 권면, 예화는 절대 금지입니다. 객관적 관찰만 하세요.
@@ -879,6 +903,105 @@ def validate_step2_output(step2_result: dict) -> dict:
     self_check = step2_result.get("self_check", [])
     if not self_check:
         warnings.append("self_check가 없음")
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Step1 출력 검증 함수
+# ═══════════════════════════════════════════════════════════════
+
+# Placeholder 금지 키워드
+STEP1_PLACEHOLDER_KEYWORDS = [
+    "역사적 배경 주제", "정치적 배경", "사회/종교적 배경",
+    "장소명", "인물/집단명", "핵심 구절/표현",
+    "본문이 명확히 말하는 것", "본문이 말하지 않는 것",
+    "흔히 하는 잘못된 해석", "구체 명사 필수", "구체 지명"
+]
+
+
+def validate_step1_output(step1_result: dict) -> dict:
+    """
+    Step1 출력물의 품질을 검증합니다.
+
+    검증 항목:
+    - placeholder 키워드 금지
+    - 최소 개수 충족 (anchors 10개, places 3개, does_not_claim 5개)
+    - historical_background topic이 구체적인지
+
+    Returns:
+        {
+            "valid": bool,
+            "errors": ["에러 메시지 목록"],
+            "warnings": ["경고 메시지 목록"]
+        }
+    """
+    if not step1_result or not isinstance(step1_result, dict):
+        return {"valid": False, "errors": ["Step1 결과가 비어있음"], "warnings": []}
+
+    errors = []
+    warnings = []
+
+    # 1. Historical Background 검증
+    hist_bg = step1_result.get("historical_background", [])
+    if len(hist_bg) < 3:
+        errors.append(f"historical_background가 3개 이상 필요 (현재 {len(hist_bg)}개)")
+
+    for h in hist_bg:
+        topic = h.get("topic", "")
+        h_id = h.get("id", "?")
+        # Placeholder 검사
+        for placeholder in STEP1_PLACEHOLDER_KEYWORDS:
+            if placeholder in topic:
+                errors.append(f"{h_id}.topic에 placeholder 포함: '{topic}' (구체 명사로 대체 필요)")
+                break
+
+    # 2. Geography Places 검증
+    geo = step1_result.get("geography_people", {})
+    places = geo.get("places", [])
+    if len(places) < 3:
+        errors.append(f"places가 3개 이상 필요 (현재 {len(places)}개)")
+
+    for p in places:
+        name = p.get("name", "")
+        p_id = p.get("id", "?")
+        for placeholder in STEP1_PLACEHOLDER_KEYWORDS:
+            if placeholder in name:
+                errors.append(f"{p_id}.name에 placeholder 포함: '{name}' (구체 지명으로 대체 필요)")
+                break
+
+    # 3. Anchors 검증
+    anchors = step1_result.get("anchors", [])
+    if len(anchors) < 10:
+        errors.append(f"anchors가 10개 이상 필요 (현재 {len(anchors)}개)")
+
+    # 4. Guardrails 검증
+    guardrails = step1_result.get("guardrails", {})
+    does_not_claim = guardrails.get("does_not_claim", [])
+    if len(does_not_claim) < 5:
+        errors.append(f"does_not_claim이 5개 이상 필요 (현재 {len(does_not_claim)}개)")
+
+    clearly_affirms = guardrails.get("clearly_affirms", [])
+    if len(clearly_affirms) < 5:
+        warnings.append(f"clearly_affirms가 5개 이상 권장 (현재 {len(clearly_affirms)}개)")
+
+    common_misreads = guardrails.get("common_misreads", [])
+    if len(common_misreads) < 3:
+        warnings.append(f"common_misreads가 3개 이상 권장 (현재 {len(common_misreads)}개)")
+
+    # 5. does_not_claim 내용 검증 (신학 해석 금지)
+    theology_keywords = ["선택적 반응", "개인의 결단", "믿음으로만", "은혜와 행위"]
+    for d in does_not_claim:
+        claim = d.get("claim", "")
+        d_id = d.get("id", "?")
+        for kw in theology_keywords:
+            if kw in claim:
+                warnings.append(f"{d_id}: 신학 해석 의심 '{kw}' - 본문 경계만 기술 필요")
+                break
 
     return {
         "valid": len(errors) == 0,
