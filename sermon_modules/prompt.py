@@ -645,325 +645,165 @@ def build_step2_design_prompt():
 '''
 
 
+# ═══════════════════════════════════════════════════════════════
+# Step3 헬퍼 함수들
+# ═══════════════════════════════════════════════════════════════
+
+def _j(obj) -> str:
+    """Pretty JSON for prompt embedding (Korean-safe)."""
+    return json.dumps(obj, ensure_ascii=False, indent=2)
+
+
+def _minimize_step1_for_step3(step1: dict) -> dict:
+    """
+    Step3에서 꼭 필요한 Step1 정보만 추려서 토큰 절약 + 강제 근거 구조 유지.
+    (신규 ID 스키마 기준)
+    """
+    if not step1:
+        return {}
+
+    # 신규 스키마 기준 필드들만 선택
+    keep = {
+        "meta": step1.get("meta", {}),
+        "passage_overview": step1.get("passage_overview", {}),
+        "structure_outline": step1.get("structure_outline", []),
+        "anchors": step1.get("anchors", []),
+        "historical_background": step1.get("historical_background", []),
+        "geography_people": step1.get("geography_people", {}),
+        "context_links": step1.get("context_links", {}),
+        "guardrails": step1.get("guardrails", {}),
+        "step2_transfer": step1.get("step2_transfer", {}),
+        "key_terms": step1.get("key_terms", []),  # 선택(있으면)
+    }
+
+    # anchors가 너무 길면(예: 20개 이상) 핵심만 줄이되, ID는 남기기
+    anchors = keep.get("anchors") or []
+    if len(anchors) > 20:
+        keep["anchors"] = anchors[:20]
+
+    # does_not_claim는 Step3에서 중요하니 최대한 유지(너무 길면 상위 12개)
+    guard = keep.get("guardrails") or {}
+    dnc = guard.get("does_not_claim") or []
+    if len(dnc) > 12:
+        guard["does_not_claim"] = dnc[:12]
+        keep["guardrails"] = guard
+
+    return keep
+
+
 def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_result, style_id: str = None):
     """
-    Step3용 프롬프트 생성 - Step1/2 데이터를 충실히 전달
-
-    Args:
-        json_guide: JSON 지침
-        meta_data: 메타 정보 (duration, worship_type, target, sermon_style 등)
-        step1_result: Step1 분석 결과
-        step2_result: Step2 구조 설계 결과
-        style_id: 설교 스타일 ID (없으면 meta_data에서 추출)
-
-    Returns:
-        Step3용 완성된 프롬프트
+    신규 ID 스키마(anchors/H*/G*/D*) 기반 Step3(원고) 프롬프트 템플릿.
+    - Step2(outline)를 1순위 단일 진실(Single Source of Truth)로 사용
+    - Step1은 anchors/guardrails/background 근거 제공자
+    - 출력 끝에 self_check JSON을 별도 블록으로 강제(파싱 가능)
     """
-    duration = meta_data.get("duration", "")
-    worship_type = meta_data.get("worship_type", "")
-    special_notes = meta_data.get("special_notes", "")
-    target = meta_data.get("target", "")
+    # 메타 기본값
+    reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
+    title = meta_data.get("title") or meta_data.get("sermon_title") or ""
+    target = meta_data.get("target") or meta_data.get("audience") or ""
+    service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
+    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or ""
+    special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
 
-    # 스타일 ID 결정 (파라미터 > meta_data > 기본값)
-    if not style_id:
-        style_id = meta_data.get("sermon_style", "three_points")
-
-    prompt = ""
-
-    # ========================================
-    # 1순위: Step1 핵심 분석 (설교의 기초)
-    # ========================================
-    prompt += "=" * 60 + "\n"
-    prompt += "【 ★★★ 1순위: Step1 본문 분석 (설교의 기초) ★★★ 】\n"
-    prompt += "=" * 60 + "\n\n"
-
-    if step1_result and isinstance(step1_result, dict):
-        # 핵심 메시지 (가장 중요)
-        core_message = step1_result.get("핵심_메시지")
-        if core_message:
-            prompt += "▶ 핵심 메시지 (이 설교의 중심 진리)\n"
-            if isinstance(core_message, str):
-                prompt += f"   {core_message}\n\n"
-            else:
-                prompt += json.dumps(core_message, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 본문 개요
-        overview = step1_result.get("본문_개요")
-        if overview:
-            prompt += "▶ 본문 개요\n"
-            if isinstance(overview, str):
-                prompt += f"   {overview}\n\n"
-            else:
-                prompt += json.dumps(overview, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 구조 분석
-        structure = step1_result.get("구조_분석")
-        if structure:
-            prompt += "▶ 본문 구조 분석\n"
-            if isinstance(structure, str):
-                prompt += f"   {structure}\n\n"
-            else:
-                prompt += json.dumps(structure, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 핵심 단어 분석 (실제 Step1 출력 키)
-        key_terms = step1_result.get("핵심_단어_분석") or step1_result.get("key_terms")
-        if key_terms:
-            prompt += "▶ 핵심 단어/원어 분석\n"
-            if isinstance(key_terms, str):
-                prompt += f"   {key_terms}\n\n"
-            else:
-                prompt += json.dumps(key_terms, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 주요 절 해설
-        verse_notes = step1_result.get("주요_절_해설")
-        if verse_notes:
-            prompt += "▶ 주요 절 해설 (설교에서 반드시 다뤄야 할 구절)\n"
-            if isinstance(verse_notes, str):
-                prompt += f"   {verse_notes}\n\n"
-            else:
-                prompt += json.dumps(verse_notes, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 대지 후보
-        point_candidates = step1_result.get("대지_후보")
-        if point_candidates:
-            prompt += "▶ 대지 후보 (Step2에서 선택된 포인트들의 원천)\n"
-            if isinstance(point_candidates, str):
-                prompt += f"   {point_candidates}\n\n"
-            else:
-                prompt += json.dumps(point_candidates, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 신학적 주제
-        theological = step1_result.get("신학적_주제")
-        if theological:
-            prompt += "▶ 신학적 주제\n"
-            if isinstance(theological, str):
-                prompt += f"   {theological}\n\n"
-            else:
-                prompt += json.dumps(theological, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 보충 성경구절 (cross_references 호환)
-        cross_refs = step1_result.get("보충_성경구절") or step1_result.get("cross_references")
-        if cross_refs:
-            prompt += "▶ 보충 성경구절\n"
-            if isinstance(cross_refs, str):
-                prompt += f"   {cross_refs}\n\n"
-            else:
-                prompt += json.dumps(cross_refs, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-    else:
-        prompt += "⚠️ Step1 분석 결과가 없습니다. 본문을 직접 분석하여 작성하세요.\n\n"
-
-    # ========================================
-    # 2순위: Step2 설교 구조 (뼈대)
-    # ========================================
-    prompt += "=" * 60 + "\n"
-    prompt += "【 ★★★ 2순위: Step2 설교 구조 (반드시 따를 것) ★★★ 】\n"
-    prompt += "=" * 60 + "\n\n"
-
-    if step2_result and isinstance(step2_result, dict):
-        # 설교 제목
-        sermon_title = step2_result.get("설교_제목")
-        if sermon_title:
-            prompt += "▶ 설교 제목\n"
-            if isinstance(sermon_title, str):
-                prompt += f"   {sermon_title}\n\n"
-            else:
-                prompt += json.dumps(sermon_title, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 대지 연결 흐름
-        flow = step2_result.get("대지_연결_흐름")
-        if flow:
-            prompt += "▶ 대지 연결 흐름 (1→2→3대지 논리적 연결)\n"
-            if isinstance(flow, str):
-                prompt += f"   {flow}\n\n"
-            else:
-                prompt += json.dumps(flow, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 서론 방향
-        intro = step2_result.get("서론_방향")
-        if intro:
-            prompt += "▶ 서론 방향\n"
-            if isinstance(intro, str):
-                prompt += f"   {intro}\n\n"
-            else:
-                prompt += json.dumps(intro, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 대지 1, 2, 3
-        for i in range(1, 4):
-            point = step2_result.get(f"대지_{i}")
-            if point:
-                prompt += f"▶ 대지 {i}\n"
-                if isinstance(point, str):
-                    prompt += f"   {point}\n\n"
-                elif isinstance(point, dict):
-                    for key, value in point.items():
-                        prompt += f"   • {key}: {value}\n"
-                    prompt += "\n"
-                else:
-                    prompt += json.dumps(point, ensure_ascii=False, indent=2)
-                    prompt += "\n\n"
-
-        # 결론 방향
-        conclusion = step2_result.get("결론_방향")
-        if conclusion:
-            prompt += "▶ 결론 방향\n"
-            if isinstance(conclusion, str):
-                prompt += f"   {conclusion}\n\n"
-            else:
-                prompt += json.dumps(conclusion, ensure_ascii=False, indent=2)
-                prompt += "\n\n"
-
-        # 기존 호환: writing_spec, sermon_outline, detailed_points
-        writing_spec = step2_result.get("writing_spec", {})
-        if writing_spec:
-            prompt += "▶ 작성 규격\n"
-            for key, value in writing_spec.items():
-                prompt += f"  - {key}: {value}\n"
-            prompt += "\n"
-
-        sermon_outline = step2_result.get("sermon_outline")
-        if sermon_outline:
-            prompt += "▶ 설교 구조 (outline)\n"
-            prompt += json.dumps(sermon_outline, ensure_ascii=False, indent=2)
-            prompt += "\n\n"
-
-        detailed_points = step2_result.get("detailed_points")
-        if detailed_points:
-            prompt += "▶ 상세 구조\n"
-            prompt += json.dumps(detailed_points, ensure_ascii=False, indent=2)
-            prompt += "\n\n"
-    else:
-        prompt += "⚠️ Step2 구조 결과가 없습니다. 3대지 구조를 직접 설계하여 작성하세요.\n\n"
-
-    # ========================================
-    # 3순위: 설정 정보 (분량, 대상, 예배유형)
-    # ========================================
-    prompt += "=" * 60 + "\n"
-    prompt += "【 3순위: 설정 정보 】\n"
-    prompt += "=" * 60 + "\n"
-
-    # 기본 정보
-    key_labels = {
-        "scripture": "성경 본문", "title": "설교 제목", "target": "대상",
-        "worship_type": "예배·집회 유형", "duration": "분량",
-        "sermon_style": "설교 스타일", "category": "카테고리"
-    }
-    prompt += "\n▶ 기본 정보\n"
-    for key, value in meta_data.items():
-        if value and key != "special_notes":
-            label = key_labels.get(key, key)
-            prompt += f"  - {label}: {value}\n"
-    prompt += "\n"
-
-    if special_notes:
-        prompt += f"▶ 특별 참고 사항\n   {special_notes}\n\n"
-
-    # ========================================
-    # 스타일별 작성 지침 (있는 경우)
-    # ========================================
+    # 스타일 가이드 텍스트 (json_guide에서 추출)
+    style_guide_text = ""
     if json_guide and isinstance(json_guide, dict):
-        prompt += "=" * 60 + "\n"
-        prompt += "【 스타일별 작성 지침 】\n"
-        prompt += "=" * 60 + "\n\n"
+        style_guide_text = (
+            json_guide.get("step3_style_guide", "")
+            or json_guide.get("style_guide", "")
+            or ""
+        )
 
-        priority_order = json_guide.get("priority_order", {})
-        if priority_order:
-            prompt += "▶ 우선순위\n"
-            for key, value in priority_order.items():
-                prompt += f"  {key}: {value}\n"
-            prompt += "\n"
+    # Step1 최소화 (근거용 - 토큰 절약)
+    step1_min = _minimize_step1_for_step3(step1_result or {})
 
-        use_from_step1 = json_guide.get("use_from_step1", {})
-        if use_from_step1:
-            prompt += "▶ Step1 자료 활용법\n"
-            for field, config in use_from_step1.items():
-                if isinstance(config, dict):
-                    instruction = config.get("instruction", "")
-                    prompt += f"  • {field}: {instruction}\n"
-                else:
-                    prompt += f"  • {field}: {config}\n"
-            prompt += "\n"
+    # Step2는 설계서이므로 가급적 전체 전달
+    step2_outline = step2_result or {}
 
-        use_from_step2 = json_guide.get("use_from_step2", {})
-        if use_from_step2:
-            prompt += "▶ Step2 구조 활용법\n"
-            for field, config in use_from_step2.items():
-                if isinstance(config, dict):
-                    instruction = config.get("instruction", "")
-                    prompt += f"  • {field}: {instruction}\n"
-                else:
-                    prompt += f"  • {field}: {config}\n"
-            prompt += "\n"
+    # Step3 프롬프트 템플릿
+    user_prompt = f"""\
+당신은 설교 STEP3(원고 작성) 담당자입니다.
+아래 입력(JSON)을 근거로 설교 원고를 작성하세요.
 
-        writing_rules = json_guide.get("writing_rules", {})
-        if writing_rules:
-            prompt += "▶ 작성 규칙\n"
-            for rule_name, rule_config in writing_rules.items():
-                if isinstance(rule_config, dict):
-                    label = rule_config.get("label", rule_name)
-                    rules = rule_config.get("rules", [])
-                    prompt += f"  [{label}]\n"
-                    for rule in rules:
-                        prompt += f"    - {rule}\n"
-            prompt += "\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[작성 설정]
+- 본문: {reference}
+- 설교 제목(사용자/Step2 우선): {title}
+- 예배/집회 유형: {service_type}
+- 대상: {target}
+- 목표 분량(분): {duration_min}
+- 특별 참고: {special_notes}
 
-    # ========================================
-    # 스타일별 작성 가이드 (신규)
-    # ========================================
-    prompt += "=" * 60 + "\n"
-    prompt += f"【 ★★★ 설교 스타일별 작성 가이드 ({style_id}) ★★★ 】\n"
-    prompt += "=" * 60 + "\n\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[우선순위(중요)]
+1) STEP2(outline JSON) = 단일 진실(Single Source of Truth)
+   - 대지/소대지 구조, passage_anchors(anchor_id), supporting_verses(정확히 2개), 배경 참조(background_support)를 그대로 따른다.
+2) STEP1(research JSON) = 근거 데이터
+   - anchors(A*), guardrails(D* 포함), 역사/지리(H*/G*)는 "근거"로만 사용한다.
+3) 위 둘과 충돌하는 내용은 작성 금지.
 
-    # 스타일별 작성 가이드 추가
-    style_writing_guide = get_step3_prompt_for_style(style_id, step2_result, duration or "20분")
-    prompt += style_writing_guide
-    prompt += "\n\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[절대 규칙]
+- 각 소대지는 STEP2에 지정된 passage_anchors(anchor_id) 2개 이상을 반드시 '내용 근거'로 반영한다.
+- 각 소대지는 STEP2에 지정된 supporting_verses 2개를 그대로 인용한다(추가/변경 금지).
+- STEP1 guardrails.does_not_claim(D*)에 해당하는 주장/해석은 금지한다(위반 시 스스로 수정).
+- 시사 뉴스/통계/부동산/정치 등 변동·논쟁 정보는 사용하지 않는다(사용자가 명시했을 때만 예외).
+- 설교문은 한국어로만 작성한다.
 
-    # 스타일별 예화 가이드 추가
-    style_illustration_guide = get_style_illustration_guide(style_id)
-    prompt += style_illustration_guide
-    prompt += "\n\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[가독성 필수 지침]
+- 한 문장은 최대 2줄
+- 핵심은 짧게 끊어 쓰기
+- 단락 사이 줄바꿈
+- 성경 인용 형식(필수): 아래처럼 '본문 표기 줄' 다음에 '구절 내용'을 쓴다.
 
-    # ========================================
-    # 최종 체크리스트 (스타일별 + 공통)
-    # ========================================
-    prompt += "=" * 60 + "\n"
-    prompt += "【 ★★★ 최종 체크리스트 ★★★ 】\n"
-    prompt += "=" * 60 + "\n\n"
+(줄바꿈)
+요3:16
+하나님이 세상을 이처럼 사랑하사...
+(줄바꿈)
 
-    # 스타일별 체크리스트
-    prompt += "▶ 스타일별 필수 체크:\n"
-    style_checklist = get_style_checklist(style_id)
-    for item in style_checklist:
-        prompt += f"  □ {item}\n"
-    prompt += "\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[원고 출력 구조(필수)]
+1) 제목
+2) 서론
+3) 1대지
+   - 1-1, 1-2 (각 소대지: 근거→인용→짧은 적용→연결문장)
+4) 2대지
+   - 2-1, 2-2
+5) 3대지(클라이맥스)
+   - 3-1, 3-2
+6) 결론
+   - 요약 3문장(대지별 1문장)
+   - 결단 질문 2개
+   - 기도 제목 2개
+   - 축복 문장 1개
 
-    # 공통 체크리스트
-    prompt += "▶ 공통 필수 체크:\n"
-    prompt += "  □ Step1의 '핵심_메시지'가 설교 전체에 일관되게 흐르는가?\n"
-    prompt += "  □ Step1의 '주요_절_해설'과 '핵심_단어_분석'을 적절히 활용했는가?\n"
-    if duration:
-        prompt += f"  □ 분량이 {duration}에 맞는가?\n"
-    if target:
-        prompt += f"  □ 대상({target})에 맞는 어조와 예시를 사용했는가?\n"
-    if worship_type:
-        prompt += f"  □ 예배 유형({worship_type})에 맞는 톤인가?\n"
-    prompt += "  □ 마크다운 없이 순수 텍스트로 작성했는가?\n"
-    prompt += "  □ 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n"
-    prompt += "  □ 성경 구절이 가독성 가이드에 맞게 줄바꿈 처리되었는가?\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[스타일 가이드(있으면 표현에만 적용)]
+{style_guide_text}
 
-    prompt += "\n⚠️ 중요: Step1과 Step2의 분석 결과를 충실히 반영하여, "
-    prompt += "일관성 있고 깊이 있는 설교문을 작성하세요.\n"
-    prompt += "⚠️ 특히 가독성 가이드를 반드시 따르세요 (성경 구절 줄바꿈, 짧은 문장).\n"
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[입력 데이터: STEP2(outline)]
+{_j(step2_outline)}
 
-    return prompt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[입력 데이터: STEP1(research, minimized)]
+{_j(step1_min)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[출력 끝에 self_check JSON을 반드시 추가]
+원고 맨 끝에 아래 구분자를 붙이고, 그 아래에 JSON만 출력하세요.
+
+===SELF_CHECK_JSON===
+{{
+  "anchors_used": true,
+  "supporting_verses_exactly_two_each_subpoint": true,
+  "does_not_claim_violations": [],
+  "no_current_affairs_used": true,
+  "duration_respected": true,
+  "readability_rules_followed": true
+}}
+"""
+
+    return user_prompt
