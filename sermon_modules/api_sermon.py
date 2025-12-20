@@ -410,20 +410,26 @@ def process_step():
                 is_json = False
 
         if not is_json:
-            system_content = get_system_prompt_for_step(step_name)
+            # Step1인 경우: 본문 연구 전용 프롬프트 사용
+            if step_type == "step1":
+                from .prompt import build_step1_research_prompt
+                system_content = build_step1_research_prompt()
+                print(f"[PROCESS] Step1 연구 모드 프롬프트 적용")
+            else:
+                system_content = get_system_prompt_for_step(step_name)
 
-            if master_guide:
-                system_content += f"\n\n【 카테고리 총괄 지침 】\n{master_guide}\n\n"
-                system_content += f"【 현재 단계 역할 】\n{step_name}\n\n"
-                system_content += "위 총괄 지침을 참고하여, 현재 단계의 역할과 비중에 맞게 '자료만' 작성하세요."
+                if master_guide:
+                    system_content += f"\n\n【 카테고리 총괄 지침 】\n{master_guide}\n\n"
+                    system_content += f"【 현재 단계 역할 】\n{step_name}\n\n"
+                    system_content += "위 총괄 지침을 참고하여, 현재 단계의 역할과 비중에 맞게 '자료만' 작성하세요."
 
-            if guide:
-                system_content += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                system_content += f"【 최우선 지침: {step_name} 단계 세부 지침 】\n"
-                system_content += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                system_content += guide
-                system_content += f"\n\n위 지침을 절대적으로 우선하여 따라야 합니다."
-                system_content += f"\n이 지침이 기본 역할과 충돌하면, 이 지침을 따르세요."
+                if guide:
+                    system_content += f"\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    system_content += f"【 최우선 지침: {step_name} 단계 세부 지침 】\n"
+                    system_content += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    system_content += guide
+                    system_content += f"\n\n위 지침을 절대적으로 우선하여 따라야 합니다."
+                    system_content += f"\n이 지침이 기본 역할과 충돌하면, 이 지침을 따르세요."
 
         # 사용자 메시지 구성
         user_content = f"[성경구절]\n{reference}\n\n"
@@ -442,8 +448,14 @@ def process_step():
                 strongs_analysis = analyze_verse_strongs(reference, top_n=5)
                 strongs_text = format_strongs_for_prompt(strongs_analysis)
                 if strongs_text:
-                    user_content += f"\n{strongs_text}\n"
-                    print(f"[PROCESS] Step1 원어 분석 추가: {len(strongs_analysis.get('key_words', []))}개 단어")
+                    # Strong's 우선순위 강제 문구 추가
+                    user_content += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    user_content += "【 ⚠️ Strong's 원어 자료 (보조 참고용) 】\n"
+                    user_content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    user_content += "※ 주의: Strong's는 참고로만 사용하며, 본문 구조/문맥/역사 배경 설명을 먼저 완료하라.\n"
+                    user_content += "※ 원어 분석은 최대 5개 단어만 선택하고, 설교 적용은 쓰지 말라(관찰만).\n\n"
+                    user_content += f"{strongs_text}\n"
+                    print(f"[PROCESS] Step1 원어 분석 추가 (우선순위 강제): {len(strongs_analysis.get('key_words', []))}개 단어")
 
                 # 2. 주석 참고 자료 (GPT 기반 생성)
                 # 비용 절감을 위해 기본적으로 비활성화, 필요시 활성화
@@ -536,6 +548,40 @@ def process_step():
             result = remove_markdown(result)
             return jsonify({"ok": True, "result": result, "usage": usage_data})
 
+        # Step1/Step2 추가 정보 수집 (Step4에서 사용)
+        extra_info = {}
+
+        # Step1인 경우: Strong's 원어 분석 정보 추가
+        if step_type == "step1" and reference:
+            try:
+                strongs_analysis = analyze_verse_strongs(reference, top_n=5)
+                if strongs_analysis and not strongs_analysis.get('error'):
+                    extra_info['strongs_analysis'] = {
+                        'reference': strongs_analysis.get('reference', ''),
+                        'text': strongs_analysis.get('text', ''),
+                        'key_words': strongs_analysis.get('key_words', [])
+                    }
+                    print(f"[PROCESS] Step1 extra_info: Strong's {len(strongs_analysis.get('key_words', []))}개 단어")
+            except Exception as e:
+                print(f"[PROCESS] Strong's 추가 정보 수집 실패 (무시): {e}")
+
+        # Step2인 경우: 시대 컨텍스트 정보 추가
+        if step_type == "step2" or (step_id and "step2" in step_id.lower()):
+            try:
+                audience_type = data.get("audienceType", "전체")
+                context_result = get_current_context(audience_type=audience_type)
+                if context_result:
+                    extra_info['context_data'] = {
+                        'audience': context_result.get('audience', '전체'),
+                        'news': context_result.get('news', {}),
+                        'indicators': context_result.get('indicators', {}),
+                        'concerns': context_result.get('concerns', [])
+                    }
+                    news_count = sum(len(v) for v in context_result.get("news", {}).values())
+                    print(f"[PROCESS] Step2 extra_info: 시대 컨텍스트 {news_count}개 뉴스")
+            except Exception as e:
+                print(f"[PROCESS] 시대 컨텍스트 추가 정보 수집 실패 (무시): {e}")
+
         # JSON 파싱 시도 (선택적)
         try:
             cleaned_result = result
@@ -565,7 +611,10 @@ def process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": formatted_result, "usage": usage_data})
+            response = {"ok": True, "result": formatted_result, "usage": usage_data}
+            if extra_info:
+                response["extraInfo"] = extra_info
+            return jsonify(response)
 
         except json.JSONDecodeError:
             print(f"[PROCESS][INFO] 텍스트 형식으로 응답받음 (JSON 아님)")
@@ -583,7 +632,10 @@ def process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": result, "usage": usage_data})
+            response = {"ok": True, "result": result, "usage": usage_data}
+            if extra_info:
+                response["extraInfo"] = extra_info
+            return jsonify(response)
 
     except Exception as e:
         print(f"[PROCESS][ERROR] {str(e)}")
@@ -803,6 +855,10 @@ def gpt_pro():
         writing_style = data.get("writingStyle")
         scripture_citation = data.get("scriptureCitation")
 
+        # Step1/Step2 추가 정보 (Strong's 원어 분석, 시대 컨텍스트)
+        step1_extra_info = data.get("step1ExtraInfo")
+        step2_extra_info = data.get("step2ExtraInfo")
+
         # JSON 모드 여부 확인
         is_json_mode = (isinstance(step1_result, dict) and len(step1_result) > 0) or \
                        (isinstance(step2_result, dict) and len(step2_result) > 0)
@@ -810,6 +866,7 @@ def gpt_pro():
         print(f"[GPT-PRO/Step3] JSON 모드: {is_json_mode}, step1_result 타입: {type(step1_result)}, step2_result 타입: {type(step2_result)}")
         print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
         print(f"[GPT-PRO/Step3] writing_style: {'있음' if writing_style else '없음'}, scripture_citation: {'있음' if scripture_citation else '없음'}")
+        print(f"[GPT-PRO/Step3] step1_extra_info: {'있음' if step1_extra_info else '없음'}, step2_extra_info: {'있음' if step2_extra_info else '없음'}")
 
         has_title = bool(title and title.strip())
 
@@ -987,6 +1044,55 @@ def gpt_pro():
                     "6. 마크다운, 불릿 기호 대신 순수 텍스트 단락을 사용하세요.\n"
                     "7. 충분히 길고 상세하며 풍성한 내용으로 작성해주세요."
                 )
+
+        # Step1/Step2 추가 정보를 프롬프트에 포함
+        if step1_extra_info or step2_extra_info:
+            user_content += "\n\n" + "=" * 50
+            user_content += "\n【 ★★★ 추가 분석 자료 (설교에 활용하세요) ★★★ 】"
+            user_content += "\n" + "=" * 50
+
+            # Strong's 원어 분석
+            if step1_extra_info and step1_extra_info.get('strongs_analysis'):
+                strongs = step1_extra_info['strongs_analysis']
+                key_words = strongs.get('key_words', [])
+                if key_words:
+                    user_content += "\n\n▶ Strong's 원어 분석 (핵심 단어)"
+                    if strongs.get('text'):
+                        user_content += f"\n   영문 (KJV): {strongs['text']}"
+                    for i, word in enumerate(key_words[:5], 1):
+                        lemma = word.get('lemma', '')
+                        translit = word.get('translit', '')
+                        strongs_num = word.get('strongs', '')
+                        definition = word.get('definition', '')[:150]
+                        user_content += f"\n   {i}. {lemma} ({translit}, {strongs_num})"
+                        if word.get('english'):
+                            user_content += f" - {word['english']}"
+                        if definition:
+                            user_content += f"\n      → {definition}"
+
+            # 시대 컨텍스트
+            if step2_extra_info and step2_extra_info.get('context_data'):
+                context = step2_extra_info['context_data']
+                user_content += "\n\n▶ 현재 시대 컨텍스트 (도입부/예화/적용에 활용)"
+                user_content += f"\n   청중 유형: {context.get('audience', '전체')}"
+
+                # 주요 뉴스
+                news = context.get('news', {})
+                if news:
+                    cat_names = {'economy': '경제', 'politics': '정치', 'society': '사회', 'world': '국제', 'culture': '문화'}
+                    user_content += "\n   주요 시사 이슈:"
+                    for cat, items in news.items():
+                        if items:
+                            for item in items[:1]:  # 카테고리당 1개만
+                                title_text = item.get('title', '')[:50]
+                                user_content += f"\n   - [{cat_names.get(cat, cat)}] {title_text}"
+
+                # 청중 관심사
+                concerns = context.get('concerns', [])
+                if concerns:
+                    user_content += f"\n   청중의 주요 관심사: {', '.join(concerns[:3])}"
+
+            user_content += "\n" + "=" * 50
 
         if duration:
             user_content += f"\n\n⚠️ 매우 중요 - 분량 제한: {duration} 분량 안에서 충분히 상세하고 풍성한 내용으로 작성하세요!"
