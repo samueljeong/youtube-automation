@@ -140,7 +140,7 @@ def generate_topic_opus_input(
         materials_pack,   # materials_pack (참고용)
         opus_prompt_pack, # opus_prompt_pack ★ 이것만 복붙
         thumbnail_copy,   # thumbnail_copy
-        "PENDING",        # status
+        "준비",           # status (수집 완료 → 준비, 사용자가 "대기"로 변경 시 파이프라인 시작)
         created_at,       # created_at
     ]]
 

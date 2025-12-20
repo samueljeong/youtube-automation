@@ -55,16 +55,18 @@ MYSTERY_SHEET_HEADERS = [
 ]
 
 # 통합 시트에 저장할 때 사용할 필드 순서
+# ★ opus_row의 각 열과 정확히 일치해야 함
 MYSTERY_OPUS_FIELDS = [
-    "episode",          # 에피소드 번호
-    "category",         # 카테고리
-    "title_en",         # 영문 제목
-    "title_ko",         # 한글 제목
-    "wiki_url",         # 위키백과 URL
-    "summary",          # 사건 요약
-    "full_content",     # 전체 내용
-    "opus_prompt",      # Opus 프롬프트
-    "thumbnail_copy",   # 썸네일 문구
+    "episode",          # [0] 에피소드 번호
+    "category",         # [1] 카테고리
+    "title_en",         # [2] 영문 제목
+    "title_ko",         # [3] 한글 제목
+    "wiki_url",         # [4] 위키백과 URL
+    "summary",          # [5] 사건 요약
+    "full_content",     # [6] 전체 내용
+    "opus_prompt",      # [7] Opus 프롬프트
+    "thumbnail_copy",   # [8] 썸네일 문구
+    "상태",             # [9] "준비" → 상태 열에 저장
 ]
 
 

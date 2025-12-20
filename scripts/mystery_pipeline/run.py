@@ -150,13 +150,13 @@ def count_pending(service, sheet_id: str) -> int:
         ).execute()
 
         values = result.get("values", [])
-        pending_count = sum(1 for row in values if row and row[0] == "PENDING")
+        pending_count = sum(1 for row in values if row and row[0] == "준비")
 
-        print(f"[MYSTERY] 현재 PENDING: {pending_count}개")
+        print(f"[MYSTERY] 현재 준비: {pending_count}개")
         return pending_count
 
     except Exception as e:
-        print(f"[MYSTERY] PENDING 개수 조회 오류: {e}")
+        print(f"[MYSTERY] 준비 개수 조회 오류: {e}")
         return 0
 
 
@@ -336,15 +336,16 @@ def append_mystery_row(
 
         # 통합 시트용 행 데이터 (MYSTERY_OPUS_FIELDS 순서와 일치)
         opus_row = [
-            str(episode),                              # episode
-            mystery_data.get("category", ""),          # category
-            mystery_data.get("title_en", ""),          # title_en
-            mystery_data.get("title_ko", ""),          # title_ko
-            mystery_data.get("url", ""),               # wiki_url
-            mystery_data.get("summary", ""),           # summary (서론만)
-            "",                                        # full_content (Opus가 직접 수집)
-            opus_prompt[:30000],                       # opus_prompt (시트 셀 한계)
-            thumbnail_copy,                            # thumbnail_copy
+            str(episode),                              # [0] episode
+            mystery_data.get("category", ""),          # [1] category
+            mystery_data.get("title_en", ""),          # [2] title_en
+            mystery_data.get("title_ko", ""),          # [3] title_ko
+            mystery_data.get("url", ""),               # [4] wiki_url
+            mystery_data.get("summary", ""),           # [5] summary (서론만)
+            "",                                        # [6] full_content (Opus가 직접 수집)
+            opus_prompt[:30000],                       # [7] opus_prompt (시트 셀 한계)
+            thumbnail_copy,                            # [8] thumbnail_copy
+            "준비",                                    # [9] status
         ]
 
         # 통합 시트에 저장
@@ -410,11 +411,11 @@ def run_mystery_pipeline(
         available = list_available_mysteries(used_titles)
         result["available_count"] = len(available)
 
-        print(f"[MYSTERY] 현재 PENDING: {pending_count}개, 사용 가능: {len(available)}개")
+        print(f"[MYSTERY] 현재 준비: {pending_count}개, 사용 가능: {len(available)}개")
 
-        # 2) PENDING 충분하면 종료 (force가 아닌 경우)
+        # 2) 준비 충분하면 종료 (force가 아닌 경우)
         if not force and pending_count >= PENDING_TARGET_COUNT:
-            print(f"[MYSTERY] PENDING {PENDING_TARGET_COUNT}개 이상, 추가 불필요")
+            print(f"[MYSTERY] 준비 {PENDING_TARGET_COUNT}개 이상, 추가 불필요")
             result["success"] = True
             result["pending_after"] = pending_count
             return result
@@ -464,7 +465,7 @@ def run_mystery_pipeline(
 
         print(f"[MYSTERY] ========================================")
         print(f"[MYSTERY] 완료: {result['episodes_added']}개 추가")
-        print(f"[MYSTERY] PENDING: {result['pending_before']} → {result['pending_after']}")
+        print(f"[MYSTERY] 준비: {result['pending_before']} → {result['pending_after']}")
         print(f"[MYSTERY] ========================================")
 
     except Exception as e:

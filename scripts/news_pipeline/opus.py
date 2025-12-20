@@ -127,7 +127,7 @@ def generate_opus_input(
             brief,
             thumb,            # thumbnail_copy
             opus_prompt_pack, # ★ Opus에 붙여넣을 완제품 (썸네일 제외)
-            "PENDING",        # status
+            "준비",           # status
             created_at,       # created_at
             "",               # selected (사용자가 체크)
         ])
