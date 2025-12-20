@@ -33,17 +33,20 @@ from .utils import (
 
 
 # 통합 시트(HISTORY)에 저장할 때 사용할 필드 순서
+# ★ opus_row 출력 순서와 정확히 일치해야 함
 HISTORY_OPUS_FIELDS = [
-    "era",              # 시대
-    "episode_slot",     # 슬롯 번호 (era_episode)
-    "structure_role",   # 구조적 역할 (없으면 빈값)
-    "core_question",    # 핵심 질문 (topic)
-    "facts",            # 사실 (없으면 빈값)
-    "human_choices",    # 인간의 선택 (없으면 빈값)
-    "impact_candidates",# 영향 후보 (없으면 빈값)
-    "source_url",       # 출처 URL
-    "opus_prompt_pack", # Opus 프롬프트
-    "thumbnail_copy",   # 썸네일 문구
+    "_skip_episode",        # [0] episode - 시트에 없는 열 (스킵)
+    "era",                  # [1] era
+    "episode_slot",         # [2] era_episode
+    "_skip_total",          # [3] total_episodes (스킵)
+    "_skip_era_name",       # [4] era_name (스킵)
+    "core_question",        # [5] episode_title → core_question 열에 저장
+    "source_url",           # [6] source_url
+    "_skip_materials",      # [7] materials_pack (스킵)
+    "opus_prompt_pack",     # [8] opus_prompt_pack
+    "thumbnail_copy",       # [9] thumbnail_copy
+    "상태",                 # [10] "PENDING" → 상태 열에 저장
+    "_skip_created",        # [11] created_at (스킵)
 ]
 
 

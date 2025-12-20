@@ -13,20 +13,19 @@ from .utils import get_weekday_angle
 
 
 # 통합 시트에 저장할 때 사용할 필드 순서
-# opus_rows의 각 열이 어떤 필드인지 정의
+# ★ opus_rows의 각 열과 정확히 일치해야 함
 NEWS_OPUS_FIELDS = [
-    "run_id",
-    "selected_rank",
-    "category",
-    "issue_one_line",
-    "core_points",
-    "brief",
-    "thumbnail_copy",
-    "opus_prompt_pack",
-    # 아래는 통합 시트에서 무시됨 (영상 자동화용 열에 해당하지 않음)
-    # "status",  # PENDING → 빈값
-    # "created_at",
-    # "selected",
+    "run_id",           # [0] run_id
+    "selected_rank",    # [1] rank
+    "category",         # [2] category
+    "issue_one_line",   # [3] title[:50]
+    "core_points",      # [4] core_points
+    "brief",            # [5] brief
+    "thumbnail_copy",   # [6] thumb
+    "opus_prompt_pack", # [7] opus_prompt_pack
+    "상태",             # [8] "PENDING" → 상태 열에 저장
+    "_skip_created",    # [9] created_at (스킵)
+    "_skip_selected",   # [10] selected (스킵)
 ]
 
 
