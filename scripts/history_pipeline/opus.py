@@ -32,6 +32,21 @@ from .utils import (
 )
 
 
+# 통합 시트(HISTORY)에 저장할 때 사용할 필드 순서
+HISTORY_OPUS_FIELDS = [
+    "era",              # 시대
+    "episode_slot",     # 슬롯 번호 (era_episode)
+    "structure_role",   # 구조적 역할 (없으면 빈값)
+    "core_question",    # 핵심 질문 (topic)
+    "facts",            # 사실 (없으면 빈값)
+    "human_choices",    # 인간의 선택 (없으면 빈값)
+    "impact_candidates",# 영향 후보 (없으면 빈값)
+    "source_url",       # 출처 URL
+    "opus_prompt_pack", # Opus 프롬프트
+    "thumbnail_copy",   # 썸네일 문구
+]
+
+
 def generate_topic_opus_input(
     episode: int,
     era: str,

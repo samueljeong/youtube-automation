@@ -20,8 +20,14 @@ from .config import CHANNELS
 from .utils import get_tab_name
 from .rss import ingest_rss_feeds
 from .scoring import score_and_select_candidates
-from .opus import generate_opus_input
-from .sheets import append_rows, SheetsSaveError, cleanup_old_rows
+from .opus import generate_opus_input, NEWS_OPUS_FIELDS
+from .sheets import (
+    append_rows,
+    SheetsSaveError,
+    cleanup_old_rows,
+    get_unified_sheet_name,
+    append_to_unified_sheet,
+)
 
 
 def run_news_pipeline(
@@ -118,21 +124,28 @@ def run_news_pipeline(
                 print(f"[NEWS] {candidates_tab} 저장 실패: {e}")
                 return result
 
-        # 3) OPUS 입력 생성 (TOP N 후보)
+        # 3) OPUS 입력 생성 (TOP N 후보) → 통합 시트(NEWS)에 저장
         print(f"[NEWS] === 3단계: OPUS 입력 생성 ({channel}, TOP {opus_top_n}) ===")
         opus_rows = generate_opus_input(candidate_rows, channel, llm_enabled, llm_min_score, opus_top_n)
 
         if opus_rows:
             result["opus_generated"] = True
-            opus_tab = get_tab_name("OPUS_INPUT", channel)
+            # 통합 시트 이름 (ECON → NEWS)
+            unified_sheet = get_unified_sheet_name(channel)
             if service and sheet_id:
                 try:
-                    append_rows(service, sheet_id, f"{opus_tab}!A1", opus_rows)
-                    result["sheets_saved"].append(opus_tab)
-                    print(f"[NEWS] {opus_tab}에 저장 완료")
+                    append_to_unified_sheet(
+                        service,
+                        sheet_id,
+                        unified_sheet,
+                        opus_rows,
+                        NEWS_OPUS_FIELDS
+                    )
+                    result["sheets_saved"].append(unified_sheet)
+                    print(f"[NEWS] 통합 시트 '{unified_sheet}'에 저장 완료")
                 except SheetsSaveError as e:
-                    result["error"] = f"{opus_tab} 저장 실패: {e}"
-                    print(f"[NEWS] {opus_tab} 저장 실패: {e}")
+                    result["error"] = f"{unified_sheet} 저장 실패: {e}"
+                    print(f"[NEWS] {unified_sheet} 저장 실패: {e}")
                     return result
 
         result["success"] = True

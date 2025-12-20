@@ -5,6 +5,9 @@ Google Sheets 헬퍼 함수 (주제 기반 구조)
 - HISTORY_OPUS_INPUT 시트 하나만 사용
 - 시대별 RAW/CANDIDATES 시트 제거
 - HISTORY_TOPICS 기반 주제 순서 관리
+
+2024-12-20 업데이트:
+- 통합 시트(HISTORY) 지원 추가
 """
 
 import time
@@ -19,6 +22,10 @@ from .config import (
     ERAS,
     HISTORY_TOPICS,
 )
+
+
+# 통합 시트 이름
+UNIFIED_HISTORY_SHEET = "HISTORY"
 
 
 class SheetsSaveError(Exception):
@@ -205,6 +212,68 @@ def append_rows(
                 raise SheetsSaveError(f"시트 저장 실패 ({range_a1}): {e}")
 
     raise SheetsSaveError(f"시트 저장 실패 ({range_a1}): {last_error}")
+
+
+def append_to_unified_sheet(
+    service,
+    spreadsheet_id: str,
+    opus_row: List[Any],
+    field_names: List[str]
+) -> bool:
+    """
+    통합 시트(HISTORY)에 데이터 추가 (헤더 매핑 적용)
+
+    통합 시트 구조:
+    - 행 1: 채널ID | UCxxx
+    - 행 2: 헤더
+    - 행 3~: 데이터
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        spreadsheet_id: 스프레드시트 ID
+        opus_row: 추가할 데이터 행 (단일 행)
+        field_names: opus_row의 각 열에 해당하는 필드 이름
+
+    Returns:
+        성공 여부
+    """
+    try:
+        # 1) 시트 헤더(행 2) 읽기
+        result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{UNIFIED_HISTORY_SHEET}'!A2:Z2"
+        ).execute()
+        header_rows = result.get('values', [])
+
+        if not header_rows:
+            raise SheetsSaveError(f"시트 '{UNIFIED_HISTORY_SHEET}'의 헤더가 없습니다")
+
+        headers = header_rows[0]
+        header_idx = {h: i for i, h in enumerate(headers)}
+
+        # 2) 데이터를 헤더에 맞게 변환
+        new_row = [''] * len(headers)
+        for i, field in enumerate(field_names):
+            if i < len(opus_row) and field in header_idx:
+                new_row[header_idx[field]] = opus_row[i]
+
+        # 3) 행 3부터 append
+        body = {"values": [new_row]}
+        result = service.spreadsheets().values().append(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{UNIFIED_HISTORY_SHEET}'!A3",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body=body
+        ).execute()
+
+        updated_rows = result.get("updates", {}).get("updatedRows", 0)
+        print(f"[HISTORY] 통합 시트 '{UNIFIED_HISTORY_SHEET}'에 {updated_rows}개 행 추가 완료")
+        return True
+
+    except Exception as e:
+        print(f"[HISTORY] 통합 시트 '{UNIFIED_HISTORY_SHEET}' 저장 실패: {e}")
+        raise SheetsSaveError(f"통합 시트 저장 실패 ({UNIFIED_HISTORY_SHEET}): {e}")
 
 
 def get_total_episode_count() -> int:

@@ -12,6 +12,24 @@ from .config import CHANNELS
 from .utils import get_weekday_angle
 
 
+# 통합 시트에 저장할 때 사용할 필드 순서
+# opus_rows의 각 열이 어떤 필드인지 정의
+NEWS_OPUS_FIELDS = [
+    "run_id",
+    "selected_rank",
+    "category",
+    "issue_one_line",
+    "core_points",
+    "brief",
+    "thumbnail_copy",
+    "opus_prompt_pack",
+    # 아래는 통합 시트에서 무시됨 (영상 자동화용 열에 해당하지 않음)
+    # "status",  # PENDING → 빈값
+    # "created_at",
+    # "selected",
+]
+
+
 # ============================================================
 # 대본 분량 설정 (2024-12 개편: 10-15분)
 # ============================================================

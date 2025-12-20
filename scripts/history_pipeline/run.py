@@ -34,13 +34,15 @@ from .config import (
 from .sheets import (
     ensure_history_opus_input_sheet,
     append_rows,
+    append_to_unified_sheet,
     get_series_progress,
     get_next_episode_info,
     count_pending_episodes,
     SheetsSaveError,
+    UNIFIED_HISTORY_SHEET,
 )
 from .collector import collect_topic_materials
-from .opus import generate_topic_opus_input
+from .opus import generate_topic_opus_input, HISTORY_OPUS_FIELDS
 
 
 def run_history_pipeline(
@@ -157,13 +159,20 @@ def run_history_pipeline(
             )
 
             if opus_rows:
-                # 시트에 저장
+                # 통합 시트(HISTORY)에 저장
                 if service and sheet_id:
                     try:
-                        append_rows(service, sheet_id, f"{HISTORY_OPUS_INPUT_SHEET}!A1", opus_rows)
-                        print(f"[HISTORY] 에피소드 {next_episode} 저장 완료")
+                        # opus_rows는 [[...]] 형태이므로 첫 번째 행 추출
+                        opus_row = opus_rows[0]
+                        append_to_unified_sheet(
+                            service,
+                            sheet_id,
+                            opus_row,
+                            HISTORY_OPUS_FIELDS
+                        )
+                        print(f"[HISTORY] 에피소드 {next_episode} → '{UNIFIED_HISTORY_SHEET}' 시트 저장 완료")
                     except SheetsSaveError as e:
-                        print(f"[HISTORY] OPUS_INPUT 저장 실패: {e}")
+                        print(f"[HISTORY] 통합 시트 저장 실패: {e}")
                         result["details"].append({
                             "episode": next_episode,
                             "era": era,
@@ -284,8 +293,15 @@ def run_single_episode(
         )
 
         if opus_rows and service and sheet_id:
-            ensure_history_opus_input_sheet(service, sheet_id)
-            append_rows(service, sheet_id, f"{HISTORY_OPUS_INPUT_SHEET}!A1", opus_rows)
+            # 통합 시트(HISTORY)에 저장
+            opus_row = opus_rows[0]
+            append_to_unified_sheet(
+                service,
+                sheet_id,
+                opus_row,
+                HISTORY_OPUS_FIELDS
+            )
+            print(f"[HISTORY] → '{UNIFIED_HISTORY_SHEET}' 시트 저장 완료")
 
         result["success"] = True
         result["title"] = topic_info.get("title", "")

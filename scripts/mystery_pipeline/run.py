@@ -28,6 +28,8 @@ from .config import (
     PENDING_TARGET_COUNT,
     MYSTERY_TTS_VOICE,
     MYSTERY_VIDEO_LENGTH_MINUTES,
+    UNIFIED_MYSTERY_SHEET,
+    MYSTERY_OPUS_FIELDS,
 )
 from .collector import (
     collect_mystery_article,
@@ -196,6 +198,73 @@ def get_next_episode_number(service, sheet_id: str) -> int:
         return 1
 
 
+class SheetsSaveError(Exception):
+    """Google Sheets 저장 실패 예외"""
+    pass
+
+
+def append_to_unified_sheet(
+    service,
+    sheet_id: str,
+    opus_row: List[Any],
+    field_names: List[str]
+) -> bool:
+    """
+    통합 시트(MYSTERY)에 데이터 추가 (헤더 매핑 적용)
+
+    통합 시트 구조:
+    - 행 1: 채널ID | UCxxx
+    - 행 2: 헤더
+    - 행 3~: 데이터
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        sheet_id: 스프레드시트 ID
+        opus_row: 추가할 데이터 행 (단일 행)
+        field_names: opus_row의 각 열에 해당하는 필드 이름
+
+    Returns:
+        성공 여부
+    """
+    try:
+        # 1) 시트 헤더(행 2) 읽기
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"'{UNIFIED_MYSTERY_SHEET}'!A2:Z2"
+        ).execute()
+        header_rows = result.get('values', [])
+
+        if not header_rows:
+            raise SheetsSaveError(f"시트 '{UNIFIED_MYSTERY_SHEET}'의 헤더가 없습니다")
+
+        headers = header_rows[0]
+        header_idx = {h: i for i, h in enumerate(headers)}
+
+        # 2) 데이터를 헤더에 맞게 변환
+        new_row = [''] * len(headers)
+        for i, field in enumerate(field_names):
+            if i < len(opus_row) and field in header_idx:
+                new_row[header_idx[field]] = opus_row[i]
+
+        # 3) 행 3부터 append
+        body = {"values": [new_row]}
+        result = service.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range=f"'{UNIFIED_MYSTERY_SHEET}'!A3",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body=body
+        ).execute()
+
+        updated_rows = result.get("updates", {}).get("updatedRows", 0)
+        print(f"[MYSTERY] 통합 시트 '{UNIFIED_MYSTERY_SHEET}'에 {updated_rows}개 행 추가 완료")
+        return True
+
+    except Exception as e:
+        print(f"[MYSTERY] 통합 시트 '{UNIFIED_MYSTERY_SHEET}' 저장 실패: {e}")
+        raise SheetsSaveError(f"통합 시트 저장 실패 ({UNIFIED_MYSTERY_SHEET}): {e}")
+
+
 def generate_opus_prompt(mystery_data: Dict[str, Any]) -> str:
     """
     Opus 프롬프트 생성 (Opus가 URL에서 직접 자료 수집)
@@ -224,6 +293,22 @@ def generate_opus_prompt(mystery_data: Dict[str, Any]) -> str:
     return prompt
 
 
+def generate_thumbnail_copy(mystery_data: Dict[str, Any]) -> str:
+    """썸네일 문구 생성"""
+    title_ko = mystery_data.get("title_ko", mystery_data.get("title_en", ""))
+    hook = mystery_data.get("hook", "")
+    category_name = MYSTERY_CATEGORIES.get(
+        mystery_data.get("category", ""),
+        {}
+    ).get("name", "미스테리")
+
+    return f"""[썸네일 문구 추천]
+
+1. {title_ko}
+2. {hook}
+3. {category_name} - 진실은 무엇인가"""
+
+
 def append_mystery_row(
     service,
     sheet_id: str,
@@ -231,7 +316,7 @@ def append_mystery_row(
     episode: int,
 ) -> bool:
     """
-    미스테리 데이터를 시트에 추가
+    미스테리 데이터를 통합 시트(MYSTERY)에 추가
 
     Args:
         service: Google Sheets API 서비스
@@ -243,14 +328,14 @@ def append_mystery_row(
         성공 여부
     """
     try:
-        now = get_kst_now()
-        run_id = now.strftime("%Y-%m-%d")
-
         # Opus 프롬프트 생성
         opus_prompt = generate_opus_prompt(mystery_data)
 
-        row = [
-            run_id,                                    # run_id
+        # 썸네일 문구 생성
+        thumbnail_copy = generate_thumbnail_copy(mystery_data)
+
+        # 통합 시트용 행 데이터 (MYSTERY_OPUS_FIELDS 순서와 일치)
+        opus_row = [
             str(episode),                              # episode
             mystery_data.get("category", ""),          # category
             mystery_data.get("title_en", ""),          # title_en
@@ -259,23 +344,22 @@ def append_mystery_row(
             mystery_data.get("summary", ""),           # summary (서론만)
             "",                                        # full_content (Opus가 직접 수집)
             opus_prompt[:30000],                       # opus_prompt (시트 셀 한계)
-            "PENDING",                                 # status
-            now.isoformat(),                           # created_at
+            thumbnail_copy,                            # thumbnail_copy
         ]
 
-        service.spreadsheets().values().append(
-            spreadsheetId=sheet_id,
-            range=f"{MYSTERY_SHEET_NAME}!A:K",
-            valueInputOption="RAW",
-            insertDataOption="INSERT_ROWS",
-            body={"values": [row]}
-        ).execute()
+        # 통합 시트에 저장
+        append_to_unified_sheet(
+            service,
+            sheet_id,
+            opus_row,
+            MYSTERY_OPUS_FIELDS
+        )
 
-        print(f"[MYSTERY] 에피소드 {episode} 추가 완료: {mystery_data.get('title_ko', mystery_data.get('title_en'))}")
+        print(f"[MYSTERY] 에피소드 {episode} → '{UNIFIED_MYSTERY_SHEET}' 시트 저장 완료: {mystery_data.get('title_ko', mystery_data.get('title_en'))}")
         return True
 
     except Exception as e:
-        print(f"[MYSTERY] 행 추가 오류: {e}")
+        print(f"[MYSTERY] 통합 시트 저장 오류: {e}")
         return False
 
 

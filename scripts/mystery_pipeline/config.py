@@ -30,8 +30,11 @@ MYSTERY_IMAGE_COUNT = 12
 # Google Sheets 설정
 # ============================================================
 
-# 시트 이름
+# 시트 이름 (기존 - 레거시)
 MYSTERY_SHEET_NAME = "MYSTERY_OPUS_INPUT"
+
+# 통합 시트 이름 (2024-12-20 신규)
+UNIFIED_MYSTERY_SHEET = "MYSTERY"
 
 # PENDING 유지 개수
 PENDING_TARGET_COUNT = 5
@@ -49,6 +52,19 @@ MYSTERY_SHEET_HEADERS = [
     "opus_prompt",      # Opus 프롬프트
     "status",           # PENDING/WRITING/DONE
     "created_at",       # 생성 시간
+]
+
+# 통합 시트에 저장할 때 사용할 필드 순서
+MYSTERY_OPUS_FIELDS = [
+    "episode",          # 에피소드 번호
+    "category",         # 카테고리
+    "title_en",         # 영문 제목
+    "title_ko",         # 한글 제목
+    "wiki_url",         # 위키백과 URL
+    "summary",          # 사건 요약
+    "full_content",     # 전체 내용
+    "opus_prompt",      # Opus 프롬프트
+    "thumbnail_copy",   # 썸네일 문구
 ]
 
 
