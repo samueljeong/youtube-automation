@@ -9,6 +9,7 @@ sermon_modules/prompt.py
 """
 
 import json
+import re
 from .utils import is_json_guide, parse_json_guide
 from .styles import get_style, get_available_styles, READABILITY_GUIDE
 
@@ -517,7 +518,7 @@ def build_step2_design_prompt():
 - 완성 설교문 작성 금지(문단/서술형 설교 금지)
 - 예화/간증/적용 문장 생성 금지(힌트/키워드 수준도 금지)
 - 시사/뉴스/통계/논쟁적 주장 사용 금지
-- Step1에 없는 ID(예: A11, H9 등) 새로 만들기 금지
+- Step1에 없는 ID 사용 금지 (A*, D*, M*, H*, G*, P* 모두 Step1에 실제 존재해야 함)
 - Step1 Guardrails의 does_not_claim(D*)를 위반하는 진술/구조 만들기 금지
 
 핵심 원칙:
@@ -534,6 +535,48 @@ def build_step2_design_prompt():
 4) supporting_verses는 "Step1 본문"과 논리적으로 연결되는 보충구절로 선택하되,
    - 정확히 2개만
    - 중복 최소화(가능하면 sub끼리 동일 구절 반복 피하기)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★★★ Unit-Anchor 범위 매칭 규칙 (필수) ★★★ 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 section은 해당 Unit의 절 범위에 속하는 Anchor만 사용할 수 있습니다!
+
+✅ 올바른 매핑:
+- section_1 (U1, 1-2절) → A1, A2만 사용 가능
+- section_2 (U2, 3-5절) → A3, A4, A5만 사용 가능
+- section_3 (U3, 6-7절) → A6, A7, A8, A9, A10, A11 등 6-7절 Anchor만 사용 가능
+
+❌ 절대 금지 (범위 침범):
+- section_1에서 A3, A4 사용 ← 3-4절은 U2 영역!
+- section_2에서 A6 사용 ← 6절은 U3 영역!
+- section_3에서 A12 사용 ← Step1에 없는 ID!
+
+★ Anchor의 range 필드를 확인하고, 해당 절이 section의 unit_id 범위 안에 있는지 반드시 검증하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★★★ Step1 ID 존재 검증 규칙 (필수) ★★★ 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step2에서 참조하는 모든 ID는 Step1에 실제로 존재해야 합니다!
+
+예를 들어 Step1에 다음이 있다면:
+- anchors: A1~A10 (또는 A11까지)
+- does_not_claim: D1~D5
+- common_misreads: M1~M3
+- historical_background: H1~H3
+- places: G1~G3
+
+Step2에서 사용 가능한 ID:
+✅ A1, A2, ..., A10 (Step1에 있음)
+✅ D1, D2, D3, D4, D5 (Step1에 있음)
+✅ M1, M2, M3 (Step1에 있음)
+✅ H1, H2, H3 (Step1에 있음)
+✅ G1, G2, G3 (Step1에 있음)
+
+❌ A12 (Step1에 없음)
+❌ D6, D7, D8 (Step1에 없음)
+❌ M4, M5, M6 (Step1에 없음)
 
 출력 형식(필수):
 - 반드시 "아래 JSON 스키마" 그대로만 출력한다.
@@ -616,6 +659,10 @@ def build_step2_design_prompt():
   },
 
   "self_check": [
+    { "check": "all_anchor_ids_exist_in_step1", "pass": true, "notes": "사용된 A* ID가 모두 Step1에 존재하는지" },
+    { "check": "all_anchors_in_correct_unit_range", "pass": true, "notes": "각 section의 A*가 해당 절 범위 안에 있는지" },
+    { "check": "all_guardrail_ids_exist_in_step1", "pass": true, "notes": "사용된 D*, M* ID가 모두 Step1에 존재하는지" },
+    { "check": "all_background_ids_exist_in_step1", "pass": true, "notes": "사용된 H*, G*, P* ID가 모두 Step1에 존재하는지" },
     { "check": "each_sub_has_2plus_anchors", "pass": true, "notes": "" },
     { "check": "each_sub_has_exactly_2_supporting_verses", "pass": true, "notes": "" },
     { "check": "each_section_has_background_support", "pass": true, "notes": "" },
@@ -626,12 +673,16 @@ def build_step2_design_prompt():
 }
 ```
 
-검증 규칙:
-- Step1에 존재하지 않는 ID가 들어가면 self_check에서 반드시 pass=false 처리하고 notes에 누락/오류를 기록한다.
-- 각 sub의 passage_anchors가 2개 미만이면 pass=false.
-- supporting_verses가 2개가 아니면 pass=false.
-- U1/U2/U3 매핑이 어긋나면 pass=false.
-- does_not_claim(D*) 위반 소지가 있으면 pass=false.
+검증 규칙 (self_check pass=false 조건):
+1. all_anchor_ids_exist_in_step1: Step1에 없는 A* ID 사용 시 pass=false (예: A12가 없는데 사용)
+2. all_anchors_in_correct_unit_range: Anchor가 해당 section의 절 범위를 벗어나면 pass=false
+   - section_1에서 A3 사용 → pass=false (A3는 3절, section_1은 1-2절)
+   - section_2에서 A6 사용 → pass=false (A6은 6절, section_2는 3-5절)
+3. all_guardrail_ids_exist_in_step1: Step1에 없는 D*, M* 사용 시 pass=false (예: M4, D6 등)
+4. all_background_ids_exist_in_step1: Step1에 없는 H*, G*, P* 사용 시 pass=false
+5. each_sub_has_2plus_anchors: 각 sub의 passage_anchors가 2개 미만이면 pass=false
+6. each_sub_has_exactly_2_supporting_verses: supporting_verses가 2개가 아니면 pass=false
+7. does_not_claim_respected: D* 위반 소지가 있으면 pass=false
 
 반드시 한국어로만, JSON만 출력하세요.
 '''
@@ -854,15 +905,24 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
 # Step2 출력 검증 함수
 # ═══════════════════════════════════════════════════════════════
 
-def validate_step2_output(step2_result: dict) -> dict:
+def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict:
     """
     Step2 출력물의 필수 ID 참조를 검증합니다. (section_* 스키마)
 
-    검증 항목 (각 sub별):
-    - passage_anchors: A* ID 2개 이상
-    - supporting_verses: 정확히 2개
-    - background_support: H*/G*/P* ID 1개 이상
-    - guardrail_refs: D*/M* ID 1개 이상
+    검증 항목:
+    1. ID 존재 검증 (step1_result 제공 시):
+       - 사용된 A*, D*, M*, H*, G*, P*가 Step1에 실제 존재하는지
+    2. Unit-Anchor 범위 매칭:
+       - section_1(1-2절)은 1-2절 Anchor만, section_2(3-5절)은 3-5절 Anchor만 사용
+    3. 각 sub별:
+       - passage_anchors: A* ID 2개 이상
+       - supporting_verses: 정확히 2개
+       - background_support: H*/G*/P* ID 1개 이상
+       - guardrail_refs: D*/M* ID 1개 이상
+
+    Args:
+        step2_result: Step2 출력 결과
+        step1_result: Step1 결과 (선택, ID 존재 및 범위 검증용)
 
     Returns:
         {
@@ -877,9 +937,63 @@ def validate_step2_output(step2_result: dict) -> dict:
     errors = []
     warnings = []
 
+    # Step1에서 유효한 ID 목록 추출
+    valid_anchor_ids = set()
+    anchor_ranges = {}  # anchor_id -> verse number (예: "A1" -> 1, "A3" -> 3)
+    valid_d_ids = set()
+    valid_m_ids = set()
+    valid_h_ids = set()
+    valid_g_ids = set()
+    valid_p_ids = set()
+
+    if step1_result and isinstance(step1_result, dict):
+        # Anchor IDs 및 범위 추출
+        for anchor in step1_result.get("anchors", []):
+            aid = anchor.get("anchor_id", "")
+            if aid:
+                valid_anchor_ids.add(aid)
+                # range에서 절 번호 추출 (예: "사9:1" -> 1, "1절" -> 1)
+                range_str = anchor.get("range", "")
+                verse_match = re.search(r"(\d+)", range_str)
+                if verse_match:
+                    anchor_ranges[aid] = int(verse_match.group(1))
+
+        # Guardrails IDs 추출
+        guardrails = step1_result.get("guardrails", {})
+        for d in guardrails.get("does_not_claim", []):
+            did = d.get("id", "")
+            if did:
+                valid_d_ids.add(did)
+        for m in guardrails.get("common_misreads", []):
+            mid = m.get("id", "")
+            if mid:
+                valid_m_ids.add(mid)
+
+        # Background IDs 추출
+        for h in step1_result.get("historical_background", []):
+            hid = h.get("id", "")
+            if hid:
+                valid_h_ids.add(hid)
+
+        geo = step1_result.get("geography_people", {})
+        for g in geo.get("places", []):
+            gid = g.get("id", "")
+            if gid:
+                valid_g_ids.add(gid)
+        for p in geo.get("people_groups", []):
+            pid = p.get("id", "")
+            if pid:
+                valid_p_ids.add(pid)
+
+    # section별 허용 절 범위 정의
+    section_verse_ranges = {
+        "section_1": (1, 2),  # 1-2절
+        "section_2": (3, 5),  # 3-5절
+        "section_3": (6, 7),  # 6-7절
+    }
+
     # section별 검증 (section_1, section_2, section_3)
     for i in range(1, 4):
-        # 새 스키마: section_*, 이전 스키마: 대지_* (호환성)
         section_key = f"section_{i}"
         legacy_key = f"대지_{i}"
         section = step2_result.get(section_key) or step2_result.get(legacy_key, {})
@@ -887,6 +1001,9 @@ def validate_step2_output(step2_result: dict) -> dict:
         if not section:
             errors.append(f"{section_key}이(가) 없음")
             continue
+
+        # 해당 section의 허용 절 범위
+        min_verse, max_verse = section_verse_ranges.get(section_key, (1, 7))
 
         # 소대지별 검증 (sub_1, sub_2)
         for sub_i in [1, 2]:
@@ -897,42 +1014,69 @@ def validate_step2_output(step2_result: dict) -> dict:
                 warnings.append(f"{section_key}.{sub_key}가 없음")
                 continue
 
-            # passage_anchors 검증 (A* ID 2개 이상)
+            # passage_anchors 검증
             anchors = sub.get("passage_anchors") or sub.get("anchor_ids") or []
             if len(anchors) < 2:
                 errors.append(f"{section_key}.{sub_key}: passage_anchors가 2개 이상 필요 (현재 {len(anchors)}개)")
             else:
-                # A* 형식 검증
-                invalid_anchors = [a for a in anchors if not str(a).startswith("A")]
-                if invalid_anchors:
-                    warnings.append(f"{section_key}.{sub_key}: passage_anchors에 A* 형식이 아닌 ID 포함: {invalid_anchors}")
+                for a in anchors:
+                    a_str = str(a)
+                    # A* 형식 검증
+                    if not a_str.startswith("A"):
+                        warnings.append(f"{section_key}.{sub_key}: '{a}'는 A* 형식이 아님")
+                        continue
+
+                    # Step1 존재 검증
+                    if step1_result and a_str not in valid_anchor_ids:
+                        errors.append(f"{section_key}.{sub_key}: '{a}'가 Step1에 없음")
+
+                    # Unit-Anchor 범위 매칭 검증
+                    if step1_result and a_str in anchor_ranges:
+                        verse_num = anchor_ranges[a_str]
+                        if verse_num < min_verse or verse_num > max_verse:
+                            errors.append(
+                                f"{section_key}.{sub_key}: '{a}'({verse_num}절)는 "
+                                f"{section_key}({min_verse}-{max_verse}절) 범위 밖 - 범위 침범!"
+                            )
 
             # supporting_verses 검증 (정확히 2개)
             sup_verses = sub.get("supporting_verses") or []
             if len(sup_verses) != 2:
                 errors.append(f"{section_key}.{sub_key}: supporting_verses가 정확히 2개 필요 (현재 {len(sup_verses)}개)")
 
-            # background_support 검증 (H*/G*/P* 1개 이상)
+            # background_support 검증
             bg_support = sub.get("background_support") or sub.get("background_ids") or []
             if len(bg_support) < 1:
                 errors.append(f"{section_key}.{sub_key}: background_support가 1개 이상 필요 (현재 {len(bg_support)}개)")
             else:
-                # H*/G*/P* 형식 검증
-                valid_prefixes = ("H", "G", "P")
-                invalid_bg = [b for b in bg_support if not any(str(b).startswith(p) for p in valid_prefixes)]
-                if invalid_bg:
-                    warnings.append(f"{section_key}.{sub_key}: background_support에 H*/G*/P* 형식이 아닌 ID 포함: {invalid_bg}")
+                for b in bg_support:
+                    b_str = str(b)
+                    # Step1 존재 검증
+                    if step1_result:
+                        if b_str.startswith("H") and b_str not in valid_h_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif b_str.startswith("G") and b_str not in valid_g_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif b_str.startswith("P") and b_str not in valid_p_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif not any(b_str.startswith(p) for p in ("H", "G", "P")):
+                            warnings.append(f"{section_key}.{sub_key}: '{b}'는 H*/G*/P* 형식이 아님")
 
-            # guardrail_refs 검증 (D*/M* 1개 이상)
+            # guardrail_refs 검증
             guardrails = sub.get("guardrail_refs") or []
             if len(guardrails) < 1:
                 errors.append(f"{section_key}.{sub_key}: guardrail_refs가 1개 이상 필요 (현재 {len(guardrails)}개)")
             else:
-                # D*/M* 형식 검증
-                valid_guard_prefixes = ("D", "M")
-                invalid_guards = [g for g in guardrails if not any(str(g).startswith(p) for p in valid_guard_prefixes)]
-                if invalid_guards:
-                    warnings.append(f"{section_key}.{sub_key}: guardrail_refs에 D*/M* 형식이 아닌 ID 포함: {invalid_guards}")
+                for g in guardrails:
+                    g_str = str(g)
+                    # Step1 존재 검증
+                    if step1_result:
+                        if g_str.startswith("D") and g_str not in valid_d_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (D1~D5만 존재)")
+                        elif g_str.startswith("M") and g_str not in valid_m_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (M1~M3만 존재)")
+                        elif not any(g_str.startswith(p) for p in ("D", "M")):
+                            warnings.append(f"{section_key}.{sub_key}: '{g}'는 D*/M* 형식이 아님")
 
     # ending 검증
     ending = step2_result.get("ending", {})
