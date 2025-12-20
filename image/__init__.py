@@ -18,15 +18,16 @@ from .gemini import (
 )
 
 
-# 영상 길이별 이미지 개수 설정
-# ~8분: 5컷, 8~10분: 8컷 (장면 전환 자주)
-# 10~15분: 11컷, 15분+: 12컷 (10분 이후 장면 전환 느려짐)
+# 영상 길이별 이미지 개수 설정 (2025-12-20 업데이트)
+# 장면 전환을 더 자주 하여 시청자 이탈 방지
 IMAGE_COUNT_CONFIG = {
     "rules": {
-        "~8min": 5,
-        "8~10min": 8,
-        "10~15min": 11,
-        "15min+": 12,
+        "~8min": 10,
+        "8~10min": 13,
+        "10~15min": 14,
+        "15~20min": 18,
+        "20~25min": 20,
+        "25~30min": 25,
     },
     "chars_per_minute": 910,  # 한국어 TTS 기준 (15분=13,650자, 20분=18,200자)
 }
@@ -46,13 +47,17 @@ def get_image_count_by_script(script_length: int) -> tuple:
     estimated_minutes = script_length / chars_per_min
 
     if estimated_minutes <= 8:
-        image_count = 5
+        image_count = 10
     elif estimated_minutes <= 10:
-        image_count = 8  # 10분 전까지는 장면 전환 자주
+        image_count = 13
     elif estimated_minutes <= 15:
-        image_count = 11  # 10분 이후부터는 장면 전환 느려짐
+        image_count = 14
+    elif estimated_minutes <= 20:
+        image_count = 18
+    elif estimated_minutes <= 25:
+        image_count = 20
     else:
-        image_count = 12  # 최대 12컷 고정
+        image_count = 25  # 25~30분
 
     return image_count, estimated_minutes
 
