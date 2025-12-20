@@ -1277,17 +1277,84 @@ def gpt_pro():
 
         result = remove_markdown(result)
 
+        # ★ Step3 JSON 응답 파싱: sermon 텍스트만 추출
+        sermon_text = result
+        try:
+            # JSON 코드블록 제거
+            cleaned = result.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+            # JSON 파싱 시도
+            if cleaned.startswith("{"):
+                parsed = json.loads(cleaned)
+
+                # 1) 단순 {"sermon": "..."} 형식
+                if isinstance(parsed.get("sermon"), str):
+                    sermon_text = parsed["sermon"]
+                    print(f"[GPT-PRO/Step3] JSON 파싱 성공 (단순 sermon 필드)")
+
+                # 2) 복잡한 스키마: sermon.intro + sermon.points + sermon.ending
+                elif isinstance(parsed.get("sermon"), dict):
+                    sermon_obj = parsed["sermon"]
+                    parts = []
+
+                    # intro
+                    intro = sermon_obj.get("intro", {})
+                    if intro.get("rendered_text"):
+                        parts.append("[서론]")
+                        parts.append(intro["rendered_text"])
+
+                    # points (대지들)
+                    for point in sermon_obj.get("points", []):
+                        point_no = point.get("point_no", "")
+                        point_title = point.get("title", "")
+                        point_range = point.get("range", "")
+                        parts.append(f"\n[{point_no}대지] {point_title} ({point_range})")
+
+                        for subpoint in point.get("subpoints", []):
+                            sub_title = subpoint.get("title", "")
+                            rendered = subpoint.get("rendered_text", "")
+                            if sub_title:
+                                parts.append(f"\n{sub_title}")
+                            if rendered:
+                                parts.append(rendered)
+
+                        # transition
+                        transition = point.get("transition_to_next", {})
+                        if transition.get("rendered_text"):
+                            parts.append(transition["rendered_text"])
+
+                    # ending
+                    ending = sermon_obj.get("ending", {})
+                    if ending.get("rendered_text"):
+                        parts.append("\n[결론]")
+                        parts.append(ending["rendered_text"])
+
+                    sermon_text = "\n\n".join(parts)
+                    print(f"[GPT-PRO/Step3] JSON 파싱 성공 (복잡한 스키마)")
+
+        except json.JSONDecodeError as e:
+            print(f"[GPT-PRO/Step3] JSON 파싱 실패 (텍스트로 사용): {str(e)[:100]}")
+        except Exception as e:
+            print(f"[GPT-PRO/Step3] JSON 처리 중 오류 (텍스트로 사용): {str(e)[:100]}")
+
         final_result = ""
 
         if has_title:
             final_result += f"설교 제목: {title}\n\n"
             if reference:
                 final_result += f"본문: {reference}\n\n"
-            final_result += result
+            final_result += sermon_text
         else:
             if reference:
                 final_result += f"본문: {reference}\n\n"
-            final_result += result
+            final_result += sermon_text
 
         print(f"[GPT-PRO] 완료 (self_check: {self_check_info})")
 

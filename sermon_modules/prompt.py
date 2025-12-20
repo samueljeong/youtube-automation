@@ -1318,6 +1318,24 @@ def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict
         # 해당 section의 허용 절 범위
         min_verse, max_verse = section_verse_ranges.get(section_key, (1, 7))
 
+        # ★ background_support는 section 레벨에서 검증 (sub 레벨이 아님)
+        section_bg_support = section.get("background_support") or section.get("background_ids") or []
+        if len(section_bg_support) < 1:
+            errors.append(f"{section_key}: background_support가 1개 이상 필요 (현재 {len(section_bg_support)}개)")
+        else:
+            for b in section_bg_support:
+                b_str = str(b)
+                # Step1 존재 검증
+                if step1_result:
+                    if b_str.startswith("H") and b_str not in valid_h_ids:
+                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
+                    elif b_str.startswith("G") and b_str not in valid_g_ids:
+                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
+                    elif b_str.startswith("P") and b_str not in valid_p_ids:
+                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
+                    elif not any(b_str.startswith(p) for p in ("H", "G", "P")):
+                        warnings.append(f"{section_key}: '{b}'는 H*/G*/P* 형식이 아님")
+
         # 소대지별 검증 (sub_1, sub_2)
         for sub_i in [1, 2]:
             sub_key = f"sub_{sub_i}"
@@ -1352,28 +1370,18 @@ def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict
                                 f"{section_key}({min_verse}-{max_verse}절) 범위 밖 - 범위 침범!"
                             )
 
-            # supporting_verses 검증 (정확히 2개)
-            sup_verses = sub.get("supporting_verses") or []
-            if len(sup_verses) != 2:
-                errors.append(f"{section_key}.{sub_key}: supporting_verses가 정확히 2개 필요 (현재 {len(sup_verses)}개)")
+            # ★ supporting_verses 검증: outline_blocks에서 추출 (정확히 2개)
+            outline_blocks = sub.get("outline_blocks") or []
+            sup_verses_from_blocks = [
+                block for block in outline_blocks
+                if isinstance(block, dict) and block.get("type") == "supporting_verse"
+            ]
+            # fallback: 기존 supporting_verses 필드도 확인
+            sup_verses_direct = sub.get("supporting_verses") or []
+            sup_verse_count = len(sup_verses_from_blocks) if sup_verses_from_blocks else len(sup_verses_direct)
 
-            # background_support 검증
-            bg_support = sub.get("background_support") or sub.get("background_ids") or []
-            if len(bg_support) < 1:
-                errors.append(f"{section_key}.{sub_key}: background_support가 1개 이상 필요 (현재 {len(bg_support)}개)")
-            else:
-                for b in bg_support:
-                    b_str = str(b)
-                    # Step1 존재 검증
-                    if step1_result:
-                        if b_str.startswith("H") and b_str not in valid_h_ids:
-                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
-                        elif b_str.startswith("G") and b_str not in valid_g_ids:
-                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
-                        elif b_str.startswith("P") and b_str not in valid_p_ids:
-                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
-                        elif not any(b_str.startswith(p) for p in ("H", "G", "P")):
-                            warnings.append(f"{section_key}.{sub_key}: '{b}'는 H*/G*/P* 형식이 아님")
+            if sup_verse_count != 2:
+                errors.append(f"{section_key}.{sub_key}: supporting_verses가 정확히 2개 필요 (현재 {sup_verse_count}개)")
 
             # guardrail_refs 검증
             guardrails = sub.get("guardrail_refs") or []
@@ -1390,6 +1398,11 @@ def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict
                             errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (M1~M3만 존재)")
                         elif not any(g_str.startswith(p) for p in ("D", "M")):
                             warnings.append(f"{section_key}.{sub_key}: '{g}'는 D*/M* 형식이 아님")
+
+            # misread_refs 검증 (선택적, 경고만)
+            misreads = sub.get("misread_refs") or []
+            if len(misreads) < 1:
+                warnings.append(f"{section_key}.{sub_key}: misread_refs가 비어있음 (M* ID 권장)")
 
     # ending 검증
     ending = step2_result.get("ending", {})
