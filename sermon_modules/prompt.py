@@ -811,29 +811,148 @@ def _minimize_step1_for_step3(step1: dict) -> dict:
     return keep
 
 
+def build_step3_system_prompt():
+    """
+    Step3 시스템 프롬프트: 완성 설교문(강연형/발화 가능한 원고) 작성
+
+    핵심 원칙:
+    - Step1(본문 분석) + Step2(구조 설계)를 기반으로 완성 설교문 작성
+    - JSON 형식으로 출력
+    - Step2의 outline_blocks 순서를 따라 전개
+    """
+    return '''당신은 설교 작성 파이프라인의 STEP3 모델입니다.
+STEP3의 목적은 Step1(본문 분석) + Step2(구조 설계)를 기반으로 "완성 설교문(강연형/발화 가능한 원고)"을 작성하는 것입니다.
+
+출력 규칙(절대):
+1) 출력은 오직 JSON 1개만 응답합니다. (설명 텍스트 금지)
+2) Step1/Step2에 존재하는 ID만 사용합니다.
+   - Anchors: A*
+   - Background: H*, G*, P*
+   - Guardrails: C*, D*
+   - Misreads: M*
+3) Step2의 구조(Section_1~3, sub_1~2, outline_blocks 순서)를 그대로 따라가며,
+   Step3는 그 "뼈대에 살을 붙여" 설교 원고를 완성합니다.
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 단정/시간표/정치적 확정/자동보장 표현 금지.
+5) Step1 common_misreads(M*)에서 경고한 오해를 유도하는 표현 금지.
+6) 성경 인용은 아래 '가독성 필수 지침'을 반드시 따릅니다.
+
+가독성 필수 지침(필수):
+- 성경 구절 인용 형식:
+  (줄바꿈)
+  요3:16
+  하나님이 세상을 이처럼 사랑하사...
+  (줄바꿈)
+- 문장 원칙:
+  1) 한 문장은 최대 2줄 이내
+  2) 핵심은 짧게 끊어서 작성
+  3) 긴 설명은 여러 문장으로 나누기
+  4) 단락 사이 줄바꿈 적극 사용
+
+설교 작성 원칙:
+- Step3에서는 예화/적용/권면/결단을 포함할 수 있습니다.
+- 다만 Step2의 구조 흐름(U1→U2→U3)과 논리 전개를 깨지 않습니다.
+- 각 sub(소대지)는 반드시 anchor_ids에 해당하는 "핵심 문구/의미"를 설교 원고 안에 반영합니다.
+  (직접 인용이든, 의미를 보존한 재진술이든 가능)
+- supporting_verses(보충 성경구절)는 Step2의 outline_blocks 위치에 맞춰 "필요한 자리"에 끼워 넣습니다.
+  (맨 끝에 몰아넣지 말 것)
+
+반드시 아래 스키마로만 출력하세요:
+
+```json
+{
+  "step": "STEP3",
+  "mode": "full_sermon",
+  "reference": "",
+  "style_id": "",
+  "title": "",
+  "meta": {
+    "audience": "",
+    "service_type": "",
+    "duration_min": 0,
+    "special_notes": ""
+  },
+
+  "sermon": {
+    "intro": {
+      "rendered_text": "",
+      "used_ids": { "anchor_ids": [], "background_ids": [], "guardrail_ids": [], "misread_ids": [] }
+    },
+
+    "points": [
+      {
+        "point_no": 1,
+        "title": "",
+        "range": "",
+        "used_ids": { "unit_id": "", "background_ids": [] },
+
+        "subpoints": [
+          {
+            "sub_no": "1-1",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+          },
+          {
+            "sub_no": "1-2",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+          }
+        ],
+
+        "transition_to_next": {
+          "rendered_text": ""
+        }
+      },
+
+      { "point_no": 2, "...": "same structure" },
+      { "point_no": 3, "...": "same structure" }
+    ],
+
+    "ending": {
+      "rendered_text": "",
+      "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+    }
+  },
+
+  "self_check": [
+    { "check": "json_only", "pass": false, "notes": "" },
+    { "check": "uses_only_step1_step2_ids", "pass": false, "notes": "" },
+    { "check": "follows_step2_structure_order", "pass": false, "notes": "" },
+    { "check": "does_not_claim_respected", "pass": false, "notes": "D* 위반 여부" },
+    { "check": "misreads_avoided", "pass": false, "notes": "M* 유도 여부" },
+    { "check": "supporting_verses_placed_in_outline_blocks_positions", "pass": false, "notes": "" },
+    { "check": "scripture_quote_format_ok", "pass": false, "notes": "구절 인용 줄바꿈 형식" },
+    { "check": "readability_rules_ok", "pass": false, "notes": "문장/단락 줄바꿈" },
+    { "check": "duration_target_reasonable", "pass": false, "notes": "분량 체감" }
+  ]
+}
+```
+
+Self_Check는 반드시 '검증 후' pass 값을 True/False로 채우세요.
+
+반드시 한국어로만, JSON만 출력하세요.
+'''
+
+
 def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_result, style_id: str = None):
     """
-    신규 ID 스키마(anchors/H*/G*/D*) 기반 Step3(원고) 프롬프트 템플릿.
+    신규 ID 스키마(anchors/H*/G*/D*/M*) 기반 Step3(원고) 유저 프롬프트.
     - Step2(outline)를 1순위 단일 진실(Single Source of Truth)로 사용
     - Step1은 anchors/guardrails/background 근거 제공자
-    - 출력 끝에 self_check JSON을 별도 블록으로 강제(파싱 가능)
+    - JSON 형식으로 완성 설교문 출력
     """
     # 메타 기본값
     reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
     title = meta_data.get("title") or meta_data.get("sermon_title") or ""
     target = meta_data.get("target") or meta_data.get("audience") or ""
     service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
-    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or ""
+    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or 20
     special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
-
-    # 스타일 가이드 텍스트 (json_guide에서 추출)
-    style_guide_text = ""
-    if json_guide and isinstance(json_guide, dict):
-        style_guide_text = (
-            json_guide.get("step3_style_guide", "")
-            or json_guide.get("style_guide", "")
-            or ""
-        )
 
     # Step1 최소화 (근거용 - 토큰 절약)
     step1_min = _minimize_step1_for_step3(step1_result or {})
@@ -841,89 +960,255 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
     # Step2는 설계서이므로 가급적 전체 전달
     step2_outline = step2_result or {}
 
-    # Step3 프롬프트 템플릿
-    user_prompt = f"""\
-당신은 설교 STEP3(원고 작성) 담당자입니다.
-아래 입력(JSON)을 근거로 설교 원고를 작성하세요.
+    # Step3 유저 프롬프트 템플릿
+    user_prompt = f"""[STEP3 입력]
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[작성 설정]
-- 본문: {reference}
-- 설교 제목(사용자/Step2 우선): {title}
-- 예배/집회 유형: {service_type}
-- 대상: {target}
-- 목표 분량(분): {duration_min}
-- 특별 참고: {special_notes}
+Reference: {reference}
+Style_Id: {style_id or "three_points"}
+Title: {title}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[우선순위(중요)]
-1) STEP2(outline JSON) = 단일 진실(Single Source of Truth)
-   - 대지/소대지 구조, passage_anchors(anchor_id), supporting_verses(정확히 2개), 배경 참조(background_support)를 그대로 따른다.
-2) STEP1(research JSON) = 근거 데이터
-   - anchors(A*), guardrails(D* 포함), 역사/지리(H*/G*)는 "근거"로만 사용한다.
-3) 위 둘과 충돌하는 내용은 작성 금지.
+Meta:
+- audience: {target}
+- service_type: {service_type}
+- duration_min: {duration_min}
+- special_notes: {special_notes}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[절대 규칙]
-- 각 소대지는 STEP2에 지정된 passage_anchors(anchor_id) 2개 이상을 반드시 '내용 근거'로 반영한다.
-- 각 소대지는 STEP2에 지정된 supporting_verses 2개를 그대로 인용한다(추가/변경 금지).
-- STEP1 guardrails.does_not_claim(D*)에 해당하는 주장/해석은 금지한다(위반 시 스스로 수정).
-- 시사 뉴스/통계/부동산/정치 등 변동·논쟁 정보는 사용하지 않는다(사용자가 명시했을 때만 예외).
-- 설교문은 한국어로만 작성한다.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[가독성 필수 지침]
-- 한 문장은 최대 2줄
-- 핵심은 짧게 끊어 쓰기
-- 단락 사이 줄바꿈
-- 성경 인용 형식(필수): 아래처럼 '본문 표기 줄' 다음에 '구절 내용'을 쓴다.
-
-(줄바꿈)
-요3:16
-하나님이 세상을 이처럼 사랑하사...
-(줄바꿈)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[원고 출력 구조(필수)]
-1) 제목
-2) 서론
-3) 1대지
-   - 1-1, 1-2 (각 소대지: 근거→인용→짧은 적용→연결문장)
-4) 2대지
-   - 2-1, 2-2
-5) 3대지(클라이맥스)
-   - 3-1, 3-2
-6) 결론
-   - 요약 3문장(대지별 1문장)
-   - 결단 질문 2개
-   - 기도 제목 2개
-   - 축복 문장 1개
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[스타일 가이드(있으면 표현에만 적용)]
-{style_guide_text}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[입력 데이터: STEP2(outline)]
-{_j(step2_outline)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[입력 데이터: STEP1(research, minimized)]
+[Step1 Result JSON]
 {_j(step1_min)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[출력 끝에 self_check JSON을 반드시 추가]
-원고 맨 끝에 아래 구분자를 붙이고, 그 아래에 JSON만 출력하세요.
+[Step2 Result JSON]
+{_j(step2_outline)}
 
-===SELF_CHECK_JSON===
-{{
-  "anchors_used": true,
-  "supporting_verses_exactly_two_each_subpoint": true,
-  "does_not_claim_violations": [],
-  "no_current_affairs_used": true,
-  "duration_respected": true,
-  "readability_rules_followed": true
-}}
+[작성 지시]
+1) Step2 구조를 그대로 따르되, Step3는 "완성 설교 원고"로 확장하세요.
+2) 각 소대지는 Step2의 outline_blocks 순서를 따라 전개하세요.
+3) supporting_verses는 outline_blocks 위치에 맞춰 필요한 자리에서 인용하세요(끝에 몰지 말 것).
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 단정 표현 금지.
+5) Step1 Misreads(M*)를 유도하는 표현 금지.
+6) 성경 인용은 반드시 아래 형식:
+   (줄바꿈)
+   요3:16
+   하나님이 세상을 이처럼 사랑하사...
+   (줄바꿈)
+7) 출력은 JSON 1개만.
+"""
+
+    return user_prompt
+
+
+# ═══════════════════════════════════════════════════════════════
+# Step4 프롬프트 빌더 (설교문 검토 및 정제)
+# ═══════════════════════════════════════════════════════════════
+
+def build_step4_system_prompt():
+    """
+    Step4 시스템 프롬프트: 설교문 검토 및 정제
+
+    핵심 원칙:
+    - Step3 완성 설교문을 검토하고 정제
+    - ID 사용 추적 검증
+    - 최종 품질 검증 (분량, 가독성, guardrail 준수 등)
+    - JSON 형식으로 출력
+    """
+    return '''당신은 설교 작성 파이프라인의 STEP4 모델입니다.
+STEP4의 목적은 Step3에서 작성된 "완성 설교문"을 검토하고 정제하여 최종 품질을 보장하는 것입니다.
+
+출력 규칙(절대):
+1) 출력은 오직 JSON 1개만 응답합니다. (설명 텍스트 금지)
+2) Step1/Step2/Step3에 존재하는 ID만 사용합니다.
+   - Anchors: A*
+   - Background: H*, G*, P*
+   - Guardrails: C*, D*
+   - Misreads: M*
+3) Step3 설교문을 그대로 유지하되, 아래 항목을 검토/정제합니다:
+   - 가독성 규칙 준수 여부 (문장 길이, 줄바꿈, 성경 인용 형식)
+   - ID 사용 통계 (사용된 ID 목록 및 누락된 ID)
+   - Guardrails 위반 여부 (D* 위반, M* 유도)
+   - 분량 적절성 (목표 분량 대비)
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 표현이 있으면 수정합니다.
+5) Step1 common_misreads(M*)를 유도하는 표현이 있으면 수정합니다.
+
+검토 항목:
+- 구조 정합성: Step2 구조(Section_1~3, sub_1~2)가 설교문에 반영되었는지
+- ID 사용 완전성: Step1/Step2의 주요 ID가 설교문에 활용되었는지
+- 가독성: 문장 길이, 줄바꿈, 성경 인용 형식
+- Guardrail 준수: D* 위반 없음, M* 유도 없음
+- 분량: 목표 분량에 맞게 작성되었는지
+
+반드시 아래 스키마로만 출력하세요:
+
+```json
+{
+  "step": "STEP4",
+  "mode": "review_and_refine",
+  "reference": "",
+  "style_id": "",
+  "title": "",
+  "meta": {
+    "audience": "",
+    "service_type": "",
+    "duration_min": 0,
+    "special_notes": ""
+  },
+
+  "review_summary": {
+    "total_issues_found": 0,
+    "critical_issues": [],
+    "minor_issues": [],
+    "improvements_made": []
+  },
+
+  "id_usage_stats": {
+    "anchors_used": [],
+    "anchors_unused": [],
+    "backgrounds_used": [],
+    "backgrounds_unused": [],
+    "guardrails_checked": [],
+    "misreads_avoided": []
+  },
+
+  "sermon": {
+    "intro": {
+      "rendered_text": "",
+      "used_ids": { "anchor_ids": [], "background_ids": [], "guardrail_ids": [], "misread_ids": [] },
+      "refinements": []
+    },
+
+    "points": [
+      {
+        "point_no": 1,
+        "title": "",
+        "range": "",
+        "used_ids": { "unit_id": "", "background_ids": [] },
+
+        "subpoints": [
+          {
+            "sub_no": "1-1",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+            "refinements": []
+          },
+          {
+            "sub_no": "1-2",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+            "refinements": []
+          }
+        ],
+
+        "transition_to_next": {
+          "rendered_text": "",
+          "refinements": []
+        }
+      },
+
+      { "point_no": 2, "...": "same structure" },
+      { "point_no": 3, "...": "same structure" }
+    ],
+
+    "ending": {
+      "rendered_text": "",
+      "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+      "refinements": []
+    }
+  },
+
+  "self_check": [
+    { "check": "json_only", "pass": false, "notes": "" },
+    { "check": "uses_only_step1_step2_step3_ids", "pass": false, "notes": "" },
+    { "check": "follows_step2_structure_order", "pass": false, "notes": "" },
+    { "check": "does_not_claim_respected", "pass": false, "notes": "D* 위반 여부" },
+    { "check": "misreads_avoided", "pass": false, "notes": "M* 유도 여부" },
+    { "check": "readability_rules_ok", "pass": false, "notes": "문장/단락 줄바꿈" },
+    { "check": "scripture_quote_format_ok", "pass": false, "notes": "구절 인용 줄바꿈 형식" },
+    { "check": "duration_target_reasonable", "pass": false, "notes": "분량 체감" },
+    { "check": "all_critical_anchors_used", "pass": false, "notes": "핵심 Anchor 사용 여부" },
+    { "check": "refinements_applied", "pass": false, "notes": "정제 사항 적용 여부" }
+  ]
+}
+```
+
+Self_Check는 반드시 '검증 후' pass 값을 True/False로 채우세요.
+refinements 배열에는 각 섹션에서 수정한 내용을 기록하세요.
+
+반드시 한국어로만, JSON만 출력하세요.
+'''
+
+
+def build_step4_prompt_from_json(json_guide, meta_data, step1_result, step2_result, step3_result, style_id: str = None):
+    """
+    Step4(검토 및 정제) 유저 프롬프트.
+    - Step3 결과를 검토하고 정제
+    - ID 사용 추적 검증
+    - JSON 형식으로 최종 정제된 설교문 출력
+    """
+    # 메타 기본값
+    reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
+    title = meta_data.get("title") or meta_data.get("sermon_title") or ""
+    target = meta_data.get("target") or meta_data.get("audience") or ""
+    service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
+    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or 20
+    special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
+
+    # Step1 최소화 (근거용 - 토큰 절약)
+    step1_min = _minimize_step1_for_step3(step1_result or {})
+
+    # Step2는 구조 참조용
+    step2_outline = step2_result or {}
+
+    # Step3 결과 (검토 대상)
+    step3_sermon = step3_result or {}
+
+    # Step4 유저 프롬프트 템플릿
+    user_prompt = f"""[STEP4 입력]
+
+Reference: {reference}
+Style_Id: {style_id or "three_points"}
+Title: {title}
+
+Meta:
+- audience: {target}
+- service_type: {service_type}
+- duration_min: {duration_min}
+- special_notes: {special_notes}
+
+[Step1 Result JSON - ID 참조용]
+{_j(step1_min)}
+
+[Step2 Result JSON - 구조 참조용]
+{_j(step2_outline)}
+
+[Step3 Result JSON - 검토 대상]
+{_j(step3_sermon)}
+
+[검토 및 정제 지시]
+1) Step3 설교문을 검토하고 아래 항목을 점검하세요:
+   - 가독성 규칙 준수 (문장 최대 2줄, 핵심은 짧게, 줄바꿈 적극 사용)
+   - 성경 인용 형식 (줄바꿈 후 구절번호, 줄바꿈 후 본문)
+   - ID 사용 완전성 (Step1의 주요 Anchor가 모두 활용되었는지)
+   - Guardrail 준수 (D* 위반 없음, M* 유도 없음)
+
+2) 문제가 발견되면 수정하고 refinements 배열에 기록하세요.
+
+3) ID 사용 통계를 id_usage_stats에 채우세요:
+   - 사용된 Anchor 목록 (anchors_used)
+   - 사용되지 않은 Anchor 목록 (anchors_unused)
+   - 사용된 Background 목록 (backgrounds_used)
+   - 확인한 Guardrail 목록 (guardrails_checked)
+
+4) review_summary에 검토 결과를 요약하세요:
+   - 발견된 이슈 수 (total_issues_found)
+   - 심각한 이슈 목록 (critical_issues): D* 위반, M* 유도 등
+   - 경미한 이슈 목록 (minor_issues): 가독성, 형식 등
+   - 적용한 개선 목록 (improvements_made)
+
+5) 출력은 JSON 1개만.
 """
 
     return user_prompt
