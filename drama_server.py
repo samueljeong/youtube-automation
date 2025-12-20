@@ -11309,7 +11309,37 @@ def api_image_generate_assets_zip():
                         return num_to_sino(num) + u
                 text = re.sub(pattern, replace_native, text)
 
-            # 한자어 단위 패턴 (숫자 + 한자어단위) - 남은 숫자+단위
+            # ★★★ 소수점 패턴을 정수+단위 패턴보다 먼저 처리 (2024-12-20 수정) ★★★
+            # 0.75% → "영점칠오퍼센트" (O), "영점칠십오퍼센트" (X)
+            # 소수점 뒤의 숫자는 개별 자릿수로 읽어야 함
+
+            # 소수점 숫자 (7.5 → 칠점오, 3.14 → 삼점일사)
+            def convert_decimal(match):
+                integer_part = match.group(1)
+                decimal_part = match.group(2)
+                unit = match.group(3) if match.lastindex >= 3 else ''
+
+                # 정수 부분 변환
+                result = num_to_sino(int(integer_part)) + '점'
+
+                # 소수점 이하 각 자릿수 변환 (0.75 → 영점칠오)
+                decimal_digits = ['영', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+                for digit in decimal_part:
+                    result += decimal_digits[int(digit)]
+
+                # % → 퍼센트로 변환
+                if unit == '%':
+                    unit = '퍼센트'
+
+                return result + unit
+
+            # 소수점 + 단위 패턴 (7.5일, 3.5kg, 0.75% 등) - 정수+단위보다 먼저!
+            text = re.sub(r'(\d+)\.(\d+)(일|시간|분|초|km|m|kg|g|cm|mm|%|퍼센트|배|도|리터|L|ml)', convert_decimal, text)
+
+            # 단위 없는 소수점 (그냥 7.5 등)
+            text = re.sub(r'(\d+)\.(\d+)(?![가-힣a-zA-Z%])', lambda m: convert_decimal(m), text)
+
+            # 한자어 단위 패턴 (숫자 + 한자어단위) - 소수점 처리 후 남은 정수+단위
             sino_units = ['원', '층', '년', '월', '일', '분', '초', '도', '호', '회', '배', '위', '등', '점', '퍼센트', '%', 'km', 'm', 'kg', 'g', 'cm', 'mm', '원짜리', '달러', '엔', '유로']
             for unit in sino_units:
                 pattern = r'(\d+)' + re.escape(unit)
@@ -11325,28 +11355,6 @@ def api_image_generate_assets_zip():
             # 곱하기/나누기 표현
             text = re.sub(r'(\d+)\s*[xX×]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 곱하기 ' + num_to_sino(int(m.group(2))), text)
             text = re.sub(r'(\d+)\s*[/÷]\s*(\d+)', lambda m: num_to_sino(int(m.group(1))) + ' 나누기 ' + num_to_sino(int(m.group(2))), text)
-
-            # 소수점 숫자 (7.5 → 칠점오, 3.14 → 삼점일사)
-            def convert_decimal(match):
-                integer_part = match.group(1)
-                decimal_part = match.group(2)
-                unit = match.group(3) if match.lastindex >= 3 else ''
-
-                # 정수 부분 변환
-                result = num_to_sino(int(integer_part)) + '점'
-
-                # 소수점 이하 각 자릿수 변환 (0.5 → 영점오)
-                decimal_digits = ['영', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
-                for digit in decimal_part:
-                    result += decimal_digits[int(digit)]
-
-                return result + unit
-
-            # 소수점 + 단위 패턴 (7.5일, 3.5kg 등)
-            text = re.sub(r'(\d+)\.(\d+)(일|시간|분|초|km|m|kg|g|cm|mm|%|퍼센트|배|도|리터|L|ml)', convert_decimal, text)
-
-            # 단위 없는 소수점 (그냥 7.5 등)
-            text = re.sub(r'(\d+)\.(\d+)(?![가-힣a-zA-Z])', lambda m: convert_decimal(m), text)
 
             return text
 
