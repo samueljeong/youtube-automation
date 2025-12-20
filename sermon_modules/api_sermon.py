@@ -536,6 +536,40 @@ def process_step():
             result = remove_markdown(result)
             return jsonify({"ok": True, "result": result, "usage": usage_data})
 
+        # Step1/Step2 추가 정보 수집 (Step4에서 사용)
+        extra_info = {}
+
+        # Step1인 경우: Strong's 원어 분석 정보 추가
+        if step_type == "step1" and reference:
+            try:
+                strongs_analysis = analyze_verse_strongs(reference, top_n=5)
+                if strongs_analysis and not strongs_analysis.get('error'):
+                    extra_info['strongs_analysis'] = {
+                        'reference': strongs_analysis.get('reference', ''),
+                        'text': strongs_analysis.get('text', ''),
+                        'key_words': strongs_analysis.get('key_words', [])
+                    }
+                    print(f"[PROCESS] Step1 extra_info: Strong's {len(strongs_analysis.get('key_words', []))}개 단어")
+            except Exception as e:
+                print(f"[PROCESS] Strong's 추가 정보 수집 실패 (무시): {e}")
+
+        # Step2인 경우: 시대 컨텍스트 정보 추가
+        if step_type == "step2" or (step_id and "step2" in step_id.lower()):
+            try:
+                audience_type = data.get("audienceType", "전체")
+                context_result = get_current_context(audience_type=audience_type)
+                if context_result:
+                    extra_info['context_data'] = {
+                        'audience': context_result.get('audience', '전체'),
+                        'news': context_result.get('news', {}),
+                        'indicators': context_result.get('indicators', {}),
+                        'concerns': context_result.get('concerns', [])
+                    }
+                    news_count = sum(len(v) for v in context_result.get("news", {}).values())
+                    print(f"[PROCESS] Step2 extra_info: 시대 컨텍스트 {news_count}개 뉴스")
+            except Exception as e:
+                print(f"[PROCESS] 시대 컨텍스트 추가 정보 수집 실패 (무시): {e}")
+
         # JSON 파싱 시도 (선택적)
         try:
             cleaned_result = result
@@ -565,7 +599,10 @@ def process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": formatted_result, "usage": usage_data})
+            response = {"ok": True, "result": formatted_result, "usage": usage_data}
+            if extra_info:
+                response["extraInfo"] = extra_info
+            return jsonify(response)
 
         except json.JSONDecodeError:
             print(f"[PROCESS][INFO] 텍스트 형식으로 응답받음 (JSON 아님)")
@@ -583,7 +620,10 @@ def process_step():
                 except Exception as e:
                     print(f"[PROCESS] Step1 저장 시작 실패 (무시): {str(e)}")
 
-            return jsonify({"ok": True, "result": result, "usage": usage_data})
+            response = {"ok": True, "result": result, "usage": usage_data}
+            if extra_info:
+                response["extraInfo"] = extra_info
+            return jsonify(response)
 
     except Exception as e:
         print(f"[PROCESS][ERROR] {str(e)}")

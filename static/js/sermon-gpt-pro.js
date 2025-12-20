@@ -20,6 +20,7 @@ function assembleGptProDraft() {
   const specialNotes = document.getElementById('special-notes')?.value || '';
   const style = getCurrentStyle();
   const styleName = style?.name || '';
+  const styleId = window.currentStyleId || '';
   const categoryLabel = getCategoryLabel(window.currentCategory);
   const today = new Date().toLocaleDateString('ko-KR');
 
@@ -73,7 +74,7 @@ function assembleGptProDraft() {
 
   draft += `\n==================================================\n\n`;
 
-  // Step 결과들
+  // Step 결과들 + 추가 정보 (Strong's 원어 분석, 시대 컨텍스트)
   const steps = getCurrentSteps();
   let stepNum = 1;
   steps.forEach(step => {
@@ -82,16 +83,145 @@ function assembleGptProDraft() {
       const label = stepType === 'step1' ? 'STEP 1' : 'STEP 2';
       draft += `【 ${stepNum}. ${label} — ${step.name} 】\n\n`;
       draft += window.stepResults[step.id] + '\n\n';
+
+      // Step1 추가 정보: Strong's 원어 분석
+      const extraInfo = window.stepExtraInfo?.[step.id];
+      if (stepType === 'step1' && extraInfo?.strongs_analysis) {
+        const strongs = extraInfo.strongs_analysis;
+        if (strongs.key_words && strongs.key_words.length > 0) {
+          draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+          draft += `【 ★ Strong's 원어 분석 (Step1 보강) 】\n`;
+          draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          if (strongs.text) {
+            draft += `영문 (KJV): ${strongs.text}\n\n`;
+          }
+          draft += `▶ 핵심 원어 단어:\n`;
+          strongs.key_words.forEach((word, i) => {
+            const lemma = word.lemma || '';
+            const translit = word.translit || '';
+            const strongsNum = word.strongs || '';
+            const definition = word.definition || '';
+            draft += `  ${i + 1}. ${lemma} (${translit}, ${strongsNum})\n`;
+            if (word.english) draft += `     → 영어: ${word.english}\n`;
+            if (definition) draft += `     → 의미: ${definition.substring(0, 200)}${definition.length > 200 ? '...' : ''}\n`;
+            draft += `\n`;
+          });
+        }
+      }
+
+      // Step2 추가 정보: 시대 컨텍스트
+      if (stepType === 'step2' && extraInfo?.context_data) {
+        const context = extraInfo.context_data;
+        draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+        draft += `【 ★ 현재 시대 컨텍스트 (Step2 보강) 】\n`;
+        draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        draft += `청중 유형: ${context.audience || '전체'}\n\n`;
+
+        // 주요 뉴스 이슈
+        if (context.news && Object.keys(context.news).length > 0) {
+          draft += `▶ 주요 시사 이슈 (서론/예화에 활용)\n`;
+          const catNames = { economy: '경제', politics: '정치', society: '사회', world: '국제', culture: '문화' };
+          Object.entries(context.news).forEach(([cat, items]) => {
+            if (items && items.length > 0) {
+              draft += `  [${catNames[cat] || cat}]\n`;
+              items.slice(0, 2).forEach(item => {
+                const newsTitle = item.title?.length > 50 ? item.title.substring(0, 50) + '...' : item.title;
+                draft += `  • ${newsTitle}\n`;
+              });
+            }
+          });
+          draft += `\n`;
+        }
+
+        // 사회 지표
+        if (context.indicators && Object.keys(context.indicators).length > 0) {
+          draft += `▶ 관련 사회 지표\n`;
+          Object.entries(context.indicators).forEach(([cat, data]) => {
+            if (typeof data === 'object') {
+              Object.entries(data).forEach(([key, value]) => {
+                if (key !== 'updated') draft += `  • ${key}: ${value}\n`;
+              });
+            }
+          });
+          draft += `\n`;
+        }
+
+        // 청중 관심사
+        if (context.concerns && context.concerns.length > 0) {
+          draft += `▶ 청중의 주요 관심사/고민\n`;
+          context.concerns.forEach(concern => {
+            draft += `  • ${concern}\n`;
+          });
+          draft += `\n`;
+        }
+
+        draft += `※ 위 시대 컨텍스트를 도입부/예화/적용에 활용하세요.\n\n`;
+      }
+
       draft += `==================================================\n\n`;
       stepNum++;
     }
   });
+
+  // 스타일별 작성 가이드
+  if (styleName && window.DEFAULT_GUIDES?.[styleName]?.step3) {
+    const step3Guide = window.DEFAULT_GUIDES[styleName].step3;
+
+    draft += `==================================================\n`;
+    draft += `【 ★★★ 스타일별 작성 가이드 (${styleName}) ★★★ 】\n`;
+    draft += `==================================================\n\n`;
+
+    // 가독성/문단 스타일
+    if (step3Guide.writing_style) {
+      const ws = step3Guide.writing_style;
+      draft += `▶ ${ws.label || '문단/줄바꿈 스타일'}\n`;
+      if (ws.core_principle) draft += `   핵심: ${ws.core_principle}\n`;
+      if (ws.must_do) {
+        draft += `   ✅ 해야 할 것:\n`;
+        ws.must_do.forEach(item => draft += `      - ${item}\n`);
+      }
+      if (ws.must_not) {
+        draft += `   ❌ 하지 말 것:\n`;
+        ws.must_not.forEach(item => draft += `      - ${item}\n`);
+      }
+      draft += `\n`;
+    }
+
+    // 성경구절 인용 방식
+    if (step3Guide.scripture_citation) {
+      const sc = step3Guide.scripture_citation;
+      draft += `▶ ${sc.label || '성경구절 인용 방식'}\n`;
+      if (sc.core_principle) draft += `   핵심: ${sc.core_principle}\n`;
+      if (sc.must_do) {
+        draft += `   ✅ 해야 할 것:\n`;
+        sc.must_do.forEach(item => draft += `      - ${item}\n`);
+      }
+      if (sc.good_examples) {
+        draft += `   ✅ 올바른 예시:\n`;
+        sc.good_examples.forEach(ex => draft += `      ${ex}\n`);
+      }
+      draft += `\n`;
+    }
+
+    draft += `==================================================\n\n`;
+  }
 
   // 최종 작성 지침
   draft += `==================================================\n`;
   draft += `📝 최종 작성 지침:\n`;
   draft += `==================================================\n`;
   draft += `위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n\n`;
+
+  draft += `✅ 필수 체크리스트:\n`;
+  draft += `  □ Step1의 '핵심_메시지'가 설교 전체에 일관되게 흐르는가?\n`;
+  draft += `  □ Step1의 '주요_절_해설'과 '핵심_단어_분석'을 활용했는가?\n`;
+  draft += `  □ Step2의 설교 구조(서론, 대지, 결론)를 따랐는가?\n`;
+  if (duration) draft += `  □ 분량이 ${duration}에 맞는가?\n`;
+  if (target) draft += `  □ 대상(${target})에 맞는 어조와 예시를 사용했는가?\n`;
+  if (worshipType) draft += `  □ 예배 유형(${worshipType})에 맞는 톤인가?\n`;
+  draft += `  □ 성경 구절이 가독성 가이드에 맞게 줄바꿈 처리되었는가?\n`;
+  draft += `  □ 마크다운 없이 순수 텍스트로 작성했는가?\n`;
+  draft += `  □ 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n\n`;
 
   if (duration) {
     draft += `⚠️ 가장 중요: 반드시 ${duration} 분량을 지켜주세요!\n`;

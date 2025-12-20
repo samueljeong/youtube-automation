@@ -102,6 +102,13 @@ async function executeStep(stepId) {
     // 결과 저장
     window.stepResults[stepId] = data.result;
 
+    // 추가 정보 저장 (Strong's 원어 분석, 시대 컨텍스트 등)
+    if (data.extraInfo) {
+      window.stepExtraInfo = window.stepExtraInfo || {};
+      window.stepExtraInfo[stepId] = data.extraInfo;
+      console.log(`[executeStep] extraInfo 저장됨 (${stepId}):`, Object.keys(data.extraInfo));
+    }
+
     // 토큰 사용량 저장
     if (data.usage) {
       window.stepUsage = window.stepUsage || {};
