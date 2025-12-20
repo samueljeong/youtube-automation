@@ -9,6 +9,7 @@ sermon_modules/prompt.py
 """
 
 import json
+import re
 from .utils import is_json_guide, parse_json_guide
 from .styles import get_style, get_available_styles, READABILITY_GUIDE
 
@@ -240,6 +241,24 @@ def build_step1_research_prompt():
 ★ 모든 ID는 고유해야 하며, STEP2에서 필수 참조됩니다.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ⚠️ Anchor 절-문구 정합성 규칙 (필수) 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ anchor_phrase는 반드시 range에 명시된 절의 실제 내용과 일치해야 합니다!
+
+✅ 올바른 예시:
+- A3 range:"사9:3", anchor_phrase:"즐거움을 더하셨으니... 주 앞에서 즐거워함" (3절 내용)
+- A4 range:"사9:4", anchor_phrase:"그 멍에와 어깨의 채찍... 미디안의 날" (4절 내용)
+
+❌ 잘못된 예시:
+- A4 range:"사9:4", anchor_phrase:"전리품을 나눌 때처럼" ← 이건 3절 내용!
+
+★ 중요 절에는 복수 Anchor 가능 (A6, A6b 형식):
+- 예: 사9:6의 "한 아기가... 정사를 메었고" → A6
+- 예: 사9:6의 "기묘자/모사/전능하신 하나님/영존하시는 아버지/평강의 왕" → A6b
+- 메시아 칭호, 핵심 선언 등은 별도 Anchor로 분리해야 Step2/3에서 깊이 있게 다룰 수 있음
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【 Strong's 사용 제한 규칙 (필수) 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -323,8 +342,8 @@ def build_step1_research_prompt():
   },
 
   "context_links": {
-    "immediate_before": "바로 앞 구절/장의 내용과 연결",
-    "immediate_after": "바로 뒤 구절/장의 내용과 연결",
+    "immediate_before": "바로 앞 단락/구절의 내용 (예: 사8장 마지막 단락의 어둠/저주)",
+    "immediate_after": "★ 바로 다음 단락의 구체적 내용 (예: 사9:8~의 심판/책망 단락). '책 전체 요약'이 아님!",
     "book_level_context": "해당 책 전체에서 이 본문의 위치와 역할"
   },
 
@@ -379,7 +398,7 @@ def build_step1_research_prompt():
       "translit": "음역",
       "strongs": "Strong's 번호 (예: H215)",
       "lexical_meaning": "사전적 의미",
-      "meaning_in_context": "이 본문 맥락에서의 의미",
+      "meaning_in_context": "★ 이 본문 맥락에서의 의미 - 의미 범위 전체 포함! (예: shalom은 '전쟁 종식'뿐 아니라 '온전함/회복/안정/질서'까지 포괄)",
       "usage_note": "용례/사용 주의사항 (설교 적용 금지)"
     }
   ],
@@ -400,8 +419,8 @@ def build_step1_research_prompt():
       { "id": "D5", "claim": "", "reason": "", "avoid_in_step2_3": true }
     ],
     "common_misreads": [
-      { "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "올바른 해석의 경계" },
-      { "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "" },
+      { "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "★ 경계만 표시! (예: '시간표/국경/정권 형태를 확정하지 않음')" },
+      { "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "★ 신학 해석이 아닌 '본문이 제공하는 범위'만 기술" },
       { "id": "M3", "misread": "", "why_wrong": "", "correct_boundary": "" }
     ]
   },
@@ -459,6 +478,20 @@ does_not_claim은 '신학 해석/결론'이 아니라 '본문이 말하지 않�
 ❌ 금지된 예시 (신학 해석):
 - "평화는 선택적 반응과 연결된다" ← 이건 해석/신학 결론, STEP1에서 금지
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ⚠️ Guardrails common_misreads(M*) 작성 규칙 (필수) 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+common_misreads의 correct_boundary는 '경계 표현'만 사용:
+
+✅ 올바른 예시 (경계 표현):
+- "정치적 요소를 배제한다고 단정하지 말고, 본문이 제공하는 범위를 넘지 않게"
+- "시간표/국경/정권 형태를 확정하지 않음"
+- "영적/정치적 구원 중 하나만 선택하라고 요구하지 않음"
+
+❌ 금지된 예시 (신학 해석/결론):
+- "정치적 맥락보다는 영적 구원을 강조" ← 이건 STEP1치고 해석이 강함, 금지
+
 ⚠️ 중요: 반드시 위 JSON 스키마 그대로만 출력하세요. 추가 텍스트 금지.
 ⚠️ 설교 톤, 적용, 권면, 예화는 절대 금지입니다. 객관적 관찰만 하세요.
 ⚠️ 모든 ID는 STEP2에서 필수 참조됩니다. ID를 빠뜨리지 마세요.
@@ -485,7 +518,7 @@ def build_step2_design_prompt():
 - 완성 설교문 작성 금지(문단/서술형 설교 금지)
 - 예화/간증/적용 문장 생성 금지(힌트/키워드 수준도 금지)
 - 시사/뉴스/통계/논쟁적 주장 사용 금지
-- Step1에 없는 ID(예: A11, H9 등) 새로 만들기 금지
+- Step1에 없는 ID 사용 금지 (A*, D*, M*, H*, G*, P* 모두 Step1에 실제 존재해야 함)
 - Step1 Guardrails의 does_not_claim(D*)를 위반하는 진술/구조 만들기 금지
 
 핵심 원칙:
@@ -494,14 +527,64 @@ def build_step2_design_prompt():
    - U1(1-2절) → section_1
    - U2(3-5절) → section_2
    - U3(6-7절) → section_3
-3) 각 sub는 반드시 아래 4요소를 포함한다:
-   - passage_anchors: Step1의 A* 2개 이상
-   - supporting_verses: 정확히 2개(성경구절 표기만, 본문 인용문 금지)
-   - background_support: Step1의 H/G/P 중 1개 이상
-   - guardrail_refs: D* 또는 M* 중 1개 이상(해당 sub에서 주의할 경계 표시)
-4) supporting_verses는 "Step1 본문"과 논리적으로 연결되는 보충구절로 선택하되,
-   - 정확히 2개만
-   - 중복 최소화(가능하면 sub끼리 동일 구절 반복 피하기)
+3) 각 sub는 반드시 아래 5요소를 포함한다:
+   - anchor_ids: Step1의 A* 2개 이상
+   - outline_blocks: Anchor와 Supporting Verse의 배치 순서 (아래 참고)
+   - supporting_verses (outline_blocks 안에서 정확히 2개)
+   - guardrail_refs: D* 중 1개 이상
+   - misread_refs: M* 중 1개 이상 (해당 sub에서 주의할 경계)
+4) outline_blocks 패턴 (★ 중요):
+   - supporting_verses는 "sub 마지막에 몰아서" 쓰지 말고, outline_blocks 배열 안에 필요한 위치에 배치한다.
+   - 권장 패턴: anchor → supporting → anchor → supporting
+   - 예시:
+     [
+       { "type": "anchor", "id": "A1", "note": "앵커 설명" },
+       { "type": "supporting_verse", "ref": "시편 23:4", "note": "보충구절 연결 이유" },
+       { "type": "anchor", "id": "A2", "note": "앵커 설명" },
+       { "type": "supporting_verse", "ref": "요한복음 1:5", "note": "보충구절 연결 이유" }
+     ]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★★★ Unit-Anchor 범위 매칭 규칙 (필수) ★★★ 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 section은 해당 Unit의 절 범위에 속하는 Anchor만 사용할 수 있습니다!
+
+✅ 올바른 매핑:
+- section_1 (U1, 1-2절) → A1, A2만 사용 가능
+- section_2 (U2, 3-5절) → A3, A4, A5만 사용 가능
+- section_3 (U3, 6-7절) → A6, A7, A8, A9, A10, A11 등 6-7절 Anchor만 사용 가능
+
+❌ 절대 금지 (범위 침범):
+- section_1에서 A3, A4 사용 ← 3-4절은 U2 영역!
+- section_2에서 A6 사용 ← 6절은 U3 영역!
+- section_3에서 A12 사용 ← Step1에 없는 ID!
+
+★ Anchor의 range 필드를 확인하고, 해당 절이 section의 unit_id 범위 안에 있는지 반드시 검증하세요.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★★★ Step1 ID 존재 검증 규칙 (필수) ★★★ 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Step2에서 참조하는 모든 ID는 Step1에 실제로 존재해야 합니다!
+
+예를 들어 Step1에 다음이 있다면:
+- anchors: A1~A10 (또는 A11까지)
+- does_not_claim: D1~D5
+- common_misreads: M1~M3
+- historical_background: H1~H3
+- places: G1~G3
+
+Step2에서 사용 가능한 ID:
+✅ A1, A2, ..., A10 (Step1에 있음)
+✅ D1, D2, D3, D4, D5 (Step1에 있음)
+✅ M1, M2, M3 (Step1에 있음)
+✅ H1, H2, H3 (Step1에 있음)
+✅ G1, G2, G3 (Step1에 있음)
+
+❌ A12 (Step1에 없음)
+❌ D6, D7, D8 (Step1에 없음)
+❌ M4, M5, M6 (Step1에 없음)
 
 출력 형식(필수):
 - 반드시 "아래 JSON 스키마" 그대로만 출력한다.
@@ -519,60 +602,72 @@ def build_step2_design_prompt():
 
   "intro": {
     "intro_question": "<한 문장 질문>",
+    "flow_preview_only": ["U1(1-2절): 어둠→빛", "U2(3-5절): 압제→해방", "U3(6-7절): 왕권→정의"],
     "constraints": ["시사/뉴스/통계 금지", "예화/적용 문장 금지", "본문 흐름(U1→U2→U3)만 예고"]
   },
 
   "section_1": {
     "unit_id": "U1",
     "range": "1-2절",
-    "background_support": ["H*", "G*"],
+    "background_support": ["H1", "G1"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A1", "A2"],
+      "outline_blocks": [
+        { "type": "anchor", "id": "A1", "note": "앵커 설명" },
+        { "type": "supporting_verse", "ref": "시편 23:4", "note": "보충구절 연결 이유" },
+        { "type": "anchor", "id": "A2", "note": "앵커 설명" },
+        { "type": "supporting_verse", "ref": "요한복음 1:5", "note": "보충구절 연결 이유" }
+      ],
+      "guardrail_refs": ["D1"],
+      "misread_refs": ["M1"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A1", "A2"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D2"],
+      "misread_refs": ["M2"]
     }
   },
 
   "section_2": {
     "unit_id": "U2",
     "range": "3-5절",
-    "background_support": ["H*"],
+    "background_support": ["H2"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A3", "A4"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D1"],
+      "misread_refs": ["M1"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A4", "A5"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D3"],
+      "misread_refs": ["M3"]
     }
   },
 
   "section_3": {
     "unit_id": "U3",
     "range": "6-7절",
-    "background_support": ["H*"],
+    "background_support": ["H3"],
     "sub_1": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A6", "A7"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D5"],
+      "misread_refs": ["M2"]
     },
     "sub_2": {
       "title": "<구조적 소제목>",
-      "passage_anchors": ["A*", "A*"],
-      "supporting_verses": ["<보충구절1>", "<보충구절2>"],
-      "guardrail_refs": ["D*", "M*"]
+      "anchor_ids": ["A9", "A10"],
+      "outline_blocks": [],
+      "guardrail_refs": ["D2"],
+      "misread_refs": ["M2"]
     }
   },
 
@@ -584,22 +679,29 @@ def build_step2_design_prompt():
   },
 
   "self_check": [
+    { "check": "all_anchor_ids_exist_in_step1", "pass": true, "notes": "" },
+    { "check": "anchors_within_unit_range", "pass": true, "notes": "" },
     { "check": "each_sub_has_2plus_anchors", "pass": true, "notes": "" },
     { "check": "each_sub_has_exactly_2_supporting_verses", "pass": true, "notes": "" },
     { "check": "each_section_has_background_support", "pass": true, "notes": "" },
-    { "check": "flow_follows_U1_U2_U3", "pass": true, "notes": "" },
-    { "check": "does_not_claim_respected", "pass": true, "notes": "" },
-    { "check": "no_sermon_paragraphs_or_applications", "pass": true, "notes": "" }
+    { "check": "misread_ids_exist_in_step1_only", "pass": true, "notes": "M1~M3만 사용" },
+    { "check": "does_not_claim_ids_exist_in_step1_only", "pass": true, "notes": "D1~D5만 사용" },
+    { "check": "no_sermon_paragraphs_or_applications", "pass": true, "notes": "" },
+    { "check": "no_news_stats_examples", "pass": true, "notes": "" }
   ]
 }
 ```
 
-검증 규칙:
-- Step1에 존재하지 않는 ID가 들어가면 self_check에서 반드시 pass=false 처리하고 notes에 누락/오류를 기록한다.
-- 각 sub의 passage_anchors가 2개 미만이면 pass=false.
-- supporting_verses가 2개가 아니면 pass=false.
-- U1/U2/U3 매핑이 어긋나면 pass=false.
-- does_not_claim(D*) 위반 소지가 있으면 pass=false.
+검증 규칙 (self_check pass=false 조건):
+1. all_anchor_ids_exist_in_step1: Step1에 없는 A* ID 사용 시 pass=false (예: A12가 없는데 사용)
+2. all_anchors_in_correct_unit_range: Anchor가 해당 section의 절 범위를 벗어나면 pass=false
+   - section_1에서 A3 사용 → pass=false (A3는 3절, section_1은 1-2절)
+   - section_2에서 A6 사용 → pass=false (A6은 6절, section_2는 3-5절)
+3. all_guardrail_ids_exist_in_step1: Step1에 없는 D*, M* 사용 시 pass=false (예: M4, D6 등)
+4. all_background_ids_exist_in_step1: Step1에 없는 H*, G*, P* 사용 시 pass=false
+5. each_sub_has_2plus_anchors: 각 sub의 passage_anchors가 2개 미만이면 pass=false
+6. each_sub_has_exactly_2_supporting_verses: supporting_verses가 2개가 아니면 pass=false
+7. does_not_claim_respected: D* 위반 소지가 있으면 pass=false
 
 반드시 한국어로만, JSON만 출력하세요.
 '''
@@ -625,28 +727,37 @@ def build_step2_user_prompt(reference: str, step1_result: dict, title: str = "")
 
     title_line = title if title else "(없음 - Step1 big idea 후보 기반으로 생성)"
 
-    return f"""[STEP2 요청: 구조 전용 출력]
+    return f"""[STEP2 입력]
 
-아래 Step1 결과(신규 ID 스키마)를 기반으로,
-설교 스타일/예화/적용 없이 "구조 전용 STEP2 JSON"을 출력하세요.
+Reference: {reference}
+Mode: structure_only
+Title candidate: {title_line}
 
-[기본 입력]
-- reference: {reference}
-- title(선택): {title_line}
-- time_map_percent(고정): intro 10, s1 27, s2 27, s3 27, ending 9
+Time map percent:
+- intro: 10
+- s1: 27
+- s2: 27
+- s3: 27
+- ending: 9
 
-[필수 규칙]
-1) U1(1-2절)→section_1, U2(3-5절)→section_2, U3(6-7절)→section_3 고정
-2) 각 sub는:
-   - passage_anchors: A* 2개 이상(반드시 Step1에 있는 A*만)
-   - supporting_verses: 정확히 2개(구절 표기만)
-   - background_support: H/G/P 중 1개 이상(반드시 Step1에 있는 ID만)
-   - guardrail_refs: D* 또는 M* 중 1개 이상(반드시 Step1에 있는 ID만)
-3) Step2에서는 시사/뉴스/통계/논쟁 정보 사용 금지
-4) Step2에서는 예화/적용/설교 문단 작성 금지(구조/근거만)
-
-[Step1 결과(JSON)]
+[Step1 Result JSON]
 {step1_json}
+
+[작성 지시]
+1) Step1의 Structure Outline(Unit U1→U2→U3)을 그대로 사용해 Section_1~3을 구성하세요.
+2) 각 sub는 anchor_ids 2개 이상 + outline_blocks(supporting_verses 정확히 2개 포함)를 포함하세요.
+3) outline_blocks 안에서 supporting_verses는 "필요한 위치"에 배치하세요.
+   (anchor → supporting → anchor → supporting 패턴 권장)
+4) guardrail_refs는 D1~D5 중에서, misread_refs는 M1~M3 중에서만 참조하세요.
+   (Step1에 존재하는 ID만 사용!)
+5) 예화/적용/설교문 문장/시사/뉴스/통계는 절대 쓰지 마세요.
+6) 출력은 JSON 1개만 (설명 텍스트 금지).
+
+[Unit-Anchor 범위 규칙]
+- section_1(U1, 1-2절) → A1, A2만 사용 가능
+- section_2(U2, 3-5절) → A3, A4, A5만 사용 가능
+- section_3(U3, 6-7절) → A6~A11 등 6-7절 Anchor만 사용 가능
+- 범위 밖 Anchor 사용 금지!
 
 [출력]
 - System Prompt에 정의된 STEP2 JSON 스키마 그대로 출력
@@ -700,29 +811,148 @@ def _minimize_step1_for_step3(step1: dict) -> dict:
     return keep
 
 
+def build_step3_system_prompt():
+    """
+    Step3 시스템 프롬프트: 완성 설교문(강연형/발화 가능한 원고) 작성
+
+    핵심 원칙:
+    - Step1(본문 분석) + Step2(구조 설계)를 기반으로 완성 설교문 작성
+    - JSON 형식으로 출력
+    - Step2의 outline_blocks 순서를 따라 전개
+    """
+    return '''당신은 설교 작성 파이프라인의 STEP3 모델입니다.
+STEP3의 목적은 Step1(본문 분석) + Step2(구조 설계)를 기반으로 "완성 설교문(강연형/발화 가능한 원고)"을 작성하는 것입니다.
+
+출력 규칙(절대):
+1) 출력은 오직 JSON 1개만 응답합니다. (설명 텍스트 금지)
+2) Step1/Step2에 존재하는 ID만 사용합니다.
+   - Anchors: A*
+   - Background: H*, G*, P*
+   - Guardrails: C*, D*
+   - Misreads: M*
+3) Step2의 구조(Section_1~3, sub_1~2, outline_blocks 순서)를 그대로 따라가며,
+   Step3는 그 "뼈대에 살을 붙여" 설교 원고를 완성합니다.
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 단정/시간표/정치적 확정/자동보장 표현 금지.
+5) Step1 common_misreads(M*)에서 경고한 오해를 유도하는 표현 금지.
+6) 성경 인용은 아래 '가독성 필수 지침'을 반드시 따릅니다.
+
+가독성 필수 지침(필수):
+- 성경 구절 인용 형식:
+  (줄바꿈)
+  요3:16
+  하나님이 세상을 이처럼 사랑하사...
+  (줄바꿈)
+- 문장 원칙:
+  1) 한 문장은 최대 2줄 이내
+  2) 핵심은 짧게 끊어서 작성
+  3) 긴 설명은 여러 문장으로 나누기
+  4) 단락 사이 줄바꿈 적극 사용
+
+설교 작성 원칙:
+- Step3에서는 예화/적용/권면/결단을 포함할 수 있습니다.
+- 다만 Step2의 구조 흐름(U1→U2→U3)과 논리 전개를 깨지 않습니다.
+- 각 sub(소대지)는 반드시 anchor_ids에 해당하는 "핵심 문구/의미"를 설교 원고 안에 반영합니다.
+  (직접 인용이든, 의미를 보존한 재진술이든 가능)
+- supporting_verses(보충 성경구절)는 Step2의 outline_blocks 위치에 맞춰 "필요한 자리"에 끼워 넣습니다.
+  (맨 끝에 몰아넣지 말 것)
+
+반드시 아래 스키마로만 출력하세요:
+
+```json
+{
+  "step": "STEP3",
+  "mode": "full_sermon",
+  "reference": "",
+  "style_id": "",
+  "title": "",
+  "meta": {
+    "audience": "",
+    "service_type": "",
+    "duration_min": 0,
+    "special_notes": ""
+  },
+
+  "sermon": {
+    "intro": {
+      "rendered_text": "",
+      "used_ids": { "anchor_ids": [], "background_ids": [], "guardrail_ids": [], "misread_ids": [] }
+    },
+
+    "points": [
+      {
+        "point_no": 1,
+        "title": "",
+        "range": "",
+        "used_ids": { "unit_id": "", "background_ids": [] },
+
+        "subpoints": [
+          {
+            "sub_no": "1-1",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+          },
+          {
+            "sub_no": "1-2",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+          }
+        ],
+
+        "transition_to_next": {
+          "rendered_text": ""
+        }
+      },
+
+      { "point_no": 2, "...": "same structure" },
+      { "point_no": 3, "...": "same structure" }
+    ],
+
+    "ending": {
+      "rendered_text": "",
+      "used_ids": { "guardrail_ids": [], "misread_ids": [] }
+    }
+  },
+
+  "self_check": [
+    { "check": "json_only", "pass": false, "notes": "" },
+    { "check": "uses_only_step1_step2_ids", "pass": false, "notes": "" },
+    { "check": "follows_step2_structure_order", "pass": false, "notes": "" },
+    { "check": "does_not_claim_respected", "pass": false, "notes": "D* 위반 여부" },
+    { "check": "misreads_avoided", "pass": false, "notes": "M* 유도 여부" },
+    { "check": "supporting_verses_placed_in_outline_blocks_positions", "pass": false, "notes": "" },
+    { "check": "scripture_quote_format_ok", "pass": false, "notes": "구절 인용 줄바꿈 형식" },
+    { "check": "readability_rules_ok", "pass": false, "notes": "문장/단락 줄바꿈" },
+    { "check": "duration_target_reasonable", "pass": false, "notes": "분량 체감" }
+  ]
+}
+```
+
+Self_Check는 반드시 '검증 후' pass 값을 True/False로 채우세요.
+
+반드시 한국어로만, JSON만 출력하세요.
+'''
+
+
 def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_result, style_id: str = None):
     """
-    신규 ID 스키마(anchors/H*/G*/D*) 기반 Step3(원고) 프롬프트 템플릿.
+    신규 ID 스키마(anchors/H*/G*/D*/M*) 기반 Step3(원고) 유저 프롬프트.
     - Step2(outline)를 1순위 단일 진실(Single Source of Truth)로 사용
     - Step1은 anchors/guardrails/background 근거 제공자
-    - 출력 끝에 self_check JSON을 별도 블록으로 강제(파싱 가능)
+    - JSON 형식으로 완성 설교문 출력
     """
     # 메타 기본값
     reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
     title = meta_data.get("title") or meta_data.get("sermon_title") or ""
     target = meta_data.get("target") or meta_data.get("audience") or ""
     service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
-    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or ""
+    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or 20
     special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
-
-    # 스타일 가이드 텍스트 (json_guide에서 추출)
-    style_guide_text = ""
-    if json_guide and isinstance(json_guide, dict):
-        style_guide_text = (
-            json_guide.get("step3_style_guide", "")
-            or json_guide.get("style_guide", "")
-            or ""
-        )
 
     # Step1 최소화 (근거용 - 토큰 절약)
     step1_min = _minimize_step1_for_step3(step1_result or {})
@@ -730,89 +960,255 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
     # Step2는 설계서이므로 가급적 전체 전달
     step2_outline = step2_result or {}
 
-    # Step3 프롬프트 템플릿
-    user_prompt = f"""\
-당신은 설교 STEP3(원고 작성) 담당자입니다.
-아래 입력(JSON)을 근거로 설교 원고를 작성하세요.
+    # Step3 유저 프롬프트 템플릿
+    user_prompt = f"""[STEP3 입력]
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[작성 설정]
-- 본문: {reference}
-- 설교 제목(사용자/Step2 우선): {title}
-- 예배/집회 유형: {service_type}
-- 대상: {target}
-- 목표 분량(분): {duration_min}
-- 특별 참고: {special_notes}
+Reference: {reference}
+Style_Id: {style_id or "three_points"}
+Title: {title}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[우선순위(중요)]
-1) STEP2(outline JSON) = 단일 진실(Single Source of Truth)
-   - 대지/소대지 구조, passage_anchors(anchor_id), supporting_verses(정확히 2개), 배경 참조(background_support)를 그대로 따른다.
-2) STEP1(research JSON) = 근거 데이터
-   - anchors(A*), guardrails(D* 포함), 역사/지리(H*/G*)는 "근거"로만 사용한다.
-3) 위 둘과 충돌하는 내용은 작성 금지.
+Meta:
+- audience: {target}
+- service_type: {service_type}
+- duration_min: {duration_min}
+- special_notes: {special_notes}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[절대 규칙]
-- 각 소대지는 STEP2에 지정된 passage_anchors(anchor_id) 2개 이상을 반드시 '내용 근거'로 반영한다.
-- 각 소대지는 STEP2에 지정된 supporting_verses 2개를 그대로 인용한다(추가/변경 금지).
-- STEP1 guardrails.does_not_claim(D*)에 해당하는 주장/해석은 금지한다(위반 시 스스로 수정).
-- 시사 뉴스/통계/부동산/정치 등 변동·논쟁 정보는 사용하지 않는다(사용자가 명시했을 때만 예외).
-- 설교문은 한국어로만 작성한다.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[가독성 필수 지침]
-- 한 문장은 최대 2줄
-- 핵심은 짧게 끊어 쓰기
-- 단락 사이 줄바꿈
-- 성경 인용 형식(필수): 아래처럼 '본문 표기 줄' 다음에 '구절 내용'을 쓴다.
-
-(줄바꿈)
-요3:16
-하나님이 세상을 이처럼 사랑하사...
-(줄바꿈)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[원고 출력 구조(필수)]
-1) 제목
-2) 서론
-3) 1대지
-   - 1-1, 1-2 (각 소대지: 근거→인용→짧은 적용→연결문장)
-4) 2대지
-   - 2-1, 2-2
-5) 3대지(클라이맥스)
-   - 3-1, 3-2
-6) 결론
-   - 요약 3문장(대지별 1문장)
-   - 결단 질문 2개
-   - 기도 제목 2개
-   - 축복 문장 1개
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[스타일 가이드(있으면 표현에만 적용)]
-{style_guide_text}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[입력 데이터: STEP2(outline)]
-{_j(step2_outline)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[입력 데이터: STEP1(research, minimized)]
+[Step1 Result JSON]
 {_j(step1_min)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[출력 끝에 self_check JSON을 반드시 추가]
-원고 맨 끝에 아래 구분자를 붙이고, 그 아래에 JSON만 출력하세요.
+[Step2 Result JSON]
+{_j(step2_outline)}
 
-===SELF_CHECK_JSON===
-{{
-  "anchors_used": true,
-  "supporting_verses_exactly_two_each_subpoint": true,
-  "does_not_claim_violations": [],
-  "no_current_affairs_used": true,
-  "duration_respected": true,
-  "readability_rules_followed": true
-}}
+[작성 지시]
+1) Step2 구조를 그대로 따르되, Step3는 "완성 설교 원고"로 확장하세요.
+2) 각 소대지는 Step2의 outline_blocks 순서를 따라 전개하세요.
+3) supporting_verses는 outline_blocks 위치에 맞춰 필요한 자리에서 인용하세요(끝에 몰지 말 것).
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 단정 표현 금지.
+5) Step1 Misreads(M*)를 유도하는 표현 금지.
+6) 성경 인용은 반드시 아래 형식:
+   (줄바꿈)
+   요3:16
+   하나님이 세상을 이처럼 사랑하사...
+   (줄바꿈)
+7) 출력은 JSON 1개만.
+"""
+
+    return user_prompt
+
+
+# ═══════════════════════════════════════════════════════════════
+# Step4 프롬프트 빌더 (설교문 검토 및 정제)
+# ═══════════════════════════════════════════════════════════════
+
+def build_step4_system_prompt():
+    """
+    Step4 시스템 프롬프트: 설교문 검토 및 정제
+
+    핵심 원칙:
+    - Step3 완성 설교문을 검토하고 정제
+    - ID 사용 추적 검증
+    - 최종 품질 검증 (분량, 가독성, guardrail 준수 등)
+    - JSON 형식으로 출력
+    """
+    return '''당신은 설교 작성 파이프라인의 STEP4 모델입니다.
+STEP4의 목적은 Step3에서 작성된 "완성 설교문"을 검토하고 정제하여 최종 품질을 보장하는 것입니다.
+
+출력 규칙(절대):
+1) 출력은 오직 JSON 1개만 응답합니다. (설명 텍스트 금지)
+2) Step1/Step2/Step3에 존재하는 ID만 사용합니다.
+   - Anchors: A*
+   - Background: H*, G*, P*
+   - Guardrails: C*, D*
+   - Misreads: M*
+3) Step3 설교문을 그대로 유지하되, 아래 항목을 검토/정제합니다:
+   - 가독성 규칙 준수 여부 (문장 길이, 줄바꿈, 성경 인용 형식)
+   - ID 사용 통계 (사용된 ID 목록 및 누락된 ID)
+   - Guardrails 위반 여부 (D* 위반, M* 유도)
+   - 분량 적절성 (목표 분량 대비)
+4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 표현이 있으면 수정합니다.
+5) Step1 common_misreads(M*)를 유도하는 표현이 있으면 수정합니다.
+
+검토 항목:
+- 구조 정합성: Step2 구조(Section_1~3, sub_1~2)가 설교문에 반영되었는지
+- ID 사용 완전성: Step1/Step2의 주요 ID가 설교문에 활용되었는지
+- 가독성: 문장 길이, 줄바꿈, 성경 인용 형식
+- Guardrail 준수: D* 위반 없음, M* 유도 없음
+- 분량: 목표 분량에 맞게 작성되었는지
+
+반드시 아래 스키마로만 출력하세요:
+
+```json
+{
+  "step": "STEP4",
+  "mode": "review_and_refine",
+  "reference": "",
+  "style_id": "",
+  "title": "",
+  "meta": {
+    "audience": "",
+    "service_type": "",
+    "duration_min": 0,
+    "special_notes": ""
+  },
+
+  "review_summary": {
+    "total_issues_found": 0,
+    "critical_issues": [],
+    "minor_issues": [],
+    "improvements_made": []
+  },
+
+  "id_usage_stats": {
+    "anchors_used": [],
+    "anchors_unused": [],
+    "backgrounds_used": [],
+    "backgrounds_unused": [],
+    "guardrails_checked": [],
+    "misreads_avoided": []
+  },
+
+  "sermon": {
+    "intro": {
+      "rendered_text": "",
+      "used_ids": { "anchor_ids": [], "background_ids": [], "guardrail_ids": [], "misread_ids": [] },
+      "refinements": []
+    },
+
+    "points": [
+      {
+        "point_no": 1,
+        "title": "",
+        "range": "",
+        "used_ids": { "unit_id": "", "background_ids": [] },
+
+        "subpoints": [
+          {
+            "sub_no": "1-1",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+            "refinements": []
+          },
+          {
+            "sub_no": "1-2",
+            "title": "",
+            "anchor_ids": [],
+            "outline_blocks_used": [],
+            "rendered_text": "",
+            "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+            "refinements": []
+          }
+        ],
+
+        "transition_to_next": {
+          "rendered_text": "",
+          "refinements": []
+        }
+      },
+
+      { "point_no": 2, "...": "same structure" },
+      { "point_no": 3, "...": "same structure" }
+    ],
+
+    "ending": {
+      "rendered_text": "",
+      "used_ids": { "guardrail_ids": [], "misread_ids": [] },
+      "refinements": []
+    }
+  },
+
+  "self_check": [
+    { "check": "json_only", "pass": false, "notes": "" },
+    { "check": "uses_only_step1_step2_step3_ids", "pass": false, "notes": "" },
+    { "check": "follows_step2_structure_order", "pass": false, "notes": "" },
+    { "check": "does_not_claim_respected", "pass": false, "notes": "D* 위반 여부" },
+    { "check": "misreads_avoided", "pass": false, "notes": "M* 유도 여부" },
+    { "check": "readability_rules_ok", "pass": false, "notes": "문장/단락 줄바꿈" },
+    { "check": "scripture_quote_format_ok", "pass": false, "notes": "구절 인용 줄바꿈 형식" },
+    { "check": "duration_target_reasonable", "pass": false, "notes": "분량 체감" },
+    { "check": "all_critical_anchors_used", "pass": false, "notes": "핵심 Anchor 사용 여부" },
+    { "check": "refinements_applied", "pass": false, "notes": "정제 사항 적용 여부" }
+  ]
+}
+```
+
+Self_Check는 반드시 '검증 후' pass 값을 True/False로 채우세요.
+refinements 배열에는 각 섹션에서 수정한 내용을 기록하세요.
+
+반드시 한국어로만, JSON만 출력하세요.
+'''
+
+
+def build_step4_prompt_from_json(json_guide, meta_data, step1_result, step2_result, step3_result, style_id: str = None):
+    """
+    Step4(검토 및 정제) 유저 프롬프트.
+    - Step3 결과를 검토하고 정제
+    - ID 사용 추적 검증
+    - JSON 형식으로 최종 정제된 설교문 출력
+    """
+    # 메타 기본값
+    reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
+    title = meta_data.get("title") or meta_data.get("sermon_title") or ""
+    target = meta_data.get("target") or meta_data.get("audience") or ""
+    service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
+    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or 20
+    special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
+
+    # Step1 최소화 (근거용 - 토큰 절약)
+    step1_min = _minimize_step1_for_step3(step1_result or {})
+
+    # Step2는 구조 참조용
+    step2_outline = step2_result or {}
+
+    # Step3 결과 (검토 대상)
+    step3_sermon = step3_result or {}
+
+    # Step4 유저 프롬프트 템플릿
+    user_prompt = f"""[STEP4 입력]
+
+Reference: {reference}
+Style_Id: {style_id or "three_points"}
+Title: {title}
+
+Meta:
+- audience: {target}
+- service_type: {service_type}
+- duration_min: {duration_min}
+- special_notes: {special_notes}
+
+[Step1 Result JSON - ID 참조용]
+{_j(step1_min)}
+
+[Step2 Result JSON - 구조 참조용]
+{_j(step2_outline)}
+
+[Step3 Result JSON - 검토 대상]
+{_j(step3_sermon)}
+
+[검토 및 정제 지시]
+1) Step3 설교문을 검토하고 아래 항목을 점검하세요:
+   - 가독성 규칙 준수 (문장 최대 2줄, 핵심은 짧게, 줄바꿈 적극 사용)
+   - 성경 인용 형식 (줄바꿈 후 구절번호, 줄바꿈 후 본문)
+   - ID 사용 완전성 (Step1의 주요 Anchor가 모두 활용되었는지)
+   - Guardrail 준수 (D* 위반 없음, M* 유도 없음)
+
+2) 문제가 발견되면 수정하고 refinements 배열에 기록하세요.
+
+3) ID 사용 통계를 id_usage_stats에 채우세요:
+   - 사용된 Anchor 목록 (anchors_used)
+   - 사용되지 않은 Anchor 목록 (anchors_unused)
+   - 사용된 Background 목록 (backgrounds_used)
+   - 확인한 Guardrail 목록 (guardrails_checked)
+
+4) review_summary에 검토 결과를 요약하세요:
+   - 발견된 이슈 수 (total_issues_found)
+   - 심각한 이슈 목록 (critical_issues): D* 위반, M* 유도 등
+   - 경미한 이슈 목록 (minor_issues): 가독성, 형식 등
+   - 적용한 개선 목록 (improvements_made)
+
+5) 출력은 JSON 1개만.
 """
 
     return user_prompt
@@ -822,15 +1218,24 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
 # Step2 출력 검증 함수
 # ═══════════════════════════════════════════════════════════════
 
-def validate_step2_output(step2_result: dict) -> dict:
+def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict:
     """
     Step2 출력물의 필수 ID 참조를 검증합니다. (section_* 스키마)
 
-    검증 항목 (각 sub별):
-    - passage_anchors: A* ID 2개 이상
-    - supporting_verses: 정확히 2개
-    - background_support: H*/G*/P* ID 1개 이상
-    - guardrail_refs: D*/M* ID 1개 이상
+    검증 항목:
+    1. ID 존재 검증 (step1_result 제공 시):
+       - 사용된 A*, D*, M*, H*, G*, P*가 Step1에 실제 존재하는지
+    2. Unit-Anchor 범위 매칭:
+       - section_1(1-2절)은 1-2절 Anchor만, section_2(3-5절)은 3-5절 Anchor만 사용
+    3. 각 sub별:
+       - passage_anchors: A* ID 2개 이상
+       - supporting_verses: 정확히 2개
+       - background_support: H*/G*/P* ID 1개 이상
+       - guardrail_refs: D*/M* ID 1개 이상
+
+    Args:
+        step2_result: Step2 출력 결과
+        step1_result: Step1 결과 (선택, ID 존재 및 범위 검증용)
 
     Returns:
         {
@@ -845,9 +1250,63 @@ def validate_step2_output(step2_result: dict) -> dict:
     errors = []
     warnings = []
 
+    # Step1에서 유효한 ID 목록 추출
+    valid_anchor_ids = set()
+    anchor_ranges = {}  # anchor_id -> verse number (예: "A1" -> 1, "A3" -> 3)
+    valid_d_ids = set()
+    valid_m_ids = set()
+    valid_h_ids = set()
+    valid_g_ids = set()
+    valid_p_ids = set()
+
+    if step1_result and isinstance(step1_result, dict):
+        # Anchor IDs 및 범위 추출
+        for anchor in step1_result.get("anchors", []):
+            aid = anchor.get("anchor_id", "")
+            if aid:
+                valid_anchor_ids.add(aid)
+                # range에서 절 번호 추출 (예: "사9:1" -> 1, "1절" -> 1)
+                range_str = anchor.get("range", "")
+                verse_match = re.search(r"(\d+)", range_str)
+                if verse_match:
+                    anchor_ranges[aid] = int(verse_match.group(1))
+
+        # Guardrails IDs 추출
+        guardrails = step1_result.get("guardrails", {})
+        for d in guardrails.get("does_not_claim", []):
+            did = d.get("id", "")
+            if did:
+                valid_d_ids.add(did)
+        for m in guardrails.get("common_misreads", []):
+            mid = m.get("id", "")
+            if mid:
+                valid_m_ids.add(mid)
+
+        # Background IDs 추출
+        for h in step1_result.get("historical_background", []):
+            hid = h.get("id", "")
+            if hid:
+                valid_h_ids.add(hid)
+
+        geo = step1_result.get("geography_people", {})
+        for g in geo.get("places", []):
+            gid = g.get("id", "")
+            if gid:
+                valid_g_ids.add(gid)
+        for p in geo.get("people_groups", []):
+            pid = p.get("id", "")
+            if pid:
+                valid_p_ids.add(pid)
+
+    # section별 허용 절 범위 정의
+    section_verse_ranges = {
+        "section_1": (1, 2),  # 1-2절
+        "section_2": (3, 5),  # 3-5절
+        "section_3": (6, 7),  # 6-7절
+    }
+
     # section별 검증 (section_1, section_2, section_3)
     for i in range(1, 4):
-        # 새 스키마: section_*, 이전 스키마: 대지_* (호환성)
         section_key = f"section_{i}"
         legacy_key = f"대지_{i}"
         section = step2_result.get(section_key) or step2_result.get(legacy_key, {})
@@ -855,6 +1314,9 @@ def validate_step2_output(step2_result: dict) -> dict:
         if not section:
             errors.append(f"{section_key}이(가) 없음")
             continue
+
+        # 해당 section의 허용 절 범위
+        min_verse, max_verse = section_verse_ranges.get(section_key, (1, 7))
 
         # 소대지별 검증 (sub_1, sub_2)
         for sub_i in [1, 2]:
@@ -865,42 +1327,69 @@ def validate_step2_output(step2_result: dict) -> dict:
                 warnings.append(f"{section_key}.{sub_key}가 없음")
                 continue
 
-            # passage_anchors 검증 (A* ID 2개 이상)
+            # passage_anchors 검증
             anchors = sub.get("passage_anchors") or sub.get("anchor_ids") or []
             if len(anchors) < 2:
                 errors.append(f"{section_key}.{sub_key}: passage_anchors가 2개 이상 필요 (현재 {len(anchors)}개)")
             else:
-                # A* 형식 검증
-                invalid_anchors = [a for a in anchors if not str(a).startswith("A")]
-                if invalid_anchors:
-                    warnings.append(f"{section_key}.{sub_key}: passage_anchors에 A* 형식이 아닌 ID 포함: {invalid_anchors}")
+                for a in anchors:
+                    a_str = str(a)
+                    # A* 형식 검증
+                    if not a_str.startswith("A"):
+                        warnings.append(f"{section_key}.{sub_key}: '{a}'는 A* 형식이 아님")
+                        continue
+
+                    # Step1 존재 검증
+                    if step1_result and a_str not in valid_anchor_ids:
+                        errors.append(f"{section_key}.{sub_key}: '{a}'가 Step1에 없음")
+
+                    # Unit-Anchor 범위 매칭 검증
+                    if step1_result and a_str in anchor_ranges:
+                        verse_num = anchor_ranges[a_str]
+                        if verse_num < min_verse or verse_num > max_verse:
+                            errors.append(
+                                f"{section_key}.{sub_key}: '{a}'({verse_num}절)는 "
+                                f"{section_key}({min_verse}-{max_verse}절) 범위 밖 - 범위 침범!"
+                            )
 
             # supporting_verses 검증 (정확히 2개)
             sup_verses = sub.get("supporting_verses") or []
             if len(sup_verses) != 2:
                 errors.append(f"{section_key}.{sub_key}: supporting_verses가 정확히 2개 필요 (현재 {len(sup_verses)}개)")
 
-            # background_support 검증 (H*/G*/P* 1개 이상)
+            # background_support 검증
             bg_support = sub.get("background_support") or sub.get("background_ids") or []
             if len(bg_support) < 1:
                 errors.append(f"{section_key}.{sub_key}: background_support가 1개 이상 필요 (현재 {len(bg_support)}개)")
             else:
-                # H*/G*/P* 형식 검증
-                valid_prefixes = ("H", "G", "P")
-                invalid_bg = [b for b in bg_support if not any(str(b).startswith(p) for p in valid_prefixes)]
-                if invalid_bg:
-                    warnings.append(f"{section_key}.{sub_key}: background_support에 H*/G*/P* 형식이 아닌 ID 포함: {invalid_bg}")
+                for b in bg_support:
+                    b_str = str(b)
+                    # Step1 존재 검증
+                    if step1_result:
+                        if b_str.startswith("H") and b_str not in valid_h_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif b_str.startswith("G") and b_str not in valid_g_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif b_str.startswith("P") and b_str not in valid_p_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{b}'가 Step1에 없음")
+                        elif not any(b_str.startswith(p) for p in ("H", "G", "P")):
+                            warnings.append(f"{section_key}.{sub_key}: '{b}'는 H*/G*/P* 형식이 아님")
 
-            # guardrail_refs 검증 (D*/M* 1개 이상)
+            # guardrail_refs 검증
             guardrails = sub.get("guardrail_refs") or []
             if len(guardrails) < 1:
                 errors.append(f"{section_key}.{sub_key}: guardrail_refs가 1개 이상 필요 (현재 {len(guardrails)}개)")
             else:
-                # D*/M* 형식 검증
-                valid_guard_prefixes = ("D", "M")
-                invalid_guards = [g for g in guardrails if not any(str(g).startswith(p) for p in valid_guard_prefixes)]
-                if invalid_guards:
-                    warnings.append(f"{section_key}.{sub_key}: guardrail_refs에 D*/M* 형식이 아닌 ID 포함: {invalid_guards}")
+                for g in guardrails:
+                    g_str = str(g)
+                    # Step1 존재 검증
+                    if step1_result:
+                        if g_str.startswith("D") and g_str not in valid_d_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (D1~D5만 존재)")
+                        elif g_str.startswith("M") and g_str not in valid_m_ids:
+                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (M1~M3만 존재)")
+                        elif not any(g_str.startswith(p) for p in ("D", "M")):
+                            warnings.append(f"{section_key}.{sub_key}: '{g}'는 D*/M* 형식이 아님")
 
     # ending 검증
     ending = step2_result.get("ending", {})
