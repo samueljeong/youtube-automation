@@ -807,3 +807,227 @@ def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_resu
 """
 
     return user_prompt
+
+
+# ═══════════════════════════════════════════════════════════════
+# Step2 출력 검증 함수
+# ═══════════════════════════════════════════════════════════════
+
+def validate_step2_output(step2_result: dict) -> dict:
+    """
+    Step2 출력물의 필수 ID 참조를 검증합니다.
+
+    검증 항목:
+    - 각 소대지: anchor_ids 2개 이상, supporting_verses 2개
+    - 각 대지: background_ids 1개 이상
+    - ending: affirms_used 1개 이상
+
+    Returns:
+        {
+            "valid": bool,
+            "errors": ["에러 메시지 목록"],
+            "warnings": ["경고 메시지 목록"]
+        }
+    """
+    if not step2_result or not isinstance(step2_result, dict):
+        return {"valid": False, "errors": ["Step2 결과가 비어있음"], "warnings": []}
+
+    errors = []
+    warnings = []
+
+    # 대지별 검증
+    for i in range(1, 4):
+        point_key = f"대지_{i}"
+        point = step2_result.get(point_key, {})
+
+        if not point:
+            errors.append(f"{point_key}가 없음")
+            continue
+
+        # background_ids 검증 (대지 레벨)
+        bg_ids = point.get("background_ids") or point.get("background_support") or []
+        if len(bg_ids) < 1:
+            errors.append(f"{point_key}: background_ids가 1개 이상 필요 (현재 {len(bg_ids)}개)")
+
+        # 소대지별 검증 (sub_1, sub_2)
+        for sub_i in [1, 2]:
+            sub_key = f"sub_{sub_i}"
+            sub = point.get(sub_key, {})
+
+            if not sub:
+                warnings.append(f"{point_key}.{sub_key}가 없음")
+                continue
+
+            # anchor_ids 검증 (passage_anchors도 허용)
+            anchor_ids = sub.get("anchor_ids") or sub.get("passage_anchors") or []
+            if len(anchor_ids) < 2:
+                errors.append(f"{point_key}.{sub_key}: anchor_ids가 2개 이상 필요 (현재 {len(anchor_ids)}개)")
+
+            # supporting_verses 검증
+            sup_verses = sub.get("supporting_verses") or []
+            if len(sup_verses) < 2:
+                errors.append(f"{point_key}.{sub_key}: supporting_verses가 2개 필요 (현재 {len(sup_verses)}개)")
+
+    # ending 검증
+    ending = step2_result.get("ending", {})
+    if ending:
+        affirms = ending.get("affirms_used") or []
+        if len(affirms) < 1:
+            warnings.append("ending.affirms_used가 비어있음 (C* ID 권장)")
+
+    # self_check 검증
+    self_check = step2_result.get("self_check", [])
+    if not self_check:
+        warnings.append("self_check가 없음")
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# Step3 self_check 파서 및 검증 함수
+# ═══════════════════════════════════════════════════════════════
+
+SELF_CHECK_SEPARATOR = "===SELF_CHECK_JSON==="
+
+
+def parse_step3_self_check(step3_result: str) -> tuple:
+    """
+    Step3 출력에서 self_check JSON을 분리합니다.
+
+    Returns:
+        (sermon_text: str, self_check: dict or None, parse_error: str or None)
+    """
+    if not step3_result or not isinstance(step3_result, str):
+        return (step3_result or "", None, "Step3 결과가 비어있음")
+
+    if SELF_CHECK_SEPARATOR not in step3_result:
+        return (step3_result, None, "self_check 구분자 없음")
+
+    parts = step3_result.split(SELF_CHECK_SEPARATOR, 1)
+    sermon_text = parts[0].strip()
+
+    if len(parts) < 2 or not parts[1].strip():
+        return (sermon_text, None, "self_check JSON이 비어있음")
+
+    json_text = parts[1].strip()
+
+    # JSON 블록 추출 (```json ... ``` 형식 처리)
+    if json_text.startswith("```"):
+        # 코드 블록 제거
+        lines = json_text.split('\n')
+        json_lines = []
+        in_block = False
+        for line in lines:
+            if line.strip().startswith("```"):
+                in_block = not in_block
+                continue
+            if in_block or not line.strip().startswith("```"):
+                json_lines.append(line)
+        json_text = '\n'.join(json_lines).strip()
+
+    # JSON 파싱 시도
+    try:
+        self_check = json.loads(json_text)
+        return (sermon_text, self_check, None)
+    except json.JSONDecodeError as e:
+        # 중괄호 범위만 추출해서 재시도
+        try:
+            start = json_text.find('{')
+            end = json_text.rfind('}') + 1
+            if start >= 0 and end > start:
+                self_check = json.loads(json_text[start:end])
+                return (sermon_text, self_check, None)
+        except:
+            pass
+        return (sermon_text, None, f"JSON 파싱 실패: {str(e)}")
+
+
+def validate_step3_self_check(self_check: dict) -> dict:
+    """
+    Step3 self_check를 검증하여 재시도 필요 여부를 판단합니다.
+
+    Returns:
+        {
+            "valid": bool,
+            "should_retry": bool,
+            "errors": ["에러 메시지 목록"],
+            "retry_instructions": "재시도 시 추가할 지시문"
+        }
+    """
+    if not self_check or not isinstance(self_check, dict):
+        return {
+            "valid": False,
+            "should_retry": True,
+            "errors": ["self_check가 없거나 유효하지 않음"],
+            "retry_instructions": "출력 끝에 ===SELF_CHECK_JSON=== 구분자와 함께 self_check JSON을 반드시 포함하세요."
+        }
+
+    errors = []
+    retry_reasons = []
+
+    # 1. anchors_used 검증
+    if not self_check.get("anchors_used", True):
+        errors.append("anchor_ids가 사용되지 않음")
+        retry_reasons.append("각 소대지에 passage_anchors(A*) 2개 이상을 반드시 반영하세요")
+
+    # 2. supporting_verses 검증
+    if not self_check.get("supporting_verses_exactly_two_each_subpoint", True):
+        errors.append("supporting_verses가 소대지당 2개가 아님")
+        retry_reasons.append("각 소대지에 supporting_verses 정확히 2개를 인용하세요")
+
+    # 3. does_not_claim 위반 검증 (가장 중요)
+    violations = self_check.get("does_not_claim_violations", [])
+    if violations:
+        errors.append(f"does_not_claim(D*) 위반: {violations}")
+        retry_reasons.append(f"다음 주장을 제거하세요: {violations}")
+
+    # 4. 시사 뉴스 사용 검증
+    if not self_check.get("no_current_affairs_used", True):
+        errors.append("시사 뉴스/통계 등 변동 정보 사용됨")
+        retry_reasons.append("시사 뉴스, 통계, 부동산, 정치 등 변동·논쟁 정보를 제거하세요")
+
+    # 5. 분량 준수 검증
+    if not self_check.get("duration_respected", True):
+        errors.append("분량 미준수")
+        retry_reasons.append("지정된 분량을 준수하세요")
+
+    # 6. 가독성 규칙 준수 검증
+    if not self_check.get("readability_rules_followed", True):
+        errors.append("가독성 규칙 미준수")
+        retry_reasons.append("한 문장 최대 2줄, 성경 인용 형식을 지키세요")
+
+    should_retry = len(errors) > 0
+    retry_instructions = ""
+    if retry_reasons:
+        retry_instructions = "\n".join([f"- {r}" for r in retry_reasons])
+
+    return {
+        "valid": len(errors) == 0,
+        "should_retry": should_retry,
+        "errors": errors,
+        "retry_instructions": retry_instructions
+    }
+
+
+def build_step3_retry_prompt(original_result: str, validation: dict) -> str:
+    """
+    self_check 검증 실패 시 재시도 프롬프트를 생성합니다.
+    """
+    return f"""
+이전 출력에서 다음 문제가 발견되었습니다:
+{chr(10).join(['- ' + e for e in validation.get('errors', [])])}
+
+아래 지시를 반드시 수정하여 다시 작성하세요:
+{validation.get('retry_instructions', '')}
+
+중요:
+1. 이전 원고의 좋은 부분은 유지하되, 위 문제만 수정하세요.
+2. 출력 끝에 ===SELF_CHECK_JSON=== 구분자와 self_check JSON을 반드시 포함하세요.
+
+=== 이전 원고 (수정 기준) ===
+{original_result[:3000]}...
+"""
