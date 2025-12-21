@@ -1062,21 +1062,48 @@ document.addEventListener('DOMContentLoaded', function() {
             if (analysis.type === 'portrait') {
                 resultHtml += `<p>인물 사진입니다. 교인 프로필로 등록하려면 이름을 입력해주세요.</p>`;
             } else {
-                // 추출된 정보 표시
-                const fields = [
+                // 추출된 정보 표시 - 기본 정보
+                const basicFields = [
                     ['이름', extracted.name],
                     ['전화번호', extracted.phone],
-                    ['이메일', extracted.email],
                     ['주소', extracted.address],
                     ['생년월일', extracted.birth_date],
-                    ['성별', extracted.gender]
+                    ['성별', extracted.gender],
+                    ['등록번호', extracted.registration_number]
                 ];
 
-                fields.forEach(([label, value]) => {
+                // 교회 관련 정보
+                const churchFields = [
+                    ['이전교회', extracted.previous_church],
+                    ['이전교회 주소', extracted.previous_church_address],
+                    ['교구', extracted.district],
+                    ['속회', extracted.cell_group],
+                    ['선교회', extracted.mission_group],
+                    ['바나바', extracted.barnabas],
+                    ['인도자', extracted.referrer],
+                    ['신급', extracted.faith_level],
+                    ['세례연도', extracted.baptism_year],
+                    ['세례교회', extracted.baptism_church],
+                    ['등록동기', extracted.registration_reason]
+                ];
+
+                // 기타 정보
+                const otherFields = [
+                    ['이메일', extracted.email],
+                    ['직장', extracted.company],
+                    ['직책', extracted.position],
+                    ['메모', extracted.notes]
+                ];
+
+                const allFields = [...basicFields, ...churchFields, ...otherFields];
+
+                allFields.forEach(([label, value]) => {
                     if (value) {
+                        // 메모는 여러 줄일 수 있으므로 줄바꿈 처리
+                        const displayValue = label === '메모' ? value.replace(/\n/g, '<br>') : value;
                         resultHtml += `<div class="analysis-item">
                             <span class="analysis-label">${label}</span>
-                            <span class="analysis-value">${value}</span>
+                            <span class="analysis-value">${displayValue}</span>
                         </div>`;
                     }
                 });
@@ -1147,12 +1174,31 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // 채팅으로 등록 요청
+        // 채팅으로 등록 요청 - 모든 필드 포함
         let registerMsg = `${extracted.name} 등록해줘`;
+
+        // 기본 정보
         if (extracted.phone) registerMsg += `, 전화번호 ${extracted.phone}`;
         if (extracted.gender) registerMsg += `, 성별 ${extracted.gender}`;
         if (extracted.birth_date) registerMsg += `, 생년월일 ${extracted.birth_date}`;
         if (extracted.address) registerMsg += `, 주소 ${extracted.address}`;
+
+        // 교회 관련 정보
+        if (extracted.registration_number) registerMsg += `, 등록번호 ${extracted.registration_number}`;
+        if (extracted.previous_church) registerMsg += `, 이전교회 ${extracted.previous_church}`;
+        if (extracted.previous_church_address) registerMsg += `, 이전교회주소 ${extracted.previous_church_address}`;
+        if (extracted.district) registerMsg += `, 교구 ${extracted.district}`;
+        if (extracted.cell_group) registerMsg += `, 속회 ${extracted.cell_group}`;
+        if (extracted.mission_group) registerMsg += `, 선교회 ${extracted.mission_group}`;
+        if (extracted.barnabas) registerMsg += `, 바나바 ${extracted.barnabas}`;
+        if (extracted.referrer) registerMsg += `, 인도자 ${extracted.referrer}`;
+        if (extracted.faith_level) registerMsg += `, 신급 ${extracted.faith_level}`;
+
+        // 메모 (여러 줄인 경우 한 줄로)
+        if (extracted.notes) {
+            const notesOneLine = extracted.notes.replace(/\n/g, ' / ');
+            registerMsg += `, 메모 ${notesOneLine}`;
+        }
 
         messageInput.value = registerMsg;
         chatForm.dispatchEvent(new Event('submit'));

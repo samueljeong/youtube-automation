@@ -951,14 +951,23 @@ AI_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "이름 (필수)"},
+                    "name": {"type": "string", "description": "이름 (필수, 직분 포함 가능: 홍길동 집사)"},
                     "phone": {"type": "string", "description": "전화번호"},
                     "email": {"type": "string", "description": "이메일"},
                     "address": {"type": "string", "description": "주소"},
                     "birth_date": {"type": "string", "description": "생년월일 (YYYY-MM-DD)"},
                     "gender": {"type": "string", "enum": ["남", "여"], "description": "성별"},
                     "status": {"type": "string", "enum": ["active", "newcomer"], "description": "상태 (기본: active)"},
-                    "notes": {"type": "string", "description": "메모"},
+                    "notes": {"type": "string", "description": "메모/특이사항"},
+                    "registration_number": {"type": "string", "description": "등록번호"},
+                    "previous_church": {"type": "string", "description": "이전교회/출석교회"},
+                    "previous_church_address": {"type": "string", "description": "이전교회 주소"},
+                    "district": {"type": "string", "description": "교구 (숫자)"},
+                    "cell_group": {"type": "string", "description": "속회"},
+                    "mission_group": {"type": "string", "description": "선교회"},
+                    "barnabas": {"type": "string", "description": "바나바 (담당 장로/권사)"},
+                    "referrer": {"type": "string", "description": "인도자/관계"},
+                    "faith_level": {"type": "string", "description": "신급 (학습/세례/유아세례/입교)"},
                     "update_existing_id": {"type": "integer", "description": "기존 교인 ID - 동명이인 중 특정 교인 정보를 업데이트할 때 사용"},
                     "force_new": {"type": "boolean", "description": "true이면 동명이인이 있어도 새 교인으로 등록 (이름에 번호 추가)"}
                 },
@@ -1164,7 +1173,7 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
             if not member:
                 return json.dumps({"error": "해당 교인을 찾을 수 없습니다."}, ensure_ascii=False)
 
-            # 제공된 정보만 업데이트
+            # 제공된 정보만 업데이트 - 기본 정보
             if arguments.get("phone"):
                 member.phone = arguments["phone"]
             if arguments.get("email"):
@@ -1182,6 +1191,26 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
                     member.birth_date = datetime.strptime(arguments["birth_date"], "%Y-%m-%d").date()
                 except:
                     pass
+
+            # 교회 관련 정보
+            if arguments.get("registration_number"):
+                member.registration_number = arguments["registration_number"]
+            if arguments.get("previous_church"):
+                member.previous_church = arguments["previous_church"]
+            if arguments.get("previous_church_address"):
+                member.previous_church_address = arguments["previous_church_address"]
+            if arguments.get("district"):
+                member.district = arguments["district"]
+            if arguments.get("cell_group"):
+                member.cell_group = arguments["cell_group"]
+            if arguments.get("mission_group"):
+                member.mission_group = arguments["mission_group"]
+            if arguments.get("barnabas"):
+                member.barnabas = arguments["barnabas"]
+            if arguments.get("referrer"):
+                member.referrer = arguments["referrer"]
+            if arguments.get("faith_level"):
+                member.faith_level = arguments["faith_level"]
 
             db.session.commit()
             return json.dumps({
@@ -1219,7 +1248,16 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
                     "birth_date": arguments.get("birth_date"),
                     "gender": arguments.get("gender"),
                     "status": arguments.get("status"),
-                    "notes": arguments.get("notes")
+                    "notes": arguments.get("notes"),
+                    "registration_number": arguments.get("registration_number"),
+                    "previous_church": arguments.get("previous_church"),
+                    "previous_church_address": arguments.get("previous_church_address"),
+                    "district": arguments.get("district"),
+                    "cell_group": arguments.get("cell_group"),
+                    "mission_group": arguments.get("mission_group"),
+                    "barnabas": arguments.get("barnabas"),
+                    "referrer": arguments.get("referrer"),
+                    "faith_level": arguments.get("faith_level")
                 }
             }, ensure_ascii=False)
 
@@ -1232,7 +1270,17 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
             gender=arguments.get("gender"),
             status=arguments.get("status", "active"),
             notes=arguments.get("notes"),
-            registration_date=get_seoul_today()
+            registration_date=get_seoul_today(),
+            # 교회 관련 정보
+            registration_number=arguments.get("registration_number"),
+            previous_church=arguments.get("previous_church"),
+            previous_church_address=arguments.get("previous_church_address"),
+            district=arguments.get("district"),
+            cell_group=arguments.get("cell_group"),
+            mission_group=arguments.get("mission_group"),
+            barnabas=arguments.get("barnabas"),
+            referrer=arguments.get("referrer"),
+            faith_level=arguments.get("faith_level")
         )
 
         if arguments.get("birth_date"):
@@ -1982,26 +2030,40 @@ def api_analyze_image():
                 {
                     "role": "system",
                     "content": """이미지에서 사람 정보를 추출하세요.
-명함, 등록카드, 신분증 등에서 다음 정보를 찾아 JSON으로 반환하세요:
+명함, 교회 등록카드, 신분증 등에서 다음 정보를 찾아 JSON으로 반환하세요:
 
 {
     "type": "namecard" | "registration_form" | "id_card" | "portrait" | "other",
     "extracted": {
-        "name": "이름",
+        "name": "이름 (직분 포함, 예: 홍길동 집사)",
         "phone": "전화번호",
         "email": "이메일",
         "address": "주소",
-        "birth_date": "생년월일 (YYYY-MM-DD)",
+        "birth_date": "생년월일 (YYYY-MM-DD 형식)",
         "gender": "남" | "여",
         "company": "소속/직장",
-        "position": "직책"
+        "position": "직책",
+        "registration_number": "등록번호",
+        "previous_church": "이전교회/출석교회",
+        "previous_church_address": "이전교회 주소",
+        "district": "교구 (숫자만, 예: 1, 2, 3)",
+        "cell_group": "속회",
+        "mission_group": "선교회 (예: 14남선교회)",
+        "barnabas": "바나바 (담당 장로/권사 이름)",
+        "referrer": "인도자/관계 (예: 스스로, 지인소개)",
+        "faith_level": "신급 (학습/세례/유아세례/입교 중 체크된 것)",
+        "baptism_year": "세례연도",
+        "baptism_church": "세례받은 교회",
+        "registration_reason": "등록동기 (교회등록, 이사, 기타)",
+        "notes": "기타 메모/특이사항 (여러 줄인 경우 모두 포함)"
     },
-    "confidence": 0.9,  // 신뢰도 0-1
+    "confidence": 0.9,
     "description": "이미지 설명"
 }
 
 찾을 수 없는 정보는 null로 설정하세요.
-인물 사진만 있는 경우 type을 "portrait"로 설정하세요."""
+인물 사진만 있는 경우 type을 "portrait"로 설정하세요.
+교회 등록 양식인 경우 모든 필드를 꼼꼼히 확인하세요."""
                 },
                 {
                     "role": "user",
