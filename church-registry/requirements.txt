@@ -6,10 +6,7 @@ Werkzeug==3.0.1
 Flask-SQLAlchemy==3.1.1
 SQLAlchemy==2.0.36
 
-# 인증
-Flask-Login==0.6.3
-
-# 폼 처리
+# 폼 처리 (CSRF 보호)
 Flask-WTF==1.2.1
 WTForms==3.1.1
 
