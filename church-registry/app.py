@@ -11,12 +11,25 @@ from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from openai import OpenAI
 from werkzeug.utils import secure_filename
+import cloudinary
+import cloudinary.uploader
 
 load_dotenv()
 
 # OpenAI 클라이언트 (API 키가 있을 때만 초기화)
 openai_api_key = os.getenv('OPENAI_API_KEY')
 openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+
+# Cloudinary 설정 (환경변수가 있을 때만 초기화)
+cloudinary_configured = False
+if os.getenv('CLOUDINARY_CLOUD_NAME'):
+    cloudinary.config(
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+        secure=True
+    )
+    cloudinary_configured = True
 
 # Flask 앱 초기화
 app = Flask(__name__)
@@ -1426,7 +1439,7 @@ def api_chat():
 
 @app.route('/api/upload-photo', methods=['POST'])
 def api_upload_photo():
-    """사진 업로드 API"""
+    """사진 업로드 API - Cloudinary 또는 로컬 저장소 사용"""
     if 'photo' not in request.files:
         return jsonify({"error": "파일이 없습니다."}), 400
 
@@ -1437,27 +1450,329 @@ def api_upload_photo():
         return jsonify({"error": "파일이 선택되지 않았습니다."}), 400
 
     if file:
-        # 파일명 생성
-        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
-        filename = f"member_{member_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-        filename = secure_filename(filename)
+        try:
+            # Cloudinary가 설정되어 있으면 클라우드에 업로드
+            if cloudinary_configured:
+                # 고유 public_id 생성
+                public_id = f"church-registry/member_{member_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+                # Cloudinary에 업로드
+                result = cloudinary.uploader.upload(
+                    file,
+                    public_id=public_id,
+                    folder="church-registry",
+                    transformation=[
+                        {"width": 400, "height": 400, "crop": "fill", "gravity": "face"}
+                    ]
+                )
 
-        # 교인 사진 URL 업데이트
-        if member_id:
-            member = Member.query.get(int(member_id))
-            if member:
-                member.photo_url = f"/static/uploads/{filename}"
-                db.session.commit()
+                photo_url = result['secure_url']
+
+                # 교인 사진 URL 업데이트
+                if member_id:
+                    member = Member.query.get(int(member_id))
+                    if member:
+                        member.photo_url = photo_url
+                        db.session.commit()
+
+                return jsonify({
+                    "success": True,
+                    "url": photo_url,
+                    "storage": "cloudinary"
+                })
+
+            else:
+                # Cloudinary가 없으면 로컬에 저장 (개발용)
+                ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpg'
+                filename = f"member_{member_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
+                filename = secure_filename(filename)
+
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+
+                photo_url = f"/static/uploads/{filename}"
+
+                # 교인 사진 URL 업데이트
+                if member_id:
+                    member = Member.query.get(int(member_id))
+                    if member:
+                        member.photo_url = photo_url
+                        db.session.commit()
+
+                return jsonify({
+                    "success": True,
+                    "url": photo_url,
+                    "storage": "local"
+                })
+
+        except Exception as e:
+            return jsonify({"error": f"업로드 실패: {str(e)}"}), 500
+
+    return jsonify({"error": "업로드 실패"}), 500
+
+
+@app.route('/api/analyze-excel', methods=['POST'])
+def api_analyze_excel():
+    """엑셀 파일 분석 API - AI가 열 매핑을 자동 분석"""
+    if 'file' not in request.files:
+        return jsonify({"error": "파일이 없습니다."}), 400
+
+    file = request.files['file']
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({"error": "엑셀 파일(.xlsx, .xls)만 지원합니다."}), 400
+
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(file)
+        ws = wb.active
+
+        # 첫 10행 정도만 샘플로 추출
+        rows = []
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i >= 15:  # 헤더 + 14개 샘플
+                break
+            rows.append([str(cell) if cell is not None else "" for cell in row])
+
+        if not rows:
+            return jsonify({"error": "빈 엑셀 파일입니다."}), 400
+
+        # AI에게 분석 요청
+        if not openai_client:
+            return jsonify({"error": "OpenAI API 키가 설정되지 않았습니다."}), 500
+
+        # 엑셀 데이터를 텍스트로 변환
+        excel_text = "엑셀 데이터 샘플:\n"
+        for i, row in enumerate(rows):
+            excel_text += f"행 {i+1}: {' | '.join(row)}\n"
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """당신은 교회 교적 데이터 분석 전문가입니다.
+엑셀 파일의 열을 분석하여 교인 정보와 매핑해주세요.
+
+분석 결과를 다음 JSON 형식으로 반환하세요:
+{
+    "header_row": 1,  // 헤더가 있는 행 번호 (1부터 시작)
+    "mapping": {
+        "name": 0,  // 이름 열 인덱스 (0부터 시작, 없으면 null)
+        "phone": 1,
+        "email": null,
+        "address": 2,
+        "birth_date": 3,
+        "gender": 4,
+        "registration_date": null,
+        "baptism_date": null,
+        "status": null,
+        "notes": null
+    },
+    "sample_data": [
+        {"name": "홍길동", "phone": "010-1234-5678", ...},
+        {"name": "김영희", "phone": "010-9876-5432", ...}
+    ],
+    "total_rows": 100,  // 추정 데이터 행 수
+    "analysis": "이 엑셀은 교인 명부로 보입니다. 이름, 연락처, 주소, 생년월일, 성별 정보가 있습니다."
+}
+
+주의:
+- 헤더 행을 정확히 파악하세요
+- 이름 열은 필수입니다
+- 날짜 형식이 다양할 수 있습니다 (예: 1990-01-01, 1990.01.01, 90/1/1)
+- 성별은 남/여, M/F, 남자/여자 등 다양할 수 있습니다"""
+                },
+                {"role": "user", "content": excel_text}
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2000
+        )
+
+        analysis = json.loads(response.choices[0].message.content)
+
+        # 전체 데이터 행 수 계산
+        total_rows = sum(1 for row in ws.iter_rows(values_only=True)) - analysis.get("header_row", 1)
+        analysis["total_rows"] = total_rows
 
         return jsonify({
             "success": True,
-            "url": f"/static/uploads/{filename}"
+            "analysis": analysis,
+            "raw_headers": rows[analysis.get("header_row", 1) - 1] if rows else []
         })
 
-    return jsonify({"error": "업로드 실패"}), 500
+    except Exception as e:
+        return jsonify({"error": f"엑셀 분석 중 오류: {str(e)}"}), 500
+
+
+@app.route('/api/import-analyzed', methods=['POST'])
+def api_import_analyzed():
+    """분석된 매핑으로 엑셀 데이터 일괄 등록"""
+    if 'file' not in request.files:
+        return jsonify({"error": "파일이 없습니다."}), 400
+
+    file = request.files['file']
+    mapping_json = request.form.get('mapping')
+
+    if not mapping_json:
+        return jsonify({"error": "매핑 정보가 없습니다."}), 400
+
+    try:
+        mapping = json.loads(mapping_json)
+        header_row = mapping.get('header_row', 1)
+        col_mapping = mapping.get('mapping', {})
+
+        from openpyxl import load_workbook
+        wb = load_workbook(file)
+        ws = wb.active
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i < header_row:  # 헤더 행까지 스킵
+                continue
+
+            row_data = list(row)
+
+            # 이름 추출 (필수)
+            name_idx = col_mapping.get('name')
+            if name_idx is None or name_idx >= len(row_data) or not row_data[name_idx]:
+                continue
+
+            name = str(row_data[name_idx]).strip()
+            if not name:
+                continue
+
+            # 중복 체크
+            phone = None
+            phone_idx = col_mapping.get('phone')
+            if phone_idx is not None and phone_idx < len(row_data):
+                phone = str(row_data[phone_idx]).strip() if row_data[phone_idx] else None
+
+            existing = Member.query.filter_by(name=name, phone=phone).first()
+            if existing:
+                skipped += 1
+                continue
+
+            # 교인 생성
+            member = Member(name=name, phone=phone, registration_date=date.today())
+
+            # 나머지 필드 매핑
+            for field in ['email', 'address', 'gender', 'notes']:
+                idx = col_mapping.get(field)
+                if idx is not None and idx < len(row_data) and row_data[idx]:
+                    setattr(member, field, str(row_data[idx]).strip())
+
+            # 날짜 필드 처리
+            for date_field in ['birth_date', 'registration_date', 'baptism_date']:
+                idx = col_mapping.get(date_field)
+                if idx is not None and idx < len(row_data) and row_data[idx]:
+                    try:
+                        val = row_data[idx]
+                        if isinstance(val, datetime):
+                            setattr(member, date_field, val.date())
+                        elif isinstance(val, date):
+                            setattr(member, date_field, val)
+                        elif isinstance(val, str):
+                            # 다양한 날짜 형식 시도
+                            for fmt in ['%Y-%m-%d', '%Y.%m.%d', '%Y/%m/%d', '%y-%m-%d', '%y.%m.%d']:
+                                try:
+                                    setattr(member, date_field, datetime.strptime(val.strip(), fmt).date())
+                                    break
+                                except:
+                                    pass
+                    except Exception as e:
+                        pass
+
+            # 상태 필드
+            status_idx = col_mapping.get('status')
+            if status_idx is not None and status_idx < len(row_data) and row_data[status_idx]:
+                status_val = str(row_data[status_idx]).strip().lower()
+                if '새신자' in status_val or 'new' in status_val:
+                    member.status = 'newcomer'
+                elif '비활동' in status_val or 'inactive' in status_val:
+                    member.status = 'inactive'
+                else:
+                    member.status = 'active'
+
+            try:
+                db.session.add(member)
+                db.session.commit()
+                imported += 1
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"행 {i+1}: {str(e)}")
+
+        return jsonify({
+            "success": True,
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors[:10]  # 최대 10개 에러만
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"가져오기 중 오류: {str(e)}"}), 500
+
+
+@app.route('/api/analyze-image', methods=['POST'])
+def api_analyze_image():
+    """이미지 분석 API - 명함/등록카드에서 정보 추출"""
+    data = request.get_json()
+    image_data = data.get('image')
+
+    if not image_data:
+        return jsonify({"error": "이미지가 없습니다."}), 400
+
+    if not openai_client:
+        return jsonify({"error": "OpenAI API 키가 설정되지 않았습니다."}), 500
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """이미지에서 사람 정보를 추출하세요.
+명함, 등록카드, 신분증 등에서 다음 정보를 찾아 JSON으로 반환하세요:
+
+{
+    "type": "namecard" | "registration_form" | "id_card" | "portrait" | "other",
+    "extracted": {
+        "name": "이름",
+        "phone": "전화번호",
+        "email": "이메일",
+        "address": "주소",
+        "birth_date": "생년월일 (YYYY-MM-DD)",
+        "gender": "남" | "여",
+        "company": "소속/직장",
+        "position": "직책"
+    },
+    "confidence": 0.9,  // 신뢰도 0-1
+    "description": "이미지 설명"
+}
+
+찾을 수 없는 정보는 null로 설정하세요.
+인물 사진만 있는 경우 type을 "portrait"로 설정하세요."""
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "이 이미지를 분석해주세요."},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1000
+        )
+
+        analysis = json.loads(response.choices[0].message.content)
+        return jsonify({"success": True, "analysis": analysis})
+
+    except Exception as e:
+        return jsonify({"error": f"이미지 분석 중 오류: {str(e)}"}), 500
 
 
 # =============================================================================

@@ -27,3 +27,6 @@ openai>=1.0.0
 
 # PostgreSQL
 psycopg2-binary==2.9.9
+
+# 클라우드 이미지 저장소
+cloudinary==1.36.0

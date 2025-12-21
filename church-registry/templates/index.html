@@ -32,24 +32,45 @@
                     전체 통계
                 </button>
             </div>
+
+            <div class="upload-section">
+                <p class="upload-hint">파일로 일괄 등록하기</p>
+                <div class="upload-buttons">
+                    <button class="upload-btn" id="upload-excel-btn">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        엑셀 파일 분석
+                    </button>
+                    <button class="upload-btn" id="upload-card-btn">
+                        <i class="bi bi-person-vcard"></i>
+                        명함/등록카드 분석
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- 입력 영역 -->
     <div class="chat-input-wrapper">
         <div class="chat-input-container">
-            <!-- 이미지 미리보기 -->
-            <div id="image-preview" class="image-preview hidden">
-                <img id="preview-img" src="" alt="첨부 이미지">
-                <button type="button" class="remove-image" id="remove-image">
+            <!-- 파일 미리보기 -->
+            <div id="file-preview" class="file-preview hidden">
+                <div class="preview-content">
+                    <img id="preview-img" src="" alt="첨부 이미지" class="preview-image hidden">
+                    <div id="preview-file" class="preview-file hidden">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        <span id="preview-filename"></span>
+                    </div>
+                </div>
+                <button type="button" class="remove-file" id="remove-file">
                     <i class="bi bi-x"></i>
                 </button>
             </div>
 
             <form id="chat-form" class="chat-form">
                 <input type="file" id="image-input" accept="image/*" class="hidden">
+                <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
 
-                <button type="button" class="attach-btn" id="attach-btn" title="사진 첨부">
+                <button type="button" class="attach-btn" id="attach-btn" title="파일 첨부">
                     <i class="bi bi-plus-circle"></i>
                 </button>
 
@@ -61,7 +82,36 @@
                 </button>
             </form>
         </div>
-        <p class="input-hint">예: "홍길동 집사님 등록해줘, 010-1234-5678" 또는 사진을 첨부해 정보 추출</p>
+        <p class="input-hint">예: "홍길동 집사님 등록해줘" | 엑셀이나 사진을 첨부하면 자동으로 분석합니다</p>
+    </div>
+</div>
+
+<!-- 파일 첨부 메뉴 -->
+<div id="attach-menu" class="attach-menu hidden">
+    <button class="attach-menu-item" id="attach-image">
+        <i class="bi bi-image"></i>
+        사진 첨부
+    </button>
+    <button class="attach-menu-item" id="attach-excel">
+        <i class="bi bi-file-earmark-excel"></i>
+        엑셀 파일
+    </button>
+</div>
+
+<!-- 분석 결과 모달 -->
+<div id="analysis-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">분석 결과</h3>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <!-- 분석 결과가 여기에 표시됨 -->
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn secondary" id="modal-cancel">취소</button>
+            <button class="modal-btn primary" id="modal-confirm">등록하기</button>
+        </div>
     </div>
 </div>
 
@@ -87,7 +137,7 @@
 /* 환영 섹션 */
 .welcome-section {
     text-align: center;
-    padding: 60px 20px;
+    padding: 40px 20px;
     animation: fadeIn 0.6s ease;
 }
 
@@ -115,7 +165,7 @@
 .welcome-section p {
     font-size: 18px;
     color: var(--apple-text-secondary);
-    margin-bottom: 40px;
+    margin-bottom: 32px;
 }
 
 .quick-actions {
@@ -124,7 +174,7 @@
     gap: 12px;
     justify-content: center;
     max-width: 600px;
-    margin: 0 auto;
+    margin: 0 auto 40px;
 }
 
 .quick-btn {
@@ -154,6 +204,46 @@
 
 .quick-btn i {
     font-size: 18px;
+}
+
+/* 업로드 섹션 */
+.upload-section {
+    padding-top: 24px;
+    border-top: 1px solid var(--apple-border);
+}
+
+.upload-hint {
+    font-size: 14px;
+    color: var(--apple-text-secondary);
+    margin-bottom: 16px;
+}
+
+.upload-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(17, 153, 142, 0.3);
+}
+
+.upload-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4);
 }
 
 /* 메시지 스타일 */
@@ -221,6 +311,70 @@
     border-radius: 12px;
 }
 
+/* 분석 결과 카드 */
+.analysis-card {
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    border-radius: 16px;
+    padding: 20px;
+    margin-top: 12px;
+}
+
+.analysis-card h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--apple-text);
+}
+
+.analysis-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    font-size: 14px;
+}
+
+.analysis-item:last-child {
+    border-bottom: none;
+}
+
+.analysis-label {
+    color: var(--apple-text-secondary);
+}
+
+.analysis-value {
+    font-weight: 500;
+    color: var(--apple-text);
+}
+
+.analysis-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.analysis-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.analysis-btn.primary {
+    background: var(--apple-blue);
+    color: white;
+}
+
+.analysis-btn.secondary {
+    background: rgba(0,0,0,0.05);
+    color: var(--apple-text);
+}
+
 /* 타이핑 인디케이터 */
 .typing-indicator {
     display: flex;
@@ -256,28 +410,46 @@
     margin: 0 auto;
 }
 
-.image-preview {
+.file-preview {
     margin-bottom: 12px;
     position: relative;
-    display: inline-block;
-}
-
-.image-preview.hidden {
-    display: none;
-}
-
-.image-preview img {
-    max-height: 120px;
-    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 12px;
     border: 1px solid var(--apple-border);
 }
 
-.remove-image {
+.file-preview.hidden {
+    display: none;
+}
+
+.preview-image {
+    max-height: 80px;
+    border-radius: 8px;
+}
+
+.preview-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--apple-text);
+}
+
+.preview-file i {
+    font-size: 24px;
+    color: #217346;
+}
+
+.remove-file {
     position: absolute;
     top: -8px;
     right: -8px;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     background: #ff3b30;
     color: white;
     border: none;
@@ -286,13 +458,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 16px;
-    box-shadow: 0 2px 8px rgba(255, 59, 48, 0.4);
-    transition: transform 0.2s;
-}
-
-.remove-image:hover {
-    transform: scale(1.1);
+    font-size: 14px;
 }
 
 .chat-form {
@@ -367,15 +533,199 @@
     box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
 }
 
-.send-btn:active {
-    transform: scale(0.95);
-}
-
 .input-hint {
     text-align: center;
     font-size: 12px;
     color: var(--apple-text-secondary);
     margin-top: 12px;
+}
+
+/* 첨부 메뉴 */
+.attach-menu {
+    position: fixed;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    padding: 8px;
+    z-index: 1000;
+}
+
+.attach-menu.hidden {
+    display: none;
+}
+
+.attach-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--apple-text);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.attach-menu-item:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+.attach-menu-item i {
+    font-size: 20px;
+    color: var(--apple-blue);
+}
+
+/* 모달 */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--apple-border);
+}
+
+.modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal-close {
+    width: 32px;
+    height: 32px;
+    background: rgba(0,0,0,0.05);
+    border: none;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--apple-border);
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-btn.primary {
+    background: var(--apple-blue);
+    color: white;
+}
+
+.modal-btn.primary:hover {
+    background: var(--apple-blue-hover);
+}
+
+.modal-btn.secondary {
+    background: rgba(0,0,0,0.05);
+    color: var(--apple-text);
+}
+
+/* 엑셀 분석 결과 테이블 */
+.excel-preview {
+    margin-top: 16px;
+    overflow-x: auto;
+}
+
+.excel-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.excel-preview th, .excel-preview td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--apple-border);
+}
+
+.excel-preview th {
+    background: #f5f5f7;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.excel-preview tr:hover {
+    background: #f9f9fb;
+}
+
+.mapping-info {
+    background: #e8f4fd;
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.mapping-info p {
+    margin: 0;
+    font-size: 14px;
+    color: #1a73e8;
 }
 
 .hidden {
@@ -414,6 +764,10 @@
         font-size: 14px;
     }
 
+    .upload-buttons {
+        flex-direction: column;
+    }
+
     .message {
         max-width: 92%;
     }
@@ -431,6 +785,10 @@
         width: 40px;
         height: 40px;
     }
+
+    .modal-content {
+        max-height: 90vh;
+    }
 }
 </style>
 
@@ -440,13 +798,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('message-input');
     const chatMessages = document.getElementById('chat-messages');
     const imageInput = document.getElementById('image-input');
+    const excelInput = document.getElementById('excel-input');
     const attachBtn = document.getElementById('attach-btn');
-    const imagePreview = document.getElementById('image-preview');
+    const attachMenu = document.getElementById('attach-menu');
+    const filePreview = document.getElementById('file-preview');
     const previewImg = document.getElementById('preview-img');
-    const removeImageBtn = document.getElementById('remove-image');
+    const previewFile = document.getElementById('preview-file');
+    const previewFilename = document.getElementById('preview-filename');
+    const removeFileBtn = document.getElementById('remove-file');
     const welcomeSection = document.querySelector('.welcome-section');
 
-    let currentImage = null;
+    // 모달
+    const modal = document.getElementById('analysis-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalBody = document.getElementById('modal-body');
+    const modalClose = document.getElementById('modal-close');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalConfirm = document.getElementById('modal-confirm');
+
+    let currentFile = null;
+    let currentFileType = null; // 'image' or 'excel'
+    let currentAnalysis = null;
 
     // 빠른 액션 버튼
     document.querySelectorAll('.quick-btn').forEach(btn => {
@@ -456,30 +828,79 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 파일 첨부
-    attachBtn.addEventListener('click', () => imageInput.click());
+    // 업로드 버튼
+    document.getElementById('upload-excel-btn').addEventListener('click', () => excelInput.click());
+    document.getElementById('upload-card-btn').addEventListener('click', () => imageInput.click());
 
+    // 첨부 버튼 클릭
+    attachBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const rect = attachBtn.getBoundingClientRect();
+        attachMenu.style.left = rect.left + 'px';
+        attachMenu.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+        attachMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => attachMenu.classList.add('hidden'));
+
+    document.getElementById('attach-image').addEventListener('click', () => {
+        imageInput.click();
+        attachMenu.classList.add('hidden');
+    });
+
+    document.getElementById('attach-excel').addEventListener('click', () => {
+        excelInput.click();
+        attachMenu.classList.add('hidden');
+    });
+
+    // 이미지 선택
     imageInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
+            currentFileType = 'image';
             const reader = new FileReader();
             reader.onload = function(e) {
-                currentImage = e.target.result.split(',')[1];
+                currentFile = e.target.result.split(',')[1];
                 previewImg.src = e.target.result;
-                imagePreview.classList.remove('hidden');
+                previewImg.classList.remove('hidden');
+                previewFile.classList.add('hidden');
+                filePreview.classList.remove('hidden');
             };
             reader.readAsDataURL(file);
         }
     });
 
-    removeImageBtn.addEventListener('click', function() {
-        currentImage = null;
+    // 엑셀 선택
+    excelInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            currentFileType = 'excel';
+            currentFile = file;
+            previewFilename.textContent = file.name;
+            previewFile.classList.remove('hidden');
+            previewImg.classList.add('hidden');
+            filePreview.classList.remove('hidden');
+        }
+    });
+
+    // 파일 제거
+    removeFileBtn.addEventListener('click', function() {
+        currentFile = null;
+        currentFileType = null;
         imageInput.value = '';
-        imagePreview.classList.add('hidden');
+        excelInput.value = '';
+        filePreview.classList.add('hidden');
+    });
+
+    // 모달 닫기
+    modalClose.addEventListener('click', () => modal.classList.add('hidden'));
+    modalCancel.addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.add('hidden');
     });
 
     // 메시지 추가
-    function addMessage(content, isUser = false, isImage = false) {
+    function addMessage(content, isUser = false, isRaw = false) {
         if (welcomeSection) {
             welcomeSection.style.display = 'none';
         }
@@ -494,10 +915,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const contentDiv = document.createElement('div');
         contentDiv.className = 'message-content';
 
-        if (isImage) {
-            contentDiv.innerHTML = `<img src="${content}" alt="첨부 이미지">`;
+        if (isRaw) {
+            contentDiv.innerHTML = content;
         } else {
-            // 마크다운 변환
             let html = content
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>')
@@ -535,33 +955,246 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typing) typing.remove();
     }
 
+    // 엑셀 분석
+    async function analyzeExcel(file) {
+        showTyping();
+        addMessage(`<img src="" alt="엑셀 파일"><br><strong>${file.name}</strong> 분석 중...`, false, true);
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/analyze-excel', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            hideTyping();
+
+            if (data.error) {
+                addMessage('엑셀 분석 중 오류가 발생했습니다: ' + data.error);
+                return;
+            }
+
+            currentAnalysis = {
+                type: 'excel',
+                file: file,
+                data: data.analysis
+            };
+
+            // 분석 결과 표시
+            const analysis = data.analysis;
+            let resultHtml = `
+                <div class="analysis-card">
+                    <h4>📊 엑셀 분석 완료</h4>
+                    <p style="margin-bottom: 16px; color: var(--apple-text-secondary);">${analysis.analysis}</p>
+                    <div class="analysis-item">
+                        <span class="analysis-label">총 데이터 행</span>
+                        <span class="analysis-value">${analysis.total_rows}명</span>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="analysis-label">감지된 필드</span>
+                        <span class="analysis-value">${Object.keys(analysis.mapping).filter(k => analysis.mapping[k] !== null).join(', ')}</span>
+                    </div>
+            `;
+
+            if (analysis.sample_data && analysis.sample_data.length > 0) {
+                resultHtml += `<h4 style="margin-top: 16px;">샘플 데이터</h4>`;
+                analysis.sample_data.slice(0, 3).forEach(sample => {
+                    resultHtml += `<div class="analysis-item">
+                        <span class="analysis-label">${sample.name || '이름 없음'}</span>
+                        <span class="analysis-value">${sample.phone || '-'}</span>
+                    </div>`;
+                });
+            }
+
+            resultHtml += `
+                    <div class="analysis-actions">
+                        <button class="analysis-btn secondary" onclick="cancelAnalysis()">취소</button>
+                        <button class="analysis-btn primary" onclick="confirmExcelImport()">전체 ${analysis.total_rows}명 등록</button>
+                    </div>
+                </div>
+            `;
+
+            addMessage(resultHtml, false, true);
+
+        } catch (error) {
+            hideTyping();
+            addMessage('네트워크 오류가 발생했습니다.');
+        }
+    }
+
+    // 이미지 분석
+    async function analyzeImage(imageData) {
+        showTyping();
+
+        try {
+            const response = await fetch('/api/analyze-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
+
+            const data = await response.json();
+            hideTyping();
+
+            if (data.error) {
+                addMessage('이미지 분석 중 오류가 발생했습니다: ' + data.error);
+                return;
+            }
+
+            currentAnalysis = {
+                type: 'image',
+                imageData: imageData,
+                data: data.analysis
+            };
+
+            const analysis = data.analysis;
+            const extracted = analysis.extracted || {};
+
+            let resultHtml = `
+                <div class="analysis-card">
+                    <h4>📷 이미지 분석 완료</h4>
+                    <p style="margin-bottom: 16px; color: var(--apple-text-secondary);">${analysis.description}</p>
+            `;
+
+            if (analysis.type === 'portrait') {
+                resultHtml += `<p>인물 사진입니다. 교인 프로필로 등록하려면 이름을 입력해주세요.</p>`;
+            } else {
+                // 추출된 정보 표시
+                const fields = [
+                    ['이름', extracted.name],
+                    ['전화번호', extracted.phone],
+                    ['이메일', extracted.email],
+                    ['주소', extracted.address],
+                    ['생년월일', extracted.birth_date],
+                    ['성별', extracted.gender]
+                ];
+
+                fields.forEach(([label, value]) => {
+                    if (value) {
+                        resultHtml += `<div class="analysis-item">
+                            <span class="analysis-label">${label}</span>
+                            <span class="analysis-value">${value}</span>
+                        </div>`;
+                    }
+                });
+
+                if (extracted.name) {
+                    resultHtml += `
+                        <div class="analysis-actions">
+                            <button class="analysis-btn secondary" onclick="cancelAnalysis()">취소</button>
+                            <button class="analysis-btn primary" onclick="confirmImageImport()">이 정보로 등록</button>
+                        </div>
+                    `;
+                }
+            }
+
+            resultHtml += `</div>`;
+            addMessage(resultHtml, false, true);
+
+        } catch (error) {
+            hideTyping();
+            addMessage('네트워크 오류가 발생했습니다.');
+        }
+    }
+
+    // 전역 함수로 등록
+    window.cancelAnalysis = function() {
+        currentAnalysis = null;
+        addMessage('분석이 취소되었습니다.');
+    };
+
+    window.confirmExcelImport = async function() {
+        if (!currentAnalysis || currentAnalysis.type !== 'excel') return;
+
+        showTyping();
+
+        const formData = new FormData();
+        formData.append('file', currentAnalysis.file);
+        formData.append('mapping', JSON.stringify(currentAnalysis.data));
+
+        try {
+            const response = await fetch('/api/import-analyzed', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            hideTyping();
+
+            if (data.error) {
+                addMessage('가져오기 중 오류가 발생했습니다: ' + data.error);
+            } else {
+                addMessage(`✅ **등록 완료!**\n\n• 등록: ${data.imported}명\n• 중복 스킵: ${data.skipped}명${data.errors.length > 0 ? '\n• 오류: ' + data.errors.length + '건' : ''}`);
+            }
+
+            currentAnalysis = null;
+
+        } catch (error) {
+            hideTyping();
+            addMessage('네트워크 오류가 발생했습니다.');
+        }
+    };
+
+    window.confirmImageImport = async function() {
+        if (!currentAnalysis || currentAnalysis.type !== 'image') return;
+
+        const extracted = currentAnalysis.data.extracted;
+        if (!extracted.name) {
+            addMessage('이름 정보가 없어 등록할 수 없습니다.');
+            return;
+        }
+
+        // 채팅으로 등록 요청
+        let registerMsg = `${extracted.name} 등록해줘`;
+        if (extracted.phone) registerMsg += `, 전화번호 ${extracted.phone}`;
+        if (extracted.gender) registerMsg += `, 성별 ${extracted.gender}`;
+        if (extracted.birth_date) registerMsg += `, 생년월일 ${extracted.birth_date}`;
+        if (extracted.address) registerMsg += `, 주소 ${extracted.address}`;
+
+        messageInput.value = registerMsg;
+        chatForm.dispatchEvent(new Event('submit'));
+        currentAnalysis = null;
+    };
+
     // 폼 제출
     chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const message = messageInput.value.trim();
-        if (!message && !currentImage) return;
 
-        if (message) {
-            addMessage(message, true);
-        }
-        if (currentImage) {
-            addMessage(`data:image/jpeg;base64,${currentImage}`, true, true);
+        // 파일이 있으면 분석
+        if (currentFile && currentFileType) {
+            if (currentFileType === 'excel') {
+                addMessage(`📎 ${currentFile.name}`, true);
+                analyzeExcel(currentFile);
+            } else if (currentFileType === 'image') {
+                addMessage(`<img src="data:image/jpeg;base64,${currentFile}" style="max-width: 200px; border-radius: 12px;">`, true, true);
+                analyzeImage(currentFile);
+            }
+
+            currentFile = null;
+            currentFileType = null;
+            imageInput.value = '';
+            excelInput.value = '';
+            filePreview.classList.add('hidden');
+            messageInput.value = '';
+            return;
         }
 
+        if (!message) return;
+
+        addMessage(message, true);
         messageInput.value = '';
-        const imageData = currentImage;
-        currentImage = null;
-        imageInput.value = '';
-        imagePreview.classList.add('hidden');
-
         showTyping();
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message, image: imageData })
+                body: JSON.stringify({ message })
             });
 
             const data = await response.json();
