@@ -2023,6 +2023,44 @@ def api_analyze_image():
 
 
 # =============================================================================
+# 데이터베이스 마이그레이션
+# =============================================================================
+
+@app.route('/migrate-db')
+def migrate_db():
+    """데이터베이스 스키마 마이그레이션 (새 컬럼 추가)"""
+    from sqlalchemy import text
+
+    migrations = [
+        # Member 테이블 새 컬럼들
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS registration_number VARCHAR(20)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS previous_church VARCHAR(100)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS previous_church_address VARCHAR(200)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS district VARCHAR(20)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS cell_group VARCHAR(50)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS mission_group VARCHAR(50)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS barnabas VARCHAR(50)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS referrer VARCHAR(50)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS faith_level VARCHAR(20)",
+    ]
+
+    results = []
+    for sql in migrations:
+        try:
+            db.session.execute(text(sql))
+            db.session.commit()
+            results.append(f"OK: {sql[:50]}...")
+        except Exception as e:
+            db.session.rollback()
+            results.append(f"SKIP: {sql[:50]}... ({str(e)[:50]})")
+
+    return jsonify({
+        "message": "마이그레이션 완료",
+        "results": results
+    })
+
+
+# =============================================================================
 # 데이터베이스 초기화
 # =============================================================================
 
