@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}교인 목록{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people"></i> 교인 목록</h2>
+    <a href="#" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> 새 교인 등록
+    </a>
+</div>
+
+<!-- 검색 필터 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" placeholder="이름 검색...">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select">
+                    <option value="">전체 그룹</option>
+                    <option>1셀</option>
+                    <option>2셀</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select">
+                    <option value="">전체 상태</option>
+                    <option value="active">활동</option>
+                    <option value="inactive">비활동</option>
+                    <option value="newcomer">새신자</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-search"></i> 검색
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 교인 목록 테이블 -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>이름</th>
+                    <th>연락처</th>
+                    <th>그룹</th>
+                    <th>상태</th>
+                    <th>등록일</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if members %}
+                    {% for member in members %}
+                    <tr>
+                        <td>{{ member.name }}</td>
+                        <td>{{ member.phone or '-' }}</td>
+                        <td>{{ member.group.name if member.group else '-' }}</td>
+                        <td>
+                            {% if member.status == 'active' %}
+                                <span class="badge bg-success">활동</span>
+                            {% elif member.status == 'inactive' %}
+                                <span class="badge bg-secondary">비활동</span>
+                            {% else %}
+                                <span class="badge bg-info">새신자</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ member.registration_date or '-' }}</td>
+                        <td>
+                            <a href="#" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="#" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            등록된 교인이 없습니다.
+                            <br>
+                            <a href="#" class="btn btn-primary mt-3">
+                                <i class="bi bi-plus-lg"></i> 첫 교인 등록하기
+                            </a>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

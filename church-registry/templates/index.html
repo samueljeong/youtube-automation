@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}교적 관리 시스템{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-church"></i> 교적 관리 시스템
+        </h1>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- 교인 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-people fs-1 text-primary"></i>
+                <h5 class="card-title mt-3">교인 관리</h5>
+                <p class="card-text text-muted">교인 등록, 수정, 검색</p>
+                <a href="{{ url_for('member_list') }}" class="btn btn-primary">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 가족 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-house-heart fs-1 text-success"></i>
+                <h5 class="card-title mt-3">가족 관리</h5>
+                <p class="card-text text-muted">가족 관계 등록 및 관리</p>
+                <a href="#" class="btn btn-success">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 출석 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-calendar-check fs-1 text-info"></i>
+                <h5 class="card-title mt-3">출석 관리</h5>
+                <p class="card-text text-muted">예배 출석 체크 및 통계</p>
+                <a href="#" class="btn btn-info">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 셀/구역 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-warning">
+            <div class="card-body text-center">
+                <i class="bi bi-diagram-3 fs-1 text-warning"></i>
+                <h5 class="card-title mt-3">셀/구역 관리</h5>
+                <p class="card-text text-muted">그룹 구성 및 관리</p>
+                <a href="#" class="btn btn-warning">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 심방 기록 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-secondary">
+            <div class="card-body text-center">
+                <i class="bi bi-journal-text fs-1 text-secondary"></i>
+                <h5 class="card-title mt-3">심방 기록</h5>
+                <p class="card-text text-muted">심방 일정 및 기록</p>
+                <a href="#" class="btn btn-secondary">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 헌금 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-danger">
+            <div class="card-body text-center">
+                <i class="bi bi-wallet2 fs-1 text-danger"></i>
+                <h5 class="card-title mt-3">헌금 관리</h5>
+                <p class="card-text text-muted">헌금 기록 및 통계</p>
+                <a href="#" class="btn btn-danger">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 새신자 관리 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-person-plus fs-1 text-primary"></i>
+                <h5 class="card-title mt-3">새신자 관리</h5>
+                <p class="card-text text-muted">새신자 등록 및 관리</p>
+                <a href="#" class="btn btn-outline-primary">바로가기</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 엑셀 내보내기 -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100 border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-file-earmark-excel fs-1 text-success"></i>
+                <h5 class="card-title mt-3">엑셀 관리</h5>
+                <p class="card-text text-muted">데이터 가져오기/내보내기</p>
+                <a href="#" class="btn btn-outline-success">바로가기</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 오늘의 알림 -->
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-light">
+                <i class="bi bi-bell"></i> 오늘의 알림
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-0">
+                    <i class="bi bi-info-circle"></i> 알림 기능은 추후 구현 예정입니다.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
