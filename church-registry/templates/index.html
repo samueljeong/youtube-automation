@@ -1211,9 +1211,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Enter로 전송
+    // Enter로 전송 (한글 조합 중에는 무시)
     messageInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
             chatForm.dispatchEvent(new Event('submit'));
         }
