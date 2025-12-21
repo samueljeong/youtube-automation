@@ -1146,24 +1146,62 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
         return json.dumps({"members": result, "count": len(result)}, ensure_ascii=False)
 
     elif function_name == "register_member":
-        # 동명이인 체크
-        existing_members = Member.query.filter_by(name=arguments["name"]).all()
+        # 직분 목록 (이름에서 분리)
+        titles = ["목사", "장로", "권사", "집사", "전도사", "선교사", "성도"]
+
+        # 이름에서 직분 분리
+        input_name = arguments["name"].strip()
+        base_name = input_name
+        input_title = None
+        for title in titles:
+            if input_name.endswith(" " + title):
+                base_name = input_name[:-len(title)-1].strip()
+                input_title = title
+                break
+            elif input_name.endswith(title):
+                base_name = input_name[:-len(title)].strip()
+                input_title = title
+                break
+
+        # 동명이인 체크 - 기본 이름으로 검색 (직분 무관)
+        all_members = Member.query.all()
+        existing_members = []
+        for m in all_members:
+            member_base_name = m.name
+            for title in titles:
+                if m.name.endswith(" " + title):
+                    member_base_name = m.name[:-len(title)-1].strip()
+                    break
+                elif m.name.endswith(title):
+                    member_base_name = m.name[:-len(title)].strip()
+                    break
+            # 번호 접미사 제거 (홍길동(1) -> 홍길동)
+            if "(" in member_base_name and member_base_name.endswith(")"):
+                member_base_name = member_base_name[:member_base_name.rfind("(")].strip()
+
+            if member_base_name == base_name:
+                existing_members.append(m)
 
         # force_new가 True이면 동명이인으로 새로 등록 (이름에 번호 추가)
         if arguments.get("force_new") and existing_members:
-            # 동명이인 번호 계산 (홍길동, 홍길동(1), 홍길동(2) ...)
+            # 동명이인 번호 계산 - 기존 멤버들 중 최대 번호 찾기
             max_suffix = 0
-            base_name = arguments["name"]
             for m in existing_members:
-                if m.name == base_name:
-                    max_suffix = max(max_suffix, 1)
-                elif m.name.startswith(base_name + "(") and m.name.endswith(")"):
+                # 이미 번호가 붙은 경우 (홍길동(1), 홍길동(2) ...)
+                if "(" in m.name and m.name.endswith(")"):
                     try:
-                        suffix = int(m.name[len(base_name)+1:-1])
+                        suffix = int(m.name[m.name.rfind("(")+1:-1])
                         max_suffix = max(max_suffix, suffix + 1)
                     except:
-                        pass
-            new_name = f"{base_name}({max_suffix})" if max_suffix > 0 else base_name
+                        max_suffix = max(max_suffix, 1)
+                else:
+                    max_suffix = max(max_suffix, 1)
+
+            # 직분 유지하면서 번호 추가 (이명섭 집사 -> 이명섭(1) 집사)
+            if input_title:
+                new_name = f"{base_name}({max_suffix}) {input_title}"
+            else:
+                new_name = f"{base_name}({max_suffix})"
             arguments["name"] = new_name
             existing_members = []  # 새 이름으로 등록하므로 중복 없음
 
