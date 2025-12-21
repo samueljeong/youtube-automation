@@ -14,8 +14,9 @@ from werkzeug.utils import secure_filename
 
 load_dotenv()
 
-# OpenAI 클라이언트
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# OpenAI 클라이언트 (API 키가 있을 때만 초기화)
+openai_api_key = os.getenv('OPENAI_API_KEY')
+openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 # Flask 앱 초기화
 app = Flask(__name__)
@@ -1324,6 +1325,9 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
 
 def process_ai_chat(user_message: str, image_data: str = None) -> str:
     """AI 채팅 처리"""
+
+    if not openai_client:
+        return "OpenAI API 키가 설정되지 않았습니다. 환경변수 OPENAI_API_KEY를 설정해주세요."
 
     messages = [
         {
