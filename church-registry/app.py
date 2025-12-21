@@ -947,7 +947,7 @@ AI_TOOLS = [
         "type": "function",
         "function": {
             "name": "register_member",
-            "description": "새 교인을 등록합니다.",
+            "description": "새 교인을 등록하거나 기존 교인 정보를 업데이트합니다. 동명이인이 있으면 확인 후 처리합니다.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -958,7 +958,9 @@ AI_TOOLS = [
                     "birth_date": {"type": "string", "description": "생년월일 (YYYY-MM-DD)"},
                     "gender": {"type": "string", "enum": ["남", "여"], "description": "성별"},
                     "status": {"type": "string", "enum": ["active", "newcomer"], "description": "상태 (기본: active)"},
-                    "notes": {"type": "string", "description": "메모"}
+                    "notes": {"type": "string", "description": "메모"},
+                    "update_existing_id": {"type": "integer", "description": "기존 교인 ID - 동명이인 중 특정 교인 정보를 업데이트할 때 사용"},
+                    "force_new": {"type": "boolean", "description": "true이면 동명이인이 있어도 새 교인으로 등록 (이름에 번호 추가)"}
                 },
                 "required": ["name"]
             }
@@ -1135,11 +1137,93 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
         return json.dumps({"members": result, "count": len(result)}, ensure_ascii=False)
 
     elif function_name == "register_member":
-        # 중복 체크
-        existing = Member.query.filter_by(name=arguments["name"]).first()
-        if existing and arguments.get("phone") == existing.phone:
-            return json.dumps({"error": f"이미 '{arguments['name']}' 교인이 등록되어 있습니다. (ID: {existing.id})"}, ensure_ascii=False)
+        # 동명이인 체크
+        existing_members = Member.query.filter_by(name=arguments["name"]).all()
 
+        # force_new가 True이면 동명이인으로 새로 등록 (이름에 번호 추가)
+        if arguments.get("force_new") and existing_members:
+            # 동명이인 번호 계산 (홍길동, 홍길동(1), 홍길동(2) ...)
+            max_suffix = 0
+            base_name = arguments["name"]
+            for m in existing_members:
+                if m.name == base_name:
+                    max_suffix = max(max_suffix, 1)
+                elif m.name.startswith(base_name + "(") and m.name.endswith(")"):
+                    try:
+                        suffix = int(m.name[len(base_name)+1:-1])
+                        max_suffix = max(max_suffix, suffix + 1)
+                    except:
+                        pass
+            new_name = f"{base_name}({max_suffix})" if max_suffix > 0 else base_name
+            arguments["name"] = new_name
+            existing_members = []  # 새 이름으로 등록하므로 중복 없음
+
+        # update_existing_id가 있으면 기존 교인 정보 업데이트
+        if arguments.get("update_existing_id"):
+            member = Member.query.get(arguments["update_existing_id"])
+            if not member:
+                return json.dumps({"error": "해당 교인을 찾을 수 없습니다."}, ensure_ascii=False)
+
+            # 제공된 정보만 업데이트
+            if arguments.get("phone"):
+                member.phone = arguments["phone"]
+            if arguments.get("email"):
+                member.email = arguments["email"]
+            if arguments.get("address"):
+                member.address = arguments["address"]
+            if arguments.get("gender"):
+                member.gender = arguments["gender"]
+            if arguments.get("status"):
+                member.status = arguments["status"]
+            if arguments.get("notes"):
+                member.notes = arguments["notes"]
+            if arguments.get("birth_date"):
+                try:
+                    member.birth_date = datetime.strptime(arguments["birth_date"], "%Y-%m-%d").date()
+                except:
+                    pass
+
+            db.session.commit()
+            return json.dumps({
+                "success": True,
+                "action": "updated",
+                "message": f"'{member.display_name}' 교인 정보가 업데이트되었습니다.",
+                "member_id": member.id
+            }, ensure_ascii=False)
+
+        # 동명이인이 있는 경우 사용자에게 확인 요청
+        if existing_members:
+            existing_info = []
+            for m in existing_members:
+                info = {
+                    "id": m.id,
+                    "name": m.name,
+                    "display_name": m.display_name,
+                    "phone": m.phone or "연락처 없음",
+                    "birth_date": m.birth_date.strftime("%Y-%m-%d") if m.birth_date else "생년월일 없음",
+                    "status": m.status,
+                    "registration_date": m.registration_date.strftime("%Y-%m-%d") if m.registration_date else ""
+                }
+                existing_info.append(info)
+
+            return json.dumps({
+                "duplicate_found": True,
+                "message": f"'{arguments['name']}' 이름의 교인이 이미 {len(existing_members)}명 등록되어 있습니다.",
+                "existing_members": existing_info,
+                "suggestion": "기존 교인 정보를 업데이트하려면 update_existing_id에 해당 교인 ID를 지정하세요. 동명이인으로 새로 등록하려면 force_new=true를 사용하세요.",
+                "pending_data": {
+                    "name": arguments.get("name"),
+                    "phone": arguments.get("phone"),
+                    "email": arguments.get("email"),
+                    "address": arguments.get("address"),
+                    "birth_date": arguments.get("birth_date"),
+                    "gender": arguments.get("gender"),
+                    "status": arguments.get("status"),
+                    "notes": arguments.get("notes")
+                }
+            }, ensure_ascii=False)
+
+        # 새 교인 등록
         member = Member(
             name=arguments["name"],
             phone=arguments.get("phone"),
@@ -1162,6 +1246,7 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
 
         return json.dumps({
             "success": True,
+            "action": "created",
             "message": f"'{member.name}' 교인이 등록되었습니다.",
             "member_id": member.id,
             "member": {
@@ -1508,6 +1593,19 @@ def process_ai_chat(user_message: str, image_data: str = None) -> str:
 - "지난 3주간 안 나온 분들" → get_absent_members 호출
 - "이번 달 생일자" → get_birthdays 호출
 - "전체 교인 수" → get_statistics 호출
+
+동명이인 처리:
+register_member 호출 시 동명이인이 있으면 duplicate_found: true 응답이 옵니다.
+이 경우 사용자에게 기존 교인 목록을 보여주고 다음을 물어보세요:
+1. 기존 교인 정보 업데이트: "홍길동 생년월일 추가해줘" → update_existing_id 사용
+2. 동명이인으로 새로 등록: "새 홍길동으로 등록해줘" → force_new=true 사용
+
+예시 응답:
+"'홍길동' 이름의 교인이 이미 등록되어 있습니다:
+1. 홍길동 집사 (010-1234-5678, 1985-03-15생)
+2. 홍길동 성도 (연락처 없음, 생년월일 없음)
+
+기존 교인 정보를 업데이트할까요, 아니면 동명이인으로 새로 등록할까요?"
 
 사진이 첨부되면:
 - 명함/등록카드 사진: 정보를 추출하여 등록 제안
