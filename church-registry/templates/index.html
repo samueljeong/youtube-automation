@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}AI 교적 관리{% endblock %}
+{% block title %}의중감 교적{% endblock %}
 
 {% block content %}
 <div class="chat-container">
@@ -11,11 +11,42 @@
             <div class="welcome-icon">
                 <i class="bi bi-chat-dots"></i>
             </div>
-            <h1>AI 교적 관리</h1>
-            <p>자연어로 교인 정보를 관리하세요</p>
+            <h1>환영합니다</h1>
 
-            <div class="quick-actions">
-                <!-- 빠른 실행 버튼 영역 (필요시 추가) -->
+            <!-- 채팅 입력 영역 -->
+            <div class="welcome-chat-input">
+                <div class="chat-input-container">
+                    <!-- 파일 미리보기 -->
+                    <div id="file-preview" class="file-preview hidden">
+                        <div class="preview-content">
+                            <img id="preview-img" src="" alt="첨부 이미지" class="preview-image hidden">
+                            <div id="preview-file" class="preview-file hidden">
+                                <i class="bi bi-file-earmark-excel"></i>
+                                <span id="preview-filename"></span>
+                            </div>
+                        </div>
+                        <button type="button" class="remove-file" id="remove-file">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+
+                    <form id="chat-form" class="chat-form">
+                        <input type="file" id="image-input" accept="image/*" class="hidden">
+                        <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
+
+                        <button type="button" class="attach-btn" id="attach-btn" title="파일 첨부">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+
+                        <input type="text" id="message-input" class="message-input"
+                               placeholder="메시지를 입력하세요..." autofocus>
+
+                        <button type="submit" class="send-btn" id="send-btn">
+                            <i class="bi bi-arrow-up"></i>
+                        </button>
+                    </form>
+                </div>
+                <p class="input-hint">예: "홍길동 집사님 등록해줘" | 엑셀이나 사진을 첨부하면 자동으로 분석합니다</p>
             </div>
 
             <div class="upload-section">
@@ -32,42 +63,6 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- 입력 영역 -->
-    <div class="chat-input-wrapper">
-        <div class="chat-input-container">
-            <!-- 파일 미리보기 -->
-            <div id="file-preview" class="file-preview hidden">
-                <div class="preview-content">
-                    <img id="preview-img" src="" alt="첨부 이미지" class="preview-image hidden">
-                    <div id="preview-file" class="preview-file hidden">
-                        <i class="bi bi-file-earmark-excel"></i>
-                        <span id="preview-filename"></span>
-                    </div>
-                </div>
-                <button type="button" class="remove-file" id="remove-file">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-
-            <form id="chat-form" class="chat-form">
-                <input type="file" id="image-input" accept="image/*" class="hidden">
-                <input type="file" id="excel-input" accept=".xlsx,.xls" class="hidden">
-
-                <button type="button" class="attach-btn" id="attach-btn" title="파일 첨부">
-                    <i class="bi bi-plus-circle"></i>
-                </button>
-
-                <input type="text" id="message-input" class="message-input"
-                       placeholder="메시지를 입력하세요..." autofocus>
-
-                <button type="submit" class="send-btn" id="send-btn">
-                    <i class="bi bi-arrow-up"></i>
-                </button>
-            </form>
-        </div>
-        <p class="input-hint">예: "홍길동 집사님 등록해줘" | 엑셀이나 사진을 첨부하면 자동으로 분석합니다</p>
     </div>
 </div>
 
@@ -144,13 +139,25 @@
     font-size: 32px;
     font-weight: 700;
     color: var(--apple-text);
-    margin-bottom: 8px;
+    margin-bottom: 24px;
 }
 
-.welcome-section p {
-    font-size: 18px;
-    color: var(--apple-text-secondary);
-    margin-bottom: 32px;
+.welcome-chat-input {
+    max-width: 600px;
+    margin: 0 auto 32px;
+}
+
+.welcome-chat-input .chat-input-container {
+    background: white;
+    border-radius: 24px;
+    border: 1px solid var(--apple-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.welcome-chat-input .input-hint {
+    font-size: 13px;
+    color: var(--apple-text-tertiary);
+    margin-top: 12px;
 }
 
 .quick-actions {
