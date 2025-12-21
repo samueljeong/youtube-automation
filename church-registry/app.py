@@ -3,9 +3,8 @@
 """
 import os
 from datetime import datetime, date
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,15 +12,16 @@ load_dotenv()
 # Flask 앱 초기화
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///church.db')
+
+# DATABASE_URL 처리 (Render PostgreSQL용)
+database_url = os.getenv('DATABASE_URL', 'sqlite:///church.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # 데이터베이스 초기화
 db = SQLAlchemy(app)
-
-# 로그인 매니저 초기화
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
 
 # =============================================================================
 # 모델 임포트 (나중에 models/ 폴더로 분리)
