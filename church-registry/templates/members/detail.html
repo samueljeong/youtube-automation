@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}{{ member.name }} - 교인 정보{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-person"></i> {{ member.name }}
+        {% if member.status == 'active' %}
+            <span class="badge bg-success">활동</span>
+        {% elif member.status == 'inactive' %}
+            <span class="badge bg-secondary">비활동</span>
+        {% else %}
+            <span class="badge bg-info">새신자</span>
+        {% endif %}
+    </h2>
+    <div class="btn-group">
+        <a href="{{ url_for('member_edit', member_id=member.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil"></i> 수정
+        </a>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="bi bi-trash"></i> 삭제
+        </button>
+        <a href="{{ url_for('member_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> 목록
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 기본 정보 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-person"></i> 기본 정보
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 30%">이름</th>
+                        <td>{{ member.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>전화번호</th>
+                        <td>
+                            {% if member.phone %}
+                                <a href="tel:{{ member.phone }}">{{ member.phone }}</a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>이메일</th>
+                        <td>
+                            {% if member.email %}
+                                <a href="mailto:{{ member.email }}">{{ member.email }}</a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>주소</th>
+                        <td>{{ member.address or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>생년월일</th>
+                        <td>{{ member.birth_date.strftime('%Y년 %m월 %d일') if member.birth_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>성별</th>
+                        <td>{{ member.gender or '-' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 교회 정보 -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-church"></i> 교회 정보
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <th style="width: 30%">등록일</th>
+                        <td>{{ member.registration_date.strftime('%Y년 %m월 %d일') if member.registration_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>세례일</th>
+                        <td>{{ member.baptism_date.strftime('%Y년 %m월 %d일') if member.baptism_date else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>소속 그룹</th>
+                        <td>{{ member.group.name if member.group else '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>가족</th>
+                        <td>
+                            {% if member.family %}
+                                {{ member.family.family_name }}
+                                {% if member.family_role %}({{ member.family_role }}){% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>상태</th>
+                        <td>
+                            {% if member.status == 'active' %}활동
+                            {% elif member.status == 'inactive' %}비활동
+                            {% else %}새신자{% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        {% if member.notes %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-sticky"></i> 메모
+            </div>
+            <div class="card-body">
+                <p class="mb-0">{{ member.notes }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 활동 기록 탭 -->
+<div class="card">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#attendance">
+                    <i class="bi bi-calendar-check"></i> 출석 기록
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#visits">
+                    <i class="bi bi-house-heart"></i> 심방 기록
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#offerings">
+                    <i class="bi bi-wallet2"></i> 헌금 기록
+                </a>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="attendance">
+                {% if member.attendance_records %}
+                    <ul class="list-group list-group-flush">
+                    {% for record in member.attendance_records[-10:] %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>{{ record.date.strftime('%Y-%m-%d') }}</span>
+                            <span class="badge bg-primary">{{ record.service_type or '예배' }}</span>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">출석 기록이 없습니다.</p>
+                {% endif %}
+            </div>
+            <div class="tab-pane fade" id="visits">
+                {% if member.visit_records %}
+                    <ul class="list-group list-group-flush">
+                    {% for record in member.visit_records[-10:] %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <span>{{ record.visit_date.strftime('%Y-%m-%d') }}</span>
+                                <span>{{ record.visitor_name or '' }}</span>
+                            </div>
+                            {% if record.notes %}
+                            <small class="text-muted">{{ record.notes }}</small>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">심방 기록이 없습니다.</p>
+                {% endif %}
+            </div>
+            <div class="tab-pane fade" id="offerings">
+                {% if member.offering_records %}
+                    <ul class="list-group list-group-flush">
+                    {% for record in member.offering_records[-10:] %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>{{ record.date.strftime('%Y-%m-%d') }} - {{ record.offering_type or '헌금' }}</span>
+                            <span class="fw-bold">{{ '{:,}'.format(record.amount) }}원</span>
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">헌금 기록이 없습니다.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">교인 삭제</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>{{ member.name }}</strong> 교인을 정말 삭제하시겠습니까?</p>
+                <p class="text-danger mb-0">이 작업은 되돌릴 수 없습니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <form action="{{ url_for('member_delete', member_id=member.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">삭제</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

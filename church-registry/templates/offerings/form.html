@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}헌금 기록 등록{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-wallet2"></i> 헌금 기록 등록</h2>
+    <a href="{{ url_for('offering_list') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> 목록으로
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="member_id" class="form-label">헌금자</label>
+                        <select class="form-select" id="member_id" name="member_id">
+                            <option value="">익명</option>
+                            {% for member in members %}
+                            <option value="{{ member.id }}">{{ member.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="date" class="form-label">날짜 <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="date" name="date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="amount" class="form-label">금액 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="amount" name="amount" required min="0">
+                                <span class="input-group-text">원</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="offering_type" class="form-label">헌금 종류</label>
+                        <select class="form-select" id="offering_type" name="offering_type">
+                            <option value="십일조">십일조</option>
+                            <option value="감사헌금">감사헌금</option>
+                            <option value="건축헌금">건축헌금</option>
+                            <option value="선교헌금">선교헌금</option>
+                            <option value="구제헌금">구제헌금</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">메모</label>
+                        <input type="text" class="form-control" id="notes" name="notes">
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg"></i> 저장
+                        </button>
+                        <a href="{{ url_for('offering_list') }}" class="btn btn-outline-secondary">취소</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

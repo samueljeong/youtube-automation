@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}심방 기록{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-house-heart"></i> 심방 기록</h2>
+    <a href="{{ url_for('visit_new') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> 새 심방 기록
+    </a>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>날짜</th>
+                    <th>대상 교인</th>
+                    <th>심방자</th>
+                    <th>목적</th>
+                    <th>내용</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if visits %}
+                    {% for visit in visits %}
+                    <tr>
+                        <td>{{ visit.visit_date.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <a href="{{ url_for('member_detail', member_id=visit.member_id) }}">
+                                {{ visit.member.name }}
+                            </a>
+                        </td>
+                        <td>{{ visit.visitor_name or '-' }}</td>
+                        <td>{{ visit.purpose or '-' }}</td>
+                        <td>{{ visit.notes[:50] + '...' if visit.notes and visit.notes|length > 50 else visit.notes or '-' }}</td>
+                        <td>
+                            <form action="{{ url_for('visit_delete', visit_id=visit.id) }}" method="POST" class="d-inline"
+                                  onsubmit="return confirm('삭제하시겠습니까?')">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            심방 기록이 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

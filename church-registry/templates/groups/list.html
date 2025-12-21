@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}그룹 관리{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-diagram-3"></i> 셀/구역/목장 관리</h2>
+    <a href="{{ url_for('group_new') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> 새 그룹 등록
+    </a>
+</div>
+
+<div class="row">
+    {% if groups %}
+        {% for group in groups %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        {% if group.group_type == 'cell' %}
+                            <i class="bi bi-people text-primary"></i>
+                        {% elif group.group_type == 'district' %}
+                            <i class="bi bi-building text-success"></i>
+                        {% elif group.group_type == 'mokjang' %}
+                            <i class="bi bi-house text-warning"></i>
+                        {% else %}
+                            <i class="bi bi-collection text-secondary"></i>
+                        {% endif %}
+                        {{ group.name }}
+                    </span>
+                    <span class="badge bg-secondary">{{ group.members|length }}명</span>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>유형:</strong>
+                        {% if group.group_type == 'cell' %}셀
+                        {% elif group.group_type == 'district' %}구역
+                        {% elif group.group_type == 'mokjang' %}목장
+                        {% else %}기타{% endif %}
+                    </p>
+                    <p class="card-text">
+                        <strong>리더:</strong>
+                        {% if group.leader_id %}
+                            {% set leader = group.members | selectattr('id', 'equalto', group.leader_id) | first %}
+                            {{ leader.name if leader else '-' }}
+                        {% else %}
+                            <span class="text-muted">미지정</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <a href="{{ url_for('group_detail', group_id=group.id) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> 상세
+                    </a>
+                    <a href="{{ url_for('group_edit', group_id=group.id) }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-pencil"></i> 수정
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    등록된 그룹이 없습니다.
+                    <br>
+                    <a href="{{ url_for('group_new') }}" class="btn btn-primary mt-3">
+                        <i class="bi bi-plus-lg"></i> 첫 그룹 등록하기
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

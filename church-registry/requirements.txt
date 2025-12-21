@@ -1,0 +1,26 @@
+# Flask 웹 프레임워크
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# 데이터베이스
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
+
+# 인증
+Flask-Login==0.6.3
+
+# 폼 처리
+Flask-WTF==1.2.1
+WTForms==3.1.1
+
+# 엑셀 처리
+openpyxl==3.1.2
+
+# 환경변수
+python-dotenv==1.0.0
+
+# 프로덕션 서버
+gunicorn==21.2.0
+
+# 날짜 처리
+python-dateutil==2.8.2

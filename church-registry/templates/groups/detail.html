@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}{{ group.name }} - 그룹 정보{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-diagram-3"></i> {{ group.name }}
+        <span class="badge bg-secondary">{{ group.members|length }}명</span>
+    </h2>
+    <div class="btn-group">
+        <a href="{{ url_for('group_edit', group_id=group.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil"></i> 수정
+        </a>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="bi bi-trash"></i> 삭제
+        </button>
+        <a href="{{ url_for('group_list') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> 목록
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-info-circle"></i> 그룹 정보
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th>그룹명</th>
+                        <td>{{ group.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>유형</th>
+                        <td>
+                            {% if group.group_type == 'cell' %}셀
+                            {% elif group.group_type == 'district' %}구역
+                            {% elif group.group_type == 'mokjang' %}목장
+                            {% else %}기타{% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>리더</th>
+                        <td>
+                            {% if group.leader_id %}
+                                {% for member in group.members %}
+                                    {% if member.id == group.leader_id %}
+                                        <a href="{{ url_for('member_detail', member_id=member.id) }}">
+                                            {{ member.name }}
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-muted">미지정</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>인원</th>
+                        <td>{{ group.members|length }}명</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people"></i> 소속 교인</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>이름</th>
+                            <th>연락처</th>
+                            <th>상태</th>
+                            <th>역할</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if group.members %}
+                            {% for member in group.members %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('member_detail', member_id=member.id) }}" class="text-decoration-none">
+                                        {{ member.name }}
+                                    </a>
+                                </td>
+                                <td>{{ member.phone or '-' }}</td>
+                                <td>
+                                    {% if member.status == 'active' %}
+                                        <span class="badge bg-success">활동</span>
+                                    {% elif member.status == 'inactive' %}
+                                        <span class="badge bg-secondary">비활동</span>
+                                    {% else %}
+                                        <span class="badge bg-info">새신자</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if member.id == group.leader_id %}
+                                        <span class="badge bg-primary">리더</span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    소속 교인이 없습니다.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">그룹 삭제</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>{{ group.name }}</strong> 그룹을 삭제하시겠습니까?</p>
+                <p class="text-muted">소속 교인들은 그룹에서 해제됩니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <form action="{{ url_for('group_delete', group_id=group.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">삭제</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
