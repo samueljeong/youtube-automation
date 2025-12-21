@@ -117,12 +117,19 @@
         main {
             margin-top: 52px;
             min-height: calc(100vh - 52px);
+            background: linear-gradient(180deg, #f5f5f7 0%, #ffffff 100%);
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
-            padding: 24px;
+            padding: 32px 24px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 16px;
+            }
         }
 
         /* 알럿 */
@@ -304,22 +311,29 @@
         .form-section {
             background: white;
             border-radius: var(--apple-radius);
-            box-shadow: var(--apple-shadow);
-            border: 1px solid var(--apple-border);
-            padding: 28px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            padding: 32px;
             margin-bottom: 24px;
         }
 
         .form-section-title {
-            font-size: 13px;
-            font-weight: 600;
+            font-size: 11px;
+            font-weight: 700;
             color: var(--apple-text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 20px;
+            letter-spacing: 1px;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f5;
             display: flex;
             align-items: center;
             gap: 8px;
+        }
+
+        .form-section-title i {
+            font-size: 14px;
+            color: var(--apple-blue);
         }
 
         .form-group {
@@ -392,7 +406,11 @@
         .form-actions {
             display: flex;
             gap: 12px;
-            margin-top: 32px;
+            margin-top: 40px;
+            justify-content: center;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .btn-submit {
@@ -448,13 +466,18 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 32px;
+            margin-bottom: 36px;
             flex-wrap: wrap;
             gap: 16px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--apple-border);
         }
 
         .page-title {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
             color: var(--apple-text);
             display: flex;
@@ -463,14 +486,17 @@
         }
 
         .page-title i {
-            font-size: 28px;
-            color: var(--apple-blue);
+            font-size: 26px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .page-subtitle {
-            font-size: 15px;
+            font-size: 14px;
             color: var(--apple-text-secondary);
-            margin-top: 4px;
+            margin-top: 6px;
         }
 
         /* ============================================
@@ -478,15 +504,17 @@
            ============================================ */
         .card-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 20px;
+            max-width: 1000px;
+            margin: 0 auto;
         }
 
         .member-card {
             background: white;
             border-radius: var(--apple-radius);
-            box-shadow: var(--apple-shadow);
-            border: 1px solid var(--apple-border);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.06);
             padding: 24px;
             transition: all 0.3s ease;
             cursor: pointer;
@@ -752,13 +780,22 @@
         .two-column {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
+            gap: 28px;
+            max-width: 1000px;
+            margin: 0 auto;
         }
 
         @media (max-width: 900px) {
             .two-column {
                 grid-template-columns: 1fr;
+                max-width: 500px;
             }
+        }
+
+        /* 단일 컬럼 폼 (좁은 폼) */
+        .form-single {
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         /* ============================================
