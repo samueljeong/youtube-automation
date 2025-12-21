@@ -11,7 +11,15 @@
                 <i class="bi bi-diagram-3{{ '-fill' if not group else '' }}"></i>
                 {{ '그룹 수정' if group else '새 그룹 등록' }}
             </h1>
-            <p class="page-subtitle">{{ '그룹 정보를 수정합니다' if group else '새로운 그룹을 등록합니다' }}</p>
+            <p class="page-subtitle">
+                {% if parent_group %}
+                    {{ parent_group.get_full_path() }} 하위에 그룹을 추가합니다
+                {% elif group %}
+                    그룹 정보를 수정합니다
+                {% else %}
+                    새로운 그룹을 등록합니다
+                {% endif %}
+            </p>
         </div>
         <a href="{{ url_for('group_list') }}" class="btn-cancel">
             <i class="bi bi-arrow-left"></i> 목록으로
@@ -20,6 +28,21 @@
 
     <div class="form-section" style="max-width: 600px;">
         <form method="POST">
+            <!-- 상위 그룹 선택 -->
+            <div class="form-group">
+                <label for="parent_id" class="form-label">상위 그룹</label>
+                <select class="form-select" id="parent_id" name="parent_id">
+                    <option value="">최상위 그룹 (없음)</option>
+                    {% for g in all_groups %}
+                    <option value="{{ g.id }}"
+                        {{ 'selected' if (parent_group and parent_group.id == g.id) or (group and group.parent_id == g.id) else '' }}>
+                        {{ '└ ' * g.level }}{{ g.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">상위 그룹을 선택하면 그 아래에 하위 그룹으로 생성됩니다</small>
+            </div>
+
             <div class="form-group">
                 <label for="name" class="form-label">
                     그룹명 <span class="required">*</span>
@@ -33,17 +56,26 @@
                 <label for="group_type" class="form-label">그룹 유형</label>
                 <select class="form-select" id="group_type" name="group_type">
                     <option value="">선택하세요</option>
-                    <option value="cell" {{ 'selected' if group and group.group_type == 'cell' else '' }}>셀</option>
-                    <option value="district" {{ 'selected' if group and group.group_type == 'district' else '' }}>구역</option>
-                    <option value="mokjang" {{ 'selected' if group and group.group_type == 'mokjang' else '' }}>목장</option>
-                    <option value="other" {{ 'selected' if group and group.group_type == 'other' else '' }}>기타</option>
+                    <option value="district" {{ 'selected' if (group and group.group_type == 'district') or (parent_group and parent_group.group_type == 'district') else '' }}>교구</option>
+                    <option value="mission" {{ 'selected' if (group and group.group_type == 'mission') or (parent_group and parent_group.group_type == 'mission') else '' }}>선교회</option>
+                    <option value="position" {{ 'selected' if (group and group.group_type == 'position') or (parent_group and parent_group.group_type == 'position') else '' }}>직분</option>
+                    <option value="school" {{ 'selected' if (group and group.group_type == 'school') or (parent_group and parent_group.group_type == 'school') else '' }}>교회학교</option>
+                    <option value="newcomer" {{ 'selected' if (group and group.group_type == 'newcomer') or (parent_group and parent_group.group_type == 'newcomer') else '' }}>새가족</option>
                 </select>
+                <small class="form-text text-muted">상위 그룹이 있으면 자동으로 같은 유형이 적용됩니다</small>
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">설명</label>
+                <input type="text" class="form-control" id="description" name="description"
+                       value="{{ group.description if group else '' }}"
+                       placeholder="그룹에 대한 간단한 설명 (선택)">
             </div>
 
             <div class="form-group">
                 <label for="leader_id" class="form-label">리더</label>
                 <select class="form-select" id="leader_id" name="leader_id">
-                    <option value="">선택하세요</option>
+                    <option value="">미지정</option>
                     {% for member in members %}
                     <option value="{{ member.id }}" {{ 'selected' if group and group.leader_id == member.id else '' }}>
                         {{ member.name }}
@@ -62,4 +94,16 @@
         </form>
     </div>
 </div>
+
+<script>
+// 상위 그룹 선택 시 그룹 유형 자동 설정
+document.getElementById('parent_id').addEventListener('change', function() {
+    const parentId = this.value;
+    if (parentId) {
+        // 상위 그룹의 유형을 가져와서 자동 설정 (서버에서 처리)
+        const option = this.options[this.selectedIndex];
+        // 단순히 안내 메시지
+    }
+});
+</script>
 {% endblock %}

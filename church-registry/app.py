@@ -166,17 +166,43 @@ class Family(db.Model):
 
 
 class Group(db.Model):
-    """셀/구역/목장 그룹 모델"""
+    """그룹 모델 - 계층 구조 지원 (교구/선교회/직분/교회학교/새가족)"""
     __tablename__ = 'groups'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)  # 그룹명
-    group_type = db.Column(db.String(50))  # cell, district, mokjang 등
+    group_type = db.Column(db.String(50))  # district, mission, position, school, newcomer
     leader_id = db.Column(db.Integer)  # 리더 교인 ID
+    parent_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=True)  # 상위 그룹
+    level = db.Column(db.Integer, default=0)  # 계층 레벨 (0: 최상위)
+    description = db.Column(db.String(200))  # 설명
 
+    # 자기 참조 관계
+    parent = db.relationship('Group', remote_side=[id], backref='children')
     members = db.relationship('Member', backref='group', lazy=True)
 
     created_at = db.Column(db.DateTime, default=get_seoul_now)
+
+    def get_full_path(self):
+        """전체 경로 반환 (예: 교구 > 1교구 > 1구역)"""
+        if self.parent:
+            return f"{self.parent.get_full_path()} > {self.name}"
+        return self.name
+
+    def get_all_children(self):
+        """모든 하위 그룹 반환 (재귀)"""
+        result = list(self.children)
+        for child in self.children:
+            result.extend(child.get_all_children())
+        return result
+
+    def get_member_count(self, include_children=True):
+        """소속 인원 수 (하위 그룹 포함 옵션)"""
+        count = len(self.members)
+        if include_children:
+            for child in self.get_all_children():
+                count += len(child.members)
+        return count
 
 
 class Attendance(db.Model):
@@ -471,9 +497,10 @@ def health():
 
 @app.route('/groups')
 def group_list():
-    """그룹 목록"""
-    groups = Group.query.order_by(Group.name).all()
-    return render_template('groups/list.html', groups=groups)
+    """그룹 목록 - 계층 구조로 표시"""
+    # 최상위 그룹만 조회 (parent_id가 None인 그룹)
+    top_groups = Group.query.filter_by(parent_id=None).order_by(Group.name).all()
+    return render_template('groups/list.html', top_groups=top_groups)
 
 
 @app.route('/groups/new', methods=['GET', 'POST'])
@@ -483,15 +510,31 @@ def group_new():
         name = request.form.get('name', '').strip()
         group_type = request.form.get('group_type', '')
         leader_id = request.form.get('leader_id')
+        parent_id = request.form.get('parent_id')
+        description = request.form.get('description', '').strip()
 
         if not name:
             flash('그룹명은 필수 입력 항목입니다.', 'danger')
-            return render_template('groups/form.html', members=Member.query.all())
+            members = Member.query.order_by(Member.name).all()
+            all_groups = Group.query.order_by(Group.name).all()
+            return render_template('groups/form.html', members=members, all_groups=all_groups)
+
+        # 상위 그룹이 있으면 레벨과 타입 결정
+        level = 0
+        if parent_id:
+            parent = Group.query.get(int(parent_id))
+            if parent:
+                level = parent.level + 1
+                if not group_type:
+                    group_type = parent.group_type
 
         group = Group(
             name=name,
             group_type=group_type,
-            leader_id=int(leader_id) if leader_id else None
+            leader_id=int(leader_id) if leader_id else None,
+            parent_id=int(parent_id) if parent_id else None,
+            level=level,
+            description=description
         )
 
         db.session.add(group)
@@ -501,7 +544,11 @@ def group_new():
         return redirect(url_for('group_list'))
 
     members = Member.query.order_by(Member.name).all()
-    return render_template('groups/form.html', members=members, group=None)
+    all_groups = Group.query.order_by(Group.level, Group.name).all()
+    parent_id = request.args.get('parent_id', type=int)
+    parent_group = Group.query.get(parent_id) if parent_id else None
+    return render_template('groups/form.html', members=members, group=None,
+                         all_groups=all_groups, parent_group=parent_group)
 
 
 @app.route('/groups/<int:group_id>')
@@ -520,11 +567,25 @@ def group_edit(group_id):
         group.name = request.form.get('name', '').strip()
         group.group_type = request.form.get('group_type', '')
         leader_id = request.form.get('leader_id')
+        parent_id = request.form.get('parent_id')
+        group.description = request.form.get('description', '').strip()
         group.leader_id = int(leader_id) if leader_id else None
+
+        # 상위 그룹 변경
+        new_parent_id = int(parent_id) if parent_id else None
+        if new_parent_id != group.parent_id:
+            group.parent_id = new_parent_id
+            if new_parent_id:
+                parent = Group.query.get(new_parent_id)
+                group.level = parent.level + 1 if parent else 0
+            else:
+                group.level = 0
 
         if not group.name:
             flash('그룹명은 필수 입력 항목입니다.', 'danger')
-            return render_template('groups/form.html', members=Member.query.all(), group=group)
+            members = Member.query.order_by(Member.name).all()
+            all_groups = Group.query.filter(Group.id != group.id).order_by(Group.name).all()
+            return render_template('groups/form.html', members=members, group=group, all_groups=all_groups)
 
         db.session.commit()
 
@@ -532,20 +593,29 @@ def group_edit(group_id):
         return redirect(url_for('group_detail', group_id=group.id))
 
     members = Member.query.order_by(Member.name).all()
-    return render_template('groups/form.html', members=members, group=group)
+    # 자기 자신과 자식 그룹은 상위 그룹으로 선택 불가
+    exclude_ids = [group.id] + [c.id for c in group.get_all_children()]
+    all_groups = Group.query.filter(~Group.id.in_(exclude_ids)).order_by(Group.level, Group.name).all()
+    return render_template('groups/form.html', members=members, group=group, all_groups=all_groups)
 
 
 @app.route('/groups/<int:group_id>/delete', methods=['POST'])
 def group_delete(group_id):
-    """그룹 삭제"""
+    """그룹 삭제 (하위 그룹 포함)"""
     group = Group.query.get_or_404(group_id)
     name = group.name
 
-    # 소속 교인들의 그룹 해제
-    for member in group.members:
-        member.group_id = None
+    # 재귀적으로 모든 하위 그룹과 소속 교인 해제
+    def delete_group_recursive(g):
+        # 하위 그룹 먼저 삭제
+        for child in g.children:
+            delete_group_recursive(child)
+        # 소속 교인들의 그룹 해제
+        for member in g.members:
+            member.group_id = None
+        db.session.delete(g)
 
-    db.session.delete(group)
+    delete_group_recursive(group)
     db.session.commit()
 
     flash(f'{name} 그룹이 삭제되었습니다.', 'success')
@@ -2142,6 +2212,10 @@ def migrate_db():
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS barnabas VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS referrer VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS faith_level VARCHAR(20)",
+        # Group 테이블 새 컬럼들 (계층 구조)
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES groups(id)",
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 0",
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS description VARCHAR(200)",
     ]
 
     results = []
@@ -2157,6 +2231,72 @@ def migrate_db():
     return jsonify({
         "message": "마이그레이션 완료",
         "results": results
+    })
+
+
+@app.route('/seed-groups')
+def seed_groups():
+    """기본 그룹 계층 구조 생성"""
+    created = []
+    skipped = []
+
+    # 상위 그룹 정의
+    top_groups = [
+        {"name": "교구", "type": "district", "desc": "교구별 조직"},
+        {"name": "선교회", "type": "mission", "desc": "선교회 조직"},
+        {"name": "직분", "type": "position", "desc": "직분별 분류"},
+        {"name": "교회학교", "type": "school", "desc": "교회학교 조직"},
+        {"name": "새가족", "type": "newcomer", "desc": "새가족 관리"},
+    ]
+
+    # 하위 그룹 정의
+    sub_groups = {
+        "교구": ["1교구", "2교구", "3교구", "미등록"],
+        "선교회": ["남선교회", "여선교회"],
+        "직분": ["목사", "장로", "권사", "집사", "성도"],
+        "교회학교": ["청년부", "청소년부", "아동부", "유치부", "유아부"],
+        "새가족": [],
+    }
+
+    # 상위 그룹 생성
+    for tg in top_groups:
+        existing = Group.query.filter_by(name=tg["name"], parent_id=None).first()
+        if existing:
+            skipped.append(tg["name"])
+            parent = existing
+        else:
+            parent = Group(
+                name=tg["name"],
+                group_type=tg["type"],
+                level=0,
+                description=tg["desc"],
+                parent_id=None
+            )
+            db.session.add(parent)
+            db.session.flush()  # ID 생성
+            created.append(tg["name"])
+
+        # 하위 그룹 생성
+        for sub_name in sub_groups.get(tg["name"], []):
+            existing_sub = Group.query.filter_by(name=sub_name, parent_id=parent.id).first()
+            if existing_sub:
+                skipped.append(f"{tg['name']} > {sub_name}")
+            else:
+                sub = Group(
+                    name=sub_name,
+                    group_type=tg["type"],
+                    level=1,
+                    parent_id=parent.id
+                )
+                db.session.add(sub)
+                created.append(f"{tg['name']} > {sub_name}")
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "그룹 시드 완료",
+        "created": created,
+        "skipped": skipped
     })
 
 
