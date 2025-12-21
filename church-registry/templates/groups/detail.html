@@ -3,145 +3,286 @@
 {% block title %}{{ group.name }} - 그룹 정보{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>
-        <i class="bi bi-diagram-3"></i> {{ group.name }}
-        <span class="badge bg-secondary">{{ group.members|length }}명</span>
-    </h2>
-    <div class="btn-group">
-        <a href="{{ url_for('group_edit', group_id=group.id) }}" class="btn btn-outline-primary">
-            <i class="bi bi-pencil"></i> 수정
-        </a>
-        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
-            <i class="bi bi-trash"></i> 삭제
-        </button>
-        <a href="{{ url_for('group_list') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> 목록
-        </a>
-    </div>
-</div>
+<style>
+.breadcrumb-path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--apple-text-secondary);
+    margin-bottom: 8px;
+}
+.breadcrumb-path a {
+    color: var(--apple-blue);
+    text-decoration: none;
+}
+.breadcrumb-path a:hover {
+    text-decoration: underline;
+}
+.group-info-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+.group-info-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--apple-border);
+}
+.group-info-item:last-child {
+    border-bottom: none;
+}
+.group-info-label {
+    color: var(--apple-text-secondary);
+    font-weight: 500;
+}
+.group-info-value {
+    font-weight: 500;
+}
+.subgroups-section {
+    margin-top: 24px;
+}
+.subgroup-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--apple-bg);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+.subgroup-item:hover {
+    background: var(--apple-blue);
+    color: white;
+}
+.member-list {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+.member-list-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--apple-border);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.member-row {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--apple-border);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.2s;
+}
+.member-row:last-child {
+    border-bottom: none;
+}
+.member-row:hover {
+    background: var(--apple-bg);
+}
+.member-row-name {
+    flex: 1;
+    font-weight: 500;
+}
+.member-row-phone {
+    flex: 1;
+    color: var(--apple-text-secondary);
+}
+.member-row-role {
+    width: 80px;
+    text-align: right;
+}
+</style>
 
-<div class="row">
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-header">
-                <i class="bi bi-info-circle"></i> 그룹 정보
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <!-- 경로 표시 -->
+            {% if group.parent %}
+            <div class="breadcrumb-path">
+                <a href="{{ url_for('group_list') }}">그룹</a>
+                <i class="bi bi-chevron-right"></i>
+                {% set ancestors = [] %}
+                {% set current = group.parent %}
+                {% for _ in range(10) %}
+                    {% if current %}
+                        {% set _ = ancestors.insert(0, current) %}
+                        {% set current = current.parent %}
+                    {% endif %}
+                {% endfor %}
+                {% for ancestor in ancestors %}
+                <a href="{{ url_for('group_detail', group_id=ancestor.id) }}">{{ ancestor.name }}</a>
+                <i class="bi bi-chevron-right"></i>
+                {% endfor %}
+                <span>{{ group.name }}</span>
             </div>
-            <div class="card-body">
-                <table class="table table-borderless mb-0">
-                    <tr>
-                        <th>그룹명</th>
-                        <td>{{ group.name }}</td>
-                    </tr>
-                    <tr>
-                        <th>유형</th>
-                        <td>
-                            {% if group.group_type == 'cell' %}셀
-                            {% elif group.group_type == 'district' %}구역
-                            {% elif group.group_type == 'mokjang' %}목장
-                            {% else %}기타{% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>리더</th>
-                        <td>
-                            {% if group.leader_id %}
-                                {% for member in group.members %}
-                                    {% if member.id == group.leader_id %}
-                                        <a href="{{ url_for('member_detail', member_id=member.id) }}">
-                                            {{ member.name }}
-                                        </a>
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                <span class="text-muted">미지정</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>인원</th>
-                        <td>{{ group.members|length }}명</td>
-                    </tr>
-                </table>
-            </div>
+            {% endif %}
+            <h1 class="page-title">
+                {% if group.group_type == 'district' %}<i class="bi bi-building"></i>
+                {% elif group.group_type == 'mission' %}<i class="bi bi-globe"></i>
+                {% elif group.group_type == 'position' %}<i class="bi bi-person-badge"></i>
+                {% elif group.group_type == 'school' %}<i class="bi bi-mortarboard"></i>
+                {% elif group.group_type == 'newcomer' %}<i class="bi bi-person-plus"></i>
+                {% else %}<i class="bi bi-collection"></i>{% endif %}
+                {{ group.name }}
+                <span class="badge" style="background: var(--apple-blue); color: white; font-size: 14px; padding: 4px 12px; border-radius: 20px;">
+                    {{ group.get_member_count() }}명
+                </span>
+            </h1>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{{ url_for('group_edit', group_id=group.id) }}" class="btn-cancel">
+                <i class="bi bi-pencil"></i> 수정
+            </a>
+            <a href="{{ url_for('group_list') }}" class="btn-cancel">
+                <i class="bi bi-arrow-left"></i> 목록
+            </a>
         </div>
     </div>
 
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-people"></i> 소속 교인</span>
+    <div class="row" style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <!-- 그룹 정보 -->
+        <div style="flex: 0 0 300px;">
+            <div class="group-info-card">
+                <h3 style="margin-bottom: 16px; font-size: 16px;"><i class="bi bi-info-circle"></i> 그룹 정보</h3>
+                <div class="group-info-item">
+                    <span class="group-info-label">그룹명</span>
+                    <span class="group-info-value">{{ group.name }}</span>
+                </div>
+                <div class="group-info-item">
+                    <span class="group-info-label">유형</span>
+                    <span class="group-info-value">
+                        {% if group.group_type == 'district' %}교구
+                        {% elif group.group_type == 'mission' %}선교회
+                        {% elif group.group_type == 'position' %}직분
+                        {% elif group.group_type == 'school' %}교회학교
+                        {% elif group.group_type == 'newcomer' %}새가족
+                        {% else %}기타{% endif %}
+                    </span>
+                </div>
+                {% if group.parent %}
+                <div class="group-info-item">
+                    <span class="group-info-label">상위 그룹</span>
+                    <span class="group-info-value">
+                        <a href="{{ url_for('group_detail', group_id=group.parent.id) }}" style="color: var(--apple-blue);">
+                            {{ group.parent.name }}
+                        </a>
+                    </span>
+                </div>
+                {% endif %}
+                <div class="group-info-item">
+                    <span class="group-info-label">리더</span>
+                    <span class="group-info-value">
+                        {% if group.leader_id %}
+                            {% set leader = group.members | selectattr('id', 'equalto', group.leader_id) | first %}
+                            {% if leader %}
+                                <a href="{{ url_for('member_detail', member_id=leader.id) }}" style="color: var(--apple-blue);">
+                                    {{ leader.name }}
+                                </a>
+                            {% else %}미지정{% endif %}
+                        {% else %}미지정{% endif %}
+                    </span>
+                </div>
+                <div class="group-info-item">
+                    <span class="group-info-label">직속 인원</span>
+                    <span class="group-info-value">{{ group.members|length }}명</span>
+                </div>
+                {% if group.children %}
+                <div class="group-info-item">
+                    <span class="group-info-label">하위 그룹 포함</span>
+                    <span class="group-info-value">{{ group.get_member_count() }}명</span>
+                </div>
+                {% endif %}
+                {% if group.description %}
+                <div class="group-info-item" style="flex-direction: column; gap: 8px;">
+                    <span class="group-info-label">설명</span>
+                    <span class="group-info-value" style="font-weight: normal;">{{ group.description }}</span>
+                </div>
+                {% endif %}
             </div>
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>이름</th>
-                            <th>연락처</th>
-                            <th>상태</th>
-                            <th>역할</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if group.members %}
-                            {% for member in group.members %}
-                            <tr>
-                                <td>
-                                    <a href="{{ url_for('member_detail', member_id=member.id) }}" class="text-decoration-none">
-                                        {{ member.name }}
-                                    </a>
-                                </td>
-                                <td>{{ member.phone or '-' }}</td>
-                                <td>
-                                    {% if member.status == 'active' %}
-                                        <span class="badge bg-success">활동</span>
-                                    {% elif member.status == 'inactive' %}
-                                        <span class="badge bg-secondary">비활동</span>
-                                    {% else %}
-                                        <span class="badge bg-info">새신자</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if member.id == group.leader_id %}
-                                        <span class="badge bg-primary">리더</span>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="4" class="text-center py-4 text-muted">
-                                    소속 교인이 없습니다.
-                                </td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
+
+            <!-- 하위 그룹 -->
+            {% if group.children %}
+            <div class="subgroups-section">
+                <div class="group-info-card">
+                    <h3 style="margin-bottom: 16px; font-size: 16px;">
+                        <i class="bi bi-diagram-3"></i> 하위 그룹 ({{ group.children|length }})
+                    </h3>
+                    {% for child in group.children|sort(attribute='name') %}
+                    <a href="{{ url_for('group_detail', group_id=child.id) }}" class="subgroup-item">
+                        <span><i class="bi bi-folder"></i> {{ child.name }}</span>
+                        <span>{{ child.get_member_count() }}명</span>
+                    </a>
+                    {% endfor %}
+                    <a href="{{ url_for('group_new', parent_id=group.id) }}" class="subgroup-item" style="border: 1px dashed var(--apple-border); background: white;">
+                        <span><i class="bi bi-plus-circle"></i> 하위 그룹 추가</span>
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 삭제 버튼 -->
+            <div style="margin-top: 24px;">
+                <button type="button" class="btn-cancel" style="width: 100%; color: #dc3545;" onclick="document.getElementById('deleteModal').style.display='flex'">
+                    <i class="bi bi-trash"></i> 그룹 삭제
+                </button>
+            </div>
+        </div>
+
+        <!-- 소속 교인 목록 -->
+        <div style="flex: 1; min-width: 400px;">
+            <div class="member-list">
+                <div class="member-list-header">
+                    <span><i class="bi bi-people"></i> 소속 교인</span>
+                    <span>{{ group.members|length }}명</span>
+                </div>
+                {% if group.members %}
+                    {% for member in group.members|sort(attribute='name') %}
+                    <a href="{{ url_for('member_detail', member_id=member.id) }}" class="member-row">
+                        <span class="member-row-name">{{ member.name }}</span>
+                        <span class="member-row-phone">{{ member.phone or '-' }}</span>
+                        <span class="member-row-role">
+                            {% if member.id == group.leader_id %}
+                                <span class="status-badge status-active">리더</span>
+                            {% endif %}
+                        </span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div style="padding: 40px; text-align: center; color: var(--apple-text-secondary);">
+                        <i class="bi bi-people" style="font-size: 32px; display: block; margin-bottom: 12px;"></i>
+                        소속 교인이 없습니다
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
 <!-- 삭제 확인 모달 -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">그룹 삭제</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p><strong>{{ group.name }}</strong> 그룹을 삭제하시겠습니까?</p>
-                <p class="text-muted">소속 교인들은 그룹에서 해제됩니다.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                <form action="{{ url_for('group_delete', group_id=group.id) }}" method="POST" class="d-inline">
-                    <button type="submit" class="btn btn-danger">삭제</button>
-                </form>
-            </div>
+<div id="deleteModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;">
+    <div style="background: white; border-radius: 16px; padding: 24px; max-width: 400px; width: 90%;">
+        <h3 style="margin-bottom: 16px;">그룹 삭제</h3>
+        <p><strong>{{ group.name }}</strong> 그룹을 삭제하시겠습니까?</p>
+        <p style="color: var(--apple-text-secondary); font-size: 14px;">소속 교인들은 그룹에서 해제됩니다.</p>
+        {% if group.children %}
+        <p style="color: #dc3545; font-size: 14px;">⚠️ 하위 그룹 {{ group.children|length }}개도 함께 삭제됩니다.</p>
+        {% endif %}
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button type="button" class="btn-cancel" style="flex: 1;" onclick="document.getElementById('deleteModal').style.display='none'">취소</button>
+            <form action="{{ url_for('group_delete', group_id=group.id) }}" method="POST" style="flex: 1;">
+                <button type="submit" class="btn-submit" style="width: 100%; background: #dc3545;">삭제</button>
+            </form>
         </div>
     </div>
 </div>

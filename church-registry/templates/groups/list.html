@@ -3,6 +3,152 @@
 {% block title %}그룹 관리{% endblock %}
 
 {% block content %}
+<style>
+.group-tree {
+    margin-top: 24px;
+}
+
+.group-category {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.group-category-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.group-category-header:hover {
+    background: var(--apple-bg);
+}
+
+.group-category-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.group-category-header h2 i {
+    font-size: 24px;
+}
+
+.group-category-header .badge {
+    background: var(--apple-blue);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+}
+
+.group-category-header .toggle-icon {
+    transition: transform 0.3s;
+}
+
+.group-category.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.group-category.collapsed .group-children {
+    display: none;
+}
+
+.group-children {
+    border-top: 1px solid var(--apple-border);
+    padding: 16px 24px;
+}
+
+.group-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    margin: 8px 0;
+    background: var(--apple-bg);
+    border-radius: 12px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+}
+
+.group-item:hover {
+    background: var(--apple-blue);
+    color: white;
+    transform: translateX(4px);
+}
+
+.group-item-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.group-item-info i {
+    font-size: 18px;
+}
+
+.group-item-info .group-name {
+    font-weight: 500;
+}
+
+.group-item-info .group-path {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.group-item .member-count {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.sub-group-item {
+    margin-left: 24px;
+    border-left: 2px solid var(--apple-border);
+    padding-left: 16px;
+}
+
+.sub-group-item .group-item {
+    background: white;
+    border: 1px solid var(--apple-border);
+}
+
+.add-subgroup-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    margin-top: 12px;
+    background: white;
+    border: 1px dashed var(--apple-border);
+    border-radius: 8px;
+    color: var(--apple-text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.add-subgroup-btn:hover {
+    border-color: var(--apple-blue);
+    color: var(--apple-blue);
+    background: #f0f7ff;
+}
+
+.type-icon-district { color: #11998e; }
+.type-icon-mission { color: #667eea; }
+.type-icon-position { color: #f5576c; }
+.type-icon-school { color: #ff9a56; }
+.type-icon-newcomer { color: #4facfe; }
+</style>
+
 <div class="container">
     <!-- 페이지 헤더 -->
     <div class="page-header">
@@ -11,47 +157,68 @@
                 <i class="bi bi-diagram-3-fill"></i>
                 그룹 관리
             </h1>
-            <p class="page-subtitle">셀, 구역, 목장을 관리합니다</p>
+            <p class="page-subtitle">교구, 선교회, 직분, 교회학교, 새가족 그룹을 관리합니다</p>
         </div>
-        <a href="{{ url_for('group_new') }}" class="btn-submit">
-            <i class="bi bi-plus-lg"></i> 새 그룹 등록
-        </a>
+        <div style="display: flex; gap: 12px;">
+            <a href="{{ url_for('group_new') }}" class="btn-submit">
+                <i class="bi bi-plus-lg"></i> 새 그룹 등록
+            </a>
+        </div>
     </div>
 
-    {% if groups %}
-    <div class="card-grid">
-        {% for group in groups %}
-        <a href="{{ url_for('group_detail', group_id=group.id) }}" class="member-card">
-            <div class="member-card-header">
-                <div class="member-avatar" style="background:
-                    {% if group.group_type == 'cell' %}linear-gradient(135deg, #667eea 0%, #764ba2 100%)
-                    {% elif group.group_type == 'district' %}linear-gradient(135deg, #11998e 0%, #38ef7d 100%)
-                    {% elif group.group_type == 'mokjang' %}linear-gradient(135deg, #f093fb 0%, #f5576c 100%)
-                    {% else %}linear-gradient(135deg, #4facfe 0%, #00f2fe 100%){% endif %}">
-                    {% if group.group_type == 'cell' %}<i class="bi bi-people"></i>
-                    {% elif group.group_type == 'district' %}<i class="bi bi-building"></i>
-                    {% elif group.group_type == 'mokjang' %}<i class="bi bi-house"></i>
+    {% if top_groups %}
+    <div class="group-tree">
+        {% for category in top_groups %}
+        <div class="group-category" data-category="{{ category.group_type }}">
+            <div class="group-category-header" onclick="toggleCategory(this.parentElement)">
+                <h2>
+                    {% if category.group_type == 'district' %}<i class="bi bi-building type-icon-district"></i>
+                    {% elif category.group_type == 'mission' %}<i class="bi bi-globe type-icon-mission"></i>
+                    {% elif category.group_type == 'position' %}<i class="bi bi-person-badge type-icon-position"></i>
+                    {% elif category.group_type == 'school' %}<i class="bi bi-mortarboard type-icon-school"></i>
+                    {% elif category.group_type == 'newcomer' %}<i class="bi bi-person-plus type-icon-newcomer"></i>
                     {% else %}<i class="bi bi-collection"></i>{% endif %}
+                    {{ category.name }}
+                </h2>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <span class="badge">{{ category.get_member_count() }}명</span>
+                    <i class="bi bi-chevron-down toggle-icon"></i>
                 </div>
-                <div class="member-info">
-                    <h3>{{ group.name }}</h3>
-                    <p>{% if group.group_type == 'cell' %}셀
-                       {% elif group.group_type == 'district' %}구역
-                       {% elif group.group_type == 'mokjang' %}목장
-                       {% else %}기타{% endif %}</p>
+            </div>
+            <div class="group-children">
+                {% for child in category.children|sort(attribute='name') %}
+                <div class="group-item-wrapper">
+                    <a href="{{ url_for('group_detail', group_id=child.id) }}" class="group-item">
+                        <div class="group-item-info">
+                            <i class="bi bi-folder2"></i>
+                            <div>
+                                <div class="group-name">{{ child.name }}</div>
+                            </div>
+                        </div>
+                        <span class="member-count">{{ child.get_member_count() }}명 <i class="bi bi-chevron-right"></i></span>
+                    </a>
+                    {% if child.children %}
+                    <div class="sub-group-item">
+                        {% for subchild in child.children|sort(attribute='name') %}
+                        <a href="{{ url_for('group_detail', group_id=subchild.id) }}" class="group-item">
+                            <div class="group-item-info">
+                                <i class="bi bi-folder"></i>
+                                <div>
+                                    <div class="group-name">{{ subchild.name }}</div>
+                                </div>
+                            </div>
+                            <span class="member-count">{{ subchild.get_member_count() }}명 <i class="bi bi-chevron-right"></i></span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
-                <span class="status-badge status-active">{{ group.members|length }}명</span>
+                {% endfor %}
+                <a href="{{ url_for('group_new', parent_id=category.id) }}" class="add-subgroup-btn">
+                    <i class="bi bi-plus-circle"></i> {{ category.name }} 하위 그룹 추가
+                </a>
             </div>
-            <div class="member-meta">
-                <span>
-                    <i class="bi bi-person-badge"></i>
-                    리더: {% if group.leader_id %}
-                        {% set leader = group.members | selectattr('id', 'equalto', group.leader_id) | first %}
-                        {{ leader.name if leader else '미지정' }}
-                    {% else %}미지정{% endif %}
-                </span>
-            </div>
-        </a>
+        </div>
         {% endfor %}
     </div>
     {% else %}
@@ -59,12 +226,18 @@
         <div class="empty-state">
             <i class="bi bi-diagram-3"></i>
             <h3>등록된 그룹이 없습니다</h3>
-            <p>첫 번째 그룹을 등록해보세요</p>
-            <a href="{{ url_for('group_new') }}" class="btn-submit">
-                <i class="bi bi-plus-lg"></i> 새 그룹 등록
+            <p>기본 그룹 구조를 생성하세요</p>
+            <a href="/seed-groups" class="btn-submit" onclick="return confirm('기본 그룹 구조(교구, 선교회, 직분, 교회학교, 새가족)를 생성하시겠습니까?')">
+                <i class="bi bi-magic"></i> 기본 그룹 생성
             </a>
         </div>
     </div>
     {% endif %}
 </div>
+
+<script>
+function toggleCategory(element) {
+    element.classList.toggle('collapsed');
+}
+</script>
 {% endblock %}
