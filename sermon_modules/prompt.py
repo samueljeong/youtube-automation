@@ -915,6 +915,52 @@ Step1(본문 분석) + Step2(구조 설계)를 바탕으로, 청중의 마음을
 '''
 
 
+def get_duration_char_count(duration_str: str) -> dict:
+    """
+    분량(분)을 글자 수로 변환.
+
+    한국어 설교 말하기 속도: 약 270자/분 (공백 포함)
+    - 느린 속도: 250자/분
+    - 보통 속도: 270자/분
+    - 빠른 속도: 300자/분
+
+    Returns:
+        dict: {
+            "minutes": 분,
+            "min_chars": 최소 글자 수,
+            "max_chars": 최대 글자 수,
+            "target_chars": 목표 글자 수 (중간값),
+            "chars_per_min": 분당 글자 수
+        }
+    """
+    import re
+
+    # 기본값
+    CHARS_PER_MIN = 270  # 분당 글자 수 (공백 포함)
+
+    # 숫자 추출
+    if isinstance(duration_str, (int, float)):
+        minutes = int(duration_str)
+    elif isinstance(duration_str, str):
+        match = re.search(r'(\d+)', duration_str)
+        minutes = int(match.group(1)) if match else 20
+    else:
+        minutes = 20
+
+    # 글자 수 계산 (±10% 여유)
+    target_chars = minutes * CHARS_PER_MIN
+    min_chars = int(target_chars * 0.9)
+    max_chars = int(target_chars * 1.1)
+
+    return {
+        "minutes": minutes,
+        "min_chars": min_chars,
+        "max_chars": max_chars,
+        "target_chars": target_chars,
+        "chars_per_min": CHARS_PER_MIN
+    }
+
+
 def build_step3_prompt_from_json(
     json_guide,
     meta_data,
@@ -937,6 +983,7 @@ def build_step3_prompt_from_json(
     - 스타일별 가이드 포함
     - 상세한 체크리스트 추가
     - Strong's 원어 분석, 시대 컨텍스트 포함
+    - 구체적인 글자 수 기준 추가 (분당 270자)
     """
     import json
     from datetime import datetime
@@ -955,6 +1002,9 @@ def build_step3_prompt_from_json(
         duration = f"{int(duration)}분"
     elif isinstance(duration, str) and duration.isdigit():
         duration = f"{duration}분"
+
+    # 분량→글자 수 변환 (구체적인 기준)
+    duration_info = get_duration_char_count(duration)
 
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -1002,8 +1052,13 @@ def build_step3_prompt_from_json(
 
     if duration:
         draft += f"[필수] 분량: {duration}\n"
-        draft += f"   → 이 설교는 반드시 {duration} 분량으로 작성하세요.\n"
-        draft += f"   → 아래 초안이 길더라도 {duration}에 맞춰 압축하세요.\n\n"
+        draft += f"   → 목표 글자 수: {duration_info['target_chars']:,}자 (공백 포함)\n"
+        draft += f"   → 허용 범위: {duration_info['min_chars']:,}자 ~ {duration_info['max_chars']:,}자\n"
+        draft += f"   → 기준: 분당 {duration_info['chars_per_min']}자 (한국어 설교 평균 속도)\n"
+        draft += f"   → 이 글자 수를 반드시 지켜주세요. 짧으면 안 됩니다!\n"
+        if duration_info['minutes'] <= 10:
+            draft += f"   → 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n"
+        draft += "\n"
 
     if service_type:
         draft += f"[필수] 예배/집회 유형: {service_type}\n"
@@ -1248,7 +1303,7 @@ def build_step3_prompt_from_json(
     draft += "  □ Step1의 '주요 절 해설'과 '핵심 단어 분석'을 활용했는가?\n"
     draft += "  □ Step2의 설교 구조(서론, 본론, 결론)를 따랐는가?\n"
     if duration:
-        draft += f"  □ 분량이 {duration}에 맞는가?\n"
+        draft += f"  □ 분량이 {duration} ({duration_info['min_chars']:,}~{duration_info['max_chars']:,}자)에 맞는가?\n"
     if target:
         draft += f"  □ 대상({target})에 맞는 어조와 예시를 사용했는가?\n"
     if service_type:
@@ -1258,11 +1313,12 @@ def build_step3_prompt_from_json(
     draft += "  □ 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n\n"
 
     if duration:
-        draft += f"※ 가장 중요: 반드시 {duration} 분량을 지켜주세요!\n"
+        draft += f"※ 가장 중요: 반드시 {duration_info['target_chars']:,}자 이상 작성하세요!\n"
+        draft += f"   (허용 범위: {duration_info['min_chars']:,}자 ~ {duration_info['max_chars']:,}자)\n"
     if service_type:
         draft += f"※ 예배 유형 '{service_type}'에 맞는 톤으로 작성하세요.\n"
 
-    draft += f"\n{duration or '20분'} 분량 내에서 충분히 상세하게 작성해주세요.\n"
+    draft += f"\n글자 수가 부족하면 안 됩니다. {duration_info['target_chars']:,}자 목표로 충분히 상세하게 작성해주세요.\n"
 
     # 자기 점검 포맷
     draft += "\n" + "-" * 40 + "\n"
