@@ -11382,6 +11382,8 @@ def api_image_generate_assets_zip():
                 return f"{num1}에서{num2}{unit}"
             # 숫자~숫자 + 선택적 단위 (%, 개, 명, 원 등)
             text = re.sub(r'(\d+)~(\d+)(%|퍼센트|개|명|원|만원|억원|조원|kg|g|cm|m|km|일|시간|분|초)?', replace_range, text)
+            # 남은 ~ 문자 제거 (TTS가 "물결표"로 읽는 것 방지)
+            text = text.replace('~', ' ')
 
             return text
 
