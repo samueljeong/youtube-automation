@@ -10,6 +10,41 @@
  * 이 파일은 sermon.html의 3137~3589줄 코드를 모듈화한 것입니다.
  */
 
+// ===== 분량→글자 수 변환 함수 =====
+function getDurationCharCount(durationStr) {
+  /**
+   * 분량(분)을 글자 수로 변환.
+   *
+   * 한국어 설교 말하기 속도: 약 270자/분 (공백 포함)
+   * - 느린 속도: 250자/분
+   * - 보통 속도: 270자/분
+   * - 빠른 속도: 300자/분
+   */
+  const CHARS_PER_MIN = 270;
+
+  // 숫자 추출
+  let minutes = 20;
+  if (typeof durationStr === 'number') {
+    minutes = Math.floor(durationStr);
+  } else if (typeof durationStr === 'string') {
+    const match = durationStr.match(/(\d+)/);
+    minutes = match ? parseInt(match[1], 10) : 20;
+  }
+
+  // 글자 수 계산 (±10% 여유)
+  const targetChars = minutes * CHARS_PER_MIN;
+  const minChars = Math.floor(targetChars * 0.9);
+  const maxChars = Math.floor(targetChars * 1.1);
+
+  return {
+    minutes,
+    minChars,
+    maxChars,
+    targetChars,
+    charsPerMin: CHARS_PER_MIN
+  };
+}
+
 // ===== GPT PRO 초안 구성 =====
 function assembleGptProDraft() {
   const ref = document.getElementById('sermon-ref')?.value || '';
@@ -23,6 +58,9 @@ function assembleGptProDraft() {
   const styleId = window.currentStyleId || '';
   const categoryLabel = getCategoryLabel(window.currentCategory);
   const today = new Date().toLocaleDateString('ko-KR');
+
+  // 분량→글자 수 변환
+  const durationInfo = getDurationCharCount(duration);
 
   let draft = '';
 
@@ -38,8 +76,14 @@ function assembleGptProDraft() {
 
   if (duration) {
     draft += `🚨 분량: ${duration}\n`;
-    draft += `   → 이 설교는 반드시 ${duration} 분량으로 작성하세요.\n`;
-    draft += `   → 아래 초안이 길더라도 ${duration}에 맞춰 압축하세요.\n\n`;
+    draft += `   → 목표 글자 수: ${durationInfo.targetChars.toLocaleString()}자 (공백 포함)\n`;
+    draft += `   → 허용 범위: ${durationInfo.minChars.toLocaleString()}자 ~ ${durationInfo.maxChars.toLocaleString()}자\n`;
+    draft += `   → 기준: 분당 ${durationInfo.charsPerMin}자 (한국어 설교 평균 속도)\n`;
+    draft += `   → 이 글자 수를 반드시 지켜주세요. 짧으면 안 됩니다!\n`;
+    if (durationInfo.minutes <= 10) {
+      draft += `   → 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n`;
+    }
+    draft += `\n`;
   }
 
   if (worshipType) {
@@ -216,7 +260,7 @@ function assembleGptProDraft() {
   draft += `  □ Step1의 '핵심_메시지'가 설교 전체에 일관되게 흐르는가?\n`;
   draft += `  □ Step1의 '주요_절_해설'과 '핵심_단어_분석'을 활용했는가?\n`;
   draft += `  □ Step2의 설교 구조(서론, 대지, 결론)를 따랐는가?\n`;
-  if (duration) draft += `  □ 분량이 ${duration}에 맞는가?\n`;
+  if (duration) draft += `  □ 분량이 ${duration} (${durationInfo.minChars.toLocaleString()}~${durationInfo.maxChars.toLocaleString()}자)에 맞는가?\n`;
   if (target) draft += `  □ 대상(${target})에 맞는 어조와 예시를 사용했는가?\n`;
   if (worshipType) draft += `  □ 예배 유형(${worshipType})에 맞는 톤인가?\n`;
   draft += `  □ 성경 구절이 가독성 가이드에 맞게 줄바꿈 처리되었는가?\n`;
@@ -224,13 +268,14 @@ function assembleGptProDraft() {
   draft += `  □ 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n\n`;
 
   if (duration) {
-    draft += `⚠️ 가장 중요: 반드시 ${duration} 분량을 지켜주세요!\n`;
+    draft += `⚠️ 가장 중요: 반드시 ${durationInfo.targetChars.toLocaleString()}자 이상 작성하세요!\n`;
+    draft += `   (허용 범위: ${durationInfo.minChars.toLocaleString()}자 ~ ${durationInfo.maxChars.toLocaleString()}자)\n`;
   }
   if (worshipType) {
     draft += `⚠️ 예배 유형 '${worshipType}'에 맞는 톤으로 작성하세요.\n`;
   }
 
-  draft += `\nmax_tokens를 16000으로 설정하고, ${duration || '20분'} 분량 내에서 충분히 상세하게 작성해주세요.\n`;
+  draft += `\n글자 수가 부족하면 안 됩니다. ${durationInfo.targetChars.toLocaleString()}자 목표로 충분히 상세하게 작성해주세요.\n`;
 
   return draft;
 }
