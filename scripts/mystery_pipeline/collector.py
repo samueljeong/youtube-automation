@@ -470,12 +470,16 @@ def get_next_kr_mystery(
     return None
 
 
-def list_available_kr_mysteries(used_titles: List[str] = None) -> List[Dict[str, Any]]:
+def list_available_kr_mysteries(
+    used_titles: List[str] = None,
+    category: str = None
+) -> List[Dict[str, Any]]:
     """
     사용 가능한 한국 미스테리 목록 반환 (간략 정보만)
 
     Args:
         used_titles: 이미 사용한 title_ko 리스트
+        category: 특정 카테고리만 필터 (None이면 전체)
 
     Returns:
         사용 가능한 미스테리 목록
@@ -486,15 +490,20 @@ def list_available_kr_mysteries(used_titles: List[str] = None) -> List[Dict[str,
     for mystery in FEATURED_KR_MYSTERIES:
         title_ko = mystery.get("title_ko", mystery.get("namu_title", ""))
         namu_title = mystery.get("namu_title", "")
+        mystery_category = mystery.get("category", "")
 
         # 중복 체크
         if title_ko in used_titles or namu_title in used_titles:
             continue
 
+        # 카테고리 필터
+        if category and mystery_category != category:
+            continue
+
         available.append({
             "namu_title": namu_title,
             "title_ko": title_ko,
-            "category": mystery.get("category", ""),
+            "category": mystery_category,
             "year": mystery.get("year", ""),
             "hook": mystery.get("hook", ""),
             "movie": mystery.get("movie", ""),
