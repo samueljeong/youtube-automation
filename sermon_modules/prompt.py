@@ -1183,6 +1183,11 @@ def build_step3_prompt_from_json(
                 points = step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지")
                 draft += f"▶ 본론 (대지):\n{json_to_text(points)}\n\n"
 
+            # 소대지 (subpoints) - 별도 필드로 있는 경우
+            if step2_result.get("subpoints") or step2_result.get("소대지"):
+                subpoints = step2_result.get("subpoints") or step2_result.get("소대지")
+                draft += f"▶ 소대지:\n{json_to_text(subpoints)}\n\n"
+
             # sections (ID 스키마)
             if step2_result.get("sections"):
                 draft += f"▶ 설교 구조:\n{json_to_text(step2_result['sections'])}\n\n"

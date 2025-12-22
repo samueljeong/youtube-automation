@@ -153,6 +153,44 @@ function assembleGptProDraft() {
         }
       }
 
+      // Step2 추가 정보: 예화 (illustrations)
+      if (stepType === 'step2') {
+        try {
+          const step2Data = JSON.parse(window.stepResults[step.id]);
+          const illustrations = step2Data.illustrations || step2Data.예화;
+          if (illustrations) {
+            draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+            draft += `【 ★ 예화 (Step2 보강) 】\n`;
+            draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            if (Array.isArray(illustrations)) {
+              illustrations.forEach((illust, i) => {
+                if (typeof illust === 'object') {
+                  draft += `${i + 1}. ${illust.title || illust.제목 || ''}\n`;
+                  if (illust.content || illust.내용) {
+                    draft += `   ${illust.content || illust.내용}\n`;
+                  }
+                  if (illust.application || illust.적용) {
+                    draft += `   → 적용: ${illust.application || illust.적용}\n`;
+                  }
+                } else {
+                  draft += `${i + 1}. ${illust}\n`;
+                }
+                draft += `\n`;
+              });
+            } else if (typeof illustrations === 'object') {
+              Object.entries(illustrations).forEach(([key, value]) => {
+                draft += `▶ ${key}: ${value}\n`;
+              });
+              draft += `\n`;
+            } else {
+              draft += `${illustrations}\n\n`;
+            }
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 무시 (원본 텍스트에 예화가 포함되어 있을 수 있음)
+        }
+      }
+
       // Step2 추가 정보: 시대 컨텍스트
       if (stepType === 'step2' && extraInfo?.context_data) {
         const context = extraInfo.context_data;
