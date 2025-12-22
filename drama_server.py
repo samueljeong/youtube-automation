@@ -21708,6 +21708,396 @@ def api_create_unified_sheets():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/api/sheets/create-bible', methods=['GET', 'POST'])
+def api_create_bible_sheet():
+    """
+    성경통독 BIBLE 시트 생성 API
+
+    - 106개 에피소드 데이터 자동 등록
+    - 상태='대기'로 설정하면 파이프라인 트리거
+
+    파라미터:
+    - channel_id: YouTube 채널 ID (선택)
+    - force: "1"이면 기존 시트 삭제 후 재생성
+
+    예시:
+    - GET /api/sheets/create-bible
+    - GET /api/sheets/create-bible?channel_id=UCxxx
+    - GET /api/sheets/create-bible?force=1
+    """
+    print("[BIBLE-SHEETS] ===== create-bible 호출됨 =====")
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 파라미터 처리
+        channel_id = request.args.get('channel_id', '')
+        force_recreate = request.args.get('force', '0') == '1'
+
+        # bible_pipeline 모듈 import
+        from scripts.bible_pipeline.sheets import create_bible_sheet
+
+        result = create_bible_sheet(
+            service=service,
+            sheet_id=sheet_id,
+            channel_id=channel_id,
+            force_recreate=force_recreate
+        )
+
+        if result.get("ok"):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ============================================================
+# 성경통독 파이프라인
+# ============================================================
+
+def run_bible_episode_pipeline(
+    service,
+    sheet_id: str,
+    row_idx: int,
+    episode_data: dict,
+    channel_id: str = ""
+) -> dict:
+    """
+    성경통독 에피소드 파이프라인 실행
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        sheet_id: 스프레드시트 ID
+        row_idx: 행 번호
+        episode_data: 시트에서 읽은 에피소드 데이터
+        channel_id: YouTube 채널 ID
+
+    Returns:
+        {"ok": True, "video_url": str} 또는 {"ok": False, "error": str}
+    """
+    import time as time_module
+    from datetime import datetime
+
+    start_time = time_module.time()
+
+    try:
+        # 에피소드 정보 파싱
+        episode_id = episode_data.get("에피소드", "")  # EP001
+        day_number = int(episode_id.replace("EP", "")) if episode_id.startswith("EP") else 1
+        book = episode_data.get("책", "")
+        title = episode_data.get("제목", f"[100일 성경통독] Day {day_number}")
+        voice = episode_data.get("음성", "").strip() or "chirp3:Charon"
+        visibility = episode_data.get("공개설정", "").strip() or "unlisted"
+        playlist_id = episode_data.get("플레이리스트ID", "").strip()
+        publish_time = episode_data.get("예약시간", "").strip()
+
+        print(f"[BIBLE] ========== 파이프라인 시작: Day {day_number} ==========")
+        print(f"[BIBLE] 책: {book}")
+        print(f"[BIBLE] 제목: {title}")
+        print(f"[BIBLE] 음성: {voice}")
+        print(f"[BIBLE] 공개설정: {visibility}")
+
+        # 상태를 '처리중'으로 변경
+        from scripts.bible_pipeline.sheets import update_episode_status
+        update_episode_status(service, sheet_id, row_idx, "처리중")
+
+        # BiblePipeline에서 에피소드 데이터 가져오기
+        from scripts.bible_pipeline.run import BiblePipeline
+        from scripts.bible_pipeline.config import BIBLE_TTS_VOICE
+
+        pipeline = BiblePipeline()
+        episodes = pipeline.generate_all_bible_episodes()
+        episode = next((ep for ep in episodes if ep.day_number == day_number), None)
+
+        if not episode:
+            return {"ok": False, "error": f"Day {day_number} 에피소드를 찾을 수 없습니다"}
+
+        # 임시 디렉토리 생성
+        temp_dir = os.path.join(tempfile.gettempdir(), f"bible_day_{day_number}")
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # ========== 1. TTS 생성 ==========
+        print(f"[BIBLE] 1. TTS 생성 시작...")
+
+        # 전체 텍스트 생성 (절 번호 제외)
+        tts_texts = []
+        verse_durations = []
+
+        for chapter in episode.chapters:
+            for verse in chapter.verses:
+                tts_texts.append(verse.text)  # 절 번호 제외
+
+        full_text = " ".join(tts_texts)
+        print(f"[BIBLE] TTS 텍스트: {len(full_text)}자")
+
+        # TTS 음성 처리
+        audio_path = os.path.join(temp_dir, f"day_{day_number:03d}.mp3")
+
+        if voice.startswith("chirp3:"):
+            # Gemini TTS 사용
+            voice_name = voice.replace("chirp3:", "")
+            tts_result = generate_gemini_tts(full_text, voice_name=voice_name)
+        elif voice.startswith("gemini:"):
+            # Gemini TTS (pro 또는 flash)
+            parts = voice.split(":")
+            if len(parts) == 3 and parts[1] == "pro":
+                voice_name = parts[2]
+                model = "gemini-2.5-pro-preview-tts"
+            else:
+                voice_name = parts[1] if len(parts) > 1 else "Charon"
+                model = "gemini-2.5-flash-preview-tts"
+            tts_result = generate_gemini_tts(full_text, voice_name=voice_name, model=model)
+        else:
+            # Google Cloud TTS
+            from scripts.tts.google_tts import generate_google_tts
+            tts_result = generate_google_tts(full_text, voice)
+
+        if not tts_result.get("ok"):
+            error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
+            update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
+            return {"ok": False, "error": error_msg}
+
+        # 오디오 저장
+        audio_data = tts_result.get("audio_data")
+        with open(audio_path, "wb") as f:
+            f.write(audio_data)
+
+        # 전체 오디오 길이
+        audio_duration = tts_result.get("duration", len(full_text) / 15.0)  # 대략 15자/초
+
+        # 절별 duration 계산 (텍스트 길이 비례)
+        total_chars = sum(len(t) for t in tts_texts)
+        for text in tts_texts:
+            ratio = len(text) / total_chars if total_chars > 0 else 1.0 / len(tts_texts)
+            verse_durations.append(audio_duration * ratio)
+
+        print(f"[BIBLE] TTS 완료: {audio_duration:.1f}초")
+
+        # ========== 2. 배경 이미지 ==========
+        print(f"[BIBLE] 2. 배경 이미지 확인...")
+        from scripts.bible_pipeline.background import get_background_path, generate_book_background
+
+        background_path = get_background_path(episode.book)
+        if not background_path:
+            print(f"[BIBLE] 배경 이미지 생성: {episode.book}")
+            bg_result = generate_book_background(episode.book)
+            if bg_result.get("ok"):
+                background_path = bg_result.get("image_path")
+            else:
+                print(f"[BIBLE] 배경 생성 실패, 기본 배경 사용")
+                background_path = None
+
+        # ========== 3. 썸네일 생성 ==========
+        print(f"[BIBLE] 3. 썸네일 생성...")
+        from scripts.bible_pipeline.thumbnail import generate_episode_thumbnail
+
+        thumb_result = generate_episode_thumbnail(episode)
+        thumbnail_path = thumb_result.get("image_path") if thumb_result.get("ok") else None
+
+        # ========== 4. 영상 렌더링 ==========
+        print(f"[BIBLE] 4. 영상 렌더링...")
+        from scripts.bible_pipeline.renderer import render_episode_video
+
+        video_result = render_episode_video(
+            episode=episode,
+            audio_path=audio_path,
+            verse_durations=verse_durations,
+            output_dir=temp_dir,
+            background_path=background_path,
+            use_ass=True
+        )
+
+        if not video_result.get("ok"):
+            error_msg = f"영상 렌더링 실패: {video_result.get('error')}"
+            update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
+            return {"ok": False, "error": error_msg}
+
+        video_path = video_result.get("video_path")
+        print(f"[BIBLE] 영상 생성 완료: {video_path}")
+
+        # ========== 5. YouTube 업로드 ==========
+        print(f"[BIBLE] 5. YouTube 업로드...")
+
+        # YouTube 설명 생성
+        description = f"""100일 성경통독 Day {day_number}
+
+📖 {episode.range_text}
+
+#성경통독 #100일성경 #개역개정 #성경말씀 #{episode.book}
+"""
+
+        upload_result = upload_video_to_youtube(
+            video_path=video_path,
+            title=title,
+            description=description,
+            privacy_status=visibility,
+            thumbnail_path=thumbnail_path,
+            playlist_id=playlist_id if playlist_id else None,
+            publish_at=publish_time if publish_time else None,
+            channel_id=channel_id if channel_id else None
+        )
+
+        if not upload_result.get("ok"):
+            error_msg = f"YouTube 업로드 실패: {upload_result.get('error')}"
+            update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
+            return {"ok": False, "error": error_msg}
+
+        video_url = upload_result.get("video_url", "")
+        print(f"[BIBLE] YouTube 업로드 완료: {video_url}")
+
+        # ========== 6. 시트 업데이트 ==========
+        elapsed_time = time_module.time() - start_time
+        work_time_str = f"{elapsed_time / 60:.1f}분"
+
+        update_episode_status(
+            service, sheet_id, row_idx, "완료",
+            video_url=video_url,
+            work_time=work_time_str
+        )
+
+        # 임시 파일 정리
+        try:
+            import shutil
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except:
+            pass
+
+        print(f"[BIBLE] ========== 파이프라인 완료: Day {day_number} ({work_time_str}) ==========")
+
+        return {"ok": True, "video_url": video_url}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = str(e)
+
+        try:
+            from scripts.bible_pipeline.sheets import update_episode_status
+            update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
+        except:
+            pass
+
+        return {"ok": False, "error": error_msg}
+
+
+@app.route('/api/bible/check-and-process', methods=['POST'])
+def api_bible_check_and_process():
+    """
+    성경통독 파이프라인 - BIBLE 시트에서 대기 상태인 에피소드 처리
+
+    cron job에서 호출:
+    - POST /api/bible/check-and-process
+
+    BIBLE 시트 구조:
+    - 행1: 채널ID | UCxxx
+    - 행2: 헤더 (에피소드, 책, 시작장, 끝장, ... 상태, 영상URL, ...)
+    - 행3~: 에피소드 데이터 (106개)
+
+    상태='대기'인 행을 찾아 파이프라인 실행
+    """
+    print(f"[BIBLE] ===== check-and-process 호출됨 =====")
+
+    # 동시 실행 방지
+    if not pipeline_lock.acquire(blocking=False):
+        print("[BIBLE] 다른 파이프라인이 이미 실행 중 - 스킵")
+        return jsonify({
+            "ok": True,
+            "message": "다른 파이프라인이 이미 실행 중입니다",
+            "skipped": True
+        })
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 대기 중인 에피소드 조회
+        from scripts.bible_pipeline.sheets import get_pending_episodes
+
+        pending = get_pending_episodes(service, sheet_id, limit=1)
+
+        if not pending:
+            print("[BIBLE] 대기 중인 에피소드 없음")
+            return jsonify({
+                "ok": True,
+                "message": "처리할 에피소드가 없습니다",
+                "processed": 0
+            })
+
+        episode_data = pending[0]
+        row_idx = episode_data.get("row_idx")
+
+        print(f"[BIBLE] 대기 에피소드 발견: {episode_data.get('에피소드')} (행 {row_idx})")
+
+        # 채널 ID 가져오기 (행1에서)
+        channel_id = ""
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=sheet_id,
+                range="BIBLE!B1"
+            ).execute()
+            channel_id = result.get('values', [[]])[0][0] if result.get('values') else ""
+        except:
+            pass
+
+        # 파이프라인 실행
+        result = run_bible_episode_pipeline(
+            service=service,
+            sheet_id=sheet_id,
+            row_idx=row_idx,
+            episode_data=episode_data,
+            channel_id=channel_id
+        )
+
+        if result.get("ok"):
+            return jsonify({
+                "ok": True,
+                "message": f"Day {episode_data.get('에피소드')} 처리 완료",
+                "video_url": result.get("video_url"),
+                "processed": 1
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": result.get("error"),
+                "processed": 0
+            }), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    finally:
+        pipeline_lock.release()
+
+
 # 기존 시트 → 새 시트 매핑
 MIGRATION_MAPPING = {
     "NEWS": {
