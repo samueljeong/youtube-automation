@@ -21310,6 +21310,100 @@ def api_mystery_run_pipeline():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/api/mystery/run-kr-pipeline', methods=['GET', 'POST'])
+def api_mystery_run_kr_pipeline():
+    """
+    한국 미스테리 자동화 파이프라인 실행
+
+    ★ PENDING 5개 자동 유지
+    ★ 나무위키에서 한국 미스테리 사건 수집
+    ★ Opus가 한국어 대본 작성
+
+    파라미터:
+    - force: "1"이면 PENDING 충분해도 추가
+    - max_add: 한 번에 추가할 최대 개수 (기본 3)
+    - category: 특정 카테고리만 (TOP3, MURDER, MISSING 등)
+
+    환경변수:
+    - MYSTERY_SHEET_ID: 미스테리 전용 시트
+    - NEWS_SHEET_ID 또는 AUTOMATION_SHEET_ID: 공용 시트
+
+    사용 예시:
+    - POST /api/mystery/run-kr-pipeline
+    - POST /api/mystery/run-kr-pipeline?force=1
+    - POST /api/mystery/run-kr-pipeline?category=TOP3
+    """
+    print("[KR_MYSTERY] ===== run-kr-pipeline 호출됨 =====")
+
+    try:
+        from scripts.mystery_pipeline import run_kr_mystery_pipeline
+
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # 시트 ID
+        sheet_id = (
+            os.environ.get('MYSTERY_SHEET_ID') or
+            os.environ.get('NEWS_SHEET_ID') or
+            os.environ.get('AUTOMATION_SHEET_ID')
+        )
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "MYSTERY_SHEET_ID, NEWS_SHEET_ID, 또는 AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 설정
+        force = request.args.get('force', '0') == '1'
+        max_add = int(request.args.get('max_add', '3'))
+        category = request.args.get('category')  # None이면 전체
+
+        print(f"[KR_MYSTERY] force: {force}, max_add: {max_add}, category: {category}, 시트 ID: {sheet_id}")
+
+        # 파이프라인 실행
+        result = run_kr_mystery_pipeline(
+            sheet_id=sheet_id,
+            service=service,
+            force=force,
+            max_add=max_add,
+            category=category
+        )
+
+        if result.get("success"):
+            return jsonify({
+                "ok": True,
+                "type": "korean",
+                "pending_before": result.get("pending_before", 0),
+                "pending_after": result.get("pending_after", 0),
+                "episodes_added": result.get("episodes_added", 0),
+                "added_mysteries": result.get("added_mysteries", []),
+                "available_count": result.get("available_count", 0),
+                "message": f"한국 미스테리 {result.get('episodes_added', 0)}개 추가, PENDING {result.get('pending_after', 0)}개"
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": result.get("error", "알 수 없는 오류"),
+            }), 500
+
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 로드 실패: {e}"
+        }), 500
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route('/api/mystery/test', methods=['GET'])
 def api_mystery_test():
     """
