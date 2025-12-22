@@ -95,6 +95,8 @@ class Episode:
     start_chapter: int      # 시작 장
     end_chapter: int        # 끝 장
     chapters: List[Chapter] # 장 목록
+    day_number: int = 0     # Day 번호 (1~106)
+    books_in_episode: List[str] = None  # 여러 책이 포함된 경우
 
     @property
     def total_chars(self) -> int:
@@ -112,6 +114,52 @@ class Episode:
         if self.start_chapter == self.end_chapter:
             return f"{self.book} {self.start_chapter}장"
         return f"{self.book} {self.start_chapter}-{self.end_chapter}장"
+
+    @property
+    def range_text(self) -> str:
+        """범위 텍스트 (예: 창세기1장~15장 또는 룻기~사무엘상8장)"""
+        if self.books_in_episode and len(self.books_in_episode) > 1:
+            # 여러 책에 걸친 경우
+            first_book = self.books_in_episode[0]
+            last_book = self.books_in_episode[-1]
+            # 첫 책의 첫 장
+            first_ch = self.chapters[0].chapter
+            # 마지막 책의 마지막 장
+            last_ch = self.chapters[-1].chapter
+            return f"{first_book}{first_ch}장~{last_book}{last_ch}장"
+        else:
+            # 단일 책인 경우
+            if self.start_chapter == self.end_chapter:
+                return f"{self.book}{self.start_chapter}장"
+            return f"{self.book}{self.start_chapter}장~{self.end_chapter}장"
+
+    @property
+    def thumbnail_title(self) -> str:
+        """
+        썸네일 제목
+        형식: 100일 성경통독 Day X / 창세기1장~15장
+        """
+        return f"100일 성경통독 Day {self.day_number}\n{self.range_text}"
+
+    @property
+    def video_title(self) -> str:
+        """
+        YouTube 영상 제목
+        형식: [100일 성경통독] Day 1 - 창세기 1-15장
+        """
+        if self.books_in_episode and len(self.books_in_episode) > 1:
+            # 여러 책에 걸친 경우
+            first_book = self.books_in_episode[0]
+            last_book = self.books_in_episode[-1]
+            first_ch = self.chapters[0].chapter
+            last_ch = self.chapters[-1].chapter
+            range_str = f"{first_book} {first_ch}장 ~ {last_book} {last_ch}장"
+        else:
+            if self.start_chapter == self.end_chapter:
+                range_str = f"{self.book} {self.start_chapter}장"
+            else:
+                range_str = f"{self.book} {self.start_chapter}-{self.end_chapter}장"
+        return f"[100일 성경통독] Day {self.day_number} - {range_str}"
 
     @property
     def tts_text(self) -> str:
@@ -172,10 +220,14 @@ class Episode:
         """딕셔너리 변환 (JSON 직렬화용)"""
         return {
             "episode_id": self.episode_id,
+            "day_number": self.day_number,
             "book": self.book,
             "start_chapter": self.start_chapter,
             "end_chapter": self.end_chapter,
             "title": self.title,
+            "range_text": self.range_text,
+            "thumbnail_title": self.thumbnail_title,
+            "video_title": self.video_title,
             "total_chars": self.total_chars,
             "estimated_minutes": round(self.estimated_minutes, 1),
             "chapter_count": len(self.chapters),
@@ -398,6 +450,238 @@ class BiblePipeline:
 
         return episodes
 
+    def generate_all_bible_episodes(
+        self,
+        target_episodes: int = 102  # 실제 106개 생성됨
+    ) -> List[Episode]:
+        """
+        성경 66권 전체를 약 106개 에피소드로 분할
+
+        - 장 단위로 분할 (절 단위 X)
+        - 총 글자 수를 목표 에피소드 수로 나눠 평균 분량 계산
+        - 짧은 책들은 다음 책과 병합
+        - Day 1 ~ Day 106 번호 부여
+
+        Args:
+            target_episodes: 목표 에피소드 수 (기본 106개)
+
+        Returns:
+            Episode 목록 (약 106개)
+        """
+        # 먼저 전체 글자 수 계산
+        total_bible_chars = 0
+        for book_info in BIBLE_BOOKS:
+            book = self.get_book(book_info["name"])
+            if book:
+                for ch in book.get("chapters", []):
+                    total_bible_chars += sum(len(v.get("text", "")) for v in ch.get("verses", []))
+
+        # 목표 에피소드 수에 맞는 평균 글자 수 계산
+        target_chars = total_bible_chars / target_episodes
+        target_minutes = target_chars / BIBLE_CHARS_PER_MINUTE
+
+        print(f"[BIBLE] 총 글자 수: {total_bible_chars:,}자")
+        print(f"[BIBLE] 목표: {target_episodes}개 에피소드, 에피소드당 {target_chars:,.0f}자 ({target_minutes:.1f}분)")
+
+        # 8분 미만이면 무조건 다음과 병합
+        min_standalone_chars = int(BIBLE_CHARS_PER_MINUTE * 8)  # 8분 = 7,280자
+
+        all_episodes = []
+        day_number = 1
+
+        # 현재 진행 중인 에피소드 데이터
+        pending_chapters: List[Chapter] = []
+        pending_chars = 0
+        pending_books = []
+
+        def create_episode_from_pending():
+            """현재 pending 데이터로 에피소드 생성"""
+            nonlocal day_number, pending_chapters, pending_chars, pending_books
+
+            if not pending_chapters:
+                return
+
+            # 범위 정보 추출
+            first_book = pending_chapters[0].book
+            first_ch = pending_chapters[0].chapter
+            last_book = pending_chapters[-1].book
+            last_ch = pending_chapters[-1].chapter
+
+            episode = Episode(
+                episode_id=f"EP{day_number:03d}",
+                book=first_book,
+                start_chapter=first_ch,
+                end_chapter=last_ch,
+                chapters=pending_chapters[:],
+                day_number=day_number,
+                books_in_episode=pending_books[:] if len(pending_books) > 1 else None
+            )
+            all_episodes.append(episode)
+
+            # 로그 출력
+            if len(pending_books) == 1:
+                if first_ch == last_ch:
+                    range_str = f"{first_book} {first_ch}장"
+                else:
+                    range_str = f"{first_book} {first_ch}-{last_ch}장"
+            else:
+                range_str = f"{pending_books[0]}~{pending_books[-1]}"
+
+            print(f"[BIBLE] Day {day_number:3d}: {range_str} "
+                  f"({pending_chars:,}자, {pending_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
+
+            day_number += 1
+            pending_chapters = []
+            pending_chars = 0
+            pending_books = []
+
+        # 66권 순서대로 처리
+        for book_info in BIBLE_BOOKS:
+            book_name = book_info["name"]
+            book = self.get_book(book_name)
+
+            if not book:
+                continue
+
+            total_chapters_in_book = len(book.get("chapters", []))
+            current_start = 1
+
+            while current_start <= total_chapters_in_book:
+                # 남은 공간 계산
+                available_chars = target_chars - pending_chars
+
+                # 목표까지 공간이 거의 없으면 flush
+                if available_chars < BIBLE_CHARS_PER_MINUTE * 2 and pending_chars >= min_standalone_chars:
+                    create_episode_from_pending()
+                    available_chars = target_chars
+
+                # 이 책에서 얼마나 읽을 수 있는지 계산
+                start, end, chars, _ = self.calculate_chapters_for_duration(
+                    book_name, current_start,
+                    available_chars / BIBLE_CHARS_PER_MINUTE
+                )
+
+                # 범위가 유효하지 않으면 책 끝까지
+                if end < current_start:
+                    end = total_chapters_in_book
+
+                chapters_to_add = self.get_chapters_range(book_name, current_start, end)
+                chars_to_add = sum(ch.total_chars for ch in chapters_to_add)
+
+                # 현재 책 추가
+                if book_name not in pending_books:
+                    pending_books.append(book_name)
+
+                # pending에 추가하면 목표 초과하는지 확인
+                if pending_chars + chars_to_add <= target_chars * 1.1:  # 10% 여유
+                    pending_chapters.extend(chapters_to_add)
+                    pending_chars += chars_to_add
+                    current_start = end + 1
+                else:
+                    # 현재 pending이 충분하면 flush 후 새로 시작
+                    if pending_chars >= min_standalone_chars:
+                        create_episode_from_pending()
+                        # 현재 장들로 새 pending 시작
+                        pending_chapters = chapters_to_add
+                        pending_chars = chars_to_add
+                        pending_books = [book_name]
+                        current_start = end + 1
+                    else:
+                        # 짧으면 강제로 추가 후 flush
+                        pending_chapters.extend(chapters_to_add)
+                        pending_chars += chars_to_add
+                        create_episode_from_pending()
+                        current_start = end + 1
+
+            # 책이 끝났을 때 pending이 목표의 90% 이상이면 flush
+            # (10분 이하 짧은 에피소드 방지)
+            if pending_chars >= target_chars * 0.9:
+                create_episode_from_pending()
+
+        # 마지막 남은 pending 처리
+        # 마지막 에피소드가 너무 짧으면 이전 에피소드와 병합
+        if pending_chapters and pending_chars < min_standalone_chars and all_episodes:
+            # 이전 에피소드 가져오기
+            last_ep = all_episodes[-1]
+            merged_chapters = last_ep.chapters + pending_chapters
+            merged_books = list(last_ep.books_in_episode or [last_ep.book])
+            for book in pending_books:
+                if book not in merged_books:
+                    merged_books.append(book)
+
+            # 이전 에피소드 업데이트
+            all_episodes[-1] = Episode(
+                episode_id=last_ep.episode_id,
+                book=merged_chapters[0].book,
+                start_chapter=merged_chapters[0].chapter,
+                end_chapter=merged_chapters[-1].chapter,
+                chapters=merged_chapters,
+                day_number=last_ep.day_number,
+                books_in_episode=merged_books if len(merged_books) > 1 else None
+            )
+            merged_chars = sum(ch.total_chars for ch in merged_chapters)
+            print(f"[BIBLE] Day {last_ep.day_number} 병합됨: "
+                  f"({merged_chars:,}자, {merged_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
+        else:
+            create_episode_from_pending()
+
+        print(f"\n[BIBLE] ===== 총 {len(all_episodes)}개 에피소드 생성 완료 =====")
+        return all_episodes
+
+    def get_episode_by_day(self, day: int) -> Optional[Episode]:
+        """
+        Day 번호로 에피소드 조회
+
+        Args:
+            day: Day 번호 (1~106)
+
+        Returns:
+            해당 Day의 Episode 객체
+        """
+        all_episodes = self.generate_all_bible_episodes()
+        for ep in all_episodes:
+            if ep.day_number == day:
+                return ep
+        return None
+
+    def get_episodes_summary(self) -> List[Dict[str, Any]]:
+        """
+        106개 에피소드 요약 정보 (Google Sheets용)
+
+        Returns:
+            [
+                {
+                    "day": 1,
+                    "episode_id": "EP001",
+                    "book": "창세기",
+                    "start_chapter": 1,
+                    "end_chapter": 15,
+                    "range_text": "창세기1장~15장",
+                    "video_title": "[100일 성경통독] Day 1 - 창세기 1-15장",
+                    "total_chars": 18041,
+                    "estimated_minutes": 19.8
+                },
+                ...
+            ]
+        """
+        episodes = self.generate_all_bible_episodes()
+        summary = []
+
+        for ep in episodes:
+            summary.append({
+                "day": ep.day_number,
+                "episode_id": ep.episode_id,
+                "book": ep.book,
+                "start_chapter": ep.start_chapter,
+                "end_chapter": ep.end_chapter,
+                "range_text": ep.range_text,
+                "video_title": ep.video_title,
+                "total_chars": ep.total_chars,
+                "estimated_minutes": round(ep.estimated_minutes, 1)
+            })
+
+        return summary
+
     def get_tts_config(self) -> Dict[str, Any]:
         """TTS 설정 반환 (기존 파이프라인 호환)"""
         return {
@@ -411,32 +695,91 @@ class BiblePipeline:
 # ============================================================
 
 if __name__ == "__main__":
-    # 테스트: 창세기 에피소드 생성
+    import sys
+
     pipeline = BiblePipeline()
 
-    # 20분 분량으로 자동 계산
-    episode = pipeline.create_episode_auto("창세기", start_chapter=1)
+    # 인자 확인
+    if len(sys.argv) > 1 and sys.argv[1] == "--all":
+        # 전체 106개 에피소드 생성 테스트
+        print("=" * 60)
+        print("  100일 성경통독 - 106개 에피소드 분할")
+        print("=" * 60)
 
-    print("\n" + "=" * 50)
-    print(f"에피소드: {episode.title}")
-    print(f"글자 수: {episode.total_chars:,}자")
-    print(f"예상 시간: {episode.estimated_minutes:.1f}분")
-    print(f"장 수: {len(episode.chapters)}개")
-    print(f"절 수: {len(episode.subtitles)}개")
-    print("=" * 50)
+        episodes = pipeline.generate_all_bible_episodes()
 
-    # TTS 텍스트 샘플 (처음 500자)
-    print("\n[TTS 텍스트 샘플]")
-    print(episode.tts_text[:500] + "...")
+        # 요약 통계
+        total_chars = sum(ep.total_chars for ep in episodes)
+        total_minutes = sum(ep.estimated_minutes for ep in episodes)
+        avg_minutes = total_minutes / len(episodes)
 
-    # 자막 샘플 (처음 5개)
-    print("\n[자막 샘플]")
-    for sub in episode.subtitles[:5]:
-        print(f"  {sub['reference']}: {sub['text'][:30]}...")
+        print("\n" + "=" * 60)
+        print("  요약 통계")
+        print("=" * 60)
+        print(f"  총 에피소드: {len(episodes)}개")
+        print(f"  총 글자 수: {total_chars:,}자")
+        print(f"  총 예상 시간: {total_minutes:.0f}분 ({total_minutes/60:.1f}시간)")
+        print(f"  평균 에피소드 길이: {avg_minutes:.1f}분")
+        print("=" * 60)
 
-    # 창세기 전체 에피소드 분할
-    print("\n" + "=" * 50)
-    print("[창세기 전체 에피소드 분할]")
-    print("=" * 50)
-    episodes = pipeline.generate_all_episodes("창세기")
-    print(f"\n총 {len(episodes)}개 에피소드로 분할됨")
+        # 처음 5개, 마지막 5개 에피소드 출력
+        print("\n[처음 5개 에피소드]")
+        for ep in episodes[:5]:
+            print(f"  Day {ep.day_number:3d}: {ep.video_title}")
+
+        print("\n[마지막 5개 에피소드]")
+        for ep in episodes[-5:]:
+            print(f"  Day {ep.day_number:3d}: {ep.video_title}")
+
+    elif len(sys.argv) > 1 and sys.argv[1].startswith("--day="):
+        # 특정 Day 에피소드 상세 정보
+        day = int(sys.argv[1].split("=")[1])
+        episode = pipeline.get_episode_by_day(day)
+
+        if episode:
+            print("=" * 60)
+            print(f"  Day {episode.day_number} 상세 정보")
+            print("=" * 60)
+            print(f"  영상 제목: {episode.video_title}")
+            print(f"  썸네일 제목:\n    {episode.thumbnail_title.replace(chr(10), chr(10) + '    ')}")
+            print(f"  글자 수: {episode.total_chars:,}자")
+            print(f"  예상 시간: {episode.estimated_minutes:.1f}분")
+            print(f"  장 수: {len(episode.chapters)}개")
+            print(f"  절 수: {len(episode.subtitles)}개")
+            print("=" * 60)
+
+            print("\n[TTS 텍스트 샘플 (500자)]")
+            print(episode.tts_text[:500] + "...")
+
+            print("\n[자막 샘플 (5개)]")
+            for sub in episode.subtitles[:5]:
+                print(f"  {sub['reference']}: {sub['text'][:40]}...")
+        else:
+            print(f"Day {day} 에피소드를 찾을 수 없습니다.")
+
+    else:
+        # 기본: 창세기 에피소드 생성 테스트
+        episode = pipeline.create_episode_auto("창세기", start_chapter=1)
+        episode.day_number = 1  # Day 1 설정
+
+        print("\n" + "=" * 60)
+        print(f"  Day {episode.day_number}: {episode.title}")
+        print("=" * 60)
+        print(f"  영상 제목: {episode.video_title}")
+        print(f"  글자 수: {episode.total_chars:,}자")
+        print(f"  예상 시간: {episode.estimated_minutes:.1f}분")
+        print(f"  장 수: {len(episode.chapters)}개")
+        print(f"  절 수: {len(episode.subtitles)}개")
+        print("=" * 60)
+
+        print("\n[TTS 텍스트 샘플]")
+        print(episode.tts_text[:500] + "...")
+
+        print("\n[자막 샘플]")
+        for sub in episode.subtitles[:5]:
+            print(f"  {sub['reference']}: {sub['text'][:30]}...")
+
+        print("\n[사용법]")
+        print("  python -m scripts.bible_pipeline.run          # 기본 테스트")
+        print("  python -m scripts.bible_pipeline.run --all    # 106개 에피소드 생성")
+        print("  python -m scripts.bible_pipeline.run --day=1  # Day 1 상세 정보")
