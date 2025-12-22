@@ -1052,7 +1052,13 @@ def gpt_pro():
                     json_guide=step3_guide,
                     meta_data=meta_data,
                     step1_result=step1_result,
-                    step2_result=step2_result
+                    step2_result=step2_result,
+                    style_id=None,  # 필요시 추가
+                    style_name=style_name,
+                    writing_style=writing_style,
+                    scripture_citation=scripture_citation,
+                    step1_extra_info=step1_extra_info,
+                    step2_extra_info=step2_extra_info
                 )
 
                 if custom_prompt and custom_prompt.strip():

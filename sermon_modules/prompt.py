@@ -915,61 +915,366 @@ Step1(본문 분석) + Step2(구조 설계)를 바탕으로, 청중의 마음을
 '''
 
 
-def build_step3_prompt_from_json(json_guide, meta_data, step1_result, step2_result, style_id: str = None):
+def build_step3_prompt_from_json(
+    json_guide,
+    meta_data,
+    step1_result,
+    step2_result,
+    style_id: str = None,
+    style_name: str = None,
+    writing_style: dict = None,
+    scripture_citation: dict = None,
+    step1_extra_info: dict = None,
+    step2_extra_info: dict = None
+):
     """
-    신규 ID 스키마(anchors/H*/G*/D*/M*) 기반 Step3(원고) 유저 프롬프트.
-    - Step2(outline)를 1순위 단일 진실(Single Source of Truth)로 사용
-    - Step1은 anchors/guardrails/background 근거 제공자
-    - JSON 형식으로 완성 설교문 출력
+    Step3(설교문 완성) 유저 프롬프트 - Step4(외부 GPT용)와 동일한 형식.
+
+    개선사항 (2025-12-22):
+    - JSON 형식 → 읽기 쉬운 텍스트 형식
+    - Step1 최소화 제거 → 전체 결과 포함
+    - 최우선 지침 강조
+    - 스타일별 가이드 포함
+    - 상세한 체크리스트 추가
+    - Strong's 원어 분석, 시대 컨텍스트 포함
     """
+    import json
+    from datetime import datetime
+
     # 메타 기본값
     reference = meta_data.get("reference") or meta_data.get("bible_range") or meta_data.get("scripture") or ""
     title = meta_data.get("title") or meta_data.get("sermon_title") or ""
     target = meta_data.get("target") or meta_data.get("audience") or ""
     service_type = meta_data.get("service_type") or meta_data.get("worship_type") or ""
-    duration_min = meta_data.get("duration_min") or meta_data.get("duration") or 20
+    duration = meta_data.get("duration_min") or meta_data.get("duration") or "20분"
     special_notes = meta_data.get("special_notes") or meta_data.get("notes") or ""
+    category = meta_data.get("category") or ""
 
-    # Step1 최소화 (근거용 - 토큰 절약)
-    step1_min = _minimize_step1_for_step3(step1_result or {})
+    # duration이 숫자면 "분" 붙이기
+    if isinstance(duration, (int, float)):
+        duration = f"{int(duration)}분"
+    elif isinstance(duration, str) and duration.isdigit():
+        duration = f"{duration}분"
 
-    # Step2는 설계서이므로 가급적 전체 전달
-    step2_outline = step2_result or {}
+    today = datetime.now().strftime("%Y-%m-%d")
 
-    # Step3 유저 프롬프트 템플릿
-    user_prompt = f"""[STEP3 입력]
+    # Step1/Step2 결과를 텍스트로 변환
+    def json_to_text(data, indent=0):
+        """JSON 객체를 읽기 쉬운 텍스트로 변환"""
+        if data is None:
+            return ""
+        if isinstance(data, str):
+            return data
+        if isinstance(data, dict):
+            lines = []
+            for key, value in data.items():
+                prefix = "  " * indent
+                if isinstance(value, (dict, list)):
+                    lines.append(f"{prefix}【{key}】")
+                    lines.append(json_to_text(value, indent + 1))
+                else:
+                    lines.append(f"{prefix}- {key}: {value}")
+            return "\n".join(lines)
+        if isinstance(data, list):
+            lines = []
+            for i, item in enumerate(data, 1):
+                prefix = "  " * indent
+                if isinstance(item, dict):
+                    lines.append(f"{prefix}{i}.")
+                    lines.append(json_to_text(item, indent + 1))
+                else:
+                    lines.append(f"{prefix}{i}. {item}")
+            return "\n".join(lines)
+        return str(data)
 
-Reference: {reference}
-Style_Id: {style_id or "three_points"}
-Title: {title}
+    # ===== 프롬프트 구성 시작 =====
+    draft = ""
 
-Meta:
-- audience: {target}
-- service_type: {service_type}
-- duration_min: {duration_min}
-- special_notes: {special_notes}
+    # 헤더
+    draft += "=" * 50 + "\n"
+    draft += "설교 초안 자료 (설교문 작성용)\n"
+    draft += "=" * 50 + "\n\n"
 
-[Step1 Result JSON]
-{_j(step1_min)}
+    # 최우선 지침
+    draft += "=" * 50 + "\n"
+    draft += "【 ★★★ 최우선 지침 ★★★ 】\n"
+    draft += "=" * 50 + "\n\n"
 
-[Step2 Result JSON]
-{_j(step2_outline)}
+    if duration:
+        draft += f"[필수] 분량: {duration}\n"
+        draft += f"   → 이 설교는 반드시 {duration} 분량으로 작성하세요.\n"
+        draft += f"   → 아래 초안이 길더라도 {duration}에 맞춰 압축하세요.\n\n"
 
-[작성 지시]
-1) Step2 구조를 그대로 따르되, Step3는 "완성 설교 원고"로 확장하세요.
-2) 각 소대지는 Step2의 outline_blocks 순서를 따라 전개하세요.
-3) supporting_verses는 outline_blocks 위치에 맞춰 필요한 자리에서 인용하세요(끝에 몰지 말 것).
-4) Step1 Guardrails의 does_not_claim(D*)를 위반하는 단정 표현 금지.
-5) Step1 Misreads(M*)를 유도하는 표현 금지.
-6) 성경 인용은 반드시 아래 형식:
-   (줄바꿈)
-   요3:16
-   하나님이 세상을 이처럼 사랑하사...
-   (줄바꿈)
-7) 출력은 JSON 1개만.
-"""
+    if service_type:
+        draft += f"[필수] 예배/집회 유형: {service_type}\n"
+        draft += f"   → '{service_type}'에 적합한 톤과 내용으로 작성하세요.\n\n"
 
-    return user_prompt
+    if target:
+        draft += f"[필수] 대상: {target}\n\n"
+
+    if special_notes:
+        draft += f"[필수] 특별 참고사항:\n"
+        draft += f"   {special_notes}\n\n"
+
+    draft += "=" * 50 + "\n\n"
+
+    # 안내 문구
+    draft += "※ 중요: 이 자료는 gpt-4o-mini가 만든 '초안'입니다.\n"
+    draft += "이 자료를 참고하되, 처음부터 새로 작성해주세요.\n"
+    draft += "mini가 만든 문장을 그대로 복사하지 말고, 자연스러운 설교문으로 재작성하세요.\n\n"
+
+    draft += "=" * 50 + "\n\n"
+
+    # 기본 정보
+    draft += "【 기본 정보 】\n"
+    if category:
+        draft += f"- 카테고리: {category}\n"
+    if style_name:
+        draft += f"- 스타일: {style_name}\n"
+    if style_id:
+        draft += f"- 스타일ID: {style_id}\n"
+    draft += f"- 성경구절: {reference}\n"
+    if title:
+        draft += f"- 제목: {title}\n"
+    if service_type:
+        draft += f"- 예배·집회 유형: {service_type}\n"
+    if duration:
+        draft += f"- 분량: {duration}\n"
+    if target:
+        draft += f"- 대상: {target}\n"
+    draft += f"- 작성일: {today}\n"
+
+    draft += "\n" + "=" * 50 + "\n\n"
+
+    # Step1 결과
+    if step1_result:
+        draft += "【 STEP 1 — 성경 연구 및 분석 】\n\n"
+        if isinstance(step1_result, dict):
+            # 주요 필드 추출
+            if step1_result.get("core_message") or step1_result.get("핵심_메시지"):
+                msg = step1_result.get("core_message") or step1_result.get("핵심_메시지")
+                draft += f"▶ 핵심 메시지:\n{msg}\n\n"
+
+            if step1_result.get("key_verses") or step1_result.get("주요_절_해설"):
+                verses = step1_result.get("key_verses") or step1_result.get("주요_절_해설")
+                draft += f"▶ 주요 절 해설:\n{json_to_text(verses)}\n\n"
+
+            if step1_result.get("key_words") or step1_result.get("핵심_단어_분석"):
+                words = step1_result.get("key_words") or step1_result.get("핵심_단어_분석")
+                draft += f"▶ 핵심 단어 분석:\n{json_to_text(words)}\n\n"
+
+            if step1_result.get("historical_background") or step1_result.get("역사적_배경"):
+                bg = step1_result.get("historical_background") or step1_result.get("역사적_배경")
+                draft += f"▶ 역사적 배경:\n{bg}\n\n"
+
+            if step1_result.get("theological_insights") or step1_result.get("신학적_통찰"):
+                insights = step1_result.get("theological_insights") or step1_result.get("신학적_통찰")
+                draft += f"▶ 신학적 통찰:\n{json_to_text(insights)}\n\n"
+
+            # anchors (ID 스키마)
+            if step1_result.get("anchors"):
+                draft += f"▶ Anchors (핵심 근거):\n{json_to_text(step1_result['anchors'])}\n\n"
+
+            # guardrails
+            if step1_result.get("guardrails"):
+                draft += f"▶ Guardrails (주의사항):\n{json_to_text(step1_result['guardrails'])}\n\n"
+
+            # 나머지 필드
+            shown_keys = {'core_message', '핵심_메시지', 'key_verses', '주요_절_해설',
+                         'key_words', '핵심_단어_분석', 'historical_background', '역사적_배경',
+                         'theological_insights', '신학적_통찰', 'anchors', 'guardrails'}
+            other_fields = {k: v for k, v in step1_result.items() if k not in shown_keys and v}
+            if other_fields:
+                draft += f"▶ 기타 분석:\n{json_to_text(other_fields)}\n\n"
+        else:
+            draft += f"{step1_result}\n\n"
+
+        # Strong's 원어 분석
+        if step1_extra_info and step1_extra_info.get('strongs_analysis'):
+            strongs = step1_extra_info['strongs_analysis']
+            key_words = strongs.get('key_words', [])
+            if key_words:
+                draft += "-" * 40 + "\n"
+                draft += "【 ★ Strong's 원어 분석 】\n"
+                draft += "-" * 40 + "\n\n"
+                if strongs.get('text'):
+                    draft += f"영문 (KJV): {strongs['text']}\n\n"
+                draft += "▶ 핵심 원어 단어:\n"
+                for i, word in enumerate(key_words[:7], 1):
+                    lemma = word.get('lemma', '')
+                    translit = word.get('translit', '')
+                    strongs_num = word.get('strongs', '')
+                    definition = word.get('definition', '')
+                    draft += f"  {i}. {lemma} ({translit}, {strongs_num})\n"
+                    if word.get('english'):
+                        draft += f"     → 영어: {word['english']}\n"
+                    if definition:
+                        draft += f"     → 의미: {definition[:200]}{'...' if len(definition) > 200 else ''}\n"
+                    draft += "\n"
+
+        draft += "=" * 50 + "\n\n"
+
+    # Step2 결과
+    if step2_result:
+        draft += "【 STEP 2 — 설교 구조 및 개요 】\n\n"
+        if isinstance(step2_result, dict):
+            # 서론
+            if step2_result.get("introduction") or step2_result.get("서론"):
+                intro = step2_result.get("introduction") or step2_result.get("서론")
+                draft += f"▶ 서론:\n{json_to_text(intro)}\n\n"
+
+            # 본론/대지
+            if step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지"):
+                points = step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지")
+                draft += f"▶ 본론 (대지):\n{json_to_text(points)}\n\n"
+
+            # sections (ID 스키마)
+            if step2_result.get("sections"):
+                draft += f"▶ 설교 구조:\n{json_to_text(step2_result['sections'])}\n\n"
+
+            # 결론
+            if step2_result.get("conclusion") or step2_result.get("결론"):
+                conclusion = step2_result.get("conclusion") or step2_result.get("결론")
+                draft += f"▶ 결론:\n{json_to_text(conclusion)}\n\n"
+
+            # 적용
+            if step2_result.get("application") or step2_result.get("적용"):
+                app = step2_result.get("application") or step2_result.get("적용")
+                draft += f"▶ 적용:\n{json_to_text(app)}\n\n"
+
+            # 예화
+            if step2_result.get("illustrations") or step2_result.get("예화"):
+                illust = step2_result.get("illustrations") or step2_result.get("예화")
+                draft += f"▶ 예화:\n{json_to_text(illust)}\n\n"
+
+            # writing_spec
+            if step2_result.get("writing_spec"):
+                draft += f"▶ 작성 규격:\n{json_to_text(step2_result['writing_spec'])}\n\n"
+        else:
+            draft += f"{step2_result}\n\n"
+
+        # 시대 컨텍스트
+        if step2_extra_info and step2_extra_info.get('context_data'):
+            context = step2_extra_info['context_data']
+            draft += "-" * 40 + "\n"
+            draft += "【 ★ 현재 시대 컨텍스트 】\n"
+            draft += "-" * 40 + "\n\n"
+            draft += f"청중 유형: {context.get('audience', '전체')}\n\n"
+
+            # 주요 뉴스
+            news = context.get('news', {})
+            if news:
+                cat_names = {'economy': '경제', 'politics': '정치', 'society': '사회', 'world': '국제', 'culture': '문화'}
+                draft += "▶ 주요 시사 이슈 (서론/예화에 활용):\n"
+                for cat, items in news.items():
+                    if items:
+                        draft += f"  [{cat_names.get(cat, cat)}]\n"
+                        for item in items[:2]:
+                            title_text = item.get('title', '')
+                            if len(title_text) > 50:
+                                title_text = title_text[:50] + '...'
+                            draft += f"  - {title_text}\n"
+                draft += "\n"
+
+            # 사회 지표
+            indicators = context.get('indicators', {})
+            if indicators:
+                draft += "▶ 관련 사회 지표:\n"
+                for cat, data in indicators.items():
+                    if isinstance(data, dict):
+                        for key, value in data.items():
+                            if key != 'updated':
+                                draft += f"  - {key}: {value}\n"
+                draft += "\n"
+
+            # 청중 관심사
+            concerns = context.get('concerns', [])
+            if concerns:
+                draft += "▶ 청중의 주요 관심사/고민:\n"
+                for concern in concerns:
+                    draft += f"  - {concern}\n"
+                draft += "\n"
+
+            draft += "※ 위 시대 컨텍스트를 도입부/예화/적용에 활용하세요.\n\n"
+
+        draft += "=" * 50 + "\n\n"
+
+    # 스타일별 작성 가이드
+    if writing_style or scripture_citation:
+        draft += "=" * 50 + "\n"
+        draft += f"【 ★★★ 스타일별 작성 가이드{' (' + style_name + ')' if style_name else ''} ★★★ 】\n"
+        draft += "=" * 50 + "\n\n"
+
+        # 문단/줄바꿈 스타일
+        if writing_style and isinstance(writing_style, dict):
+            draft += f"▶ {writing_style.get('label', '문단/줄바꿈 스타일')}\n"
+            if writing_style.get('core_principle'):
+                draft += f"   핵심: {writing_style['core_principle']}\n"
+            if writing_style.get('must_do'):
+                draft += "   [해야 할 것]\n"
+                for item in writing_style['must_do']:
+                    draft += f"      - {item}\n"
+            if writing_style.get('must_not'):
+                draft += "   [하지 말 것]\n"
+                for item in writing_style['must_not']:
+                    draft += f"      - {item}\n"
+            draft += "\n"
+
+        # 성경구절 인용 방식
+        if scripture_citation and isinstance(scripture_citation, dict):
+            draft += f"▶ {scripture_citation.get('label', '성경구절 인용 방식')}\n"
+            if scripture_citation.get('core_principle'):
+                draft += f"   핵심: {scripture_citation['core_principle']}\n"
+            if scripture_citation.get('must_do'):
+                draft += "   [해야 할 것]\n"
+                for item in scripture_citation['must_do']:
+                    draft += f"      - {item}\n"
+            if scripture_citation.get('good_examples'):
+                draft += "   [올바른 예시]\n"
+                for ex in scripture_citation['good_examples']:
+                    draft += f"      {ex}\n"
+            draft += "\n"
+
+        draft += "=" * 50 + "\n\n"
+
+    # 최종 작성 지침
+    draft += "=" * 50 + "\n"
+    draft += "【 최종 작성 지침 】\n"
+    draft += "=" * 50 + "\n\n"
+    draft += "위의 초안 자료를 참고하여, 완성도 높은 설교문을 처음부터 새로 작성해주세요.\n\n"
+
+    draft += "[필수 체크리스트]\n"
+    draft += "  □ Step1의 '핵심 메시지'가 설교 전체에 일관되게 흐르는가?\n"
+    draft += "  □ Step1의 '주요 절 해설'과 '핵심 단어 분석'을 활용했는가?\n"
+    draft += "  □ Step2의 설교 구조(서론, 본론, 결론)를 따랐는가?\n"
+    if duration:
+        draft += f"  □ 분량이 {duration}에 맞는가?\n"
+    if target:
+        draft += f"  □ 대상({target})에 맞는 어조와 예시를 사용했는가?\n"
+    if service_type:
+        draft += f"  □ 예배 유형({service_type})에 맞는 톤인가?\n"
+    draft += "  □ 성경 구절이 가독성 가이드에 맞게 줄바꿈 처리되었는가?\n"
+    draft += "  □ 마크다운 없이 순수 텍스트로 작성했는가?\n"
+    draft += "  □ 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n\n"
+
+    if duration:
+        draft += f"※ 가장 중요: 반드시 {duration} 분량을 지켜주세요!\n"
+    if service_type:
+        draft += f"※ 예배 유형 '{service_type}'에 맞는 톤으로 작성하세요.\n"
+
+    draft += f"\n{duration or '20분'} 분량 내에서 충분히 상세하게 작성해주세요.\n"
+
+    # 자기 점검 포맷
+    draft += "\n" + "-" * 40 + "\n"
+    draft += "설교문 작성 후, 맨 끝에 다음 형식으로 자기 점검을 추가하세요:\n\n"
+    draft += "---SELF_CHECK---\n"
+    draft += "1. 구조 완성: [예/아니오] - 서론/본론/결론 모두 포함\n"
+    draft += "2. 예화 포함: [예/아니오] - 구체적 예화 최소 2개 이상\n"
+    draft += "3. 적용 구체성: [예/아니오] - 실천 가능한 적용 제시\n"
+    draft += "4. 분량 적절: [예/아니오] - 목표 분량에 맞음\n"
+    draft += "---END_CHECK---\n"
+
+    return draft
 
 
 # ═══════════════════════════════════════════════════════════════
