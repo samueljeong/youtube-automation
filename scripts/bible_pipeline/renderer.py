@@ -465,6 +465,312 @@ def get_ffmpeg_fade_filter(duration: float, fade_duration: float = 0.5) -> str:
 
 
 # ============================================================
+# SRT 자막 생성
+# ============================================================
+
+def format_srt_time(seconds: float) -> str:
+    """초를 SRT 시간 형식으로 변환 (HH:MM:SS,mmm)"""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+
+def generate_verse_srt(
+    subtitles: List[Dict[str, Any]],
+    verse_durations: List[float],
+    output_path: str,
+    include_reference: bool = True
+) -> str:
+    """
+    절별 SRT 자막 파일 생성
+
+    Args:
+        subtitles: Episode.subtitles 리스트 (verse, text, reference 등)
+        verse_durations: 각 절의 TTS 재생 시간 (초)
+        output_path: SRT 파일 저장 경로
+        include_reference: 참조(신명기 1장 3절) 포함 여부
+
+    Returns:
+        저장된 파일 경로
+    """
+    srt_lines = []
+    current_time = 0.0
+
+    for i, (subtitle, duration) in enumerate(zip(subtitles, verse_durations)):
+        start_time = current_time
+        end_time = current_time + duration
+
+        # SRT 인덱스 (1부터 시작)
+        srt_lines.append(str(i + 1))
+
+        # 시간 범위
+        srt_lines.append(f"{format_srt_time(start_time)} --> {format_srt_time(end_time)}")
+
+        # 자막 텍스트
+        if include_reference:
+            # "창세기 1장 1절" + 줄바꿈 + "(1) 태초에..."
+            reference = f"{subtitle['book']} {subtitle['chapter']}장 {subtitle['verse']}절"
+            srt_lines.append(reference)
+            srt_lines.append(subtitle['text'])
+        else:
+            # "(1) 태초에..." 만
+            srt_lines.append(subtitle['text'])
+
+        srt_lines.append("")  # 빈 줄로 구분
+
+        current_time = end_time
+
+    # 파일 저장
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(srt_lines))
+
+    print(f"[RENDER] SRT 저장: {output_path}")
+    return output_path
+
+
+def generate_ass_subtitle(
+    subtitles: List[Dict[str, Any]],
+    verse_durations: List[float],
+    output_path: str,
+    font_name: str = "NanumSquareRound",
+    font_size: int = 48,
+    primary_color: str = "&H00FFFFFF",  # 흰색
+    outline_color: str = "&H00000000",  # 검정
+    fade_duration_ms: int = 300
+) -> str:
+    """
+    ASS 자막 파일 생성 (페이드 효과 포함)
+
+    Args:
+        subtitles: Episode.subtitles 리스트
+        verse_durations: 각 절의 TTS 재생 시간 (초)
+        output_path: ASS 파일 저장 경로
+        font_name: 폰트 이름
+        font_size: 폰트 크기
+        primary_color: 텍스트 색상 (ASS 형식)
+        outline_color: 외곽선 색상
+        fade_duration_ms: 페이드 효과 시간 (밀리초)
+
+    Returns:
+        저장된 파일 경로
+    """
+    # ASS 헤더
+    ass_header = f"""[Script Info]
+Title: Bible Reading Subtitles
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Reference,{font_name},{int(font_size * 0.8)},&H00FFD700,&H000000FF,{outline_color},&H80000000,1,0,0,0,100,100,0,0,1,2,2,8,50,50,80,1
+Style: Verse,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&H80000000,0,0,0,0,100,100,0,0,1,3,3,5,50,50,100,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+    def format_ass_time(seconds: float) -> str:
+        """ASS 시간 형식 (H:MM:SS.cc)"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours}:{minutes:02d}:{secs:05.2f}"
+
+    events = []
+    current_time = 0.0
+
+    for subtitle, duration in zip(subtitles, verse_durations):
+        start_time = current_time
+        end_time = current_time + duration
+
+        # 참조 텍스트 (상단): "창세기 1장 1절"
+        reference = f"{subtitle['book']} {subtitle['chapter']}장 {subtitle['verse']}절"
+        # 페이드 효과: {\\fad(시작,끝)}
+        ref_text = f"{{\\fad({fade_duration_ms},{fade_duration_ms})}}{reference}"
+        events.append(
+            f"Dialogue: 0,{format_ass_time(start_time)},{format_ass_time(end_time)},Reference,,0,0,0,,{ref_text}"
+        )
+
+        # 본문 텍스트 (하단): "(1) 태초에 하나님이..."
+        # 긴 텍스트는 줄바꿈 처리
+        verse_text = subtitle['text']
+        if len(verse_text) > 35:
+            # 35자 이상이면 줄바꿈
+            lines = wrap_text(verse_text, max_chars_per_line=35)
+            verse_text = "\\N".join(lines)  # ASS 줄바꿈
+
+        verse_with_fade = f"{{\\fad({fade_duration_ms},{fade_duration_ms})}}{verse_text}"
+        events.append(
+            f"Dialogue: 0,{format_ass_time(start_time)},{format_ass_time(end_time)},Verse,,0,0,0,,{verse_with_fade}"
+        )
+
+        current_time = end_time
+
+    # 파일 저장
+    ass_content = ass_header + '\n'.join(events) + '\n'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(ass_content)
+
+    print(f"[RENDER] ASS 저장: {output_path}")
+    return output_path
+
+
+# ============================================================
+# 영상 렌더링 (FFmpeg)
+# ============================================================
+
+def generate_ffmpeg_command(
+    background_path: str,
+    audio_path: str,
+    subtitle_path: str,
+    output_path: str,
+    duration: float,
+    subtitle_type: str = "ass"  # "ass" or "srt"
+) -> List[str]:
+    """
+    FFmpeg 명령어 생성
+
+    Args:
+        background_path: 배경 이미지 경로
+        audio_path: TTS 오디오 파일 경로
+        subtitle_path: 자막 파일 경로 (ASS 또는 SRT)
+        output_path: 출력 영상 경로
+        duration: 영상 길이 (초)
+        subtitle_type: 자막 타입
+
+    Returns:
+        FFmpeg 명령어 리스트
+    """
+    # 기본 명령어
+    cmd = [
+        'ffmpeg', '-y',
+        '-loop', '1',
+        '-i', background_path,
+        '-i', audio_path,
+        '-c:v', 'libx264',
+        '-tune', 'stillimage',
+        '-c:a', 'aac',
+        '-b:a', '192k',
+        '-pix_fmt', 'yuv420p',
+        '-shortest',
+        '-t', str(duration),
+    ]
+
+    # 자막 필터
+    if subtitle_type == "ass":
+        # ASS 자막 (스타일 포함)
+        cmd.extend([
+            '-vf', f"ass={subtitle_path}",
+        ])
+    else:
+        # SRT 자막
+        cmd.extend([
+            '-vf', f"subtitles={subtitle_path}:force_style='FontName=NanumSquareRound,FontSize=48,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,BorderStyle=1,Outline=3,Shadow=2'",
+        ])
+
+    cmd.append(output_path)
+
+    return cmd
+
+
+def render_episode_video(
+    episode,
+    audio_path: str,
+    verse_durations: List[float],
+    output_dir: str,
+    background_path: Optional[str] = None,
+    use_ass: bool = True
+) -> Dict[str, Any]:
+    """
+    에피소드 영상 렌더링
+
+    Args:
+        episode: Episode 객체
+        audio_path: TTS 오디오 파일 경로
+        verse_durations: 각 절의 TTS 재생 시간 (초)
+        output_dir: 출력 디렉토리
+        background_path: 배경 이미지 경로 (None이면 자동 생성)
+        use_ass: True면 ASS 자막, False면 SRT
+
+    Returns:
+        {"ok": True, "video_path": str, "duration": float} 또는
+        {"ok": False, "error": str}
+    """
+    import subprocess
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 파일 경로 생성
+    video_filename = f"day_{episode.day_number:03d}.mp4"
+    video_path = os.path.join(output_dir, video_filename)
+    subtitle_ext = "ass" if use_ass else "srt"
+    subtitle_path = os.path.join(output_dir, f"day_{episode.day_number:03d}.{subtitle_ext}")
+
+    # 배경 이미지 확인/생성
+    if background_path is None:
+        from .background import get_background_path, generate_book_background
+        background_path = get_background_path(episode.book)
+        if not background_path:
+            result = generate_book_background(episode.book)
+            if not result.get("ok"):
+                return {"ok": False, "error": f"배경 생성 실패: {result.get('error')}"}
+            background_path = result.get("image_path")
+
+    # 자막 생성
+    if use_ass:
+        generate_ass_subtitle(episode.subtitles, verse_durations, subtitle_path)
+    else:
+        generate_verse_srt(episode.subtitles, verse_durations, subtitle_path)
+
+    # 총 재생 시간 계산
+    total_duration = sum(verse_durations)
+
+    # FFmpeg 명령어 생성 및 실행
+    cmd = generate_ffmpeg_command(
+        background_path=background_path,
+        audio_path=audio_path,
+        subtitle_path=subtitle_path,
+        output_path=video_path,
+        duration=total_duration,
+        subtitle_type=subtitle_ext
+    )
+
+    print(f"[RENDER] FFmpeg 실행: Day {episode.day_number}")
+    print(f"[RENDER] 명령어: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600  # 10분 타임아웃
+        )
+
+        if result.returncode != 0:
+            return {
+                "ok": False,
+                "error": f"FFmpeg 오류: {result.stderr[:500]}"
+            }
+
+        print(f"[RENDER] 영상 생성 완료: {video_path}")
+        return {
+            "ok": True,
+            "video_path": video_path,
+            "subtitle_path": subtitle_path,
+            "duration": total_duration
+        }
+
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "FFmpeg 타임아웃 (10분 초과)"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
 # 테스트
 # ============================================================
 
