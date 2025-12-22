@@ -1,6 +1,11 @@
 # Sermon 페이지 작업 로그
 
-## 2024-12-22 세션
+> **세션 시작 시 반드시 이 파일을 확인하세요!**
+> 이전 세션에서 완료된 작업과 다음 할 일을 파악할 수 있습니다.
+
+---
+
+## 2025-12-22 세션
 
 ### 1. Step3/Step4 프롬프트 통일 (`a276c14`)
 
@@ -110,6 +115,46 @@
 
 ---
 
+## 2025-11-26 세션
+
+### Step3 스타일별 지침 JSON 구조 추가
+
+**문제 상황**:
+- Step1, Step2는 스타일별로 다른 JSON 지침이 있었지만, Step3는 공통 프롬프트만 사용
+- Step1/Step2에서 체계적으로 분석해도 Step3가 이를 제대로 반영하지 못함
+- 결과적으로 모든 스타일의 설교가 비슷하게 나오는 문제
+
+**해결 방향**: Step3도 스타일마다 다른 지침 JSON을 사용하도록 변경
+
+**완료된 작업**:
+
+#### 프론트엔드 (sermon.html)
+- `renderGuideTabs()` 함수 수정
+- Step1, Step2 탭 외에 **Step3 탭** 추가
+- 스타일 선택 시 Step1, Step2, Step3 지침 모두 편집 가능
+- Step3 API 호출 시 `step3Guide` 추가 전송
+- localStorage에서 `guide-{category}-{style}-step3` 키로 불러옴
+
+#### 백엔드 (sermon_server.py)
+- `/api/sermon/gpt-pro` 엔드포인트에 `step3_guide` 추가
+- `build_step3_prompt_from_json()` 함수 전면 개편
+- 우선순위 체계:
+  1. 홈화면 설정 (최우선)
+  2. Step3 스타일별 지침
+  3. Step2 설교 구조 (필수 반영)
+  4. Step1 분석 자료 (참고 활용)
+
+**관련 함수/변수 위치**:
+| 위치 | 함수/변수 | 행 번호 |
+|------|----------|---------|
+| 프론트엔드 | `renderGuideTabs()` | ~3857행 |
+| 프론트엔드 | Step3 API 호출 | ~3382행 |
+| 프론트엔드 | `getGuideKey()` | ~2769행 |
+| 백엔드 | `build_step3_prompt_from_json()` | ~1458행 |
+| 백엔드 | `/api/sermon/gpt-pro` | ~1894행 |
+
+---
+
 ## 수정된 파일 목록
 
 | 파일 | 설명 |
@@ -117,11 +162,25 @@
 | `sermon_modules/prompt.py` | Step3 프롬프트 빌더, 글자 수 함수 |
 | `sermon_modules/api_sermon.py` | API 파라미터 전달 |
 | `static/js/sermon-gpt-pro.js` | Step4 프롬프트 빌더, 글자 수 함수 |
+| `templates/sermon.html` | renderGuideTabs() 수정, Step3 지침 전송 |
+| `sermon_server.py` | step3_guide 받기, build_step3_prompt_from_json() 개편 |
 
 ---
 
-## 향후 고려사항
+## 향후 고려사항 (TODO)
 
-1. **Step3 API 응답 검증**: 글자 수 미달 시 자동 재생성 로직
-2. **비용 추적**: GPT-5.1 사용 시 비용 계산 (약 40분 설교 = ₩650~1,300)
-3. **A/B 테스트**: 프롬프트 변경에 따른 품질 비교
+1. **Step3 지침 JSON 샘플 작성**: 3대지, 강해설교 등 스타일별
+2. **Step3 API 응답 검증**: 글자 수 미달 시 자동 재생성 로직
+3. **비용 추적**: GPT-5.1 사용 시 비용 계산 (약 40분 설교 = ₩650~1,300)
+4. **A/B 테스트**: 프롬프트 변경에 따른 품질 비교
+
+---
+
+## Step 명칭 규칙 (참고)
+
+| Step | 명칭 | 설명 | UI 요소 |
+|------|------|------|---------|
+| **Step1** | 배경 분석 | 성경 본문 배경/맥락 분석 | - |
+| **Step2** | 설교 구조 | 설교 초안/구조 생성 | - |
+| **Step3** | 설교문 완성 | GPT-PRO로 최종 설교문 작성 | 분홍색 버튼 |
+| **Step4** | 전체 복사 | 개인 GPT에 붙여넣기용 전체 복사 | 보라색 버튼 |
