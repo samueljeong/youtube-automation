@@ -21931,6 +21931,31 @@ def run_bible_episode_pipeline(
         video_path = video_result.get("video_path")
         print(f"[BIBLE] 영상 생성 완료: {video_path}")
 
+        # ========== 4.5. BGM 믹싱 (calm 분위기, 10% 볼륨) ==========
+        print(f"[BIBLE] 4.5. BGM 믹싱...")
+
+        import glob
+        import random
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        bgm_dir = os.path.join(script_dir, "static", "audio", "bgm")
+        calm_bgms = glob.glob(os.path.join(bgm_dir, "calm_*.mp3"))
+
+        if calm_bgms:
+            bgm_path = random.choice(calm_bgms)
+            bgm_output_path = video_path.replace(".mp4", "_bgm.mp4")
+
+            print(f"[BIBLE] BGM 파일: {os.path.basename(bgm_path)}")
+
+            if _mix_bgm_with_video(video_path, bgm_path, bgm_output_path, bgm_volume=0.10):
+                # BGM 믹싱 성공 - 기존 파일 교체
+                os.replace(bgm_output_path, video_path)
+                print(f"[BIBLE] BGM 믹싱 완료 (볼륨 10%)")
+            else:
+                print(f"[BIBLE] BGM 믹싱 실패 - 원본 영상 사용")
+        else:
+            print(f"[BIBLE] calm BGM 파일 없음 - BGM 없이 진행")
+
         # ========== 5. YouTube 업로드 ==========
         print(f"[BIBLE] 5. YouTube 업로드...")
 
