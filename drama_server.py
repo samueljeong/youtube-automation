@@ -11878,12 +11878,19 @@ def api_image_generate_assets_zip():
                 '조달러', '억달러', '만달러',
                 '조엔', '억엔', '만엔',
                 # 큰 단위 단독
-                '조', '억',
+                '조', '억', '만',
                 # 일반 단위
                 '원', '층', '년', '월', '일', '분', '초', '도', '호', '회', '배', '위', '등', '점',
                 '퍼센트', '%', 'km', 'm', 'kg', 'g', 'cm', 'mm', '원짜리', '달러', '엔', '유로',
                 # 주식/지수 단위
-                '선', '포인트', 'p', 'pt'
+                '선', '포인트', 'p', 'pt',
+                # ★ 추가 단위 (2025-12-23)
+                '세기', '차', '항', '기', '반', '판', '부', '편', '곡', '막', '절', '관',
+                '조', '장', '권', '쪽', '면', '페이지', '화', '회차', '라운드', '세트',
+                '번지', '동', '호실', '구', '로', '길',  # 주소
+                '교시', '학년', '학기',  # 학교
+                '대', '세대',  # 세대
+                '승', '패', '무',  # 스포츠
             ]
             for unit in sino_units:
                 pattern = r'(\d+)' + re.escape(unit)
@@ -11915,6 +11922,88 @@ def api_image_generate_assets_zip():
             text = re.sub(r'(\d+)~(\d+)(%|퍼센트|개|명|원|만원|억원|조원|kg|g|cm|m|km|일|시간|분|초)?', replace_range, text)
             # 남은 ~ 문자 제거 (TTS가 "물결표"로 읽는 것 방지)
             text = text.replace('~', ' ')
+
+            # ★★★ 추가 패턴들 (2025-12-23) ★★★
+
+            # ★ 시간 패턴 (3:30 → 세시 삼십분) - 스코어보다 먼저 처리!
+            # 시간은 고유어로 읽음 (한시, 두시, 세시...)
+            def replace_time(match):
+                hour = int(match.group(1))
+                minute = int(match.group(2))
+                # 시간 범위 체크 (0~23시, 0~59분)
+                if hour > 23 or minute > 59:
+                    return match.group(0)  # 시간이 아님
+                # 시간은 1~12는 고유어, 0/13~23는 한자어
+                if 1 <= hour <= 12:
+                    hour_str = num_to_native(hour) + '시'
+                else:
+                    hour_str = num_to_sino(hour) + '시'
+                # 분은 한자어
+                if minute == 0:
+                    return hour_str
+                elif minute == 30:
+                    return hour_str + ' 반'
+                else:
+                    return hour_str + ' ' + num_to_sino(minute) + '분'
+            # HH:MM 패턴 (00:00 ~ 23:59) - 분이 00~59 범위인 경우만
+            text = re.sub(r'\b([0-2]?[0-9]):([0-5][0-9])\b', replace_time, text)
+
+            # ★ 스코어/비율 (3:2 → 삼 대 이) - 시간 처리 후 남은 콜론 패턴
+            def replace_score(match):
+                num1 = num_to_sino(int(match.group(1)))
+                num2 = num_to_sino(int(match.group(2)))
+                return f"{num1} 대 {num2}"
+            text = re.sub(r'(\d+)\s*:\s*(\d+)(?!\d)', replace_score, text)
+
+            # ★ 전화번호 (010-1234-5678 → 공일공 일이삼사 오육칠팔)
+            def replace_phone(match):
+                digits = re.sub(r'[^\d]', '', match.group(0))
+                digit_names = ['공', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+                result = ' '.join(digit_names[int(d)] for d in digits)
+                return result
+            # 전화번호 패턴: 010-1234-5678, 02-123-4567
+            text = re.sub(r'\b(0\d{1,2})[- ](\d{3,4})[- ](\d{4})\b', replace_phone, text)
+
+            # ★ ISO 날짜 (2025-12-23 → 이천이십오년 십이월 이십삼일)
+            def replace_iso_date(match):
+                year = num_to_sino(int(match.group(1)))
+                month = num_to_sino(int(match.group(2)))
+                day = num_to_sino(int(match.group(3)))
+                return f"{year}년 {month}월 {day}일"
+            text = re.sub(r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b', replace_iso_date, text)
+
+            # ★ 괄호 숫자 ((1), (2) → 일, 이)
+            def replace_paren_num(match):
+                num = num_to_sino(int(match.group(1)))
+                return f"({num})"
+            text = re.sub(r'\((\d+)\)', replace_paren_num, text)
+
+            # ★ 원문자 (①②③... → 일, 이, 삼...)
+            circled_nums = {'①': '일', '②': '이', '③': '삼', '④': '사', '⑤': '오',
+                           '⑥': '육', '⑦': '칠', '⑧': '팔', '⑨': '구', '⑩': '십',
+                           '⑪': '십일', '⑫': '십이', '⑬': '십삼', '⑭': '십사', '⑮': '십오',
+                           '⑯': '십육', '⑰': '십칠', '⑱': '십팔', '⑲': '십구', '⑳': '이십'}
+            for symbol, reading in circled_nums.items():
+                text = text.replace(symbol, reading)
+
+            # ★ 로마 숫자 (Ⅰ, Ⅱ, Ⅲ... → 일, 이, 삼...)
+            roman_nums = {'Ⅰ': '일', 'Ⅱ': '이', 'Ⅲ': '삼', 'Ⅳ': '사', 'Ⅴ': '오',
+                         'Ⅵ': '육', 'Ⅶ': '칠', 'Ⅷ': '팔', 'Ⅸ': '구', 'Ⅹ': '십',
+                         'Ⅺ': '십일', 'Ⅻ': '십이',
+                         'ⅰ': '일', 'ⅱ': '이', 'ⅲ': '삼', 'ⅳ': '사', 'ⅴ': '오',
+                         'ⅵ': '육', 'ⅶ': '칠', 'ⅷ': '팔', 'ⅸ': '구', 'ⅹ': '십'}
+            for symbol, reading in roman_nums.items():
+                text = text.replace(symbol, reading)
+
+            # ★ 단위 없는 큰 숫자 (마지막에 처리 - 다른 패턴에 안 걸린 숫자)
+            def replace_standalone_number(match):
+                # 앞뒤에 한글/영문이 없는 순수 숫자만
+                num = int(match.group(1))
+                if num >= 100:  # 100 이상만 변환 (작은 숫자는 그대로)
+                    return num_to_sino(num)
+                return match.group(0)
+            # 단어 경계의 숫자 (앞뒤로 한글/영문 없음)
+            text = re.sub(r'(?<![가-힣a-zA-Z])(\d{3,})(?![가-힣a-zA-Z%])', replace_standalone_number, text)
 
             return text
 
