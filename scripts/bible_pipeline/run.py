@@ -55,8 +55,12 @@ class Verse:
 
     @property
     def tts_text(self) -> str:
-        """TTS용 텍스트 (말씀만)"""
-        return self.text
+        """TTS용 텍스트 (말씀만, 문장 끝 마침표 보장)"""
+        text = self.text.strip()
+        # 마침표, 물음표, 느낌표로 끝나지 않으면 마침표 추가
+        if text and text[-1] not in '.!?。':
+            text += '.'
+        return text
 
     @property
     def subtitle_text(self) -> str:
