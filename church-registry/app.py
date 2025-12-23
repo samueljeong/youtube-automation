@@ -927,7 +927,7 @@ def export_members():
 
 @app.route('/import/members', methods=['GET', 'POST'])
 def import_members():
-    """교인 목록 엑셀 가져오기"""
+    """교인 목록 엑셀 가져오기 (헤더 기반 동적 매핑)"""
     if request.method == 'POST':
         if 'file' not in request.files:
             flash('파일을 선택해주세요.', 'danger')
@@ -944,48 +944,180 @@ def import_members():
             wb = load_workbook(file)
             ws = wb.active
 
+            # 헤더 매핑 (한글 헤더 → 필드명)
+            HEADER_MAP = {
+                '이름': 'name',
+                '성명': 'name',
+                'ID': 'registration_number',
+                '등록번호': 'registration_number',
+                '직분': 'member_type',
+                '교구': 'district',
+                '구역': 'cell_group',  # 구역도 cell_group으로 저장
+                '속회': 'cell_group',
+                '핸드폰': 'phone',
+                '전화번호': 'phone',
+                '연락처': 'phone',
+                '생년월일': 'birth_date',
+                '생일': 'birth_date',
+                '주소': 'address',
+                '이메일': 'email',
+                '성별': 'gender',
+                '세례일': 'baptism_date',
+                '등록일': 'registration_date',
+                '상태': 'status',
+                '메모': 'notes',
+                '비고': 'notes',
+                '배우자': 'spouse_name',  # 임시 필드로 저장 후 notes에 추가
+                '가족전체': 'family_info',  # 임시 필드
+                '선교회': 'mission_group',
+                '바나바': 'barnabas',
+                '인도자': 'referrer',
+            }
+
+            # 1행에서 헤더 읽기
+            headers = []
+            for cell in ws[1]:
+                header_name = str(cell.value).strip() if cell.value else ''
+                headers.append(header_name)
+
+            # 헤더 → 열 인덱스 매핑
+            col_map = {}
+            for idx, header in enumerate(headers):
+                if header in HEADER_MAP:
+                    field = HEADER_MAP[header]
+                    if field not in col_map:  # 첫 번째 매칭만 사용
+                        col_map[field] = idx
+
             count = 0
+            skipped = 0
             for row in ws.iter_rows(min_row=2, values_only=True):
-                if row[0]:  # 이름이 있는 경우만
-                    # 기존 교인 확인 (이름 + 전화번호로 중복 체크)
-                    existing = Member.query.filter_by(name=row[0], phone=row[1] if row[1] else None).first()
-                    if existing:
-                        continue
+                # 이름 필드 확인
+                name_idx = col_map.get('name')
+                if name_idx is None or not row[name_idx]:
+                    continue
 
-                    member = Member(
-                        name=row[0],
-                        phone=row[1] if len(row) > 1 else None,
-                        email=row[2] if len(row) > 2 else None,
-                        address=row[3] if len(row) > 3 else None,
-                        gender=row[5] if len(row) > 5 else None,
-                        status=row[9] if len(row) > 9 and row[9] in ['active', 'inactive', 'newcomer'] else 'active',
-                        notes=row[10] if len(row) > 10 else None
-                    )
+                name = str(row[name_idx]).strip()
 
-                    # 날짜 파싱
-                    if len(row) > 4 and row[4]:
-                        try:
-                            if isinstance(row[4], str):
-                                member.birth_date = datetime.strptime(row[4], '%Y-%m-%d').date()
-                            else:
-                                member.birth_date = row[4]
-                        except:
-                            pass
+                # 전화번호 가져오기
+                phone = None
+                phone_idx = col_map.get('phone')
+                if phone_idx is not None and row[phone_idx]:
+                    phone = str(row[phone_idx]).strip()
 
-                    if len(row) > 6 and row[6]:
-                        try:
-                            if isinstance(row[6], str):
-                                member.registration_date = datetime.strptime(row[6], '%Y-%m-%d').date()
-                            else:
-                                member.registration_date = row[6]
-                        except:
-                            pass
+                # 기존 교인 확인 (이름 + 전화번호로 중복 체크)
+                existing = Member.query.filter_by(name=name, phone=phone).first()
+                if existing:
+                    skipped += 1
+                    continue
 
-                    db.session.add(member)
-                    count += 1
+                # Member 객체 생성
+                member = Member(name=name, phone=phone, status='active')
+
+                # 등록번호
+                if 'registration_number' in col_map and row[col_map['registration_number']]:
+                    member.registration_number = str(row[col_map['registration_number']]).strip()
+
+                # 직분 (member_type)
+                if 'member_type' in col_map and row[col_map['member_type']]:
+                    member.member_type = str(row[col_map['member_type']]).strip()
+
+                # 교구
+                if 'district' in col_map and row[col_map['district']]:
+                    district_val = str(row[col_map['district']]).strip()
+                    # "2교구" → "2"
+                    member.district = district_val.replace('교구', '').strip()
+
+                # 속회/구역
+                if 'cell_group' in col_map and row[col_map['cell_group']]:
+                    member.cell_group = str(row[col_map['cell_group']]).strip()
+
+                # 선교회
+                if 'mission_group' in col_map and row[col_map['mission_group']]:
+                    member.mission_group = str(row[col_map['mission_group']]).strip()
+
+                # 바나바
+                if 'barnabas' in col_map and row[col_map['barnabas']]:
+                    member.barnabas = str(row[col_map['barnabas']]).strip()
+
+                # 인도자
+                if 'referrer' in col_map and row[col_map['referrer']]:
+                    member.referrer = str(row[col_map['referrer']]).strip()
+
+                # 주소
+                if 'address' in col_map and row[col_map['address']]:
+                    member.address = str(row[col_map['address']]).strip()
+
+                # 이메일
+                if 'email' in col_map and row[col_map['email']]:
+                    member.email = str(row[col_map['email']]).strip()
+
+                # 성별
+                if 'gender' in col_map and row[col_map['gender']]:
+                    member.gender = str(row[col_map['gender']]).strip()
+
+                # 상태
+                if 'status' in col_map and row[col_map['status']]:
+                    status_val = str(row[col_map['status']]).strip()
+                    if status_val in ['active', 'inactive', 'newcomer']:
+                        member.status = status_val
+                    elif status_val in ['활동', '재적']:
+                        member.status = 'active'
+                    elif status_val in ['비활동', '휴적']:
+                        member.status = 'inactive'
+                    elif status_val in ['새신자', '새가족']:
+                        member.status = 'newcomer'
+
+                # 메모 구성
+                notes_parts = []
+                if 'notes' in col_map and row[col_map['notes']]:
+                    notes_parts.append(str(row[col_map['notes']]).strip())
+                if 'spouse_name' in col_map and row[col_map['spouse_name']]:
+                    notes_parts.append(f"배우자: {row[col_map['spouse_name']]}")
+                if 'family_info' in col_map and row[col_map['family_info']]:
+                    notes_parts.append(f"가족: {row[col_map['family_info']]}")
+                if notes_parts:
+                    member.notes = '\n'.join(notes_parts)
+
+                # 날짜 필드 파싱 함수
+                def parse_date(value):
+                    if not value:
+                        return None
+                    if isinstance(value, date):
+                        return value
+                    if isinstance(value, datetime):
+                        return value.date()
+                    try:
+                        value_str = str(value).strip()
+                        # 다양한 형식 시도
+                        for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%y/%m/%d', '%m/%d/%y', '%Y.%m.%d']:
+                            try:
+                                return datetime.strptime(value_str, fmt).date()
+                            except ValueError:
+                                continue
+                    except:
+                        pass
+                    return None
+
+                # 생년월일
+                if 'birth_date' in col_map:
+                    member.birth_date = parse_date(row[col_map['birth_date']])
+
+                # 세례일
+                if 'baptism_date' in col_map:
+                    member.baptism_date = parse_date(row[col_map['baptism_date']])
+
+                # 등록일
+                if 'registration_date' in col_map:
+                    member.registration_date = parse_date(row[col_map['registration_date']])
+
+                db.session.add(member)
+                count += 1
 
             db.session.commit()
-            flash(f'{count}명의 교인이 등록되었습니다.', 'success')
+            msg = f'{count}명의 교인이 등록되었습니다.'
+            if skipped > 0:
+                msg += f' ({skipped}명 중복으로 건너뜀)'
+            flash(msg, 'success')
             return redirect(url_for('member_list'))
 
         flash('xlsx 파일만 업로드 가능합니다.', 'danger')
