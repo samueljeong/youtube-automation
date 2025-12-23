@@ -4550,6 +4550,215 @@ def generate_bible_tts_with_durations(verse_texts, voice_name="ko-KR-Chirp3-HD-C
         return {"ok": False, "error": str(e)}
 
 
+def generate_bible_tts_with_durations_gemini(verse_texts, voice_name="Charon", model="gemini-2.5-flash-preview-tts"):
+    """
+    Gemini TTS를 사용한 BIBLE TTS 생성 - 절별 정확한 duration 반환
+
+    Args:
+        verse_texts: 각 절의 TTS 텍스트 리스트 ["태초에...", "땅이 혼돈하고...", ...]
+        voice_name: Gemini 음성 이름 (Charon, Fenrir, Orus, Kore 등)
+        model: Gemini 모델 (gemini-2.5-flash-preview-tts 또는 gemini-2.5-pro-preview-tts)
+
+    Returns:
+        {
+            "ok": True,
+            "audio_data": bytes,
+            "total_duration": float,
+            "verse_durations": [float, ...]  # 각 절의 정확한 duration
+        }
+    """
+    import tempfile
+    import subprocess
+    import io
+    import time as time_module
+
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY", "")
+        if not api_key:
+            return {"ok": False, "error": "GOOGLE_API_KEY 환경변수가 없습니다"}
+
+        print(f"[BIBLE-GEMINI-TTS] 시작 - {len(verse_texts)}개 절, 음성: {voice_name}, 모델: {model}", flush=True)
+
+        # ========== 1. 절을 청크로 그룹핑 (Gemini 8KB 제한 → ~2000자) ==========
+        MAX_CHARS = 2000
+        chunks = []  # [(start_verse_idx, end_verse_idx, combined_text), ...]
+        current_chunk_start = 0
+        current_chunk_text = ""
+
+        for i, verse_text in enumerate(verse_texts):
+            clean_text = preprocess_tts_text(verse_text)
+
+            if len(current_chunk_text) + len(clean_text) + 1 > MAX_CHARS:
+                if current_chunk_text:
+                    chunks.append((current_chunk_start, i - 1, current_chunk_text.strip()))
+                current_chunk_start = i
+                current_chunk_text = clean_text + " "
+            else:
+                current_chunk_text += clean_text + " "
+
+        if current_chunk_text:
+            chunks.append((current_chunk_start, len(verse_texts) - 1, current_chunk_text.strip()))
+
+        print(f"[BIBLE-GEMINI-TTS] {len(chunks)}개 청크로 분할 (Rate Limit: 10 req/min)", flush=True)
+
+        # ========== 2. 청크별 TTS + duration 측정 ==========
+        chunk_audios = []
+
+        def get_audio_duration_wav(audio_bytes):
+            """ffprobe로 WAV 오디오 duration 측정"""
+            try:
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                    tmp.write(audio_bytes)
+                    tmp_path = tmp.name
+
+                cmd = [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    tmp_path
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                os.unlink(tmp_path)
+
+                if result.returncode == 0 and result.stdout.strip():
+                    return float(result.stdout.strip())
+            except Exception as e:
+                print(f"[BIBLE-GEMINI-TTS] ffprobe 오류: {e}", flush=True)
+
+            # 폴백: 텍스트 길이 기반 추정 (한국어 약 4자/초)
+            return len(audio_bytes) / 48000  # 24kHz * 2 bytes
+
+        for idx, (start_idx, end_idx, chunk_text) in enumerate(chunks):
+            print(f"[BIBLE-GEMINI-TTS] 청크 {idx+1}/{len(chunks)} 처리 중... ({len(chunk_text)}자)", flush=True)
+
+            # Gemini TTS API 호출
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+
+            try:
+                response = genai.GenerativeModel(model).generate_content(
+                    chunk_text,
+                    generation_config=genai.GenerationConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=genai.SpeechConfig(
+                            voice_config=genai.VoiceConfig(
+                                prebuilt_voice_config=genai.PrebuiltVoiceConfig(voice_name=voice_name)
+                            )
+                        )
+                    )
+                )
+
+                # 오디오 데이터 추출
+                audio_data = None
+                if response.candidates and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            audio_data = part.inline_data.data
+                            break
+
+                if not audio_data:
+                    print(f"[BIBLE-GEMINI-TTS] 청크 {idx+1} 오디오 데이터 없음", flush=True)
+                    return {"ok": False, "error": f"청크 {idx+1} 오디오 생성 실패"}
+
+                duration = get_audio_duration_wav(audio_data)
+                chunk_audios.append((audio_data, duration, start_idx, end_idx))
+
+                print(f"[BIBLE-GEMINI-TTS] 청크 {idx+1}: {duration:.2f}초 (절 {start_idx+1}~{end_idx+1})", flush=True)
+
+            except Exception as e:
+                print(f"[BIBLE-GEMINI-TTS] 청크 {idx+1} API 오류: {e}", flush=True)
+                return {"ok": False, "error": f"Gemini TTS API 오류: {e}"}
+
+            # Rate Limit 대기 (10 req/min = 6초 간격)
+            if idx < len(chunks) - 1:
+                print(f"[BIBLE-GEMINI-TTS] Rate Limit 대기 (6초)...", flush=True)
+                time_module.sleep(6)
+
+        # ========== 3. 절별 duration 계산 (청크 내 비율 분배) ==========
+        verse_durations = [0.0] * len(verse_texts)
+
+        for audio_bytes, chunk_duration, start_idx, end_idx in chunk_audios:
+            chunk_verses = verse_texts[start_idx:end_idx + 1]
+            total_chars = sum(len(v) for v in chunk_verses)
+
+            if total_chars > 0:
+                for i, verse_text in enumerate(chunk_verses):
+                    verse_idx = start_idx + i
+                    ratio = len(verse_text) / total_chars
+                    verse_durations[verse_idx] = chunk_duration * ratio
+            else:
+                count = end_idx - start_idx + 1
+                for i in range(count):
+                    verse_durations[start_idx + i] = chunk_duration / count
+
+        # ========== 4. WAV 오디오 합치기 → MP3 변환 ==========
+        print(f"[BIBLE-GEMINI-TTS] 오디오 합치기 및 MP3 변환...", flush=True)
+
+        try:
+            # WAV 파일들을 임시 저장
+            wav_files = []
+            for i, (audio_bytes, _, _, _) in enumerate(chunk_audios):
+                wav_path = tempfile.mktemp(suffix=f'_chunk{i}.wav')
+                with open(wav_path, 'wb') as f:
+                    f.write(audio_bytes)
+                wav_files.append(wav_path)
+
+            # FFmpeg로 WAV 연결 후 MP3 변환
+            concat_list_path = tempfile.mktemp(suffix='.txt')
+            with open(concat_list_path, 'w') as f:
+                for wav_path in wav_files:
+                    f.write(f"file '{wav_path}'\n")
+
+            output_mp3_path = tempfile.mktemp(suffix='.mp3')
+            concat_cmd = [
+                'ffmpeg', '-y', '-f', 'concat', '-safe', '0',
+                '-i', concat_list_path,
+                '-c:a', 'libmp3lame', '-b:a', '128k',
+                output_mp3_path
+            ]
+
+            result = subprocess.run(concat_cmd, capture_output=True, timeout=120)
+
+            if result.returncode != 0:
+                print(f"[BIBLE-GEMINI-TTS] FFmpeg 오류: {result.stderr.decode()[:200]}", flush=True)
+                return {"ok": False, "error": "오디오 합치기 실패"}
+
+            with open(output_mp3_path, 'rb') as f:
+                final_audio = f.read()
+
+            # 임시 파일 정리
+            for wav_path in wav_files:
+                try:
+                    os.unlink(wav_path)
+                except:
+                    pass
+            try:
+                os.unlink(concat_list_path)
+                os.unlink(output_mp3_path)
+            except:
+                pass
+
+        except Exception as e:
+            print(f"[BIBLE-GEMINI-TTS] 오디오 합치기 오류: {e}", flush=True)
+            return {"ok": False, "error": f"오디오 합치기 오류: {e}"}
+
+        total_duration = sum(verse_durations)
+        print(f"[BIBLE-GEMINI-TTS] 완료 - 총 {total_duration:.1f}초, {len(verse_durations)}개 절", flush=True)
+
+        return {
+            "ok": True,
+            "audio_data": final_audio,
+            "total_duration": total_duration,
+            "verse_durations": verse_durations
+        }
+
+    except Exception as e:
+        print(f"[BIBLE-GEMINI-TTS] 오류: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
 def parse_gemini_voice(voice_name):
     """
     Gemini 음성 설정 파싱
@@ -22208,7 +22417,7 @@ def run_bible_episode_pipeline(
         audio_path = os.path.join(temp_dir, f"day_{day_number:03d}.mp3")
 
         if voice.startswith("chirp3:"):
-            # ★ 새로운 방식: 청크별 TTS + ffprobe로 실제 duration 측정
+            # ★ Chirp 3 HD: 청크별 TTS + ffprobe로 실제 duration 측정
             chirp3_config = parse_chirp3_voice(voice)
             tts_result = generate_bible_tts_with_durations(
                 verse_texts=tts_texts,
@@ -22221,21 +22430,30 @@ def run_bible_episode_pipeline(
                 error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
                 update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
                 return {"ok": False, "error": error_msg}
-        else:
-            # 기존 방식 폴백 (Gemini TTS, Google Cloud TTS)
-            full_text = " ".join(tts_texts)
-            if voice.startswith("gemini:"):
-                parts = voice.split(":")
-                if len(parts) == 3 and parts[1] == "pro":
-                    voice_name = parts[2]
-                    model = "gemini-2.5-pro-preview-tts"
-                else:
-                    voice_name = parts[1] if len(parts) > 1 else "Charon"
-                    model = "gemini-2.5-flash-preview-tts"
-                tts_result = generate_gemini_tts(full_text, voice_name=voice_name, model=model)
+
+        elif voice.startswith("gemini:"):
+            # ★ Gemini TTS: 청크별 TTS + ffprobe로 실제 duration 측정
+            gemini_config = parse_gemini_voice(voice)
+            print(f"[BIBLE] Gemini TTS 사용: {gemini_config['voice']} ({gemini_config['model']})", flush=True)
+
+            tts_result = generate_bible_tts_with_durations_gemini(
+                verse_texts=tts_texts,
+                voice_name=gemini_config["voice"],
+                model=gemini_config["model"]
+            )
+            if tts_result.get("ok"):
+                verse_durations = tts_result.get("verse_durations", [])
+                audio_duration = tts_result.get("total_duration", 0)
             else:
-                from scripts.tts.google_tts import generate_google_tts
-                tts_result = generate_google_tts(full_text, voice)
+                error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
+                update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
+                return {"ok": False, "error": error_msg}
+
+        else:
+            # 기존 방식 폴백 (Google Cloud TTS)
+            full_text = " ".join(tts_texts)
+            from scripts.tts.google_tts import generate_google_tts
+            tts_result = generate_google_tts(full_text, voice)
 
             if not tts_result.get("ok"):
                 error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
