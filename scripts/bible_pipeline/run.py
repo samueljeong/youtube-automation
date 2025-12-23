@@ -450,182 +450,315 @@ class BiblePipeline:
 
         return episodes
 
-    def generate_all_bible_episodes(
-        self,
-        target_episodes: int = 102  # 실제 106개 생성됨
-    ) -> List[Episode]:
+    def generate_all_bible_episodes(self) -> List[Episode]:
         """
-        성경 66권 전체를 약 106개 에피소드로 분할
+        성경 66권 전체를 약 100개 에피소드로 분할 (깔끔한 책 경계 유지)
 
-        - 장 단위로 분할 (절 단위 X)
-        - 총 글자 수를 목표 에피소드 수로 나눠 평균 분량 계산
-        - 짧은 책들은 다음 책과 병합
-        - Day 1 ~ Day 106 번호 부여
-
-        Args:
-            target_episodes: 목표 에피소드 수 (기본 106개)
+        원칙:
+        1. 긴 책 (15분 이상 분량): 책 내에서만 분할, 다른 책과 절대 합치지 않음
+        2. 짧은 책 (15분 미만 분량): 연속된 짧은 책들끼리만 병합
+        3. 에피소드당 목표: 15~25분 (너무 짧거나 길지 않게)
 
         Returns:
-            Episode 목록 (약 106개)
+            Episode 목록 (약 100개)
         """
-        # 먼저 전체 글자 수 계산
-        total_bible_chars = 0
-        for book_info in BIBLE_BOOKS:
-            book = self.get_book(book_info["name"])
-            if book:
-                for ch in book.get("chapters", []):
-                    total_bible_chars += sum(len(v.get("text", "")) for v in ch.get("verses", []))
+        # 임계값 설정
+        MIN_EPISODE_CHARS = int(BIBLE_CHARS_PER_MINUTE * 12)  # 12분 = 10,920자
+        TARGET_EPISODE_CHARS = int(BIBLE_CHARS_PER_MINUTE * 18)  # 18분 = 16,380자
+        MAX_EPISODE_CHARS = int(BIBLE_CHARS_PER_MINUTE * 22)  # 22분 = 20,020자
+        MIN_MERGE_THRESHOLD = int(BIBLE_CHARS_PER_MINUTE * 8)  # 8분 미만만 병합
 
-        # 목표 에피소드 수에 맞는 평균 글자 수 계산
-        target_chars = total_bible_chars / target_episodes
-        target_minutes = target_chars / BIBLE_CHARS_PER_MINUTE
+        # 1단계: 각 책의 총 글자 수 계산
+        book_stats = []
+        total_bible_chars = 0
+
+        for book_info in BIBLE_BOOKS:
+            book_name = book_info["name"]
+            book = self.get_book(book_name)
+            if not book:
+                continue
+
+            book_chars = 0
+            chapter_chars = []  # [(chapter_num, chars), ...]
+
+            for ch in book.get("chapters", []):
+                ch_num = ch.get("chapter")
+                ch_chars = sum(len(v.get("text", "")) for v in ch.get("verses", []))
+                chapter_chars.append((ch_num, ch_chars))
+                book_chars += ch_chars
+
+            book_stats.append({
+                "name": book_name,
+                "total_chars": book_chars,
+                "chapter_chars": chapter_chars,
+                "is_long": book_chars >= MIN_EPISODE_CHARS,  # 15분 이상이면 "긴 책"
+                "testament": book_info["testament"]
+            })
+            total_bible_chars += book_chars
 
         print(f"[BIBLE] 총 글자 수: {total_bible_chars:,}자")
-        print(f"[BIBLE] 목표: {target_episodes}개 에피소드, 에피소드당 {target_chars:,.0f}자 ({target_minutes:.1f}분)")
-
-        # 8분 미만이면 무조건 다음과 병합
-        min_standalone_chars = int(BIBLE_CHARS_PER_MINUTE * 8)  # 8분 = 7,280자
+        print(f"[BIBLE] 긴 책: {sum(1 for b in book_stats if b['is_long'])}권")
+        print(f"[BIBLE] 짧은 책: {sum(1 for b in book_stats if not b['is_long'])}권")
 
         all_episodes = []
         day_number = 1
 
-        # 현재 진행 중인 에피소드 데이터
-        pending_chapters: List[Chapter] = []
-        pending_chars = 0
-        pending_books = []
+        # 짧은 책들을 모으기 위한 버퍼
+        short_book_buffer: List[Chapter] = []
+        short_book_buffer_chars = 0
+        short_book_buffer_names = []
 
-        def create_episode_from_pending():
-            """현재 pending 데이터로 에피소드 생성"""
-            nonlocal day_number, pending_chapters, pending_chars, pending_books
+        def flush_short_book_buffer():
+            """짧은 책 버퍼를 에피소드로 생성"""
+            nonlocal day_number, short_book_buffer, short_book_buffer_chars, short_book_buffer_names
 
-            if not pending_chapters:
+            if not short_book_buffer:
                 return
 
-            # 범위 정보 추출
-            first_book = pending_chapters[0].book
-            first_ch = pending_chapters[0].chapter
-            last_book = pending_chapters[-1].book
-            last_ch = pending_chapters[-1].chapter
+            first_book = short_book_buffer[0].book
+            first_ch = short_book_buffer[0].chapter
+            last_ch = short_book_buffer[-1].chapter
 
             episode = Episode(
                 episode_id=f"EP{day_number:03d}",
                 book=first_book,
                 start_chapter=first_ch,
                 end_chapter=last_ch,
-                chapters=pending_chapters[:],
+                chapters=short_book_buffer[:],
                 day_number=day_number,
-                books_in_episode=pending_books[:] if len(pending_books) > 1 else None
+                books_in_episode=short_book_buffer_names[:] if len(short_book_buffer_names) > 1 else None
             )
             all_episodes.append(episode)
 
-            # 로그 출력
-            if len(pending_books) == 1:
-                if first_ch == last_ch:
-                    range_str = f"{first_book} {first_ch}장"
-                else:
-                    range_str = f"{first_book} {first_ch}-{last_ch}장"
+            # 로그
+            if len(short_book_buffer_names) == 1:
+                range_str = f"{first_book} 전체"
             else:
-                range_str = f"{pending_books[0]}~{pending_books[-1]}"
+                range_str = f"{short_book_buffer_names[0]} ~ {short_book_buffer_names[-1]}"
 
             print(f"[BIBLE] Day {day_number:3d}: {range_str} "
-                  f"({pending_chars:,}자, {pending_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
+                  f"({short_book_buffer_chars:,}자, {short_book_buffer_chars/BIBLE_CHARS_PER_MINUTE:.1f}분) [병합]")
 
             day_number += 1
-            pending_chapters = []
-            pending_chars = 0
-            pending_books = []
+            short_book_buffer = []
+            short_book_buffer_chars = 0
+            short_book_buffer_names = []
 
-        # 66권 순서대로 처리
-        for book_info in BIBLE_BOOKS:
-            book_name = book_info["name"]
-            book = self.get_book(book_name)
+        # 2단계: 책별로 처리
+        for book_stat in book_stats:
+            book_name = book_stat["name"]
+            book_chars = book_stat["total_chars"]
+            chapter_chars = book_stat["chapter_chars"]
+            is_long = book_stat["is_long"]
 
-            if not book:
-                continue
+            if is_long:
+                # ===== 긴 책 처리 =====
+                # 짧은 책 버퍼가 MIN_EPISODE_CHARS 이상이면 먼저 flush
+                # 그 미만이면 이 책의 첫 에피소드에 포함
+                include_short_buffer_in_first = False
+                if short_book_buffer_chars >= MIN_EPISODE_CHARS:
+                    flush_short_book_buffer()
+                elif short_book_buffer:
+                    include_short_buffer_in_first = True  # 첫 에피소드에 포함할 예정
 
-            total_chapters_in_book = len(book.get("chapters", []))
-            current_start = 1
+                # 책 내에서 에피소드 분할
+                current_episode_chapters: List[Chapter] = []
+                current_episode_chars = 0
+                start_chapter = 1
+                is_first_episode_of_book = True  # 이 책의 첫 에피소드 여부
 
-            while current_start <= total_chapters_in_book:
-                # 남은 공간 계산
-                available_chars = target_chars - pending_chars
+                # 남은 장들의 총 글자 수 미리 계산 (마지막 병합 결정용)
+                remaining_chars_from_idx = {}
+                total_remaining = 0
+                for i in range(len(chapter_chars) - 1, -1, -1):
+                    total_remaining += chapter_chars[i][1]
+                    remaining_chars_from_idx[i] = total_remaining
 
-                # 목표까지 공간이 거의 없으면 flush
-                if available_chars < BIBLE_CHARS_PER_MINUTE * 2 and pending_chars >= min_standalone_chars:
-                    create_episode_from_pending()
-                    available_chars = target_chars
+                for idx, (ch_num, ch_chars) in enumerate(chapter_chars):
+                    chapter = self.get_chapter(book_name, ch_num)
+                    if not chapter:
+                        continue
 
-                # 이 책에서 얼마나 읽을 수 있는지 계산
-                start, end, chars, _ = self.calculate_chapters_for_duration(
-                    book_name, current_start,
-                    available_chars / BIBLE_CHARS_PER_MINUTE
-                )
+                    # 첫 에피소드에 짧은 책 버퍼 포함 시 총 글자 수 계산
+                    effective_chars = current_episode_chars
+                    if include_short_buffer_in_first and is_first_episode_of_book:
+                        effective_chars += short_book_buffer_chars
 
-                # 범위가 유효하지 않으면 책 끝까지
-                if end < current_start:
-                    end = total_chapters_in_book
+                    # 이 장을 추가하면 목표 초과하는지 확인
+                    if effective_chars + ch_chars > MAX_EPISODE_CHARS and effective_chars >= MIN_EPISODE_CHARS:
+                        # 남은 장들이 MIN_MERGE_THRESHOLD 미만이면 현재 에피소드에 모두 포함
+                        remaining_after_this = remaining_chars_from_idx.get(idx, 0)
+                        if remaining_after_this < MIN_MERGE_THRESHOLD:
+                            # 남은 장들 모두 현재 에피소드에 추가
+                            for remaining_idx in range(idx, len(chapter_chars)):
+                                remaining_ch_num, _ = chapter_chars[remaining_idx]
+                                remaining_chapter = self.get_chapter(book_name, remaining_ch_num)
+                                if remaining_chapter:
+                                    current_episode_chapters.append(remaining_chapter)
+                                    current_episode_chars += remaining_chapter.total_chars
+                            # 에피소드 생성 후 루프 종료
+                            break
 
-                chapters_to_add = self.get_chapters_range(book_name, current_start, end)
-                chars_to_add = sum(ch.total_chars for ch in chapters_to_add)
+                        # 현재까지를 에피소드로 생성
+                        # 이 책의 첫 에피소드이고 짧은 책 버퍼가 있으면 포함
+                        if include_short_buffer_in_first and is_first_episode_of_book:
+                            # 짧은 책 버퍼 + 현재 장들로 첫 에피소드
+                            merged_chapters = short_book_buffer + current_episode_chapters
+                            merged_chars = short_book_buffer_chars + current_episode_chars
+                            first_book = short_book_buffer[0].book
 
-                # 현재 책 추가
-                if book_name not in pending_books:
-                    pending_books.append(book_name)
+                            episode = Episode(
+                                episode_id=f"EP{day_number:03d}",
+                                book=first_book,
+                                start_chapter=short_book_buffer[0].chapter,
+                                end_chapter=current_episode_chapters[-1].chapter,
+                                chapters=merged_chapters,
+                                day_number=day_number,
+                                books_in_episode=short_book_buffer_names + [book_name]
+                            )
+                            all_episodes.append(episode)
 
-                # pending에 추가하면 목표 초과하는지 확인
-                if pending_chars + chars_to_add <= target_chars * 1.1:  # 10% 여유
-                    pending_chapters.extend(chapters_to_add)
-                    pending_chars += chars_to_add
-                    current_start = end + 1
-                else:
-                    # 현재 pending이 충분하면 flush 후 새로 시작
-                    if pending_chars >= min_standalone_chars:
-                        create_episode_from_pending()
-                        # 현재 장들로 새 pending 시작
-                        pending_chapters = chapters_to_add
-                        pending_chars = chars_to_add
-                        pending_books = [book_name]
-                        current_start = end + 1
+                            range_str = f"{short_book_buffer_names[0]} ~ {book_name} {current_episode_chapters[-1].chapter}장"
+                            print(f"[BIBLE] Day {day_number:3d}: {range_str} "
+                                  f"({merged_chars:,}자, {merged_chars/BIBLE_CHARS_PER_MINUTE:.1f}분) [+짧은책]")
+
+                            # 버퍼 비우기
+                            short_book_buffer = []
+                            short_book_buffer_chars = 0
+                            short_book_buffer_names = []
+                            include_short_buffer_in_first = False
+                        else:
+                            episode = Episode(
+                                episode_id=f"EP{day_number:03d}",
+                                book=book_name,
+                                start_chapter=start_chapter,
+                                end_chapter=current_episode_chapters[-1].chapter,
+                                chapters=current_episode_chapters[:],
+                                day_number=day_number
+                            )
+                            all_episodes.append(episode)
+
+                            range_str = f"{book_name} {start_chapter}-{current_episode_chapters[-1].chapter}장"
+                            print(f"[BIBLE] Day {day_number:3d}: {range_str} "
+                                  f"({current_episode_chars:,}자, {current_episode_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
+
+                        is_first_episode_of_book = False  # 첫 에피소드 생성 완료
+
+                        day_number += 1
+                        current_episode_chapters = []
+                        current_episode_chars = 0
+                        start_chapter = ch_num
+
+                    # 현재 장 추가
+                    current_episode_chapters.append(chapter)
+                    current_episode_chars += ch_chars
+
+                # 책의 마지막 남은 장들 처리
+                if current_episode_chapters:
+                    # 마지막 에피소드가 MIN_MERGE_THRESHOLD 미만이고 이전 에피소드가 같은 책이면 병합
+                    if (current_episode_chars < MIN_MERGE_THRESHOLD and
+                        all_episodes and all_episodes[-1].book == book_name):
+                        # 이전 에피소드와 병합
+                        last_ep = all_episodes[-1]
+                        merged_chapters = last_ep.chapters + current_episode_chapters
+                        merged_chars = sum(ch.total_chars for ch in merged_chapters)
+
+                        all_episodes[-1] = Episode(
+                            episode_id=last_ep.episode_id,
+                            book=book_name,
+                            start_chapter=last_ep.start_chapter,
+                            end_chapter=current_episode_chapters[-1].chapter,
+                            chapters=merged_chapters,
+                            day_number=last_ep.day_number
+                        )
+
+                        range_str = f"{book_name} {last_ep.start_chapter}-{current_episode_chapters[-1].chapter}장"
+                        print(f"[BIBLE] Day {last_ep.day_number:3d}: {range_str} "
+                              f"({merged_chars:,}자, {merged_chars/BIBLE_CHARS_PER_MINUTE:.1f}분) [병합]")
+                    elif include_short_buffer_in_first and is_first_episode_of_book:
+                        # 첫 에피소드에 짧은 책 버퍼 포함 (책 전체가 하나의 에피소드인 경우)
+                        merged_chapters = short_book_buffer + current_episode_chapters
+                        merged_chars = short_book_buffer_chars + current_episode_chars
+                        first_book = short_book_buffer[0].book
+
+                        episode = Episode(
+                            episode_id=f"EP{day_number:03d}",
+                            book=first_book,
+                            start_chapter=short_book_buffer[0].chapter,
+                            end_chapter=current_episode_chapters[-1].chapter,
+                            chapters=merged_chapters,
+                            day_number=day_number,
+                            books_in_episode=short_book_buffer_names + [book_name]
+                        )
+                        all_episodes.append(episode)
+
+                        range_str = f"{short_book_buffer_names[0]} ~ {book_name} {current_episode_chapters[-1].chapter}장"
+                        print(f"[BIBLE] Day {day_number:3d}: {range_str} "
+                              f"({merged_chars:,}자, {merged_chars/BIBLE_CHARS_PER_MINUTE:.1f}분) [+짧은책]")
+
+                        # 버퍼 비우기
+                        short_book_buffer = []
+                        short_book_buffer_chars = 0
+                        short_book_buffer_names = []
+                        day_number += 1
                     else:
-                        # 짧으면 강제로 추가 후 flush
-                        pending_chapters.extend(chapters_to_add)
-                        pending_chars += chars_to_add
-                        create_episode_from_pending()
-                        current_start = end + 1
+                        # 새 에피소드 생성
+                        episode = Episode(
+                            episode_id=f"EP{day_number:03d}",
+                            book=book_name,
+                            start_chapter=start_chapter,
+                            end_chapter=current_episode_chapters[-1].chapter,
+                            chapters=current_episode_chapters[:],
+                            day_number=day_number
+                        )
+                        all_episodes.append(episode)
 
-            # 책이 끝났을 때 pending이 목표의 90% 이상이면 flush
-            # (10분 이하 짧은 에피소드 방지)
-            if pending_chars >= target_chars * 0.9:
-                create_episode_from_pending()
+                        if start_chapter == current_episode_chapters[-1].chapter:
+                            range_str = f"{book_name} {start_chapter}장"
+                        else:
+                            range_str = f"{book_name} {start_chapter}-{current_episode_chapters[-1].chapter}장"
+                        print(f"[BIBLE] Day {day_number:3d}: {range_str} "
+                              f"({current_episode_chars:,}자, {current_episode_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
 
-        # 마지막 남은 pending 처리
-        # 마지막 에피소드가 너무 짧으면 이전 에피소드와 병합
-        if pending_chapters and pending_chars < min_standalone_chars and all_episodes:
-            # 이전 에피소드 가져오기
-            last_ep = all_episodes[-1]
-            merged_chapters = last_ep.chapters + pending_chapters
-            merged_books = list(last_ep.books_in_episode or [last_ep.book])
-            for book in pending_books:
-                if book not in merged_books:
-                    merged_books.append(book)
+                        day_number += 1
 
-            # 이전 에피소드 업데이트
-            all_episodes[-1] = Episode(
-                episode_id=last_ep.episode_id,
-                book=merged_chapters[0].book,
-                start_chapter=merged_chapters[0].chapter,
-                end_chapter=merged_chapters[-1].chapter,
-                chapters=merged_chapters,
-                day_number=last_ep.day_number,
-                books_in_episode=merged_books if len(merged_books) > 1 else None
-            )
-            merged_chars = sum(ch.total_chars for ch in merged_chapters)
-            print(f"[BIBLE] Day {last_ep.day_number} 병합됨: "
-                  f"({merged_chars:,}자, {merged_chars/BIBLE_CHARS_PER_MINUTE:.1f}분)")
-        else:
-            create_episode_from_pending()
+            else:
+                # ===== 짧은 책: 버퍼에 추가 =====
+                book_chapters = []
+                for ch_num, _ in chapter_chars:
+                    chapter = self.get_chapter(book_name, ch_num)
+                    if chapter:
+                        book_chapters.append(chapter)
+
+                # 버퍼에 추가하면 목표 초과하는지 확인
+                if short_book_buffer_chars + book_chars > MAX_EPISODE_CHARS and short_book_buffer_chars >= MIN_EPISODE_CHARS:
+                    # 현재 버퍼를 에피소드로 생성
+                    flush_short_book_buffer()
+
+                # 버퍼에 추가
+                short_book_buffer.extend(book_chapters)
+                short_book_buffer_chars += book_chars
+                if book_name not in short_book_buffer_names:
+                    short_book_buffer_names.append(book_name)
+
+                # 버퍼가 목표에 도달하면 flush
+                if short_book_buffer_chars >= TARGET_EPISODE_CHARS:
+                    flush_short_book_buffer()
+
+        # 마지막 남은 짧은 책 버퍼 처리
+        flush_short_book_buffer()
 
         print(f"\n[BIBLE] ===== 총 {len(all_episodes)}개 에피소드 생성 완료 =====")
+
+        # 통계 출력
+        total_chars = sum(ep.total_chars for ep in all_episodes)
+        total_minutes = sum(ep.estimated_minutes for ep in all_episodes)
+        avg_minutes = total_minutes / len(all_episodes) if all_episodes else 0
+
+        print(f"[BIBLE] 총 글자 수: {total_chars:,}자")
+        print(f"[BIBLE] 총 예상 시간: {total_minutes:.0f}분 ({total_minutes/60:.1f}시간)")
+        print(f"[BIBLE] 평균 에피소드 길이: {avg_minutes:.1f}분")
+
         return all_episodes
 
     def get_episode_by_day(self, day: int) -> Optional[Episode]:
