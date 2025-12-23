@@ -4227,25 +4227,71 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
 
         # 청크 분할 (한글 3바이트 기준, 5000바이트 제한 → 약 1,500자)
         MAX_CHARS = 1400  # 안전 마진 포함
+        MAX_SENTENCE_CHARS = 350  # 단일 문장 최대 길이 (TTS 제한 대응)
+
+        def split_long_sentence(sentence, max_len=MAX_SENTENCE_CHARS):
+            """긴 문장을 쉼표/공백에서 분할"""
+            if len(sentence) <= max_len:
+                return [sentence]
+
+            result = []
+            # 쉼표로 먼저 분할 시도
+            parts = re.split(r'(?<=[,，、])\s*', sentence)
+            current = ""
+
+            for part in parts:
+                if len(current) + len(part) <= max_len:
+                    current += part
+                else:
+                    if current:
+                        result.append(current.strip())
+                    # 그래도 너무 길면 공백에서 분할
+                    if len(part) > max_len:
+                        words = part.split(' ')
+                        word_chunk = ""
+                        for word in words:
+                            if len(word_chunk) + len(word) + 1 <= max_len:
+                                word_chunk += " " + word if word_chunk else word
+                            else:
+                                if word_chunk:
+                                    result.append(word_chunk.strip())
+                                # 단어 자체가 너무 길면 강제 분할
+                                if len(word) > max_len:
+                                    for i in range(0, len(word), max_len):
+                                        result.append(word[i:i+max_len])
+                                    word_chunk = ""
+                                else:
+                                    word_chunk = word
+                        if word_chunk:
+                            current = word_chunk
+                        else:
+                            current = ""
+                    else:
+                        current = part
+
+            if current:
+                result.append(current.strip())
+
+            return [r for r in result if r]
 
         def split_text_into_chunks(text, max_chars=MAX_CHARS):
-            """문장 단위로 텍스트를 청크로 분할"""
-            # 문장 끝 패턴: ., !, ?, 。 뒤에 공백이나 문장 끝
-            sentences = re.split(r'(?<=[.!?。])\s+', text)
+            """문장 단위로 텍스트를 청크로 분할 (긴 문장도 처리)"""
+            # 1단계: 마침표, 물음표, 느낌표로 먼저 분할
+            sentences = re.split(r'(?<=[.!?。])\s*', text)
 
+            # 2단계: 긴 문장은 추가 분할
+            final_sentences = []
+            for sentence in sentences:
+                if not sentence.strip():
+                    continue
+                final_sentences.extend(split_long_sentence(sentence))
+
+            # 3단계: 문장들을 청크로 묶기
             chunks = []
             current_chunk = ""
 
-            for sentence in sentences:
-                # 문장 자체가 너무 길면 강제 분할
-                if len(sentence) > max_chars:
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-                        current_chunk = ""
-                    # 긴 문장을 max_chars 단위로 분할
-                    for i in range(0, len(sentence), max_chars):
-                        chunks.append(sentence[i:i+max_chars])
-                elif len(current_chunk) + len(sentence) + 1 <= max_chars:
+            for sentence in final_sentences:
+                if len(current_chunk) + len(sentence) + 1 <= max_chars:
                     current_chunk += " " + sentence if current_chunk else sentence
                 else:
                     if current_chunk:
