@@ -892,6 +892,7 @@ def gpt_pro():
         title = data.get("title", "")
         series_name = data.get("seriesName", "")
         style_name = data.get("styleName", "")
+        style_id = data.get("styleId", "")  # ★ 스타일 ID 추가 (2025-12-23)
         category = data.get("category", "")
         draft_content = data.get("draftContent", "")
         style_description = data.get("styleDescription", "")
@@ -923,7 +924,7 @@ def gpt_pro():
                        (isinstance(step2_result, dict) and len(step2_result) > 0)
 
         print(f"[GPT-PRO/Step3] JSON 모드: {is_json_mode}, step1_result 타입: {type(step1_result)}, step2_result 타입: {type(step2_result)}")
-        print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
+        print(f"[GPT-PRO/Step3] 처리 시작 - 스타일: {style_name}, 스타일ID: {style_id}, 모델: {gpt_pro_model}, 토큰: {max_tokens}")
         print(f"[GPT-PRO/Step3] writing_style: {'있음' if writing_style else '없음'}, scripture_citation: {'있음' if scripture_citation else '없음'}")
         print(f"[GPT-PRO/Step3] step1_extra_info: {'있음' if step1_extra_info else '없음'}, step2_extra_info: {'있음' if step2_extra_info else '없음'}")
 
@@ -1068,7 +1069,7 @@ def gpt_pro():
                     meta_data=meta_data,
                     step1_result=step1_result,
                     step2_result=step2_result,
-                    style_id=None,  # 필요시 추가
+                    style_id=style_id,  # ★ 스타일별 가이드 적용 (2025-12-23)
                     style_name=style_name,
                     writing_style=writing_style,
                     scripture_citation=scripture_citation,
