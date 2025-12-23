@@ -40,6 +40,9 @@ from youtube_auth import (
 # 이미지 생성 모듈
 from image import generate_image as image_generate, generate_image_base64, generate_thumbnail_image, get_image_count_by_script, GEMINI_FLASH, GEMINI_PRO
 
+# TTS 청킹 모듈 (문장별 TTS 개선)
+from tts.tts_chunking import split_korean_sentences as tts_split_sentences
+
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
@@ -3966,6 +3969,259 @@ def preprocess_tts_text(text: str) -> str:
     return result
 
 
+# ===== TTS 텍스트 확장 전처리 (영문 약어, 특수기호, 이모지 등) =====
+def preprocess_tts_extended(text: str) -> str:
+    """
+    TTS용 확장 텍스트 전처리 (2025-12-23 추가)
+
+    처리 항목:
+    1. 영문 약어 → 발음 (CEO → 씨이오)
+    2. 특수 기호 → 한글 (& → 앤드, @ → 앳)
+    3. 통화 기호 → 한글 ($ → 달러, € → 유로)
+    4. 온도 기호 → 한글 (℃ → 도씨)
+    5. URL/이메일 → 제거
+    6. 이모지 → 제거
+    7. 특수 문장부호 → 정리
+
+    Args:
+        text: 원본 텍스트
+
+    Returns:
+        TTS에 최적화된 텍스트
+    """
+    import re
+
+    if not text:
+        return text
+
+    # ===== 1. URL 제거 (먼저 처리 - 다른 패턴 방해 방지) =====
+    # https://example.com, http://example.com, www.example.com
+    text = re.sub(r'https?://[^\s<>\"\']+', '', text)
+    text = re.sub(r'www\.[^\s<>\"\']+', '', text)
+
+    # ===== 2. 이메일 제거 =====
+    # example@domain.com
+    text = re.sub(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', '', text)
+
+    # ===== 3. 이모지 제거 =====
+    # 유니코드 이모지 범위 제거
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # 표정
+        "\U0001F300-\U0001F5FF"  # 기호 & 픽토그램
+        "\U0001F680-\U0001F6FF"  # 교통 & 지도
+        "\U0001F1E0-\U0001F1FF"  # 국기
+        "\U00002702-\U000027B0"  # 딩뱃
+        "\U000024C2-\U0001F251"  # 기타
+        "\U0001F900-\U0001F9FF"  # 보조 기호
+        "\U0001FA00-\U0001FA6F"  # 체스 기호
+        "\U0001FA70-\U0001FAFF"  # 기호 확장
+        "\U00002600-\U000026FF"  # 기호
+        "\U00002700-\U000027BF"  # 딩뱃
+        "]+",
+        flags=re.UNICODE
+    )
+    text = emoji_pattern.sub('', text)
+
+    # ===== 4. 통화 기호 → 한글 =====
+    currency_map = {
+        '$': '달러',
+        '€': '유로',
+        '¥': '엔',
+        '£': '파운드',
+        '₩': '원',
+        '₿': '비트코인',
+    }
+    for symbol, korean in currency_map.items():
+        # $100 → 100달러 (숫자 앞에 오는 경우)
+        text = re.sub(rf'\{symbol}(\d)', rf'\1{korean}', text)
+        # 100$ → 100달러 (숫자 뒤에 오는 경우)
+        text = re.sub(rf'(\d)\{symbol}', rf'\1{korean}', text)
+        # 단독 기호는 한글로 (예: "$ 환율")
+        text = text.replace(symbol, korean)
+
+    # ===== 5. 온도 기호 → 한글 =====
+    text = text.replace('℃', '도씨')
+    text = text.replace('℉', '화씨')
+    text = text.replace('°C', '도씨')
+    text = text.replace('°F', '화씨')
+    # 단독 °는 "도"로 (예: 30° → 30도)
+    text = re.sub(r'(\d)°(?![CF])', r'\1도', text)
+
+    # ===== 6. 특수 기호 → 한글 =====
+    symbol_map = {
+        '&': '앤드',
+        '@': '앳',
+        '#': '해시',
+        '※': '',  # 참고 기호 제거
+        '★': '',  # 별표 제거
+        '☆': '',
+        '●': '',
+        '○': '',
+        '◆': '',
+        '◇': '',
+        '■': '',
+        '□': '',
+        '▶': '',
+        '◀': '',
+        '→': '',
+        '←': '',
+        '↑': '',
+        '↓': '',
+        '—': ' ',  # em dash → 공백
+        '–': ' ',  # en dash → 공백
+        '…': '...',  # 말줄임표 정규화
+        '·': ' ',  # 가운뎃점 → 공백
+        '「': '',  # 꺾쇠 제거
+        '」': '',
+        '『': '',
+        '』': '',
+        '〈': '',
+        '〉': '',
+        '《': '',
+        '》': '',
+    }
+    for symbol, replacement in symbol_map.items():
+        text = text.replace(symbol, replacement)
+
+    # ===== 7. 수학 기호 → 한글 =====
+    math_map = {
+        '±': '플러스마이너스',
+        '∞': '무한대',
+        '√': '루트',
+        '≤': '이하',
+        '≥': '이상',
+        '≠': '같지않음',
+        '≈': '약',
+        '∴': '따라서',
+        '∵': '왜냐하면',
+    }
+    for symbol, korean in math_map.items():
+        text = text.replace(symbol, korean)
+
+    # ===== 8. 영문 약어 → 발음 (대문자 2~6글자) =====
+    # 잘 알려진 약어 사전
+    abbreviation_map = {
+        # 기관/조직
+        'CEO': '씨이오',
+        'CFO': '씨에프오',
+        'CTO': '씨티오',
+        'COO': '씨오오',
+        'UN': '유엔',
+        'UNESCO': '유네스코',
+        'WHO': '더블유에이치오',
+        'NATO': '나토',
+        'OECD': '오이씨디',
+        'IMF': '아이엠에프',
+        'FBI': '에프비아이',
+        'CIA': '씨아이에이',
+        'NASA': '나사',
+        'EU': '이유',
+        'ASEAN': '아세안',
+        'OPEC': '오펙',
+        # 기술
+        'AI': '에이아이',
+        'IT': '아이티',
+        'PC': '피씨',
+        'USB': '유에스비',
+        'URL': '유알엘',
+        'API': '에이피아이',
+        'SDK': '에스디케이',
+        'CPU': '씨피유',
+        'GPU': '지피유',
+        'RAM': '램',
+        'ROM': '롬',
+        'SSD': '에스에스디',
+        'HDD': '에이치디디',
+        'LED': '엘이디',
+        'LCD': '엘씨디',
+        'OLED': '오엘이디',
+        'VR': '브이알',
+        'AR': '에이알',
+        'IoT': '아이오티',
+        'GPS': '지피에스',
+        'WIFI': '와이파이',
+        'LTE': '엘티이',
+        '5G': '오지',
+        '4G': '사지',
+        '3G': '삼지',
+        'QR': '큐알',
+        'PDF': '피디에프',
+        'JPG': '제이피지',
+        'PNG': '피엔지',
+        'GIF': '지프',
+        'MP3': '엠피쓰리',
+        'MP4': '엠피포',
+        # 경제/금융
+        'GDP': '지디피',
+        'GNP': '지엔피',
+        'ETF': '이티에프',
+        'IPO': '아이피오',
+        'M&A': '엠앤에이',
+        'ROI': '알오아이',
+        'ESG': '이에스지',
+        # 의료
+        'CT': '씨티',
+        'MRI': '엠알아이',
+        'DNA': '디엔에이',
+        'RNA': '알엔에이',
+        'PCR': '피씨알',
+        'ICU': '아이씨유',
+        'ER': '이알',
+        # 기타
+        'TV': '티비',
+        'SNS': '에스엔에스',
+        'PR': '피알',
+        'HR': '에이치알',
+        'OK': '오케이',
+        'VS': '버서스',
+        'DIY': '디아이와이',
+        'FAQ': '에프에이큐',
+        'VIP': '브이아이피',
+        'MVP': '엠브이피',
+        'A/S': '에이에스',
+        'AS': '에이에스',
+        'OTT': '오티티',
+        'PPT': '피피티',
+        'BTS': '비티에스',
+        'K-POP': '케이팝',
+        'KPOP': '케이팝',
+    }
+
+    # 사전에 있는 약어 먼저 처리 (대소문자 무관)
+    for abbr, korean in abbreviation_map.items():
+        # 단어 경계에서만 매칭 (앞뒤로 한글/영문 없을 때)
+        pattern = rf'(?<![가-힣a-zA-Z]){re.escape(abbr)}(?![가-힣a-zA-Z])'
+        text = re.sub(pattern, korean, text, flags=re.IGNORECASE)
+
+    # 사전에 없는 대문자 약어 → 개별 알파벳 발음
+    # 대문자 2~6글자 연속 (사전에 없는 것만)
+    def spell_out_abbreviation(match):
+        abbr = match.group(0)
+        # 이미 사전에서 처리된 경우 스킵
+        if abbr.upper() in abbreviation_map:
+            return abbr
+        # 각 글자를 발음으로 변환
+        letter_sounds = {
+            'A': '에이', 'B': '비', 'C': '씨', 'D': '디', 'E': '이',
+            'F': '에프', 'G': '지', 'H': '에이치', 'I': '아이', 'J': '제이',
+            'K': '케이', 'L': '엘', 'M': '엠', 'N': '엔', 'O': '오',
+            'P': '피', 'Q': '큐', 'R': '알', 'S': '에스', 'T': '티',
+            'U': '유', 'V': '브이', 'W': '더블유', 'X': '엑스', 'Y': '와이',
+            'Z': '제트'
+        }
+        result = ''.join(letter_sounds.get(c.upper(), c) for c in abbr)
+        return result
+
+    # 단어 경계의 대문자 약어 (2~6글자)
+    text = re.sub(r'(?<![가-힣a-zA-Z])[A-Z]{2,6}(?![가-힣a-zA-Z])', spell_out_abbreviation, text)
+
+    # ===== 9. 연속 공백 정리 =====
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
+
+
 # ===== Gemini TTS 함수 (2025년 신규) =====
 def generate_gemini_tts(text, voice_name="Kore", model="gemini-2.5-flash-preview-tts"):
     """
@@ -3985,6 +4241,9 @@ def generate_gemini_tts(text, voice_name="Kore", model="gemini-2.5-flash-preview
 
     # 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
     text = preprocess_tts_text(text)
+
+    # 확장 전처리: 영문 약어, 특수기호, 이모지, URL 등 (2025-12-23)
+    text = preprocess_tts_extended(text)
 
     api_key = os.getenv("GOOGLE_API_KEY", "")
     if not api_key:
@@ -4188,6 +4447,9 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
     """
     # 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
     text = preprocess_tts_text(text)
+
+    # 확장 전처리: 영문 약어, 특수기호, 이모지, URL 등 (2025-12-23)
+    text = preprocess_tts_extended(text)
 
     try:
         from google.cloud import texttospeech
@@ -11875,12 +12137,19 @@ def api_image_generate_assets_zip():
                 '조달러', '억달러', '만달러',
                 '조엔', '억엔', '만엔',
                 # 큰 단위 단독
-                '조', '억',
+                '조', '억', '만',
                 # 일반 단위
                 '원', '층', '년', '월', '일', '분', '초', '도', '호', '회', '배', '위', '등', '점',
                 '퍼센트', '%', 'km', 'm', 'kg', 'g', 'cm', 'mm', '원짜리', '달러', '엔', '유로',
                 # 주식/지수 단위
-                '선', '포인트', 'p', 'pt'
+                '선', '포인트', 'p', 'pt',
+                # ★ 추가 단위 (2025-12-23)
+                '세기', '차', '항', '기', '반', '판', '부', '편', '곡', '막', '절', '관',
+                '조', '장', '권', '쪽', '면', '페이지', '화', '회차', '라운드', '세트',
+                '번지', '동', '호실', '구', '로', '길',  # 주소
+                '교시', '학년', '학기',  # 학교
+                '대', '세대',  # 세대
+                '승', '패', '무',  # 스포츠
             ]
             for unit in sino_units:
                 pattern = r'(\d+)' + re.escape(unit)
@@ -11913,6 +12182,88 @@ def api_image_generate_assets_zip():
             # 남은 ~ 문자 제거 (TTS가 "물결표"로 읽는 것 방지)
             text = text.replace('~', ' ')
 
+            # ★★★ 추가 패턴들 (2025-12-23) ★★★
+
+            # ★ 시간 패턴 (3:30 → 세시 삼십분) - 스코어보다 먼저 처리!
+            # 시간은 고유어로 읽음 (한시, 두시, 세시...)
+            def replace_time(match):
+                hour = int(match.group(1))
+                minute = int(match.group(2))
+                # 시간 범위 체크 (0~23시, 0~59분)
+                if hour > 23 or minute > 59:
+                    return match.group(0)  # 시간이 아님
+                # 시간은 1~12는 고유어, 0/13~23는 한자어
+                if 1 <= hour <= 12:
+                    hour_str = num_to_native(hour) + '시'
+                else:
+                    hour_str = num_to_sino(hour) + '시'
+                # 분은 한자어
+                if minute == 0:
+                    return hour_str
+                elif minute == 30:
+                    return hour_str + ' 반'
+                else:
+                    return hour_str + ' ' + num_to_sino(minute) + '분'
+            # HH:MM 패턴 (00:00 ~ 23:59) - 분이 00~59 범위인 경우만
+            text = re.sub(r'\b([0-2]?[0-9]):([0-5][0-9])\b', replace_time, text)
+
+            # ★ 스코어/비율 (3:2 → 삼 대 이) - 시간 처리 후 남은 콜론 패턴
+            def replace_score(match):
+                num1 = num_to_sino(int(match.group(1)))
+                num2 = num_to_sino(int(match.group(2)))
+                return f"{num1} 대 {num2}"
+            text = re.sub(r'(\d+)\s*:\s*(\d+)(?!\d)', replace_score, text)
+
+            # ★ 전화번호 (010-1234-5678 → 공일공 일이삼사 오육칠팔)
+            def replace_phone(match):
+                digits = re.sub(r'[^\d]', '', match.group(0))
+                digit_names = ['공', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+                result = ' '.join(digit_names[int(d)] for d in digits)
+                return result
+            # 전화번호 패턴: 010-1234-5678, 02-123-4567
+            text = re.sub(r'\b(0\d{1,2})[- ](\d{3,4})[- ](\d{4})\b', replace_phone, text)
+
+            # ★ ISO 날짜 (2025-12-23 → 이천이십오년 십이월 이십삼일)
+            def replace_iso_date(match):
+                year = num_to_sino(int(match.group(1)))
+                month = num_to_sino(int(match.group(2)))
+                day = num_to_sino(int(match.group(3)))
+                return f"{year}년 {month}월 {day}일"
+            text = re.sub(r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b', replace_iso_date, text)
+
+            # ★ 괄호 숫자 ((1), (2) → 일, 이)
+            def replace_paren_num(match):
+                num = num_to_sino(int(match.group(1)))
+                return f"({num})"
+            text = re.sub(r'\((\d+)\)', replace_paren_num, text)
+
+            # ★ 원문자 (①②③... → 일, 이, 삼...)
+            circled_nums = {'①': '일', '②': '이', '③': '삼', '④': '사', '⑤': '오',
+                           '⑥': '육', '⑦': '칠', '⑧': '팔', '⑨': '구', '⑩': '십',
+                           '⑪': '십일', '⑫': '십이', '⑬': '십삼', '⑭': '십사', '⑮': '십오',
+                           '⑯': '십육', '⑰': '십칠', '⑱': '십팔', '⑲': '십구', '⑳': '이십'}
+            for symbol, reading in circled_nums.items():
+                text = text.replace(symbol, reading)
+
+            # ★ 로마 숫자 (Ⅰ, Ⅱ, Ⅲ... → 일, 이, 삼...)
+            roman_nums = {'Ⅰ': '일', 'Ⅱ': '이', 'Ⅲ': '삼', 'Ⅳ': '사', 'Ⅴ': '오',
+                         'Ⅵ': '육', 'Ⅶ': '칠', 'Ⅷ': '팔', 'Ⅸ': '구', 'Ⅹ': '십',
+                         'Ⅺ': '십일', 'Ⅻ': '십이',
+                         'ⅰ': '일', 'ⅱ': '이', 'ⅲ': '삼', 'ⅳ': '사', 'ⅴ': '오',
+                         'ⅵ': '육', 'ⅶ': '칠', 'ⅷ': '팔', 'ⅸ': '구', 'ⅹ': '십'}
+            for symbol, reading in roman_nums.items():
+                text = text.replace(symbol, reading)
+
+            # ★ 단위 없는 큰 숫자 (마지막에 처리 - 다른 패턴에 안 걸린 숫자)
+            def replace_standalone_number(match):
+                # 앞뒤에 한글/영문이 없는 순수 숫자만
+                num = int(match.group(1))
+                if num >= 100:  # 100 이상만 변환 (작은 숫자는 그대로)
+                    return num_to_sino(num)
+                return match.group(0)
+            # 단어 경계의 숫자 (앞뒤로 한글/영문 없음)
+            text = re.sub(r'(?<![가-힣a-zA-Z])(\d{3,})(?![가-힣a-zA-Z%])', replace_standalone_number, text)
+
             return text
 
         def generate_tts_for_sentence(text, voice_name, language_code, api_key):
@@ -11921,6 +12272,9 @@ def api_image_generate_assets_zip():
             # ===== TTS 전처리 =====
             # 0-1) 영문 인명 괄호 제거 (자막에는 남고, TTS에서는 읽지 않음)
             text = preprocess_tts_text(text)
+
+            # 0-1b) 확장 전처리: 영문 약어, 특수기호, 이모지, URL 등 (2025-12-23)
+            text = preprocess_tts_extended(text)
 
             # 0-2) 줄바꿈 제거 (모든 형태: \n, \\n, \N, \\N)
             text = text.replace('\\N', ' ').replace('\\n', ' ')  # 이스케이프된 형태 먼저
@@ -12149,7 +12503,11 @@ def api_image_generate_assets_zip():
 
             # ★ 핵심 수정: 항상 대본 전체를 문장 분할하여 TTS 수행
             # subtitle_segments는 자막 표시 여부만 제어 (TTS 대상을 제한하면 안됨!)
-            tts_sentences = split_sentences(plain_narration, detected_lang)
+            # ★ TTS 억양 개선: 한국어는 문장 단위로 분할 (20자 청킹 대신)
+            if detected_lang == 'ko':
+                tts_sentences = tts_split_sentences(plain_narration)
+            else:
+                tts_sentences = split_sentences(plain_narration, detected_lang)
             if not tts_sentences:
                 tts_sentences = [plain_narration]
 

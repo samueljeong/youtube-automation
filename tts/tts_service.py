@@ -17,6 +17,11 @@ from typing import Dict, Any, List, Optional
 
 from .tts_chunking import build_chunks_for_scenes, estimate_chunk_stats
 
+# 환경변수로 문장별 TTS 모드 제어 (기본: 활성화)
+import os
+TTS_SENTENCE_MODE = os.getenv("TTS_SENTENCE_MODE", "1") == "1"
+TTS_MIN_CHARS = int(os.getenv("TTS_MIN_CHARS", "10"))
+
 # 출력 디렉토리
 AUDIO_DIR = "outputs/audio"
 SUBTITLE_DIR = "outputs/subtitles"
@@ -25,18 +30,23 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(SUBTITLE_DIR, exist_ok=True)
 
 
-def run_tts_pipeline(step3_input: Dict[str, Any]) -> Dict[str, Any]:
+def run_tts_pipeline(
+    step3_input: Dict[str, Any],
+    sentence_mode: bool = None
+) -> Dict[str, Any]:
     """
     Step3 TTS 전체 파이프라인 실행
-    
+
     Args:
         step3_input: {
             "episode_id": "...",
             "language": "ko-KR",
             "voice": { "gender": "MALE", "name": "ko-KR-Neural2-B", "speaking_rate": 0.9 },
-            "scenes": [{ "id": "scene1", "narration": "..." }, ...]
+            "scenes": [{ "id": "scene1", "narration": "..." }, ...],
+            "sentence_mode": True  # (선택) 문장별 TTS 모드
         }
-        
+        sentence_mode: 문장별 TTS 모드 (None이면 환경변수/입력값 사용)
+
     Returns:
         {
             "ok": True,
@@ -49,18 +59,23 @@ def run_tts_pipeline(step3_input: Dict[str, Any]) -> Dict[str, Any]:
     """
     episode_id = step3_input.get("episode_id") or str(uuid.uuid4())[:12]
     scenes = step3_input.get("scenes", [])
-    
+
     voice_config = {
         "language_code": step3_input.get("language", "ko-KR"),
         "name": step3_input.get("voice", {}).get("name", "ko-KR-Neural2-B"),
         "gender": step3_input.get("voice", {}).get("gender", "MALE"),
         "speaking_rate": step3_input.get("voice", {}).get("speaking_rate", 0.9),
     }
-    
-    print(f"[TTS-PIPELINE] 시작: episode={episode_id}, scenes={len(scenes)}")
-    
-    # 1. 씬 → 청크 리스트 생성
-    chunks = build_chunks_for_scenes(scenes)
+
+    # 문장별 TTS 모드 결정 (우선순위: 파라미터 > 입력값 > 환경변수)
+    if sentence_mode is None:
+        sentence_mode = step3_input.get("sentence_mode", TTS_SENTENCE_MODE)
+
+    mode_str = "문장별" if sentence_mode else "청크"
+    print(f"[TTS-PIPELINE] 시작: episode={episode_id}, scenes={len(scenes)}, mode={mode_str}")
+
+    # 1. 씬 → 청크 리스트 생성 (sentence_mode 적용)
+    chunks = build_chunks_for_scenes(scenes, sentence_mode=sentence_mode, min_chars=TTS_MIN_CHARS)
     chunk_stats = estimate_chunk_stats(chunks)
     print(f"[TTS-PIPELINE] 청크 생성: {chunk_stats}")
     

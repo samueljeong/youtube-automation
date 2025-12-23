@@ -150,24 +150,36 @@ def split_korean_sentences(text: str) -> List[str]:
     return sentences
 
 
-def chunk_sentences(sentences: List[str], max_bytes: int = MAX_BYTES) -> List[str]:
+def chunk_sentences(
+    sentences: List[str],
+    max_bytes: int = MAX_BYTES,
+    sentence_mode: bool = False,
+    min_chars: int = 10
+) -> List[str]:
     """
     문장 리스트를 바이트 제한에 맞게 청크로 묶기
-    
+
     Args:
         sentences: 문장 리스트
         max_bytes: 최대 바이트 (기본 4800)
-        
+        sentence_mode: True면 문장별로 개별 청크 생성 (TTS 억양 개선)
+        min_chars: sentence_mode에서 최소 문자수 (너무 짧은 문장은 합침)
+
     Returns:
         청크 리스트 (각 청크는 max_bytes 이하)
     """
+    # 문장별 모드: 각 문장을 개별 청크로
+    if sentence_mode:
+        return _chunk_by_sentence(sentences, max_bytes, min_chars)
+
+    # 기존 로직: 바이트 제한까지 문장 합치기
     chunks: List[str] = []
     current: List[str] = []
     current_len = 0
-    
+
     for sent in sentences:
         sent_len = utf8_len(sent)
-        
+
         # 한 문장 자체가 너무 길면 단독 청크로
         if sent_len > max_bytes:
             # 현재까지 모은 것 저장
@@ -175,12 +187,12 @@ def chunk_sentences(sentences: List[str], max_bytes: int = MAX_BYTES) -> List[st
                 chunks.append(" ".join(current))
                 current = []
                 current_len = 0
-            
+
             # 긴 문장은 쉼표 단위로 추가 분할
             sub_chunks = _split_long_sentence(sent, max_bytes)
             chunks.extend(sub_chunks)
             continue
-        
+
         # 새 문장 추가 시 바이트 초과하면 새 청크 시작
         if current and current_len + 1 + sent_len > max_bytes:
             chunks.append(" ".join(current))
@@ -193,12 +205,126 @@ def chunk_sentences(sentences: List[str], max_bytes: int = MAX_BYTES) -> List[st
             else:
                 current = [sent]
                 current_len = sent_len
-    
+
     # 마지막 청크 저장
     if current:
         chunks.append(" ".join(current))
-    
+
     return chunks
+
+
+def _chunk_by_sentence(
+    sentences: List[str],
+    max_bytes: int = MAX_BYTES,
+    min_chars: int = 10
+) -> List[str]:
+    """
+    문장별로 청크 생성 (TTS 억양 개선용)
+
+    - 각 문장이 개별 TTS 호출 → 자연스러운 문장 끝 억양
+    - 너무 짧은 문장(min_chars 미만)은 다음 문장과 합침
+    - 긴 문장은 쉼표/구 단위로 분할
+
+    Args:
+        sentences: 문장 리스트
+        max_bytes: 최대 바이트
+        min_chars: 최소 문자수 (이보다 짧으면 합침)
+    """
+    chunks: List[str] = []
+    pending = ""  # 너무 짧아서 대기 중인 문장
+
+    for sent in sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+
+        # 대기 중인 짧은 문장이 있으면 합치기
+        if pending:
+            sent = pending + " " + sent
+            pending = ""
+
+        # 문장이 너무 짧으면 다음과 합치기 위해 대기
+        if len(sent) < min_chars:
+            pending = sent
+            continue
+
+        # 문장이 바이트 제한 초과하면 분할
+        if utf8_len(sent) > max_bytes:
+            sub_chunks = _split_long_sentence_natural(sent, max_bytes)
+            chunks.extend(sub_chunks)
+        else:
+            chunks.append(sent)
+
+    # 마지막 대기 문장 처리
+    if pending:
+        if chunks:
+            # 마지막 청크에 붙이기
+            chunks[-1] = chunks[-1] + " " + pending
+        else:
+            chunks.append(pending)
+
+    return chunks
+
+
+def _split_long_sentence_natural(sentence: str, max_bytes: int) -> List[str]:
+    """
+    긴 문장을 자연스러운 구 단위로 분할 (TTS 억양 개선)
+
+    분할 우선순위:
+    1. 쉼표(,) 기준
+    2. 조사 뒤 (은/는/이/가/을/를/에/도/로 + 공백)
+    3. 접속어 앞 (그리고, 하지만, 그래서 등)
+    4. 강제 분할 (최후의 수단)
+    """
+    if utf8_len(sentence) <= max_bytes:
+        return [sentence]
+
+    # 1차: 쉼표 기준 분할
+    parts = re.split(r'([,，、]\s*)', sentence)
+    if len(parts) > 1:
+        chunks = _merge_parts_to_limit(parts, max_bytes)
+        if all(utf8_len(c) <= max_bytes for c in chunks):
+            return chunks
+
+    # 2차: 조사 뒤에서 분할 (은/는/이/가 + 공백)
+    parts = re.split(r'((?:은|는|이|가|을|를|에서|에게|으로|로|도|과|와|의)\s+)', sentence)
+    if len(parts) > 1:
+        chunks = _merge_parts_to_limit(parts, max_bytes)
+        if all(utf8_len(c) <= max_bytes for c in chunks):
+            return chunks
+
+    # 3차: 접속어 앞에서 분할
+    parts = re.split(r'(\s+(?:그리고|하지만|그래서|그러나|또한|그런데|따라서|즉)\s+)', sentence)
+    if len(parts) > 1:
+        chunks = _merge_parts_to_limit(parts, max_bytes)
+        if all(utf8_len(c) <= max_bytes for c in chunks):
+            return chunks
+
+    # 4차: 강제 바이트 분할
+    return _force_split_by_bytes(sentence, max_bytes)
+
+
+def _merge_parts_to_limit(parts: List[str], max_bytes: int) -> List[str]:
+    """분할된 부분들을 바이트 제한 내에서 합치기"""
+    chunks = []
+    current = ""
+
+    for part in parts:
+        if not part:
+            continue
+
+        test = current + part
+        if utf8_len(test) <= max_bytes:
+            current = test
+        else:
+            if current.strip():
+                chunks.append(current.strip())
+            current = part
+
+    if current.strip():
+        chunks.append(current.strip())
+
+    return chunks if chunks else [" ".join(parts)]
 
 
 def _split_long_sentence(sentence: str, max_bytes: int) -> List[str]:
@@ -260,14 +386,20 @@ def _force_split_by_bytes(text: str, max_bytes: int) -> List[str]:
     return chunks
 
 
-def build_chunks_for_scenes(scenes: List[Dict]) -> List[Dict]:
+def build_chunks_for_scenes(
+    scenes: List[Dict],
+    sentence_mode: bool = False,
+    min_chars: int = 10
+) -> List[Dict]:
     """
     씬 리스트를 받아 TTS용 청크 리스트 생성
-    
+
     Args:
         scenes: 씬 정보 리스트
             [{ "id": "scene1", "narration": "...", ... }, ...]
-            
+        sentence_mode: True면 문장별로 개별 청크 생성 (TTS 억양 개선)
+        min_chars: sentence_mode에서 최소 문자수 (너무 짧은 문장은 합침)
+
     Returns:
         청크 정보 리스트
             [{
@@ -278,30 +410,36 @@ def build_chunks_for_scenes(scenes: List[Dict]) -> List[Dict]:
             }, ...]
     """
     all_chunks = []
-    
+
     for scene in scenes:
         scene_id = scene.get("id") or scene.get("scene_id", f"scene_{len(all_chunks)}")
         narration = scene.get("narration", "").strip()
-        
+
         if not narration:
             continue
-        
+
         # 문장 분리
         sentences = split_korean_sentences(narration)
-        
-        # 청크로 묶기
-        chunks = chunk_sentences(sentences)
-        
+
+        # 청크로 묶기 (sentence_mode 옵션 전달)
+        chunks = chunk_sentences(sentences, sentence_mode=sentence_mode, min_chars=min_chars)
+
         # 청크별 정보 생성
         for idx, chunk_text in enumerate(chunks):
+            # sentence_mode에서는 청크 자체가 하나의 문장(또는 구)
+            if sentence_mode:
+                chunk_sentences_list = [chunk_text]
+            else:
+                chunk_sentences_list = split_korean_sentences(chunk_text)
+
             all_chunks.append({
                 "scene_id": scene_id,
                 "chunk_index": idx,
                 "text": chunk_text,
-                "sentences": split_korean_sentences(chunk_text),
+                "sentences": chunk_sentences_list,
                 "byte_length": utf8_len(chunk_text)
             })
-    
+
     return all_chunks
 
 
