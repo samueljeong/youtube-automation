@@ -9448,8 +9448,11 @@ def youtube_upload():
 
         # 영상 파일 경로 처리
         if video_path and not video_path.startswith('http'):
-            # 상대 경로를 절대 경로로 변환 (앞에 /가 있으면 제거)
-            full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
+            # 절대 경로면 그대로 사용, 상대 경로면 프로젝트 루트 기준으로 변환
+            if os.path.isabs(video_path) and os.path.exists(video_path):
+                full_path = video_path
+            else:
+                full_path = os.path.join(os.path.dirname(__file__), video_path.lstrip('/'))
 
             if not os.path.exists(full_path):
                 print(f"[YOUTUBE-UPLOAD][WARN] 영상 파일 없음: {full_path}")
@@ -9574,6 +9577,9 @@ def youtube_upload():
         full_thumbnail_path = None
         if thumbnail_path:
             if thumbnail_path.startswith('http'):
+                full_thumbnail_path = thumbnail_path
+            elif os.path.isabs(thumbnail_path) and os.path.exists(thumbnail_path):
+                # 절대 경로면 그대로 사용
                 full_thumbnail_path = thumbnail_path
             else:
                 # 상대 경로를 절대 경로로 변환 (앞에 /가 있으면 제거)
