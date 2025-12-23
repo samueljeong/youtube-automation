@@ -283,7 +283,10 @@ def member_list():
 
     # 그룹 필터
     if group_filter:
-        members_query = members_query.filter(Member.group_id == int(group_filter))
+        try:
+            members_query = members_query.filter(Member.group_id == int(group_filter))
+        except ValueError:
+            pass  # 잘못된 그룹 ID는 무시
 
     members = members_query.order_by(Member.name).all()
     groups = Group.query.all()
