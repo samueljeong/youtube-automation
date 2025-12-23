@@ -22510,12 +22510,18 @@ def run_bible_episode_pipeline(
         print(f"[BIBLE] 1. TTS 생성 시작...", flush=True)
 
         # 절별 TTS 텍스트 추출 (절 번호 제외, 마침표 포함)
+        # ★ 장이 시작할 때 "창세기 1장." 읽어주기
         tts_texts = []
         for chapter in episode.chapters:
-            for verse in chapter.verses:
-                tts_texts.append(verse.tts_text)  # 마침표 자동 추가됨
+            for i, verse in enumerate(chapter.verses):
+                if i == 0:
+                    # 장의 첫 번째 절: "창세기 1장. 태초에 하나님이..."
+                    chapter_intro = f"{chapter.book} {chapter.chapter}장."
+                    tts_texts.append(f"{chapter_intro} {verse.tts_text}")
+                else:
+                    tts_texts.append(verse.tts_text)
 
-        print(f"[BIBLE] TTS 텍스트: {len(tts_texts)}개 절", flush=True)
+        print(f"[BIBLE] TTS 텍스트: {len(tts_texts)}개 절 (장 제목 포함)", flush=True)
 
         # TTS 음성 처리
         audio_path = os.path.join(temp_dir, f"day_{day_number:03d}.mp3")
