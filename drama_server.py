@@ -22334,6 +22334,71 @@ def api_create_bible_sheet():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/api/bible/add-test', methods=['GET', 'POST'])
+def api_add_bible_test():
+    """
+    성경통독 BIBLE 시트에 테스트용 행 추가
+
+    파라미터:
+    - book: 책 이름 (기본: 창세기)
+    - chapter: 장 번호 (기본: 1)
+    - start_verse: 시작 절 (기본: 1)
+    - end_verse: 끝 절 (기본: 10)
+    - status: 상태 (기본: 대기)
+
+    예시:
+    - GET /api/bible/add-test
+    - GET /api/bible/add-test?book=창세기&chapter=1&start_verse=1&end_verse=10
+    - GET /api/bible/add-test?status=대기
+    """
+    print("[BIBLE-TEST] ===== add-test 호출됨 =====")
+
+    try:
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 파라미터 처리
+        book = request.args.get('book', '창세기')
+        chapter = int(request.args.get('chapter', 1))
+        start_verse = int(request.args.get('start_verse', 1))
+        end_verse = int(request.args.get('end_verse', 10))
+        status = request.args.get('status', '대기')
+
+        from scripts.bible_pipeline.sheets import add_test_episode
+
+        result = add_test_episode(
+            service=service,
+            sheet_id=sheet_id,
+            book=book,
+            start_chapter=chapter,
+            end_chapter=chapter,
+            start_verse=start_verse,
+            end_verse=end_verse,
+            status=status
+        )
+
+        if result.get("ok"):
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ============================================================
 # 성경통독 파이프라인
 # ============================================================

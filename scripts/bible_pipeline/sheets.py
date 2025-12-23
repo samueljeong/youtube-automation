@@ -350,6 +350,112 @@ def _idx_to_col_letter(idx: int) -> str:
 
 
 # ============================================================
+# 테스트용 행 추가
+# ============================================================
+
+def add_test_episode(
+    service,
+    sheet_id: str,
+    book: str = "창세기",
+    start_chapter: int = 1,
+    end_chapter: int = 1,
+    start_verse: int = 1,
+    end_verse: int = 10,
+    status: str = "대기"
+) -> Dict[str, Any]:
+    """
+    테스트용 에피소드 행 추가 (BIBLE 시트 마지막에)
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        sheet_id: 스프레드시트 ID
+        book: 책 이름 (기본: 창세기)
+        start_chapter: 시작 장 (기본: 1)
+        end_chapter: 끝 장 (기본: 1)
+        start_verse: 시작 절 (기본: 1)
+        end_verse: 끝 절 (기본: 10)
+        status: 상태 (기본: 대기)
+
+    Returns:
+        {"ok": True, "row_idx": int, "episode_id": str} 또는
+        {"ok": False, "error": str}
+    """
+    try:
+        # 현재 행 수 확인
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{BIBLE_SHEET_NAME}!A:A"
+        ).execute()
+
+        rows = result.get('values', [])
+        next_row = len(rows) + 1  # 다음 행 번호
+
+        # 테스트 에피소드 ID (TEST001, TEST002, ...)
+        test_count = sum(1 for r in rows if r and str(r[0]).startswith("TEST"))
+        episode_id = f"TEST{test_count + 1:03d}"
+
+        # 테스트용 제목
+        if start_verse and end_verse:
+            title = f"[테스트] {book} {start_chapter}장 {start_verse}-{end_verse}절"
+            # 절 범위 정보를 제목에 포함 (파이프라인에서 파싱)
+            title += f" (verses:{start_verse}-{end_verse})"
+        else:
+            title = f"[테스트] {book} {start_chapter}-{end_chapter}장"
+
+        # 예상 시간 (테스트는 짧으므로 대략 계산)
+        estimated_minutes = round((end_verse - start_verse + 1) * 0.5, 1)  # 절당 0.5분
+
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # 행 데이터
+        row = [
+            episode_id,           # 에피소드
+            book,                 # 책
+            start_chapter,        # 시작장
+            end_chapter,          # 끝장
+            estimated_minutes,    # 예상시간(분)
+            0,                    # 글자수 (나중에 계산)
+            status,               # 상태
+            title,                # 제목
+            "",                   # 음성 (기본값 사용)
+            "unlisted",           # 공개설정
+            "",                   # 예약시간
+            "",                   # 플레이리스트ID
+            "",                   # 영상URL
+            "",                   # 에러메시지
+            "",                   # 작업시간
+            today,                # 생성일
+        ]
+
+        # 시트에 추가
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range=f"{BIBLE_SHEET_NAME}!A:P",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [row]}
+        ).execute()
+
+        print(f"[BIBLE-SHEETS] 테스트 행 추가: {episode_id} ({book} {start_chapter}장 {start_verse}-{end_verse}절)")
+
+        return {
+            "ok": True,
+            "row_idx": next_row,
+            "episode_id": episode_id,
+            "title": title,
+            "book": book,
+            "chapter": start_chapter,
+            "start_verse": start_verse,
+            "end_verse": end_verse
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
 # CLI 테스트
 # ============================================================
 
