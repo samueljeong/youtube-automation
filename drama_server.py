@@ -22445,6 +22445,17 @@ def run_bible_episode_pipeline(
         print(f"[BIBLE] 음성: {voice}")
         print(f"[BIBLE] 공개설정: {visibility}")
 
+        # ★ 테스트 에피소드 처리 (TEST로 시작하는 경우)
+        is_test_episode = episode_id.startswith("TEST")
+        test_verse_range = None
+        if is_test_episode:
+            # 제목에서 (verses:1-10) 형식 파싱
+            import re
+            verse_match = re.search(r'\(verses:(\d+)-(\d+)\)', title)
+            if verse_match:
+                test_verse_range = (int(verse_match.group(1)), int(verse_match.group(2)))
+                print(f"[BIBLE] ★ 테스트 모드: {book} {episode_data.get('시작장', 1)}장 {test_verse_range[0]}-{test_verse_range[1]}절", flush=True)
+
         # 상태를 '처리중'으로 변경 + 시작 시간 기록 (KST - orphan 감지와 동일 시간대)
         from scripts.bible_pipeline.sheets import update_episode_status
         from datetime import timezone, timedelta
@@ -22453,15 +22464,43 @@ def run_bible_episode_pipeline(
         update_episode_status(service, sheet_id, row_idx, "처리중", work_time=start_time_str)
 
         # BiblePipeline에서 에피소드 데이터 가져오기
-        from scripts.bible_pipeline.run import BiblePipeline
+        from scripts.bible_pipeline.run import BiblePipeline, Episode, Chapter, Verse
         from scripts.bible_pipeline.config import BIBLE_TTS_VOICE
 
         pipeline = BiblePipeline()
-        episodes = pipeline.generate_all_bible_episodes()
-        episode = next((ep for ep in episodes if ep.day_number == day_number), None)
 
-        if not episode:
-            return {"ok": False, "error": f"Day {day_number} 에피소드를 찾을 수 없습니다"}
+        # ★ 테스트 에피소드: 특정 절 범위만 가져오기
+        if is_test_episode and test_verse_range:
+            start_chapter = int(episode_data.get("시작장", 1))
+            chapter = pipeline.get_chapter(book, start_chapter)
+            if not chapter:
+                return {"ok": False, "error": f"장을 찾을 수 없습니다: {book} {start_chapter}장"}
+
+            # 특정 절 범위만 필터링
+            start_v, end_v = test_verse_range
+            filtered_verses = [v for v in chapter.verses if start_v <= v.verse <= end_v]
+
+            if not filtered_verses:
+                return {"ok": False, "error": f"절을 찾을 수 없습니다: {book} {start_chapter}장 {start_v}-{end_v}절"}
+
+            # 테스트용 Episode 객체 생성
+            test_chapter = Chapter(book=book, chapter=start_chapter, verses=filtered_verses)
+            episode = Episode(
+                episode_id=episode_id,
+                book=book,
+                start_chapter=start_chapter,
+                end_chapter=start_chapter,
+                chapters=[test_chapter],
+                day_number=0
+            )
+            print(f"[BIBLE] 테스트 에피소드 생성: {len(filtered_verses)}개 절", flush=True)
+        else:
+            # 일반 에피소드: Day 번호로 찾기
+            episodes = pipeline.generate_all_bible_episodes()
+            episode = next((ep for ep in episodes if ep.day_number == day_number), None)
+
+            if not episode:
+                return {"ok": False, "error": f"Day {day_number} 에피소드를 찾을 수 없습니다"}
 
         # 임시 디렉토리 생성
         temp_dir = os.path.join(tempfile.gettempdir(), f"bible_day_{day_number}")
