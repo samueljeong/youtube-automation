@@ -20088,6 +20088,49 @@ def api_sheets_check_and_process():
         pending_tasks.sort(key=lambda x: x[0])
 
         if not pending_tasks:
+            # ========== 일반 시트에 작업 없음 → BIBLE 시트 체크 ==========
+            print("[SHEETS] 일반 시트에 대기 작업 없음 → BIBLE 시트 체크")
+            try:
+                from scripts.bible_pipeline.sheets import get_pending_episodes, update_episode_status
+
+                bible_pending = get_pending_episodes(service, sheet_id, limit=1)
+                if bible_pending:
+                    episode_data = bible_pending[0]
+                    row_idx = episode_data.get("row_idx")
+                    print(f"[BIBLE] 대기 에피소드 발견: {episode_data.get('에피소드')} (행 {row_idx})")
+
+                    # 채널 ID 가져오기
+                    bible_channel_id = ""
+                    try:
+                        result = service.spreadsheets().values().get(
+                            spreadsheetId=sheet_id,
+                            range="BIBLE!B1"
+                        ).execute()
+                        bible_channel_id = result.get('values', [[]])[0][0] if result.get('values') else ""
+                    except:
+                        pass
+
+                    # BIBLE 파이프라인 실행
+                    bible_result = run_bible_episode_pipeline(
+                        service=service,
+                        sheet_id=sheet_id,
+                        row_idx=row_idx,
+                        episode_data=episode_data,
+                        channel_id=bible_channel_id
+                    )
+
+                    return jsonify({
+                        "ok": True,
+                        "message": f"[BIBLE] {episode_data.get('에피소드')} 처리 완료",
+                        "processed": 1,
+                        "type": "bible",
+                        "video_url": bible_result.get("video_url"),
+                        "error": bible_result.get("error")
+                    })
+
+            except Exception as bible_err:
+                print(f"[BIBLE] 체크 오류 (무시): {bible_err}")
+
             return jsonify({
                 "ok": True,
                 "message": "처리할 대기 작업이 없습니다",
