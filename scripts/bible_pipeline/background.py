@@ -20,19 +20,32 @@ from image.gemini import generate_image, GEMINI_PRO
 # 66권 배경 이미지 프롬프트
 # ============================================================
 
-# 공통 스타일 지시문 (자막 가독성 최우선)
+# 공통 스타일 지시문 (2025 모던 스타일 + 자막 가독성)
 COMMON_STYLE = """
-CRITICAL STYLE REQUIREMENTS:
-- EXTREMELY SIMPLE and MINIMAL - this is a TEXT BACKGROUND, not artwork
-- Solid or very soft gradient background ONLY
-- NO complex patterns, NO detailed imagery, NO distracting elements
-- NO text, NO letters, NO words, NO characters
-- MUTED, LOW CONTRAST colors - nothing bright or eye-catching
-- The CENTER 80% of image must be very plain for text readability
-- Only very subtle texture or color variation allowed at edges
-- Think of it like a presentation slide background - BORING is GOOD
-- White/light colored text will be placed on top - ensure good contrast
-- Professional, calming, unobtrusive aesthetic
+STYLE: 2025 Premium Video Background - Modern, Cinematic, Spiritual
+
+VISUAL DESIGN:
+- Deep color gradient as base (specified colors below)
+- Subtle bokeh light orbs floating in background (soft, blurred circles of light)
+- Gentle lens flare or light rays from top-left corner
+- Soft vignette effect (darker edges, brighter center)
+- Very subtle particle dust or floating light specks
+- Atmospheric haze or fog for depth
+
+AESTHETIC:
+- Modern Korean church worship video style
+- Cinematic color grading (like high-end worship backgrounds)
+- Premium, professional, contemplative mood
+- Think: Hillsong worship backgrounds, modern church media
+
+TECHNICAL REQUIREMENTS:
+- NO text, NO letters, NO words, NO symbols
+- NO human figures, faces, or religious icons
+- Center area must remain relatively clean for text overlay
+- Deep, rich colors - NOT washed out
+- Good contrast for white Korean text overlay
+
+ASPECT: 16:9 widescreen (1920x1080)
 """
 
 # 구약 39권 배경 프롬프트 (파란색 계열) - 매우 심플
@@ -142,42 +155,48 @@ def get_background_prompt(book_name: str) -> str:
     if book_name in OLD_TESTAMENT_PROMPTS:
         book_info = OLD_TESTAMENT_PROMPTS[book_name]
         testament = "Old Testament"
+        base_atmosphere = "ancient, timeless, deep mystery"
     elif book_name in NEW_TESTAMENT_PROMPTS:
         book_info = NEW_TESTAMENT_PROMPTS[book_name]
         testament = "New Testament"
+        base_atmosphere = "grace, warmth, redemption"
     else:
         # 기본 프롬프트
         return f"""
-Create an EXTREMELY SIMPLE, plain gradient background image for Bible reading video.
+Create a premium cinematic video background for Bible reading.
 {COMMON_STYLE}
-Color: soft blue gradient
-Style: Like a PowerPoint slide background - PLAIN and BORING
+Color: deep navy blue to midnight blue gradient
+Style: Modern worship video background with bokeh lights
 """
 
     prompt = f"""
-Create an EXTREMELY SIMPLE and PLAIN gradient background image.
-
-PURPOSE: Background for "{book_name}" ({testament}) Bible reading video with Korean text overlay.
-
-COLOR GRADIENT: {book_info['color']}
-MOOD: {book_info['tone']}
+Create a PREMIUM CINEMATIC video background for "{book_name}" ({testament}) Bible reading.
 
 {COMMON_STYLE}
 
-CRITICAL INSTRUCTIONS:
-1. This is JUST a background - make it VERY SIMPLE
-2. Use ONLY soft gradient colors - no patterns, no shapes, no imagery
-3. The center 80% must be PLAIN for white text readability
-4. Think PowerPoint slide background - BORING is PERFECT
-5. Maximum 2-3 colors blending softly
-6. Very subtle texture or grain is OK at edges only
-7. Must have good contrast for white text overlay
+COLOR PALETTE:
+- Primary gradient: {book_info['color']}
+- Add subtle complementary accent lighting
 
-DO NOT include:
-- Any symbols, icons, or imagery
-- Complex patterns or textures
-- Bright or distracting colors
-- Any text or letters
+ATMOSPHERE & MOOD:
+- Theme: {book_info['tone']}
+- Feeling: {base_atmosphere}
+- Evoke the spiritual essence of this book without literal imagery
+
+SPECIFIC VISUAL ELEMENTS:
+1. Rich, deep gradient flowing diagonally or radially
+2. 5-8 soft bokeh orbs (varying sizes: small to medium, softly glowing)
+3. Subtle light rays streaming from upper corner
+4. Gentle atmospheric particles or dust (very subtle)
+5. Smooth vignette: darker at edges, luminous center
+6. Optional: very faint nebula-like wisps in background
+
+COMPOSITION:
+- Keep center area cleaner for text overlay
+- More visual interest at edges and corners
+- Depth and dimension through layered lighting effects
+
+OUTPUT: Photorealistic quality, 8K render feel, cinematic color grading
 """
 
     return prompt
