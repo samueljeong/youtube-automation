@@ -209,11 +209,31 @@ function renderStyles() {
   container.style.flexWrap = 'wrap';
   container.style.gap = '.5rem';
 
-  container.innerHTML = styles.map(style =>
-    `<div class="style-item ${style.id === window.currentStyleId ? 'active' : ''}" data-style="${style.id}" style="flex: 1 1 auto; min-width: 80px; text-align: center; padding: .5rem .75rem;">
+  // ★ 주제설교(topical)는 선택 시 주제 입력란 표시
+  container.innerHTML = styles.map(style => {
+    const isActive = style.id === window.currentStyleId;
+    const isTopical = style.id === 'topical' || style.name.includes('주제');
+
+    if (isTopical && isActive) {
+      // 주제설교 선택됨 → 입력란 포함
+      const savedTheme = window.topicalTheme || '';
+      return `<div class="style-item active" data-style="${style.id}" style="flex: 1 1 auto; min-width: 160px; text-align: center; padding: .5rem .75rem;">
+        <div style="font-weight: 600; font-size: .85rem; display: flex; align-items: center; justify-content: center; gap: .4rem;">
+          ${style.name}
+          <input type="text" id="topical-theme-input"
+            value="${savedTheme}"
+            placeholder="주제 입력"
+            onclick="event.stopPropagation();"
+            style="width: 90px; font-size: .8rem; padding: .25rem .4rem; border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; background: rgba(255,255,255,0.9); color: #333;">
+        </div>
+      </div>`;
+    }
+
+    // 일반 스타일 버튼
+    return `<div class="style-item ${isActive ? 'active' : ''}" data-style="${style.id}" style="flex: 1 1 auto; min-width: 80px; text-align: center; padding: .5rem .75rem;">
       <div style="font-weight: 600; font-size: .85rem;">${style.name}</div>
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
 
   container.querySelectorAll('.style-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -233,6 +253,22 @@ function renderStyles() {
       updateAnalysisUI();
     });
   });
+
+  // ★ 주제설교 입력란 이벤트 (값 저장)
+  const topicalInput = document.getElementById('topical-theme-input');
+  if (topicalInput) {
+    // 입력 시 실시간 저장
+    topicalInput.addEventListener('input', (e) => {
+      window.topicalTheme = e.target.value.trim();
+      console.log('[renderStyles] 주제 저장:', window.topicalTheme);
+    });
+    // 포커스 시 버튼 재렌더링 방지
+    topicalInput.addEventListener('focus', (e) => {
+      e.stopPropagation();
+    });
+    // 입력란 자동 포커스
+    setTimeout(() => topicalInput.focus(), 100);
+  }
 
   // 스타일이 선택되어 있지 않으면 첫 번째 스타일 자동 선택
   if (!window.currentStyleId && styles.length > 0) {

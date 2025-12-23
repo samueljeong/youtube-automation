@@ -77,6 +77,8 @@ async function executeStep(stepId) {
     guide: guide,
     masterGuide: masterGuide,
     styleName: styleName,
+    styleId: window.currentStyleId,  // ★ 스타일 ID 추가
+    topicalTheme: window.topicalTheme || '',  // ★ 주제설교 주제 추가
     model: model,
     step1Results: step1Results,
     category: window.currentCategory
