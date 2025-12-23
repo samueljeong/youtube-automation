@@ -563,10 +563,11 @@ def generate_ass_subtitle(
     font_size: int = 96,
     primary_color: str = "&H00FFFFFF",  # 흰색
     outline_color: str = "&H00000000",  # 검정
-    fade_duration_ms: int = 300
+    fade_duration_ms: int = 300,
+    chapter_title_duration: float = 2.5  # 챕터 타이틀 표시 시간 (초)
 ) -> str:
     """
-    ASS 자막 파일 생성 (페이드 효과 포함)
+    ASS 자막 파일 생성 (페이드 효과 + 챕터 구분 포함)
 
     Args:
         subtitles: Episode.subtitles 리스트
@@ -577,6 +578,7 @@ def generate_ass_subtitle(
         primary_color: 텍스트 색상 (ASS 형식)
         outline_color: 외곽선 색상
         fade_duration_ms: 페이드 효과 시간 (밀리초)
+        chapter_title_duration: 챕터 타이틀 표시 시간 (초)
 
     Returns:
         저장된 파일 경로
@@ -584,6 +586,7 @@ def generate_ass_subtitle(
     # ASS 헤더 - 2025 모던 스타일
     # Reference: 상단 가운데, 골드색, 크게
     # Verse: 중앙, 흰색, 매우 크게
+    # ChapterTitle: 화면 중앙, 큰 폰트, 챕터 전환용
     ass_header = f"""[Script Info]
 Title: Bible Reading Subtitles
 ScriptType: v4.00+
@@ -595,6 +598,7 @@ WrapStyle: 0
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Reference,{font_name},{int(font_size * 0.75)},&H0000D7FF,&H000000FF,&H00000000,&HCC000000,1,0,0,0,100,100,2,0,1,4,3,8,50,50,120,1
 Style: Verse,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&HCC000000,1,0,0,0,100,100,3,0,1,5,4,5,100,100,80,1
+Style: ChapterTitle,{font_name},{int(font_size * 1.3)},&H0000D7FF,&H000000FF,&H00000000,&HCC000000,1,0,0,0,100,100,5,0,1,6,5,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -609,13 +613,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events = []
     current_time = 0.0
+    prev_chapter = None
+    prev_book = None
 
-    for subtitle, duration in zip(subtitles, verse_durations):
+    for i, (subtitle, duration) in enumerate(zip(subtitles, verse_durations)):
+        current_book = subtitle['book']
+        current_chapter = subtitle['chapter']
+
+        # 챕터 전환 감지 (첫 절 또는 장이 바뀔 때)
+        is_chapter_change = (prev_chapter is None or
+                            prev_chapter != current_chapter or
+                            prev_book != current_book)
+
+        if is_chapter_change and i > 0:
+            # 챕터 타이틀 카드 추가 (첫 절 제외, 장이 바뀔 때만)
+            # 이전 절 끝나고 챕터 타이틀 표시
+            chapter_title = f"{current_book} {current_chapter}장"
+            title_start = current_time
+            title_end = current_time + chapter_title_duration
+
+            # 페이드 인/아웃 효과와 함께 챕터 타이틀 표시
+            title_fade_ms = 500  # 챕터 타이틀은 좀 더 긴 페이드
+            title_text = f"{{\\fad({title_fade_ms},{title_fade_ms})}}{chapter_title}"
+            events.append(
+                f"Dialogue: 1,{format_ass_time(title_start)},{format_ass_time(title_end)},ChapterTitle,,0,0,0,,{title_text}"
+            )
+
+            # 타이틀 시간만큼 현재 시간 이동 (TTS에는 이미 장 시작 멘트가 포함되어 있으므로 실제 추가 시간은 없음)
+            # 단, 자막 타이밍은 TTS와 동기화되어야 하므로 별도의 시간 추가 없이 오버레이로 표시
+
         start_time = current_time
         end_time = current_time + duration
 
         # 참조 텍스트 (상단): "창세기 1장" (절 번호 제외)
-        reference = f"{subtitle['book']} {subtitle['chapter']}장"
+        reference = f"{current_book} {current_chapter}장"
         # 페이드 효과: {\\fad(시작,끝)}
         ref_text = f"{{\\fad({fade_duration_ms},{fade_duration_ms})}}{reference}"
         events.append(
@@ -636,6 +667,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         )
 
         current_time = end_time
+        prev_chapter = current_chapter
+        prev_book = current_book
 
     # 파일 저장
     ass_content = ass_header + '\n'.join(events) + '\n'
