@@ -511,6 +511,7 @@ async function executeGptPro() {
       duration: document.getElementById('sermon-duration')?.value || '',
       specialNotes: document.getElementById('special-notes')?.value || '',
       styleName: styleName,
+      styleId: window.currentStyleId || '',  // ★ 스타일 ID 추가 (2025-12-23)
       category: window.currentCategory,
       model: model,
       maxTokens: maxTokens,
