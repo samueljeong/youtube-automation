@@ -15,7 +15,8 @@ from typing import Dict, List, Any
 # ============================================================
 
 # TTS 음성 (성경 낭독에 어울리는 차분한 목소리)
-BIBLE_TTS_VOICE = "chirp3:Charon"
+# gemini:pro:Charon - 고품질 Gemini Pro TTS (남성, 깊고 신뢰감 있는 톤)
+BIBLE_TTS_VOICE = "gemini:pro:Charon"
 
 # 말하기 속도 (성경 낭독은 천천히)
 BIBLE_TTS_SPEAKING_RATE = 0.9
