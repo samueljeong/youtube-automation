@@ -1501,6 +1501,37 @@ def build_step3_prompt_from_json(
 
         draft += "=" * 50 + "\n\n"
 
+    # ★★★ 스타일별 구조 가이드 (2025-12-23 추가) ★★★
+    if style_id:
+        try:
+            from sermon_modules.styles import ThreePointsStyle, ExpositoryStyle, TopicalStyle
+            style_classes = {
+                'three_points': ThreePointsStyle,
+                'three_point': ThreePointsStyle,
+                'expository': ExpositoryStyle,
+                'topical': TopicalStyle
+            }
+            style_class = style_classes.get(style_id)
+            if style_class:
+                style_guide = style_class.get_step3_writing_guide()
+                if style_guide:
+                    draft += "=" * 50 + "\n"
+                    draft += f"【 ★★★ {style_class.name} 스타일 구조 가이드 ★★★ 】\n"
+                    draft += "=" * 50 + "\n"
+                    draft += style_guide + "\n"
+                    draft += "=" * 50 + "\n\n"
+
+                # 체크리스트도 추가
+                checklist = style_class.get_step3_checklist()
+                if checklist:
+                    draft += "【 스타일별 체크리스트 (필수) 】\n"
+                    for item in checklist:
+                        draft += f"  □ {item}\n"
+                    draft += "\n"
+        except Exception as e:
+            # 스타일 모듈 로드 실패 시 무시
+            pass
+
     # 최종 작성 지침
     draft += "=" * 50 + "\n"
     draft += "【 최종 작성 지침 】\n"
