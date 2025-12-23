@@ -40,6 +40,9 @@ from youtube_auth import (
 # 이미지 생성 모듈
 from image import generate_image as image_generate, generate_image_base64, generate_thumbnail_image, get_image_count_by_script, GEMINI_FLASH, GEMINI_PRO
 
+# TTS 청킹 모듈 (문장별 TTS 개선)
+from tts.tts_chunking import split_korean_sentences as tts_split_sentences
+
 app = Flask(__name__)
 
 # Assistant Blueprint 등록
@@ -12149,7 +12152,11 @@ def api_image_generate_assets_zip():
 
             # ★ 핵심 수정: 항상 대본 전체를 문장 분할하여 TTS 수행
             # subtitle_segments는 자막 표시 여부만 제어 (TTS 대상을 제한하면 안됨!)
-            tts_sentences = split_sentences(plain_narration, detected_lang)
+            # ★ TTS 억양 개선: 한국어는 문장 단위로 분할 (20자 청킹 대신)
+            if detected_lang == 'ko':
+                tts_sentences = tts_split_sentences(plain_narration)
+            else:
+                tts_sentences = split_sentences(plain_narration, detected_lang)
             if not tts_sentences:
                 tts_sentences = [plain_narration]
 
