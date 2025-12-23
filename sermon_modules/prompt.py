@@ -192,7 +192,66 @@ def build_prompt_from_json(json_guide, step_type="step1"):
     return prompt
 
 
-def build_step1_research_prompt():
+def get_style_step1_config(style_id):
+    """
+    스타일별 Step1 분석 설정 반환 (2025-12-23)
+
+    | 스타일 | anchors | key_terms | cross_refs | 강조점 |
+    |--------|---------|-----------|------------|--------|
+    | 3대지 | 5개 | 3개 | 0개 | 본문 구조 |
+    | 강해설교 | 10개+ | 6개 | 2개 | 본문 상세 |
+    | 주제설교 | 3개 | 2개 | 5개+ | 주제 연결 |
+    """
+    style_configs = {
+        'three_point': {
+            'anchors_min': 5,
+            'key_terms_max': 3,
+            'cross_refs_min': 0,
+            'emphasis': '본문 구조',
+            'emphasis_instruction': '본문의 구조와 흐름을 중심으로 분석하세요. 대지(포인트)로 나눌 수 있는 자연스러운 구조 단위를 파악하는 데 집중하세요.'
+        },
+        'expository': {
+            'anchors_min': 10,
+            'key_terms_max': 6,
+            'cross_refs_min': 2,
+            'emphasis': '본문 상세',
+            'emphasis_instruction': '본문의 세부 내용을 철저히 분석하세요. 역사적 배경, 원어 의미, 문맥적 흐름을 깊이 있게 연구하세요.'
+        },
+        'topical': {
+            'anchors_min': 3,
+            'key_terms_max': 2,
+            'cross_refs_min': 5,
+            'emphasis': '주제 연결',
+            'emphasis_instruction': '본문이 주제와 어떻게 연결되는지에 집중하세요. 같은 주제를 다루는 다른 성경 구절(cross_references)을 풍부하게 제시하세요.'
+        }
+    }
+
+    # 스타일 이름으로도 매칭 (ID가 없을 경우)
+    style_name_mapping = {
+        '3대지': 'three_point',
+        '대지': 'three_point',
+        '강해': 'expository',
+        '강해설교': 'expository',
+        '주제': 'topical',
+        '주제설교': 'topical'
+    }
+
+    # style_id로 먼저 찾고, 없으면 이름 매핑으로 찾음
+    config = style_configs.get(style_id)
+    if not config:
+        for name_part, mapped_id in style_name_mapping.items():
+            if name_part in (style_id or ''):
+                config = style_configs.get(mapped_id)
+                break
+
+    # 기본값 (강해설교 기준)
+    if not config:
+        config = style_configs['expository']
+
+    return config
+
+
+def build_step1_research_prompt(style_id=None):
     """
     Step1 전용: 본문 연구 프롬프트 (앵커 ID 포함 JSON)
 
@@ -201,10 +260,68 @@ def build_step1_research_prompt():
     - 모든 항목에 고유 ID 부여 (H1, G1, P1, U1, A1, T1, C1, D1, M1)
     - Step2에서 ID를 필수 참조하도록 연결
     - 구조/문맥/역사 배경이 Strong's보다 우선
+
+    스타일별 설정 (2025-12-23):
+    - 3대지: anchors 5개, key_terms 3개, cross_refs 0개 (본문 구조 중심)
+    - 강해설교: anchors 10개+, key_terms 6개, cross_refs 2개 (본문 상세)
+    - 주제설교: anchors 3개, key_terms 2개, cross_refs 5개+ (주제 연결)
     """
-    return '''당신은 설교 준비의 STEP1(본문 연구) 담당자입니다.
+    # 스타일별 설정 가져오기
+    config = get_style_step1_config(style_id)
+    anchors_min = config['anchors_min']
+    key_terms_max = config['key_terms_max']
+    cross_refs_min = config['cross_refs_min']
+    emphasis = config['emphasis']
+    emphasis_instruction = config['emphasis_instruction']
+
+    # cross_references 섹션 (주제설교용)
+    cross_refs_section = ""
+    if cross_refs_min > 0:
+        cross_refs_section = f'''
+  "cross_references": [
+    {{
+      "ref_id": "X1",
+      "reference": "관련 성경 구절 (예: 요 14:27)",
+      "text_summary": "해당 구절의 핵심 내용 요약",
+      "connection_to_main_passage": "본문과의 연결점/공통 주제"
+    }},
+    {{
+      "ref_id": "X2",
+      "reference": "",
+      "text_summary": "",
+      "connection_to_main_passage": ""
+    }}
+  ],
+'''
+        cross_refs_instruction = f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★ 주제설교 특별 지침: Cross References (관련 성경 구절) 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+주제설교는 하나의 본문에서 출발하되, 같은 주제를 다루는 다른 성경 구절들을
+연결하여 풍성한 메시지를 전달합니다.
+
+★ cross_references는 최소 {cross_refs_min}개 이상 제시하세요.
+- 구약/신약을 균형 있게 포함
+- 본문과 직접적으로 연결되는 구절 우선
+- 각 구절이 주제에 어떻게 기여하는지 명확히 설명
+'''
+    else:
+        cross_refs_instruction = ""
+
+    return f'''당신은 설교 준비의 STEP1(본문 연구) 담당자입니다.
 지금 단계는 Step2/Step3에서 사용할 '풍성한 본문 연구 소재'를 준비합니다.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【 ★★★ 스타일별 분석 설정: {emphasis} ★★★ 】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{emphasis_instruction}
+
+- anchors (핵심 앵커): {anchors_min}개 이상
+- key_terms (핵심 단어): 최대 {key_terms_max}개
+- cross_references (관련 구절): {cross_refs_min}개 이상
+{cross_refs_instruction}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【 Step1의 역할 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -225,7 +342,7 @@ def build_step1_research_prompt():
 
 1) 본문 구조/흐름/이미지/전환점을 먼저 분석
 2) 역사·정치·지리 배경은 "본문 이해에 필요한 것만" 정리
-3) Strong's/주석은 보조 참고로만 사용(단어 분석은 최대 4~6개로 제한)
+3) Strong's/주석은 보조 참고로만 사용(단어 분석은 최대 {key_terms_max}개로 제한)
 4) 반드시 가드레일(말하는 것/말하지 않는 것/오독)을 포함
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -236,8 +353,9 @@ def build_step1_research_prompt():
 - geography places: G1, G2, G3…
 - people_groups: P1, P2, P3…
 - structure units: U1, U2, U3…
-- anchors: A1, A2, A3… (최소 10개)
-- key_terms: T1, T2, T3…
+- anchors: A1, A2, A3… (최소 {anchors_min}개)
+- key_terms: T1, T2, T3… (최대 {key_terms_max}개)
+- cross_references: X1, X2, X3… (최소 {cross_refs_min}개) ← 주제설교용
 - guardrails clearly_affirms: C1, C2, C3…
 - guardrails does_not_claim: D1, D2, D3…
 - guardrails common_misreads: M1, M2, M3…
@@ -282,120 +400,120 @@ def build_step1_research_prompt():
 
 반드시 아래 JSON 스키마 그대로만 출력하십시오(추가 텍스트 금지).
 (스키마 내 모든 배열은 최소 개수를 충족해야 함:
- anchors 10개 이상, historical_background 3개 이상, places 3개 이상, does_not_claim 5개 이상)
+ anchors {anchors_min}개 이상, historical_background 3개 이상, places 3개 이상, does_not_claim 5개 이상)
 
 ⚠️ meta는 생성하지 마세요. 시스템이 자동 주입합니다.
 
 ```json
-{
-  "passage_overview": {
+{{
+  "passage_overview": {{
     "one_paragraph_summary": "본문의 전체 흐름을 2-3문장으로 요약",
     "flow_tags": ["어둠→빛", "압제→해방", "전쟁→평화", "왕권→정의·공의"]
-  },
+  }},
 
   "historical_background": [
-    {
+    {{
       "id": "H1",
       "topic": "★ 구체 명사 필수 (예: 아하스 시대의 아람-에브라임 동맹 위기)",
       "what_happened": "당시 무슨 일이 있었는가 (구체적 사건/상황)",
       "why_it_matters_for_this_text": "이 본문 이해에 왜 중요한가"
-    },
-    {
+    }},
+    {{
       "id": "H2",
       "topic": "★ 구체 명사 필수 (예: 앗수르의 갈릴리 정복과 deportation)",
       "what_happened": "",
       "why_it_matters_for_this_text": ""
-    },
-    {
+    }},
+    {{
       "id": "H3",
       "topic": "★ 구체 명사 필수 (예: 심판-구원 교차 구조의 문학적 배경)",
       "what_happened": "",
       "why_it_matters_for_this_text": ""
-    }
+    }}
   ],
 
-  "geography_people": {
+  "geography_people": {{
     "places": [
-      {
+      {{
         "id": "G1",
         "name": "★ 구체 지명 (예: 스불론/납달리)",
         "where_in_bible_context": "성경적 맥락에서 이 장소의 위치",
         "significance_in_this_passage": "이 본문에서 이 장소가 중요한 이유"
-      },
-      {
+      }},
+      {{
         "id": "G2",
         "name": "★ 구체 지명 (예: 요단 저편)",
         "where_in_bible_context": "",
         "significance_in_this_passage": ""
-      },
-      {
+      }},
+      {{
         "id": "G3",
         "name": "★ 구체 지명 (예: 이방의 갈릴리)",
         "where_in_bible_context": "",
         "significance_in_this_passage": ""
-      }
+      }}
     ],
     "people_groups": [
-      {
+      {{
         "id": "P1",
         "name": "인물/집단명",
         "role_in_text": "본문에서의 역할",
         "notes": "관련 배경 정보"
-      }
+      }}
     ]
-  },
+  }},
 
-  "context_links": {
+  "context_links": {{
     "immediate_before": "바로 앞 단락/구절의 내용 (예: 사8장 마지막 단락의 어둠/저주)",
     "immediate_after": "★ 바로 다음 단락의 구체적 내용 (예: 사9:8~의 심판/책망 단락). '책 전체 요약'이 아님!",
     "book_level_context": "해당 책 전체에서 이 본문의 위치와 역할"
-  },
+  }},
 
   "structure_outline": [
-    {
+    {{
       "unit_id": "U1",
       "range": "1-2절",
       "function": "도입/배경 설정",
       "turning_point": "있다면 기술 (예: 그러나, 그러므로)",
       "key_images": ["핵심 이미지/표현 1", "핵심 이미지/표현 2"]
-    },
-    {
+    }},
+    {{
       "unit_id": "U2",
       "range": "3-5절",
       "function": "핵심 사건/메시지",
       "turning_point": "",
       "key_images": []
-    },
-    {
+    }},
+    {{
       "unit_id": "U3",
       "range": "6-7절",
       "function": "결론/귀결/클라이맥스",
       "turning_point": "",
       "key_images": []
-    }
+    }}
   ],
 
   "anchors": [
-    {
+    {{
       "anchor_id": "A1",
       "range": "절 범위 (예: 사9:1)",
       "anchor_phrase": "핵심 구절/표현 (예: 전에는… 이제는…)",
       "text_observation": "텍스트에서 직접 관찰되는 것",
       "function_in_flow": "이 앵커가 본문 흐름에서 하는 역할",
       "interpretation_boundary": "이 앵커에서 확대 해석의 한계/오해 주의"
-    },
-    {
+    }},
+    {{
       "anchor_id": "A2",
       "range": "",
       "anchor_phrase": "",
       "text_observation": "",
       "function_in_flow": "",
       "interpretation_boundary": ""
-    }
+    }}
   ],
 
   "key_terms": [
-    {
+    {{
       "term_id": "T1",
       "surface": "한글 표기",
       "lemma": "히브리어/헬라어 원형",
@@ -404,32 +522,32 @@ def build_step1_research_prompt():
       "lexical_meaning": "사전적 의미",
       "meaning_in_context": "★ 이 본문 맥락에서의 의미 - 의미 범위 전체 포함! (예: shalom은 '전쟁 종식'뿐 아니라 '온전함/회복/안정/질서'까지 포괄)",
       "usage_note": "용례/사용 주의사항 (설교 적용 금지)"
-    }
+    }}
   ],
-
-  "guardrails": {
+{cross_refs_section}
+  "guardrails": {{
     "clearly_affirms": [
-      { "id": "C1", "claim": "본문이 명확히 말하는 것 1 (앵커 기반)", "anchor_ids": ["A1"] },
-      { "id": "C2", "claim": "본문이 명확히 말하는 것 2 (앵커 기반)", "anchor_ids": ["A2", "A3"] },
-      { "id": "C3", "claim": "", "anchor_ids": [] },
-      { "id": "C4", "claim": "", "anchor_ids": [] },
-      { "id": "C5", "claim": "", "anchor_ids": [] }
+      {{ "id": "C1", "claim": "본문이 명확히 말하는 것 1 (앵커 기반)", "anchor_ids": ["A1"] }},
+      {{ "id": "C2", "claim": "본문이 명확히 말하는 것 2 (앵커 기반)", "anchor_ids": ["A2", "A3"] }},
+      {{ "id": "C3", "claim": "", "anchor_ids": [] }},
+      {{ "id": "C4", "claim": "", "anchor_ids": [] }},
+      {{ "id": "C5", "claim": "", "anchor_ids": [] }}
     ],
     "does_not_claim": [
-      { "id": "D1", "claim": "★ 본문 경계만 기술: 본문은 [X]를 즉시/자동 보장한다고 말하지 않는다", "reason": "본문 텍스트에 해당 표현이 없음", "avoid_in_step2_3": true },
-      { "id": "D2", "claim": "★ 본문은 구체적 시기/정치 체제/국경선 확정을 제공하지 않는다", "reason": "", "avoid_in_step2_3": true },
-      { "id": "D3", "claim": "★ 본문은 [특정 이미지]를 [특정 시간표]로 확정하지 않는다", "reason": "", "avoid_in_step2_3": true },
-      { "id": "D4", "claim": "★ 본문은 [X]가 모든 개인에게 동일하게 적용된다고 단정하지 않는다", "reason": "", "avoid_in_step2_3": true },
-      { "id": "D5", "claim": "", "reason": "", "avoid_in_step2_3": true }
+      {{ "id": "D1", "claim": "★ 본문 경계만 기술: 본문은 [X]를 즉시/자동 보장한다고 말하지 않는다", "reason": "본문 텍스트에 해당 표현이 없음", "avoid_in_step2_3": true }},
+      {{ "id": "D2", "claim": "★ 본문은 구체적 시기/정치 체제/국경선 확정을 제공하지 않는다", "reason": "", "avoid_in_step2_3": true }},
+      {{ "id": "D3", "claim": "★ 본문은 [특정 이미지]를 [특정 시간표]로 확정하지 않는다", "reason": "", "avoid_in_step2_3": true }},
+      {{ "id": "D4", "claim": "★ 본문은 [X]가 모든 개인에게 동일하게 적용된다고 단정하지 않는다", "reason": "", "avoid_in_step2_3": true }},
+      {{ "id": "D5", "claim": "", "reason": "", "avoid_in_step2_3": true }}
     ],
     "common_misreads": [
-      { "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "★ 경계만 표시! (예: '시간표/국경/정권 형태를 확정하지 않음')" },
-      { "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "★ 신학 해석이 아닌 '본문이 제공하는 범위'만 기술" },
-      { "id": "M3", "misread": "", "why_wrong": "", "correct_boundary": "" }
+      {{ "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "★ 경계만 표시! (예: '시간표/국경/정권 형태를 확정하지 않음')" }},
+      {{ "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "★ 신학 해석이 아닌 '본문이 제공하는 범위'만 기술" }},
+      {{ "id": "M3", "misread": "", "why_wrong": "", "correct_boundary": "" }}
     ]
-  },
+  }},
 
-  "step2_transfer": {
+  "step2_transfer": {{
     "big_idea_candidates": [
       "STEP2에서 big_idea로 발전시킬 수 있는 핵심 메시지 후보 1",
       "핵심 메시지 후보 2"
@@ -441,21 +559,22 @@ def build_step1_research_prompt():
       "각 소대지는 anchors 2개 이상을 반드시 참조",
       "does_not_claim(D*) 위반 금지"
     ]
-  }
-}
+  }}
+}}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【 최소 개수 요구사항 】
+【 최소 개수 요구사항 (스타일별) 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- anchors: 최소 10개 (A1~A10+)
+- anchors: 최소 {anchors_min}개
+- key_terms: 최대 {key_terms_max}개
+- cross_references: 최소 {cross_refs_min}개 (주제설교용)
 - historical_background: 최소 3개 (H1~H3+)
-- places: 최소 3개 (G1~G3+) ★ 3개 필수
+- places: 최소 3개 (G1~G3+)
 - clearly_affirms: 최소 5개 (C1~C5+)
 - does_not_claim: 최소 5개 (D1~D5+)
 - common_misreads: 최소 3개 (M1~M3+)
-- key_terms: 최대 6개 (T1~T6)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【 ⚠️ Placeholder 금지 규칙 (필수) 】
