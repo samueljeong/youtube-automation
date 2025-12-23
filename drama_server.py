@@ -21988,9 +21988,10 @@ def run_bible_episode_pipeline(
         print(f"[BIBLE] 음성: {voice}")
         print(f"[BIBLE] 공개설정: {visibility}")
 
-        # 상태를 '처리중'으로 변경
+        # 상태를 '처리중'으로 변경 + 시작 시간 기록
         from scripts.bible_pipeline.sheets import update_episode_status
-        update_episode_status(service, sheet_id, row_idx, "처리중")
+        start_time_str = dt.now().strftime('%Y-%m-%d %H:%M:%S')
+        update_episode_status(service, sheet_id, row_idx, "처리중", work_time=start_time_str)
 
         # BiblePipeline에서 에피소드 데이터 가져오기
         from scripts.bible_pipeline.run import BiblePipeline
