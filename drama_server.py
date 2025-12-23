@@ -22145,23 +22145,34 @@ def run_bible_episode_pipeline(
 #성경통독 #100일성경 #개역개정 #성경말씀 #{episode.book}
 """
 
-        upload_result = upload_video_to_youtube(
-            video_path=video_path,
-            title=title,
-            description=description,
-            privacy_status=visibility,
-            thumbnail_path=thumbnail_path,
-            playlist_id=playlist_id if playlist_id else None,
-            publish_at=publish_time if publish_time else None,
-            channel_id=channel_id if channel_id else None
-        )
+        # 내부 API 호출로 YouTube 업로드
+        import requests as req
+        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'http://127.0.0.1:10000')
+
+        upload_payload = {
+            "videoPath": video_path,
+            "title": title,
+            "description": description,
+            "privacyStatus": visibility,
+            "thumbnailPath": thumbnail_path,
+        }
+
+        if playlist_id:
+            upload_payload["playlistId"] = playlist_id
+        if publish_time:
+            upload_payload["publish_at"] = publish_time
+        if channel_id:
+            upload_payload["channelId"] = channel_id
+
+        upload_resp = req.post(f"{base_url}/api/youtube/upload", json=upload_payload, timeout=600)
+        upload_result = upload_resp.json()
 
         if not upload_result.get("ok"):
             error_msg = f"YouTube 업로드 실패: {upload_result.get('error')}"
             update_episode_status(service, sheet_id, row_idx, "실패", error_message=error_msg)
             return {"ok": False, "error": error_msg}
 
-        video_url = upload_result.get("video_url", "")
+        video_url = upload_result.get("videoUrl", "")
         print(f"[BIBLE] YouTube 업로드 완료: {video_url}")
 
         # ========== 6. 시트 업데이트 ==========
