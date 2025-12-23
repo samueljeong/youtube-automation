@@ -22010,13 +22010,13 @@ def run_bible_episode_pipeline(
         # ========== 1. TTS 생성 ==========
         print(f"[BIBLE] 1. TTS 생성 시작...")
 
-        # 전체 텍스트 생성 (절 번호 제외)
+        # 전체 텍스트 생성 (절 번호 제외, 마침표 포함)
         tts_texts = []
         verse_durations = []
 
         for chapter in episode.chapters:
             for verse in chapter.verses:
-                tts_texts.append(verse.text)  # 절 번호 제외
+                tts_texts.append(verse.tts_text)  # 마침표 자동 추가됨
 
         full_text = " ".join(tts_texts)
         print(f"[BIBLE] TTS 텍스트: {len(full_text)}자")
