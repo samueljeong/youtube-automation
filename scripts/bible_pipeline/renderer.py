@@ -594,7 +594,7 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Reference,{font_name},{int(font_size * 0.75)},&H0000D7FF,&H000000FF,&H00000000,&HCC000000,1,0,0,0,100,100,2,0,1,4,3,8,50,50,120,1
-Style: Verse,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&HCC000000,1,0,0,0,100,140,1,0,1,5,4,5,100,100,80,1
+Style: Verse,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&HCC000000,1,0,0,0,100,100,3,0,1,5,4,5,100,100,80,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
