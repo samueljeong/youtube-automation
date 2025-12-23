@@ -728,6 +728,9 @@ def render_episode_video(
         {"ok": False, "error": str}
     """
     import subprocess
+    import re
+    import time
+    import sys
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -738,23 +741,33 @@ def render_episode_video(
     subtitle_path = os.path.join(output_dir, f"day_{episode.day_number:03d}.{subtitle_ext}")
 
     # 배경 이미지 확인/생성
+    print(f"[RENDER] 배경 이미지 확인 중...", flush=True)
     if background_path is None:
         from .background import get_background_path, generate_book_background
         background_path = get_background_path(episode.book)
         if not background_path:
+            print(f"[RENDER] 배경 이미지 생성 중: {episode.book}", flush=True)
             result = generate_book_background(episode.book)
             if not result.get("ok"):
                 return {"ok": False, "error": f"배경 생성 실패: {result.get('error')}"}
             background_path = result.get("image_path")
+            print(f"[RENDER] 배경 이미지 생성 완료: {background_path}", flush=True)
+        else:
+            print(f"[RENDER] 기존 배경 이미지 사용: {background_path}", flush=True)
+    else:
+        print(f"[RENDER] 제공된 배경 이미지 사용: {background_path}", flush=True)
 
     # 자막 생성
+    print(f"[RENDER] 자막 파일 생성 중... ({len(episode.subtitles)}개 절)", flush=True)
     if use_ass:
         generate_ass_subtitle(episode.subtitles, verse_durations, subtitle_path)
     else:
         generate_verse_srt(episode.subtitles, verse_durations, subtitle_path)
+    print(f"[RENDER] 자막 파일 생성 완료: {subtitle_path}", flush=True)
 
     # 총 재생 시간 계산
     total_duration = sum(verse_durations)
+    print(f"[RENDER] 예상 영상 길이: {total_duration:.1f}초 ({total_duration/60:.1f}분)", flush=True)
 
     # FFmpeg 명령어 생성 및 실행
     cmd = generate_ffmpeg_command(
@@ -766,24 +779,100 @@ def render_episode_video(
         subtitle_type=subtitle_ext
     )
 
-    print(f"[RENDER] FFmpeg 실행: Day {episode.day_number}")
-    print(f"[RENDER] 명령어: {' '.join(cmd)}")
+    # 타임아웃 계산: 영상 길이의 2배 + 5분 (최소 15분, 최대 60분)
+    # Render 1vCPU에서 실시간의 약 1.5-2배 소요
+    timeout_seconds = min(max(int(total_duration * 2 + 300), 900), 3600)
+    print(f"[RENDER] FFmpeg 실행 시작: Day {episode.day_number} (타임아웃: {timeout_seconds//60}분)", flush=True)
+    print(f"[RENDER] 명령어: {' '.join(cmd[:10])}...", flush=True)
 
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=600  # 10분 타임아웃
+        import select
+        import threading
+
+        # FFmpeg에 -progress pipe:1 추가하여 진행 정보를 stdout으로 출력
+        cmd_with_progress = cmd[:-1] + ['-progress', 'pipe:1', cmd[-1]]
+
+        process = subprocess.Popen(
+            cmd_with_progress,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
 
-        if result.returncode != 0:
+        start_time = time.time()
+        last_progress_time = time.time()
+        stderr_lines = []
+        current_time_sec = 0
+
+        def read_stderr():
+            """stderr를 백그라운드에서 읽어 저장"""
+            for line in process.stderr:
+                stderr_lines.append(line)
+
+        # stderr를 별도 스레드에서 읽기 (블로킹 방지)
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+
+        # stdout에서 진행 정보 읽기 (FFmpeg -progress 출력)
+        while True:
+            # 타임아웃 체크
+            if time.time() - start_time > timeout_seconds:
+                process.kill()
+                return {"ok": False, "error": f"FFmpeg 타임아웃 ({timeout_seconds//60}분 초과)"}
+
+            # 프로세스 종료 체크
+            if process.poll() is not None:
+                break
+
+            try:
+                line = process.stdout.readline()
+                if not line:
+                    time.sleep(0.1)
+                    continue
+
+                # out_time_ms=12345678 형식에서 시간 추출
+                if line.startswith('out_time_ms='):
+                    try:
+                        ms = int(line.split('=')[1].strip())
+                        current_time_sec = ms / 1000000.0
+                    except:
+                        pass
+
+                # out_time=00:01:23.456789 형식
+                elif line.startswith('out_time='):
+                    time_str = line.split('=')[1].strip()
+                    time_match = re.match(r'(\d+):(\d+):(\d+\.?\d*)', time_str)
+                    if time_match:
+                        hours = int(time_match.group(1))
+                        minutes = int(time_match.group(2))
+                        seconds = float(time_match.group(3))
+                        current_time_sec = hours * 3600 + minutes * 60 + seconds
+
+                # 30초마다 진행 상황 출력
+                if time.time() - last_progress_time >= 30:
+                    progress_pct = (current_time_sec / total_duration * 100) if total_duration > 0 else 0
+                    elapsed = time.time() - start_time
+                    print(f"[RENDER] FFmpeg 진행: {current_time_sec:.0f}초/{total_duration:.0f}초 ({progress_pct:.1f}%) - 경과: {elapsed/60:.1f}분", flush=True)
+                    last_progress_time = time.time()
+
+            except Exception as e:
+                time.sleep(0.1)
+
+        # 프로세스 완료 대기
+        process.wait(timeout=60)
+        stderr_thread.join(timeout=5)
+
+        if process.returncode != 0:
+            error_text = ''.join(stderr_lines[-30:]) if stderr_lines else "No stderr"
             return {
                 "ok": False,
-                "error": f"FFmpeg 오류: {result.stderr[:500]}"
+                "error": f"FFmpeg 오류 (code {process.returncode}): {error_text[:500]}"
             }
 
-        print(f"[RENDER] 영상 생성 완료: {video_path}")
+        elapsed = time.time() - start_time
+        print(f"[RENDER] FFmpeg 완료! 총 {current_time_sec:.0f}초 렌더링됨 (소요: {elapsed/60:.1f}분)", flush=True)
+        print(f"[RENDER] 영상 생성 완료: {video_path}", flush=True)
+
         return {
             "ok": True,
             "video_path": video_path,
@@ -792,7 +881,8 @@ def render_episode_video(
         }
 
     except subprocess.TimeoutExpired:
-        return {"ok": False, "error": "FFmpeg 타임아웃 (10분 초과)"}
+        process.kill()
+        return {"ok": False, "error": f"FFmpeg 타임아웃 ({timeout_seconds//60}분 초과)"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

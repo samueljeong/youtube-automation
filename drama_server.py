@@ -13195,7 +13195,7 @@ def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.10):
         result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
         video_duration = float(result.stdout.strip())
 
-        print(f"[BGM] 비디오 길이: {video_duration:.1f}초")
+        print(f"[BGM] 비디오 길이: {video_duration:.1f}초", flush=True)
 
         # FFmpeg 명령: BGM 루프 + 볼륨 조절 + 믹싱 + 페이드아웃
         # -stream_loop -1: BGM 무한 루프
@@ -13220,20 +13220,20 @@ def _mix_bgm_with_video(video_path, bgm_path, output_path, bgm_volume=0.10):
             output_path
         ]
 
-        print(f"[BGM] 믹싱 시작...")
+        print(f"[BGM] 믹싱 시작...", flush=True)
         result = subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL,
                                stderr=subprocess.PIPE, timeout=600)
 
         if result.returncode == 0:
-            print(f"[BGM] 믹싱 완료: {output_path}")
+            print(f"[BGM] 믹싱 완료: {output_path}", flush=True)
             return True
         else:
             stderr = result.stderr.decode('utf-8', errors='ignore')[:300]
-            print(f"[BGM] 믹싱 실패: {stderr}")
+            print(f"[BGM] 믹싱 실패: {stderr}", flush=True)
             return False
 
     except Exception as e:
-        print(f"[BGM] 믹싱 오류: {e}")
+        print(f"[BGM] 믹싱 오류: {e}", flush=True)
         return False
 
 
@@ -22194,7 +22194,7 @@ def run_bible_episode_pipeline(
         os.makedirs(temp_dir, exist_ok=True)
 
         # ========== 1. TTS 생성 (청크별 실제 duration 측정) ==========
-        print(f"[BIBLE] 1. TTS 생성 시작...")
+        print(f"[BIBLE] 1. TTS 생성 시작...", flush=True)
 
         # 절별 TTS 텍스트 추출 (절 번호 제외, 마침표 포함)
         tts_texts = []
@@ -22202,7 +22202,7 @@ def run_bible_episode_pipeline(
             for verse in chapter.verses:
                 tts_texts.append(verse.tts_text)  # 마침표 자동 추가됨
 
-        print(f"[BIBLE] TTS 텍스트: {len(tts_texts)}개 절")
+        print(f"[BIBLE] TTS 텍스트: {len(tts_texts)}개 절", flush=True)
 
         # TTS 음성 처리
         audio_path = os.path.join(temp_dir, f"day_{day_number:03d}.mp3")
@@ -22255,31 +22255,38 @@ def run_bible_episode_pipeline(
         with open(audio_path, "wb") as f:
             f.write(audio_data)
 
-        print(f"[BIBLE] TTS 완료: {audio_duration:.1f}초, {len(verse_durations)}개 절 duration 계산됨")
+        print(f"[BIBLE] TTS 완료: {audio_duration:.1f}초, {len(verse_durations)}개 절 duration 계산됨", flush=True)
 
         # ========== 2. 배경 이미지 ==========
-        print(f"[BIBLE] 2. 배경 이미지 확인...")
+        print(f"[BIBLE] 2. 배경 이미지 확인...", flush=True)
         from scripts.bible_pipeline.background import get_background_path, generate_book_background
 
         background_path = get_background_path(episode.book)
         if not background_path:
-            print(f"[BIBLE] 배경 이미지 생성: {episode.book}")
+            print(f"[BIBLE] 배경 이미지 생성: {episode.book}", flush=True)
             bg_result = generate_book_background(episode.book)
             if bg_result.get("ok"):
                 background_path = bg_result.get("image_path")
+                print(f"[BIBLE] 배경 이미지 생성 완료: {background_path}", flush=True)
             else:
-                print(f"[BIBLE] 배경 생성 실패, 기본 배경 사용")
+                print(f"[BIBLE] 배경 생성 실패, 기본 배경 사용", flush=True)
                 background_path = None
+        else:
+            print(f"[BIBLE] 기존 배경 이미지 사용: {background_path}", flush=True)
 
         # ========== 3. 썸네일 생성 ==========
-        print(f"[BIBLE] 3. 썸네일 생성...")
+        print(f"[BIBLE] 3. 썸네일 생성...", flush=True)
         from scripts.bible_pipeline.thumbnail import generate_episode_thumbnail
 
         thumb_result = generate_episode_thumbnail(episode)
         thumbnail_path = thumb_result.get("image_path") if thumb_result.get("ok") else None
+        if thumbnail_path:
+            print(f"[BIBLE] 썸네일 생성 완료: {thumbnail_path}", flush=True)
+        else:
+            print(f"[BIBLE] 썸네일 생성 실패: {thumb_result.get('error', 'Unknown')}", flush=True)
 
         # ========== 4. 영상 렌더링 ==========
-        print(f"[BIBLE] 4. 영상 렌더링...")
+        print(f"[BIBLE] 4. 영상 렌더링...", flush=True)
         from scripts.bible_pipeline.renderer import render_episode_video
 
         video_result = render_episode_video(
@@ -22297,10 +22304,10 @@ def run_bible_episode_pipeline(
             return {"ok": False, "error": error_msg}
 
         video_path = video_result.get("video_path")
-        print(f"[BIBLE] 영상 생성 완료: {video_path}")
+        print(f"[BIBLE] 영상 생성 완료: {video_path}", flush=True)
 
         # ========== 4.5. BGM 믹싱 (calm 분위기, 10% 볼륨) ==========
-        print(f"[BIBLE] 4.5. BGM 믹싱...")
+        print(f"[BIBLE] 4.5. BGM 믹싱...", flush=True)
 
         import glob
         import random
@@ -22313,19 +22320,19 @@ def run_bible_episode_pipeline(
             bgm_path = random.choice(calm_bgms)
             bgm_output_path = video_path.replace(".mp4", "_bgm.mp4")
 
-            print(f"[BIBLE] BGM 파일: {os.path.basename(bgm_path)}")
+            print(f"[BIBLE] BGM 파일: {os.path.basename(bgm_path)}", flush=True)
 
             if _mix_bgm_with_video(video_path, bgm_path, bgm_output_path, bgm_volume=0.10):
                 # BGM 믹싱 성공 - 기존 파일 교체
                 os.replace(bgm_output_path, video_path)
-                print(f"[BIBLE] BGM 믹싱 완료 (볼륨 10%)")
+                print(f"[BIBLE] BGM 믹싱 완료 (볼륨 10%)", flush=True)
             else:
-                print(f"[BIBLE] BGM 믹싱 실패 - 원본 영상 사용")
+                print(f"[BIBLE] BGM 믹싱 실패 - 원본 영상 사용", flush=True)
         else:
-            print(f"[BIBLE] calm BGM 파일 없음 - BGM 없이 진행")
+            print(f"[BIBLE] calm BGM 파일 없음 - BGM 없이 진행", flush=True)
 
         # ========== 5. YouTube 업로드 ==========
-        print(f"[BIBLE] 5. YouTube 업로드...")
+        print(f"[BIBLE] 5. YouTube 업로드...", flush=True)
 
         # SEO 최적화된 YouTube 설명 생성
         testament = "구약" if episode.book in ["창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기", "사무엘상", "사무엘하", "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야", "에스더", "욥기", "시편", "잠언", "전도서", "아가", "이사야", "예레미야", "예레미야애가", "에스겔", "다니엘", "호세아", "요엘", "아모스", "오바댜", "요나", "미가", "나훔", "하박국", "스바냐", "학개", "스가랴", "말라기"] else "신약"
@@ -22385,9 +22392,10 @@ def run_bible_episode_pipeline(
             return {"ok": False, "error": error_msg}
 
         video_url = upload_result.get("videoUrl", "")
-        print(f"[BIBLE] YouTube 업로드 완료: {video_url}")
+        print(f"[BIBLE] YouTube 업로드 완료: {video_url}", flush=True)
 
         # ========== 6. 시트 업데이트 ==========
+        print(f"[BIBLE] 6. 시트 업데이트...", flush=True)
         elapsed_time = time_module.time() - start_time
         work_time_str = f"{elapsed_time / 60:.1f}분"
 
@@ -22398,13 +22406,14 @@ def run_bible_episode_pipeline(
         )
 
         # 임시 파일 정리
+        print(f"[BIBLE] 7. 임시 파일 정리...", flush=True)
         try:
             import shutil
             shutil.rmtree(temp_dir, ignore_errors=True)
         except:
             pass
 
-        print(f"[BIBLE] ========== 파이프라인 완료: Day {day_number} ({work_time_str}) ==========")
+        print(f"[BIBLE] ========== 파이프라인 완료: Day {day_number} ({work_time_str}) ==========", flush=True)
 
         return {"ok": True, "video_url": video_url}
 
