@@ -10168,8 +10168,12 @@ def youtube_upload():
                 thumbnail_uploaded = False
                 if thumbnail_path:
                     try:
-                        # 썸네일 전체 경로 (상대 경로인 경우 처리)
-                        if thumbnail_path.startswith('/'):
+                        # 썸네일 전체 경로 처리
+                        # 1. 절대 경로면 그대로 사용
+                        if os.path.isabs(thumbnail_path) and os.path.exists(thumbnail_path):
+                            thumb_full_path = thumbnail_path
+                        # 2. 상대 경로인 경우 처리
+                        elif thumbnail_path.startswith('/'):
                             thumb_full_path = thumbnail_path[1:]  # 앞의 / 제거
                         else:
                             thumb_full_path = thumbnail_path
@@ -10178,7 +10182,7 @@ def youtube_upload():
                         if thumb_full_path.startswith('output/'):
                             thumb_full_path = 'outputs/' + thumb_full_path[7:]  # output/ 제거 후 outputs/ 추가
 
-                        print(f"[YOUTUBE-UPLOAD] 썸네일 경로 변환: {thumbnail_path} → {thumb_full_path}")
+                        print(f"[YOUTUBE-UPLOAD] 썸네일 경로: {thumbnail_path} → {thumb_full_path}")
 
                         # 파일 존재 확인
                         if os.path.exists(thumb_full_path):
