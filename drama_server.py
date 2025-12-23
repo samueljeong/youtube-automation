@@ -22422,6 +22422,54 @@ def run_bible_episode_pipeline(
         return {"ok": False, "error": error_msg}
 
 
+@app.route('/api/bible/test-background', methods=['GET', 'POST'])
+def api_bible_test_background():
+    """
+    배경 이미지 테스트 API - 영상 생성 없이 배경만 빠르게 확인
+
+    사용법:
+    - GET /api/bible/test-background?book=창세기
+    - GET /api/bible/test-background?book=마태복음&force=1
+
+    Args:
+        book: 성경 책 이름 (예: 창세기, 마태복음)
+        force: 1이면 기존 이미지 재생성
+    """
+    try:
+        book = request.args.get('book', '창세기')
+        force = request.args.get('force', '0') == '1'
+
+        from scripts.bible_pipeline.background import generate_book_background, get_background_prompt
+
+        # 프롬프트 확인용
+        prompt = get_background_prompt(book)
+        print(f"[BIBLE-BG-TEST] 프롬프트:\n{prompt[:500]}...")
+
+        # 배경 이미지 생성
+        result = generate_book_background(book, force_regenerate=force)
+
+        if result.get("ok"):
+            return jsonify({
+                "ok": True,
+                "book": book,
+                "image_url": result.get("image_url"),
+                "image_path": result.get("image_path"),
+                "cached": result.get("cached", False),
+                "prompt_preview": prompt[:300] + "..."
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "book": book,
+                "error": result.get("error")
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @app.route('/api/bible/check-and-process', methods=['GET', 'POST'])
 def api_bible_check_and_process():
     """
