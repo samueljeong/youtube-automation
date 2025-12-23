@@ -2304,11 +2304,45 @@ def seed_groups():
 
 
 # =============================================================================
-# 데이터베이스 초기화
+# 데이터베이스 초기화 및 마이그레이션
 # =============================================================================
+
+def run_migrations():
+    """데이터베이스 스키마 마이그레이션 실행"""
+    from sqlalchemy import text, inspect
+
+    inspector = inspect(db.engine)
+
+    # groups 테이블 마이그레이션
+    if 'groups' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('groups')]
+
+        # parent_id 컬럼 추가
+        if 'parent_id' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE groups ADD COLUMN parent_id INTEGER REFERENCES groups(id)'
+            ))
+            print('[Migration] Added parent_id column to groups table')
+
+        # level 컬럼 추가
+        if 'level' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE groups ADD COLUMN level INTEGER DEFAULT 0'
+            ))
+            print('[Migration] Added level column to groups table')
+
+        # description 컬럼 추가
+        if 'description' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE groups ADD COLUMN description VARCHAR(200)'
+            ))
+            print('[Migration] Added description column to groups table')
+
+        db.session.commit()
 
 with app.app_context():
     db.create_all()
+    run_migrations()
 
 
 if __name__ == '__main__':
