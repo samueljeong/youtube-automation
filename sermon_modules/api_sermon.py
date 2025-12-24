@@ -31,7 +31,7 @@ from .auth import (
     api_login_required, AUTH_ENABLED,
     get_user_credits, use_credit
 )
-from .prompt import (
+from .step3_prompt_builder import (
     get_system_prompt_for_step, build_prompt_from_json, build_step3_prompt_from_json,
     validate_step1_output, validate_step2_output,
     parse_step3_self_check, validate_step3_self_check, build_step3_retry_prompt
@@ -418,7 +418,7 @@ def process_step():
         if not is_json:
             # Step1인 경우: 본문 연구 전용 프롬프트 사용 (스타일별 설정 적용)
             if step_type == "step1":
-                from .prompt import build_step1_research_prompt, get_style_step1_config
+                from .step3_prompt_builder import build_step1_research_prompt, get_style_step1_config
                 system_content = build_step1_research_prompt(style_id=style_id)
                 style_config = get_style_step1_config(style_id)
                 print(f"[PROCESS] Step1 연구 모드 프롬프트 적용 (스타일: {style_id}, 강조점: {style_config['emphasis']}, anchors: {style_config['anchors_min']}개, key_terms: {style_config['key_terms_max']}개, cross_refs: {style_config['cross_refs_min']}개)")

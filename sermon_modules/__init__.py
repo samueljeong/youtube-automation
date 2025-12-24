@@ -6,7 +6,7 @@ Flask Blueprint를 사용한 Sermon 앱 모듈화
 - db.py: 데이터베이스 연결 및 초기화
 - utils.py: 유틸리티 함수들
 - auth.py: 인증, 크레딧 관리, 데코레이터
-- prompt.py: 프롬프트 빌더 함수들
+- step3_prompt_builder.py: 프롬프트 빌더 함수들
 - bible.py: 개역개정 성경 본문 검색 (오타 없는 원문)
 - api_sermon.py: 설교 처리 API Blueprint (준비됨)
 - api_banner.py: 배너 API Blueprint (준비됨)
@@ -16,7 +16,7 @@ Flask Blueprint를 사용한 Sermon 앱 모듈화
     from sermon_modules.db import get_db_connection, init_db
     from sermon_modules.utils import calculate_cost, format_json_result
     from sermon_modules.auth import auth_bp, login_required
-    from sermon_modules.prompt import build_prompt_from_json
+    from sermon_modules.step3_prompt_builder import build_prompt_from_json
 
     # API Blueprints (아직 마이그레이션 전)
     from sermon_modules.api_sermon import api_sermon_bp
@@ -53,7 +53,7 @@ from .auth import (
     AUTH_ENABLED
 )
 
-from .prompt import (
+from .step3_prompt_builder import (
     get_system_prompt_for_step,
     build_prompt_from_json,
     build_step3_prompt_from_json,

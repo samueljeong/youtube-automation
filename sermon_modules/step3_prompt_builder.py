@@ -1187,12 +1187,11 @@ def build_step3_prompt_from_json(
         draft += "   [분량 맞추기 전략]\n"
         if minutes >= 25:
             draft += f"   - 서론: 약 {round(target_chars * 0.15):,}자 (도입, 성경 배경)\n"
-            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 설명 + 예화 + 적용)\n"
+            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 설명)\n"
             draft += f"   - 결론: 약 {round(target_chars * 0.20):,}자 (요약 + 결단 촉구 + 기도)\n"
-            draft += "   - 각 대지마다 예화 1개, 적용 1개를 반드시 포함하세요.\n"
         elif minutes >= 15:
             draft += f"   - 서론: 약 {round(target_chars * 0.15):,}자\n"
-            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 충분한 설명)\n"
+            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 설명)\n"
             draft += f"   - 결론: 약 {round(target_chars * 0.20):,}자\n"
         else:
             draft += "   - 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n"

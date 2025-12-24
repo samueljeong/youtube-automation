@@ -16,7 +16,7 @@ from openai import OpenAI
 # - from sermon_modules.utils import calculate_cost, format_json_result, remove_markdown
 # - from sermon_modules.auth import login_required, admin_required, api_login_required
 # - from sermon_modules.auth import get_user_credits, use_credit, add_credits, set_credits
-# - from sermon_modules.prompt import get_system_prompt_for_step, build_prompt_from_json
+# - from sermon_modules.step3_prompt_builder import get_system_prompt_for_step, build_prompt_from_json
 
 # ===== API Blueprint (sermon_modules.api_sermon) =====
 from sermon_modules.api_sermon import api_sermon_bp, init_sermon_api
