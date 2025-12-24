@@ -1683,7 +1683,7 @@ def sermon_chat():
 # 스타일 가이드 API (Step4 전체 복사용)
 # ═══════════════════════════════════════════════════════════════
 
-@api_sermon_bp.route('/api/sermon/style-guide/<style_id>', methods=['GET'])
+@api_sermon_bp.route('/style-guide/<style_id>', methods=['GET'])
 def get_style_guide_api(style_id):
     """
     스타일별 Step3 작성 가이드 반환 (three_points.py 등에서 가져옴)
@@ -1728,7 +1728,7 @@ def get_style_guide_api(style_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@api_sermon_bp.route('/api/sermon/duration-info/<duration>', methods=['GET'])
+@api_sermon_bp.route('/duration-info/<duration>', methods=['GET'])
 def get_duration_info_api(duration):
     """
     분량(분)을 글자 수로 변환하여 반환
