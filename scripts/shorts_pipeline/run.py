@@ -110,7 +110,7 @@ def generate_tts(
         print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}")
 
         # Gemini TTS REST API 호출
-        model = "gemini-2.0-flash-exp"  # TTS 지원 모델
+        model = "gemini-2.5-flash-preview-tts"  # TTS 전용 모델
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         payload = {
