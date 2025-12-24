@@ -10,6 +10,7 @@ from .history import HISTORY_RULES, get_history_prompt
 from .cooking import COOKING_RULES, get_cooking_prompt
 from .finance import FINANCE_RULES, get_finance_prompt
 from .motivation import MOTIVATION_RULES, get_motivation_prompt
+from .mystery import MYSTERY_RULES, get_mystery_prompt
 
 CATEGORY_PROMPTS = {
     'health': get_health_prompt,
@@ -21,4 +22,5 @@ CATEGORY_PROMPTS = {
     'cooking': get_cooking_prompt,
     'finance': get_finance_prompt,
     'motivation': get_motivation_prompt,
+    'mystery': get_mystery_prompt,
 }
