@@ -54,14 +54,26 @@ HISTORY_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### Thumbnail Style: HISTORICAL CONCEPT ART
+### Thumbnail Style: HISTORICAL CONCEPT ART + MASCOT
 ⚠️ Historical setting and costume matching the era
 ⚠️ Dramatic lighting, serious or contemplative expression
+⚠️ MASCOT MUST be prominently featured (25-35% of frame)
 
-**ai_prompts templates:**
-- A: Historical figure with dramatic expression, period costume
-- B: Battle or court scene with tension
-- C: Split composition showing before/after or contrast
+**Thumbnail Prompt Template:**
+```
+Historical concept art thumbnail, [MAIN SCENE DESCRIPTION],
+sepia and earth tone palette, dramatic cinematic lighting,
+LEFT/RIGHT SIDE: retro cartoon Korean scholar mascot (1960s animation style, round friendly face, traditional hanbok with gat, thick outlines, expressive pose - pointing/explaining/surprised, 25-35% of frame),
+mascot reacting to the historical scene,
+aged parchment texture, vintage feel,
+eye-catching YouTube thumbnail composition,
+NO text, NO watermark, 16:9 aspect ratio
+```
+
+**ai_prompts templates (with mascot):**
+- A: Historical scene + mascot explaining/pointing at key element
+- B: Battle/court scene + mascot reacting with surprise or concern
+- C: Dramatic moment + mascot with thoughtful/curious expression
 
 ---
 
@@ -69,6 +81,34 @@ HISTORY_RULES = """
 
 ### Style Definition: HISTORICAL CONCEPT ART
 This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
+
+---
+
+## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
+
+### Mascot Definition:
+```
+Retro cartoon style Korean scholar mascot,
+1960s animation inspired design,
+round friendly face, expressive eyes,
+traditional hanbok with gat (Korean hat),
+thick outlines, vintage color palette,
+nostalgic yet timeless appeal
+```
+
+### Mascot Placement in Scene Images:
+- Position: BOTTOM RIGHT CORNER (10-15% of frame)
+- The mascot observes/reacts to the historical scene
+- Mascot style contrasts with realistic background (intentional)
+- Mascot expression should match scene mood (curious, surprised, thoughtful, etc.)
+
+### Mascot in Thumbnail:
+- Position: LEFT or RIGHT side (25-35% of frame)
+- Larger size for thumbnail visibility
+- More expressive pose (pointing, explaining, reacting)
+- Can overlap slightly with main scene
+
+---
 
 ### MANDATORY Style Keywords (MUST include in every image_prompt):
 ```
@@ -78,11 +118,12 @@ aged parchment texture border, vintage canvas feel,
 digital painting with visible brush strokes,
 dramatic lighting, misty atmospheric perspective,
 clearly artistic interpretation NOT photograph,
+BOTTOM RIGHT CORNER: small retro cartoon Korean scholar mascot (1960s animation style, round face, traditional hanbok with gat, thick outlines, 10-15% of frame),
 NO text, NO watermark, NO labels,
 16:9 cinematic composition
 ```
 
-### Scene Type Templates:
+### Scene Type Templates (ALL include mascot!):
 
 **1. Single Character (인물 단독):**
 ```
@@ -93,6 +134,7 @@ sepia and earth tone palette, aged parchment texture,
 dramatic [TIME OF DAY] lighting,
 digital painting with visible brush strokes,
 epic landscape background with mountains/fortress,
+BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching curiously (1960s style, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -104,6 +146,7 @@ wide cinematic shot showing scale of [EVENT],
 sepia earth tones, aged canvas texture,
 dramatic lighting with dust/mist particles,
 detailed crowd with period-accurate costumes,
+BOTTOM RIGHT: small retro cartoon Korean scholar mascot observing with amazement (1960s style, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -115,6 +158,7 @@ epic wide shot showing military scale,
 dust and tension atmosphere,
 sepia palette with dramatic sunset/stormy sky,
 aged parchment border, cinematic composition,
+BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching tensely (1960s style, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -126,6 +170,7 @@ traditional architecture with period details,
 warm torchlight/candlelight atmosphere,
 earth tones with gold accents,
 aged texture, vintage illustration style,
+BOTTOM RIGHT: small retro cartoon Korean scholar mascot peeking thoughtfully (1960s style, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -137,6 +182,7 @@ coordinated group effort showing scale,
 wide shot with landscape background,
 sepia earth tones, aged parchment texture,
 dramatic natural lighting,
+BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching with interest (1960s style, 10% of frame),
 NO text, NO watermark
 ```
 
