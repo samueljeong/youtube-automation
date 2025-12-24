@@ -105,7 +105,6 @@ def generate_opus_input(
 5."""
 
             brief = f"""[대본 지시문]
-- 분량: {SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분 ({SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자)
 - 요일: {weekday_angle}
 - 관점: "내 돈/내 생활"에 미치는 영향
 - 구조: 서론(불안/의문) → 본론(핵심 정리) → 전망 → 마무리
@@ -180,7 +179,7 @@ def _build_opus_prompt_pack(
     Opus에 붙여넣을 완제품 프롬프트 생성 (썸네일 제외)
     """
     return f"""당신은 뉴스 전문 유튜브 채널의 대본 작가입니다.
-아래 정보를 바탕으로 **{SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분 분량({SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자)**의 나레이션 대본을 작성하세요.
+아래 정보를 바탕으로 나레이션 대본을 작성하세요.
 
 ════════════════════════════════════════
 [CONTEXT]
@@ -199,11 +198,6 @@ def _build_opus_prompt_pack(
 ════════════════════════════════════════
 [SCRIPT BRIEF]
 ════════════════════════════════════════
-📌 분량 (필수)
-- 시간: {SCRIPT_DURATION_MIN}~{SCRIPT_DURATION_MAX}분
-- 문자수: {SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자 (한국어 기준) ← 반드시 준수
-- TTS 속도: 약 620~930자/분
-
 📌 관점
 - "내 돈/내 생활"에 미치는 영향 중심
 - 시청자가 오늘 뉴스를 왜 봐야 하는지
@@ -222,7 +216,6 @@ def _build_opus_prompt_pack(
 ════════════════════════════════════════
 ⚠️ 최종 체크리스트 (작성 후 반드시 확인)
 ════════════════════════════════════════
-□ 총 글자수 {SCRIPT_LEN_MIN:,}~{SCRIPT_LEN_MAX:,}자 사이인가?
 □ "내 돈/내 생활"에 미치는 영향이 명확한가?
 □ 과장/공포 조장 표현이 없는가?
 □ 훈계형 표현이 없는가?
