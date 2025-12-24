@@ -386,9 +386,6 @@ def get_series_progress(service, spreadsheet_id: str) -> Dict[str, Any]:
         headers = rows[0]  # 행 2 = 헤더
         data_rows = rows[1:]  # 행 3~ = 데이터
 
-        result["total_episodes"] = len(data_rows)
-        result["all_rows"] = data_rows
-
         # 컬럼 인덱스 찾기 (통합 시트 헤더 기준)
         col_idx = {h: i for i, h in enumerate(headers)}
 
@@ -396,15 +393,21 @@ def get_series_progress(service, spreadsheet_id: str) -> Dict[str, Any]:
         era_episode_idx = col_idx.get("episode_slot", 1)
         status_idx = col_idx.get("상태", -1)  # 통합 시트는 한글 헤더 사용
 
+        # ★ 빈 행 필터링: era 열이 비어있으면 스킵 (드롭다운만 있는 빈 행 제외)
+        valid_rows = [row for row in data_rows if len(row) > era_idx and row[era_idx].strip()]
+
+        result["total_episodes"] = len(valid_rows)
+        result["all_rows"] = valid_rows
+
         # '준비' 상태 개수 세기 (수집 완료 상태)
         if status_idx >= 0:
-            for row in data_rows:
+            for row in valid_rows:
                 if len(row) > status_idx and row[status_idx] == "준비":
                     result["pending_count"] += 1
 
         # 마지막 에피소드 정보
-        if data_rows:
-            last_row = data_rows[-1]
+        if valid_rows:
+            last_row = valid_rows[-1]
 
             if len(last_row) > era_idx:
                 result["current_era"] = last_row[era_idx]
