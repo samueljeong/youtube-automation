@@ -172,13 +172,19 @@ SCRIPT_GENERATION_PROMPT = """
         "text": "실제 삽입된 댓글 유도 문구"
     }},
     "fact_sources": ["뉴스 기사에서 인용한 사실들 요약"],
+    "bgm": {{
+        "mood": "hopeful/sad/tense/dramatic/calm/inspiring/mysterious/epic/romantic/upbeat 중 하나",
+        "reason": "이 분위기를 선택한 이유 (한 줄)"
+    }},
+    "highlight_keywords": ["충격", "폭로", "...자막에서 강조할 키워드들"],
     "scenes": [
         {{
             "scene_number": 1,
             "duration": "0-3초",
             "narration": "킬러 훅 문장",
             "image_prompt": "영어 이미지 프롬프트 (실루엣 포함)",
-            "text_overlay": "화면 핵심 텍스트 (5자 이내)"
+            "text_overlay": "화면 핵심 텍스트 (5자 이내)",
+            "emphasis": true  // 훅 씬은 강조 자막 사용
         }},
         ...총 8개 씬 (마지막은 루프 연결)
     ],

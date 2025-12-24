@@ -366,6 +366,133 @@ FACT_CHECK_RULES = """
 
 
 # ============================================================
+# BGM 설정 (쇼츠용)
+# ============================================================
+
+# 이슈 타입별 기본 BGM 분위기
+SHORTS_BGM_MOODS = {
+    # 연예인
+    "논란": "tense",       # 긴장감
+    "열애": "romantic",    # 로맨틱
+    "컴백": "upbeat",      # 신나는
+    "사건": "dramatic",    # 극적
+    "근황": "calm",        # 차분
+
+    # 운동선수
+    "성과": "epic",        # 웅장한
+    "부상": "sad",         # 슬픈
+    "이적": "inspiring",   # 영감
+
+    # 국뽕
+    "자랑": "epic",        # 웅장한
+    "반응": "upbeat",      # 신나는
+    "문화": "inspiring",   # 영감
+
+    # 기본
+    "default": "dramatic",
+}
+
+# BGM 볼륨 설정
+SHORTS_BGM_CONFIG = {
+    "volume": 0.15,        # 배경음악 볼륨 (TTS 대비)
+    "fade_in": 1.0,        # 시작 페이드인 (초)
+    "fade_out": 2.0,       # 끝 페이드아웃 (초)
+    "ducking": True,       # TTS 구간에서 볼륨 낮추기
+    "ducking_ratio": 0.5,  # 덕킹 시 볼륨 비율
+}
+
+# 사용 가능한 BGM 분위기 목록
+BGM_MOOD_OPTIONS = [
+    "hopeful",    # 희망적
+    "sad",        # 슬픈
+    "tense",      # 긴장감
+    "dramatic",   # 극적
+    "calm",       # 차분한
+    "inspiring",  # 영감
+    "mysterious", # 신비로운
+    "nostalgic",  # 향수
+    "epic",       # 웅장한
+    "romantic",   # 로맨틱
+    "comedic",    # 코믹
+    "horror",     # 공포
+    "upbeat",     # 신나는
+]
+
+
+# ============================================================
+# 자막 스타일 (쇼츠용 - 세로 화면 최적화)
+# ============================================================
+
+SHORTS_SUBTITLE_STYLE = {
+    # 기본 폰트 설정
+    "font_name": "NanumSquareRoundEB",  # 나눔스퀘어라운드 ExtraBold
+    "font_size": 48,                     # 큰 글씨 (모바일 가독성)
+    "font_color": "#FFFFFF",             # 흰색
+
+    # 테두리/외곽선 (가독성 향상)
+    "outline_color": "#000000",          # 검정 테두리
+    "outline_width": 3,                  # 두꺼운 테두리
+
+    # 그림자 효과
+    "shadow_enabled": True,
+    "shadow_color": "#000000",
+    "shadow_offset": 2,
+
+    # 위치 (9:16 세로 화면 기준)
+    "position": "bottom",                # 하단 배치
+    "margin_bottom": 150,                # 바텀 여백 (네비게이션 바 피하기)
+    "margin_horizontal": 40,             # 좌우 여백
+
+    # 애니메이션
+    "fade_in": 0.1,                      # 페이드인 (초)
+    "fade_out": 0.1,                     # 페이드아웃 (초)
+
+    # 한 줄 최대 글자 수 (자동 줄바꿈)
+    "max_chars_per_line": 12,            # 세로 화면이라 짧게
+}
+
+# 강조 자막 스타일 (훅, 핵심 문장용)
+SHORTS_EMPHASIS_STYLE = {
+    "font_size": 56,                     # 더 큰 글씨
+    "font_color": "#FFFF00",             # 노란색
+    "outline_color": "#FF0000",          # 빨간 테두리
+    "outline_width": 4,
+    "position": "center",                # 중앙 배치
+    "scale_effect": True,                # 확대 효과
+}
+
+# 이슈 타입별 자막 강조 색상
+SUBTITLE_HIGHLIGHT_COLORS = {
+    "논란": "#FF4444",      # 빨강
+    "열애": "#FF69B4",      # 핑크
+    "컴백": "#00FF00",      # 초록
+    "사건": "#FF0000",      # 진한 빨강
+    "성과": "#FFD700",      # 금색
+    "자랑": "#0080FF",      # 파랑
+    "반응": "#FFA500",      # 주황
+    "default": "#FFFF00",   # 노랑
+}
+
+# 키워드 강조 설정
+KEYWORD_HIGHLIGHT_CONFIG = {
+    "enabled": True,
+    "keywords": [
+        # 감정/반응
+        "충격", "폭로", "논란", "결국", "드디어", "역대급",
+        # 숫자/시간
+        "24시간", "10년", "처음", "최초", "1위",
+        # 상태
+        "확정", "공식", "긴급", "속보",
+    ],
+    "style": {
+        "color": "#FF0000",
+        "bold": True,
+        "scale": 1.2,
+    }
+}
+
+
+# ============================================================
 # GPT 프롬프트
 # ============================================================
 
