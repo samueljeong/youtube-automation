@@ -482,8 +482,11 @@ def generate_complete_shorts_package(
         }
     """
     # 1) 대본 생성
+    # person 필드 우선, 없으면 celebrity 호환
+    person = news_data.get("person", news_data.get("celebrity", ""))
+
     script_result = generate_shorts_script(
-        celebrity=news_data.get("celebrity", ""),
+        celebrity=person,  # 함수 파라미터는 celebrity로 유지 (내부 사용)
         issue_type=news_data.get("issue_type", ""),
         news_title=news_data.get("news_title", ""),
         news_summary=news_data.get("news_summary", ""),
@@ -498,7 +501,7 @@ def generate_complete_shorts_package(
     # 2) 이미지 프롬프트 강화
     enhanced_scenes = enhance_image_prompts(
         scenes=script_result.get("scenes", []),
-        celebrity=news_data.get("celebrity", ""),
+        celebrity=person,
         silhouette_desc=news_data.get("silhouette_desc", ""),
     )
 

@@ -312,18 +312,23 @@ def append_row(
 def check_duplicate(
     service,
     spreadsheet_id: str,
-    celebrity: str,
+    person: str,
     news_url: str
 ) -> bool:
     """
-    중복 체크 (같은 연예인 + 같은 뉴스 URL)
+    중복 체크 (같은 인물 + 같은 뉴스 URL)
+
+    Args:
+        person: 인물명 (연예인/운동선수 등)
+        news_url: 뉴스 URL
 
     Returns:
         True: 중복 있음, False: 중복 없음
     """
     try:
         header_map = get_header_mapping(service, spreadsheet_id)
-        celebrity_col = header_map.get("celebrity", 0)
+        # person 헤더 우선, 없으면 celebrity 헤더 사용 (호환성)
+        person_col = header_map.get("person", header_map.get("celebrity", 2))
         url_col = header_map.get("news_url", 4)
 
         result = service.spreadsheets().values().get(
@@ -333,8 +338,8 @@ def check_duplicate(
         rows = result.get('values', [])
 
         for row in rows:
-            if len(row) > max(celebrity_col, url_col):
-                if (row[celebrity_col] == celebrity and
+            if len(row) > max(person_col, url_col):
+                if (row[person_col] == person and
                     row[url_col] == news_url):
                     return True
         return False

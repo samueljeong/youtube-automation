@@ -3,13 +3,20 @@ Shorts Pipeline Module
 연예 뉴스 기반 60초 YouTube Shorts 자동 생성
 
 사용법:
-    from scripts.shorts_pipeline import run_shorts_pipeline
-    result = run_shorts_pipeline(celebrity="박나래")
+    from scripts.shorts_pipeline import run_shorts_pipeline, run_full_pipeline
+
+    # 뉴스 수집 + 대본 생성만
+    result = run_shorts_pipeline(person="박나래")
+
+    # 전체 파이프라인 (뉴스 수집 + 대본 생성 + 비디오 생성)
+    result = run_full_pipeline(person="박나래")
 
 또는 CLI:
-    python -m scripts.shorts_pipeline.run --celebrity 박나래
+    python -m scripts.shorts_pipeline.run --person 박나래
     python -m scripts.shorts_pipeline.run --collect
     python -m scripts.shorts_pipeline.run --generate --limit 3
+    python -m scripts.shorts_pipeline.run --full  # 전체 파이프라인
+    python -m scripts.shorts_pipeline.run --generate --video  # 대본 + 비디오
 """
 
 from .config import (
@@ -101,6 +108,13 @@ from .run import (
     run_news_collection,
     run_script_generation,
     run_shorts_pipeline,
+    run_full_pipeline,
+    run_video_generation,
+    generate_tts,
+    generate_images_parallel,
+    generate_single_image,
+    generate_thumbnail,
+    render_video,
 )
 
 
@@ -186,8 +200,17 @@ __all__ = [
     'format_script_for_sheet',
     'extract_gpt51_response',
 
-    # Main
+    # Main Pipeline
     'run_news_collection',
     'run_script_generation',
     'run_shorts_pipeline',
+    'run_full_pipeline',
+
+    # Video Generation (병렬 처리)
+    'run_video_generation',
+    'generate_tts',
+    'generate_images_parallel',
+    'generate_single_image',
+    'generate_thumbnail',
+    'render_video',
 ]

@@ -23860,12 +23860,13 @@ def api_shorts_check_and_process():
 
     1. 뉴스 수집 → SHORTS 시트 저장
     2. 대기 상태 행에 대해 대본 생성
-    3. (추후) 이미지 생성, TTS, 영상 렌더링, 업로드
+    3. (옵션) 비디오 생성: TTS → 이미지(4워커) + 썸네일 병렬 → FFmpeg
 
     Query params:
-        celebrity: 특정 연예인만 처리 (선택)
+        person: 특정 인물만 처리 (선택)
         collect: 0이면 뉴스 수집 건너뜀
         generate: 0이면 대본 생성 건너뜀
+        video: 1이면 비디오까지 생성
         limit: 처리할 최대 행 수 (기본: 1)
 
     Returns:
@@ -23874,15 +23875,17 @@ def api_shorts_check_and_process():
     try:
         from scripts.shorts_pipeline import run_shorts_pipeline
 
-        celebrity = request.args.get('celebrity')
+        person = request.args.get('person')
         collect_news = request.args.get('collect', '1') != '0'
         generate_script = request.args.get('generate', '1') != '0'
+        generate_video = request.args.get('video', '0') == '1'
         limit = int(request.args.get('limit', '1'))
 
         result = run_shorts_pipeline(
-            celebrity=celebrity,
+            person=person,
             collect_news=collect_news,
             generate_script=generate_script,
+            generate_video=generate_video,
             limit=limit
         )
 
