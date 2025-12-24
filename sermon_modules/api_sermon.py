@@ -1692,7 +1692,7 @@ def get_style_guide_api(style_id):
     - 소대지 규칙, 예화 배치, 체크리스트 등 포함
     """
     try:
-        from sermon_modules.styles import ThreePointsStyle, ExpositoryStyle, TopicalStyle
+        from .styles import ThreePointsStyle, ExpositoryStyle, TopicalStyle
 
         style_classes = {
             'three_points': ThreePointsStyle,
