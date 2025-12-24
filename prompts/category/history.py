@@ -86,15 +86,25 @@ This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
 
 ## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
 
-### Mascot Definition:
+### Mascot Definition (EXACT CHARACTER - DO NOT CHANGE!):
 ```
-Retro cartoon style Korean scholar mascot,
-1960s animation inspired design,
-round friendly face, expressive eyes,
-traditional hanbok with gat (Korean hat),
-thick outlines, vintage color palette,
-nostalgic yet timeless appeal
+Cute Korean scholar mascot character,
+round face with round glasses,
+traditional Korean topknot hairstyle (상투/sangtu),
+wearing beige/cream traditional hanbok with olive green vest,
+holding scroll or book,
+warm earth tone colors (beige, olive, muted gold),
+thick clean outlines, friendly approachable design,
+consistent character across all images
 ```
+
+### Character Details (MUST MATCH EXACTLY):
+- **Face**: Round, friendly, with round glasses
+- **Hair**: Black topknot (상투) on top of head
+- **Clothing**: Cream/beige hanbok with olive-gold patterned vest
+- **Props**: Scroll, book, or pointing gesture
+- **Colors**: Warm earth tones - beige, cream, olive, muted gold
+- **Style**: Clean cartoon style, thick outlines, NOT anime
 
 ### Mascot Placement in Scene Images:
 - Position: BOTTOM RIGHT CORNER (10-15% of frame)
@@ -118,7 +128,7 @@ aged parchment texture border, vintage canvas feel,
 digital painting with visible brush strokes,
 dramatic lighting, misty atmospheric perspective,
 clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER: small retro cartoon Korean scholar mascot (1960s animation style, round face, traditional hanbok with gat, thick outlines, 10-15% of frame),
+BOTTOM RIGHT CORNER: cute Korean scholar mascot (round face with round glasses, black topknot hairstyle, beige hanbok with olive vest, holding scroll, warm earth tones, thick outlines, 10-15% of frame),
 NO text, NO watermark, NO labels,
 16:9 cinematic composition
 ```
@@ -134,7 +144,7 @@ sepia and earth tone palette, aged parchment texture,
 dramatic [TIME OF DAY] lighting,
 digital painting with visible brush strokes,
 epic landscape background with mountains/fortress,
-BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching curiously (1960s style, 10% of frame),
+BOTTOM RIGHT: cute Korean scholar mascot watching curiously (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -146,7 +156,7 @@ wide cinematic shot showing scale of [EVENT],
 sepia earth tones, aged canvas texture,
 dramatic lighting with dust/mist particles,
 detailed crowd with period-accurate costumes,
-BOTTOM RIGHT: small retro cartoon Korean scholar mascot observing with amazement (1960s style, 10% of frame),
+BOTTOM RIGHT: cute Korean scholar mascot observing with amazement (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -158,7 +168,7 @@ epic wide shot showing military scale,
 dust and tension atmosphere,
 sepia palette with dramatic sunset/stormy sky,
 aged parchment border, cinematic composition,
-BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching tensely (1960s style, 10% of frame),
+BOTTOM RIGHT: cute Korean scholar mascot watching tensely (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -170,7 +180,7 @@ traditional architecture with period details,
 warm torchlight/candlelight atmosphere,
 earth tones with gold accents,
 aged texture, vintage illustration style,
-BOTTOM RIGHT: small retro cartoon Korean scholar mascot peeking thoughtfully (1960s style, 10% of frame),
+BOTTOM RIGHT: cute Korean scholar mascot peeking thoughtfully (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
 NO text, NO watermark
 ```
 
@@ -182,7 +192,7 @@ coordinated group effort showing scale,
 wide shot with landscape background,
 sepia earth tones, aged parchment texture,
 dramatic natural lighting,
-BOTTOM RIGHT: small retro cartoon Korean scholar mascot watching with interest (1960s style, 10% of frame),
+BOTTOM RIGHT: cute Korean scholar mascot watching with interest (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
 NO text, NO watermark
 ```
 
