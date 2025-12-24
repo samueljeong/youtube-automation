@@ -177,6 +177,19 @@ SCRIPT_GENERATION_PROMPT = """
         "reason": "이 분위기를 선택한 이유 (한 줄)"
     }},
     "highlight_keywords": ["충격", "폭로", "...자막에서 강조할 키워드들"],
+
+    "youtube_seo": {{
+        "title": "YouTube 제목 (70자 이내, 핵심 키워드 앞에, 이모지 1-2개)",
+        "description": "YouTube 설명\\n- 첫 줄: 핵심 요약\\n- 주요 포인트 3개\\n- 해시태그\\n\\n#연예인이름 #이슈 #Shorts",
+        "tags": ["인물명한글", "인물명영문", "이슈키워드", "연예뉴스", "쇼츠", "최대30개"]
+    }},
+
+    "thumbnail": {{
+        "hook_text": "썸네일에 표시할 핵심 문구 (10자 이내, 2줄로 줄바꿈 가능)",
+        "style": "논란/열애/성과/자랑/default 중 하나 (이슈 타입에 맞게)",
+        "image_prompt": "썸네일 이미지 프롬프트 (영어, 실루엣 포함, 극적 조명)"
+    }},
+
     "scenes": [
         {{
             "scene_number": 1,
@@ -184,7 +197,7 @@ SCRIPT_GENERATION_PROMPT = """
             "narration": "킬러 훅 문장",
             "image_prompt": "영어 이미지 프롬프트 (실루엣 포함)",
             "text_overlay": "화면 핵심 텍스트 (5자 이내)",
-            "emphasis": true  // 훅 씬은 강조 자막 사용
+            "emphasis": true
         }},
         ...총 8개 씬 (마지막은 루프 연결)
     ],
@@ -299,6 +312,26 @@ def generate_shorts_script(
 
         print(f"[SHORTS] GPT-5.1 대본 생성 완료: {len(full_script)}자, ${cost:.4f}")
 
+        # YouTube SEO 데이터 추출
+        youtube_seo = result.get("youtube_seo", {})
+        if not youtube_seo:
+            # 기본값 생성
+            youtube_seo = {
+                "title": result.get("title", f"{celebrity} 이슈"),
+                "description": f"{result.get('title', celebrity)}\n\n#Shorts #{celebrity}",
+                "tags": [celebrity, issue_type, "쇼츠", "연예뉴스"] + result.get("hashtags", [])[:10],
+            }
+
+        # 썸네일 데이터 추출
+        thumbnail = result.get("thumbnail", {})
+        if not thumbnail:
+            # 기본값 생성
+            thumbnail = {
+                "hook_text": result.get("title", celebrity)[:20],
+                "style": issue_type if issue_type in ["논란", "열애", "성과", "자랑"] else "default",
+                "image_prompt": f"YouTube Shorts thumbnail, dramatic black silhouette of {silhouette_desc}, spotlight, 9:16 vertical",
+            }
+
         return {
             "ok": True,
             "title": result.get("title", f"{celebrity} 이슈"),
@@ -306,6 +339,11 @@ def generate_shorts_script(
             "full_script": full_script,
             "total_chars": len(full_script),
             "hashtags": result.get("hashtags", []),
+            "youtube_seo": youtube_seo,
+            "thumbnail": thumbnail,
+            "bgm": result.get("bgm", {"mood": "dramatic", "reason": "기본값"}),
+            "highlight_keywords": result.get("highlight_keywords", []),
+            "comment_trigger": result.get("comment_trigger", {}),
             "cost": round(cost, 4),
             "model": model,
         }
@@ -471,6 +509,11 @@ def generate_complete_shorts_package(
         "scenes": enhanced_scenes,
         "total_chars": script_result.get("total_chars"),
         "hashtags": script_result.get("hashtags", []),
+        "youtube_seo": script_result.get("youtube_seo", {}),
+        "thumbnail": script_result.get("thumbnail", {}),
+        "bgm": script_result.get("bgm", {}),
+        "highlight_keywords": script_result.get("highlight_keywords", []),
+        "comment_trigger": script_result.get("comment_trigger", {}),
         "cost": script_result.get("cost", 0),
     }
 

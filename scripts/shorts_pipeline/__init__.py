@@ -47,6 +47,22 @@ from .config import (
     # Ken Burns 효과
     SHORTS_KEN_BURNS,
     FFMPEG_ZOOMPAN_PRESETS,
+    # 이미지 생성 (Gemini 3 Pro)
+    IMAGE_MODEL,
+    IMAGE_PROMPT_CONFIG,
+    # TTS (Gemini)
+    TTS_CONFIG,
+    TTS_VOICE_BY_ISSUE,
+    GEMINI_TTS_VOICES,
+    # 씬 전환 효과
+    SCENE_TRANSITIONS,
+    FFMPEG_TRANSITIONS,
+    # YouTube SEO
+    YOUTUBE_UPLOAD_CONFIG,
+    YOUTUBE_SEO_PROMPT,
+    # 썸네일
+    THUMBNAIL_CONFIG,
+    THUMBNAIL_PROMPT_TEMPLATE,
     estimate_cost,
 )
 
@@ -124,6 +140,22 @@ __all__ = [
     # Ken Burns 효과
     'SHORTS_KEN_BURNS',
     'FFMPEG_ZOOMPAN_PRESETS',
+    # 이미지 생성 (Gemini 3 Pro)
+    'IMAGE_MODEL',
+    'IMAGE_PROMPT_CONFIG',
+    # TTS (Gemini)
+    'TTS_CONFIG',
+    'TTS_VOICE_BY_ISSUE',
+    'GEMINI_TTS_VOICES',
+    # 씬 전환 효과
+    'SCENE_TRANSITIONS',
+    'FFMPEG_TRANSITIONS',
+    # YouTube SEO
+    'YOUTUBE_UPLOAD_CONFIG',
+    'YOUTUBE_SEO_PROMPT',
+    # 썸네일
+    'THUMBNAIL_CONFIG',
+    'THUMBNAIL_PROMPT_TEMPLATE',
     'estimate_cost',
 
     # Sheets

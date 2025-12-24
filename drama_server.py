@@ -23745,6 +23745,214 @@ def api_hide_old_sheets():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ============================================================
+# Shorts 파이프라인 API (연예/스포츠/국뽕 뉴스 쇼츠 자동 생성)
+# ============================================================
+
+@app.route('/api/shorts/create-sheet', methods=['GET', 'POST'])
+def api_shorts_create_sheet():
+    """
+    SHORTS 시트 생성
+
+    Query params:
+        channel_id: YouTube 채널 ID (선택)
+        force: 1이면 기존 시트 삭제 후 재생성
+
+    Returns:
+        {"ok": True, "message": "SHORTS 시트 생성 완료"}
+    """
+    try:
+        from scripts.shorts_pipeline import create_shorts_sheet, get_sheets_service, get_spreadsheet_id
+
+        channel_id = request.args.get('channel_id', '')
+        force = request.args.get('force', '0') == '1'
+
+        service = get_sheets_service()
+        spreadsheet_id = get_spreadsheet_id()
+
+        created = create_shorts_sheet(
+            service=service,
+            spreadsheet_id=spreadsheet_id,
+            channel_id=channel_id,
+            force=force
+        )
+
+        if created:
+            return jsonify({
+                "ok": True,
+                "message": "SHORTS 시트 생성 완료",
+                "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+            })
+        else:
+            return jsonify({
+                "ok": True,
+                "message": "SHORTS 시트가 이미 존재합니다",
+                "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+            })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/shorts/collect-news', methods=['GET', 'POST'])
+def api_shorts_collect_news():
+    """
+    연예/스포츠/국뽕 뉴스 수집 및 SHORTS 시트 저장
+
+    Query params:
+        max_items: 수집할 최대 뉴스 수 (기본: 10)
+        save: 0이면 시트 저장 안함 (테스트용)
+
+    Returns:
+        {"ok": True, "collected": 10, "saved": 8, "duplicates": 2}
+    """
+    try:
+        from scripts.shorts_pipeline import run_news_collection
+
+        max_items = int(request.args.get('max_items', '10'))
+        save_to_sheet = request.args.get('save', '1') != '0'
+
+        result = run_news_collection(
+            max_items=max_items,
+            save_to_sheet=save_to_sheet
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/shorts/generate-script', methods=['POST'])
+def api_shorts_generate_script():
+    """
+    대기 상태 뉴스에 대해 대본 생성
+
+    Query params:
+        limit: 처리할 최대 행 수 (기본: 1)
+
+    Returns:
+        {"ok": True, "processed": 1, "results": [...]}
+    """
+    try:
+        from scripts.shorts_pipeline import run_script_generation
+
+        limit = int(request.args.get('limit', '1'))
+
+        result = run_script_generation(limit=limit)
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/shorts/check-and-process', methods=['POST'])
+def api_shorts_check_and_process():
+    """
+    Shorts 파이프라인 전체 실행 (cron job용)
+
+    1. 뉴스 수집 → SHORTS 시트 저장
+    2. 대기 상태 행에 대해 대본 생성
+    3. (추후) 이미지 생성, TTS, 영상 렌더링, 업로드
+
+    Query params:
+        celebrity: 특정 연예인만 처리 (선택)
+        collect: 0이면 뉴스 수집 건너뜀
+        generate: 0이면 대본 생성 건너뜀
+        limit: 처리할 최대 행 수 (기본: 1)
+
+    Returns:
+        {"ok": True, "news_collection": {...}, "script_generation": {...}}
+    """
+    try:
+        from scripts.shorts_pipeline import run_shorts_pipeline
+
+        celebrity = request.args.get('celebrity')
+        collect_news = request.args.get('collect', '1') != '0'
+        generate_script = request.args.get('generate', '1') != '0'
+        limit = int(request.args.get('limit', '1'))
+
+        result = run_shorts_pipeline(
+            celebrity=celebrity,
+            collect_news=collect_news,
+            generate_script=generate_script,
+            limit=limit
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/shorts/status', methods=['GET'])
+def api_shorts_status():
+    """
+    Shorts 파이프라인 상태 확인
+
+    Returns:
+        {"ok": True, "pending": 5, "processing": 1, "completed": 10}
+    """
+    try:
+        from scripts.shorts_pipeline import get_sheets_service, get_spreadsheet_id, SHEET_NAME
+
+        service = get_sheets_service()
+        spreadsheet_id = get_spreadsheet_id()
+
+        # 데이터 읽기
+        result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{SHEET_NAME}'!A2:Z"
+        ).execute()
+        rows = result.get('values', [])
+
+        if not rows:
+            return jsonify({
+                "ok": True,
+                "pending": 0,
+                "processing": 0,
+                "completed": 0,
+                "failed": 0,
+                "total": 0,
+                "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+            })
+
+        # 헤더 매핑
+        headers = rows[0] if rows else []
+        status_col = headers.index("상태") if "상태" in headers else -1
+
+        counts = {"대기": 0, "처리중": 0, "완료": 0, "실패": 0}
+        for row in rows[1:]:  # 헤더 제외
+            if status_col >= 0 and status_col < len(row):
+                status = row[status_col]
+                if status in counts:
+                    counts[status] += 1
+
+        return jsonify({
+            "ok": True,
+            "pending": counts["대기"],
+            "processing": counts["처리중"],
+            "completed": counts["완료"],
+            "failed": counts["실패"],
+            "total": len(rows) - 1,
+            "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
