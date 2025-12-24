@@ -23880,13 +23880,28 @@ def api_shorts_check_and_process():
         {"ok": True, "news_collection": {...}, "script_generation": {...}}
     """
     try:
-        from scripts.shorts_pipeline import run_shorts_pipeline
+        from scripts.shorts_pipeline import run_shorts_pipeline, get_sheets_service, get_spreadsheet_id, SHEET_NAME, read_pending_rows
 
         person = request.args.get('person')
         collect_news = request.args.get('collect', '1') != '0'
         generate_script = request.args.get('generate', '1') != '0'
         generate_video = request.args.get('video', '0') == '1'
         limit = int(request.args.get('limit', '1'))
+
+        # 진단 정보 수집
+        print(f"\n[SHORTS API] check-and-process 시작")
+        print(f"  - collect_news: {collect_news}")
+        print(f"  - generate_script: {generate_script}")
+        print(f"  - generate_video: {generate_video}")
+        print(f"  - limit: {limit}")
+
+        # 대기 상태 행 미리 확인
+        service = get_sheets_service()
+        spreadsheet_id = get_spreadsheet_id()
+        pending = read_pending_rows(service, spreadsheet_id, limit=10)
+        print(f"[SHORTS API] 대기 상태 행: {len(pending)}개")
+        for p in pending[:3]:
+            print(f"  - 행 {p.get('row_number')}: {p.get('person', p.get('celebrity', ''))}")
 
         result = run_shorts_pipeline(
             person=person,
@@ -23895,6 +23910,13 @@ def api_shorts_check_and_process():
             generate_video=generate_video,
             limit=limit
         )
+
+        # 진단 정보 추가
+        result["debug"] = {
+            "pending_rows_found": len(pending),
+            "spreadsheet_id": spreadsheet_id,
+            "sheet_name": SHEET_NAME,
+        }
 
         return jsonify(result)
 
@@ -23940,20 +23962,31 @@ def api_shorts_status():
         headers = rows[0] if rows else []
         status_col = headers.index("상태") if "상태" in headers else -1
 
-        counts = {"대기": 0, "처리중": 0, "완료": 0, "실패": 0}
-        for row in rows[1:]:  # 헤더 제외
+        counts = {"대기": 0, "준비": 0, "처리중": 0, "완료": 0, "대본완료": 0, "실패": 0}
+        sample_rows = []  # 대기 상태 샘플
+        for i, row in enumerate(rows[1:], start=3):  # 헤더 제외, 실제 행번호
             if status_col >= 0 and status_col < len(row):
                 status = row[status_col]
                 if status in counts:
                     counts[status] += 1
+                # 대기 상태 샘플 저장 (최대 3개)
+                if status == "대기" and len(sample_rows) < 3:
+                    person_col = headers.index("person") if "person" in headers else -1
+                    person = row[person_col] if person_col >= 0 and person_col < len(row) else ""
+                    sample_rows.append({"row": i, "person": person})
 
         return jsonify({
             "ok": True,
             "pending": counts["대기"],
+            "ready": counts["준비"],
             "processing": counts["처리중"],
+            "script_done": counts["대본완료"],
             "completed": counts["완료"],
             "failed": counts["실패"],
             "total": len(rows) - 1,
+            "headers": headers,
+            "status_col": status_col,
+            "sample_pending": sample_rows,
             "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
         })
 
