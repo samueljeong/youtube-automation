@@ -18695,8 +18695,8 @@ def get_all_sheet_names(service, sheet_id):
 
     반환: ['채널A', '채널B', ...] 또는 None (실패 시)
     """
-    # 메인 파이프라인에서 제외할 시트 목록
-    EXCLUDED_SHEETS = {'SHORTS', 'BIBLE'}
+    # 메인 파이프라인에서 제외할 시트 목록 (통합됨 - 분기 처리)
+    EXCLUDED_SHEETS = set()  # SHORTS, BIBLE도 포함하여 분기 처리
 
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
@@ -21114,49 +21114,8 @@ def api_sheets_check_and_process():
         pending_tasks.sort(key=lambda x: x[0])
 
         if not pending_tasks:
-            # ========== 일반 시트에 작업 없음 → BIBLE 시트 체크 ==========
-            print("[SHEETS] 일반 시트에 대기 작업 없음 → BIBLE 시트 체크")
-            try:
-                from scripts.bible_pipeline.sheets import get_pending_episodes, update_episode_status
-
-                bible_pending = get_pending_episodes(service, sheet_id, limit=1)
-                if bible_pending:
-                    episode_data = bible_pending[0]
-                    row_idx = episode_data.get("row_idx")
-                    print(f"[BIBLE] 대기 에피소드 발견: {episode_data.get('에피소드')} (행 {row_idx})")
-
-                    # 채널 ID 가져오기
-                    bible_channel_id = ""
-                    try:
-                        result = service.spreadsheets().values().get(
-                            spreadsheetId=sheet_id,
-                            range="BIBLE!B1"
-                        ).execute()
-                        bible_channel_id = result.get('values', [[]])[0][0] if result.get('values') else ""
-                    except:
-                        pass
-
-                    # BIBLE 파이프라인 실행
-                    bible_result = run_bible_episode_pipeline(
-                        service=service,
-                        sheet_id=sheet_id,
-                        row_idx=row_idx,
-                        episode_data=episode_data,
-                        channel_id=bible_channel_id
-                    )
-
-                    return jsonify({
-                        "ok": True,
-                        "message": f"[BIBLE] {episode_data.get('에피소드')} 처리 완료",
-                        "processed": 1,
-                        "type": "bible",
-                        "video_url": bible_result.get("video_url"),
-                        "error": bible_result.get("error")
-                    })
-
-            except Exception as bible_err:
-                print(f"[BIBLE] 체크 오류 (무시): {bible_err}")
-
+            # ========== 대기 작업 없음 ==========
+            # SHORTS, BIBLE도 sheet_names에 포함되어 있으므로 별도 체크 불필요
             return jsonify({
                 "ok": True,
                 "message": "처리할 대기 작업이 없습니다",
@@ -21221,11 +21180,89 @@ def api_sheets_check_and_process():
         print(f"[SHEETS] ★★★ 파이프라인 호출 직전 ★★★")
         print(f"[SHEETS]   - 시트: {sheet_name}, 행: {row_num}")
         print(f"[SHEETS]   - 채널: {channel_id}")
-        print(f"[SHEETS]   - 대본 길이: {len(pipeline_data.get('script', ''))}자")
 
         try:
-            result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
-            print(f"[SHEETS] ★★★ 파이프라인 완료 ★★★ - ok: {result.get('ok')}")
+            # ========== 시트별 분기 처리 ==========
+            if sheet_name == "SHORTS":
+                # ★ SHORTS 파이프라인
+                print(f"[SHORTS] 쇼츠 파이프라인 시작: 행 {row_num}")
+                from scripts.shorts_pipeline import generate_complete_shorts_package, format_script_for_sheet, run_video_generation
+                from scripts.shorts_pipeline.sheets import update_status as shorts_update_status
+
+                # row_data를 딕셔너리로 변환
+                shorts_row_data = {}
+                for header, col_idx in col_map.items():
+                    shorts_row_data[header] = row_data[col_idx] if col_idx < len(row_data) else ""
+                shorts_row_data["row_number"] = row_num
+
+                person = shorts_row_data.get("person", shorts_row_data.get("celebrity", ""))
+                issue_type = shorts_row_data.get("issue_type", "근황")
+                print(f"[SHORTS] 인물: {person}, 이슈: {issue_type}")
+
+                # 1) 대본 생성
+                script_result = generate_complete_shorts_package(shorts_row_data)
+                if not script_result.get("ok"):
+                    raise Exception(script_result.get("error", "대본 생성 실패"))
+
+                script_text = format_script_for_sheet(script_result.get("scenes", []))
+                total_cost = script_result.get("cost", 0)
+
+                # 2) 비디오 생성
+                video_result = run_video_generation(
+                    script_result=script_result,
+                    person=person,
+                    issue_type=issue_type,
+                )
+                if video_result.get("ok"):
+                    total_cost += video_result.get("cost", 0)
+
+                result = {
+                    "ok": video_result.get("ok", False),
+                    "title": script_result.get("title", ""),
+                    "cost": total_cost,
+                    "video_url": video_result.get("video_url", ""),
+                    "error": video_result.get("error"),
+                    "type": "shorts"
+                }
+
+                # 시트 업데이트 (SHORTS 전용 필드)
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '대본', script_text)
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목(GPT생성)', script_result.get("title", ""))
+
+            elif sheet_name == "BIBLE":
+                # ★ BIBLE 파이프라인
+                print(f"[BIBLE] 성경통독 파이프라인 시작: 행 {row_num}")
+
+                # row_data를 딕셔너리로 변환 (BIBLE 형식)
+                bible_row_data = {}
+                for header, col_idx in col_map.items():
+                    bible_row_data[header] = row_data[col_idx] if col_idx < len(row_data) else ""
+                bible_row_data["row_idx"] = row_num
+
+                bible_result = run_bible_episode_pipeline(
+                    service=service,
+                    sheet_id=sheet_id,
+                    row_idx=row_num,
+                    episode_data=bible_row_data,
+                    channel_id=channel_id
+                )
+
+                result = {
+                    "ok": bible_result.get("ok", False),
+                    "title": bible_row_data.get("제목", ""),
+                    "cost": bible_result.get("cost", 0),
+                    "video_url": bible_result.get("video_url", ""),
+                    "error": bible_result.get("error"),
+                    "type": "bible"
+                }
+
+            else:
+                # ★ 일반 파이프라인 (NEWS, HISTORY, MYSTERY 등)
+                print(f"[SHEETS]   - 대본 길이: {len(pipeline_data.get('script', ''))}자")
+                result = run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, selected_project=project_suffix)
+
+            print(f"[SHEETS] ★★★ 파이프라인 완료 ★★★ - ok: {result.get('ok')}, type: {result.get('type', 'normal')}")
+
         except Exception as pipeline_err:
             import traceback
             print(f"[SHEETS] ★★★ 파이프라인 예외 발생 ★★★")
