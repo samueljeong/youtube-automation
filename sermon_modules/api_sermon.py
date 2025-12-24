@@ -1726,3 +1726,24 @@ def get_style_guide_api(style_id):
     except Exception as e:
         print(f"[STYLE-GUIDE][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@api_sermon_bp.route('/api/sermon/duration-info/<duration>', methods=['GET'])
+def get_duration_info_api(duration):
+    """
+    분량(분)을 글자 수로 변환하여 반환
+
+    Step4 "전체 복사" 기능에서 사용
+    - 단일 소스: step3_prompt_builder.py의 get_duration_char_count()
+    """
+    try:
+        from sermon_modules.step3_prompt_builder import get_duration_char_count
+
+        result = get_duration_char_count(duration)
+        result["ok"] = True
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[DURATION-INFO][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500

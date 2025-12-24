@@ -8,42 +8,9 @@
  * - 전체 복사 기능
  *
  * 이 파일은 sermon.html의 3137~3589줄 코드를 모듈화한 것입니다.
+ *
+ * ★ 분량 규칙은 step3_prompt_builder.py에서 API로 가져옴
  */
-
-// ===== 분량→글자 수 변환 함수 =====
-function getDurationCharCount(durationStr) {
-  /**
-   * 분량(분)을 글자 수로 변환.
-   *
-   * 한국어 설교 말하기 속도: 약 270자/분 (공백 포함)
-   * - 느린 속도: 250자/분
-   * - 보통 속도: 270자/분
-   * - 빠른 속도: 300자/분
-   */
-  const CHARS_PER_MIN = 270;
-
-  // 숫자 추출
-  let minutes = 20;
-  if (typeof durationStr === 'number') {
-    minutes = Math.floor(durationStr);
-  } else if (typeof durationStr === 'string') {
-    const match = durationStr.match(/(\d+)/);
-    minutes = match ? parseInt(match[1], 10) : 20;
-  }
-
-  // 글자 수 계산 (±10% 여유)
-  const targetChars = minutes * CHARS_PER_MIN;
-  const minChars = Math.floor(targetChars * 0.9);
-  const maxChars = Math.floor(targetChars * 1.1);
-
-  return {
-    minutes,
-    minChars,
-    maxChars,
-    targetChars,
-    charsPerMin: CHARS_PER_MIN
-  };
-}
 
 // ===== GPT PRO 초안 구성 =====
 async function assembleGptProDraft() {
@@ -59,8 +26,25 @@ async function assembleGptProDraft() {
   const categoryLabel = getCategoryLabel(window.currentCategory);
   const today = new Date().toLocaleDateString('ko-KR');
 
-  // 분량→글자 수 변환
-  const durationInfo = getDurationCharCount(duration);
+  // ★ 분량→글자 수 변환 (API 호출 - step3_prompt_builder.py 단일 소스)
+  let durationInfo = { minutes: 20, minChars: 6660, maxChars: 8140, targetChars: 7400, charsPerMin: 370 };
+  try {
+    const durationResponse = await fetch(`/api/sermon/duration-info/${encodeURIComponent(duration)}`);
+    if (durationResponse.ok) {
+      const data = await durationResponse.json();
+      if (data.ok) {
+        durationInfo = {
+          minutes: data.minutes,
+          minChars: data.min_chars,
+          maxChars: data.max_chars,
+          targetChars: data.target_chars,
+          charsPerMin: data.chars_per_min
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[Step4] 분량 정보 API 호출 실패:', e);
+  }
 
   let draft = '';
 
