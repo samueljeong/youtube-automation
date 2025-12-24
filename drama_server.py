@@ -11042,6 +11042,57 @@ def api_image_analyze_script():
         pre_detected_category = detect_category_simple(script)
         print(f"[IMAGE-ANALYZE] Pre-detected category: {pre_detected_category} (keyword-based)")
 
+        # ★★★ 카테고리별 씬 이미지 스타일 정의 ★★★
+        CATEGORY_IMAGE_STYLES = {
+            'history': {
+                'name': 'Historical Concept Art',
+                'style_prompt': '''Historical concept art style, [SCENE DESCRIPTION],
+sepia and earth tone color palette, aged parchment texture border, vintage canvas feel,
+digital painting with visible brush strokes,
+dramatic lighting, misty atmospheric perspective,
+clearly artistic interpretation NOT photograph,
+BOTTOM RIGHT CORNER: cute Korean scholar mascot (round face with round glasses, black topknot hairstyle, beige hanbok with olive vest, holding scroll, warm earth tones, thick outlines, 10-15% of frame),
+NO text, NO watermark, NO labels,
+16:9 cinematic composition''',
+                'forbidden': 'NO photorealistic, NO anime style, NO modern elements',
+                'required': 'Sepia tones, aged texture, historical atmosphere, mascot character'
+            },
+            'news': {
+                'name': 'Modern News Infographic',
+                'style_prompt': '''Modern news explainer illustration, [SCENE DESCRIPTION],
+clean professional style with subtle webtoon influence,
+corporate color palette (navy blue, white, subtle orange accents),
+clean geometric shapes, minimal shadows,
+infographic-inspired composition,
+professional lighting, sharp clean lines,
+clearly illustration NOT photograph,
+NO text, NO watermark, NO labels,
+16:9 cinematic composition''',
+                'forbidden': 'NO photorealistic, NO extreme expressions, NO cluttered backgrounds',
+                'required': 'Clean professional aesthetic, corporate colors, infographic style'
+            },
+            'mystery': {
+                'name': 'Dark Cinematic Thriller',
+                'style_prompt': '''Dark cinematic thriller illustration, [SCENE DESCRIPTION],
+film noir inspired lighting with deep shadows,
+muted desaturated color palette (dark blues, grays, blacks),
+high contrast dramatic lighting,
+mysterious atmospheric fog or haze,
+single spotlight or moonlight source,
+suspenseful tense atmosphere,
+clearly artistic illustration NOT photograph,
+NO text, NO watermark, NO labels,
+16:9 cinematic composition''',
+                'forbidden': 'NO bright colors, NO cartoon style, NO gore, NO cheap horror clichés',
+                'required': 'Dark moody atmosphere, film noir lighting, muted colors, suspenseful tension'
+            }
+        }
+
+        # 감지된 카테고리에 해당하는 스타일 가져오기
+        category_style = CATEGORY_IMAGE_STYLES.get(pre_detected_category)
+        if category_style:
+            print(f"[IMAGE-ANALYZE] ★ Using category-specific style: {category_style['name']}")
+
         if not script:
             return jsonify({"ok": False, "error": "대본이 필요합니다"}), 400
 
@@ -11405,7 +11456,38 @@ The "narration" field MUST contain the EXACT ORIGINAL TEXT from the script!
             else:
                 thumb_instruction = "Thumbnail text for Senior audience (8-12 chars, nostalgic/reflective style)"
 
-            user_prompt = f"""Script:
+            # ★★★ 카테고리별 스타일 분기 ★★★
+            if category_style:
+                # history, news, mystery 등 특정 카테고리용 스타일
+                user_prompt = f"""Script:
+{script}
+
+★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
+{lang_config['instruction']}
+- ONLY image_prompt should be in English
+
+Split this script into exactly {image_count} scenes and generate "{category_style['name']}" style image prompts.
+Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
+Detected category: {pre_detected_category}
+
+★★★ MANDATORY IMAGE STYLE: {category_style['name']} ★★★
+Every scene's image_prompt MUST follow this template:
+{category_style['style_prompt']}
+
+⛔ FORBIDDEN: {category_style['forbidden']}
+✅ REQUIRED: {category_style['required']}
+
+Rules:
+1. Generate exactly {image_count} scenes (no more, no less)
+2. EVERY image_prompt MUST use the {category_style['name']} style template above
+3. Replace [SCENE DESCRIPTION] with the actual scene content
+4. {thumb_instruction}
+5. ⚠️ NARRATION = EXACT SCRIPT TEXT! Copy-paste the original sentences from the script. DO NOT summarize or paraphrase!
+
+image_prompt MUST be in English."""
+            else:
+                # 기본 웹툰 스타일
+                user_prompt = f"""Script:
 {script}
 
 ★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
@@ -11451,7 +11533,43 @@ image_prompt MUST be in English."""
             else:
                 thumbnail_instruction = "Thumbnail text for Senior audience (8-12 chars, nostalgic/reflective/experience-sharing style)"
 
-            user_prompt = f"""Script:
+            # ★★★ 카테고리별 스타일 분기 ★★★
+            if category_style:
+                # history, news, mystery 등 특정 카테고리용 스타일
+                user_prompt = f"""Script:
+{script}
+
+★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
+{lang_config['instruction']}
+- ONLY image_prompt should be in English
+
+Split this script into exactly {image_count} scenes and generate "{category_style['name']}" style image prompts.
+Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-70s)'}
+Detected category: {pre_detected_category}
+
+★★★ MANDATORY IMAGE STYLE: {category_style['name']} ★★★
+Every scene's image_prompt MUST follow this template:
+{category_style['style_prompt']}
+
+⛔ FORBIDDEN: {category_style['forbidden']}
+✅ REQUIRED: {category_style['required']}
+
+Rules:
+1. Generate exactly {image_count} scenes (no more, no less)
+2. EVERY image_prompt MUST use the {category_style['name']} style template above
+3. Replace [SCENE DESCRIPTION] with the actual scene content
+4. {thumbnail_instruction}
+5. image_prompt MUST be in English
+
+⚠️⚠️⚠️ CRITICAL - NARRATION RULE ⚠️⚠️⚠️
+- DIVIDE the script into {image_count} equal parts
+- Each scene's "narration" = COPY-PASTE that part of the ORIGINAL SCRIPT
+- DO NOT summarize! DO NOT write new sentences!
+- Script is {len(script)} chars → each narration should be ~{len(script) // image_count} chars
+- If your total narration is less than {len(script) * 0.9} chars, YOU ARE DOING IT WRONG!"""
+            else:
+                # 기본 스타일
+                user_prompt = f"""Script:
 {script}
 
 ★★★ OUTPUT LANGUAGE: {lang_config['name']} ({lang_config['native']}) ★★★
@@ -11474,7 +11592,7 @@ Rules:
 - Script is {len(script)} chars → each narration should be ~{len(script) // image_count} chars
 - If your total narration is less than {len(script) * 0.9} chars, YOU ARE DOING IT WRONG!"""
 
-        print(f"[IMAGE-ANALYZE] GPT-4o generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language})")
+        print(f"[IMAGE-ANALYZE] GPT-4o generating prompts... (style: {image_style}, content: {content_type}, audience: {audience}, language: {output_language}, category: {pre_detected_category})")
 
         # GPT-4o는 Chat Completions API 사용
         # max_tokens=16384: 긴 대본(20분+)의 전체 narration을 포함하기 위해 필요
