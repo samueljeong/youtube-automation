@@ -1038,7 +1038,7 @@ def get_duration_char_count(duration_str: str) -> dict:
     """
     분량(분)을 글자 수로 변환.
 
-    한국어 설교 말하기 속도: 약 370자/분 (공백 포함)
+    한국어 설교 말하기 속도: 약 900자/분 (공백 포함)
     - 실제 설교 분석 기준
 
     Returns:
@@ -1053,7 +1053,7 @@ def get_duration_char_count(duration_str: str) -> dict:
     import re
 
     # 기본값
-    CHARS_PER_MIN = 370  # 분당 글자 수 (공백 포함)
+    CHARS_PER_MIN = 900  # 분당 글자 수 (공백 포함)
 
     # 숫자 추출
     if isinstance(duration_str, (int, float)):

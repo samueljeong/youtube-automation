@@ -27,7 +27,7 @@ async function assembleGptProDraft() {
   const today = new Date().toLocaleDateString('ko-KR');
 
   // ★ 분량→글자 수 변환 (API 호출 - step3_prompt_builder.py 단일 소스)
-  let durationInfo = { minutes: 20, minChars: 6660, maxChars: 8140, targetChars: 7400, charsPerMin: 370 };
+  let durationInfo = { minutes: 20, minChars: 16200, maxChars: 19800, targetChars: 18000, charsPerMin: 900 };
   try {
     const durationResponse = await fetch(`/api/sermon/duration-info/${encodeURIComponent(duration)}`);
     if (durationResponse.ok) {
