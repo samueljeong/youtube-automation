@@ -1677,3 +1677,52 @@ def sermon_chat():
     except Exception as e:
         print(f"[SERMON-CHAT][ERROR] {str(e)}")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════
+# 스타일 가이드 API (Step4 전체 복사용)
+# ═══════════════════════════════════════════════════════════════
+
+@api_sermon_bp.route('/api/sermon/style-guide/<style_id>', methods=['GET'])
+def get_style_guide_api(style_id):
+    """
+    스타일별 Step3 작성 가이드 반환 (three_points.py 등에서 가져옴)
+
+    Step4 "전체 복사" 기능에서 사용
+    - 소대지 규칙, 예화 배치, 체크리스트 등 포함
+    """
+    try:
+        from sermon_modules.styles import ThreePointsStyle, ExpositoryStyle, TopicalStyle
+
+        style_classes = {
+            'three_points': ThreePointsStyle,
+            'three_point': ThreePointsStyle,
+            '3대지': ThreePointsStyle,
+            'expository': ExpositoryStyle,
+            '강해설교': ExpositoryStyle,
+            'topical': TopicalStyle,
+            '주제설교': TopicalStyle
+        }
+
+        style_class = style_classes.get(style_id)
+        if not style_class:
+            return jsonify({"ok": False, "error": f"알 수 없는 스타일: {style_id}"}), 400
+
+        result = {
+            "ok": True,
+            "style_id": style_id,
+            "style_name": style_class.name,
+            "writing_guide": style_class.get_step3_writing_guide(),
+            "checklist": style_class.get_step3_checklist(),
+            "illustration_guide": style_class.get_illustration_guide()
+        }
+
+        # 적용 가이드가 있으면 추가
+        if hasattr(style_class, 'get_application_guide'):
+            result["application_guide"] = style_class.get_application_guide()
+
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[STYLE-GUIDE][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500

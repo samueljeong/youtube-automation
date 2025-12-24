@@ -46,7 +46,7 @@ function getDurationCharCount(durationStr) {
 }
 
 // ===== GPT PRO 초안 구성 =====
-function assembleGptProDraft() {
+async function assembleGptProDraft() {
   const ref = document.getElementById('sermon-ref')?.value || '';
   const title = getSelectedTitle();
   const target = document.getElementById('sermon-target')?.value || '';
@@ -286,47 +286,64 @@ function assembleGptProDraft() {
     }
   });
 
-  // 스타일별 작성 가이드
-  if (styleName && window.DEFAULT_GUIDES?.[styleName]?.step3) {
-    const step3Guide = window.DEFAULT_GUIDES[styleName].step3;
+  // 스타일별 작성 가이드 (★ three_points.py 등에서 API로 가져옴)
+  if (styleId) {
+    try {
+      const guideResponse = await fetch(`/api/sermon/style-guide/${styleId}`);
+      if (guideResponse.ok) {
+        const guideData = await guideResponse.json();
+        if (guideData.ok) {
+          draft += `==================================================\n`;
+          draft += `[스타일별 작성 가이드 (${guideData.style_name || styleName})]\n`;
+          draft += `==================================================\n\n`;
 
-    draft += `==================================================\n`;
-    draft += `[스타일별 작성 가이드 (${styleName})]\n`;
-    draft += `==================================================\n\n`;
+          // ★ 핵심 작성 가이드 (소대지 규칙 등 포함)
+          if (guideData.writing_guide) {
+            draft += `▶ 작성 가이드:\n`;
+            draft += `${guideData.writing_guide}\n\n`;
+          }
 
-    // 가독성/문단 스타일
-    if (step3Guide.writing_style) {
-      const ws = step3Guide.writing_style;
-      draft += `> ${ws.label || '문단/줄바꿈 스타일'}\n`;
-      if (ws.core_principle) draft += `   핵심: ${ws.core_principle}\n`;
-      if (ws.must_do) {
-        draft += `   [해야 할 것]\n`;
-        ws.must_do.forEach(item => draft += `      - ${item}\n`);
+          // ★ 예화 배치 가이드
+          if (guideData.illustration_guide) {
+            draft += `▶ 예화 배치 가이드:\n`;
+            draft += `${guideData.illustration_guide}\n\n`;
+          }
+
+          // ★ 적용 가이드 (있는 경우)
+          if (guideData.application_guide) {
+            draft += `▶ 적용 가이드:\n`;
+            draft += `${guideData.application_guide}\n\n`;
+          }
+
+          // ★ 체크리스트
+          if (guideData.checklist && guideData.checklist.length > 0) {
+            draft += `▶ 스타일 체크리스트:\n`;
+            guideData.checklist.forEach((item, i) => {
+              draft += `   ${i + 1}. ${item}\n`;
+            });
+            draft += `\n`;
+          }
+
+          draft += `==================================================\n\n`;
+        }
       }
-      if (ws.must_not) {
-        draft += `   [하지 말 것]\n`;
-        ws.must_not.forEach(item => draft += `      - ${item}\n`);
+    } catch (e) {
+      console.warn('[Step4] 스타일 가이드 API 호출 실패:', e);
+      // API 실패 시 기본 가이드 사용 (fallback)
+      if (styleName && window.DEFAULT_GUIDES?.[styleName]?.step3) {
+        const step3Guide = window.DEFAULT_GUIDES[styleName].step3;
+        draft += `==================================================\n`;
+        draft += `[스타일별 작성 가이드 (${styleName})]\n`;
+        draft += `==================================================\n\n`;
+        if (step3Guide.writing_style) {
+          const ws = step3Guide.writing_style;
+          draft += `> ${ws.label || '문단/줄바꿈 스타일'}\n`;
+          if (ws.core_principle) draft += `   핵심: ${ws.core_principle}\n`;
+          draft += `\n`;
+        }
+        draft += `==================================================\n\n`;
       }
-      draft += `\n`;
     }
-
-    // 성경구절 인용 방식
-    if (step3Guide.scripture_citation) {
-      const sc = step3Guide.scripture_citation;
-      draft += `> ${sc.label || '성경구절 인용 방식'}\n`;
-      if (sc.core_principle) draft += `   핵심: ${sc.core_principle}\n`;
-      if (sc.must_do) {
-        draft += `   [해야 할 것]\n`;
-        sc.must_do.forEach(item => draft += `      - ${item}\n`);
-      }
-      if (sc.good_examples) {
-        draft += `   [올바른 예시]\n`;
-        sc.good_examples.forEach(ex => draft += `      ${ex}\n`);
-      }
-      draft += `\n`;
-    }
-
-    draft += `==================================================\n\n`;
   }
 
   // 최종 작성 지침
@@ -596,15 +613,16 @@ async function executeGptPro() {
 }
 
 // ===== 전체 복사 기능 =====
-function copyAllResults() {
-  const draft = assembleGptProDraft();
-  navigator.clipboard.writeText(draft).then(() => {
+async function copyAllResults() {
+  try {
+    const draft = await assembleGptProDraft();
+    await navigator.clipboard.writeText(draft);
     showStatus('✅ 전체 내용이 복사되었습니다!');
     setTimeout(hideStatus, 2000);
-  }).catch(err => {
+  } catch (err) {
     console.error('복사 실패:', err);
     alert('복사에 실패했습니다.');
-  });
+  }
 }
 
 // 전역 노출
