@@ -21200,14 +21200,13 @@ def api_sheets_check_and_process():
                 from scripts.shorts_pipeline.sheets import update_status as shorts_update_status
 
                 # row_data를 딕셔너리로 변환
-                print(f"[SHORTS] col_map 타입: {type(col_map)}, 키 개수: {len(col_map)}")
-                print(f"[SHORTS] row_data 타입: {type(row_data)}, 길이: {len(row_data) if hasattr(row_data, '__len__') else 'N/A'}")
-
+                # col_map은 {'헤더': {'index': N, 'letter': 'X'}} 형식
                 shorts_row_data = {}
-                for header, col_idx in col_map.items():
-                    print(f"[SHORTS] header={header}, col_idx={col_idx} (type: {type(col_idx)})")
-                    if isinstance(col_idx, int) and col_idx < len(row_data):
-                        shorts_row_data[header] = row_data[col_idx]
+                for header, col_info in col_map.items():
+                    # col_info가 dict면 index 추출, int면 그대로 사용
+                    idx = col_info['index'] if isinstance(col_info, dict) else col_info
+                    if idx < len(row_data):
+                        shorts_row_data[header] = row_data[idx]
                     else:
                         shorts_row_data[header] = ""
                 shorts_row_data["row_number"] = row_num
@@ -21251,9 +21250,14 @@ def api_sheets_check_and_process():
                 print(f"[BIBLE] 성경통독 파이프라인 시작: 행 {row_num}")
 
                 # row_data를 딕셔너리로 변환 (BIBLE 형식)
+                # col_map은 {'헤더': {'index': N, 'letter': 'X'}} 형식
                 bible_row_data = {}
-                for header, col_idx in col_map.items():
-                    bible_row_data[header] = row_data[col_idx] if col_idx < len(row_data) else ""
+                for header, col_info in col_map.items():
+                    idx = col_info['index'] if isinstance(col_info, dict) else col_info
+                    if idx < len(row_data):
+                        bible_row_data[header] = row_data[idx]
+                    else:
+                        bible_row_data[header] = ""
                 bible_row_data["row_idx"] = row_num
 
                 bible_result = run_bible_episode_pipeline(
