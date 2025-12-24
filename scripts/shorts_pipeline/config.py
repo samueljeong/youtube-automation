@@ -692,20 +692,287 @@ ENTERTAINMENT_RSS_FEEDS = RSS_FEEDS["연예인"]
 
 
 # ============================================================
+# 이미지 생성 설정 (Gemini 3 Pro)
+# ============================================================
+
+# 이미지 모델 설정
+IMAGE_MODEL = {
+    "model": "gemini-3-pro",      # Gemini 3 Pro (고품질 이미지)
+    "aspect_ratio": "9:16",        # 쇼츠용 세로 비율
+    "output_format": "png",        # PNG 포맷
+    "num_images": 1,               # 씬당 1장
+    "temperature": 0.7,            # 창의성 수준
+    "safety_filter": "moderate",   # 안전 필터 (moderate/strict)
+}
+
+# 이미지 생성 프롬프트 설정
+IMAGE_PROMPT_CONFIG = {
+    "style_prefix": "Korean entertainment news style, dramatic cinematic lighting, 4K quality",
+    "silhouette_mode": True,       # 항상 실루엣 모드 (초상권 보호)
+    "no_text_on_image": True,      # 이미지에 텍스트 없음 (자막으로 처리)
+    "empty_space_for_subs": True,  # 자막 공간 확보
+}
+
+
+# ============================================================
+# TTS 설정 (Gemini 3 - 긴장감 있는 음성)
+# ============================================================
+
+# 기본 TTS 음성 (Gemini chirp3:Charon - 깊고 신뢰감 있는 남성 목소리)
+TTS_CONFIG = {
+    "provider": "gemini",          # gemini 또는 google_cloud
+    "model": "chirp3",             # Gemini TTS 모델
+    "voice": "Charon",             # 깊고 신뢰감 있는 남성 음성 (긴장감)
+    "language": "ko",              # 한국어
+    "speaking_rate": 1.0,          # 말하기 속도
+    "pitch": -2.0,                 # 약간 낮은 톤 (더 무게감)
+}
+
+# 이슈 타입별 추천 음성
+TTS_VOICE_BY_ISSUE = {
+    # 긴장감/심각한 이슈 → Charon (깊고 무거운)
+    "논란": {"voice": "Charon", "pitch": -3.0, "rate": 0.95},
+    "사건": {"voice": "Charon", "pitch": -3.0, "rate": 0.9},
+
+    # 밝은/신나는 이슈 → Puck (활기찬)
+    "컴백": {"voice": "Puck", "pitch": 0, "rate": 1.05},
+    "성과": {"voice": "Puck", "pitch": 0, "rate": 1.0},
+
+    # 감성적 이슈 → Kore (따뜻한 여성)
+    "열애": {"voice": "Kore", "pitch": 0, "rate": 0.95},
+
+    # 웅장한 이슈 → Fenrir (힘있는)
+    "자랑": {"voice": "Fenrir", "pitch": -2.0, "rate": 1.0},
+    "반응": {"voice": "Fenrir", "pitch": -1.0, "rate": 1.0},
+
+    # 기본
+    "default": {"voice": "Charon", "pitch": -2.0, "rate": 1.0},
+}
+
+# Gemini TTS 음성 설명
+GEMINI_TTS_VOICES = {
+    "Charon": "남성, 깊고 신뢰감 있는 톤 (뉴스/다큐멘터리)",
+    "Kore": "여성, 차분하고 따뜻한 톤 (내레이션)",
+    "Puck": "남성, 활기차고 친근한 톤 (엔터테인먼트)",
+    "Fenrir": "남성, 힘있고 웅장한 톤 (드라마틱)",
+    "Aoede": "여성, 부드럽고 감성적인 톤 (감동)",
+}
+
+
+# ============================================================
+# 씬 전환 효과 (Scene Transitions)
+# ============================================================
+
+SCENE_TRANSITIONS = {
+    "enabled": True,
+    "duration": 0.3,               # 전환 시간 (초)
+
+    # 기본 전환 스타일
+    "default_style": "crossfade",  # crossfade, fade_black, fade_white
+
+    # 씬별 전환 스타일 (자연스러운 변화)
+    "scene_patterns": {
+        1: "fade_black",           # 훅 시작: 검정에서 페이드인
+        2: "crossfade",            # 설명으로 부드럽게
+        3: "crossfade",            # 폭로로 자연스럽게
+        4: "fade_black",           # 반응: 잠시 암전 후 전환
+        5: "crossfade",            # 여론으로
+        6: "crossfade",            # 파장으로
+        7: "fade_white",           # 반전: 화이트 플래시 효과
+        8: "crossfade",            # 마무리로 부드럽게
+    },
+
+    # 이슈 타입별 전환 강조
+    "intensity_by_issue": {
+        "논란": {"duration": 0.2, "style": "fade_black"},   # 빠르고 어둡게
+        "사건": {"duration": 0.2, "style": "fade_black"},
+        "성과": {"duration": 0.4, "style": "fade_white"},   # 밝게
+        "열애": {"duration": 0.5, "style": "crossfade"},    # 부드럽게
+        "default": {"duration": 0.3, "style": "crossfade"},
+    },
+}
+
+# FFmpeg 전환 효과 필터
+FFMPEG_TRANSITIONS = {
+    "crossfade": "xfade=transition=fade:duration={duration}:offset={offset}",
+    "fade_black": "xfade=transition=fadeblack:duration={duration}:offset={offset}",
+    "fade_white": "xfade=transition=fadewhite:duration={duration}:offset={offset}",
+    "slide_left": "xfade=transition=slideleft:duration={duration}:offset={offset}",
+    "slide_right": "xfade=transition=slideright:duration={duration}:offset={offset}",
+    "wipe_left": "xfade=transition=wipeleft:duration={duration}:offset={offset}",
+    "zoom_in": "xfade=transition=zoomin:duration={duration}:offset={offset}",
+}
+
+
+# ============================================================
+# YouTube 업로드 설정 (SEO)
+# ============================================================
+
+YOUTUBE_UPLOAD_CONFIG = {
+    # 기본 설정
+    "privacy_status": "private",   # private/unlisted/public
+    "category_id": "24",           # Entertainment (24)
+    "default_language": "ko",
+
+    # SEO 설정 (GPT-5.1이 생성)
+    "seo_elements": {
+        "title_max_length": 100,   # 제목 최대 길이
+        "title_rules": [
+            "70자 이내 권장 (검색 결과에서 잘리지 않도록)",
+            "핵심 키워드를 앞에 배치",
+            "숫자/이모지로 클릭 유도",
+            "의문형/충격형 제목 권장",
+        ],
+        "description_max_length": 5000,
+        "description_structure": [
+            "첫 줄: 핵심 요약 (검색 미리보기에 표시)",
+            "두 번째 줄: 영상 내용 3줄 요약",
+            "해시태그: 3-5개",
+            "채널 소개/구독 유도",
+        ],
+        "tags_max_count": 30,
+        "tags_rules": [
+            "핵심 키워드 먼저",
+            "연예인 이름 + 이슈",
+            "관련 검색어",
+            "카테고리 태그",
+        ],
+    },
+
+    # 쇼츠 전용 설정
+    "shorts": {
+        "include_shorts_tag": True,       # #Shorts 태그 필수
+        "add_vertical_video_tag": True,   # #세로영상 태그
+        "max_title_length": 50,           # 쇼츠 제목은 더 짧게
+    },
+}
+
+# YouTube SEO 프롬프트 (GPT-5.1용)
+YOUTUBE_SEO_PROMPT = """
+## YouTube SEO 메타데이터 생성 규칙
+
+### 제목 (title)
+- 70자 이내 (모바일에서 잘리지 않도록)
+- 클릭을 유발하는 단어 사용: "충격", "드디어", "결국", "역대급", "긴급"
+- 숫자 포함 권장: "24시간", "10년 만에", "3가지"
+- 이모지 1-2개 사용: ⚡🔥💥😱🚨
+- 핵심 키워드를 앞에 배치
+
+### 설명 (description)
+첫 3줄이 가장 중요 (검색 미리보기):
+1. 핵심 내용 한 줄 요약
+2. 주요 포인트 3개 (불릿 포인트)
+3. 관련 키워드 자연스럽게 포함
+
+해시태그:
+- 3-5개 권장
+- #{인물이름} #{이슈키워드} #{카테고리} #Shorts
+
+### 태그 (tags)
+- 인물명 (한글/영문)
+- 이슈 키워드
+- 관련 검색어
+- 카테고리 (연예뉴스, 스포츠, 한류 등)
+"""
+
+
+# ============================================================
+# 썸네일 설정
+# ============================================================
+
+THUMBNAIL_CONFIG = {
+    "enabled": True,
+    "model": "gemini-3-pro",       # Gemini 3 Pro로 생성
+
+    # 썸네일 크기 (YouTube Shorts 최적 비율)
+    "width": 720,
+    "height": 1280,                # 9:16 세로
+
+    # 텍스트 오버레이
+    "text_overlay": {
+        "enabled": True,
+        "max_lines": 2,            # 최대 2줄
+        "font_size": 72,           # 큰 글씨
+        "font_color": "#FFFFFF",   # 흰색
+        "stroke_color": "#000000", # 검정 테두리
+        "stroke_width": 4,
+        "position": "center",      # 중앙
+        "background_color": "rgba(0,0,0,0.6)",  # 반투명 배경
+    },
+
+    # 이슈 타입별 썸네일 스타일
+    "style_by_issue": {
+        "논란": {
+            "background_color": "#8B0000",  # 다크레드
+            "accent_color": "#FF0000",
+            "text_template": "⚡{hook_text}",
+        },
+        "열애": {
+            "background_color": "#C71585",  # 미디엄바이올렛레드
+            "accent_color": "#FF69B4",
+            "text_template": "💕{hook_text}",
+        },
+        "성과": {
+            "background_color": "#1E3A8A",  # 네이비
+            "accent_color": "#FFD700",
+            "text_template": "🏆{hook_text}",
+        },
+        "자랑": {
+            "background_color": "#0F4C81",  # 블루
+            "accent_color": "#FFFFFF",
+            "text_template": "🇰🇷{hook_text}",
+        },
+        "default": {
+            "background_color": "#1F1F1F",  # 다크그레이
+            "accent_color": "#FFFF00",
+            "text_template": "{hook_text}",
+        },
+    },
+}
+
+# 썸네일 프롬프트 템플릿
+THUMBNAIL_PROMPT_TEMPLATE = """
+YouTube Shorts thumbnail,
+{background_style},
+{silhouette_desc} as dramatic black silhouette,
+spotlight from above,
+{accent_color} accent lighting,
+empty space in center for Korean text overlay,
+4K, dramatic composition,
+NO text on image
+"""
+
+
+# ============================================================
 # 비용 설정
 # ============================================================
 
 COSTS = {
-    "gpt_script": 0.03,          # 대본 생성 (GPT-4o)
-    "gemini_image": 0.05,        # 이미지 1장 (Gemini Pro)
-    "tts_per_char": 0.000016,    # TTS (Google Neural2)
+    "gpt_script": 0.03,            # 대본 생성 (GPT-5.1)
+    "gemini_image": 0.05,          # 이미지 1장 (Gemini 3 Pro)
+    "gemini_thumbnail": 0.03,      # 썸네일 1장
+    "gemini_tts_per_char": 0.001,  # Gemini TTS (Flash)
+    "tts_per_char": 0.000016,      # Google Cloud TTS (Neural2)
 }
 
-def estimate_cost(scene_count: int = 9, script_length: int = 450) -> float:
+def estimate_cost(
+    scene_count: int = 8,
+    script_length: int = 380,
+    use_gemini_tts: bool = True,
+    include_thumbnail: bool = True
+) -> float:
     """예상 비용 계산"""
     image_cost = scene_count * COSTS["gemini_image"]
-    tts_cost = script_length * COSTS["tts_per_char"]
-    total = COSTS["gpt_script"] + image_cost + tts_cost
+
+    if use_gemini_tts:
+        tts_cost = script_length * COSTS["gemini_tts_per_char"]
+    else:
+        tts_cost = script_length * COSTS["tts_per_char"]
+
+    thumbnail_cost = COSTS["gemini_thumbnail"] if include_thumbnail else 0
+
+    total = COSTS["gpt_script"] + image_cost + tts_cost + thumbnail_cost
     return round(total, 3)
 
-# 예상 비용: $0.03 + (9 * $0.05) + (450 * $0.000016) = $0.487
+# 예상 비용 (Gemini TTS + 썸네일):
+# $0.03 + (8 * $0.05) + (380 * $0.001) + $0.03 = $0.84
