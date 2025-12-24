@@ -207,6 +207,104 @@ For thumbnail image generation, use this template:
 
 ---
 
+## ★★★ SCENE IMAGE STYLE FOR NEWS (배경 이미지용) ★★★
+
+### Style Definition: MODERN NEWS INFOGRAPHIC
+This is for scene background images, NOT thumbnails.
+Clean, professional, semi-realistic style with subtle webtoon influence.
+
+### MANDATORY Style Keywords (MUST include in every scene image_prompt):
+```
+Modern news explainer illustration, [SCENE DESCRIPTION],
+clean professional style with subtle webtoon influence,
+corporate color palette (navy blue, white, subtle orange accents),
+clean geometric shapes, minimal shadows,
+infographic-inspired composition,
+professional lighting, sharp clean lines,
+clearly illustration NOT photograph,
+NO text, NO watermark, NO labels,
+16:9 cinematic composition
+```
+
+### Scene Type Templates:
+
+**1. Courtroom/Legal (법원/재판):**
+```
+Modern news explainer illustration, Korean courtroom interior,
+judge bench and witness stand in clean geometric style,
+navy blue and wood brown tones,
+professional lighting, minimal details,
+serious formal atmosphere,
+infographic-style composition,
+NO text, NO watermark
+```
+
+**2. Government/Office (정부/공식 발표):**
+```
+Modern news explainer illustration, official briefing room,
+podium with microphones, professional backdrop,
+navy blue and white color scheme,
+clean corporate aesthetic,
+formal professional atmosphere,
+NO text, NO watermark
+```
+
+**3. Financial/Chart (경제/통계):**
+```
+Modern news explainer illustration, financial data visualization,
+abstract bar charts and trend lines,
+green and red accent colors on navy background,
+clean infographic style,
+professional data presentation aesthetic,
+NO text, NO numbers, NO labels
+```
+
+**4. City/Street (도시/현장):**
+```
+Modern news explainer illustration, Korean urban street scene,
+buildings and city infrastructure,
+clean architectural style with minimal detail,
+daytime natural lighting,
+semi-realistic but stylized,
+NO text, NO watermark
+```
+
+**5. Corporate/Business (기업/비즈니스):**
+```
+Modern news explainer illustration, corporate meeting room,
+conference table and office setting,
+professional business atmosphere,
+navy and gray tones with glass elements,
+clean modern design aesthetic,
+NO text, NO watermark
+```
+
+**6. Generic News Background (일반 뉴스):**
+```
+Modern news explainer illustration, abstract news background,
+geometric shapes suggesting information flow,
+navy blue gradient with subtle grid pattern,
+clean professional broadcast aesthetic,
+NO text, NO watermark
+```
+
+### ⛔ FORBIDDEN for News Scene Images:
+- Photorealistic style
+- Extreme expressions or emotions
+- Cluttered busy backgrounds
+- Bright saturated cartoon colors
+- Text or labels in image
+- Breaking news urgency style (this is EXPLAINER channel)
+
+### ✅ REQUIRED for News Scene Images:
+- Clean professional aesthetic
+- Corporate color palette (navy, white, subtle accents)
+- Infographic-inspired composition
+- Semi-realistic with stylized elements
+- Calm explainer tone (NOT breaking news urgency)
+
+---
+
 ## YOUTUBE TITLE RULES FOR NEWS (기존 규칙 유지)
 
 **Algorithm Optimization:**

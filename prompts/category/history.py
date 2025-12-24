@@ -54,14 +54,164 @@ HISTORY_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### Thumbnail Style: COMIC STYLE (문화권에 맞게)
+### Thumbnail Style: HISTORICAL CONCEPT ART + MASCOT
 ⚠️ Historical setting and costume matching the era
 ⚠️ Dramatic lighting, serious or contemplative expression
+⚠️ MASCOT MUST be prominently featured (25-35% of frame)
 
-**ai_prompts templates:**
-- A: Historical figure with dramatic expression, period costume
-- B: Battle or court scene with tension
-- C: Split composition showing before/after or contrast
+**Thumbnail Prompt Template:**
+```
+Historical concept art thumbnail, [MAIN SCENE DESCRIPTION],
+sepia and earth tone palette, dramatic cinematic lighting,
+LEFT/RIGHT SIDE: retro cartoon Korean scholar mascot (1960s animation style, round friendly face, traditional hanbok with gat, thick outlines, expressive pose - pointing/explaining/surprised, 25-35% of frame),
+mascot reacting to the historical scene,
+aged parchment texture, vintage feel,
+eye-catching YouTube thumbnail composition,
+NO text, NO watermark, 16:9 aspect ratio
+```
+
+**ai_prompts templates (with mascot):**
+- A: Historical scene + mascot explaining/pointing at key element
+- B: Battle/court scene + mascot reacting with surprise or concern
+- C: Dramatic moment + mascot with thoughtful/curious expression
+
+---
+
+## ★★★ IMAGE PROMPT STYLE FOR HISTORY (CRITICAL!) ★★★
+
+### Style Definition: HISTORICAL CONCEPT ART
+This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
+
+---
+
+## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
+
+### Mascot Definition (EXACT CHARACTER - DO NOT CHANGE!):
+```
+Cute Korean scholar mascot character,
+round face with round glasses,
+traditional Korean topknot hairstyle (상투/sangtu),
+wearing beige/cream traditional hanbok with olive green vest,
+holding scroll or book,
+warm earth tone colors (beige, olive, muted gold),
+thick clean outlines, friendly approachable design,
+consistent character across all images
+```
+
+### Character Details (MUST MATCH EXACTLY):
+- **Face**: Round, friendly, with round glasses
+- **Hair**: Black topknot (상투) on top of head
+- **Clothing**: Cream/beige hanbok with olive-gold patterned vest
+- **Props**: Scroll, book, or pointing gesture
+- **Colors**: Warm earth tones - beige, cream, olive, muted gold
+- **Style**: Clean cartoon style, thick outlines, NOT anime
+
+### Mascot Placement in Scene Images:
+- Position: BOTTOM RIGHT CORNER (10-15% of frame)
+- The mascot observes/reacts to the historical scene
+- Mascot style contrasts with realistic background (intentional)
+- Mascot expression should match scene mood (curious, surprised, thoughtful, etc.)
+
+### Mascot in Thumbnail:
+- Position: LEFT or RIGHT side (25-35% of frame)
+- Larger size for thumbnail visibility
+- More expressive pose (pointing, explaining, reacting)
+- Can overlap slightly with main scene
+
+---
+
+### MANDATORY Style Keywords (MUST include in every image_prompt):
+```
+Historical concept art, [SCENE DESCRIPTION],
+sepia and earth tone color palette,
+aged parchment texture border, vintage canvas feel,
+digital painting with visible brush strokes,
+dramatic lighting, misty atmospheric perspective,
+clearly artistic interpretation NOT photograph,
+BOTTOM RIGHT CORNER: cute Korean scholar mascot (round face with round glasses, black topknot hairstyle, beige hanbok with olive vest, holding scroll, warm earth tones, thick outlines, 10-15% of frame),
+NO text, NO watermark, NO labels,
+16:9 cinematic composition
+```
+
+### Scene Type Templates (ALL include mascot!):
+
+**1. Single Character (인물 단독):**
+```
+Historical concept art, ancient Korean [ERA] [ROLE],
+[POSE/ACTION] at [LOCATION],
+traditional period-accurate clothing and accessories,
+sepia and earth tone palette, aged parchment texture,
+dramatic [TIME OF DAY] lighting,
+digital painting with visible brush strokes,
+epic landscape background with mountains/fortress,
+BOTTOM RIGHT: cute Korean scholar mascot watching curiously (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+NO text, NO watermark
+```
+
+**2. Crowd/Group Scene (군중/집단 장면):**
+```
+Historical concept art, ancient Korean [ERA] scene,
+[NUMBER] of [PEOPLE TYPE] [ACTION],
+wide cinematic shot showing scale of [EVENT],
+sepia earth tones, aged canvas texture,
+dramatic lighting with dust/mist particles,
+detailed crowd with period-accurate costumes,
+BOTTOM RIGHT: cute Korean scholar mascot observing with amazement (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+NO text, NO watermark
+```
+
+**3. Battle/Conflict (전투/갈등):**
+```
+Historical concept art, ancient Korean [ERA] battle,
+[ARMY/SOLDIERS] in formation with [WEAPONS],
+epic wide shot showing military scale,
+dust and tension atmosphere,
+sepia palette with dramatic sunset/stormy sky,
+aged parchment border, cinematic composition,
+BOTTOM RIGHT: cute Korean scholar mascot watching tensely (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+NO text, NO watermark
+```
+
+**4. Court/Interior (궁궐/실내):**
+```
+Historical concept art, ancient Korean [ERA] [ROOM TYPE],
+[FIGURES] in formal/ceremonial positions,
+traditional architecture with period details,
+warm torchlight/candlelight atmosphere,
+earth tones with gold accents,
+aged texture, vintage illustration style,
+BOTTOM RIGHT: cute Korean scholar mascot peeking thoughtfully (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+NO text, NO watermark
+```
+
+**5. Labor/Construction (노동/건설):**
+```
+Historical concept art, ancient Korean [ERA] [ACTIVITY],
+workers [ACTION] with [TOOLS/MATERIALS],
+coordinated group effort showing scale,
+wide shot with landscape background,
+sepia earth tones, aged parchment texture,
+dramatic natural lighting,
+BOTTOM RIGHT: cute Korean scholar mascot watching with interest (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+NO text, NO watermark
+```
+
+### ⛔ FORBIDDEN for History Category:
+- Webtoon/manhwa style
+- Exaggerated cartoon expressions
+- Bright vivid colors
+- Modern elements
+- Photorealistic style
+- Any text or labels in image
+- Clean digital/vector style
+
+### ✅ REQUIRED for History Category:
+- Sepia/earth tone color palette
+- Aged parchment/canvas texture
+- Visible brush strokes
+- Period-accurate costumes and settings
+- Dramatic cinematic lighting
+- Artistic illustration feel (clearly NOT a photo)
 """
 
 def get_history_prompt():

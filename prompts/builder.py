@@ -133,6 +133,16 @@ def detect_category_simple(script: str) -> str:
             # 영어
             'president', 'government', 'breaking', 'news', 'announcement', 'politics',
         ],
+        'mystery': [
+            # 한국어
+            '미스터리', '미제', '실종', '괴담', '초자연', '유령', '귀신', '저주', '암살', '음모론',
+            '버뮤다', '외계인', 'ufo', '비밀', '미해결', '사라진', '발견된', '숨겨진', '의문의', '정체불명',
+            '수수께끼', '불가사의', '괴현상', '목격', '증언', '진실', '은폐', '조작', '추적', '단서',
+            # 일본어
+            'ミステリー', 'ゆうれい', 'しつそう', 'ちょうじょうげんしょう',
+            # 영어
+            'mystery', 'unsolved', 'missing', 'supernatural', 'conspiracy', 'ufo', 'ghost', 'secret',
+        ],
     }
 
     # 각 카테고리별 키워드 카운트
