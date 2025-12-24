@@ -1034,48 +1034,8 @@ Step1(본문 분석) + Step2(구조 설계)를 바탕으로, 청중의 마음을
 '''
 
 
-def get_duration_char_count(duration_str: str) -> dict:
-    """
-    분량(분)을 글자 수로 변환.
-
-    한국어 설교 말하기 속도: 약 900자/분 (공백 포함)
-    - 실제 설교 분석 기준
-
-    Returns:
-        dict: {
-            "minutes": 분,
-            "min_chars": 최소 글자 수,
-            "max_chars": 최대 글자 수,
-            "target_chars": 목표 글자 수 (중간값),
-            "chars_per_min": 분당 글자 수
-        }
-    """
-    import re
-
-    # 기본값
-    CHARS_PER_MIN = 900  # 분당 글자 수 (공백 포함)
-
-    # 숫자 추출
-    if isinstance(duration_str, (int, float)):
-        minutes = int(duration_str)
-    elif isinstance(duration_str, str):
-        match = re.search(r'(\d+)', duration_str)
-        minutes = int(match.group(1)) if match else 20
-    else:
-        minutes = 20
-
-    # 글자 수 계산 (±10% 여유)
-    target_chars = minutes * CHARS_PER_MIN
-    min_chars = int(target_chars * 0.9)
-    max_chars = int(target_chars * 1.1)
-
-    return {
-        "minutes": minutes,
-        "min_chars": min_chars,
-        "max_chars": max_chars,
-        "target_chars": target_chars,
-        "chars_per_min": CHARS_PER_MIN
-    }
+# ★ 분량 규칙은 sermon_config.py에서 가져옴 (단일 소스)
+from sermon_modules.sermon_config import get_duration_char_count
 
 
 def build_step3_prompt_from_json(

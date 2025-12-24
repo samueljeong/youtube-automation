@@ -1734,10 +1734,10 @@ def get_duration_info_api(duration):
     분량(분)을 글자 수로 변환하여 반환
 
     Step4 "전체 복사" 기능에서 사용
-    - 단일 소스: step3_prompt_builder.py의 get_duration_char_count()
+    - 단일 소스: sermon_config.py
     """
     try:
-        from sermon_modules.step3_prompt_builder import get_duration_char_count
+        from sermon_modules.sermon_config import get_duration_char_count
 
         result = get_duration_char_count(duration)
         result["ok"] = True
