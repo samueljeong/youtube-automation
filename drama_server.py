@@ -12289,7 +12289,12 @@ def api_image_generate_assets_zip():
             # 단독 부호 제거
             text = re.sub(r'\s+[.?!]+\s+', ' ', text)
 
-            # 0-4) 쉼표 → 공백 (휴지 효과, "쉼표"로 읽는 것 방지)
+            # 0-4) 쉼표 처리
+            # 먼저 숫자 내 쉼표 제거 (103,600 → 103600) - 천단위 구분자
+            text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+            while re.search(r'(\d),(\d{3})', text):  # 연속 쉼표 처리 (1,234,567)
+                text = re.sub(r'(\d),(\d{3})', r'\1\2', text)
+            # 나머지 쉼표 → 공백 (휴지 효과)
             text = text.replace(',', ' ')
 
             # 연속 공백 정리
