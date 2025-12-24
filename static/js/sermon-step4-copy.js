@@ -1,6 +1,6 @@
 /**
- * sermon-gpt-pro.js
- * GPT PRO (Step3) 처리 기능
+ * sermon-step4-copy.js
+ * Step4 "전체 복사" 프롬프트 조합 기능
  *
  * 주요 함수:
  * - assembleGptProDraft()
@@ -8,45 +8,12 @@
  * - 전체 복사 기능
  *
  * 이 파일은 sermon.html의 3137~3589줄 코드를 모듈화한 것입니다.
+ *
+ * ★ 분량 규칙은 step3_prompt_builder.py에서 API로 가져옴
  */
 
-// ===== 분량→글자 수 변환 함수 =====
-function getDurationCharCount(durationStr) {
-  /**
-   * 분량(분)을 글자 수로 변환.
-   *
-   * 한국어 설교 말하기 속도: 약 270자/분 (공백 포함)
-   * - 느린 속도: 250자/분
-   * - 보통 속도: 270자/분
-   * - 빠른 속도: 300자/분
-   */
-  const CHARS_PER_MIN = 270;
-
-  // 숫자 추출
-  let minutes = 20;
-  if (typeof durationStr === 'number') {
-    minutes = Math.floor(durationStr);
-  } else if (typeof durationStr === 'string') {
-    const match = durationStr.match(/(\d+)/);
-    minutes = match ? parseInt(match[1], 10) : 20;
-  }
-
-  // 글자 수 계산 (±10% 여유)
-  const targetChars = minutes * CHARS_PER_MIN;
-  const minChars = Math.floor(targetChars * 0.9);
-  const maxChars = Math.floor(targetChars * 1.1);
-
-  return {
-    minutes,
-    minChars,
-    maxChars,
-    targetChars,
-    charsPerMin: CHARS_PER_MIN
-  };
-}
-
 // ===== GPT PRO 초안 구성 =====
-function assembleGptProDraft() {
+async function assembleGptProDraft() {
   const ref = document.getElementById('sermon-ref')?.value || '';
   const title = getSelectedTitle();
   const target = document.getElementById('sermon-target')?.value || '';
@@ -59,8 +26,25 @@ function assembleGptProDraft() {
   const categoryLabel = getCategoryLabel(window.currentCategory);
   const today = new Date().toLocaleDateString('ko-KR');
 
-  // 분량→글자 수 변환
-  const durationInfo = getDurationCharCount(duration);
+  // ★ 분량→글자 수 변환 (API 호출 - step3_prompt_builder.py 단일 소스)
+  let durationInfo = null;
+  try {
+    const durationResponse = await fetch(`/api/sermon/duration-info/${encodeURIComponent(duration)}`);
+    if (durationResponse.ok) {
+      const data = await durationResponse.json();
+      if (data.ok) {
+        durationInfo = {
+          minutes: data.minutes,
+          minChars: data.min_chars,
+          maxChars: data.max_chars,
+          targetChars: data.target_chars,
+          charsPerMin: data.chars_per_min
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[Step4] 분량 정보 API 호출 실패:', e);
+  }
 
   let draft = '';
 
@@ -80,7 +64,7 @@ function assembleGptProDraft() {
   draft += `   - "~합니다", "~입니다", "~하십시오" 형태를 사용하세요.\n`;
   draft += `   - 반말("~해", "~야") 사용 금지.\n\n`;
 
-  if (duration) {
+  if (duration && durationInfo) {
     draft += `[최우선 필수] 분량: ${duration} = ${durationInfo.targetChars.toLocaleString()}자\n`;
     draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     draft += `   최소 글자 수: ${durationInfo.minChars.toLocaleString()}자 (이 미만은 불합격)\n`;
@@ -92,12 +76,11 @@ function assembleGptProDraft() {
     draft += `   [분량 맞추기 전략]\n`;
     if (durationInfo.minutes >= 25) {
       draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자 (도입, 성경 배경)\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명 + 예화 + 적용)\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
       draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자 (요약 + 결단 촉구 + 기도)\n`;
-      draft += `   - 각 대지마다 예화 1개, 적용 1개를 반드시 포함하세요.\n`;
     } else if (durationInfo.minutes >= 15) {
       draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 충분한 설명)\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
       draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자\n`;
     } else {
       draft += `   - 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n`;
@@ -287,47 +270,64 @@ function assembleGptProDraft() {
     }
   });
 
-  // 스타일별 작성 가이드
-  if (styleName && window.DEFAULT_GUIDES?.[styleName]?.step3) {
-    const step3Guide = window.DEFAULT_GUIDES[styleName].step3;
+  // 스타일별 작성 가이드 (★ three_points.py 등에서 API로 가져옴)
+  if (styleId) {
+    try {
+      const guideResponse = await fetch(`/api/sermon/style-guide/${styleId}`);
+      if (guideResponse.ok) {
+        const guideData = await guideResponse.json();
+        if (guideData.ok) {
+          draft += `==================================================\n`;
+          draft += `[스타일별 작성 가이드 (${guideData.style_name || styleName})]\n`;
+          draft += `==================================================\n\n`;
 
-    draft += `==================================================\n`;
-    draft += `[스타일별 작성 가이드 (${styleName})]\n`;
-    draft += `==================================================\n\n`;
+          // ★ 핵심 작성 가이드 (소대지 규칙 등 포함)
+          if (guideData.writing_guide) {
+            draft += `▶ 작성 가이드:\n`;
+            draft += `${guideData.writing_guide}\n\n`;
+          }
 
-    // 가독성/문단 스타일
-    if (step3Guide.writing_style) {
-      const ws = step3Guide.writing_style;
-      draft += `> ${ws.label || '문단/줄바꿈 스타일'}\n`;
-      if (ws.core_principle) draft += `   핵심: ${ws.core_principle}\n`;
-      if (ws.must_do) {
-        draft += `   [해야 할 것]\n`;
-        ws.must_do.forEach(item => draft += `      - ${item}\n`);
+          // ★ 예화 배치 가이드
+          if (guideData.illustration_guide) {
+            draft += `▶ 예화 배치 가이드:\n`;
+            draft += `${guideData.illustration_guide}\n\n`;
+          }
+
+          // ★ 적용 가이드 (있는 경우)
+          if (guideData.application_guide) {
+            draft += `▶ 적용 가이드:\n`;
+            draft += `${guideData.application_guide}\n\n`;
+          }
+
+          // ★ 체크리스트
+          if (guideData.checklist && guideData.checklist.length > 0) {
+            draft += `▶ 스타일 체크리스트:\n`;
+            guideData.checklist.forEach((item, i) => {
+              draft += `   ${i + 1}. ${item}\n`;
+            });
+            draft += `\n`;
+          }
+
+          draft += `==================================================\n\n`;
+        }
       }
-      if (ws.must_not) {
-        draft += `   [하지 말 것]\n`;
-        ws.must_not.forEach(item => draft += `      - ${item}\n`);
+    } catch (e) {
+      console.warn('[Step4] 스타일 가이드 API 호출 실패:', e);
+      // API 실패 시 기본 가이드 사용 (fallback)
+      if (styleName && window.DEFAULT_GUIDES?.[styleName]?.step3) {
+        const step3Guide = window.DEFAULT_GUIDES[styleName].step3;
+        draft += `==================================================\n`;
+        draft += `[스타일별 작성 가이드 (${styleName})]\n`;
+        draft += `==================================================\n\n`;
+        if (step3Guide.writing_style) {
+          const ws = step3Guide.writing_style;
+          draft += `> ${ws.label || '문단/줄바꿈 스타일'}\n`;
+          if (ws.core_principle) draft += `   핵심: ${ws.core_principle}\n`;
+          draft += `\n`;
+        }
+        draft += `==================================================\n\n`;
       }
-      draft += `\n`;
     }
-
-    // 성경구절 인용 방식
-    if (step3Guide.scripture_citation) {
-      const sc = step3Guide.scripture_citation;
-      draft += `> ${sc.label || '성경구절 인용 방식'}\n`;
-      if (sc.core_principle) draft += `   핵심: ${sc.core_principle}\n`;
-      if (sc.must_do) {
-        draft += `   [해야 할 것]\n`;
-        sc.must_do.forEach(item => draft += `      - ${item}\n`);
-      }
-      if (sc.good_examples) {
-        draft += `   [올바른 예시]\n`;
-        sc.good_examples.forEach(ex => draft += `      ${ex}\n`);
-      }
-      draft += `\n`;
-    }
-
-    draft += `==================================================\n\n`;
   }
 
   // 최종 작성 지침
@@ -341,14 +341,14 @@ function assembleGptProDraft() {
   draft += `  - Step1의 '핵심_메시지'가 설교 전체에 일관되게 흐르는가?\n`;
   draft += `  - Step1의 '주요_절_해설'과 '핵심_단어_분석'을 활용했는가?\n`;
   draft += `  - Step2의 설교 구조(서론, 대지, 결론)를 따랐는가?\n`;
-  if (duration) draft += `  - 분량이 ${duration} (${durationInfo.minChars.toLocaleString()}~${durationInfo.maxChars.toLocaleString()}자)에 맞는가?\n`;
+  if (duration && durationInfo) draft += `  - 분량이 ${duration} (${durationInfo.minChars.toLocaleString()}~${durationInfo.maxChars.toLocaleString()}자)에 맞는가?\n`;
   if (target) draft += `  - 대상(${target})에 맞는 예시와 적용을 사용했는가?\n`;
   if (worshipType) draft += `  - 예배 유형(${worshipType})에 맞는 톤인가?\n`;
   draft += `  - 성경 구절이 가독성 가이드에 맞게 줄바꿈 처리되었는가?\n`;
   draft += `  - 마크다운 없이 순수 텍스트로 작성했는가?\n`;
   draft += `  - 복음과 소망, 하나님의 은혜가 분명하게 드러나는가?\n\n`;
 
-  if (duration) {
+  if (duration && durationInfo) {
     draft += `\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     draft += `[최종 분량 확인]\n`;
     draft += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -597,15 +597,16 @@ async function executeGptPro() {
 }
 
 // ===== 전체 복사 기능 =====
-function copyAllResults() {
-  const draft = assembleGptProDraft();
-  navigator.clipboard.writeText(draft).then(() => {
+async function copyAllResults() {
+  try {
+    const draft = await assembleGptProDraft();
+    await navigator.clipboard.writeText(draft);
     showStatus('✅ 전체 내용이 복사되었습니다!');
     setTimeout(hideStatus, 2000);
-  }).catch(err => {
+  } catch (err) {
     console.error('복사 실패:', err);
     alert('복사에 실패했습니다.');
-  });
+  }
 }
 
 // 전역 노출

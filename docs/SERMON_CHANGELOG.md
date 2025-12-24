@@ -35,8 +35,8 @@
 | 문자열 결과 길이 제한 | 없음 | 2000자 |
 
 **수정 파일**:
-- `sermon_modules/prompt.py`: `build_step3_prompt_from_json()` 함수
-- `static/js/sermon-gpt-pro.js`: `assembleGptProDraft()` 함수
+- `sermon_modules/step3_prompt_builder.py`: `build_step3_prompt_from_json()` 함수
+- `static/js/sermon-step4-copy.js`: `assembleGptProDraft()` 함수
 
 **예상 효과**: 프롬프트 토큰 약 40~50% 감소
 
@@ -88,8 +88,8 @@
 - Step4에 예화(illustrations) 누락
 
 **수정**:
-- `prompt.py`: Step2 결과에서 소대지 추출 로직 추가
-- `sermon-gpt-pro.js`: Step2 결과에서 예화 추출 로직 추가
+- `step3_prompt_builder.py`: Step2 결과에서 소대지 추출 로직 추가
+- `sermon-step4-copy.js`: Step2 결과에서 예화 추출 로직 추가
 
 ---
 
@@ -196,9 +196,9 @@
 
 | 파일 | 설명 |
 |------|------|
-| `sermon_modules/prompt.py` | Step3 프롬프트 빌더, 글자 수 함수 |
+| `sermon_modules/step3_prompt_builder.py` | Step3 프롬프트 빌더, 글자 수 함수 |
 | `sermon_modules/api_sermon.py` | API 파라미터 전달 |
-| `static/js/sermon-gpt-pro.js` | Step4 프롬프트 빌더, 글자 수 함수 |
+| `static/js/sermon-step4-copy.js` | Step4 프롬프트 빌더, 글자 수 함수 |
 | `templates/sermon.html` | renderGuideTabs() 수정, Step3 지침 전송 |
 | `sermon_server.py` | step3_guide 받기, build_step3_prompt_from_json() 개편 |
 

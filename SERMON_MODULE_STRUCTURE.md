@@ -26,7 +26,7 @@ static/css/sermon.css     - 모든 스타일 (916줄)
 | sermon-main.js | 전역 변수, 설정 | ✅ |
 | sermon-render.js | UI 렌더링 | ✅ |
 | sermon-step.js | Step 처리 | ✅ |
-| sermon-gpt-pro.js | GPT PRO 처리 | ✅ |
+| sermon-step4-copy.js | Step4 전체 복사 | ✅ |
 | sermon-admin.js | 관리자 기능 | ✅ |
 | sermon-qa.js | Q&A, 챗봇 | ✅ |
 | sermon-meditation.js | 묵상메시지 | ✅ |
@@ -52,7 +52,7 @@ sermon_modules/
 ├── db.py                ✅ 데이터베이스 연결 및 초기화 (280줄)
 ├── utils.py             ✅ 유틸리티 함수 (100줄)
 ├── auth.py              ✅ 인증, 크레딧, 데코레이터 (250줄)
-└── prompt.py            ✅ 프롬프트 빌더 (230줄)
+└── step3_prompt_builder.py  ✅ 프롬프트 빌더 (230줄)
 ```
 
 ### 모듈 상세
@@ -73,7 +73,7 @@ sermon_modules/
 - `get_user_credits()`, `use_credit()`, `add_credits()`, `set_credits()` - 크레딧 관리
 - `auth_bp` - Flask Blueprint (회원가입, 로그인, 로그아웃)
 
-#### prompt.py
+#### step3_prompt_builder.py
 - `get_system_prompt_for_step()` - 단계별 시스템 프롬프트
 - `build_prompt_from_json()` - JSON 지침 기반 프롬프트 생성
 - `build_step3_prompt_from_json()` - Step3 전용 프롬프트
@@ -91,7 +91,7 @@ from sermon_modules import (
 # 또는 개별 모듈에서
 from sermon_modules.db import get_db_connection
 from sermon_modules.auth import login_required
-from sermon_modules.prompt import build_step3_prompt_from_json
+from sermon_modules.step3_prompt_builder import build_step3_prompt_from_json
 ```
 
 ### API 라우트 분리 ✅ 구조 생성 완료
@@ -140,7 +140,7 @@ my_page_v2/
 │       ├── sermon-main.js          ✅
 │       ├── sermon-render.js        ✅
 │       ├── sermon-step.js          ✅
-│       ├── sermon-gpt-pro.js       ✅
+│       ├── sermon-step4-copy.js    ✅
 │       ├── sermon-admin.js         ✅
 │       ├── sermon-qa.js            ✅
 │       ├── sermon-meditation.js    ✅
@@ -151,7 +151,7 @@ my_page_v2/
 │   ├── db.py                       ✅
 │   ├── utils.py                    ✅
 │   ├── auth.py                     ✅
-│   ├── prompt.py                   ✅
+│   ├── step3_prompt_builder.py     ✅
 │   ├── api_sermon.py              ✅ (라우트 마이그레이션 대기)
 │   ├── api_banner.py              ✅ (라우트 마이그레이션 대기)
 │   └── api_admin.py               ✅ (라우트 마이그레이션 대기)

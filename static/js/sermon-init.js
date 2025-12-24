@@ -9,7 +9,7 @@
  * 4. sermon-main.js
  * 5. sermon-render.js
  * 6. sermon-step.js
- * 7. sermon-gpt-pro.js
+ * 7. sermon-step4-copy.js
  * 8. sermon-admin.js
  * 9. sermon-qa.js
  * 10. sermon-meditation.js
