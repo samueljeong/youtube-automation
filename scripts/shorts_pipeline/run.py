@@ -94,13 +94,14 @@ def generate_tts(
         }
     """
     try:
-        import google.generativeai as genai
+        import requests
+        import base64
+        import wave
+        import io
 
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
-
-        genai.configure(api_key=api_key)
 
         # 이슈 타입별 음성 설정
         voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
@@ -108,42 +109,78 @@ def generate_tts(
 
         print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}")
 
-        # Gemini TTS 호출
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        # Gemini TTS REST API 호출
+        model = "gemini-2.0-flash-exp"  # TTS 지원 모델
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
-        response = model.generate_content(
-            contents=text,
-            generation_config=genai.types.GenerationConfig(
-                response_modalities=["AUDIO"],
-                speech_config=genai.types.SpeechConfig(
-                    voice_config=genai.types.VoiceConfig(
-                        prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
-                            voice_name=voice_name,
-                        )
-                    )
-                )
-            )
-        )
+        payload = {
+            "contents": [{"parts": [{"text": text}]}],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": voice_name
+                        }
+                    }
+                }
+            }
+        }
+
+        response = requests.post(url, json=payload, timeout=120)
+
+        if response.status_code != 200:
+            error_text = response.text[:500]
+            raise ValueError(f"Gemini TTS API 오류: {response.status_code} - {error_text}")
+
+        result = response.json()
 
         # 오디오 데이터 추출
+        candidates = result.get("candidates", [])
+        if not candidates:
+            raise ValueError("응답에 candidates가 없습니다")
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+
         audio_data = None
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('audio/'):
-                audio_data = part.inline_data.data
+        for part in parts:
+            inline_data = part.get("inlineData", {})
+            if inline_data.get("mimeType", "").startswith("audio/"):
+                audio_data = base64.b64decode(inline_data.get("data", ""))
                 break
 
         if not audio_data:
             raise ValueError("TTS 응답에서 오디오 데이터를 찾을 수 없습니다")
 
-        # 파일 저장
+        # PCM을 WAV로 변환 (24kHz, 16bit, mono)
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(audio_data)
+
+        wav_data = wav_buffer.getvalue()
+        duration = len(audio_data) / (24000 * 2)  # 24kHz * 2 bytes
+
+        # WAV를 MP3로 변환
         if output_path is None:
             output_path = tempfile.mktemp(suffix=".mp3")
 
-        with open(output_path, "wb") as f:
-            f.write(audio_data)
+        wav_temp = tempfile.mktemp(suffix=".wav")
+        with open(wav_temp, "wb") as f:
+            f.write(wav_data)
 
-        # 재생 시간 확인 (ffprobe)
-        duration = get_audio_duration(output_path)
+        # FFmpeg로 MP3 변환
+        cmd = ['ffmpeg', '-y', '-i', wav_temp, '-acodec', 'libmp3lame', '-b:a', '128k', output_path]
+        subprocess.run(cmd, capture_output=True, timeout=30)
+
+        # 임시 파일 삭제
+        try:
+            os.unlink(wav_temp)
+        except:
+            pass
 
         # 비용 계산 (Gemini Flash: $0.001/1000자)
         cost = len(text) * 0.001 / 1000
