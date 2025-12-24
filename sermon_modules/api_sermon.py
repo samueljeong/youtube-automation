@@ -1737,7 +1737,7 @@ def get_duration_info_api(duration):
     - 단일 소스: sermon_config.py
     """
     try:
-        from sermon_modules.sermon_config import get_duration_char_count
+        from .sermon_config import get_duration_char_count
 
         result = get_duration_char_count(duration)
         result["ok"] = True

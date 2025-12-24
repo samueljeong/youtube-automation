@@ -1035,7 +1035,7 @@ Step1(본문 분석) + Step2(구조 설계)를 바탕으로, 청중의 마음을
 
 
 # ★ 분량 규칙은 sermon_config.py에서 가져옴 (단일 소스)
-from sermon_modules.sermon_config import get_duration_char_count
+from .sermon_config import get_duration_char_count
 
 
 def build_step3_prompt_from_json(
