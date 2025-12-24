@@ -44,6 +44,9 @@ from .config import (
     SHORTS_EMPHASIS_STYLE,
     SUBTITLE_HIGHLIGHT_COLORS,
     KEYWORD_HIGHLIGHT_CONFIG,
+    # Ken Burns 효과
+    SHORTS_KEN_BURNS,
+    FFMPEG_ZOOMPAN_PRESETS,
     estimate_cost,
 )
 
@@ -118,6 +121,9 @@ __all__ = [
     'SHORTS_EMPHASIS_STYLE',
     'SUBTITLE_HIGHLIGHT_COLORS',
     'KEYWORD_HIGHLIGHT_CONFIG',
+    # Ken Burns 효과
+    'SHORTS_KEN_BURNS',
+    'FFMPEG_ZOOMPAN_PRESETS',
     'estimate_cost',
 
     # Sheets
