@@ -13,9 +13,13 @@ from typing import List, Dict, Any, Optional
 from urllib.parse import quote
 
 from .config import (
+    RSS_FEEDS,
     ENTERTAINMENT_RSS_FEEDS,
     ISSUE_TYPES,
     CELEBRITY_SILHOUETTES,
+    ATHLETE_SILHOUETTES,
+    KOREA_PRIDE_SILHOUETTES,
+    CONTENT_CATEGORIES,
 )
 
 
@@ -121,25 +125,35 @@ def detect_issue_type(text: str) -> str:
     return "근황"  # 기본값
 
 
-def get_silhouette_description(celebrity: str) -> str:
+def get_silhouette_description(person: str, category: str = "연예인") -> str:
     """
-    연예인에 맞는 실루엣 설명 반환
+    인물에 맞는 실루엣 설명 반환
+
+    Args:
+        person: 인물 이름
+        category: 카테고리 (연예인/운동선수/국뽕)
 
     Returns:
         실루엣 프롬프트 설명 (영어)
     """
-    if celebrity in CELEBRITY_SILHOUETTES:
-        return CELEBRITY_SILHOUETTES[celebrity]
+    # 1) 카테고리별 라이브러리 확인
+    if category == "운동선수" and person in ATHLETE_SILHOUETTES:
+        return ATHLETE_SILHOUETTES[person]
+    elif category == "국뽕":
+        return KOREA_PRIDE_SILHOUETTES.get("default", KOREA_PRIDE_SILHOUETTES["default"])
+    elif person in CELEBRITY_SILHOUETTES:
+        return CELEBRITY_SILHOUETTES[person]
+    elif person in ATHLETE_SILHOUETTES:
+        return ATHLETE_SILHOUETTES[person]
 
-    # 성별 추정 (간단한 휴리스틱)
-    # 한국 이름에서 마지막 글자로 추정
-    if celebrity:
+    # 2) 성별 추정 (간단한 휴리스틱)
+    if person:
         # 여성에 많은 끝글자
         female_endings = ["희", "영", "경", "숙", "정", "연", "아", "이", "나", "라"]
-        if celebrity[-1] in female_endings:
-            return CELEBRITY_SILHOUETTES["default_female"]
+        if person[-1] in female_endings:
+            return CELEBRITY_SILHOUETTES.get("default_female", "female figure in casual standing pose")
 
-    return CELEBRITY_SILHOUETTES["default_male"]
+    return CELEBRITY_SILHOUETTES.get("default_male", "male figure in casual standing pose")
 
 
 def summarize_news(title: str, summary: str, max_length: int = 150) -> str:
@@ -202,16 +216,23 @@ def compute_hash(text: str) -> str:
 
 def collect_entertainment_news(
     max_per_feed: int = 10,
-    total_limit: int = 20
+    total_limit: int = 20,
+    categories: List[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    연예 뉴스 수집 메인 함수
+    뉴스 수집 메인 함수 (모든 카테고리 지원)
+
+    Args:
+        max_per_feed: 피드당 최대 수집 수
+        total_limit: 전체 최대 수집 수
+        categories: 수집할 카테고리 목록 (None이면 전체)
 
     Returns:
         [
             {
                 "run_id": "2024-12-24",
-                "celebrity": "박나래",
+                "category": "연예인",
+                "person": "박나래",
                 "issue_type": "논란",
                 "news_title": "...",
                 "news_url": "...",
@@ -219,7 +240,6 @@ def collect_entertainment_news(
                 "silhouette_desc": "...",
                 "hook_text": "...",
                 "상태": "대기",
-                "hash": "abc123..."
             },
             ...
         ]
@@ -228,53 +248,68 @@ def collect_entertainment_news(
     seen_hashes = set()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    for feed_config in ENTERTAINMENT_RSS_FEEDS:
-        feed_name = feed_config["name"]
-        feed_url = feed_config["url"]
+    # 수집할 카테고리 결정
+    if categories is None:
+        categories = CONTENT_CATEGORIES  # ["연예인", "운동선수", "국뽕"]
 
-        print(f"[SHORTS] RSS 수집 중: {feed_name}")
-        items = fetch_rss_feed(feed_url, max_items=max_per_feed)
+    for category in categories:
+        if category not in RSS_FEEDS:
+            print(f"[SHORTS] 알 수 없는 카테고리: {category}")
+            continue
 
-        for item in items:
-            title = item["title"]
-            link = item["link"]
-            summary = item.get("summary", "")
+        feeds = RSS_FEEDS[category]
+        print(f"[SHORTS] === {category} 카테고리 수집 시작 ===")
 
-            # 연예인 이름 추출
-            celebrity = extract_celebrity_name(title + " " + summary)
-            if not celebrity:
-                continue  # 연예인 이름 없으면 스킵
+        for feed_config in feeds:
+            feed_name = feed_config["name"]
+            feed_url = feed_config["url"]
 
-            # 중복 체크
-            item_hash = compute_hash(celebrity + link)
-            if item_hash in seen_hashes:
-                continue
-            seen_hashes.add(item_hash)
+            print(f"[SHORTS] RSS 수집 중: {feed_name}")
+            items = fetch_rss_feed(feed_url, max_items=max_per_feed)
 
-            # 이슈 유형 감지
-            issue_type = detect_issue_type(title + " " + summary)
+            for item in items:
+                title = item["title"]
+                link = item["link"]
+                summary = item.get("summary", "")
 
-            # 실루엣 설명
-            silhouette_desc = get_silhouette_description(celebrity)
+                # 인물 이름 추출
+                person = extract_celebrity_name(title + " " + summary)
+                if not person:
+                    continue  # 인물 이름 없으면 스킵
 
-            # 훅 문장
-            hook_text = generate_hook_text(celebrity, issue_type, title)
+                # 중복 체크
+                item_hash = compute_hash(person + link)
+                if item_hash in seen_hashes:
+                    continue
+                seen_hashes.add(item_hash)
 
-            # 뉴스 요약
-            news_summary = summarize_news(title, summary)
+                # 이슈 유형 감지
+                issue_type = detect_issue_type(title + " " + summary)
 
-            all_items.append({
-                "run_id": today,
-                "celebrity": celebrity,
-                "issue_type": issue_type,
-                "news_title": title,
-                "news_url": link,
-                "news_summary": news_summary,
-                "silhouette_desc": silhouette_desc,
-                "hook_text": hook_text,
-                "상태": "대기",
-                "hash": item_hash,
-            })
+                # 실루엣 설명
+                silhouette_desc = get_silhouette_description(person, category)
+
+                # 훅 문장
+                hook_text = generate_hook_text(person, issue_type, title)
+
+                # 뉴스 요약
+                news_summary = summarize_news(title, summary)
+
+                all_items.append({
+                    "run_id": today,
+                    "category": category,        # ✅ 카테고리 추가
+                    "person": person,            # ✅ celebrity → person
+                    "issue_type": issue_type,
+                    "news_title": title,
+                    "news_url": link,
+                    "news_summary": news_summary,
+                    "silhouette_desc": silhouette_desc,
+                    "hook_text": hook_text,
+                    "상태": "대기",
+                })
+
+                if len(all_items) >= total_limit:
+                    break
 
             if len(all_items) >= total_limit:
                 break
@@ -282,28 +317,37 @@ def collect_entertainment_news(
         if len(all_items) >= total_limit:
             break
 
-    print(f"[SHORTS] 총 {len(all_items)}개 연예 뉴스 수집 완료")
+    print(f"[SHORTS] 총 {len(all_items)}개 뉴스 수집 완료")
     return all_items
 
 
 def search_celebrity_news(
-    celebrity: str,
+    person: str,
+    category: str = "연예인",
     max_items: int = 5
 ) -> List[Dict[str, Any]]:
     """
-    특정 연예인 관련 뉴스 검색
+    특정 인물 관련 뉴스 검색
 
     Args:
-        celebrity: 연예인 이름
+        person: 인물 이름
+        category: 카테고리 (연예인/운동선수/국뽕)
         max_items: 최대 반환 수
 
     Returns:
         수집된 뉴스 목록
     """
-    query = f"{celebrity} 연예"
+    # 카테고리별 검색 쿼리
+    if category == "운동선수":
+        query = f"{person} 선수"
+    elif category == "국뽕":
+        query = f"{person} 한국"
+    else:
+        query = f"{person} 연예"
+
     url = google_news_rss_url(query)
 
-    print(f"[SHORTS] '{celebrity}' 뉴스 검색 중...")
+    print(f"[SHORTS] '{person}' ({category}) 뉴스 검색 중...")
     items = fetch_rss_feed(url, max_items=max_items)
 
     results = []
@@ -315,13 +359,14 @@ def search_celebrity_news(
         summary = item.get("summary", "")
 
         issue_type = detect_issue_type(title + " " + summary)
-        silhouette_desc = get_silhouette_description(celebrity)
-        hook_text = generate_hook_text(celebrity, issue_type, title)
+        silhouette_desc = get_silhouette_description(person, category)
+        hook_text = generate_hook_text(person, issue_type, title)
         news_summary = summarize_news(title, summary)
 
         results.append({
             "run_id": today,
-            "celebrity": celebrity,
+            "category": category,        # ✅ 카테고리 추가
+            "person": person,            # ✅ celebrity → person
             "issue_type": issue_type,
             "news_title": title,
             "news_url": link,
@@ -331,5 +376,5 @@ def search_celebrity_news(
             "상태": "대기",
         })
 
-    print(f"[SHORTS] '{celebrity}' 관련 {len(results)}개 뉴스 수집 완료")
+    print(f"[SHORTS] '{person}' 관련 {len(results)}개 뉴스 수집 완료")
     return results
