@@ -23860,7 +23860,7 @@ def api_shorts_generate_script():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.route('/api/shorts/check-and-process', methods=['POST'])
+@app.route('/api/shorts/check-and-process', methods=['GET', 'POST'])
 def api_shorts_check_and_process():
     """
     Shorts 파이프라인 전체 실행 (cron job용)
