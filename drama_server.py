@@ -21124,49 +21124,7 @@ def api_sheets_check_and_process():
                 pending_tasks = [pending_tasks[0]]
 
         if not pending_tasks:
-            # ========== 대기 작업 없음 → SHORTS 뉴스 수집 시도 ==========
-            print("[SHEETS] 대기 작업 없음 → SHORTS 뉴스 자동 수집 체크")
-
-            # SHORTS 시트가 있고, 오늘 뉴스가 없으면 수집
-            if "SHORTS" in sheet_names:
-                try:
-                    from scripts.shorts_pipeline import run_news_collection
-                    from datetime import datetime, timezone
-
-                    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-                    # 오늘 수집된 뉴스가 있는지 확인
-                    shorts_rows = sheets_read_rows(service, sheet_id, "'SHORTS'!A:Z")
-                    today_news_exists = False
-
-                    if shorts_rows and len(shorts_rows) > 2:
-                        # run_id 컬럼 확인 (헤더에서 찾기)
-                        headers = shorts_rows[1] if len(shorts_rows) > 1 else []
-                        run_id_col = headers.index("run_id") if "run_id" in headers else 0
-
-                        for row in shorts_rows[2:]:
-                            if len(row) > run_id_col and row[run_id_col] == today:
-                                today_news_exists = True
-                                break
-
-                    if not today_news_exists:
-                        print(f"[SHORTS] 오늘({today}) 뉴스 없음 → 자동 수집 시작")
-                        news_result = run_news_collection(max_items=5, save_to_sheet=True)
-                        print(f"[SHORTS] 뉴스 수집 완료: {news_result.get('collected', 0)}개 수집, {news_result.get('saved', 0)}개 저장")
-
-                        return jsonify({
-                            "ok": True,
-                            "message": f"SHORTS 뉴스 {news_result.get('saved', 0)}개 수집 완료 (상태: 준비)",
-                            "processed": 0,
-                            "shorts_news_collected": news_result.get('saved', 0),
-                            "sheets_checked": sheet_names
-                        })
-                    else:
-                        print(f"[SHORTS] 오늘({today}) 뉴스 이미 있음 → 수집 스킵")
-
-                except Exception as shorts_err:
-                    print(f"[SHORTS] 뉴스 수집 오류 (무시): {shorts_err}")
-
+            # 대기 작업 없음 (SHORTS 뉴스 수집은 전용 Cron으로 처리: 8시, 17시 KST)
             return jsonify({
                 "ok": True,
                 "message": "처리할 대기 작업이 없습니다",
