@@ -21358,7 +21358,9 @@ def api_sheets_check_and_process():
                     # YouTube 업로드 API 호출
                     try:
                         import requests as req
-                        base_url = os.environ.get("BASE_URL", "http://localhost:5050")
+                        # Render에서는 PORT 환경변수 사용, 로컬에서는 5002
+                        port = os.environ.get("PORT", "5002")
+                        base_url = f"http://127.0.0.1:{port}"
 
                         upload_resp = req.post(
                             f"{base_url}/api/youtube/upload",
