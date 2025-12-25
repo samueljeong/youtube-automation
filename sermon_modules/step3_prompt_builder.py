@@ -1836,12 +1836,30 @@ def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict
             if pid:
                 valid_p_ids.add(pid)
 
-    # section별 허용 절 범위 정의
-    section_verse_ranges = {
-        "section_1": (1, 2),  # 1-2절
-        "section_2": (3, 5),  # 3-5절
-        "section_3": (6, 7),  # 6-7절
-    }
+    # section별 허용 절 범위 정의 (★ Step1의 structure_outline에서 동적 추출)
+    section_verse_ranges = {}
+    if step1_result and isinstance(step1_result, dict):
+        structure = step1_result.get("structure_outline", [])
+        for idx, unit in enumerate(structure):
+            if isinstance(unit, dict):
+                unit_id = unit.get("unit_id", f"U{idx+1}")
+                verse_range = unit.get("verse_range", unit.get("range", ""))
+                # "1-2절", "3-5", "6절~7절" 등에서 숫자 추출
+                verse_nums = re.findall(r"(\d+)", verse_range)
+                if verse_nums:
+                    min_v = int(verse_nums[0])
+                    max_v = int(verse_nums[-1]) if len(verse_nums) > 1 else min_v
+                    section_verse_ranges[f"section_{idx+1}"] = (min_v, max_v)
+
+    # fallback: Step1이 없거나 structure_outline이 없으면 기본값 사용
+    if not section_verse_ranges:
+        section_verse_ranges = {
+            "section_1": (1, 99),  # 제한 없음 (검증 비활성화)
+            "section_2": (1, 99),
+            "section_3": (1, 99),
+        }
+        if step1_result:
+            warnings.append("structure_outline 없음 - Unit-Anchor 범위 검증 비활성화")
 
     # section별 검증 (section_1, section_2, section_3)
     for i in range(1, 4):

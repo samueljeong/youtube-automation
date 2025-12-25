@@ -5,6 +5,70 @@
 
 ---
 
+## 2025-12-25 세션
+
+### 슈퍼바이저 에이전트 시스템 구축
+
+**작업 내용**: 개발 효율화를 위한 슈퍼바이저 에이전트 시스템 도입
+
+**생성된 파일**: `docs/SUPERVISOR_AGENT.md`
+
+**에이전트 구조**:
+- **1순위 팀 (핵심개발)**: AnalyzerAgent, WriterAgent, TestAgent
+- **2순위 팀 (개발지원)**: UIAgent, APIAgent, DocAgent
+- **서비스 팀 (런타임)**: Step1~3 Agent, Meditation, QA, Design
+
+---
+
+### Step2 Unit-Anchor 범위 검증 동적화
+
+**문제**: `section_verse_ranges`가 하드코딩되어 모든 본문에 1-2절/3-5절/6-7절 범위 적용
+
+**원인**: Step1의 `structure_outline`에서 동적으로 범위를 가져오지 않음
+
+**수정**:
+- `step3_prompt_builder.py:1839-1862`: Step1의 structure_outline에서 동적 범위 추출
+- `api_sermon.py:393,649-660`: Step2 검증 시 Step1 결과 전달
+
+```python
+# 변경 전 (하드코딩)
+section_verse_ranges = {
+    "section_1": (1, 2),  # 고정
+    "section_2": (3, 5),
+    "section_3": (6, 7),
+}
+
+# 변경 후 (동적)
+for idx, unit in enumerate(structure_outline):
+    verse_range = unit.get("verse_range", "")
+    verse_nums = re.findall(r"(\d+)", verse_range)
+    section_verse_ranges[f"section_{idx+1}"] = (min_v, max_v)
+```
+
+---
+
+### Step3 서버 측 글자수 검증 추가
+
+**문제**: GPT의 self_check만으로 글자수 검증 → 실제 글자수와 불일치 가능
+
+**수정**: `api_sermon.py:1426-1454` - 서버에서 실제 글자수 확인 후 응답에 포함
+
+**응답 추가 필드**:
+```json
+{
+  "char_info": {
+    "actual": 5432,
+    "target": 5400,
+    "min": 4860,
+    "max": 5940,
+    "status": "ok|insufficient|excessive",
+    "shortage": 0  // 미달 시 부족 글자수
+  }
+}
+```
+
+---
+
 ## 2025-12-23 세션
 
 ### Step3/Step4 프롬프트 토큰 최적화

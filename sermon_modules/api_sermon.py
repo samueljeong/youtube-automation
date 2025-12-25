@@ -389,6 +389,9 @@ def process_step():
         style_id = data.get("styleId", "")
         topical_theme = data.get("topicalTheme", "")
 
+        # ★ Step1 결과 (Step2 검증용, 2025-12-25)
+        step1_results_raw = data.get("step1Results", {})
+
         # 프론트엔드에서 전달받은 모델 사용 (없으면 기본값)
         model_name = data.get("model")
         if not model_name:
@@ -640,12 +643,23 @@ def process_step():
 
             print(f"[PROCESS][SUCCESS] JSON 형식으로 응답받아 포맷팅 완료")
 
-            # Step2인 경우 출력 검증
+            # Step2인 경우 출력 검증 (★ Step1 결과로 동적 범위 검증)
             step2_validation = None
             if step_type == "step2" or (step_id and "step2" in step_id.lower()):
-                step2_validation = validate_step2_output(json_data)
+                # Step1 결과 파싱 (JSON 문자열 → dict)
+                step1_parsed = None
+                if step1_results_raw:
+                    for key, val in step1_results_raw.items():
+                        if val:
+                            try:
+                                step1_parsed = json.loads(val) if isinstance(val, str) else val
+                                break
+                            except json.JSONDecodeError:
+                                pass
+
+                step2_validation = validate_step2_output(json_data, step1_parsed)
                 if step2_validation["valid"]:
-                    print(f"[PROCESS] Step2 검증 통과")
+                    print(f"[PROCESS] Step2 검증 통과 (Step1 범위 연동: {'O' if step1_parsed else 'X'})")
                 else:
                     print(f"[PROCESS] Step2 검증 실패: {step2_validation['errors']}")
                 if step2_validation.get("warnings"):
@@ -1408,11 +1422,43 @@ def gpt_pro():
             print(f"[GPT-PRO/Step3] 크레딧 차감 - 사용자: {user_id}, 남은 크레딧: {remaining_credits}")
 
         print(f"[GPT-PRO/Step3] 완료 - 토큰: {usage_data}")
+
+        # ★ 서버 측 글자수 검증 (2025-12-25)
+        char_count = len(final_result.replace('\n', '').replace(' ', ''))
+        char_info = {"actual": char_count}
+
+        # 분량 기준 계산
+        if duration:
+            try:
+                from .sermon_config import get_duration_char_count
+                duration_info = get_duration_char_count(duration)
+                if duration_info:
+                    char_info["target"] = duration_info["target_chars"]
+                    char_info["min"] = duration_info["min_chars"]
+                    char_info["max"] = duration_info["max_chars"]
+                    char_info["duration"] = duration
+
+                    # 글자수 검증
+                    if char_count < duration_info["min_chars"]:
+                        char_info["status"] = "insufficient"
+                        char_info["shortage"] = duration_info["min_chars"] - char_count
+                        print(f"[GPT-PRO/Step3] 글자수 미달: {char_count}자 (최소 {duration_info['min_chars']}자)")
+                    elif char_count > duration_info["max_chars"]:
+                        char_info["status"] = "excessive"
+                        char_info["excess"] = char_count - duration_info["max_chars"]
+                        print(f"[GPT-PRO/Step3] 글자수 초과: {char_count}자 (최대 {duration_info['max_chars']}자)")
+                    else:
+                        char_info["status"] = "ok"
+                        print(f"[GPT-PRO/Step3] 글자수 적합: {char_count}자 (목표 {duration_info['target_chars']}자)")
+            except Exception as e:
+                print(f"[GPT-PRO/Step3] 글자수 기준 계산 실패: {e}")
+
         response_data = {
             "ok": True,
             "result": final_result,
             "usage": usage_data,
-            "credits": remaining_credits if not is_admin else -1
+            "credits": remaining_credits if not is_admin else -1,
+            "char_info": char_info  # ★ 글자수 정보 포함
         }
 
         # self_check 검증 정보 포함 (프론트엔드에서 참고용)
