@@ -21,12 +21,51 @@ except ImportError:
 class SubtitleAgent(BaseAgent):
     """자막 에이전트 (TTS + 자막)"""
 
-    # 기본 음성 설정
+    # 기본 음성 설정 (Gemini Flash - 15배 저렴)
     DEFAULT_VOICE = {
+        "provider": "gemini",           # gemini 또는 google
+        "name": "gemini:Charon",        # Gemini TTS 남성, 신뢰감 있는 톤
         "language_code": "ko-KR",
-        "name": "ko-KR-Neural2-C",  # 남성, 고품질
-        "gender": "MALE",
         "speaking_rate": 0.95,
+    }
+
+    # 음성 프리셋 (슈퍼바이저가 선택 가능)
+    VOICE_PRESETS = {
+        # Gemini Flash (저렴, $1/1M자)
+        "gemini_male": {
+            "provider": "gemini",
+            "name": "gemini:Charon",
+            "language_code": "ko-KR",
+            "speaking_rate": 0.95,
+        },
+        "gemini_female": {
+            "provider": "gemini",
+            "name": "gemini:Kore",
+            "language_code": "ko-KR",
+            "speaking_rate": 0.95,
+        },
+        # Gemini Pro (고품질, $16/1M자)
+        "gemini_pro_male": {
+            "provider": "gemini",
+            "name": "gemini:pro:Charon",
+            "language_code": "ko-KR",
+            "speaking_rate": 0.95,
+        },
+        # Google Cloud TTS (고품질, $16/1M자)
+        "google_male": {
+            "provider": "google",
+            "name": "ko-KR-Neural2-C",
+            "language_code": "ko-KR",
+            "gender": "MALE",
+            "speaking_rate": 0.95,
+        },
+        "google_female": {
+            "provider": "google",
+            "name": "ko-KR-Neural2-A",
+            "language_code": "ko-KR",
+            "gender": "FEMALE",
+            "speaking_rate": 0.95,
+        },
     }
 
     # 하이라이트 키워드 색상
@@ -124,7 +163,7 @@ class SubtitleAgent(BaseAgent):
             return AgentResult(
                 success=True,
                 data=result,
-                cost=self._estimate_cost(tts_scenes),
+                cost=self._estimate_cost(tts_scenes, voice),
                 duration=duration,
             )
 
@@ -159,7 +198,12 @@ class SubtitleAgent(BaseAgent):
         scenes: List[Dict],
         voice: Dict
     ) -> Dict[str, Any]:
-        """TTS 파이프라인 실행"""
+        """TTS 파이프라인 실행 (Gemini 또는 Google Cloud)"""
+        provider = voice.get("provider", "gemini")
+        voice_name = voice.get("name", "gemini:Charon")
+
+        self.log(f"TTS 프로바이더: {provider}, 음성: {voice_name}")
+
         # TTS 서비스 임포트
         try:
             import sys
@@ -167,7 +211,6 @@ class SubtitleAgent(BaseAgent):
             from tts.tts_service import run_tts_pipeline
         except ImportError as e:
             self.log(f"TTS 모듈 임포트 실패: {e}", "warning")
-            # 폴백: 더미 결과 반환 (테스트용)
             return self._dummy_tts_result(context, scenes)
 
         # TTS 입력 구성
@@ -175,16 +218,24 @@ class SubtitleAgent(BaseAgent):
             "episode_id": context.task_id,
             "language": voice.get("language_code", "ko-KR"),
             "voice": {
-                "gender": voice.get("gender", "MALE"),
-                "name": voice.get("name", "ko-KR-Neural2-C"),
+                "name": voice_name,
                 "speaking_rate": voice.get("speaking_rate", 0.95),
             },
             "scenes": scenes,
-            "sentence_mode": True,  # 문장별 TTS 모드
+            "sentence_mode": True,
         }
+
+        # Google Cloud TTS인 경우 gender 추가
+        if provider == "google":
+            tts_input["voice"]["gender"] = voice.get("gender", "MALE")
 
         # TTS 실행
         result = run_tts_pipeline(tts_input)
+
+        # 프로바이더 정보 추가
+        if result.get("ok"):
+            result["provider"] = provider
+            result["voice_name"] = voice_name
 
         return result
 
@@ -240,12 +291,22 @@ class SubtitleAgent(BaseAgent):
 
         return highlights
 
-    def _estimate_cost(self, scenes: List[Dict]) -> float:
-        """TTS 비용 추정 (Google Cloud TTS 기준)"""
+    def _estimate_cost(self, scenes: List[Dict], voice: Dict = None) -> float:
+        """TTS 비용 추정 (프로바이더별 가격)"""
         total_chars = sum(len(s.get("narration", "")) for s in scenes)
 
-        # Google Cloud TTS: $16 per 1M characters (Neural2)
-        cost_per_char = 16 / 1_000_000
+        voice = voice or self.DEFAULT_VOICE
+        provider = voice.get("provider", "gemini")
+        voice_name = voice.get("name", "")
+
+        # Gemini Flash: $1/1M자, Gemini Pro: $16/1M자, Google: $16/1M자
+        if provider == "gemini":
+            if ":pro:" in voice_name:
+                cost_per_char = 16 / 1_000_000  # Pro
+            else:
+                cost_per_char = 1 / 1_000_000   # Flash (15배 저렴!)
+        else:
+            cost_per_char = 16 / 1_000_000  # Google Cloud TTS
 
         return total_chars * cost_per_char
 
@@ -277,22 +338,29 @@ class SubtitleAgent(BaseAgent):
     def _parse_feedback(self, feedback: str) -> Dict[str, Any]:
         """피드백 파싱하여 조정 사항 추출"""
         adjustments = {}
+        base_voice = self.DEFAULT_VOICE.copy()
 
         # 속도 관련 피드백
         if "빠르" in feedback or "느리" in feedback:
             if "빠르" in feedback:
-                adjustments["voice"] = {**self.DEFAULT_VOICE, "speaking_rate": 0.85}
+                base_voice["speaking_rate"] = 0.85
             else:
-                adjustments["voice"] = {**self.DEFAULT_VOICE, "speaking_rate": 1.05}
+                base_voice["speaking_rate"] = 1.05
 
-        # 음성 관련 피드백
+        # 음성 관련 피드백 (프리셋 사용)
         if "여성" in feedback:
-            adjustments["voice"] = {
-                **adjustments.get("voice", self.DEFAULT_VOICE),
-                "name": "ko-KR-Neural2-A",
-                "gender": "FEMALE",
-            }
+            base_voice = self.VOICE_PRESETS["gemini_female"].copy()
+            if "고품질" in feedback or "프로" in feedback:
+                base_voice["name"] = "gemini:pro:Kore"
+        elif "고품질" in feedback or "프로" in feedback:
+            base_voice = self.VOICE_PRESETS["gemini_pro_male"].copy()
+        elif "구글" in feedback or "google" in feedback.lower():
+            if "여성" in feedback:
+                base_voice = self.VOICE_PRESETS["google_female"].copy()
+            else:
+                base_voice = self.VOICE_PRESETS["google_male"].copy()
 
+        adjustments["voice"] = base_voice
         return adjustments
 
 
