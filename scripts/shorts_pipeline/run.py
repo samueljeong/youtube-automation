@@ -220,6 +220,179 @@ def get_audio_duration(audio_path: str) -> float:
         return 50.0  # 기본값
 
 
+def generate_tts_with_timing(
+    scenes: List[Dict[str, Any]],
+    issue_type: str = "default",
+    output_path: str = None
+) -> Dict[str, Any]:
+    """
+    씬별 TTS 생성 + 정확한 자막 타이밍 반환
+
+    각 씬의 narration을 문장 단위로 분리하여 개별 TTS 생성 후 합성.
+    문장별 실제 재생 시간을 반환하여 자막 싱크에 활용.
+
+    Args:
+        scenes: 씬 정보 (narration 포함)
+        issue_type: 이슈 타입 (음성 스타일)
+        output_path: 출력 파일 경로
+
+    Returns:
+        {
+            "ok": True,
+            "audio_path": "/tmp/xxx.mp3",
+            "duration": 35.5,
+            "sentence_timings": [
+                {"text": "첫 번째 문장.", "start": 0.0, "end": 2.5},
+                {"text": "두 번째 문장!", "start": 2.5, "end": 5.2},
+                ...
+            ],
+            "cost": 0.38
+        }
+    """
+    import re
+    import requests
+    import base64
+    import wave
+    import io
+
+    try:
+        api_key = os.environ.get("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
+
+        # 음성 설정
+        voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
+        voice_name = voice_config.get("voice", TTS_CONFIG["voice"])
+
+        # 1) 전체 텍스트에서 문장 추출
+        all_sentences = []
+        for scene in scenes:
+            narration = scene.get("narration", "").strip()
+            if not narration:
+                continue
+            # 문장 분리 (. ! ? 기준)
+            sentences = re.split(r'(?<=[.!?。])\s*', narration)
+            for sent in sentences:
+                sent = sent.strip()
+                if sent and len(sent) > 1:
+                    all_sentences.append(sent)
+
+        if not all_sentences:
+            raise ValueError("TTS 생성할 문장이 없습니다")
+
+        print(f"[SHORTS] TTS 생성 중: {len(all_sentences)}개 문장, 음성={voice_name}")
+
+        # 2) 문장별 TTS 생성
+        sentence_audios = []
+        sentence_timings = []
+        total_cost = 0.0
+        current_time = 0.0
+
+        model = "gemini-2.5-flash-preview-tts"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+
+        for idx, sentence in enumerate(all_sentences):
+            payload = {
+                "contents": [{"parts": [{"text": sentence}]}],
+                "generationConfig": {
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {
+                        "voiceConfig": {
+                            "prebuiltVoiceConfig": {
+                                "voiceName": voice_name
+                            }
+                        }
+                    }
+                }
+            }
+
+            response = requests.post(url, json=payload, timeout=60)
+
+            if response.status_code != 200:
+                print(f"[SHORTS] TTS 오류 (문장 {idx+1}): {response.status_code}")
+                continue
+
+            result = response.json()
+            candidates = result.get("candidates", [])
+            if not candidates:
+                continue
+
+            # 오디오 데이터 추출
+            audio_data = None
+            for part in candidates[0].get("content", {}).get("parts", []):
+                inline_data = part.get("inlineData", {})
+                if inline_data.get("mimeType", "").startswith("audio/"):
+                    audio_data = base64.b64decode(inline_data.get("data", ""))
+                    break
+
+            if not audio_data:
+                continue
+
+            # 재생 시간 계산 (24kHz, 16bit, mono)
+            duration = len(audio_data) / (24000 * 2)
+
+            # 타이밍 기록
+            sentence_timings.append({
+                "text": sentence,
+                "start": current_time,
+                "end": current_time + duration
+            })
+            current_time += duration
+
+            # WAV 데이터 저장 (나중에 concat)
+            sentence_audios.append(audio_data)
+
+            # 비용 계산
+            total_cost += len(sentence) * 0.001 / 1000
+
+        if not sentence_audios:
+            raise ValueError("TTS 생성 실패 - 모든 문장 실패")
+
+        # 3) 오디오 합성 (모든 문장 연결)
+        combined_audio = b''.join(sentence_audios)
+        total_duration = len(combined_audio) / (24000 * 2)
+
+        # WAV로 변환
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(24000)
+            wf.writeframes(combined_audio)
+
+        wav_data = wav_buffer.getvalue()
+
+        # MP3로 변환
+        if output_path is None:
+            output_path = tempfile.mktemp(suffix=".mp3")
+
+        wav_temp = tempfile.mktemp(suffix=".wav")
+        with open(wav_temp, "wb") as f:
+            f.write(wav_data)
+
+        cmd = ['ffmpeg', '-y', '-i', wav_temp, '-acodec', 'libmp3lame', '-b:a', '128k', output_path]
+        subprocess.run(cmd, capture_output=True, timeout=30)
+
+        try:
+            os.unlink(wav_temp)
+        except:
+            pass
+
+        print(f"[SHORTS] TTS 완료: {len(sentence_timings)}개 문장, {total_duration:.1f}초, ${total_cost:.4f}")
+
+        return {
+            "ok": True,
+            "audio_path": output_path,
+            "duration": total_duration,
+            "sentence_timings": sentence_timings,
+            "cost": round(total_cost, 4),
+        }
+
+    except Exception as e:
+        print(f"[SHORTS] TTS 생성 실패: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 # ============================================================
 # 이미지 생성 (Gemini 3 Pro - 병렬 처리)
 # ============================================================
@@ -572,11 +745,13 @@ def generate_ass_subtitles(
     total_duration: float,
     output_path: str,
     issue_type: str = "default",
-    title_text: str = None
+    title_text: str = None,
+    sentence_timings: List[Dict[str, Any]] = None
 ) -> str:
     """
     문장 단위로 한 줄씩 표시하는 ASS 자막 생성
     + 상단 타이틀은 전체 영상 동안 고정 표시
+    + sentence_timings가 있으면 정확한 TTS 싱크 적용
 
     Args:
         scenes: 씬 정보 (narration 포함)
@@ -591,11 +766,16 @@ def generate_ass_subtitles(
     import re
 
     # 스타일 설정
-    style = SHORTS_SUBTITLE_STYLE
-    font_name = style.get("font_name", "NanumSquareRoundEB")
-    font_size = style.get("font_size", 48)
-    outline_width = style.get("outline_width", 3)
-    margin_bottom = style.get("margin_bottom", 150)
+    sub_style = SHORTS_SUBTITLE_STYLE
+    title_style = SHORTS_TITLE_STYLE
+    font_name = sub_style.get("font_name", "NanumGothicBold")
+    font_size = sub_style.get("font_size", 42)
+    outline_width = sub_style.get("outline_width", 3)
+    margin_bottom = sub_style.get("margin_bottom", 180)
+
+    # 타이틀 설정 (더 크고 아래로)
+    title_font_size = title_style.get("font_size", 64)
+    title_margin_top = FRAME_LAYOUT.get("title_y", 160)  # 상단에서 160px 아래
 
     # BGR 형식으로 변환 (ASS 형식)
     def hex_to_ass_color(hex_color):
@@ -605,13 +785,14 @@ def generate_ass_subtitles(
         b = hex_color[4:6]
         return f"&H00{b}{g}{r}"
 
-    primary_color = hex_to_ass_color(style.get("font_color", "#FFFFFF"))
-    outline_color = hex_to_ass_color(style.get("outline_color", "#000000"))
-    title_color = hex_to_ass_color("#FFFF00")  # 노란색 타이틀
+    primary_color = hex_to_ass_color(sub_style.get("font_color", "#FFFFFF"))
+    outline_color = hex_to_ass_color(sub_style.get("outline_color", "#000000"))
+    title_color = hex_to_ass_color(title_style.get("font_color", "#FFFF00"))
+    title_outline = hex_to_ass_color(title_style.get("outline_color", "#000000"))
 
     # ASS 헤더 - 두 가지 스타일 정의
-    # 1. Title: 상단 고정 (Alignment=8: 상단 중앙)
-    # 2. Subtitle: 하단 자막 (Alignment=2: 하단 중앙)
+    # 1. Title: 상단 고정 (Alignment=8: 상단 중앙), MarginV = 상단에서 거리
+    # 2. Subtitle: 하단 자막 (Alignment=2: 하단 중앙), MarginV = 하단에서 거리
     ass_content = f"""[Script Info]
 Title: Shorts Subtitles
 ScriptType: v4.00+
@@ -621,7 +802,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Title,{font_name},38,{title_color},&H000000FF,{outline_color},&H80000000,1,0,0,0,100,100,0,0,1,3,2,8,40,40,60,1
+Style: Title,{font_name},{title_font_size},{title_color},&H000000FF,{title_outline},&H80000000,1,0,0,0,100,100,0,0,1,5,2,8,40,40,{title_margin_top},1
 Style: Subtitle,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&H80000000,1,0,0,0,100,100,0,0,1,{outline_width},2,2,40,40,{margin_bottom},1
 
 [Events]
@@ -643,7 +824,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             title_text = title_text[:TITLE_MAX_LENGTH]
         ass_content += f"Dialogue: 1,{format_time(0)},{format_time(total_duration)},Title,,0,0,0,,{{\\fad(300,300)}}{title_text}\n"
 
-    # 2) 전체 나레이션을 문장 단위로 분리
+    # 2) sentence_timings이 있으면 정확한 TTS 싱크 사용
+    if sentence_timings:
+        # TTS에서 생성된 정확한 타이밍 사용
+        for timing in sentence_timings:
+            text = timing.get("text", "")
+            start_time = timing.get("start", 0)
+            end_time = timing.get("end", 0)
+
+            if not text or end_time <= start_time:
+                continue
+
+            # 페이드 효과 (빠른 전환감)
+            fade_effect = "{\\fad(50,50)}"
+
+            # 자막 추가 (한 줄로만 표시)
+            ass_content += f"Dialogue: 0,{format_time(start_time)},{format_time(end_time)},Subtitle,,0,0,0,,{fade_effect}{text}\n"
+
+        # 파일 저장
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(ass_content)
+
+        print(f"[SHORTS] ASS 자막 생성: {len(sentence_timings)}개 문장 (TTS 싱크), 타이틀={'있음' if title_text else '없음'}")
+        return output_path
+
+    # 3) sentence_timings 없으면 글자 수 비율로 fallback
     all_sentences = []
     for scene in scenes:
         narration = scene.get("narration", "")
@@ -663,14 +868,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if narration:
                 all_sentences.append(narration)
 
-    # 3) 글자 수 비율로 시간 배분
     total_chars = sum(len(s) for s in all_sentences)
     if total_chars == 0:
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(ass_content)
         return output_path
 
-    # 각 문장의 시작/끝 시간 계산
+    # 각 문장의 시작/끝 시간 계산 (글자 수 비율)
     current_time = 0.0
     for sentence in all_sentences:
         char_count = len(sentence)
@@ -698,7 +902,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(ass_content)
 
-    print(f"[SHORTS] ASS 자막 생성: {len(all_sentences)}개 문장, 타이틀={'있음' if title_text else '없음'}")
+    print(f"[SHORTS] ASS 자막 생성: {len(all_sentences)}개 문장 (글자 비율), 타이틀={'있음' if title_text else '없음'}")
     return output_path
 
 
@@ -712,18 +916,19 @@ def render_video(
     scenes: List[Dict[str, Any]],
     issue_type: str,
     output_path: str,
-    title_text: str = None
+    title_text: str = None,
+    sentence_timings: List[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     FFmpeg로 영상 렌더링 (1:1 이미지 → 9:16 프레임 합성 + Ken Burns)
 
     레이아웃:
     ┌─────────────────┐
-    │   타이틀 영역    │  180px
+    │   타이틀 영역    │  220px (YouTube UI 피함)
     ├─────────────────┤
     │   1:1 이미지     │  720px
     ├─────────────────┤
-    │   자막 영역      │  380px
+    │   자막 영역      │  340px
     └─────────────────┘
 
     Args:
@@ -733,6 +938,7 @@ def render_video(
         issue_type: 이슈 타입 (효과 설정)
         output_path: 출력 영상 경로
         title_text: 상단 타이틀 (선택)
+        sentence_timings: TTS 문장별 타이밍 (정확한 자막 싱크)
 
     Returns:
         {"ok": True, "path": "...", "duration": 50.5}
@@ -827,7 +1033,8 @@ def render_video(
             total_duration=audio_duration,
             output_path=ass_path,
             issue_type=issue_type,
-            title_text=title_text  # 상단 고정 타이틀
+            title_text=title_text,  # 상단 고정 타이틀
+            sentence_timings=sentence_timings  # TTS 싱크용 정확한 타이밍
         )
 
         # 5) 자막 burn-in (최종 출력)
@@ -1029,18 +1236,14 @@ def run_video_generation(
 
     try:
         # ============================================================
-        # 1단계: TTS 생성 (저비용 - 먼저 실행)
+        # 1단계: TTS 생성 (문장별 타이밍 포함 - 자막 싱크용)
         # ============================================================
-        print("\n[SHORTS] === 1단계: TTS 생성 ===")
+        print("\n[SHORTS] === 1단계: TTS 생성 (문장별 싱크) ===")
 
-        full_script = script_result.get("full_script", "")
-        if not full_script:
-            full_script = "\n".join([
-                s.get("narration", "") for s in script_result.get("scenes", [])
-            ])
+        scenes = script_result.get("scenes", [])
 
-        tts_result = generate_tts(
-            text=full_script,
+        tts_result = generate_tts_with_timing(
+            scenes=scenes,
             issue_type=issue_type,
             output_path=os.path.join(work_dir, "tts.mp3")
         )
@@ -1056,13 +1259,13 @@ def run_video_generation(
 
         total_cost += tts_result.get("cost", 0)
         audio_path = tts_result["audio_path"]
+        sentence_timings = tts_result.get("sentence_timings", [])
 
         # ============================================================
         # 2단계: 이미지 생성 (썸네일은 YouTube 자동 생성 사용)
         # ============================================================
         print("\n[SHORTS] === 2단계: 이미지 생성 ===")
 
-        scenes = script_result.get("scenes", [])
         image_dir = os.path.join(work_dir, "images")
 
         # 이미지 생성 (4 워커 병렬)
@@ -1112,7 +1315,8 @@ def run_video_generation(
             scenes=scenes,
             issue_type=issue_type,
             output_path=video_path,
-            title_text=title_text
+            title_text=title_text,
+            sentence_timings=sentence_timings  # TTS 싱크용 정확한 타이밍
         )
 
         if not render_result.get("ok"):

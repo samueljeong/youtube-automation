@@ -57,11 +57,11 @@ VIDEO_SIZE = f"{VIDEO_WIDTH}x{VIDEO_HEIGHT}"
 
 # 프레임 레이아웃 (1:1 이미지 + 타이틀 + 자막)
 FRAME_LAYOUT = {
-    "title_height": 180,      # 상단 타이틀 영역
+    "title_height": 220,      # 상단 타이틀 영역 (더 여유있게)
     "image_size": 720,        # 중앙 1:1 이미지 (720x720)
-    "subtitle_height": 380,   # 하단 자막 영역
+    "subtitle_height": 340,   # 하단 자막 영역
     "background_color": "#0a0a0a",  # 거의 검정 배경
-    "title_y": 90,            # 타이틀 Y 위치 (중앙)
+    "title_y": 160,           # 타이틀 Y 위치 (YouTube 상단 UI 피함)
     "subtitle_y": 1080,       # 자막 Y 시작 위치 (720 + 180 + 여백)
 }
 
@@ -74,14 +74,15 @@ SHORTS_SUBTITLE_STYLE = {
     "font_name": "NanumGothicBold",
     "line_spacing": 1.3,
     "max_chars_per_line": 18,  # 한 줄 최대 글자
+    "margin_bottom": 180,     # 하단 여백 (YouTube UI 피함)
 }
 
 # 타이틀 스타일
 SHORTS_TITLE_STYLE = {
-    "font_size": 48,
+    "font_size": 64,          # 더 큰 타이틀
     "font_color": "#FFFF00",  # 노란색 강조
     "outline_color": "#000000",
-    "outline_width": 4,
+    "outline_width": 5,
     "font_name": "NanumGothicExtraBold",
 }
 
