@@ -99,16 +99,26 @@ class SupervisorAgent(BaseAgent):
                 self.log("대본 최대 시도 횟수 초과, 현재 버전 사용", "warning")
 
             # ========================================
-            # PHASE 2: 이미지 생성 + 검수 루프
+            # PHASE 2: 이미지 최적화 + 생성 + 검수 루프
             # ========================================
             if not skip_images:
                 self.log("Phase 2: 이미지 생성")
+
+                # 2-0. 이미지 캐시 최적화 (슈퍼바이저가 판단)
+                optimization = await self._optimize_image_generation(context)
+                if optimization:
+                    self.log(f"이미지 최적화: {optimization['summary']}")
+                    context.add_log(self.name, "optimize_images", "success", optimization['summary'])
+
                 image_approved = False
 
                 while context.image_attempts < self.max_image_attempts and not image_approved:
-                    # 2-1. 이미지 생성 (또는 재생성)
+                    # 2-1. 이미지 생성 (최적화 정보 전달)
                     if context.image_attempts == 0:
-                        image_result = await self.image_agent.execute(context)
+                        image_result = await self.image_agent.execute(
+                            context,
+                            optimization=optimization
+                        )
                     else:
                         # 실패한 씬만 재생성
                         failed_scenes = context.image_feedback.get("failed_scenes", []) if isinstance(context.image_feedback, dict) else []
@@ -180,6 +190,64 @@ class SupervisorAgent(BaseAgent):
                 cost=total_cost,
                 duration=time.time() - start_time,
             )
+
+    async def _optimize_image_generation(self, context: TaskContext) -> Optional[Dict[str, Any]]:
+        """
+        이미지 생성 최적화 (슈퍼바이저가 판단)
+
+        - 이슈 타입별 템플릿 활용
+        - 캐시된 성공 프롬프트 재사용
+        - 비용 절감 전략 수립
+
+        Returns:
+            {
+                "optimized_scenes": [...],
+                "cache_hits": 2,
+                "generate_count": 3,
+                "estimated_savings": 0.10,
+                "summary": "5개 씬 중 2개 캐시 사용, $0.10 절감 예상"
+            }
+        """
+        if not context.script or not context.script.get("scenes"):
+            return None
+
+        try:
+            # 이미지 캐시 로드
+            try:
+                from image_cache import get_image_cache
+            except ImportError:
+                from .image_cache import get_image_cache
+
+            cache = get_image_cache()
+            scenes = context.script.get("scenes", [])
+            issue_type = context.issue_type or "default"
+
+            # 최적화된 프롬프트 목록 생성
+            optimized = cache.get_optimized_prompts(scenes, issue_type)
+
+            # 통계 계산
+            cache_hits = sum(1 for s in optimized if s.get("use_cache"))
+            generate_count = sum(1 for s in optimized if s.get("generate"))
+            estimated_savings = cache_hits * 0.05  # 캐시 1개당 $0.05 절감
+
+            summary = f"{len(scenes)}개 씬 중 {cache_hits}개 캐시, {generate_count}개 생성"
+            if estimated_savings > 0:
+                summary += f", ${estimated_savings:.2f} 절감"
+
+            self.log(f"최적화 분석: {summary}")
+
+            return {
+                "optimized_scenes": optimized,
+                "cache_hits": cache_hits,
+                "generate_count": generate_count,
+                "estimated_savings": estimated_savings,
+                "summary": summary,
+                "issue_type": issue_type,
+            }
+
+        except Exception as e:
+            self.log(f"이미지 최적화 실패 (무시): {e}", "warning")
+            return None
 
     async def run(
         self,

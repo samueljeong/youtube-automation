@@ -4,16 +4,20 @@ ImageAgent - 이미지 생성 에이전트
 역할:
 - 씬별 이미지 생성 (썸네일 제외)
 - 검수 피드백 반영하여 재생성
+- 캐시된 이미지/프롬프트 재사용 (비용 절감)
 """
 
 import os
+import shutil
 import time
 from typing import Any, Dict, List, Optional
 
 try:
     from .base import BaseAgent, AgentResult, AgentStatus, TaskContext
+    from .image_cache import get_image_cache
 except ImportError:
     from base import BaseAgent, AgentResult, AgentStatus, TaskContext
+    from image_cache import get_image_cache
 
 
 def generate_images_parallel(scenes, output_dir, max_workers=4):
@@ -101,6 +105,7 @@ class ImageAgent(BaseAgent):
             **kwargs:
                 feedback: 검수 에이전트의 피드백 (개선 시)
                 failed_scenes: 재생성할 씬 번호 리스트
+                optimization: 슈퍼바이저가 제공한 최적화 정보 (캐시/템플릿)
 
         Returns:
             AgentResult with image paths
@@ -110,6 +115,7 @@ class ImageAgent(BaseAgent):
 
         feedback = kwargs.get("feedback")
         failed_scenes = kwargs.get("failed_scenes", [])
+        optimization = kwargs.get("optimization")  # 슈퍼바이저의 최적화 정보
 
         # 대본이 없으면 실패
         if not context.script:
@@ -123,8 +129,11 @@ class ImageAgent(BaseAgent):
             if feedback and failed_scenes:
                 # 특정 씬만 재생성
                 result = await self._regenerate_scenes(context, failed_scenes, feedback)
+            elif optimization:
+                # 최적화 정보 활용 (캐시 + 템플릿)
+                result = await self._generate_with_optimization(context, optimization)
             else:
-                # 전체 이미지 생성
+                # 전체 이미지 생성 (최적화 없이)
                 result = await self._generate_all_images(context)
 
             duration = time.time() - start_time
@@ -133,11 +142,17 @@ class ImageAgent(BaseAgent):
                 self.set_status(AgentStatus.SUCCESS)
                 context.images = [img["path"] for img in result.get("images", [])]
                 context.image_attempts += 1
+
+                # 성공 로그에 캐시 정보 추가
+                cache_info = ""
+                if result.get("cache_used", 0) > 0:
+                    cache_info = f", 캐시 {result.get('cache_used')}개"
+
                 context.add_log(
                     self.name,
                     "regenerate" if failed_scenes else "generate",
                     "success",
-                    f"{len(result.get('images', []))}개 이미지, ${result.get('cost', 0):.3f}"
+                    f"{len(result.get('images', []))}개 이미지{cache_info}, ${result.get('cost', 0):.3f}"
                 )
 
                 return AgentResult(
@@ -186,6 +201,124 @@ class ImageAgent(BaseAgent):
         )
 
         return result
+
+    async def _generate_with_optimization(
+        self,
+        context: TaskContext,
+        optimization: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        최적화 정보를 활용한 이미지 생성
+
+        - 캐시된 이미지: 복사만 수행 (비용 0)
+        - 템플릿 프롬프트: 템플릿으로 생성 (일관성 ↑)
+        - 새 프롬프트: 생성 후 캐시에 저장
+
+        Args:
+            context: 작업 컨텍스트
+            optimization: 슈퍼바이저가 제공한 최적화 정보
+                - optimized_scenes: [{scene, prompt, use_cache, generate, image_path?}, ...]
+                - issue_type: 이슈 타입 (캐시 키로 사용)
+
+        Returns:
+            생성 결과 (images, failed, cost, cache_used)
+        """
+        self.log(f"최적화 이미지 생성 시작: {context.task_id}")
+
+        optimized_scenes = optimization.get("optimized_scenes", [])
+        issue_type = optimization.get("issue_type", "default")
+
+        if not optimized_scenes:
+            # 최적화 정보 없으면 일반 생성
+            return await self._generate_all_images(context)
+
+        output_dir = os.path.join(self.output_base_dir, context.task_id, "images")
+        os.makedirs(output_dir, exist_ok=True)
+
+        images = []
+        failed = []
+        scenes_to_generate = []
+        cache_used = 0
+        total_cost = 0
+
+        # 1단계: 캐시된 이미지 복사, 생성 필요한 씬 분리
+        for opt_scene in optimized_scenes:
+            scene_num = opt_scene.get("scene")
+            cached_path = opt_scene.get("image_path")
+
+            if opt_scene.get("use_cache") and cached_path and os.path.exists(cached_path):
+                # 캐시 히트: 파일 복사
+                dest_path = os.path.join(output_dir, f"scene_{scene_num:03d}.png")
+                try:
+                    shutil.copy2(cached_path, dest_path)
+                    images.append({"ok": True, "scene": scene_num, "path": dest_path, "from_cache": True})
+                    cache_used += 1
+                    self.log(f"씬{scene_num} 캐시 사용: {cached_path}")
+                except Exception as e:
+                    self.log(f"씬{scene_num} 캐시 복사 실패, 재생성 필요: {e}", "warning")
+                    scenes_to_generate.append({
+                        "scene_number": scene_num,
+                        "image_prompt_enhanced": opt_scene.get("prompt", ""),
+                    })
+            elif opt_scene.get("generate"):
+                # 생성 필요
+                scenes_to_generate.append({
+                    "scene_number": scene_num,
+                    "image_prompt_enhanced": opt_scene.get("prompt", ""),
+                })
+
+        self.log(f"캐시 사용: {cache_used}개, 생성 필요: {len(scenes_to_generate)}개")
+
+        # 2단계: 필요한 씬만 병렬 생성
+        if scenes_to_generate:
+            gen_result = generate_images_parallel(
+                scenes=scenes_to_generate,
+                output_dir=output_dir,
+                max_workers=self.max_workers
+            )
+
+            # 생성된 이미지 추가
+            for img in gen_result.get("images", []):
+                images.append(img)
+
+                # 성공한 이미지는 캐시에 저장
+                if img.get("ok") or img.get("path"):
+                    scene_num = img.get("scene")
+                    # 해당 씬의 프롬프트 찾기
+                    for scene in scenes_to_generate:
+                        if scene.get("scene_number") == scene_num:
+                            prompt = scene.get("image_prompt_enhanced", "")
+                            self._save_to_cache(issue_type, scene_num, prompt, img.get("path"))
+                            break
+
+            failed.extend(gen_result.get("failed", []))
+            total_cost = gen_result.get("cost", 0)
+
+        # 결과 정렬 (씬 번호 순)
+        images = sorted(images, key=lambda x: x.get("scene", 0))
+
+        return {
+            "ok": len(failed) == 0,
+            "images": images,
+            "failed": failed,
+            "cost": total_cost,
+            "cache_used": cache_used,
+            "generated": len(scenes_to_generate) - len(failed),
+        }
+
+    def _save_to_cache(self, issue_type: str, scene_num: int, prompt: str, image_path: str):
+        """성공한 프롬프트를 캐시에 저장"""
+        try:
+            cache = get_image_cache()
+            cache.save_successful_prompt(
+                issue_type=issue_type,
+                scene_number=scene_num,
+                prompt=prompt,
+                image_path=image_path
+            )
+            self.log(f"캐시 저장: {issue_type}_scene{scene_num}")
+        except Exception as e:
+            self.log(f"캐시 저장 실패 (무시): {e}", "warning")
 
     async def _regenerate_scenes(
         self,
