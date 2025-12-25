@@ -5,6 +5,8 @@ ImageAgent - 이미지 생성 에이전트
 - 씬별 이미지 생성 (썸네일 제외)
 - 검수 피드백 반영하여 재생성
 - 캐시된 이미지/프롬프트 재사용 (비용 절감)
+
+모델: Gemini 3 Pro (Imagen 3) - 고품질 이미지
 """
 
 import os
@@ -18,6 +20,11 @@ try:
 except ImportError:
     from base import BaseAgent, AgentResult, AgentStatus, TaskContext
     from image_cache import get_image_cache
+
+
+# 이미지 생성 모델 설정
+IMAGE_MODEL = "imagen-3.0-generate-002"  # Gemini 3 Pro (Imagen 3)
+IMAGE_COST_PER_IMAGE = 0.03  # $0.03/장
 
 
 def generate_images_parallel(scenes, output_dir, max_workers=4):
@@ -38,7 +45,7 @@ def generate_images_parallel(scenes, output_dir, max_workers=4):
         images = []
         failed = []
 
-        print(f"[ImageAgent] 이미지 생성 시작: {len(scenes)}개 씬")
+        print(f"[ImageAgent] 이미지 생성 시작: {len(scenes)}개 씬 (모델: {IMAGE_MODEL})")
 
         def generate_single(scene):
             scene_num = scene.get("scene_number", 1)
@@ -48,7 +55,7 @@ def generate_images_parallel(scenes, output_dir, max_workers=4):
                 result = main_generate_image(
                     prompt=prompt,
                     aspect_ratio="1:1",
-                    model="gemini-2.0-flash-exp"
+                    model=IMAGE_MODEL
                 )
 
                 if result.get("ok") and result.get("local_path"):
@@ -68,8 +75,8 @@ def generate_images_parallel(scenes, output_dir, max_workers=4):
                 else:
                     failed.append(result)
 
-        cost = len(images) * 0.05
-        print(f"[ImageAgent] 이미지 생성 완료: {len(images)}개 성공, {len(failed)}개 실패")
+        cost = len(images) * IMAGE_COST_PER_IMAGE
+        print(f"[ImageAgent] 이미지 생성 완료: {len(images)}개 성공, {len(failed)}개 실패, ${cost:.2f}")
 
         return {
             "ok": len(failed) == 0,
