@@ -214,11 +214,12 @@ SCRIPT_GENERATION_PROMPT = """
 ## 이미지 프롬프트 규칙
 - 영어로 작성
 - 9:16 세로 비율 (YouTube Shorts)
-- 연예인 얼굴 사용 금지 - 실루엣만 사용
-- 씬1: 연예인 실루엣 포함 (첫 인상)
-- 씬5: 결론에 맞는 분위기 (반복 아님!)
-- 나머지: 분위기 배경
+- ⚠️ 실루엣은 씬1에만! 나머지는 대본 내용에 맞는 배경 이미지
+- 씬1: 연예인 실루엣 (검은 그림자, 첫 인상용)
+- 씬2-4: 대본 내용을 시각화한 배경 (사람 없이!)
+- 씬5: 결론 분위기에 맞는 이미지
 - 텍스트 오버레이 공간 확보
+- 4K 퀄리티, 영화적 조명
 
 ## 출력 형식 (JSON만 반환)
 {{
@@ -415,9 +416,8 @@ def enhance_image_prompts(
     """
     씬별 이미지 프롬프트 강화
 
-    - 씬1 (훅): 연예인 실루엣 포함
-    - 씬8 (루프 연결): 연예인 실루엣 포함 (첫 씬과 비슷하게)
-    - 나머지: 분위기 배경
+    - 씬1 (훅): 연예인 실루엣 포함 (영상당 유일한 실루엣!)
+    - 나머지: 대본 내용에 맞는 배경 이미지 (실루엣 없음)
 
     Args:
         scenes: GPT가 생성한 씬 목록
@@ -433,7 +433,8 @@ def enhance_image_prompts(
     for scene in scenes:
         scene_num = scene.get("scene_number", 1)
         original_prompt = scene.get("image_prompt", "")
-        is_last_scene = (scene_num == total_scenes) or (scene_num == 8)
+        narration = scene.get("narration", "")
+        is_last_scene = (scene_num == total_scenes)
 
         # 9:16 비율 강제
         aspect_instruction = (
@@ -443,15 +444,15 @@ def enhance_image_prompts(
         )
 
         if scene_num == 1:
-            # 첫 씬 (훅): 실루엣 포함 + 강렬한 분위기
+            # 첫 씬 (훅): 영상에서 유일하게 실루엣 포함
             enhanced_prompt = f"""
 {aspect_instruction}
 
 {original_prompt}
 
-IMPORTANT - HOOK SCENE:
-- Include a black silhouette of {silhouette_desc}
-- Dramatic spotlight from above casting long shadow
+IMPORTANT - HOOK SCENE (ONLY silhouette in this video):
+- Include a dramatic black silhouette of {silhouette_desc}
+- Spotlight from above casting long shadow
 - NO facial features visible - only dark shadow outline
 - URGENT, BREAKING NEWS atmosphere
 - Red/orange dramatic lighting
@@ -459,35 +460,35 @@ IMPORTANT - HOOK SCENE:
 - 4K quality, cinematic lighting, high contrast
 """
         elif is_last_scene:
-            # 마지막 씬 (루프 연결): 첫 씬과 비슷한 분위기 + 실루엣
+            # 마지막 씬: 결론 분위기 (실루엣 없음!)
             enhanced_prompt = f"""
 {aspect_instruction}
 
 {original_prompt}
 
-IMPORTANT - LOOP CONNECTION SCENE (similar to first scene):
-- Include a black silhouette of {silhouette_desc}
-- Similar composition to the opening scene for seamless loop
-- Dramatic spotlight from above
-- NO facial features visible - only dark shadow outline
-- Slightly different angle but same mood as scene 1
+IMPORTANT - CONCLUSION SCENE:
+- NO silhouettes, NO people, NO human figures
+- Create atmosphere matching the conclusion: "{narration[:50]}..."
+- Symbolic imagery representing the story's ending
+- Professional, polished look
 - Large empty space for Korean text overlay
-- 4K quality, cinematic lighting
+- 4K quality, cinematic composition
 """
         else:
-            # 중간 씬: 배경 위주
+            # 중간 씬: 대본 내용에 맞는 배경 (실루엣 없음!)
             enhanced_prompt = f"""
 {aspect_instruction}
 
 {original_prompt}
 
-IMPORTANT - BACKGROUND SCENE:
-- NO people or human figures in this scene
-- Focus on atmospheric background and mood
+IMPORTANT - CONTENT SCENE:
+- NO silhouettes, NO people, NO human figures
+- Visualize this narration: "{narration[:50]}..."
+- Focus on objects, places, or abstract concepts from the story
 - Dynamic, engaging visuals to prevent viewer drop-off
 - Large empty space for Korean text overlay
 - 4K quality, cinematic composition
-- Korean news broadcast style
+- Korean news broadcast style atmosphere
 """
 
         scene["image_prompt_enhanced"] = enhanced_prompt.strip()
