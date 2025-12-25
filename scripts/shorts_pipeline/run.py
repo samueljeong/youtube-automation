@@ -67,6 +67,9 @@ from .script_generator import (
     format_script_for_sheet,
 )
 
+# 메인 파이프라인 이미지 모듈 사용 (OpenRouter API)
+from image import generate_image as main_generate_image, generate_thumbnail_image, GEMINI_FLASH, GEMINI_PRO
+
 
 # ============================================================
 # TTS 생성 (Gemini TTS)
@@ -223,7 +226,7 @@ def generate_single_image(
     max_retries: int = 3
 ) -> Dict[str, Any]:
     """
-    단일 씬 이미지 생성 (재시도 포함)
+    단일 씬 이미지 생성 (메인 파이프라인 image 모듈 사용)
 
     Args:
         prompt: 이미지 프롬프트
@@ -234,40 +237,45 @@ def generate_single_image(
     Returns:
         {"ok": True, "scene": 1, "path": "/tmp/xxx/scene_001.png"}
     """
-    import google.generativeai as genai
+    import shutil
+    from urllib.request import urlopen
+    from PIL import Image as PILImage
+    from io import BytesIO
 
     for attempt in range(max_retries):
         try:
-            api_key = os.environ.get("GOOGLE_API_KEY")
-            if not api_key:
-                raise ValueError("GOOGLE_API_KEY 환경변수 필요")
-
-            genai.configure(api_key=api_key)
-
-            # Gemini 3 Pro 이미지 생성
-            model = genai.GenerativeModel("gemini-2.0-flash-exp-image-generation")
-
-            response = model.generate_content(
-                contents=prompt,
-                generation_config=genai.types.GenerationConfig(
-                    response_modalities=["IMAGE", "TEXT"],
-                )
+            # 메인 파이프라인의 image 모듈 사용 (OpenRouter API)
+            # 9:16 세로 비율 (쇼츠용)
+            result = main_generate_image(
+                prompt=prompt,
+                size="720x1280",  # 쇼츠용 세로 비율
+                output_dir=output_dir,
+                model=GEMINI_FLASH,  # 씬 이미지는 Flash 모델
             )
 
-            # 이미지 데이터 추출
-            image_data = None
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('image/'):
-                    image_data = part.inline_data.data
-                    break
+            if not result.get("ok"):
+                raise ValueError(result.get("error", "이미지 생성 실패"))
 
-            if not image_data:
-                raise ValueError("이미지 데이터 없음")
+            image_url = result.get("image_url", "")
 
-            # 저장
-            output_path = os.path.join(output_dir, f"scene_{scene_number:03d}.png")
-            with open(output_path, "wb") as f:
-                f.write(image_data)
+            # 결과 이미지 경로 처리
+            output_path = os.path.join(output_dir, f"scene_{scene_number:03d}.jpg")
+
+            if image_url.startswith("data:"):
+                # base64 데이터인 경우
+                base64_data = image_url.split(",", 1)[1] if "," in image_url else image_url
+                image_bytes = base64.b64decode(base64_data)
+                with open(output_path, "wb") as f:
+                    f.write(image_bytes)
+            elif image_url.startswith("/static/"):
+                # 로컬 파일 경로인 경우
+                src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), image_url.lstrip("/"))
+                if os.path.exists(src_path):
+                    shutil.copy(src_path, output_path)
+                else:
+                    raise ValueError(f"이미지 파일 없음: {src_path}")
+            else:
+                raise ValueError(f"알 수 없는 이미지 URL 형식: {image_url[:100]}")
 
             print(f"[SHORTS] 씬{scene_number} 이미지 생성 완료")
 
@@ -275,6 +283,7 @@ def generate_single_image(
                 "ok": True,
                 "scene": scene_number,
                 "path": output_path,
+                "cost": result.get("cost", 0.039),
             }
 
         except Exception as e:
@@ -363,7 +372,7 @@ def generate_thumbnail(
     output_path: str
 ) -> Dict[str, Any]:
     """
-    쇼츠 썸네일 생성
+    쇼츠 썸네일 생성 (메인 파이프라인 image 모듈 사용)
 
     Args:
         thumbnail_config: GPT가 생성한 썸네일 설정
@@ -372,16 +381,10 @@ def generate_thumbnail(
         output_path: 출력 경로
 
     Returns:
-        {"ok": True, "path": "...", "cost": 0.03}
+        {"ok": True, "path": "...", "cost": 0.05}
     """
     try:
-        import google.generativeai as genai
-
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY 환경변수 필요")
-
-        genai.configure(api_key=api_key)
+        import shutil
 
         # 썸네일 프롬프트 생성
         style_config = THUMBNAIL_CONFIG["style_by_issue"].get(
@@ -400,34 +403,43 @@ NO text on image
 
         print(f"[SHORTS] 썸네일 생성 중: {person}")
 
-        model = genai.GenerativeModel("gemini-2.0-flash-exp-image-generation")
+        # 메인 파이프라인의 image 모듈 사용 (OpenRouter API)
+        output_dir = os.path.dirname(output_path)
+        os.makedirs(output_dir, exist_ok=True)
 
-        response = model.generate_content(
-            contents=prompt,
-            generation_config=genai.types.GenerationConfig(
-                response_modalities=["IMAGE", "TEXT"],
-            )
+        result = main_generate_image(
+            prompt=prompt,
+            size="720x1280",  # 쇼츠용 세로 비율
+            output_dir=output_dir,
+            model=GEMINI_PRO,  # 썸네일은 Pro 모델 (고품질)
         )
 
-        # 이미지 추출
-        image_data = None
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, 'inline_data') and part.inline_data.mime_type.startswith('image/'):
-                image_data = part.inline_data.data
-                break
+        if not result.get("ok"):
+            raise ValueError(result.get("error", "썸네일 생성 실패"))
 
-        if not image_data:
-            raise ValueError("썸네일 이미지 데이터 없음")
+        image_url = result.get("image_url", "")
 
-        with open(output_path, "wb") as f:
-            f.write(image_data)
+        # 결과 이미지를 output_path로 복사
+        if image_url.startswith("data:"):
+            base64_data = image_url.split(",", 1)[1] if "," in image_url else image_url
+            image_bytes = base64.b64decode(base64_data)
+            with open(output_path, "wb") as f:
+                f.write(image_bytes)
+        elif image_url.startswith("/static/"):
+            src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), image_url.lstrip("/"))
+            if os.path.exists(src_path):
+                shutil.copy(src_path, output_path)
+            else:
+                raise ValueError(f"썸네일 파일 없음: {src_path}")
+        else:
+            raise ValueError(f"알 수 없는 이미지 URL 형식: {image_url[:100]}")
 
         print(f"[SHORTS] 썸네일 생성 완료")
 
         return {
             "ok": True,
             "path": output_path,
-            "cost": 0.03,
+            "cost": result.get("cost", 0.05),
         }
 
     except Exception as e:
