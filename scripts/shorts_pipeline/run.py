@@ -1173,7 +1173,8 @@ def run_video_generation(
 
 def run_news_collection(
     max_items: int = 10,
-    save_to_sheet: bool = True
+    save_to_sheet: bool = True,
+    run_id: str = None
 ) -> Dict[str, Any]:
     """
     연예 뉴스 수집 및 시트 저장
@@ -1181,6 +1182,7 @@ def run_news_collection(
     Args:
         max_items: 수집할 최대 뉴스 수
         save_to_sheet: True면 시트에 저장
+        run_id: 수집 슬롯 ID (YYYY-MM-DD_HH 형식, 8시/17시 구분)
 
     Returns:
         {
@@ -1191,7 +1193,7 @@ def run_news_collection(
         }
     """
     print(f"\n{'='*50}")
-    print("[SHORTS] 연예 뉴스 수집 시작")
+    print(f"[SHORTS] 연예 뉴스 수집 시작 (run_id: {run_id})")
     print(f"{'='*50}\n")
 
     # 1) 뉴스 수집
@@ -1219,6 +1221,13 @@ def run_news_collection(
         # 시트 존재 확인 (없으면 생성)
         create_shorts_sheet(service, spreadsheet_id)
 
+        # run_id 기본값: YYYY-MM-DD_HH (현재 한국 시간)
+        if not run_id:
+            from datetime import timezone, timedelta
+            kst = timezone(timedelta(hours=9))
+            now_kst = datetime.now(kst)
+            run_id = now_kst.strftime("%Y-%m-%d_%H")
+
         saved = 0
         duplicates = 0
 
@@ -1229,6 +1238,9 @@ def run_news_collection(
                 duplicates += 1
                 print(f"[SHORTS] 중복 스킵: {person} - {item['news_title'][:30]}...")
                 continue
+
+            # run_id 추가
+            item["run_id"] = run_id
 
             # 시트에 추가
             append_row(service, spreadsheet_id, item)

@@ -21124,7 +21124,58 @@ def api_sheets_check_and_process():
                 pending_tasks = [pending_tasks[0]]
 
         if not pending_tasks:
-            # 대기 작업 없음 (SHORTS 뉴스 수집은 전용 Cron으로 처리: 8시, 17시 KST)
+            # ========== 대기 작업 없음 → SHORTS 뉴스 수집 (8시, 17시 KST) ==========
+            if "SHORTS" in sheet_names:
+                try:
+                    from scripts.shorts_pipeline import run_news_collection
+                    from datetime import datetime, timezone, timedelta
+
+                    # 한국 시간 계산
+                    kst = timezone(timedelta(hours=9))
+                    now_kst = datetime.now(kst)
+                    current_hour = now_kst.hour
+                    today = now_kst.strftime("%Y-%m-%d")
+
+                    # 수집 시간대: 8시(08:00-08:59), 17시(17:00-17:59)
+                    collection_hours = [8, 17]
+
+                    if current_hour in collection_hours:
+                        # 이번 시간대에 이미 수집했는지 확인
+                        time_slot = f"{today}_{current_hour}"
+                        shorts_rows = sheets_read_rows(service, sheet_id, "'SHORTS'!A:Z")
+
+                        already_collected = False
+                        if shorts_rows and len(shorts_rows) > 2:
+                            headers = shorts_rows[1] if len(shorts_rows) > 1 else []
+                            run_id_col = headers.index("run_id") if "run_id" in headers else -1
+
+                            if run_id_col >= 0:
+                                for row in shorts_rows[2:]:
+                                    if len(row) > run_id_col and row[run_id_col] == time_slot:
+                                        already_collected = True
+                                        break
+
+                        if not already_collected:
+                            print(f"[SHORTS] {current_hour}시 수집 시작 (slot: {time_slot})")
+                            news_result = run_news_collection(max_items=5, save_to_sheet=True, run_id=time_slot)
+                            print(f"[SHORTS] 뉴스 수집 완료: {news_result.get('collected', 0)}개 수집, {news_result.get('saved', 0)}개 저장")
+
+                            return jsonify({
+                                "ok": True,
+                                "message": f"SHORTS 뉴스 {news_result.get('saved', 0)}개 수집 완료 ({current_hour}시)",
+                                "processed": 0,
+                                "shorts_news_collected": news_result.get('saved', 0),
+                                "time_slot": time_slot,
+                                "sheets_checked": sheet_names
+                            })
+                        else:
+                            print(f"[SHORTS] {current_hour}시 이미 수집됨 → 스킵")
+                    else:
+                        print(f"[SHORTS] 수집 시간 아님 (현재: {current_hour}시, 수집: 8시/17시)")
+
+                except Exception as shorts_err:
+                    print(f"[SHORTS] 뉴스 수집 오류 (무시): {shorts_err}")
+
             return jsonify({
                 "ok": True,
                 "message": "처리할 대기 작업이 없습니다",
