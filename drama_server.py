@@ -24217,6 +24217,137 @@ def api_shorts_status():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ===== Shorts Agent API =====
+
+@app.route('/api/shorts/agent-run', methods=['POST'])
+def api_shorts_agent_run():
+    """
+    Supervisor Agent를 통한 쇼츠 생성
+
+    Request JSON:
+        {
+            "topic": "BTS 컴백 소식",
+            "person": "BTS",
+            "category": "연예인",
+            "issue_type": "컴백",
+            "skip_images": false
+        }
+
+    Returns:
+        {
+            "ok": true,
+            "task_id": "abc123",
+            "script": {...},
+            "images": [...],
+            "cost": 0.05,
+            "duration": 30.5,
+            "logs": [...]
+        }
+    """
+    import asyncio
+
+    try:
+        data = request.get_json() or {}
+
+        topic = data.get("topic", "")
+        person = data.get("person", "")
+        category = data.get("category", "연예인")
+        issue_type = data.get("issue_type", "이슈")
+        skip_images = data.get("skip_images", False)
+
+        if not topic:
+            return jsonify({"ok": False, "error": "topic은 필수입니다"}), 400
+
+        # 에이전트 임포트 (동적)
+        import sys
+        agents_dir = os.path.join(os.path.dirname(__file__), "scripts", "shorts_pipeline", "agents")
+        if agents_dir not in sys.path:
+            sys.path.insert(0, agents_dir)
+
+        from supervisor import SupervisorAgent
+
+        # Supervisor 실행
+        supervisor = SupervisorAgent()
+
+        # asyncio 이벤트 루프 처리
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        result = loop.run_until_complete(
+            supervisor.run(
+                topic=topic,
+                person=person or topic.split()[0],
+                category=category,
+                issue_type=issue_type,
+                skip_images=skip_images,
+            )
+        )
+
+        if result.success:
+            return jsonify({
+                "ok": True,
+                "task_id": result.data.get("task_id"),
+                "script": result.data.get("script"),
+                "images": result.data.get("images"),
+                "script_attempts": result.data.get("script_attempts"),
+                "image_attempts": result.data.get("image_attempts"),
+                "cost": result.cost,
+                "duration": result.duration,
+                "logs": result.data.get("logs", []),
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": result.error,
+                "logs": result.data.get("logs", []) if result.data else [],
+            }), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/shorts/agent-status', methods=['GET'])
+def api_shorts_agent_status():
+    """
+    Agent 시스템 상태 확인
+
+    Returns:
+        {"ok": true, "agents": ["Supervisor", "ScriptAgent", ...], "ready": true}
+    """
+    try:
+        import sys
+        agents_dir = os.path.join(os.path.dirname(__file__), "scripts", "shorts_pipeline", "agents")
+        if agents_dir not in sys.path:
+            sys.path.insert(0, agents_dir)
+
+        # 에이전트 임포트 테스트
+        from supervisor import SupervisorAgent
+        from script_agent import ScriptAgent
+        from image_agent import ImageAgent
+        from review_agent import ReviewAgent
+
+        return jsonify({
+            "ok": True,
+            "agents": ["SupervisorAgent", "ScriptAgent", "ImageAgent", "ReviewAgent"],
+            "ready": True,
+            "openai_configured": bool(os.environ.get("OPENAI_API_KEY")),
+        })
+
+    except ImportError as e:
+        return jsonify({
+            "ok": False,
+            "error": f"Agent import failed: {e}",
+            "ready": False,
+        }), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ===== Fontconfig 설정 (일본어 폰트 인식용) =====
 def setup_fontconfig():
     """프로젝트 fonts 디렉토리를 fontconfig에 등록"""
