@@ -561,48 +561,54 @@ def compose_frame(
 
 
 # ============================================================
-# 자막 생성 (ASS 형식)
+# 자막 생성 (ASS 형식) - 문장 단위 한 줄씩 + 상단 타이틀 고정
 # ============================================================
 
 def generate_ass_subtitles(
     scenes: List[Dict[str, Any]],
     total_duration: float,
     output_path: str,
-    issue_type: str = "default"
+    issue_type: str = "default",
+    title_text: str = None
 ) -> str:
     """
-    씬별 나레이션을 ASS 자막 파일로 생성
+    문장 단위로 한 줄씩 표시하는 ASS 자막 생성
+    + 상단 타이틀은 전체 영상 동안 고정 표시
 
     Args:
         scenes: 씬 정보 (narration 포함)
         total_duration: 총 영상 길이 (초)
         output_path: ASS 파일 저장 경로
         issue_type: 이슈 타입 (강조 색상 결정)
+        title_text: 상단 고정 타이틀 (선택)
 
     Returns:
         ASS 파일 경로
     """
+    import re
+
     # 스타일 설정
     style = SHORTS_SUBTITLE_STYLE
     font_name = style.get("font_name", "NanumSquareRoundEB")
     font_size = style.get("font_size", 48)
-    font_color = style.get("font_color", "#FFFFFF").lstrip("#")
-    outline_color = style.get("outline_color", "#000000").lstrip("#")
     outline_width = style.get("outline_width", 3)
     margin_bottom = style.get("margin_bottom", 150)
-    max_chars = style.get("max_chars_per_line", 12)
 
     # BGR 형식으로 변환 (ASS 형식)
     def hex_to_ass_color(hex_color):
+        hex_color = hex_color.lstrip("#")
         r = hex_color[0:2]
         g = hex_color[2:4]
         b = hex_color[4:6]
-        return f"&H00{b}{g}{r}"  # ASS는 BGR 순서
+        return f"&H00{b}{g}{r}"
 
-    primary_color = hex_to_ass_color(font_color)
-    outline_color_ass = hex_to_ass_color(outline_color)
+    primary_color = hex_to_ass_color(style.get("font_color", "#FFFFFF"))
+    outline_color = hex_to_ass_color(style.get("outline_color", "#000000"))
+    title_color = hex_to_ass_color("#FFFF00")  # 노란색 타이틀
 
-    # ASS 헤더
+    # ASS 헤더 - 두 가지 스타일 정의
+    # 1. Title: 상단 고정 (Alignment=8: 상단 중앙)
+    # 2. Subtitle: 하단 자막 (Alignment=2: 하단 중앙)
     ass_content = f"""[Script Info]
 Title: Shorts Subtitles
 ScriptType: v4.00+
@@ -612,74 +618,84 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color_ass},&H80000000,1,0,0,0,100,100,0,0,1,{outline_width},2,2,40,40,{margin_bottom},1
+Style: Title,{font_name},38,{title_color},&H000000FF,{outline_color},&H80000000,1,0,0,0,100,100,0,0,1,3,2,8,40,40,60,1
+Style: Subtitle,{font_name},{font_size},{primary_color},&H000000FF,{outline_color},&H80000000,1,0,0,0,100,100,0,0,1,{outline_width},2,2,40,40,{margin_bottom},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
-    # 씬별 시간 계산
-    scene_count = len(scenes)
-    if scene_count == 0:
-        return output_path
+    # 시간 포맷 함수
+    def format_time(seconds):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        cs = int((seconds % 1) * 100)
+        return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
-    scene_duration = total_duration / scene_count
+    # 1) 상단 타이틀 - 전체 영상 동안 고정 표시
+    if title_text:
+        # 타이틀이 너무 길면 자르기
+        if len(title_text) > 20:
+            title_text = title_text[:20] + "..."
+        ass_content += f"Dialogue: 1,{format_time(0)},{format_time(total_duration)},Title,,0,0,0,,{{\\fad(300,300)}}{title_text}\n"
 
-    # 각 씬의 자막 생성
-    for i, scene in enumerate(scenes):
+    # 2) 전체 나레이션을 문장 단위로 분리
+    all_sentences = []
+    for scene in scenes:
         narration = scene.get("narration", "")
         if not narration:
             continue
+        # 문장 분리 (. ! ? 기준, 한국어 마침표도 포함)
+        sentences = re.split(r'(?<=[.!?。])\s*', narration.strip())
+        for sent in sentences:
+            sent = sent.strip()
+            if sent and len(sent) > 1:  # 빈 문장 제외
+                all_sentences.append(sent)
 
-        start_time = i * scene_duration
-        end_time = (i + 1) * scene_duration
+    if not all_sentences:
+        # 문장 분리 실패 시 씬 단위로 fallback
+        for scene in scenes:
+            narration = scene.get("narration", "").strip()
+            if narration:
+                all_sentences.append(narration)
 
-        # 시간 포맷 (H:MM:SS.CC)
-        def format_time(seconds):
-            h = int(seconds // 3600)
-            m = int((seconds % 3600) // 60)
-            s = int(seconds % 60)
-            cs = int((seconds % 1) * 100)
-            return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+    # 3) 글자 수 비율로 시간 배분
+    total_chars = sum(len(s) for s in all_sentences)
+    if total_chars == 0:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(ass_content)
+        return output_path
 
-        # 텍스트 줄바꿈 처리
-        def wrap_text(text, max_chars):
-            words = text.replace('\n', ' ').split()
-            lines = []
-            current_line = ""
+    # 각 문장의 시작/끝 시간 계산
+    current_time = 0.0
+    for sentence in all_sentences:
+        char_count = len(sentence)
+        # 글자 수 비율로 duration 계산
+        duration = (char_count / total_chars) * total_duration
+        # 최소 0.5초, 최대 5초 제한
+        duration = max(0.5, min(5.0, duration))
 
-            for word in words:
-                if len(current_line) + len(word) + 1 <= max_chars:
-                    current_line += (" " if current_line else "") + word
-                else:
-                    if current_line:
-                        lines.append(current_line)
-                    # 단어가 max_chars보다 길면 그대로 추가
-                    if len(word) > max_chars:
-                        lines.append(word)
-                        current_line = ""
-                    else:
-                        current_line = word
+        start_time = current_time
+        end_time = current_time + duration
 
-            if current_line:
-                lines.append(current_line)
+        # 마지막 문장이 영상 끝을 넘지 않도록
+        if end_time > total_duration:
+            end_time = total_duration
 
-            return "\\N".join(lines)  # ASS 줄바꿈
+        # 페이드 효과 (빠른 전환감)
+        fade_effect = "{\\fad(50,50)}"
 
-        wrapped_text = wrap_text(narration, max_chars)
+        # 자막 추가 (한 줄로만 표시)
+        ass_content += f"Dialogue: 0,{format_time(start_time)},{format_time(end_time)},Subtitle,,0,0,0,,{fade_effect}{sentence}\n"
 
-        # 페이드 효과
-        fade_in_ms = int(style.get("fade_in", 0.1) * 1000)
-        fade_out_ms = int(style.get("fade_out", 0.1) * 1000)
-        fade_effect = f"{{\\fad({fade_in_ms},{fade_out_ms})}}"
-
-        ass_content += f"Dialogue: 0,{format_time(start_time)},{format_time(end_time)},Default,,0,0,0,,{fade_effect}{wrapped_text}\n"
+        current_time = end_time
 
     # 파일 저장
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(ass_content)
 
-    print(f"[SHORTS] ASS 자막 생성: {len(scenes)}개 씬, {output_path}")
+    print(f"[SHORTS] ASS 자막 생성: {len(all_sentences)}개 문장, 타이틀={'있음' if title_text else '없음'}")
     return output_path
 
 
@@ -801,13 +817,14 @@ def render_video(
             audio_merged_path
         ], capture_output=True, timeout=300)
 
-        # 4) ASS 자막 생성
+        # 4) ASS 자막 생성 (문장 단위 + 상단 타이틀)
         ass_path = output_path.replace(".mp4", ".ass")
         generate_ass_subtitles(
             scenes=scenes,
             total_duration=audio_duration,
             output_path=ass_path,
-            issue_type=issue_type
+            issue_type=issue_type,
+            title_text=title_text  # 상단 고정 타이틀
         )
 
         # 5) 자막 burn-in (최종 출력)
