@@ -3,29 +3,59 @@ SupervisorAgent - 총괄 에이전트 (대표)
 
 역할:
 - 사용자 명령 수신 및 해석
-- 하위 에이전트 조율 (기획, 이미지, 검수)
+- 하위 에이전트 조율 (기획, 자막, 이미지, 검수)
 - 품질 검수 결과에 따라 재작업 지시
+- 시스템 구조 분석 및 개선 제안
 - 최종 결과 승인 및 보고
 """
 
 import asyncio
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     from .base import BaseAgent, AgentResult, AgentStatus, TaskContext
     from .script_agent import ScriptAgent
     from .image_agent import ImageAgent
     from .review_agent import ReviewAgent
+    from .subtitle_agent import SubtitleAgent
 except ImportError:
     from base import BaseAgent, AgentResult, AgentStatus, TaskContext
     from script_agent import ScriptAgent
     from image_agent import ImageAgent
     from review_agent import ReviewAgent
+    try:
+        from subtitle_agent import SubtitleAgent
+    except ImportError:
+        SubtitleAgent = None  # 아직 구현 안됨
 
 
 class SupervisorAgent(BaseAgent):
     """총괄 에이전트 (대표)"""
+
+    # 쇼츠 제작에 필요한 필수 역할 정의
+    REQUIRED_CAPABILITIES = {
+        "script": {
+            "name": "대본 생성",
+            "description": "주제를 바탕으로 쇼츠 대본 작성",
+            "agent_class": "ScriptAgent",
+        },
+        "subtitle": {
+            "name": "TTS + 자막",
+            "description": "대본을 음성으로 변환하고 자막 생성/동기화",
+            "agent_class": "SubtitleAgent",
+        },
+        "image": {
+            "name": "이미지 생성",
+            "description": "씬별 배경 이미지 생성",
+            "agent_class": "ImageAgent",
+        },
+        "review": {
+            "name": "품질 검수",
+            "description": "대본, 자막, 이미지 품질 검토 및 피드백",
+            "agent_class": "ReviewAgent",
+        },
+    }
 
     def __init__(self):
         super().__init__("Supervisor")
@@ -35,9 +65,25 @@ class SupervisorAgent(BaseAgent):
         self.image_agent = ImageAgent()
         self.review_agent = ReviewAgent()
 
+        # SubtitleAgent는 구현되어 있으면 초기화
+        self.subtitle_agent = SubtitleAgent() if SubtitleAgent else None
+
+        # 에이전트 레지스트리
+        self.agents: Dict[str, BaseAgent] = {
+            "script": self.script_agent,
+            "image": self.image_agent,
+            "review": self.review_agent,
+        }
+        if self.subtitle_agent:
+            self.agents["subtitle"] = self.subtitle_agent
+
         # 설정
         self.max_script_attempts = 3
         self.max_image_attempts = 2
+        self.max_subtitle_attempts = 2
+
+        # 초기화 시 시스템 분석 수행
+        self._system_analysis = self._analyze_system_structure()
 
     async def execute(self, context: TaskContext, **kwargs) -> AgentResult:
         """
@@ -99,10 +145,52 @@ class SupervisorAgent(BaseAgent):
                 self.log("대본 최대 시도 횟수 초과, 현재 버전 사용", "warning")
 
             # ========================================
-            # PHASE 2: 이미지 최적화 + 생성 + 검수 루프
+            # PHASE 2: TTS + 자막 생성
+            # ========================================
+            skip_subtitle = kwargs.get("skip_subtitle", False)
+
+            if self.subtitle_agent and not skip_subtitle:
+                self.log("Phase 2: TTS + 자막 생성")
+                subtitle_approved = False
+
+                while context.subtitle_attempts < self.max_subtitle_attempts and not subtitle_approved:
+                    if context.subtitle_attempts == 0:
+                        subtitle_result = await self.subtitle_agent.execute(context)
+                    else:
+                        subtitle_result = await self.subtitle_agent.execute(
+                            context,
+                            feedback=context.subtitle_feedback
+                        )
+
+                    total_cost += subtitle_result.cost
+                    context.subtitle_attempts += 1
+
+                    if not subtitle_result.success:
+                        self.log(f"자막 생성 실패 (시도 {context.subtitle_attempts}): {subtitle_result.error}", "error")
+                        continue
+
+                    # 자막 검수 (ReviewAgent가 subtitle 검수 지원하는 경우)
+                    review_result = await self.review_agent.execute(context, review_type="subtitle")
+                    total_cost += review_result.cost
+
+                    if not review_result.needs_improvement:
+                        subtitle_approved = True
+                        self.log(f"자막 검수 통과 (시도 {context.subtitle_attempts})")
+                    else:
+                        context.subtitle_feedback = review_result.feedback
+                        self.log(f"자막 개선 필요 (시도 {context.subtitle_attempts})")
+
+                if not subtitle_approved:
+                    self.log("자막 최대 시도 횟수 초과, 현재 버전 사용", "warning")
+            else:
+                if not self.subtitle_agent:
+                    self.log("SubtitleAgent 미구현 - 자막 생성 스킵", "warning")
+
+            # ========================================
+            # PHASE 3: 이미지 최적화 + 생성 + 검수 루프
             # ========================================
             if not skip_images:
-                self.log("Phase 2: 이미지 생성")
+                self.log("Phase 3: 이미지 생성")
 
                 # 2-0. 이미지 캐시 최적화 (슈퍼바이저가 판단)
                 optimization = await self._optimize_image_generation(context)
@@ -151,7 +239,7 @@ class SupervisorAgent(BaseAgent):
                     self.log("이미지 최대 시도 횟수 초과, 현재 버전 사용", "warning")
 
             # ========================================
-            # PHASE 3: 최종 결과 정리
+            # PHASE 4: 최종 결과 정리
             # ========================================
             duration = time.time() - start_time
 
@@ -159,6 +247,7 @@ class SupervisorAgent(BaseAgent):
             self.log(f"총 소요 시간: {duration:.1f}초")
             self.log(f"총 비용: ${total_cost:.4f}")
             self.log(f"대본 시도: {context.script_attempts}회")
+            self.log(f"자막 시도: {context.subtitle_attempts}회")
             self.log(f"이미지 시도: {context.image_attempts}회")
 
             context.add_log(self.name, "complete", "success", f"${total_cost:.4f}, {duration:.1f}초")
@@ -170,8 +259,10 @@ class SupervisorAgent(BaseAgent):
                 data={
                     "task_id": context.task_id,
                     "script": context.script,
+                    "subtitle_data": context.subtitle_data,
                     "images": context.images,
                     "script_attempts": context.script_attempts,
+                    "subtitle_attempts": context.subtitle_attempts,
                     "image_attempts": context.image_attempts,
                     "logs": context.logs,
                 },
@@ -334,3 +425,119 @@ class SupervisorAgent(BaseAgent):
             lines.append(f"  {log['timestamp']} [{log['agent']}] {log['action']}: {log['result']}")
 
         return "\n".join(lines)
+
+    # =========================================================================
+    # 시스템 자기 분석 (메타 레벨)
+    # =========================================================================
+
+    def _analyze_system_structure(self) -> Dict[str, Any]:
+        """
+        시스템 구조 분석 및 누락된 역할 감지
+
+        슈퍼바이저가 스스로 판단:
+        - 현재 에이전트 구성이 충분한가?
+        - 어떤 역할이 누락되었는가?
+        - 어떤 개선이 필요한가?
+
+        Returns:
+            {
+                "available_agents": ["script", "image", "review"],
+                "missing_agents": ["subtitle"],
+                "recommendations": [...],
+                "is_complete": False
+            }
+        """
+        available = list(self.agents.keys())
+        missing = []
+        recommendations = []
+
+        # 필수 역할 중 누락된 것 확인
+        for capability, info in self.REQUIRED_CAPABILITIES.items():
+            if capability not in self.agents or self.agents[capability] is None:
+                missing.append(capability)
+                recommendations.append({
+                    "type": "missing_agent",
+                    "capability": capability,
+                    "agent_class": info["agent_class"],
+                    "reason": f"{info['name']} 기능이 없습니다. {info['description']}",
+                    "priority": "high" if capability in ["script", "subtitle"] else "medium",
+                })
+
+        # 시스템 완전성 판단
+        is_complete = len(missing) == 0
+
+        # 추가 분석: 현재 에이전트들의 상태
+        agent_status = {}
+        for name, agent in self.agents.items():
+            if agent:
+                agent_status[name] = {
+                    "status": agent.status.value if hasattr(agent, 'status') else "unknown",
+                    "initialized": True,
+                }
+            else:
+                agent_status[name] = {
+                    "status": "not_initialized",
+                    "initialized": False,
+                }
+
+        analysis = {
+            "available_agents": available,
+            "missing_agents": missing,
+            "agent_status": agent_status,
+            "recommendations": recommendations,
+            "is_complete": is_complete,
+            "summary": self._generate_analysis_summary(available, missing, recommendations),
+        }
+
+        # 로그 출력
+        if missing:
+            self.log(f"⚠️ 시스템 분석: {len(missing)}개 역할 누락 - {missing}")
+            for rec in recommendations:
+                self.log(f"  └ {rec['reason']}")
+
+        return analysis
+
+    def _generate_analysis_summary(
+        self,
+        available: List[str],
+        missing: List[str],
+        recommendations: List[Dict]
+    ) -> str:
+        """분석 결과 요약 생성"""
+        if not missing:
+            return f"✅ 시스템 완전: {len(available)}개 에이전트 모두 정상"
+
+        lines = [
+            f"⚠️ 시스템 불완전: {len(available)}개 활성, {len(missing)}개 누락",
+            "",
+            "누락된 역할:",
+        ]
+
+        for cap in missing:
+            info = self.REQUIRED_CAPABILITIES.get(cap, {})
+            lines.append(f"  - {cap}: {info.get('name', '')} ({info.get('description', '')})")
+
+        lines.extend([
+            "",
+            "권장 조치:",
+        ])
+
+        for rec in recommendations:
+            lines.append(f"  - {rec['agent_class']} 구현 필요 (우선순위: {rec['priority']})")
+
+        return "\n".join(lines)
+
+    def get_system_analysis(self) -> Dict[str, Any]:
+        """시스템 분석 결과 반환 (외부 호출용)"""
+        return self._system_analysis
+
+    def diagnose(self) -> str:
+        """
+        시스템 진단 결과를 사람이 읽기 쉬운 형태로 반환
+
+        사용법:
+            supervisor = SupervisorAgent()
+            print(supervisor.diagnose())
+        """
+        analysis = self._system_analysis
+        return analysis.get("summary", "분석 결과 없음")

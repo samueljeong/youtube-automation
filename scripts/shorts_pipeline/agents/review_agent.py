@@ -94,6 +94,12 @@ class ReviewAgent(BaseAgent):
             "min_success_rate": 0.8,  # 80% 이상 성공 필요
         }
 
+        self.subtitle_criteria = {
+            "min_duration": 25,  # 최소 25초
+            "max_duration": 45,  # 최대 45초
+            "min_subtitles": 3,  # 최소 자막 개수
+        }
+
     async def execute(self, context: TaskContext, **kwargs) -> AgentResult:
         """
         검수 실행
@@ -101,7 +107,7 @@ class ReviewAgent(BaseAgent):
         Args:
             context: 작업 컨텍스트
             **kwargs:
-                review_type: "script" | "image" | "all"
+                review_type: "script" | "subtitle" | "image" | "all"
 
         Returns:
             AgentResult with review feedback
@@ -114,6 +120,7 @@ class ReviewAgent(BaseAgent):
         try:
             results = {
                 "script_review": None,
+                "subtitle_review": None,
                 "image_review": None,
                 "passed": True,
                 "needs_improvement": False,
@@ -134,6 +141,18 @@ class ReviewAgent(BaseAgent):
                     results["improvement_targets"].append("script")
                     results["feedback"] += f"\n[대본 피드백]\n{script_result.get('feedback', '')}"
 
+            # 자막 검수
+            if review_type in ["subtitle", "all"] and context.subtitle_data:
+                subtitle_result = await self._review_subtitle(context)
+                results["subtitle_review"] = subtitle_result
+                total_cost += subtitle_result.get("cost", 0)
+
+                if not subtitle_result.get("passed", False):
+                    results["passed"] = False
+                    results["needs_improvement"] = True
+                    results["improvement_targets"].append("subtitle")
+                    results["feedback"] += f"\n[자막 피드백]\n{subtitle_result.get('feedback', '')}"
+
             # 이미지 검수
             if review_type in ["image", "all"] and context.images:
                 image_result = await self._review_images(context)
@@ -151,6 +170,8 @@ class ReviewAgent(BaseAgent):
             # 컨텍스트에 피드백 저장
             if "script" in results["improvement_targets"]:
                 context.script_feedback = results["script_review"].get("feedback", "")
+            if "subtitle" in results["improvement_targets"]:
+                context.subtitle_feedback = results["subtitle_review"].get("feedback", "")
             if "image" in results["improvement_targets"]:
                 context.image_feedback = results["image_review"].get("feedback", "")
 
@@ -351,6 +372,54 @@ class ReviewAgent(BaseAgent):
             "issues": issues,
             "failed_scenes": failed_scenes,
             "feedback": "\n".join(issues) if issues else "이미지 검수 통과",
+            "cost": 0,  # 규칙 기반이므로 비용 없음
+        }
+
+    async def _review_subtitle(self, context: TaskContext) -> Dict[str, Any]:
+        """자막/TTS 검수 (규칙 기반)"""
+        self.log("자막 검수 시작")
+
+        subtitle_data = context.subtitle_data or {}
+        timeline = subtitle_data.get("timeline", [])
+        duration_sec = subtitle_data.get("duration_sec", 0)
+        audio_file = subtitle_data.get("audio_file", "")
+        srt_file = subtitle_data.get("srt_file", "")
+
+        issues = []
+
+        # 1. 오디오 파일 존재 확인
+        if not audio_file:
+            issues.append("오디오 파일이 생성되지 않았습니다")
+        elif not os.path.exists(audio_file):
+            issues.append(f"오디오 파일을 찾을 수 없습니다: {audio_file}")
+
+        # 2. 자막 파일 존재 확인
+        if not srt_file:
+            issues.append("자막 파일이 생성되지 않았습니다")
+        elif not os.path.exists(srt_file):
+            issues.append(f"자막 파일을 찾을 수 없습니다: {srt_file}")
+
+        # 3. 재생 시간 체크
+        if duration_sec < self.subtitle_criteria["min_duration"]:
+            issues.append(f"영상이 너무 짧습니다 ({duration_sec:.1f}초 < {self.subtitle_criteria['min_duration']}초)")
+        elif duration_sec > self.subtitle_criteria["max_duration"]:
+            issues.append(f"영상이 너무 깁니다 ({duration_sec:.1f}초 > {self.subtitle_criteria['max_duration']}초)")
+
+        # 4. 자막 개수 체크
+        subtitle_count = len(timeline)
+        if subtitle_count < self.subtitle_criteria["min_subtitles"]:
+            issues.append(f"자막이 부족합니다 ({subtitle_count}개 < {self.subtitle_criteria['min_subtitles']}개)")
+
+        passed = len(issues) == 0
+
+        self.log(f"자막 검수 완료: {duration_sec:.1f}초, 자막 {subtitle_count}개, 통과: {passed}")
+
+        return {
+            "passed": passed,
+            "duration_sec": duration_sec,
+            "subtitle_count": subtitle_count,
+            "issues": issues,
+            "feedback": "\n".join(issues) if issues else "자막 검수 통과",
             "cost": 0,  # 규칙 기반이므로 비용 없음
         }
 

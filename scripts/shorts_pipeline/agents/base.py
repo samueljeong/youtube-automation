@@ -59,14 +59,17 @@ class TaskContext:
     # 생성된 데이터
     script: Optional[Dict[str, Any]] = None
     images: Optional[List[str]] = None  # 이미지 경로 리스트
+    subtitle_data: Optional[Dict[str, Any]] = None  # TTS + 자막 데이터
 
     # 검수 피드백
     script_feedback: Optional[str] = None
     image_feedback: Optional[str] = None
+    subtitle_feedback: Optional[str] = None
 
     # 시도 횟수
     script_attempts: int = 0
     image_attempts: int = 0
+    subtitle_attempts: int = 0
 
     # 설정
     max_attempts: int = 3
@@ -92,8 +95,10 @@ class TaskContext:
             "person": self.person,
             "script": self.script,
             "images": self.images,
+            "subtitle_data": self.subtitle_data,
             "script_attempts": self.script_attempts,
             "image_attempts": self.image_attempts,
+            "subtitle_attempts": self.subtitle_attempts,
             "logs": self.logs,
         }
 
