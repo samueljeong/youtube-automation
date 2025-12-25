@@ -561,6 +561,129 @@ def compose_frame(
 
 
 # ============================================================
+# 자막 생성 (ASS 형식)
+# ============================================================
+
+def generate_ass_subtitles(
+    scenes: List[Dict[str, Any]],
+    total_duration: float,
+    output_path: str,
+    issue_type: str = "default"
+) -> str:
+    """
+    씬별 나레이션을 ASS 자막 파일로 생성
+
+    Args:
+        scenes: 씬 정보 (narration 포함)
+        total_duration: 총 영상 길이 (초)
+        output_path: ASS 파일 저장 경로
+        issue_type: 이슈 타입 (강조 색상 결정)
+
+    Returns:
+        ASS 파일 경로
+    """
+    # 스타일 설정
+    style = SHORTS_SUBTITLE_STYLE
+    font_name = style.get("font_name", "NanumSquareRoundEB")
+    font_size = style.get("font_size", 48)
+    font_color = style.get("font_color", "#FFFFFF").lstrip("#")
+    outline_color = style.get("outline_color", "#000000").lstrip("#")
+    outline_width = style.get("outline_width", 3)
+    margin_bottom = style.get("margin_bottom", 150)
+    max_chars = style.get("max_chars_per_line", 12)
+
+    # BGR 형식으로 변환 (ASS 형식)
+    def hex_to_ass_color(hex_color):
+        r = hex_color[0:2]
+        g = hex_color[2:4]
+        b = hex_color[4:6]
+        return f"&H00{b}{g}{r}"  # ASS는 BGR 순서
+
+    primary_color = hex_to_ass_color(font_color)
+    outline_color_ass = hex_to_ass_color(outline_color)
+
+    # ASS 헤더
+    ass_content = f"""[Script Info]
+Title: Shorts Subtitles
+ScriptType: v4.00+
+PlayResX: {VIDEO_WIDTH}
+PlayResY: {VIDEO_HEIGHT}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,{font_name},{font_size},{primary_color},&H000000FF,{outline_color_ass},&H80000000,1,0,0,0,100,100,0,0,1,{outline_width},2,2,40,40,{margin_bottom},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+    # 씬별 시간 계산
+    scene_count = len(scenes)
+    if scene_count == 0:
+        return output_path
+
+    scene_duration = total_duration / scene_count
+
+    # 각 씬의 자막 생성
+    for i, scene in enumerate(scenes):
+        narration = scene.get("narration", "")
+        if not narration:
+            continue
+
+        start_time = i * scene_duration
+        end_time = (i + 1) * scene_duration
+
+        # 시간 포맷 (H:MM:SS.CC)
+        def format_time(seconds):
+            h = int(seconds // 3600)
+            m = int((seconds % 3600) // 60)
+            s = int(seconds % 60)
+            cs = int((seconds % 1) * 100)
+            return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+        # 텍스트 줄바꿈 처리
+        def wrap_text(text, max_chars):
+            words = text.replace('\n', ' ').split()
+            lines = []
+            current_line = ""
+
+            for word in words:
+                if len(current_line) + len(word) + 1 <= max_chars:
+                    current_line += (" " if current_line else "") + word
+                else:
+                    if current_line:
+                        lines.append(current_line)
+                    # 단어가 max_chars보다 길면 그대로 추가
+                    if len(word) > max_chars:
+                        lines.append(word)
+                        current_line = ""
+                    else:
+                        current_line = word
+
+            if current_line:
+                lines.append(current_line)
+
+            return "\\N".join(lines)  # ASS 줄바꿈
+
+        wrapped_text = wrap_text(narration, max_chars)
+
+        # 페이드 효과
+        fade_in_ms = int(style.get("fade_in", 0.1) * 1000)
+        fade_out_ms = int(style.get("fade_out", 0.1) * 1000)
+        fade_effect = f"{{\\fad({fade_in_ms},{fade_out_ms})}}"
+
+        ass_content += f"Dialogue: 0,{format_time(start_time)},{format_time(end_time)},Default,,0,0,0,,{fade_effect}{wrapped_text}\n"
+
+    # 파일 저장
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
+
+    print(f"[SHORTS] ASS 자막 생성: {len(scenes)}개 씬, {output_path}")
+    return output_path
+
+
+# ============================================================
 # 영상 렌더링 (FFmpeg - Ken Burns + 전환 효과)
 # ============================================================
 
@@ -665,7 +788,8 @@ def render_video(
             concat_path
         ], capture_output=True, timeout=300)
 
-        # 3) 오디오 합성
+        # 3) 오디오 합성 (임시 파일로)
+        audio_merged_path = output_path.replace(".mp4", "_audio.mp4")
         subprocess.run([
             "ffmpeg", "-y",
             "-i", concat_path,
@@ -674,9 +798,42 @@ def render_video(
             "-c:a", "aac",
             "-b:a", "128k",
             "-shortest",
+            audio_merged_path
+        ], capture_output=True, timeout=300)
+
+        # 4) ASS 자막 생성
+        ass_path = output_path.replace(".mp4", ".ass")
+        generate_ass_subtitles(
+            scenes=scenes,
+            total_duration=audio_duration,
+            output_path=ass_path,
+            issue_type=issue_type
+        )
+
+        # 5) 자막 burn-in (최종 출력)
+        # FFmpeg ass 필터로 자막 합성
+        # 경로에 특수문자가 있을 수 있으므로 이스케이프 처리
+        ass_path_escaped = ass_path.replace("\\", "/").replace(":", "\\:")
+
+        subtitle_result = subprocess.run([
+            "ffmpeg", "-y",
+            "-i", audio_merged_path,
+            "-vf", f"ass='{ass_path_escaped}'",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "copy",
             "-movflags", "+faststart",
             output_path
         ], capture_output=True, timeout=300)
+
+        if subtitle_result.returncode != 0:
+            print(f"[SHORTS] 자막 burn-in 실패, 자막 없이 진행: {subtitle_result.stderr.decode()[:200]}")
+            # 자막 실패 시 오디오 합성본 사용
+            import shutil
+            shutil.move(audio_merged_path, output_path)
+        else:
+            print(f"[SHORTS] 자막 burn-in 완료")
 
         # 임시 파일 정리
         for clip in clips:
@@ -689,6 +846,10 @@ def render_video(
             os.remove(concat_list_path)
         if os.path.exists(concat_path):
             os.remove(concat_path)
+        if os.path.exists(audio_merged_path):
+            os.remove(audio_merged_path)
+        if os.path.exists(ass_path):
+            os.remove(ass_path)
 
         # 결과 확인
         final_duration = get_audio_duration(output_path)
