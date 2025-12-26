@@ -54,26 +54,34 @@ HISTORY_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### Thumbnail Style: HISTORICAL CONCEPT ART + MASCOT
+### Thumbnail Style: HISTORICAL CONCEPT ART + MASCOT (SAME STYLE AS SCENES!)
+⚠️ CRITICAL: Thumbnail MUST use the EXACT SAME style as scene images!
 ⚠️ Historical setting and costume matching the era
-⚠️ Dramatic lighting, serious or contemplative expression
-⚠️ MASCOT MUST be prominently featured (25-35% of frame)
+⚠️ SAME MASCOT CHARACTER as scenes (larger size for thumbnail visibility)
 
-**Thumbnail Prompt Template:**
+**Thumbnail Prompt Template (MUST MATCH SCENE STYLE!):**
 ```
 Historical concept art thumbnail, [MAIN SCENE DESCRIPTION],
-sepia and earth tone palette, dramatic cinematic lighting,
-LEFT/RIGHT SIDE: retro cartoon Korean scholar mascot (1960s animation style, round friendly face, traditional hanbok with gat, thick outlines, expressive pose - pointing/explaining/surprised, 25-35% of frame),
-mascot reacting to the historical scene,
-aged parchment texture, vintage feel,
-eye-catching YouTube thumbnail composition,
-NO text, NO watermark, 16:9 aspect ratio
+sepia and earth tone color palette, aged parchment texture border, vintage canvas feel,
+digital painting with visible brush strokes, dramatic cinematic lighting,
+LEFT SIDE (30% of frame): EXACT MASCOT - cute Korean scholar character with round face, circular wire-frame glasses, black traditional topknot (sangtu) hairstyle, wearing cream/beige hanbok with olive-green patterned vest, holding bamboo scroll, warm earth tone colors only, thick clean outlines, friendly expression, expressive pose pointing at or reacting to scene,
+historical scene on right side with period-accurate costumes,
+aged vintage feel, eye-catching YouTube thumbnail composition,
+NO text, NO watermark, NO labels, 16:9 aspect ratio
 ```
 
-**ai_prompts templates (with mascot):**
-- A: Historical scene + mascot explaining/pointing at key element
-- B: Battle/court scene + mascot reacting with surprise or concern
-- C: Dramatic moment + mascot with thoughtful/curious expression
+**ai_prompts A/B/C templates (ALL use EXACT SAME MASCOT!):**
+- A: Wide historical scene + mascot on LEFT (30%) pointing at key element with curious expression
+- B: Battle/court scene + mascot on LEFT (30%) reacting with surprised/concerned expression
+- C: Dramatic moment + mascot on LEFT (30%) with thoughtful/contemplative expression
+
+⚠️ MASCOT MUST BE IDENTICAL IN ALL IMAGES:
+- Round face, circular wire-frame glasses
+- Black topknot (sangtu) on top of head
+- Cream/beige hanbok with olive-green patterned vest
+- Holding bamboo scroll or book
+- Warm earth tones ONLY (beige, cream, olive, muted gold)
+- Thick clean outlines, NOT anime style
 
 ---
 
@@ -86,25 +94,46 @@ This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
 
 ## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
 
-### Mascot Definition (EXACT CHARACTER - DO NOT CHANGE!):
+### ⚠️⚠️⚠️ MASCOT CONSISTENCY IS CRITICAL! ⚠️⚠️⚠️
+The SAME mascot must appear in ALL images (thumbnail + all scenes).
+AI image generators tend to vary character designs - use EXACT description every time!
+
+### Mascot Definition (COPY THIS EXACT TEXT FOR EVERY IMAGE!):
 ```
-Cute Korean scholar mascot character,
-round face with round glasses,
-traditional Korean topknot hairstyle (상투/sangtu),
-wearing beige/cream traditional hanbok with olive green vest,
-holding scroll or book,
-warm earth tone colors (beige, olive, muted gold),
-thick clean outlines, friendly approachable design,
-consistent character across all images
+cute Korean scholar mascot character,
+round friendly face shape (not oval, not square - ROUND),
+circular wire-frame glasses (thin metal frame, round lenses),
+black hair in traditional Korean topknot (sangtu/상투) style on top of head,
+wearing cream/beige traditional hanbok (저고리) with olive-green patterned vest (조끼),
+holding rolled bamboo scroll in one hand,
+skin tone: warm beige,
+color palette: ONLY cream, beige, olive-green, muted gold (NO bright colors!),
+thick clean black outlines (3-4px stroke),
+simple friendly expression,
+chibi/SD proportions (large head, small body),
+NOT anime style, NOT realistic
 ```
 
-### Character Details (MUST MATCH EXACTLY):
-- **Face**: Round, friendly, with round glasses
-- **Hair**: Black topknot (상투) on top of head
-- **Clothing**: Cream/beige hanbok with olive-gold patterned vest
-- **Props**: Scroll, book, or pointing gesture
-- **Colors**: Warm earth tones - beige, cream, olive, muted gold
-- **Style**: Clean cartoon style, thick outlines, NOT anime
+### Character Details (ABSOLUTE REQUIREMENTS - CHECK EVERY IMAGE!):
+- **Face Shape**: ROUND (like a circle), friendly smile
+- **Glasses**: Circular wire-frame glasses (NOT square, NOT thick frame)
+- **Hair**: Black topknot (상투) pointing UP from top of head
+- **Top Clothing**: Cream/beige hanbok jeogori (저고리)
+- **Vest**: Olive-green with subtle gold pattern
+- **Props**: Rolled bamboo scroll (yellowish-brown color)
+- **Skin**: Warm beige tone
+- **Colors**: ONLY earth tones - cream, beige, olive, muted gold
+- **Outlines**: Thick clean black outlines (cartoon style)
+- **Proportions**: Chibi/SD style (big head, small body, about 2-3 heads tall)
+- **Style**: Korean cartoon style, NOT Japanese anime, NOT realistic
+
+### ⛔ MASCOT FORBIDDEN VARIATIONS:
+- Square or oval glasses (must be circular!)
+- Different hair style (must be topknot!)
+- Blue, red, or bright colored clothing (must be earth tones!)
+- No glasses (must have circular glasses!)
+- Anime style eyes or proportions
+- Realistic proportions
 
 ### Mascot Placement in Scene Images:
 - Position: BOTTOM RIGHT CORNER (10-15% of frame)
@@ -128,12 +157,17 @@ aged parchment texture border, vintage canvas feel,
 digital painting with visible brush strokes,
 dramatic lighting, misty atmospheric perspective,
 clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER: cute Korean scholar mascot (round face with round glasses, black topknot hairstyle, beige hanbok with olive vest, holding scroll, warm earth tones, thick outlines, 10-15% of frame),
+BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only,
 NO text, NO watermark, NO labels,
 16:9 cinematic composition
 ```
 
-### Scene Type Templates (ALL include mascot!):
+### ⚠️ EXACT MASCOT TEXT (COPY-PASTE THIS FOR EVERY SCENE!):
+```
+BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only
+```
+
+### Scene Type Templates (ALL include IDENTICAL mascot!):
 
 **1. Single Character (인물 단독):**
 ```
@@ -144,7 +178,7 @@ sepia and earth tone palette, aged parchment texture,
 dramatic [TIME OF DAY] lighting,
 digital painting with visible brush strokes,
 epic landscape background with mountains/fortress,
-BOTTOM RIGHT: cute Korean scholar mascot watching curiously (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching curiously - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
 NO text, NO watermark
 ```
 
@@ -156,7 +190,7 @@ wide cinematic shot showing scale of [EVENT],
 sepia earth tones, aged canvas texture,
 dramatic lighting with dust/mist particles,
 detailed crowd with period-accurate costumes,
-BOTTOM RIGHT: cute Korean scholar mascot observing with amazement (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot observing with amazement - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
 NO text, NO watermark
 ```
 
@@ -168,7 +202,7 @@ epic wide shot showing military scale,
 dust and tension atmosphere,
 sepia palette with dramatic sunset/stormy sky,
 aged parchment border, cinematic composition,
-BOTTOM RIGHT: cute Korean scholar mascot watching tensely (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching tensely - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
 NO text, NO watermark
 ```
 
@@ -180,7 +214,7 @@ traditional architecture with period details,
 warm torchlight/candlelight atmosphere,
 earth tones with gold accents,
 aged texture, vintage illustration style,
-BOTTOM RIGHT: cute Korean scholar mascot peeking thoughtfully (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot peeking thoughtfully - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
 NO text, NO watermark
 ```
 
@@ -192,7 +226,7 @@ coordinated group effort showing scale,
 wide shot with landscape background,
 sepia earth tones, aged parchment texture,
 dramatic natural lighting,
-BOTTOM RIGHT: cute Korean scholar mascot watching with interest (round glasses, black topknot, beige hanbok with olive vest, 10% of frame),
+BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching with interest - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
 NO text, NO watermark
 ```
 
