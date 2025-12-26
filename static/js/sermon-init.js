@@ -916,12 +916,13 @@ function renderRecommendations(recommendations) {
         <strong>방향:</strong> ${rec.direction}
       </div>
       <div style="font-size: .75rem; color: #888; margin-top: .3rem;">
-        ${(rec.points || []).slice(0, 2).map(p => `• ${p.split(':')[0]}`).join(' ')}...
+        ${(rec.points || []).slice(0, 2).map(p => typeof p === 'object' ? `• ${p.title}` : `• ${(p || '').split(':')[0]}`).join(' ')}...
       </div>
     </div>
   `).join('');
 }
 
+// ★ 추천 카드 클릭 시 상세 보기로 이동
 window.selectRecommendation = function(idx) {
   const result = window.lastAnalysisResult;
   if (!result || !result.recommendations || !result.recommendations[idx]) {
@@ -930,7 +931,110 @@ window.selectRecommendation = function(idx) {
   }
 
   const rec = result.recommendations[idx];
-  console.log('[NaturalInput] 추천 선택:', rec);
+  console.log('[NaturalInput] 추천 상세 보기:', rec);
+
+  // 현재 선택한 인덱스 저장
+  window.selectedRecommendationIdx = idx;
+
+  // 상세 보기 UI 채우기
+  showRecommendationDetail(rec, idx);
+}
+
+// 상세 보기 UI 표시
+function showRecommendationDetail(rec, idx) {
+  const detailBox = document.getElementById('recommendation-detail-box');
+  const recommendationBox = document.getElementById('recommendation-box');
+  const guideBox = document.getElementById('start-analysis-guide-box');
+
+  // 헤더 정보
+  document.getElementById('detail-scripture').textContent = `📖 ${rec.scripture}`;
+  document.getElementById('detail-title').textContent = `"${rec.title}"`;
+  document.getElementById('detail-badge').textContent = `${idx + 1}번 추천`;
+
+  // 방향
+  document.getElementById('detail-direction').textContent = rec.direction;
+
+  // 서론
+  document.getElementById('detail-intro').textContent = rec.intro || '(서론 정보 없음)';
+
+  // 대지 목록
+  const pointsContainer = document.getElementById('detail-points');
+  const points = rec.points || [];
+  pointsContainer.innerHTML = points.map((p, i) => {
+    if (typeof p === 'object') {
+      return `
+        <div style="background: #f5f5f5; padding: .5rem; border-radius: 4px; border-left: 3px solid #ff6f00;">
+          <div style="font-size: .8rem; font-weight: 600; color: #333;">${i + 1}. ${p.title}</div>
+          ${p.verse ? `<div style="font-size: .7rem; color: #888; margin: .2rem 0;">(${p.verse})</div>` : ''}
+          <div style="font-size: .78rem; color: #555; line-height: 1.4;">${p.content || ''}</div>
+        </div>
+      `;
+    } else {
+      return `
+        <div style="background: #f5f5f5; padding: .4rem .5rem; border-radius: 4px; border-left: 3px solid #ff6f00;">
+          <div style="font-size: .8rem; color: #333;">${i + 1}. ${p}</div>
+        </div>
+      `;
+    }
+  }).join('');
+
+  // 결론
+  document.getElementById('detail-conclusion').textContent = rec.conclusion || '(결론 정보 없음)';
+
+  // 적용
+  document.getElementById('detail-application').textContent = rec.application || '';
+
+  // UI 전환
+  if (recommendationBox) recommendationBox.style.display = 'none';
+  if (detailBox) detailBox.style.display = 'block';
+  if (guideBox) guideBox.style.display = 'none';
+
+  // 버튼 이벤트 바인딩
+  bindDetailButtons();
+}
+
+// 상세 보기 버튼 이벤트 바인딩
+function bindDetailButtons() {
+  // "다른 추천 보기" 버튼
+  const backBtn = document.getElementById('btn-back-to-list');
+  if (backBtn) {
+    backBtn.replaceWith(backBtn.cloneNode(true));
+    const newBackBtn = document.getElementById('btn-back-to-list');
+    newBackBtn.addEventListener('click', () => {
+      console.log('[Detail] 다른 추천 보기 클릭');
+      const detailBox = document.getElementById('recommendation-detail-box');
+      const recommendationBox = document.getElementById('recommendation-box');
+      if (detailBox) detailBox.style.display = 'none';
+      if (recommendationBox) recommendationBox.style.display = 'block';
+    });
+  }
+
+  // "이걸로 진행" 버튼
+  const selectBtn = document.getElementById('btn-select-this');
+  if (selectBtn) {
+    selectBtn.replaceWith(selectBtn.cloneNode(true));
+    const newSelectBtn = document.getElementById('btn-select-this');
+    newSelectBtn.addEventListener('click', () => {
+      console.log('[Detail] 이걸로 진행 클릭');
+      confirmSelection(window.selectedRecommendationIdx);
+    });
+  }
+}
+
+// 추천 확정 및 분량 선택 화면으로 이동
+function confirmSelection(idx) {
+  const result = window.lastAnalysisResult;
+  if (!result || !result.recommendations || !result.recommendations[idx]) {
+    console.error('[NaturalInput] 추천 데이터 없음');
+    return;
+  }
+
+  const rec = result.recommendations[idx];
+  console.log('[NaturalInput] 추천 확정:', rec);
+
+  // ★ 스타일 설정 (중요! startAutoAnalysis에서 필요)
+  window.currentStyleId = result.style || 'three_points';
+  console.log('[NaturalInput] 스타일 설정:', window.currentStyleId);
 
   // 본문 설정
   const sermonRef = document.getElementById('sermon-ref');
@@ -938,13 +1042,15 @@ window.selectRecommendation = function(idx) {
     sermonRef.value = rec.scripture;
   }
 
-  // 방향 저장
+  // 방향 저장 (서론, 대지, 결론 포함)
   const selectedDirection = document.getElementById('selected-direction');
   if (selectedDirection) {
     selectedDirection.value = JSON.stringify({
       title: rec.title,
       direction: rec.direction,
+      intro: rec.intro,
       points: rec.points,
+      conclusion: rec.conclusion,
       application: rec.application
     });
   }
@@ -952,7 +1058,7 @@ window.selectRecommendation = function(idx) {
   // 선택된 방향 표시
   const selectedDirectionBox = document.getElementById('selected-direction-box');
   const selectedDirectionContent = document.getElementById('selected-direction-content');
-  const recommendationBox = document.getElementById('recommendation-box');
+  const detailBox = document.getElementById('recommendation-detail-box');
   const guideBox = document.getElementById('start-analysis-guide-box');
 
   if (selectedDirectionContent) {
@@ -963,7 +1069,7 @@ window.selectRecommendation = function(idx) {
   }
 
   // UI 전환
-  if (recommendationBox) recommendationBox.style.display = 'none';
+  if (detailBox) detailBox.style.display = 'none';
   if (selectedDirectionBox) selectedDirectionBox.style.display = 'block';
   if (guideBox) guideBox.style.display = 'none';
 
@@ -984,7 +1090,7 @@ window.selectRecommendation = function(idx) {
         console.error('[StartBtn] startAutoAnalysis 함수를 찾을 수 없습니다');
       }
     });
-    console.log('[SelectRecommendation] 시작 버튼 이벤트 바인딩 완료');
+    console.log('[ConfirmSelection] 시작 버튼 이벤트 바인딩 완료');
   }
 
   // 스타일 렌더링 갱신

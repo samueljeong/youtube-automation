@@ -139,6 +139,61 @@
           </div>
         </div>
 
+        <!-- 추천 상세 보기 (카드 클릭 시 표시) -->
+        <div id="recommendation-detail-box" style="display: none; margin-bottom: .5rem;">
+          <div class="box" style="padding: .8rem; background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); border: 2px solid #ffa000; border-radius: 10px;">
+            <!-- 헤더: 본문 + 제목 -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .6rem;">
+              <div>
+                <div style="font-size: 1rem; font-weight: 700; color: #e65100;" id="detail-scripture"></div>
+                <div style="font-size: .9rem; color: #555; font-style: italic; margin-top: .2rem;" id="detail-title"></div>
+              </div>
+              <span style="background: #ff6f00; color: white; padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600;" id="detail-badge"></span>
+            </div>
+
+            <!-- 방향 요약 -->
+            <div style="background: white; padding: .5rem; border-radius: 6px; margin-bottom: .6rem; border-left: 4px solid #ff6f00;">
+              <div style="font-size: .75rem; color: #888; margin-bottom: .2rem;">💡 설교 방향</div>
+              <div style="font-size: .85rem; color: #333; font-weight: 500;" id="detail-direction"></div>
+            </div>
+
+            <!-- 서론 -->
+            <div style="background: #fff3e0; padding: .5rem; border-radius: 6px; margin-bottom: .5rem;">
+              <div style="font-size: .75rem; color: #e65100; font-weight: 600; margin-bottom: .3rem;">📌 서론</div>
+              <div style="font-size: .82rem; color: #444; line-height: 1.5;" id="detail-intro"></div>
+            </div>
+
+            <!-- 대지 목록 -->
+            <div style="background: white; padding: .5rem; border-radius: 6px; margin-bottom: .5rem;">
+              <div style="font-size: .75rem; color: #e65100; font-weight: 600; margin-bottom: .4rem;">📋 본론 (대지)</div>
+              <div id="detail-points" style="display: flex; flex-direction: column; gap: .4rem;"></div>
+            </div>
+
+            <!-- 결론 -->
+            <div style="background: #fff3e0; padding: .5rem; border-radius: 6px; margin-bottom: .6rem;">
+              <div style="font-size: .75rem; color: #e65100; font-weight: 600; margin-bottom: .3rem;">🎯 결론</div>
+              <div style="font-size: .82rem; color: #444; line-height: 1.5;" id="detail-conclusion"></div>
+            </div>
+
+            <!-- 적용 -->
+            <div style="background: #fffde7; padding: .4rem; border-radius: 6px; margin-bottom: .8rem; border: 1px dashed #ffa000;">
+              <div style="font-size: .75rem; color: #666;">
+                <strong>✨ 적용:</strong> <span id="detail-application"></span>
+              </div>
+            </div>
+
+            <!-- 버튼들 -->
+            <div style="display: flex; gap: .5rem;">
+              <button id="btn-back-to-list" style="flex: 1; padding: .6rem; font-size: .85rem; background: white; color: #666; border: 2px solid #ddd; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                ← 다른 추천 보기
+              </button>
+              <button id="btn-select-this" style="flex: 2; padding: .6rem; font-size: .9rem; background: linear-gradient(135deg, #4caf50 0%, #8bc34a 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">
+                ✅ 이걸로 진행
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- 선택된 설교 방향 + 분량 선택 + 시작 버튼 -->
         <div id="selected-direction-box" style="display: none; margin-bottom: .5rem;">
           <div class="box" style="padding: .8rem; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 2px solid #4caf50; border-radius: 10px;">
