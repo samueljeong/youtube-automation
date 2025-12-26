@@ -190,22 +190,33 @@ class AnalysisAgent(BaseAgent):
         채널 스타일 분석 (TUBELENS)
 
         7일 캐시를 사용하여 비용 절감
+        엔드포인트가 없으면 None 반환 (선택적 기능)
         """
         if not channel_id:
             return None
 
         try:
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.get(
                     f"{self.server_url}/api/channel/style",
                     params={"channel_id": channel_id}
                 )
                 if response.status_code == 200:
                     return response.json()
+                elif response.status_code == 404:
+                    # 엔드포인트 없음 - 정상적으로 무시
+                    self.log("채널 스타일 API 없음 (무시)", "debug")
+                    return None
+                else:
+                    self.log(f"채널 스타일 API 응답: {response.status_code}", "warning")
+                    return None
+        except httpx.ConnectError:
+            # 연결 실패 - 무시하고 진행
+            self.log("채널 스타일 API 연결 실패 (무시)", "debug")
+            return None
         except Exception as e:
             self.log(f"채널 스타일 분석 실패 (무시): {e}", "warning")
-
-        return None
+            return None
 
     def generate_strategy_recommendations(self, context: VideoTaskContext) -> Dict[str, Any]:
         """
