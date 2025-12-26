@@ -298,18 +298,42 @@ class CreativeAgent(BaseAgent):
             thumbnail_config = context.thumbnail_config or {}
             title = context.youtube_metadata.get("title", "") if context.youtube_metadata else ""
 
-            # 사용자 입력 썸네일 문구 우선
-            user_text = thumbnail_config.get("user_text", {})
+            # 썸네일 프롬프트 구성 (API 형식에 맞춤)
+            # ai_prompts가 있으면 A 프롬프트 사용, 없으면 기본 생성
+            ai_prompts = thumbnail_config.get("ai_prompts", {})
+            prompt_a = ai_prompts.get("A", {}) if ai_prompts else {}
 
+            # 사용자 입력 또는 AI 생성 텍스트
+            user_text = context.thumbnail_text_input or ""
+            if user_text:
+                # 줄바꿈으로 line1/line2 분리
+                lines = user_text.split("\n")
+                main_text = lines[0] if lines else ""
+                sub_text = lines[1] if len(lines) > 1 else ""
+            else:
+                text_overlay = prompt_a.get("text_overlay", {})
+                main_text = text_overlay.get("main", title[:20] if title else "")
+                sub_text = text_overlay.get("sub", "")
+
+            # 이미지 프롬프트 (ai_prompts.A.prompt 또는 기본)
+            image_prompt = prompt_a.get("prompt", "")
+            if not image_prompt:
+                # 기본 프롬프트 생성
+                image_prompt = f"Korean WEBTOON style YouTube thumbnail. Title: {title}. Style: Korean webtoon/manhwa illustration, exaggerated expression, clean bold outlines, vibrant colors, comic style. NO photorealistic. 16:9 aspect ratio."
+
+            # API 형식으로 payload 구성
             payload = {
-                "title": title,
-                "thumbnail_config": thumbnail_config,
-                "script_summary": context.script[:500] if context.script else "",
+                "session_id": f"thumb_{context.task_id}",
+                "prompt": {
+                    "prompt": image_prompt,
+                    "text_overlay": {"main": main_text, "sub": sub_text}
+                },
+                "category": context.detected_category or "story",
+                "lang": "ko"
             }
 
-            if user_text:
-                payload["text_line1"] = user_text.get("line1", "")
-                payload["text_line2"] = user_text.get("line2", "")
+            self.log(f"  - 프롬프트: {image_prompt[:50]}...")
+            self.log(f"  - 텍스트: {main_text} / {sub_text}")
 
             async with httpx.AsyncClient(timeout=self.thumbnail_timeout) as client:
                 response = await client.post(
@@ -320,7 +344,8 @@ class CreativeAgent(BaseAgent):
                 result = response.json()
 
             if result.get("ok"):
-                return result.get("thumbnail_path"), result.get("cost", 0.03)
+                thumbnail_path = result.get("thumbnail_path") or result.get("image_url")
+                return thumbnail_path, result.get("cost", 0.03)
             else:
                 self.log(f"썸네일 생성 실패: {result.get('error')}", "warning")
                 return None, 0.0
