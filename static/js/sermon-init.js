@@ -812,6 +812,13 @@ async function analyzeNaturalInput() {
     if (btnAnalyzeInput) {
       btnAnalyzeInput.disabled = true;
       btnAnalyzeInput.textContent = '분석 중...';
+      btnAnalyzeInput.style.opacity = '0.6';
+      btnAnalyzeInput.style.cursor = 'not-allowed';
+    }
+    // 입력 필드도 비활성화
+    if (naturalInput) {
+      naturalInput.disabled = true;
+      naturalInput.style.opacity = '0.7';
     }
 
     console.log('[NaturalInput] 분석 시작:', input);
@@ -876,9 +883,16 @@ async function analyzeNaturalInput() {
     alert('분석 중 오류가 발생했습니다: ' + err.message);
     if (analyzeLoading) analyzeLoading.style.display = 'none';
   } finally {
+    // 버튼 및 입력 필드 복원
     if (btnAnalyzeInput) {
       btnAnalyzeInput.disabled = false;
       btnAnalyzeInput.textContent = '🔍 분석';
+      btnAnalyzeInput.style.opacity = '1';
+      btnAnalyzeInput.style.cursor = 'pointer';
+    }
+    if (naturalInput) {
+      naturalInput.disabled = false;
+      naturalInput.style.opacity = '1';
     }
   }
 }
@@ -956,6 +970,23 @@ window.selectRecommendation = function(idx) {
   // 분량 버튼 이벤트 바인딩
   bindDurationButtons();
 
+  // ★ 시작 버튼 이벤트 바인딩 (중요!)
+  const startBtn = document.getElementById('btn-start-analysis');
+  if (startBtn) {
+    // 기존 이벤트 제거 후 새로 바인딩
+    startBtn.replaceWith(startBtn.cloneNode(true));
+    const newStartBtn = document.getElementById('btn-start-analysis');
+    newStartBtn.addEventListener('click', () => {
+      console.log('[StartBtn] 설교 준비 시작 클릭');
+      if (typeof startAutoAnalysis === 'function') {
+        startAutoAnalysis();
+      } else {
+        console.error('[StartBtn] startAutoAnalysis 함수를 찾을 수 없습니다');
+      }
+    });
+    console.log('[SelectRecommendation] 시작 버튼 이벤트 바인딩 완료');
+  }
+
   // 스타일 렌더링 갱신
   renderStyles();
 }
@@ -965,33 +996,52 @@ function bindDurationButtons() {
   const buttons = document.querySelectorAll('.duration-btn');
   const durationInput = document.getElementById('sermon-duration');
 
+  // 감지된 분량이 있으면 해당 버튼 선택
+  const result = window.lastAnalysisResult;
+  let detectedDuration = null;
+  if (result && result.detected_info && result.detected_info.duration) {
+    detectedDuration = String(result.detected_info.duration).replace(/[^0-9]/g, '');
+    console.log('[Duration] 감지된 분량:', detectedDuration);
+  }
+
   buttons.forEach(btn => {
+    // 감지된 분량과 일치하면 자동 선택
+    if (detectedDuration && btn.dataset.duration === detectedDuration) {
+      selectDurationButton(btn, buttons, durationInput);
+    }
+
     btn.addEventListener('click', () => {
-      // 모든 버튼 비활성 스타일
-      buttons.forEach(b => {
-        b.style.border = '2px solid #ddd';
-        b.style.background = 'white';
-        b.style.color = '#333';
-        b.style.fontWeight = 'normal';
-        b.classList.remove('active');
-      });
-
-      // 클릭된 버튼 활성 스타일
-      btn.style.border = '2px solid #4caf50';
-      btn.style.background = '#4caf50';
-      btn.style.color = 'white';
-      btn.style.fontWeight = '600';
-      btn.classList.add('active');
-
-      // hidden 필드에 값 저장
-      const duration = btn.dataset.duration;
-      if (durationInput) {
-        durationInput.value = duration;
-      }
-      console.log('[Duration] 분량 선택:', duration + '분');
+      selectDurationButton(btn, buttons, durationInput);
     });
   });
 }
 
+// 분량 버튼 선택 헬퍼
+function selectDurationButton(btn, allButtons, durationInput) {
+  // 모든 버튼 비활성 스타일
+  allButtons.forEach(b => {
+    b.style.border = '2px solid #ddd';
+    b.style.background = 'white';
+    b.style.color = '#333';
+    b.style.fontWeight = 'normal';
+    b.classList.remove('active');
+  });
+
+  // 선택된 버튼 활성 스타일
+  btn.style.border = '2px solid #4caf50';
+  btn.style.background = '#4caf50';
+  btn.style.color = 'white';
+  btn.style.fontWeight = '600';
+  btn.classList.add('active');
+
+  // hidden 필드에 값 저장
+  const duration = btn.dataset.duration;
+  if (durationInput) {
+    durationInput.value = duration;
+  }
+  console.log('[Duration] 분량 선택:', duration + '분');
+}
+
 window.analyzeNaturalInput = analyzeNaturalInput;
 window.bindDurationButtons = bindDurationButtons;
+window.selectDurationButton = selectDurationButton;
