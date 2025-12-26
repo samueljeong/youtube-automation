@@ -389,6 +389,11 @@ def process_step():
         style_id = data.get("styleId", "")
         topical_theme = data.get("topicalTheme", "")
 
+        # ★ 선택된 설교 방향 (자연어 입력에서 추천 선택 시, 2025-12-26)
+        selected_direction = data.get("selectedDirection")
+        if selected_direction:
+            print(f"[PROCESS] 선택된 설교 방향: {selected_direction.get('title', '없음')}")
+
         # ★ Step1 결과 (Step2 검증용, 2025-12-25)
         step1_results_raw = data.get("step1Results", {})
 
@@ -460,6 +465,25 @@ def process_step():
             user_content += "성경 본문을 이 주제와 연결하여 분석하세요.\n"
             user_content += "본문이 이 주제에 대해 말하는 바를 중심으로 연구하세요.\n\n"
             print(f"[PROCESS] 주제설교 주제 추가: {topical_theme}")
+
+        # ★ 선택된 설교 방향 추가 (자연어 입력에서 선택, 2025-12-26)
+        if selected_direction:
+            user_content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            user_content += "【 ⭐ 설교 방향 (사용자 선택) 】\n"
+            user_content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            if selected_direction.get('title'):
+                user_content += f"제목: {selected_direction['title']}\n"
+            if selected_direction.get('direction'):
+                user_content += f"방향: {selected_direction['direction']}\n"
+            if selected_direction.get('points'):
+                user_content += f"구조:\n"
+                for point in selected_direction['points']:
+                    user_content += f"  • {point}\n"
+            if selected_direction.get('application'):
+                user_content += f"적용: {selected_direction['application']}\n"
+            user_content += "\n위 방향을 참고하여 본문을 분석하고, 설교 구조를 설계하세요.\n"
+            user_content += "사용자가 선택한 방향을 존중하되, 성경 본문에 충실하게 발전시키세요.\n\n"
+            print(f"[PROCESS] 선택된 설교 방향 추가: {selected_direction.get('title', '없음')}")
 
         # Step1인 경우: 원어 분석 및 주석 데이터 자동 추가
         if step_type == "step1" and reference:
@@ -1792,4 +1816,147 @@ def get_duration_info_api(duration):
 
     except Exception as e:
         print(f"[DURATION-INFO][ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 자연어 입력 분석 API (2025-12-26)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@api_sermon_bp.route('/analyze-input', methods=['POST'])
+def analyze_natural_input():
+    """
+    자연어 입력을 분석하여 본문 추천 및 설교 방향 제시
+
+    입력 예시:
+    - "요한복음 3:16"              → 본문 직접 입력 → 설교 방향 3개 제시
+    - "청년들에게 위로"            → 상황/대상 → 본문 + 방향 추천
+    - "새벽기도"                   → 예배 유형 → 본문 + 방향 추천 (강해 스타일)
+    - "부활절 주일예배"            → 예배 유형 → 본문 + 방향 추천
+
+    Returns:
+        {
+            "ok": True,
+            "input_type": "scripture|situation|worship|mixed",
+            "style": "three_points|expository",
+            "recommendations": [
+                {
+                    "scripture": "시편 23편",
+                    "title": "삶의 골짜기를 지나는 청년에게",
+                    "direction": "하나님의 인도하심 / 두려움 극복 / 미래 신뢰",
+                    "points": ["1대지: 하나님의 인도하심 (1-3절)", ...]
+                },
+                ...
+            ]
+        }
+    """
+    try:
+        if not _client:
+            return jsonify({"ok": False, "error": "OpenAI 클라이언트 미초기화"}), 500
+
+        data = request.get_json() or {}
+        user_input = data.get("input", "").strip()
+
+        if not user_input:
+            return jsonify({"ok": False, "error": "입력이 비어있습니다"}), 400
+
+        print(f"[ANALYZE-INPUT] 입력: {user_input}")
+
+        # GPT-4o로 입력 분석 및 추천 생성
+        system_prompt = """당신은 설교 준비를 돕는 전문가입니다.
+사용자의 자연어 입력을 분석하여 적절한 성경 본문과 설교 방향을 추천해주세요.
+
+## 입력 유형 분류
+1. scripture: 성경 구절 직접 입력 (예: "요한복음 3:16", "시편 23편")
+2. situation: 상황/대상 언급 (예: "청년 위로", "환우 심방", "이사")
+3. worship: 예배 유형 (예: "새벽기도", "부활절", "추수감사절")
+4. mixed: 복합 (예: "청년부 새벽기도 시편으로")
+
+## 분량 추출
+- "30분", "20분", "15분" 등 숫자+분 형태 추출
+- 없으면 null
+
+## 스타일 결정
+- 새벽기도, 새벽예배 → "expository" (강해)
+- 그 외 모든 경우 → "three_points" (3대지)
+
+## 출력 규칙
+1. 추천은 정확히 3개
+2. 각 추천에 본문, 제목, 방향, 3대지 구조 포함
+3. 본문 직접 입력 시: 해당 본문으로 3가지 다른 방향 제시
+4. 상황/대상 입력 시: 적합한 본문 3개 추천 + 각각의 방향
+
+반드시 아래 JSON 형식으로만 응답하세요:
+{
+  "input_type": "scripture|situation|worship|mixed",
+  "style": "three_points|expository",
+  "detected_info": {
+    "scripture": "감지된 성경구절 (있으면)",
+    "situation": "감지된 상황 (있으면)",
+    "target": "감지된 대상 (있으면)",
+    "worship_type": "감지된 예배유형 (있으면)",
+    "duration": "감지된 분량 (예: 30, 20, 15 - 숫자만, 없으면 null)"
+  },
+  "recommendations": [
+    {
+      "scripture": "시편 23편",
+      "scripture_text": "여호와는 나의 목자시니...",
+      "title": "삶의 골짜기를 지나는 청년에게",
+      "direction": "하나님의 인도하심 / 두려움 극복 / 미래 신뢰",
+      "points": [
+        "1대지: 하나님의 인도하심 (1-3절) - 목자의 돌봄",
+        "2대지: 두려움 극복 (4절) - 사망의 음침한 골짜기",
+        "3대지: 미래 신뢰 (5-6절) - 영원한 동행"
+      ],
+      "application": "지친 청년들에게 하나님의 인도하심을 신뢰하라는 메시지"
+    }
+  ]
+}"""
+
+        user_prompt = f"사용자 입력: {user_input}"
+
+        start_time = time.time()
+        response = _client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2000,
+            response_format={"type": "json_object"}
+        )
+        elapsed = time.time() - start_time
+
+        result_text = response.choices[0].message.content
+        print(f"[ANALYZE-INPUT] 응답 ({elapsed:.2f}s): {result_text[:200]}...")
+
+        # JSON 파싱
+        try:
+            result = json.loads(result_text)
+            result["ok"] = True
+            result["elapsed"] = round(elapsed, 2)
+
+            # 토큰 사용량
+            usage = response.usage
+            result["usage"] = {
+                "input": usage.prompt_tokens,
+                "output": usage.completion_tokens,
+                "cost": calculate_cost(usage.prompt_tokens, usage.completion_tokens, "gpt-4o-mini")
+            }
+
+            return jsonify(result)
+
+        except json.JSONDecodeError as e:
+            print(f"[ANALYZE-INPUT][ERROR] JSON 파싱 실패: {e}")
+            return jsonify({
+                "ok": False,
+                "error": "응답 파싱 실패",
+                "raw": result_text
+            }), 500
+
+    except Exception as e:
+        print(f"[ANALYZE-INPUT][ERROR] {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500

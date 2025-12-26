@@ -736,6 +736,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ===== 자연어 입력 분석 (2025-12-26) =====
+  const naturalInput = document.getElementById('natural-input');
+  const btnAnalyzeInput = document.getElementById('btn-analyze-input');
+  const analyzeLoading = document.getElementById('analyze-loading');
+  const recommendationBox = document.getElementById('recommendation-box');
+  const recommendationList = document.getElementById('recommendation-list');
+  const detectedStyle = document.getElementById('detected-style');
+  const directInputBox = document.getElementById('direct-input-box');
+  const selectedDirectionBox = document.getElementById('selected-direction-box');
+  const selectedDirectionContent = document.getElementById('selected-direction-content');
+  const btnDirectInput = document.getElementById('btn-direct-input');
+  const btnBackToRecommend = document.getElementById('btn-back-to-recommend');
+
+  // 자연어 입력 분석 버튼
+  if (btnAnalyzeInput && naturalInput) {
+    btnAnalyzeInput.addEventListener('click', analyzeNaturalInput);
+    naturalInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') analyzeNaturalInput();
+    });
+  }
+
+  // 직접 입력 모드 전환
+  if (btnDirectInput) {
+    btnDirectInput.addEventListener('click', () => {
+      if (recommendationBox) recommendationBox.style.display = 'none';
+      if (directInputBox) directInputBox.style.display = 'block';
+      if (selectedDirectionBox) selectedDirectionBox.style.display = 'none';
+      document.getElementById('sermon-ref')?.focus();
+    });
+  }
+
+  // 추천으로 돌아가기
+  if (btnBackToRecommend) {
+    btnBackToRecommend.addEventListener('click', () => {
+      if (directInputBox) directInputBox.style.display = 'none';
+      if (recommendationBox) recommendationBox.style.display = 'block';
+    });
+  }
+
   console.log('✅ Sermon 앱 초기화 완료!');
 });
 
@@ -743,3 +782,183 @@ document.addEventListener('DOMContentLoaded', async () => {
 window.initSermonApp = function() {
   console.log('Sermon 앱이 이미 초기화되었습니다.');
 };
+
+// ===== 자연어 입력 분석 함수 (2025-12-26) =====
+window.lastAnalysisResult = null;
+
+async function analyzeNaturalInput() {
+  const naturalInput = document.getElementById('natural-input');
+  const analyzeLoading = document.getElementById('analyze-loading');
+  const recommendationBox = document.getElementById('recommendation-box');
+  const recommendationList = document.getElementById('recommendation-list');
+  const detectedStyle = document.getElementById('detected-style');
+  const directInputBox = document.getElementById('direct-input-box');
+  const selectedDirectionBox = document.getElementById('selected-direction-box');
+  const btnAnalyzeInput = document.getElementById('btn-analyze-input');
+
+  const input = naturalInput?.value?.trim();
+  if (!input) {
+    alert('입력란에 내용을 입력해주세요.');
+    naturalInput?.focus();
+    return;
+  }
+
+  try {
+    // UI 상태 변경
+    if (analyzeLoading) analyzeLoading.style.display = 'block';
+    if (recommendationBox) recommendationBox.style.display = 'none';
+    if (directInputBox) directInputBox.style.display = 'none';
+    if (selectedDirectionBox) selectedDirectionBox.style.display = 'none';
+    if (btnAnalyzeInput) {
+      btnAnalyzeInput.disabled = true;
+      btnAnalyzeInput.textContent = '분석 중...';
+    }
+
+    console.log('[NaturalInput] 분석 시작:', input);
+
+    const response = await fetch('/api/sermon/analyze-input', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input })
+    });
+
+    const data = await response.json();
+    console.log('[NaturalInput] 분석 결과:', data);
+
+    if (!data.ok) {
+      throw new Error(data.error || '분석 실패');
+    }
+
+    // 결과 저장
+    window.lastAnalysisResult = data;
+
+    // 스타일 표시
+    const styleLabel = data.style === 'expository' ? '강해설교' : '3대지';
+    if (detectedStyle) {
+      detectedStyle.textContent = `스타일: ${styleLabel}`;
+    }
+
+    // 감지된 정보 반영
+    if (data.detected_info) {
+      // 분량
+      if (data.detected_info.duration) {
+        const durationInput = document.getElementById('sermon-duration');
+        if (durationInput) durationInput.value = data.detected_info.duration + '분';
+      }
+      // 대상
+      if (data.detected_info.target) {
+        const targetInput = document.getElementById('sermon-target');
+        if (targetInput) targetInput.value = data.detected_info.target;
+      }
+      // 예배 유형
+      if (data.detected_info.worship_type) {
+        const worshipInput = document.getElementById('sermon-worship-type');
+        if (worshipInput) worshipInput.value = data.detected_info.worship_type;
+      }
+    }
+
+    // 스타일 설정
+    const selectedStyleInput = document.getElementById('selected-style');
+    if (selectedStyleInput) {
+      selectedStyleInput.value = data.style || 'three_points';
+    }
+    window.currentStyleId = data.style || 'three_points';
+
+    // 추천 목록 렌더링
+    renderRecommendations(data.recommendations || []);
+
+    // 추천 박스 표시
+    if (analyzeLoading) analyzeLoading.style.display = 'none';
+    if (recommendationBox) recommendationBox.style.display = 'block';
+
+  } catch (err) {
+    console.error('[NaturalInput] 오류:', err);
+    alert('분석 중 오류가 발생했습니다: ' + err.message);
+    if (analyzeLoading) analyzeLoading.style.display = 'none';
+  } finally {
+    if (btnAnalyzeInput) {
+      btnAnalyzeInput.disabled = false;
+      btnAnalyzeInput.textContent = '🔍 분석';
+    }
+  }
+}
+
+function renderRecommendations(recommendations) {
+  const list = document.getElementById('recommendation-list');
+  if (!list || !recommendations.length) return;
+
+  list.innerHTML = recommendations.map((rec, idx) => `
+    <div class="recommendation-item" data-idx="${idx}"
+         style="padding: .6rem; background: white; border-radius: 8px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;"
+         onclick="selectRecommendation(${idx})"
+         onmouseover="this.style.borderColor='#667eea'; this.style.transform='translateX(4px)'"
+         onmouseout="this.style.borderColor='transparent'; this.style.transform='translateX(0)'">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .4rem;">
+        <span style="font-weight: 600; color: #333; font-size: .9rem;">📖 ${rec.scripture}</span>
+        <span style="background: #e3f2fd; color: #1976d2; padding: .15rem .4rem; border-radius: 4px; font-size: .7rem;">${idx + 1}번</span>
+      </div>
+      <div style="font-size: .85rem; color: #555; margin-bottom: .3rem; font-weight: 500;">"${rec.title}"</div>
+      <div style="font-size: .8rem; color: #667eea; background: #f0f4ff; padding: .4rem; border-radius: 4px; line-height: 1.4;">
+        <strong>방향:</strong> ${rec.direction}
+      </div>
+      <div style="font-size: .75rem; color: #888; margin-top: .3rem;">
+        ${(rec.points || []).slice(0, 2).map(p => `• ${p.split(':')[0]}`).join(' ')}...
+      </div>
+    </div>
+  `).join('');
+}
+
+window.selectRecommendation = function(idx) {
+  const result = window.lastAnalysisResult;
+  if (!result || !result.recommendations || !result.recommendations[idx]) {
+    console.error('[NaturalInput] 추천 데이터 없음');
+    return;
+  }
+
+  const rec = result.recommendations[idx];
+  console.log('[NaturalInput] 추천 선택:', rec);
+
+  // 본문 설정
+  const sermonRef = document.getElementById('sermon-ref');
+  if (sermonRef) {
+    sermonRef.value = rec.scripture;
+  }
+
+  // 방향 저장
+  const selectedDirection = document.getElementById('selected-direction');
+  if (selectedDirection) {
+    selectedDirection.value = JSON.stringify({
+      title: rec.title,
+      direction: rec.direction,
+      points: rec.points,
+      application: rec.application
+    });
+  }
+
+  // 선택된 방향 표시
+  const selectedDirectionBox = document.getElementById('selected-direction-box');
+  const selectedDirectionContent = document.getElementById('selected-direction-content');
+  const recommendationBox = document.getElementById('recommendation-box');
+
+  if (selectedDirectionContent) {
+    selectedDirectionContent.innerHTML = `
+      <div style="font-weight: 600; margin-bottom: .3rem;">📖 ${rec.scripture} - "${rec.title}"</div>
+      <div style="font-size: .85rem; color: #4caf50;">${rec.direction}</div>
+      <div style="font-size: .8rem; color: #666; margin-top: .2rem;">
+        ${(rec.points || []).map(p => `<div>• ${p}</div>`).join('')}
+      </div>
+    `;
+  }
+
+  // UI 전환
+  if (recommendationBox) recommendationBox.style.display = 'none';
+  if (selectedDirectionBox) selectedDirectionBox.style.display = 'block';
+
+  // 분석 시작 버튼 활성화
+  updateAnalysisUI();
+
+  // 스타일 렌더링 갱신
+  renderStyles();
+}
+
+window.analyzeNaturalInput = analyzeNaturalInput;
