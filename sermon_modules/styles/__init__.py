@@ -2,10 +2,11 @@
 sermon_modules/styles 패키지
 설교 스타일별 프롬프트 및 구조 정의
 
-지원 스타일:
-- three_points (3대지): 전통적인 3포인트 설교
-- topical (주제설교): 주제 중심 설교
+지원 스타일 (2025-12-26 통합):
+- three_points (3대지): 3포인트 설교 (주제설교 기능 통합)
 - expository (강해설교): 본문 해설 중심 설교
+
+※ topical(주제설교)는 three_points에 통합됨
 """
 
 # ═══════════════════════════════════════════════════════════════
@@ -68,13 +69,13 @@ from .three_points import ThreePointsStyle
 from .topical import TopicalStyle
 from .expository import ExpositoryStyle
 
-# 스타일 ID → 클래스 매핑
+# 스타일 ID → 클래스 매핑 (2025-12-26: topical → ThreePointsStyle 통합)
 STYLE_CLASSES = {
     "three_points": ThreePointsStyle,
     "3대지": ThreePointsStyle,
-    "topical": TopicalStyle,
-    "주제설교": TopicalStyle,
-    "주제": TopicalStyle,
+    "topical": ThreePointsStyle,    # 통합 (하위 호환)
+    "주제설교": ThreePointsStyle,   # 통합
+    "주제": ThreePointsStyle,       # 통합
     "expository": ExpositoryStyle,
     "강해설교": ExpositoryStyle,
     "강해": ExpositoryStyle,
@@ -107,10 +108,9 @@ def get_style_info(style_id: str) -> dict:
 
 
 def get_available_styles() -> list:
-    """사용 가능한 스타일 목록 반환"""
+    """사용 가능한 스타일 목록 반환 (2025-12-26: 2개로 통합)"""
     return [
-        {"id": "three_points", "name": "3대지", "description": "전통적인 3포인트 설교"},
-        {"id": "topical", "name": "주제설교", "description": "주제 중심 설교"},
+        {"id": "three_points", "name": "3대지", "description": "3포인트 설교 (주제설교 기능 통합)"},
         {"id": "expository", "name": "강해설교", "description": "본문 해설 중심 설교"},
     ]
 

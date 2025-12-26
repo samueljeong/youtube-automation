@@ -194,21 +194,22 @@ def build_prompt_from_json(json_guide, step_type="step1"):
 
 def get_style_step1_config(style_id):
     """
-    스타일별 Step1 분석 설정 반환 (2025-12-23)
+    스타일별 Step1 분석 설정 반환 (2025-12-26 통합)
 
     | 스타일 | anchors | key_terms | cross_refs | 강조점 |
     |--------|---------|-----------|------------|--------|
-    | 3대지 | 5개 | 3개 | 0개 | 본문 구조 |
+    | 3대지 | 5개 | 4개 | 2개 | 본문 구조 + 주제 연결 |
     | 강해설교 | 10개+ | 6개 | 2개 | 본문 상세 |
-    | 주제설교 | 3개 | 2개 | 5개+ | 주제 연결 |
+
+    ※ 주제설교는 3대지에 통합됨 (2025-12-26)
     """
     style_configs = {
         'three_point': {
             'anchors_min': 5,
-            'key_terms_max': 3,
-            'cross_refs_min': 0,
+            'key_terms_max': 4,
+            'cross_refs_min': 2,  # 주제설교 기능 통합
             'emphasis': '본문 구조',
-            'emphasis_instruction': '본문의 구조와 흐름을 중심으로 분석하세요. 대지(포인트)로 나눌 수 있는 자연스러운 구조 단위를 파악하는 데 집중하세요.'
+            'emphasis_instruction': '본문의 구조와 흐름을 중심으로 분석하세요. 대지(포인트)로 나눌 수 있는 자연스러운 구조 단위를 파악하고, 같은 주제를 다루는 다른 성경 구절도 2개 이상 제시하세요.'
         },
         'expository': {
             'anchors_min': 10,
@@ -216,37 +217,36 @@ def get_style_step1_config(style_id):
             'cross_refs_min': 2,
             'emphasis': '본문 상세',
             'emphasis_instruction': '본문의 세부 내용을 철저히 분석하세요. 역사적 배경, 원어 의미, 문맥적 흐름을 깊이 있게 연구하세요.'
-        },
-        'topical': {
-            'anchors_min': 3,
-            'key_terms_max': 2,
-            'cross_refs_min': 5,
-            'emphasis': '주제 연결',
-            'emphasis_instruction': '본문이 주제와 어떻게 연결되는지에 집중하세요. 같은 주제를 다루는 다른 성경 구절(cross_references)을 풍부하게 제시하세요.'
         }
     }
 
     # 스타일 이름으로도 매칭 (ID가 없을 경우)
+    # ※ 주제/주제설교 → three_point로 통합 (2025-12-26)
     style_name_mapping = {
         '3대지': 'three_point',
         '대지': 'three_point',
+        '주제': 'three_point',      # 통합
+        '주제설교': 'three_point',  # 통합
         '강해': 'expository',
-        '강해설교': 'expository',
-        '주제': 'topical',
-        '주제설교': 'topical'
+        '강해설교': 'expository'
     }
 
     # style_id로 먼저 찾고, 없으면 이름 매핑으로 찾음
     config = style_configs.get(style_id)
+
+    # topical → three_point 자동 매핑 (하위 호환)
+    if style_id == 'topical':
+        config = style_configs['three_point']
+
     if not config:
         for name_part, mapped_id in style_name_mapping.items():
             if name_part in (style_id or ''):
                 config = style_configs.get(mapped_id)
                 break
 
-    # 기본값 (강해설교 기준)
+    # 기본값 (3대지 기준)
     if not config:
-        config = style_configs['expository']
+        config = style_configs['three_point']
 
     return config
 

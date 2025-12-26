@@ -65,6 +65,18 @@ async function executeStep(stepId) {
     });
   }
 
+  // 선택된 설교 방향 (자연어 입력에서 추천 선택 시)
+  const selectedDirectionEl = document.getElementById('selected-direction');
+  let selectedDirection = null;
+  if (selectedDirectionEl && selectedDirectionEl.value) {
+    try {
+      selectedDirection = JSON.parse(selectedDirectionEl.value);
+      console.log('[executeStep] 선택된 설교 방향:', selectedDirection);
+    } catch (e) {
+      console.warn('[executeStep] 설교 방향 파싱 실패:', e);
+    }
+  }
+
   const requestBody = {
     step: stepId,
     stepName: step.name,
@@ -79,6 +91,7 @@ async function executeStep(stepId) {
     styleName: styleName,
     styleId: window.currentStyleId,  // ★ 스타일 ID 추가
     topicalTheme: window.topicalTheme || '',  // ★ 주제설교 주제 추가
+    selectedDirection: selectedDirection,  // ★ 선택된 설교 방향 추가 (2025-12-26)
     model: model,
     step1Results: step1Results,
     category: window.currentCategory
