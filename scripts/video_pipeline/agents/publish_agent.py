@@ -8,9 +8,11 @@ PublishAgent - 배포 에이전트
 - 플레이리스트 추가 (업로드 시 함께 처리)
 - 예약 공개 설정
 - 쇼츠 업로드
+- SEO 최적화 (챕터, 해시태그, CTA)
 """
 
 import asyncio
+import re
 import time
 import json
 import base64
@@ -67,6 +69,8 @@ class PublishAgent(BaseAgent):
             youtube = context.youtube_metadata or {}
             title = youtube.get("title", "Untitled")
             description = youtube.get("description", "")
+            hashtags = youtube.get("hashtags", [])
+            tags = youtube.get("tags", [])
 
             # description이 객체인 경우 문자열로 변환 (원본 파이프라인과 동일)
             if isinstance(description, dict):
@@ -91,7 +95,23 @@ class PublishAgent(BaseAgent):
                 description = f"📺 {title}\n\n영상을 시청해 주셔서 감사합니다."
                 self.log("description이 비어있어 기본 설명 사용", "warning")
 
-            tags = youtube.get("tags", [])
+            # ★ GPT 예상 챕터 제거 (실제 duration 기반으로 재생성)
+            description = self._remove_gpt_chapters(description)
+
+            # ★ 자동 챕터 생성 (씬별 duration 기반)
+            chapters_text = self._generate_chapters(context.scenes)
+            if chapters_text:
+                description = description + chapters_text
+                self.log(f"자동 챕터 생성 완료")
+
+            # ★ 해시태그 추가
+            if hashtags:
+                hashtags_text = "\n\n" + " ".join(hashtags)
+                description = description + hashtags_text
+                self.log(f"해시태그 {len(hashtags)}개 추가")
+
+            # ★ CTA 추가 (구독/좋아요 유도)
+            description = self._add_cta(description, title)
 
             # 업로드 요청 - API가 videoPath를 직접 받음
             # drama_server.py의 /api/youtube/upload 참조
@@ -254,3 +274,117 @@ class PublishAgent(BaseAgent):
                 success=False,
                 error=str(e)
             )
+
+    def _remove_gpt_chapters(self, description: str) -> str:
+        """
+        GPT가 예상으로 생성한 챕터 제거 (원본 파이프라인과 동일)
+
+        GPT가 추정한 duration 기반 챕터는 실제와 다를 수 있으므로 제거하고
+        실제 TTS duration 기반으로 재생성합니다.
+        """
+        if not description:
+            return ""
+
+        try:
+            lines = description.split('\n')
+            cleaned_lines = []
+            in_chapter_section = False
+            consecutive_timestamps = 0
+            timestamp_pattern = re.compile(r'^\d{1,2}:\d{2}(?::\d{2})?\s')
+
+            for line in lines:
+                stripped = line.strip()
+
+                # 타임스탬프 패턴 감지 (0:00, 1:23, 12:34:56)
+                if timestamp_pattern.match(stripped):
+                    consecutive_timestamps += 1
+                    # 2개 이상 연속 타임스탬프면 챕터 섹션으로 간주
+                    if consecutive_timestamps >= 2:
+                        in_chapter_section = True
+                    # 챕터 섹션이면 해당 줄 스킵
+                    if in_chapter_section or consecutive_timestamps >= 2:
+                        continue
+                    else:
+                        cleaned_lines.append(line)
+                else:
+                    consecutive_timestamps = 0
+                    if in_chapter_section:
+                        # 빈 줄이면 챕터 섹션 종료
+                        if not stripped:
+                            in_chapter_section = False
+                        # 타임스탬프가 아닌 줄이 오면 챕터 섹션 종료
+                        else:
+                            in_chapter_section = False
+                            cleaned_lines.append(line)
+                    else:
+                        cleaned_lines.append(line)
+
+            return '\n'.join(cleaned_lines)
+        except Exception:
+            return description
+
+    def _generate_chapters(self, scenes: List[Dict[str, Any]]) -> str:
+        """
+        자동 챕터 생성 (씬별 duration 기반, 원본 파이프라인과 동일)
+
+        YouTube 챕터는 0:00부터 시작해야 하고, 최소 3개 이상이어야 합니다.
+        """
+        if not scenes:
+            return ""
+
+        try:
+            chapters_text = "\n\n📑 챕터\n"
+            current_time = 0
+            has_chapters = False
+            chapter_count = 0
+
+            for idx, scene in enumerate(scenes):
+                chapter_title = scene.get('chapter_title', '')
+                scene_duration = scene.get('duration', 0)
+
+                if chapter_title:
+                    has_chapters = True
+                    chapter_count += 1
+
+                    # 타임스탬프 형식: M:SS 또는 H:MM:SS
+                    minutes = int(current_time // 60)
+                    seconds = int(current_time % 60)
+                    if minutes >= 60:
+                        hours = minutes // 60
+                        minutes = minutes % 60
+                        timestamp = f"{hours}:{minutes:02d}:{seconds:02d}"
+                    else:
+                        timestamp = f"{minutes}:{seconds:02d}"
+
+                    chapters_text += f"{timestamp} {chapter_title}\n"
+
+                current_time += scene_duration
+
+            # YouTube는 최소 3개 챕터 필요
+            if has_chapters and chapter_count >= 3:
+                return chapters_text
+            else:
+                return ""
+        except Exception:
+            return ""
+
+    def _add_cta(self, description: str, title: str) -> str:
+        """
+        CTA(Call to Action) 추가 - 구독/좋아요 유도 (원본 파이프라인과 동일)
+        """
+        if not description:
+            description = ""
+
+        # 이미 CTA가 있는지 확인
+        cta_keywords = ['구독', '좋아요', '알림', '댓글', 'subscribe', 'like']
+        has_cta = any(keyword.lower() in description.lower() for keyword in cta_keywords)
+
+        # CTA가 없으면 추가
+        if not has_cta:
+            cta_text = "\n\n" + "=" * 30 + "\n"
+            cta_text += "👍 이 영상이 도움이 되셨다면 좋아요와 구독 부탁드립니다!\n"
+            cta_text += "🔔 알림 설정하시면 새로운 영상을 놓치지 않습니다.\n"
+            cta_text += "💬 궁금한 점은 댓글로 남겨주세요!"
+            description = description + cta_text
+
+        return description
