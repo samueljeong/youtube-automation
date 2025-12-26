@@ -45,6 +45,7 @@ from .creative_agent import CreativeAgent
 from .quality_agent import QualityAgent
 from .production_agent import ProductionAgent
 from .publish_agent import PublishAgent
+from .review_agent import ReviewAgent, ReviewScore, ReviewReport
 from .supervisor import VideoSupervisorAgent, PipelineStrategy
 
 
@@ -63,6 +64,9 @@ __all__ = [
     "QualityAgent",
     "ProductionAgent",
     "PublishAgent",
+    "ReviewAgent",
+    "ReviewScore",
+    "ReviewReport",
 
     # Supervisor
     "VideoSupervisorAgent",

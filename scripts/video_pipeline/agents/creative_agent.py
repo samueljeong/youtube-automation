@@ -226,9 +226,15 @@ class CreativeAgent(BaseAgent):
             result = response.json()
 
         if result.get("ok"):
+            # API 응답: imageUrl 또는 image_url (drama_server.py 호환)
+            image_path = (
+                result.get("imageUrl") or
+                result.get("image_url") or
+                result.get("image_path")
+            )
             return {
-                "image_path": result.get("image_path"),
-                "cost": result.get("cost", 0.02)
+                "image_path": image_path,
+                "cost": result.get("costUsd") or result.get("cost", 0.02)
             }
         else:
             raise Exception(result.get("error", "이미지 생성 실패"))

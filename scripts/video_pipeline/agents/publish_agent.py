@@ -3,9 +3,9 @@ PublishAgent - 배포 에이전트
 
 역할:
 - YouTube 영상 업로드
-- 썸네일 설정
+- 썸네일 설정 (업로드 시 함께 처리)
 - 메타데이터 설정 (제목, 설명, 태그)
-- 플레이리스트 추가
+- 플레이리스트 추가 (업로드 시 함께 처리)
 - 예약 공개 설정
 - 쇼츠 업로드
 """
@@ -47,9 +47,6 @@ class PublishAgent(BaseAgent):
         self.set_status(AgentStatus.RUNNING)
         context.upload_attempts += 1
 
-        skip_thumbnail = kwargs.get("skip_thumbnail", False)
-        skip_playlist = kwargs.get("skip_playlist", False)
-
         try:
             if not context.video_path:
                 return AgentResult(
@@ -66,29 +63,38 @@ class PublishAgent(BaseAgent):
 
             self.log(f"YouTube 업로드 시작: {video_path.name}")
 
-            # 영상 데이터 읽기
-            with open(video_path, "rb") as f:
-                video_data = base64.b64encode(f.read()).decode("utf-8")
-
             # 메타데이터 준비
             youtube = context.youtube_metadata or {}
             title = youtube.get("title", "Untitled")
             description = youtube.get("description", "")
             tags = youtube.get("tags", [])
 
-            # 업로드 요청
+            # 업로드 요청 - API가 videoPath를 직접 받음
+            # drama_server.py의 /api/youtube/upload 참조
             payload = {
-                "video_data": video_data,
+                "videoPath": str(video_path),  # 영상 파일 경로 직접 전달
                 "title": title,
                 "description": description,
                 "tags": tags,
-                "privacy_status": context.privacy_status or "private",
-                "channel_id": context.channel_id,
+                "privacyStatus": context.privacy_status or "private",
+                "channelId": context.channel_id,
             }
+
+            # 썸네일 경로 추가 (API가 처리)
+            if context.thumbnail_path:
+                payload["thumbnailPath"] = context.thumbnail_path
+
+            # 플레이리스트 ID 추가 (API가 처리)
+            if context.playlist_id:
+                payload["playlistId"] = context.playlist_id
 
             # 예약 공개
             if context.publish_at:
                 payload["publish_at"] = context.publish_at
+
+            self.log(f"  - 제목: {title[:50]}...")
+            self.log(f"  - 썸네일: {'있음' if context.thumbnail_path else '없음'}")
+            self.log(f"  - 플레이리스트: {context.playlist_id or '없음'}")
 
             async with httpx.AsyncClient(timeout=self.upload_timeout) as client:
                 response = await client.post(
@@ -104,21 +110,14 @@ class PublishAgent(BaseAgent):
                     error=result.get("error", "업로드 실패")
                 )
 
-            video_id = result.get("video_id")
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            # 응답에서 video_id 추출 (API 응답 형식에 맞춤)
+            video_id = result.get("video_id") or result.get("videoId")
+            video_url = result.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
             context.video_url = video_url
 
-            self.log(f"영상 업로드 완료: {video_url}")
-
-            # 썸네일 설정
-            if not skip_thumbnail and context.thumbnail_path:
-                await self._set_thumbnail(video_id, context.thumbnail_path)
-
-            # 플레이리스트 추가
-            if not skip_playlist and context.playlist_id:
-                await self._add_to_playlist(video_id, context.playlist_id)
-
             duration = time.time() - start_time
+
+            self.log(f"✅ 업로드 완료: {video_url}")
 
             context.add_log(
                 self.name, "upload", "success",
@@ -152,80 +151,6 @@ class PublishAgent(BaseAgent):
                 error=str(e)
             )
 
-    async def _set_thumbnail(self, video_id: str, thumbnail_path: str) -> bool:
-        """
-        썸네일 설정
-
-        Args:
-            video_id: YouTube 영상 ID
-            thumbnail_path: 썸네일 이미지 경로
-
-        Returns:
-            성공 여부
-        """
-        try:
-            path = Path(thumbnail_path)
-            if not path.exists():
-                self.log(f"썸네일 파일 없음: {thumbnail_path}", "warning")
-                return False
-
-            with open(path, "rb") as f:
-                thumbnail_data = base64.b64encode(f.read()).decode("utf-8")
-
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(
-                    f"{self.server_url}/api/youtube/thumbnail",
-                    json={
-                        "video_id": video_id,
-                        "thumbnail_data": thumbnail_data,
-                    }
-                )
-                result = response.json()
-
-            if result.get("ok"):
-                self.log("썸네일 설정 완료")
-                return True
-            else:
-                self.log(f"썸네일 설정 실패: {result.get('error')}", "warning")
-                return False
-
-        except Exception as e:
-            self.log(f"썸네일 설정 예외: {e}", "warning")
-            return False
-
-    async def _add_to_playlist(self, video_id: str, playlist_id: str) -> bool:
-        """
-        플레이리스트에 추가
-
-        Args:
-            video_id: YouTube 영상 ID
-            playlist_id: 플레이리스트 ID
-
-        Returns:
-            성공 여부
-        """
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(
-                    f"{self.server_url}/api/youtube/playlist/add",
-                    json={
-                        "video_id": video_id,
-                        "playlist_id": playlist_id,
-                    }
-                )
-                result = response.json()
-
-            if result.get("ok"):
-                self.log(f"플레이리스트 추가 완료: {playlist_id}")
-                return True
-            else:
-                self.log(f"플레이리스트 추가 실패: {result.get('error')}", "warning")
-                return False
-
-        except Exception as e:
-            self.log(f"플레이리스트 추가 예외: {e}", "warning")
-            return False
-
     async def upload_shorts(
         self,
         context: VideoTaskContext,
@@ -251,9 +176,6 @@ class PublishAgent(BaseAgent):
         self.log("쇼츠 업로드 시작")
 
         try:
-            with open(path, "rb") as f:
-                video_data = base64.b64encode(f.read()).decode("utf-8")
-
             # 쇼츠 메타데이터
             shorts_config = context.video_effects.get("shorts", {}) if context.video_effects else {}
             title = shorts_config.get("title", "")
@@ -265,12 +187,12 @@ class PublishAgent(BaseAgent):
             description = f"원본 영상: {context.video_url}\n\n#Shorts"
 
             payload = {
-                "video_data": video_data,
+                "videoPath": str(path),
                 "title": title,
                 "description": description,
                 "tags": ["shorts"],
-                "privacy_status": context.privacy_status or "private",
-                "channel_id": context.channel_id,
+                "privacyStatus": context.privacy_status or "private",
+                "channelId": context.channel_id,
             }
 
             async with httpx.AsyncClient(timeout=self.upload_timeout) as client:
@@ -282,11 +204,11 @@ class PublishAgent(BaseAgent):
                 result = response.json()
 
             if result.get("ok"):
-                shorts_id = result.get("video_id")
+                shorts_id = result.get("video_id") or result.get("videoId")
                 shorts_url = f"https://www.youtube.com/shorts/{shorts_id}"
                 context.shorts_url = shorts_url
 
-                self.log(f"쇼츠 업로드 완료: {shorts_url}")
+                self.log(f"✅ 쇼츠 업로드 완료: {shorts_url}")
 
                 return AgentResult(
                     success=True,

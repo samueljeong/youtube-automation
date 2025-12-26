@@ -29,6 +29,7 @@ from .creative_agent import CreativeAgent
 from .quality_agent import QualityAgent
 from .production_agent import ProductionAgent
 from .publish_agent import PublishAgent
+from .review_agent import ReviewAgent
 
 
 @dataclass
@@ -63,6 +64,7 @@ class VideoSupervisorAgent(BaseAgent):
         self.quality_agent = QualityAgent(server_url)
         self.production_agent = ProductionAgent(server_url)
         self.publish_agent = PublishAgent(server_url)
+        self.review_agent = ReviewAgent(server_url)
 
         # 에이전트 레지스트리
         self.agents = {
@@ -72,6 +74,7 @@ class VideoSupervisorAgent(BaseAgent):
             "quality": self.quality_agent,
             "production": self.production_agent,
             "publish": self.publish_agent,
+            "review": self.review_agent,
         }
 
         # 예산 관리자
