@@ -59,10 +59,13 @@ class AudioAgent(BaseAgent):
             # 언어 감지
             language = self._detect_language(context.script)
 
-            self.log(f"TTS 생성 시작: {len(context.scenes)}개 씬, 음성={voice}")
+            # session_id 생성 (원래 파이프라인과 동일한 패턴)
+            session_id = f"agent_{context.task_id}_{int(time.time())}"
+            self.log(f"TTS 생성 시작: {len(context.scenes)}개 씬, 음성={voice}, session={session_id}")
 
             # API 호출 데이터 준비
             payload = {
+                "session_id": session_id,  # ★ session_id 전달 (영상 생성에 필요)
                 "scenes": context.scenes,
                 "language": language,
                 "base_voice": voice,
@@ -84,7 +87,8 @@ class AudioAgent(BaseAgent):
                     cost=result.get("cost", 0.0)
                 )
 
-            # 결과 저장
+            # 결과 저장 (session_id 명시적 추가 - API 응답에는 없음)
+            result["session_id"] = session_id
             context.tts_result = result
             context.subtitles = result.get("subtitles", [])
 

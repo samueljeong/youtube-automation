@@ -19771,10 +19771,11 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     return {"ok": False, "error": error, "video_url": None, "cost": cost}
 
             except Exception as agent_err:
-                print(f"[AGENT] ⚠️ 에이전트 파이프라인 오류, 기존 방식으로 폴백: {agent_err}", flush=True)
+                # ★ 폴백 제거: 에이전트 실패 시 완전히 실패 (에러 숨기지 않음)
+                print(f"[AGENT] ❌ 에이전트 파이프라인 예외 발생: {agent_err}", flush=True)
                 import traceback
                 traceback.print_exc()
-                # 기존 로직으로 계속 진행
+                return {"ok": False, "error": f"에이전트 파이프라인 오류: {agent_err}", "video_url": None, "cost": 0}
 
         # 시트 컬럼 구조:
         # ===== Google Sheets 컬럼 구조 (CLAUDE.md 기준) =====
