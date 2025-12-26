@@ -939,26 +939,59 @@ window.selectRecommendation = function(idx) {
   const selectedDirectionBox = document.getElementById('selected-direction-box');
   const selectedDirectionContent = document.getElementById('selected-direction-content');
   const recommendationBox = document.getElementById('recommendation-box');
+  const guideBox = document.getElementById('start-analysis-guide-box');
 
   if (selectedDirectionContent) {
     selectedDirectionContent.innerHTML = `
       <div style="font-weight: 600; margin-bottom: .3rem;">📖 ${rec.scripture} - "${rec.title}"</div>
-      <div style="font-size: .85rem; color: #4caf50;">${rec.direction}</div>
-      <div style="font-size: .8rem; color: #666; margin-top: .2rem;">
-        ${(rec.points || []).map(p => `<div>• ${p}</div>`).join('')}
-      </div>
+      <div style="font-size: .85rem; color: #2e7d32;">${rec.direction}</div>
     `;
   }
 
   // UI 전환
   if (recommendationBox) recommendationBox.style.display = 'none';
   if (selectedDirectionBox) selectedDirectionBox.style.display = 'block';
+  if (guideBox) guideBox.style.display = 'none';
 
-  // 분석 시작 버튼 활성화
-  updateAnalysisUI();
+  // 분량 버튼 이벤트 바인딩
+  bindDurationButtons();
 
   // 스타일 렌더링 갱신
   renderStyles();
 }
 
+// 분량 버튼 이벤트 바인딩
+function bindDurationButtons() {
+  const buttons = document.querySelectorAll('.duration-btn');
+  const durationInput = document.getElementById('sermon-duration');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      // 모든 버튼 비활성 스타일
+      buttons.forEach(b => {
+        b.style.border = '2px solid #ddd';
+        b.style.background = 'white';
+        b.style.color = '#333';
+        b.style.fontWeight = 'normal';
+        b.classList.remove('active');
+      });
+
+      // 클릭된 버튼 활성 스타일
+      btn.style.border = '2px solid #4caf50';
+      btn.style.background = '#4caf50';
+      btn.style.color = 'white';
+      btn.style.fontWeight = '600';
+      btn.classList.add('active');
+
+      // hidden 필드에 값 저장
+      const duration = btn.dataset.duration;
+      if (durationInput) {
+        durationInput.value = duration;
+      }
+      console.log('[Duration] 분량 선택:', duration + '분');
+    });
+  });
+}
+
 window.analyzeNaturalInput = analyzeNaturalInput;
+window.bindDurationButtons = bindDurationButtons;
