@@ -139,11 +139,30 @@
           </div>
         </div>
 
-        <!-- 선택된 설교 방향 표시 -->
+        <!-- 선택된 설교 방향 + 분량 선택 + 시작 버튼 -->
         <div id="selected-direction-box" style="display: none; margin-bottom: .5rem;">
-          <div class="box" style="padding: .6rem; background: #e8f5e9; border-left: 4px solid #4caf50;">
-            <div style="font-size: .85rem; color: #2e7d32; font-weight: 600;">✅ 선택된 방향</div>
-            <div id="selected-direction-content" style="font-size: .9rem; margin-top: .3rem;"></div>
+          <div class="box" style="padding: .8rem; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 2px solid #4caf50; border-radius: 10px;">
+            <!-- 선택된 방향 -->
+            <div style="font-size: .9rem; color: #2e7d32; font-weight: 600; margin-bottom: .5rem;">✅ 선택 완료</div>
+            <div id="selected-direction-content" style="font-size: .9rem; margin-bottom: .8rem; padding: .5rem; background: white; border-radius: 6px;"></div>
+
+            <!-- 분량 선택 -->
+            <div style="margin-bottom: .8rem;">
+              <div style="font-size: .85rem; color: #555; margin-bottom: .4rem; font-weight: 600;">⏱️ 분량 선택</div>
+              <div id="duration-buttons" style="display: flex; gap: .4rem; flex-wrap: wrap;">
+                <button class="duration-btn" data-duration="10" style="padding: .4rem .8rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all 0.2s;">10분</button>
+                <button class="duration-btn" data-duration="15" style="padding: .4rem .8rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all 0.2s;">15분</button>
+                <button class="duration-btn active" data-duration="20" style="padding: .4rem .8rem; border: 2px solid #4caf50; background: #4caf50; color: white; border-radius: 6px; cursor: pointer; font-size: .85rem; font-weight: 600; transition: all 0.2s;">20분</button>
+                <button class="duration-btn" data-duration="25" style="padding: .4rem .8rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all 0.2s;">25분</button>
+                <button class="duration-btn" data-duration="30" style="padding: .4rem .8rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all 0.2s;">30분</button>
+                <button class="duration-btn" data-duration="40" style="padding: .4rem .8rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all 0.2s;">40분</button>
+              </div>
+            </div>
+
+            <!-- 설교 준비 시작 버튼 -->
+            <button id="btn-start-analysis" style="width: 100%; padding: .8rem; font-size: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
+              ✨ 설교 준비 시작
+            </button>
           </div>
         </div>
 
@@ -153,24 +172,22 @@
         <input type="hidden" id="selected-direction" value="">
         <input type="hidden" id="manual-title" value="">
         <input type="hidden" id="sermon-worship-type" value="">
-        <input type="hidden" id="sermon-duration" value="">
+        <input type="hidden" id="sermon-duration" value="20">
         <input type="hidden" id="sermon-target" value="">
         <input type="hidden" id="sermon-topic" value="">
         <input type="hidden" id="special-notes" value="">
 
-        <!-- 설교 준비 시작 버튼 -->
-        <div class="box" style="padding: .6rem; margin-bottom: .5rem;">
-          <button id="btn-start-analysis" style="display: none; width: 100%; padding: .8rem; font-size: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">
-            ✨ 설교 준비 시작
-          </button>
+        <!-- 안내 문구 (추천 선택 전) -->
+        <div id="start-analysis-guide-box" class="box" style="padding: .6rem; margin-bottom: .5rem;">
           <div id="start-analysis-guide" style="width: 100%; padding: .6rem; text-align: center; background: #f8f9ff; border-radius: 8px; border: 2px dashed #667eea;">
             <span style="font-size: .9rem; font-weight: 700; color: #667eea;">🔍 위에서 입력 후 분석 버튼을 눌러주세요</span>
           </div>
-          <!-- 숨겨진 진행 상태 (내부 기능 유지) -->
-          <div id="analysis-status" style="display: none;"></div>
-          <div id="processing-steps" style="display: none;"></div>
-          <div id="styles-list" style="display: none;"></div>
         </div>
+
+        <!-- 숨겨진 진행 상태 (내부 기능 유지) -->
+        <div id="analysis-status" style="display: none;"></div>
+        <div id="processing-steps" style="display: none;"></div>
+        <div id="styles-list" style="display: none;"></div>
 
         <div style="display: flex; flex-direction: row; gap: .5rem; align-items: stretch; margin-bottom: .5rem;">
           <div class="box copy-all-box" id="step4-box" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: .6rem; opacity: 0.5; pointer-events: none; text-align: center; display: flex; flex-direction: column; justify-content: center;">

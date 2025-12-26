@@ -1916,20 +1916,30 @@ def analyze_natural_input():
         user_prompt = f"사용자 입력: {user_input}"
 
         start_time = time.time()
-        response = _client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+
+        # GPT-5.1 Responses API 사용
+        response = _client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]}
             ],
-            temperature=0.7,
-            max_tokens=2000,
-            response_format={"type": "json_object"}
+            temperature=0.7
         )
         elapsed = time.time() - start_time
 
-        result_text = response.choices[0].message.content
-        print(f"[ANALYZE-INPUT] 응답 ({elapsed:.2f}s): {result_text[:200]}...")
+        # GPT-5.1 응답 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        print(f"[ANALYZE-INPUT] GPT-5.1 응답 ({elapsed:.2f}s): {result_text[:200]}...")
 
         # JSON 파싱
         try:
@@ -1937,13 +1947,18 @@ def analyze_natural_input():
             result["ok"] = True
             result["elapsed"] = round(elapsed, 2)
 
-            # 토큰 사용량
-            usage = response.usage
-            result["usage"] = {
-                "input": usage.prompt_tokens,
-                "output": usage.completion_tokens,
-                "cost": calculate_cost("gpt-4o-mini", usage.prompt_tokens, usage.completion_tokens)
-            }
+            # 토큰 사용량 (GPT-5.1)
+            usage = getattr(response, "usage", None)
+            if usage:
+                input_tokens = getattr(usage, "input_tokens", 0)
+                output_tokens = getattr(usage, "output_tokens", 0)
+                result["usage"] = {
+                    "input": input_tokens,
+                    "output": output_tokens,
+                    "cost": calculate_cost("gpt-5.1", input_tokens, output_tokens)
+                }
+            else:
+                result["usage"] = {"input": 0, "output": 0, "cost": "$0.00"}
 
             return jsonify(result)
 
