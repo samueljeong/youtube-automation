@@ -419,6 +419,8 @@ async function startAutoAnalysis() {
     analysisInProgress = false;
     // 스타일 목록 복구
     restoreStylesAfterLoading();
+    // ★ 버튼 상태 업데이트 (2025-12-26 수정: finally에서 updateAnalysisUI 호출)
+    updateAnalysisUI();
   }
 }
 

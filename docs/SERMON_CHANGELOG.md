@@ -35,6 +35,25 @@
 
 ---
 
+### 설교 준비 시작 버튼 안보임 수정
+
+**문제**: 추천 선택 후 "✨ 설교 준비 시작" 버튼이 보이지 않음
+
+**원인**:
+1. `startAutoAnalysis()` 완료 후 `finally` 블록에서 `analysisInProgress = false` 설정
+2. 하지만 `updateAnalysisUI()`를 호출하지 않아 버튼이 숨겨진 상태로 유지
+3. `confirmSelection()` 끝에서도 `updateAnalysisUI()`를 호출하지 않음
+
+**수정**:
+- `sermon-render.js:423`: `finally` 블록에서 `updateAnalysisUI()` 호출 추가
+- `sermon-init.js:1104`: `confirmSelection()` 끝에서 `updateAnalysisUI()` 호출 추가
+
+**검증 체크리스트 교훈**:
+- UI 상태 변경 후 항상 `updateAnalysisUI()` 호출 필요
+- `finally` 블록에서 상태 변경 시 UI 업데이트도 함께 해야 함
+
+---
+
 ### 3순위 운영 지원팀 에이전트 추가
 
 **커밋**: `520a1ed`

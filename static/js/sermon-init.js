@@ -1099,6 +1099,11 @@ function confirmSelection(idx) {
 
   // 스타일 렌더링 갱신
   renderStyles();
+
+  // ★ UI 상태 업데이트 (2025-12-26 추가: 버튼 상태 확실하게 설정)
+  if (typeof updateAnalysisUI === 'function') {
+    updateAnalysisUI();
+  }
 }
 
 // 분량 버튼 이벤트 바인딩
