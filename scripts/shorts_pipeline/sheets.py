@@ -24,6 +24,65 @@ class SheetsSaveError(Exception):
     pass
 
 
+# ★ 잘못된 person 값 필터 (가족 호칭, 일반 명사 등)
+INVALID_PERSON_NAMES = {
+    # 가족 호칭
+    "엄마", "아빠", "아버지", "어머니", "아들", "딸", "남편", "아내",
+    "언니", "오빠", "누나", "형", "동생", "할머니", "할아버지",
+    # 일반 명사
+    "외계인", "슈퍼맘", "워킹맘", "육아", "연예인", "배우", "가수",
+    "아이돌", "코미디언", "개그맨", "선수", "감독",
+    # 추상/방송 용어
+    "논란", "사건", "이슈", "문제", "상황", "드라마", "예능",
+}
+
+
+def validate_person_name(person: str, news_title: str = "") -> tuple[bool, str]:
+    """
+    person 이름 검증 및 재추출 시도
+
+    Args:
+        person: 현재 person 값
+        news_title: 뉴스 제목 (재추출용)
+
+    Returns:
+        (유효 여부, 수정된 person 또는 원본)
+    """
+    import re
+
+    # 1) 빈 값 체크
+    if not person or len(person.strip()) < 2:
+        return False, person
+
+    person = person.strip()
+
+    # 2) 금지어 체크
+    if person in INVALID_PERSON_NAMES:
+        # 뉴스 제목에서 재추출 시도
+        if news_title:
+            # 패턴: "이시영," "박나래가" 등
+            patterns = [
+                r'\.\.([가-힣]{2,4}),',
+                r'([가-힣]{2,4}),\s*[韓한]',
+                r'^([가-힣]{2,4})(?:가|이|는|,)',
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, news_title)
+                if match:
+                    extracted = match.group(1)
+                    if extracted not in INVALID_PERSON_NAMES and len(extracted) >= 2:
+                        print(f"[SHEETS] person 재추출: '{person}' → '{extracted}'")
+                        return True, extracted
+
+        return False, person
+
+    # 3) 이름 길이 체크 (한글 이름은 보통 2-4자)
+    if len(person) < 2 or len(person) > 6:
+        return False, person
+
+    return True, person
+
+
 def get_sheets_service():
     """Google Sheets API 서비스 객체 반환"""
     creds_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
@@ -156,18 +215,20 @@ def get_header_mapping(service, spreadsheet_id: str) -> Dict[str, int]:
 def read_pending_rows(
     service=None,
     spreadsheet_id: str = None,
-    limit: int = 10
+    limit: int = 10,
+    validate: bool = True
 ) -> List[Dict[str, Any]]:
     """
-    상태='대기'인 행 읽기
+    상태='대기'인 행 읽기 + person 검증
 
     Args:
         service: Google Sheets API 서비스 객체
         spreadsheet_id: 스프레드시트 ID
         limit: 최대 반환 행 수
+        validate: person 검증 여부 (기본 True)
 
     Returns:
-        [{"row_number": 3, "celebrity": "...", "상태": "대기", ...}, ...]
+        [{"row_number": 3, "person": "...", "상태": "대기", ...}, ...]
     """
     if service is None:
         service = get_sheets_service()
@@ -178,6 +239,8 @@ def read_pending_rows(
         # 헤더 매핑
         header_map = get_header_mapping(service, spreadsheet_id)
         status_col = header_map.get("상태", -1)
+        person_col = header_map.get("person", header_map.get("celebrity", -1))
+        news_title_col = header_map.get("news_title", -1)
 
         if status_col == -1:
             print("[SHORTS] '상태' 열을 찾을 수 없음")
@@ -192,18 +255,47 @@ def read_pending_rows(
 
         # 대기 상태인 행 필터링
         pending = []
+        skipped_invalid = 0
+
         for i, row in enumerate(rows, start=3):
             if len(row) > status_col and row[status_col] == "대기":
                 # 행 데이터를 딕셔너리로 변환
                 row_data = {"row_number": i}
                 for header, col_idx in header_map.items():
                     row_data[header] = row[col_idx] if col_idx < len(row) else ""
+
+                # ★ person 검증 (validate=True일 때)
+                if validate and person_col != -1:
+                    person = row[person_col] if person_col < len(row) else ""
+                    news_title = row[news_title_col] if news_title_col < len(row) and news_title_col != -1 else ""
+
+                    is_valid, corrected_person = validate_person_name(person, news_title)
+
+                    if not is_valid:
+                        # 잘못된 person → 상태를 '검증실패'로 변경
+                        print(f"[SHEETS] ⚠️ 행 {i}: 잘못된 person '{person}' → 건너뜀")
+                        update_cell(service, spreadsheet_id, i, "상태", "검증실패")
+                        update_cell(service, spreadsheet_id, i, "에러메시지", f"잘못된 인물명: '{person}'")
+                        skipped_invalid += 1
+                        continue
+
+                    # person이 수정되었으면 시트도 업데이트
+                    if corrected_person != person:
+                        row_data["person"] = corrected_person
+                        update_cell(service, spreadsheet_id, i, "person", corrected_person)
+                        # hook_text도 재생성
+                        from .news_collector import generate_hook_text, detect_issue_type
+                        issue_type = row_data.get("issue_type") or detect_issue_type(news_title)
+                        new_hook = generate_hook_text(corrected_person, issue_type, news_title)
+                        row_data["hook_text"] = new_hook
+                        update_cell(service, spreadsheet_id, i, "hook_text", new_hook)
+
                 pending.append(row_data)
 
                 if len(pending) >= limit:
                     break
 
-        print(f"[SHORTS] 대기 상태 행 {len(pending)}개 조회")
+        print(f"[SHORTS] 대기 상태 행 {len(pending)}개 조회 (검증실패 {skipped_invalid}개 제외)")
         return pending
 
     except Exception as e:

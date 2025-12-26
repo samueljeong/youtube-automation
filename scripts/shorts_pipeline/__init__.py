@@ -82,6 +82,8 @@ from .sheets import (
     update_cell,
     append_row,
     check_duplicate,
+    validate_person_name,
+    INVALID_PERSON_NAMES,
     SheetsSaveError,
 )
 
@@ -188,6 +190,8 @@ __all__ = [
     'update_cell',
     'append_row',
     'check_duplicate',
+    'validate_person_name',
+    'INVALID_PERSON_NAMES',
     'SheetsSaveError',
 
     # News Collector
