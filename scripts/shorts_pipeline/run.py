@@ -66,6 +66,8 @@ from .sheets import (
 from .news_collector import (
     collect_entertainment_news,
     search_celebrity_news,
+    collect_and_score_news,
+    get_best_news_for_shorts,
 )
 from .script_generator import (
     generate_complete_shorts_package,
@@ -1716,6 +1718,187 @@ def run_full_pipeline(
     )
 
 
+# ============================================================
+# 바이럴 점수 기반 파이프라인 (자동 최적 뉴스 선택)
+# ============================================================
+
+def run_viral_pipeline(
+    min_score: float = 40,
+    categories: List[str] = None,
+    generate_video: bool = True,
+    save_to_sheet: bool = True
+) -> Dict[str, Any]:
+    """
+    바이럴 점수 기반 자동 쇼츠 파이프라인
+
+    흐름:
+    1. RSS에서 뉴스 수집
+    2. 네이버/다음 댓글 크롤링 → 바이럴 점수 계산
+    3. 가장 점수 높은 뉴스 선정
+    4. 실제 댓글을 반영한 대본 생성
+    5. 비디오 생성 및 업로드
+
+    Args:
+        min_score: 최소 바이럴 점수 (기본 40)
+        categories: 수집할 카테고리 (None이면 전체)
+        generate_video: 비디오 생성 여부
+        save_to_sheet: 시트에 저장 여부
+
+    Returns:
+        {
+            "ok": True,
+            "news": {...},
+            "viral_score": {...},
+            "script_hints": {...},
+            "video_path": "...",
+            "cost": 0.84
+        }
+    """
+    start_time = datetime.now(timezone.utc)
+
+    print(f"\n{'#'*60}")
+    print(f"# 바이럴 기반 SHORTS 파이프라인 시작")
+    print(f"# 최소 점수: {min_score}, 비디오 생성: {generate_video}")
+    print(f"{'#'*60}\n")
+
+    result = {"ok": False}
+    total_cost = 0
+
+    try:
+        # ============================================================
+        # 1단계: 바이럴 점수 기반 뉴스 선정
+        # ============================================================
+        print("[SHORTS] === 1단계: 바이럴 뉴스 선정 ===\n")
+
+        best_news = get_best_news_for_shorts(
+            categories=categories,
+            min_score=min_score
+        )
+
+        if not best_news:
+            print("[SHORTS] 바이럴 점수 기준을 충족하는 뉴스가 없습니다")
+            return {
+                "ok": False,
+                "error": f"바이럴 점수 {min_score}+ 기준 충족 뉴스 없음"
+            }
+
+        person = best_news.get("person", "")
+        issue_type = best_news.get("issue_type", "근황")
+        viral_score = best_news.get("viral_score", {})
+        script_hints = best_news.get("script_hints", {})
+
+        print(f"\n[SHORTS] 🔥 선정된 뉴스:")
+        print(f"  - 인물: {person}")
+        print(f"  - 이슈: {issue_type}")
+        print(f"  - 바이럴 점수: {viral_score.get('total_score', 0)} ({viral_score.get('grade', 'N/A')}등급)")
+        print(f"  - 논쟁 주제: {script_hints.get('debate_topic', 'N/A')}")
+        print(f"  - 핫 표현: {script_hints.get('hot_phrases', [])[:3]}")
+
+        # ============================================================
+        # 2단계: 실제 댓글 반영 대본 생성
+        # ============================================================
+        print("\n[SHORTS] === 2단계: 댓글 기반 대본 생성 ===\n")
+
+        # script_hints가 포함된 news_data로 대본 생성
+        script_result = generate_complete_shorts_package(best_news)
+
+        if not script_result.get("ok"):
+            return {
+                "ok": False,
+                "error": f"대본 생성 실패: {script_result.get('error')}",
+                "news": best_news,
+            }
+
+        total_cost += script_result.get("cost", 0)
+
+        print(f"[SHORTS] 대본 생성 완료: {script_result.get('total_chars', 0)}자")
+
+        # ============================================================
+        # 3단계: 시트에 저장 (옵션)
+        # ============================================================
+        if save_to_sheet:
+            try:
+                service = get_sheets_service()
+                spreadsheet_id = get_spreadsheet_id()
+                create_shorts_sheet(service, spreadsheet_id)
+
+                # 바이럴 점수 정보 추가
+                best_news["viral_grade"] = viral_score.get("grade", "")
+                best_news["viral_total"] = viral_score.get("total_score", 0)
+
+                if not check_duplicate(service, spreadsheet_id, person, best_news.get("news_url", "")):
+                    append_row(service, spreadsheet_id, best_news)
+                    print(f"[SHORTS] 시트에 저장: {person}")
+            except Exception as e:
+                print(f"[SHORTS] 시트 저장 실패 (무시): {e}")
+
+        # ============================================================
+        # 4단계: 비디오 생성 (옵션)
+        # ============================================================
+        video_result = None
+        if generate_video:
+            print("\n[SHORTS] === 3단계: 비디오 생성 ===\n")
+
+            video_result = run_video_generation(
+                script_result=script_result,
+                person=person,
+                issue_type=issue_type
+            )
+
+            if video_result.get("ok"):
+                total_cost += video_result.get("cost", 0)
+                print(f"[SHORTS] 비디오 생성 완료: {video_result.get('duration', 0):.1f}초")
+            else:
+                print(f"[SHORTS] 비디오 생성 실패: {video_result.get('error')}")
+
+        # ============================================================
+        # 완료
+        # ============================================================
+        end_time = datetime.now(timezone.utc)
+        duration = (end_time - start_time).total_seconds()
+
+        result = {
+            "ok": True,
+            "person": person,
+            "issue_type": issue_type,
+            "news": {
+                "title": best_news.get("news_title", ""),
+                "url": best_news.get("news_url", ""),
+            },
+            "viral_score": viral_score,
+            "script_hints": script_hints,
+            "script": {
+                "title": script_result.get("title", ""),
+                "total_chars": script_result.get("total_chars", 0),
+                "scenes": len(script_result.get("scenes", [])),
+            },
+            "cost": round(total_cost, 3),
+            "duration_seconds": round(duration, 1),
+        }
+
+        if video_result and video_result.get("ok"):
+            result["video"] = {
+                "path": video_result.get("video_path"),
+                "duration": video_result.get("duration"),
+            }
+
+        print(f"\n{'#'*60}")
+        print(f"# 바이럴 파이프라인 완료!")
+        print(f"# 인물: {person} ({viral_score.get('grade', 'N/A')}등급)")
+        print(f"# 총 비용: ${total_cost:.3f}, 소요시간: {duration:.1f}초")
+        print(f"{'#'*60}\n")
+
+        return result
+
+    except Exception as e:
+        print(f"[SHORTS] 바이럴 파이프라인 오류: {e}")
+        return {
+            "ok": False,
+            "error": str(e),
+            "cost": total_cost,
+        }
+
+
 # CLI 실행
 if __name__ == "__main__":
     import argparse
@@ -1725,6 +1908,8 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true", help="대본 생성만")
     parser.add_argument("--video", action="store_true", help="비디오까지 생성")
     parser.add_argument("--full", action="store_true", help="전체 파이프라인 (수집+대본+비디오)")
+    parser.add_argument("--viral", action="store_true", help="바이럴 점수 기반 자동 파이프라인")
+    parser.add_argument("--min-score", type=float, default=40, help="최소 바이럴 점수 (viral 모드)")
     parser.add_argument("--person", type=str, help="특정 인물")
     parser.add_argument("--limit", type=int, default=1, help="처리할 행 수")
     parser.add_argument("--create-sheet", action="store_true", help="시트 생성만")
@@ -1736,6 +1921,13 @@ if __name__ == "__main__":
         spreadsheet_id = get_spreadsheet_id()
         create_shorts_sheet(service, spreadsheet_id, force=True)
         print("시트 생성 완료")
+    elif args.viral:
+        # 바이럴 점수 기반 자동 파이프라인
+        result = run_viral_pipeline(
+            min_score=args.min_score,
+            generate_video=args.video
+        )
+        print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
     elif args.collect:
         result = run_news_collection(max_items=10)
         print(f"결과: {result}")

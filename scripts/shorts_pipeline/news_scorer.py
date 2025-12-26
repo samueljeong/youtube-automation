@@ -6,20 +6,130 @@
 2. 네이버/다음 뉴스 댓글 크롤링
 3. 찬/반 의견 분류
 4. 대본에 반영할 핵심 표현 추출
+5. Google News 리다이렉트 URL 해결
 """
 
 import re
 import requests
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 import json
+import base64
 
 # User-Agent 설정 (차단 방지)
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
 }
+
+
+# ============================================================
+# Google News URL 리다이렉트 해결
+# ============================================================
+
+def resolve_google_news_url(google_url: str, timeout: int = 10) -> Optional[str]:
+    """
+    Google News 리다이렉트 URL을 실제 뉴스 URL로 변환
+
+    Google News RSS는 다음 형태의 URL을 반환:
+    - https://news.google.com/rss/articles/CBMi...
+    - https://news.google.com/articles/CBMi...
+
+    이를 실제 네이버/다음 URL로 변환
+
+    Args:
+        google_url: Google News URL
+        timeout: 요청 타임아웃
+
+    Returns:
+        실제 뉴스 URL (실패 시 None)
+    """
+    if not google_url:
+        return None
+
+    # 이미 실제 뉴스 URL인 경우
+    if "naver.com" in google_url or "daum.net" in google_url:
+        return google_url
+
+    # Google News URL이 아닌 경우
+    if "news.google.com" not in google_url:
+        return google_url
+
+    try:
+        # 방법 1: Base64 디코딩 시도 (CBMi... 패턴)
+        decoded_url = _decode_google_news_url(google_url)
+        if decoded_url:
+            print(f"[NewsScorer] URL 디코딩 성공: {decoded_url[:50]}...")
+            return decoded_url
+
+        # 방법 2: HTTP 리다이렉트 추적
+        print(f"[NewsScorer] 리다이렉트 추적 중: {google_url[:50]}...")
+        response = requests.head(
+            google_url,
+            headers=HEADERS,
+            allow_redirects=True,
+            timeout=timeout
+        )
+        final_url = response.url
+
+        # Google URL에서 벗어났는지 확인
+        if "news.google.com" not in final_url:
+            print(f"[NewsScorer] 리다이렉트 성공: {final_url[:50]}...")
+            return final_url
+
+        # 방법 3: GET 요청으로 실제 페이지에서 추출
+        response = requests.get(google_url, headers=HEADERS, timeout=timeout)
+        # meta refresh나 canonical URL 추출 시도
+        canonical_match = re.search(r'<link[^>]+rel="canonical"[^>]+href="([^"]+)"', response.text)
+        if canonical_match:
+            return canonical_match.group(1)
+
+        return google_url  # 실패 시 원본 반환
+
+    except Exception as e:
+        print(f"[NewsScorer] URL 해결 실패: {e}")
+        return google_url
+
+
+def _decode_google_news_url(url: str) -> Optional[str]:
+    """
+    Google News URL에서 Base64 인코딩된 실제 URL 추출
+
+    URL 형식: .../articles/CBMiXXXXX... 또는 .../rss/articles/CBMiXXXXX...
+    CBMi... 부분이 Base64 인코딩된 원본 URL
+    """
+    try:
+        # articles/CBMi... 패턴 추출
+        match = re.search(r'/articles/([A-Za-z0-9_-]+)', url)
+        if not match:
+            return None
+
+        encoded = match.group(1)
+
+        # Base64 패딩 추가
+        padding = 4 - len(encoded) % 4
+        if padding != 4:
+            encoded += "=" * padding
+
+        # URL-safe Base64 → 표준 Base64 변환
+        encoded = encoded.replace("-", "+").replace("_", "/")
+
+        # 디코딩
+        decoded_bytes = base64.b64decode(encoded)
+
+        # URL 추출 (protobuf 형식에서 URL 문자열 찾기)
+        # URL은 보통 http:// 또는 https://로 시작
+        decoded_str = decoded_bytes.decode('utf-8', errors='ignore')
+        url_match = re.search(r'https?://[^\s\x00-\x1f"\'<>]+', decoded_str)
+        if url_match:
+            return url_match.group(0)
+
+        return None
+
+    except Exception as e:
+        # 디코딩 실패는 흔함 - 조용히 처리
+        return None
 
 
 # ============================================================
@@ -512,7 +622,7 @@ def analyze_news_viral_potential(
     뉴스 바이럴 잠재력 종합 분석
 
     Args:
-        url: 뉴스 URL (네이버 또는 다음)
+        url: 뉴스 URL (Google News, 네이버, 다음 모두 지원)
         issue_type: 이슈 유형
         hours_ago: 뉴스 발행 후 경과 시간
 
@@ -521,18 +631,26 @@ def analyze_news_viral_potential(
             "viral_score": {...},
             "comments_data": {...},
             "script_hints": {...},
+            "resolved_url": "실제 뉴스 URL"
         }
     """
     print(f"[NewsScorer] 뉴스 분석 시작: {url[:50]}...")
 
-    # 뉴스 소스 판별 및 댓글 수집
-    if "naver.com" in url:
-        comments_data = fetch_naver_comments(url)
-    elif "daum.net" in url or "v.daum.net" in url:
-        comments_data = fetch_daum_comments(url)
+    # 1) Google News URL인 경우 실제 URL로 해결
+    resolved_url = url
+    if "news.google.com" in url:
+        resolved_url = resolve_google_news_url(url) or url
+        if resolved_url != url:
+            print(f"[NewsScorer] 실제 URL: {resolved_url[:50]}...")
+
+    # 2) 뉴스 소스 판별 및 댓글 수집
+    if "naver.com" in resolved_url or "n.news.naver.com" in resolved_url:
+        comments_data = fetch_naver_comments(resolved_url)
+    elif "daum.net" in resolved_url or "v.daum.net" in resolved_url:
+        comments_data = fetch_daum_comments(resolved_url)
     else:
-        # Google News 등 다른 소스 → 원본 URL 추적 필요
-        comments_data = {"success": False, "error": "지원하지 않는 뉴스 소스"}
+        # 기타 소스 (연합뉴스, 조선일보 등) - 댓글 없음
+        comments_data = {"success": False, "error": f"댓글 미지원 소스: {urlparse(resolved_url).netloc}"}
 
     # 댓글 데이터 기반 점수 계산
     if comments_data.get("success"):
@@ -563,6 +681,7 @@ def analyze_news_viral_potential(
         "viral_score": viral_score,
         "comments_data": comments_data,
         "script_hints": script_hints,
+        "resolved_url": resolved_url,
     }
 
 
