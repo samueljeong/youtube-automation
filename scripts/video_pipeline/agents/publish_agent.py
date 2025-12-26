@@ -68,19 +68,28 @@ class PublishAgent(BaseAgent):
             title = youtube.get("title", "Untitled")
             description = youtube.get("description", "")
 
-            # description이 객체인 경우 문자열로 변환
+            # description이 객체인 경우 문자열로 변환 (원본 파이프라인과 동일)
             if isinstance(description, dict):
-                # description 객체를 문자열로 변환
-                desc_parts = []
-                if description.get("summary"):
-                    desc_parts.append(description.get("summary"))
-                if description.get("main"):
-                    desc_parts.append(description.get("main"))
-                if description.get("tags"):
-                    desc_parts.append(" ".join(f"#{t}" for t in description.get("tags", [])))
-                description = "\n\n".join(desc_parts) if desc_parts else str(description)
+                desc_dict = description  # 원본 dict 보존
+                # ★ 원본 파이프라인 구조: full_text, chapters, preview_2_lines
+                description = desc_dict.get("full_text", "")
+                if not description:
+                    # 폴백: 다른 구조 시도 (summary, main, tags)
+                    desc_parts = []
+                    if desc_dict.get("summary"):
+                        desc_parts.append(desc_dict.get("summary"))
+                    if desc_dict.get("main"):
+                        desc_parts.append(desc_dict.get("main"))
+                    if desc_dict.get("tags"):
+                        desc_parts.append(" ".join(f"#{t}" for t in desc_dict.get("tags", [])))
+                    description = "\n\n".join(desc_parts) if desc_parts else ""
             elif not isinstance(description, str):
                 description = str(description) if description else ""
+
+            # ★ 설명이 비어있으면 기본 설명 추가
+            if not description.strip():
+                description = f"📺 {title}\n\n영상을 시청해 주셔서 감사합니다."
+                self.log("description이 비어있어 기본 설명 사용", "warning")
 
             tags = youtube.get("tags", [])
 

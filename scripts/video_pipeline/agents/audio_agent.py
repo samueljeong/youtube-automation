@@ -53,7 +53,8 @@ class AudioAgent(BaseAgent):
                     error="씬 데이터 없음 - 먼저 분석을 실행하세요"
                 )
 
-            # 음성 결정
+            # 음성 결정 (로그 추가)
+            self.log(f"음성 소스: override={voice_override}, context.voice={context.voice}")
             voice = voice_override or context.voice or "ko-KR-Neural2-C"
 
             # 언어 감지
