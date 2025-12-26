@@ -105,6 +105,8 @@ class AgentPipelineRunner:
         publish_at = row_data.get("예약시간", "") or None
         playlist_id = row_data.get("플레이리스트ID", "") or None
         voice = row_data.get("음성", "ko-KR-Neural2-C") or "ko-KR-Neural2-C"
+        # ★ 카테고리 (news/story 등) - 원본 파이프라인과 동일
+        input_category = row_data.get("카테고리", "") or ""
 
         return VideoTaskContext(
             row_number=row_number,
@@ -118,6 +120,7 @@ class AgentPipelineRunner:
             playlist_id=playlist_id,
             voice=voice,
             project_suffix=selected_project,  # YouTube 프로젝트
+            input_category=input_category,  # ★ 카테고리 추가
         )
 
     def run_sync(
