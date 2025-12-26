@@ -848,3 +848,132 @@ curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON
 
 - `scripts/news_pipeline/run.py` - 메인 파이프라인 (채널 기반)
 - `scripts/news_pipeline/__init__.py` - 모듈 export
+
+---
+
+## 연예 쇼츠 바이럴 파이프라인 (2025-12-26)
+
+### 개요
+
+바이럴 점수 기반 자동 쇼츠 생성 시스템
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. RSS에서 연예 뉴스 수집                               │
+│     └── Google News RSS → 연예인/스포츠/국뽕 카테고리   │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  2. 바이럴 점수 계산 (댓글 크롤링)                       │
+│     ├── 네이버/다음 댓글 수집                           │
+│     ├── 댓글 수(40%) + 반응(30%) + 논쟁성(20%) + 신선도(10%)│
+│     └── S/A/B/C/D 등급 산정                            │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  3. 실제 댓글 기반 대본 생성                             │
+│     ├── 논쟁 주제 추출 (A vs B)                         │
+│     ├── 핫한 댓글 표현 반영                             │
+│     ├── 찬/반 의견 활용                                 │
+│     └── 댓글 유도 씬4 생성                              │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  4. 비디오 생성 (TTS + 이미지 + 렌더링)                  │
+│     ├── Gemini TTS (문장별 싱크)                        │
+│     ├── Gemini 이미지 생성 (4워커 병렬)                 │
+│     └── FFmpeg 렌더링 (Ken Burns + BGM)                 │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│  5. YouTube 업로드 (옵션)                               │
+│     └── 비공개/공개/예약 업로드                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### API 엔드포인트
+
+| 엔드포인트 | 메서드 | 설명 |
+|-----------|--------|------|
+| `/api/shorts/viral-pipeline` | POST | 바이럴 파이프라인 실행 |
+
+**Request JSON:**
+```json
+{
+    "min_score": 40,
+    "categories": ["연예인"],
+    "generate_video": true,
+    "upload_youtube": false,
+    "privacy_status": "private",
+    "channel_id": null
+}
+```
+
+**Response:**
+```json
+{
+    "ok": true,
+    "person": "아이유",
+    "viral_score": {"total_score": 75, "grade": "S"},
+    "script_hints": {"debate_topic": "...", "hot_phrases": [...]},
+    "video": {"path": "...", "duration": 45.5},
+    "youtube": {"video_url": "..."},
+    "cost": 0.84
+}
+```
+
+### CLI 사용법
+
+```bash
+# 바이럴 점수 기반 대본 생성만
+python -m scripts.shorts_pipeline.run --viral --min-score 40
+
+# 비디오까지 생성
+python -m scripts.shorts_pipeline.run --viral --video --min-score 40
+
+# 비디오 생성 + YouTube 업로드
+python -m scripts.shorts_pipeline.run --viral --video --upload --privacy public
+```
+
+### Render Cron 설정
+
+```bash
+# 매일 오전 8시 KST (전날 23:00 UTC) - 비디오 생성만
+0 23 * * * curl -X POST "https://drama-s2ns.onrender.com/api/shorts/viral-pipeline" \
+  -H "Content-Type: application/json" \
+  -d '{"min_score": 40, "generate_video": true}'
+
+# 매일 오전 9시 KST - 비디오 생성 + YouTube 업로드
+0 0 * * * curl -X POST "https://drama-s2ns.onrender.com/api/shorts/viral-pipeline" \
+  -H "Content-Type: application/json" \
+  -d '{"min_score": 40, "generate_video": true, "upload_youtube": true}'
+```
+
+### 바이럴 점수 계산 공식
+
+```
+총점 = 댓글수(40%) + 반응수(30%) + 논쟁성(20%) + 신선도(10%)
+
+- 댓글수: 0~500개 → 0~100점
+- 반응수: 0~1000개 → 0~100점
+- 논쟁성: 찬반비율이 50:50에 가까울수록 높음
+- 신선도: 6시간 이내 100점, 24시간 이상 50점
+
+등급:
+- S: 80점 이상 (강력 추천)
+- A: 60점 이상
+- B: 40점 이상
+- C: 20점 이상
+- D: 20점 미만
+```
+
+### 참고 파일
+
+- `scripts/shorts_pipeline/run.py` - 메인 파이프라인
+- `scripts/shorts_pipeline/news_scorer.py` - 바이럴 점수화 + 댓글 크롤링
+- `scripts/shorts_pipeline/news_collector.py` - 뉴스 수집 + 점수화 통합
+- `scripts/shorts_pipeline/script_generator.py` - 댓글 기반 대본 생성
