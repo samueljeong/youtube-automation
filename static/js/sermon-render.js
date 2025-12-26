@@ -155,7 +155,7 @@ function switchCategoryContent(category) {
 
 // ===== 스타일 렌더링 =====
 function renderStyles() {
-  console.log('[renderStyles] 호출됨');
+  console.log('[renderStyles] 호출됨 - UI 숨김 모드');
   console.log('[renderStyles] currentCategory:', window.currentCategory);
   console.log('[renderStyles] currentStyleId:', window.currentStyleId);
 
@@ -173,112 +173,35 @@ function renderStyles() {
 
   // 스타일이 없으면 기본 스타일 복구 (로컬에서만, Firebase에 저장하지 않음)
   if (styles.length === 0 && window.DEFAULT_STYLES) {
-    // 현재 카테고리의 기본 스타일이 있으면 사용, 없으면 general 스타일 사용
     const defaultStyles = window.DEFAULT_STYLES[window.currentCategory] || window.DEFAULT_STYLES['general'];
     if (defaultStyles && defaultStyles.length > 0) {
-      console.log('[renderStyles] 기본 스타일 복구 (로컬만):', window.currentCategory, '(using:', window.DEFAULT_STYLES[window.currentCategory] ? 'own' : 'general', ')');
+      console.log('[renderStyles] 기본 스타일 복구 (로컬만):', window.currentCategory);
       settings.styles = JSON.parse(JSON.stringify(defaultStyles));
       styles = settings.styles;
-      // 🔴 버그 수정: 자동 복구 시 Firebase에 저장하지 않음
-      // 기존 사용자 설정을 덮어쓰는 문제 방지
-      console.warn('[renderStyles] ⚠️ 기본 스타일이 로컬에만 복구됨. Firebase 설정 확인 필요.');
     }
   }
 
+  // ★ UI 렌더링 완전 비활성화 (2025-12-26)
+  // 스타일은 자연어 입력에서 자동 선택됨
   const container = document.getElementById('styles-list');
-
-  console.log('[renderStyles] 스타일 수:', styles.length);
-  if (styles.length > 0) {
-    console.log('[renderStyles] 스타일 목록:', styles.map(s => s.id + '(' + s.name + ')').join(', '));
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
   }
 
-  if (!container) {
-    console.warn('[renderStyles] styles-list 컨테이너를 찾을 수 없습니다');
-    return;
-  }
-
-  if (styles.length === 0) {
-    container.innerHTML = '<p style="color: #999; font-size: .85rem; text-align: center;">스타일을 추가하세요. (관리 버튼 클릭)</p>';
-    console.log('[renderStyles] 스타일이 없어서 안내 메시지 표시');
-    // 스타일이 없으면 UI 업데이트
-    updateAnalysisUI();
-    return;
-  }
-
-  container.style.display = 'flex';
-  container.style.flexWrap = 'wrap';
-  container.style.gap = '.5rem';
-
-  // ★ 주제설교(topical)는 선택 시 주제 입력란 표시
-  container.innerHTML = styles.map(style => {
-    const isActive = style.id === window.currentStyleId;
-    const isTopical = style.id === 'topical' || style.name.includes('주제');
-
-    if (isTopical && isActive) {
-      // 주제설교 선택됨 → 입력란 포함
-      const savedTheme = window.topicalTheme || '';
-      return `<div class="style-item active" data-style="${style.id}" style="flex: 1 1 auto; min-width: 160px; text-align: center; padding: .5rem .75rem;">
-        <div style="font-weight: 600; font-size: .85rem; display: flex; align-items: center; justify-content: center; gap: .4rem;">
-          ${style.name}
-          <input type="text" id="topical-theme-input"
-            value="${savedTheme}"
-            placeholder="주제 입력"
-            onclick="event.stopPropagation();"
-            style="width: 90px; font-size: .8rem; padding: .25rem .4rem; border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; background: rgba(255,255,255,0.9); color: #333;">
-        </div>
-      </div>`;
-    }
-
-    // 일반 스타일 버튼
-    return `<div class="style-item ${isActive ? 'active' : ''}" data-style="${style.id}" style="flex: 1 1 auto; min-width: 80px; text-align: center; padding: .5rem .75rem;">
-      <div style="font-weight: 600; font-size: .85rem;">${style.name}</div>
-    </div>`;
-  }).join('');
-
-  container.querySelectorAll('.style-item').forEach(item => {
-    item.addEventListener('click', () => {
-      console.log('[renderStyles] 스타일 클릭:', item.dataset.style);
-      window.currentStyleId = item.dataset.style;
-      window.stepResults = {};
-      window.titleOptions = [];
-      window.selectedTitle = '';
-      const titleBox = document.getElementById('title-selection-box');
-      if (titleBox) titleBox.style.display = 'none';
-      const gptProContainer = document.getElementById('gpt-pro-result-container');
-      if (gptProContainer) gptProContainer.style.display = 'none';
-      renderStyles();
-      renderProcessingSteps();
-      renderResultBoxes();
-      if (typeof renderGuideTabs === 'function') renderGuideTabs();
-      updateAnalysisUI();
-    });
-  });
-
-  // ★ 주제설교 입력란 이벤트 (값 저장)
-  const topicalInput = document.getElementById('topical-theme-input');
-  if (topicalInput) {
-    // 입력 시 실시간 저장
-    topicalInput.addEventListener('input', (e) => {
-      window.topicalTheme = e.target.value.trim();
-      console.log('[renderStyles] 주제 저장:', window.topicalTheme);
-    });
-    // 포커스 시 버튼 재렌더링 방지
-    topicalInput.addEventListener('focus', (e) => {
-      e.stopPropagation();
-    });
-    // 입력란 자동 포커스
-    setTimeout(() => topicalInput.focus(), 100);
-  }
-
-  // 스타일이 선택되어 있지 않으면 첫 번째 스타일 자동 선택
+  // 스타일이 선택되어 있지 않으면 기본값 설정 (UI 없이)
   if (!window.currentStyleId && styles.length > 0) {
     window.currentStyleId = styles[0].id;
-    console.log('[renderStyles] 첫 번째 스타일 자동 선택:', window.currentStyleId);
-    renderStyles();
-    renderProcessingSteps();
-  } else {
-    console.log('[renderStyles] 현재 선택된 스타일:', window.currentStyleId);
+    console.log('[renderStyles] 기본 스타일 자동 설정:', window.currentStyleId);
   }
+
+  // 스타일 ID가 아예 없으면 three_points 기본값
+  if (!window.currentStyleId) {
+    window.currentStyleId = 'three_points';
+    console.log('[renderStyles] three_points 기본값 설정');
+  }
+
+  console.log('[renderStyles] 최종 선택 스타일:', window.currentStyleId);
 }
 
 // ===== 분석 UI 업데이트 =====
