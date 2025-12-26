@@ -82,8 +82,18 @@ class AnalysisAgent(BaseAgent):
             if feedback:
                 payload["additional_instructions"] = f"이전 분석 피드백: {feedback}"
 
-            # API 호출
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            # API 호출 (timeout 설정 상세화)
+            timeout_config = httpx.Timeout(
+                timeout=self.timeout,
+                connect=30.0,  # 연결 타임아웃 30초
+                read=self.timeout,  # 읽기 타임아웃
+                write=60.0,  # 쓰기 타임아웃
+                pool=30.0  # 커넥션 풀 타임아웃
+            )
+
+            self.log(f"API 호출: {self.server_url}/api/image/analyze-script")
+
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
                 response = await client.post(
                     f"{self.server_url}/api/image/analyze-script",
                     json=payload
@@ -141,19 +151,37 @@ class AnalysisAgent(BaseAgent):
                 duration=duration
             )
 
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as e:
             self.set_status(AgentStatus.FAILED)
+            self.log(f"타임아웃 오류: {e}", "error")
             return AgentResult(
                 success=False,
                 error="대본 분석 타임아웃 (15분 초과)",
                 cost=0.0
             )
+        except httpx.ConnectError as e:
+            self.set_status(AgentStatus.FAILED)
+            self.log(f"연결 오류: {e} (server_url={self.server_url})", "error")
+            return AgentResult(
+                success=False,
+                error=f"API 서버 연결 실패: {self.server_url} - {e}",
+                cost=0.0
+            )
+        except httpx.HTTPStatusError as e:
+            self.set_status(AgentStatus.FAILED)
+            self.log(f"HTTP 오류: {e.response.status_code} - {e.response.text[:200]}", "error")
+            return AgentResult(
+                success=False,
+                error=f"API 오류 {e.response.status_code}: {e.response.text[:100]}",
+                cost=0.0
+            )
         except Exception as e:
             self.set_status(AgentStatus.FAILED)
+            self.log(f"예외 발생: {type(e).__name__}: {e}", "error")
             context.add_log(self.name, "analyze", "error", str(e))
             return AgentResult(
                 success=False,
-                error=str(e),
+                error=f"{type(e).__name__}: {e}",
                 cost=0.0
             )
 

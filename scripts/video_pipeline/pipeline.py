@@ -25,11 +25,17 @@ class AgentPipelineRunner:
     def __init__(self, server_url: str = None):
         """
         Args:
-            server_url: API 서버 URL (기본: 환경변수 또는 localhost:5059)
+            server_url: API 서버 URL (기본: 환경변수 또는 localhost:PORT)
         """
+        # Render 환경에서는 PORT 환경변수 사용
+        port = os.environ.get("PORT", "5059")
+        default_url = f"http://localhost:{port}"
+
         self.server_url = server_url or os.environ.get(
-            "API_SERVER_URL", "http://localhost:5059"
+            "API_SERVER_URL", default_url
         )
+        print(f"[AgentPipeline] server_url = {self.server_url}")
+
         self.supervisor = VideoSupervisorAgent(
             server_url=self.server_url,
             budget=1.00
