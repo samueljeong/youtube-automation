@@ -78,6 +78,7 @@ class PublishAgent(BaseAgent):
                 "tags": tags,
                 "privacyStatus": context.privacy_status or "private",
                 "channelId": context.channel_id,
+                "projectSuffix": context.project_suffix,  # YouTube 프로젝트 ('', '_2')
             }
 
             # 썸네일 경로 추가 (API가 처리)
@@ -193,6 +194,7 @@ class PublishAgent(BaseAgent):
                 "tags": ["shorts"],
                 "privacyStatus": context.privacy_status or "private",
                 "channelId": context.channel_id,
+                "projectSuffix": context.project_suffix,  # YouTube 프로젝트 ('', '_2')
             }
 
             async with httpx.AsyncClient(timeout=self.upload_timeout) as client:

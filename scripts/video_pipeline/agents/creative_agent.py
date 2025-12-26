@@ -73,6 +73,11 @@ class CreativeAgent(BaseAgent):
             total_cost += image_cost
             context.images = images
 
+            # ★ scenes에 이미지 URL 반영 (영상 생성에 필요)
+            for idx, image_path in enumerate(images):
+                if image_path and idx < len(context.scenes):
+                    context.scenes[idx]['image_url'] = image_path
+
             # 2. 썸네일 생성
             thumbnail_path, thumbnail_cost = await self._generate_thumbnail(context)
             total_cost += thumbnail_cost

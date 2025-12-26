@@ -19756,11 +19756,11 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 }
 
                 print(f"[AGENT] ========== 에이전트 파이프라인 시작 ==========", flush=True)
-                print(f"[AGENT] 행 {row_index}, 대본 {len(row_dict['대본'])}자", flush=True)
+                print(f"[AGENT] 행 {row_index}, 대본 {len(row_dict['대본'])}자, 프로젝트={selected_project or '기본'}", flush=True)
 
                 # 비동기 실행
                 video_url, error, cost = asyncio.run(
-                    run_agent_pipeline(row_dict, row_index, sheet_name="")
+                    run_agent_pipeline(row_dict, row_index, sheet_name="", selected_project=selected_project)
                 )
 
                 if video_url:

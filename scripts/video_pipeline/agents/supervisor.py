@@ -282,12 +282,13 @@ class VideoSupervisorAgent(BaseAgent):
         strategy: PipelineStrategy
     ) -> AgentResult:
         """대본 분석 실행"""
-        # 채널 스타일 분석 (있으면)
+        # 채널 스타일 분석 - API 없으므로 비활성화
+        # TODO: /api/channel/style 엔드포인트 구현 후 활성화
         channel_style = None
-        if context.channel_id:
-            channel_style = await self.analysis_agent.analyze_channel_style(
-                context.channel_id
-            )
+        # if context.channel_id:
+        #     channel_style = await self.analysis_agent.analyze_channel_style(
+        #         context.channel_id
+        #     )
 
         result = await self.analysis_agent.execute_with_retry(
             context,

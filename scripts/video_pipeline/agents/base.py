@@ -74,6 +74,7 @@ class VideoTaskContext:
     publish_at: Optional[str] = None
     playlist_id: Optional[str] = None
     voice: str = "ko-KR-Neural2-C"
+    project_suffix: str = ""  # YouTube 프로젝트 ('', '_2')
 
     # 분석 결과
     analysis_result: Optional[Dict[str, Any]] = None

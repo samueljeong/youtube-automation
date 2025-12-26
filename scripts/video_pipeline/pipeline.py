@@ -46,6 +46,7 @@ class AgentPipelineRunner:
         row_data: Dict[str, Any],
         row_number: int,
         sheet_name: str = "",
+        selected_project: str = "",
         **kwargs
     ) -> Tuple[Optional[str], Optional[str], float]:
         """
@@ -55,13 +56,14 @@ class AgentPipelineRunner:
             row_data: Google Sheets 행 데이터 (딕셔너리)
             row_number: 행 번호
             sheet_name: 시트 이름
+            selected_project: YouTube 프로젝트 ('', '_2')
             **kwargs: 추가 옵션
 
         Returns:
             (video_url, error_message, cost)
         """
         # 컨텍스트 생성
-        context = self._create_context(row_data, row_number, sheet_name)
+        context = self._create_context(row_data, row_number, sheet_name, selected_project)
 
         logger.info(f"[AgentPipeline] 시작: 시트={sheet_name}, 행={row_number}")
 
@@ -79,7 +81,8 @@ class AgentPipelineRunner:
         self,
         row_data: Dict[str, Any],
         row_number: int,
-        sheet_name: str
+        sheet_name: str,
+        selected_project: str = ""
     ) -> VideoTaskContext:
         """
         Google Sheets 행 데이터에서 VideoTaskContext 생성
@@ -88,6 +91,7 @@ class AgentPipelineRunner:
             row_data: 행 데이터 딕셔너리
             row_number: 행 번호
             sheet_name: 시트 이름
+            selected_project: YouTube 프로젝트 ('', '_2')
 
         Returns:
             VideoTaskContext
@@ -113,6 +117,7 @@ class AgentPipelineRunner:
             publish_at=publish_at,
             playlist_id=playlist_id,
             voice=voice,
+            project_suffix=selected_project,  # YouTube 프로젝트
         )
 
     def run_sync(
@@ -143,6 +148,7 @@ async def run_agent_pipeline(
     row_number: int,
     sheet_name: str = "",
     server_url: str = None,
+    selected_project: str = "",  # YouTube 프로젝트 ('', '_2')
     **kwargs
 ) -> Tuple[Optional[str], Optional[str], float]:
     """
@@ -174,7 +180,7 @@ async def run_agent_pipeline(
         (video_url, error_message, cost)
     """
     runner = get_runner(server_url)
-    return await runner.run(row_data, row_number, sheet_name, **kwargs)
+    return await runner.run(row_data, row_number, sheet_name, selected_project=selected_project, **kwargs)
 
 
 def run_agent_pipeline_sync(
