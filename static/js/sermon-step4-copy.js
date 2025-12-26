@@ -164,6 +164,57 @@ async function assembleGptProDraft() {
             });
             summary += '\n';
           }
+          // ★ 2025-12-26 추가: cross_references (참조 구절)
+          if (parsed.cross_references && Array.isArray(parsed.cross_references) && parsed.cross_references.length > 0) {
+            summary += `▶ 참조 구절 (상위 5개):\n`;
+            parsed.cross_references.slice(0, 5).forEach((ref, i) => {
+              if (typeof ref === 'object') {
+                const refId = ref.ref_id || '';
+                const reference = ref.reference || ref.ref || '';
+                const reason = ref.reason || ref.connection || '';
+                summary += `  ${i+1}. [${refId}] ${reference}`;
+                if (reason) summary += `: ${reason.substring(0, 60)}${reason.length > 60 ? '...' : ''}`;
+                summary += '\n';
+              } else {
+                summary += `  ${i+1}. ${ref}\n`;
+              }
+            });
+            summary += '\n';
+          }
+          // ★ 2025-12-26 추가: context_links (문맥 연결)
+          if (parsed.context_links && typeof parsed.context_links === 'object') {
+            const ctx = parsed.context_links;
+            const preceding = ctx.preceding_context || ctx.앞_문맥;
+            const following = ctx.following_context || ctx.뒤_문맥;
+            const bookCtx = ctx.book_context || ctx.책_전체_맥락;
+            if (preceding || following || bookCtx) {
+              summary += `▶ 문맥 연결:\n`;
+              if (preceding) summary += `  [앞 문맥] ${String(preceding).substring(0, 100)}${String(preceding).length > 100 ? '...' : ''}\n`;
+              if (following) summary += `  [뒤 문맥] ${String(following).substring(0, 100)}${String(following).length > 100 ? '...' : ''}\n`;
+              if (bookCtx) summary += `  [책 전체] ${String(bookCtx).substring(0, 100)}${String(bookCtx).length > 100 ? '...' : ''}\n`;
+              summary += '\n';
+            }
+          }
+          // ★ 2025-12-26 추가: geography_people (지리/인물)
+          if (parsed.geography_people && typeof parsed.geography_people === 'object') {
+            const geo = parsed.geography_people;
+            const places = geo.places || [];
+            const people = geo.people_groups || geo.people || [];
+            if ((places.length > 0) || (people.length > 0)) {
+              summary += `▶ 지리/인물 정보:\n`;
+              if (places.length > 0) {
+                summary += `  [장소] `;
+                summary += places.slice(0, 3).map(p => typeof p === 'object' ? `${p.place_id || ''}: ${p.name || p.place || ''}` : p).join(', ');
+                summary += '\n';
+              }
+              if (people.length > 0) {
+                summary += `  [인물/그룹] `;
+                summary += people.slice(0, 3).map(p => typeof p === 'object' ? `${p.people_id || p.group_id || ''}: ${p.name || p.group || ''}` : p).join(', ');
+                summary += '\n';
+              }
+              summary += '\n';
+            }
+          }
           draft += summary || stepResult;
         } else if (stepType === 'step2') {
           // Step2 핵심 요약

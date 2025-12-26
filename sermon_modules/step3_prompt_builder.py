@@ -1299,6 +1299,75 @@ def build_step3_prompt_from_json(
                             draft += f"  - {idea}\n"
                         draft += "\n"
 
+            # 9. cross_references (★ 2025-12-26 추가: 참조 구절 - 주제설교에 특히 중요)
+            if step1_result.get("cross_references"):
+                cross_refs = step1_result["cross_references"]
+                if isinstance(cross_refs, list) and cross_refs:
+                    draft += f"▶ 참조 구절 (Cross References):\n"
+                    for ref in cross_refs[:5]:  # 상위 5개
+                        if isinstance(ref, dict):
+                            ref_id = ref.get("ref_id", "")
+                            reference = ref.get("reference", ref.get("ref", ""))
+                            reason = ref.get("reason", ref.get("connection", ""))
+                            draft += f"  - [{ref_id}] {reference}"
+                            if reason:
+                                draft += f": {reason[:80]}{'...' if len(str(reason)) > 80 else ''}"
+                            draft += "\n"
+                        else:
+                            draft += f"  - {ref}\n"
+                    draft += "\n"
+
+            # 10. context_links (★ 2025-12-26 추가: 앞뒤 문맥 연결)
+            if step1_result.get("context_links"):
+                ctx_links = step1_result["context_links"]
+                if isinstance(ctx_links, dict):
+                    draft += f"▶ 문맥 연결 (Context Links):\n"
+                    if ctx_links.get("preceding_context") or ctx_links.get("앞_문맥"):
+                        preceding = ctx_links.get("preceding_context") or ctx_links.get("앞_문맥")
+                        draft += f"  [앞 문맥] {preceding[:150]}{'...' if len(str(preceding)) > 150 else ''}\n"
+                    if ctx_links.get("following_context") or ctx_links.get("뒤_문맥"):
+                        following = ctx_links.get("following_context") or ctx_links.get("뒤_문맥")
+                        draft += f"  [뒤 문맥] {following[:150]}{'...' if len(str(following)) > 150 else ''}\n"
+                    if ctx_links.get("book_context") or ctx_links.get("책_전체_맥락"):
+                        book_ctx = ctx_links.get("book_context") or ctx_links.get("책_전체_맥락")
+                        draft += f"  [책 전체] {book_ctx[:150]}{'...' if len(str(book_ctx)) > 150 else ''}\n"
+                    draft += "\n"
+
+            # 11. geography_people (★ 2025-12-26 추가: 지리/인물 정보)
+            if step1_result.get("geography_people"):
+                geo_people = step1_result["geography_people"]
+                if isinstance(geo_people, dict):
+                    has_content = False
+                    places = geo_people.get("places", [])
+                    people = geo_people.get("people_groups", geo_people.get("people", []))
+
+                    if places or people:
+                        draft += f"▶ 지리/인물 정보:\n"
+                        has_content = True
+
+                    if places and isinstance(places, list):
+                        draft += f"  [장소] "
+                        place_strs = []
+                        for p in places[:3]:  # 상위 3개
+                            if isinstance(p, dict):
+                                place_strs.append(f"{p.get('place_id', '')}: {p.get('name', p.get('place', ''))}")
+                            else:
+                                place_strs.append(str(p))
+                        draft += ", ".join(place_strs) + "\n"
+
+                    if people and isinstance(people, list):
+                        draft += f"  [인물/그룹] "
+                        people_strs = []
+                        for p in people[:3]:  # 상위 3개
+                            if isinstance(p, dict):
+                                people_strs.append(f"{p.get('people_id', p.get('group_id', ''))}: {p.get('name', p.get('group', ''))}")
+                            else:
+                                people_strs.append(str(p))
+                        draft += ", ".join(people_strs) + "\n"
+
+                    if has_content:
+                        draft += "\n"
+
         else:
             # 문자열인 경우 길이 제한
             if len(str(step1_result)) > 2000:
