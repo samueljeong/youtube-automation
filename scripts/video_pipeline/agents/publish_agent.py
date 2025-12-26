@@ -67,6 +67,21 @@ class PublishAgent(BaseAgent):
             youtube = context.youtube_metadata or {}
             title = youtube.get("title", "Untitled")
             description = youtube.get("description", "")
+
+            # description이 객체인 경우 문자열로 변환
+            if isinstance(description, dict):
+                # description 객체를 문자열로 변환
+                desc_parts = []
+                if description.get("summary"):
+                    desc_parts.append(description.get("summary"))
+                if description.get("main"):
+                    desc_parts.append(description.get("main"))
+                if description.get("tags"):
+                    desc_parts.append(" ".join(f"#{t}" for t in description.get("tags", [])))
+                description = "\n\n".join(desc_parts) if desc_parts else str(description)
+            elif not isinstance(description, str):
+                description = str(description) if description else ""
+
             tags = youtube.get("tags", [])
 
             # 업로드 요청 - API가 videoPath를 직접 받음
