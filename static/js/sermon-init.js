@@ -1079,9 +1079,13 @@ function confirmSelection(idx) {
   // ★ 시작 버튼 이벤트 바인딩 (중요!)
   const startBtn = document.getElementById('btn-start-analysis');
   if (startBtn) {
+    // 버튼 표시 (이전에 숨겨졌을 수 있음)
+    startBtn.style.display = 'block';
+
     // 기존 이벤트 제거 후 새로 바인딩
     startBtn.replaceWith(startBtn.cloneNode(true));
     const newStartBtn = document.getElementById('btn-start-analysis');
+    newStartBtn.style.display = 'block';  // 클론 후에도 표시 확인
     newStartBtn.addEventListener('click', () => {
       console.log('[StartBtn] 설교 준비 시작 클릭');
       if (typeof startAutoAnalysis === 'function') {
