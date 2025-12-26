@@ -1719,6 +1719,88 @@ def run_full_pipeline(
 
 
 # ============================================================
+# YouTube 업로드
+# ============================================================
+
+def upload_to_youtube(
+    video_path: str,
+    title: str,
+    description: str = "",
+    tags: List[str] = None,
+    privacy_status: str = "private",
+    channel_id: str = None,
+    playlist_id: str = None,
+) -> Dict[str, Any]:
+    """
+    YouTube에 쇼츠 영상 업로드
+
+    내부적으로 /api/youtube/upload 엔드포인트를 호출합니다.
+
+    Args:
+        video_path: 업로드할 영상 경로
+        title: 영상 제목
+        description: 영상 설명
+        tags: 태그 목록
+        privacy_status: 공개 설정 (private/public/unlisted)
+        channel_id: YouTube 채널 ID (선택)
+        playlist_id: 플레이리스트 ID (선택)
+
+    Returns:
+        {
+            "ok": True,
+            "video_id": "...",
+            "video_url": "https://www.youtube.com/watch?v=...",
+        }
+    """
+    import requests as http_requests
+
+    try:
+        # API 서버 URL (로컬 또는 배포 환경)
+        api_base = os.environ.get("API_BASE_URL", "http://localhost:5003")
+
+        print(f"[SHORTS] YouTube 업로드 시작: {title[:30]}...")
+
+        payload = {
+            "videoPath": video_path,
+            "title": title,
+            "description": description,
+            "tags": tags or [],
+            "categoryId": "22",  # People & Blogs
+            "privacyStatus": privacy_status,
+        }
+
+        if channel_id:
+            payload["channelId"] = channel_id
+        if playlist_id:
+            payload["playlistId"] = playlist_id
+
+        response = http_requests.post(
+            f"{api_base}/api/youtube/upload",
+            json=payload,
+            timeout=600  # 10분 타임아웃
+        )
+
+        result = response.json()
+
+        if result.get("ok"):
+            video_url = result.get("videoUrl", "")
+            print(f"[SHORTS] YouTube 업로드 성공: {video_url}")
+            return {
+                "ok": True,
+                "video_id": result.get("videoId"),
+                "video_url": video_url,
+            }
+        else:
+            error = result.get("error", "Unknown error")
+            print(f"[SHORTS] YouTube 업로드 실패: {error}")
+            return {"ok": False, "error": error}
+
+    except Exception as e:
+        print(f"[SHORTS] YouTube 업로드 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
 # 바이럴 점수 기반 파이프라인 (자동 최적 뉴스 선택)
 # ============================================================
 
@@ -1726,6 +1808,9 @@ def run_viral_pipeline(
     min_score: float = 40,
     categories: List[str] = None,
     generate_video: bool = True,
+    upload_youtube: bool = False,
+    privacy_status: str = "private",
+    channel_id: str = None,
     save_to_sheet: bool = True
 ) -> Dict[str, Any]:
     """
@@ -1736,12 +1821,16 @@ def run_viral_pipeline(
     2. 네이버/다음 댓글 크롤링 → 바이럴 점수 계산
     3. 가장 점수 높은 뉴스 선정
     4. 실제 댓글을 반영한 대본 생성
-    5. 비디오 생성 및 업로드
+    5. 비디오 생성
+    6. (옵션) YouTube 업로드
 
     Args:
         min_score: 최소 바이럴 점수 (기본 40)
         categories: 수집할 카테고리 (None이면 전체)
         generate_video: 비디오 생성 여부
+        upload_youtube: YouTube 업로드 여부 (기본 False)
+        privacy_status: YouTube 공개 설정 (private/public/unlisted)
+        channel_id: YouTube 채널 ID (선택)
         save_to_sheet: 시트에 저장 여부
 
     Returns:
@@ -1751,6 +1840,7 @@ def run_viral_pipeline(
             "viral_score": {...},
             "script_hints": {...},
             "video_path": "...",
+            "youtube_url": "...",
             "cost": 0.84
         }
     """
@@ -1852,6 +1942,36 @@ def run_viral_pipeline(
                 print(f"[SHORTS] 비디오 생성 실패: {video_result.get('error')}")
 
         # ============================================================
+        # 5단계: YouTube 업로드 (옵션)
+        # ============================================================
+        youtube_result = None
+        if upload_youtube and video_result and video_result.get("ok"):
+            print("\n[SHORTS] === 4단계: YouTube 업로드 ===\n")
+
+            # 제목: 쇼츠 제목 사용
+            yt_title = script_result.get("title", f"{person} 이슈")
+            if len(yt_title) > 100:
+                yt_title = yt_title[:97] + "..."
+
+            # 설명: 해시태그 포함
+            hashtags = script_result.get("hashtags", [f"#{person}", "#쇼츠"])
+            yt_description = f"{yt_title}\n\n{' '.join(hashtags)}"
+
+            youtube_result = upload_to_youtube(
+                video_path=video_result.get("video_path"),
+                title=yt_title,
+                description=yt_description,
+                tags=[person, issue_type, "쇼츠", "연예뉴스"],
+                privacy_status=privacy_status,
+                channel_id=channel_id,
+            )
+
+            if youtube_result.get("ok"):
+                print(f"[SHORTS] YouTube 업로드 성공: {youtube_result.get('video_url')}")
+            else:
+                print(f"[SHORTS] YouTube 업로드 실패: {youtube_result.get('error')}")
+
+        # ============================================================
         # 완료
         # ============================================================
         end_time = datetime.now(timezone.utc)
@@ -1882,6 +2002,12 @@ def run_viral_pipeline(
                 "duration": video_result.get("duration"),
             }
 
+        if youtube_result and youtube_result.get("ok"):
+            result["youtube"] = {
+                "video_id": youtube_result.get("video_id"),
+                "video_url": youtube_result.get("video_url"),
+            }
+
         print(f"\n{'#'*60}")
         print(f"# 바이럴 파이프라인 완료!")
         print(f"# 인물: {person} ({viral_score.get('grade', 'N/A')}등급)")
@@ -1910,6 +2036,9 @@ if __name__ == "__main__":
     parser.add_argument("--full", action="store_true", help="전체 파이프라인 (수집+대본+비디오)")
     parser.add_argument("--viral", action="store_true", help="바이럴 점수 기반 자동 파이프라인")
     parser.add_argument("--min-score", type=float, default=40, help="최소 바이럴 점수 (viral 모드)")
+    parser.add_argument("--upload", action="store_true", help="YouTube 업로드 (viral 모드)")
+    parser.add_argument("--privacy", type=str, default="private", help="YouTube 공개 설정 (private/public/unlisted)")
+    parser.add_argument("--channel-id", type=str, help="YouTube 채널 ID")
     parser.add_argument("--person", type=str, help="특정 인물")
     parser.add_argument("--limit", type=int, default=1, help="처리할 행 수")
     parser.add_argument("--create-sheet", action="store_true", help="시트 생성만")
@@ -1925,7 +2054,10 @@ if __name__ == "__main__":
         # 바이럴 점수 기반 자동 파이프라인
         result = run_viral_pipeline(
             min_score=args.min_score,
-            generate_video=args.video
+            generate_video=args.video,
+            upload_youtube=args.upload,
+            privacy_status=args.privacy,
+            channel_id=args.channel_id,
         )
         print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
     elif args.collect:

@@ -24238,6 +24238,9 @@ def api_shorts_viral_pipeline():
             "min_score": 40,           # 최소 바이럴 점수 (기본 40)
             "categories": ["연예인"],  # 수집할 카테고리 (선택)
             "generate_video": true,    # 비디오 생성 여부 (기본 true)
+            "upload_youtube": false,   # YouTube 업로드 여부 (기본 false)
+            "privacy_status": "private", # YouTube 공개 설정
+            "channel_id": null,        # YouTube 채널 ID (선택)
             "save_to_sheet": true      # 시트 저장 여부 (기본 true)
         }
 
@@ -24265,13 +24268,23 @@ def api_shorts_viral_pipeline():
                 "path": "/tmp/shorts_xxx/final.mp4",
                 "duration": 45.5
             },
+            "youtube": {
+                "video_id": "...",
+                "video_url": "https://www.youtube.com/watch?v=..."
+            },
             "cost": 0.84
         }
 
     cURL 예시:
+        # 비디오 생성만
         curl -X POST https://drama-s2ns.onrender.com/api/shorts/viral-pipeline \\
           -H "Content-Type: application/json" \\
           -d '{"min_score": 40, "generate_video": true}'
+
+        # 비디오 생성 + YouTube 업로드
+        curl -X POST https://drama-s2ns.onrender.com/api/shorts/viral-pipeline \\
+          -H "Content-Type: application/json" \\
+          -d '{"min_score": 40, "generate_video": true, "upload_youtube": true}'
     """
     try:
         from scripts.shorts_pipeline.run import run_viral_pipeline
@@ -24281,15 +24294,21 @@ def api_shorts_viral_pipeline():
         min_score = data.get("min_score", 40)
         categories = data.get("categories")
         generate_video = data.get("generate_video", True)
+        upload_youtube = data.get("upload_youtube", False)
+        privacy_status = data.get("privacy_status", "private")
+        channel_id = data.get("channel_id")
         save_to_sheet = data.get("save_to_sheet", True)
 
         print(f"[API] /api/shorts/viral-pipeline 호출")
-        print(f"[API] 파라미터: min_score={min_score}, generate_video={generate_video}")
+        print(f"[API] 파라미터: min_score={min_score}, generate_video={generate_video}, upload_youtube={upload_youtube}")
 
         result = run_viral_pipeline(
             min_score=min_score,
             categories=categories,
             generate_video=generate_video,
+            upload_youtube=upload_youtube,
+            privacy_status=privacy_status,
+            channel_id=channel_id,
             save_to_sheet=save_to_sheet
         )
 
