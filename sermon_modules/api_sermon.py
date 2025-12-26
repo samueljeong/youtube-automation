@@ -1942,7 +1942,7 @@ def analyze_natural_input():
             result["usage"] = {
                 "input": usage.prompt_tokens,
                 "output": usage.completion_tokens,
-                "cost": calculate_cost(usage.prompt_tokens, usage.completion_tokens, "gpt-4o-mini")
+                "cost": calculate_cost("gpt-4o-mini", usage.prompt_tokens, usage.completion_tokens)
             }
 
             return jsonify(result)
