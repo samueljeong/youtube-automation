@@ -175,9 +175,11 @@ class ProductionAgent(BaseAgent):
                 state = status.get("status", "unknown")
 
                 if state == "completed":
+                    # API는 video_url 반환 (파일 경로)
+                    video_path = status.get("video_url") or status.get("video_path")
                     return {
                         "ok": True,
-                        "video_path": status.get("video_path"),
+                        "video_path": video_path,
                         "duration": status.get("duration"),
                     }
                 elif state == "failed":
