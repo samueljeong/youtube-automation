@@ -113,16 +113,18 @@ def generate_tts(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
 
-        # 이슈 타입별 음성 설정
+        # 이슈 타입별 음성 설정 (음성 + 속도)
         voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
         voice_name = voice_config.get("voice", TTS_CONFIG["voice"])
+        speaking_rate = voice_config.get("rate", TTS_CONFIG.get("speaking_rate", 1.2))
 
-        print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}")
+        print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}, 속도={speaking_rate}x")
 
         # Gemini TTS REST API 호출
         model = "gemini-2.5-flash-preview-tts"  # TTS 전용 모델
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
+        # ★ speakingRate 포함 (쇼츠용 120% 속도)
         payload = {
             "contents": [{"parts": [{"text": text}]}],
             "generationConfig": {
@@ -132,7 +134,8 @@ def generate_tts(
                         "prebuiltVoiceConfig": {
                             "voiceName": voice_name
                         }
-                    }
+                    },
+                    "speakingRate": speaking_rate
                 }
             }
         }
@@ -262,27 +265,57 @@ def generate_tts_with_timing(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
 
-        # 음성 설정
+        # 음성 설정 (이슈 타입별 음성 + 속도)
         voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
         voice_name = voice_config.get("voice", TTS_CONFIG["voice"])
+        speaking_rate = voice_config.get("rate", TTS_CONFIG.get("speaking_rate", 1.2))
 
-        # 1) 전체 텍스트에서 문장 추출
+        # 1) 전체 텍스트에서 문장 추출 (짧은 문장 병합)
+        # ★ 한국어 뉴스 스타일: "박나래. 갑질 의혹. 그냥 의혹 아냐."
+        #    → 마침표가 임팩트용이므로 너무 짧게 쪼개지면 병합
+        MIN_SENTENCE_LENGTH = 15  # 최소 15자 이상으로 병합
+
         all_sentences = []
         for scene in scenes:
             narration = scene.get("narration", "").strip()
             if not narration:
                 continue
+
             # 문장 분리 (. ! ? 기준)
-            sentences = re.split(r'(?<=[.!?。])\s*', narration)
-            for sent in sentences:
+            raw_sentences = re.split(r'(?<=[.!?。])\s*', narration)
+
+            # 짧은 문장 병합
+            merged = []
+            buffer = ""
+            for sent in raw_sentences:
                 sent = sent.strip()
-                if sent and len(sent) > 1:
-                    all_sentences.append(sent)
+                if not sent or len(sent) <= 1:
+                    continue
+
+                if buffer:
+                    buffer += " " + sent
+                else:
+                    buffer = sent
+
+                # 버퍼가 충분히 길면 추가
+                if len(buffer) >= MIN_SENTENCE_LENGTH:
+                    merged.append(buffer)
+                    buffer = ""
+
+            # 남은 버퍼 처리
+            if buffer:
+                if merged and len(buffer) < MIN_SENTENCE_LENGTH:
+                    # 너무 짧으면 마지막 문장에 붙이기
+                    merged[-1] += " " + buffer
+                else:
+                    merged.append(buffer)
+
+            all_sentences.extend(merged)
 
         if not all_sentences:
             raise ValueError("TTS 생성할 문장이 없습니다")
 
-        print(f"[SHORTS] TTS 생성 중: {len(all_sentences)}개 문장, 음성={voice_name}")
+        print(f"[SHORTS] TTS 생성 중: {len(all_sentences)}개 문장, 음성={voice_name}, 속도={speaking_rate}x")
 
         # 2) 문장별 TTS 생성
         sentence_audios = []
@@ -294,6 +327,7 @@ def generate_tts_with_timing(
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         for idx, sentence in enumerate(all_sentences):
+            # Gemini TTS API 페이로드 (speakingRate 포함)
             payload = {
                 "contents": [{"parts": [{"text": sentence}]}],
                 "generationConfig": {
@@ -303,7 +337,9 @@ def generate_tts_with_timing(
                             "prebuiltVoiceConfig": {
                                 "voiceName": voice_name
                             }
-                        }
+                        },
+                        # ★ 쇼츠용 120% 속도 (이슈 타입별 다름)
+                        "speakingRate": speaking_rate
                     }
                 }
             }
