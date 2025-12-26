@@ -349,14 +349,13 @@ function updateAnalysisUI() {
   } else if (!ref) {
     buttonAction = 'hide (no ref)';
     startBtn.style.display = 'none';
-    setGuideMessage('📖 성경본문을 입력해주세요');
+    setGuideMessage('🔍 위에서 입력 후 분석 버튼을 눌러주세요');
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   } else if (!window.currentStyleId) {
-    // ref는 있지만 스타일이 선택되지 않음
-    buttonAction = 'hide (no style selected)';
-    startBtn.style.display = 'none';
-    setGuideMessage('👆 위에서 설교 스타일을 선택해주세요');
+    // ref는 있지만 스타일이 선택되지 않음 - 자동 선택 시도
+    window.currentStyleId = 'three_points';  // 기본값
+    buttonAction = 'auto style set';
     if (step3Box) { step3Box.style.opacity = '0.5'; step3Box.style.pointerEvents = 'none'; }
     if (step4Box) { step4Box.style.opacity = '0.5'; step4Box.style.pointerEvents = 'none'; }
   } else if (!analysisInProgress) {
