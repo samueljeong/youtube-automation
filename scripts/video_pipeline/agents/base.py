@@ -75,6 +75,7 @@ class VideoTaskContext:
     playlist_id: Optional[str] = None
     voice: str = "ko-KR-Neural2-C"
     project_suffix: str = ""  # YouTube 프로젝트 ('', '_2')
+    input_category: str = ""  # 시트에서 입력된 카테고리 (news 등)
 
     # 분석 결과
     analysis_result: Optional[Dict[str, Any]] = None

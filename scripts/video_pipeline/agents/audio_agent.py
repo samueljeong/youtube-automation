@@ -63,12 +63,23 @@ class AudioAgent(BaseAgent):
             session_id = f"agent_{context.task_id}_{int(time.time())}"
             self.log(f"TTS 생성 시작: {len(context.scenes)}개 씬, 음성={voice}, session={session_id}")
 
+            # ★ TTS API 형식으로 씬 데이터 변환 (원본 파이프라인과 동일)
+            # API는 'text' 필드를 기대하지만, AnalysisAgent는 'narration' 필드를 반환
+            scenes_for_tts = []
+            for i, scene in enumerate(context.scenes):
+                scenes_for_tts.append({
+                    "scene_number": i + 1,
+                    "text": scene.get("narration", ""),  # ★ narration → text 변환
+                    "image_url": scene.get("image_url", ""),
+                    "subtitle_segments": scene.get("subtitle_segments", []),
+                })
+
             # API 호출 데이터 준비
             payload = {
                 "session_id": session_id,  # ★ session_id 전달 (영상 생성에 필요)
-                "scenes": context.scenes,
-                "language": language,
-                "base_voice": voice,
+                "scenes": scenes_for_tts,  # ★ 변환된 씬 데이터 사용
+                "voice": voice,  # ★ 'base_voice'가 아니라 'voice'
+                "include_images": False,  # ★ 이미지 포함 안함
             }
 
             # API 호출
@@ -91,6 +102,15 @@ class AudioAgent(BaseAgent):
             result["session_id"] = session_id
             context.tts_result = result
             context.subtitles = result.get("subtitles", [])
+
+            # ★ scenes에 audio_url, duration, subtitles 반영 (영상 생성에 필요)
+            scene_metadata = result.get("scene_metadata", [])
+            for sm in scene_metadata:
+                idx = sm.get("scene_idx", -1)
+                if 0 <= idx < len(context.scenes):
+                    context.scenes[idx]["audio_url"] = sm.get("audio_url")
+                    context.scenes[idx]["duration"] = sm.get("duration", 5)
+                    context.scenes[idx]["subtitles"] = sm.get("subtitles", [])
 
             duration = time.time() - start_time
             cost = result.get("cost", 0.0)
