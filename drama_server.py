@@ -11057,11 +11057,11 @@ sepia and earth tone color palette, aged parchment texture border, vintage canva
 digital painting with visible brush strokes,
 dramatic lighting, misty atmospheric perspective,
 clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER: cute Korean scholar mascot (round face with round glasses, black topknot hairstyle, beige hanbok with olive vest, holding scroll, warm earth tones, thick outlines, 10-15% of frame),
+BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only,
 NO text, NO watermark, NO labels,
 16:9 cinematic composition''',
-                'forbidden': 'NO photorealistic, NO anime style, NO modern clothing, NO modern elements, NO suits, NO t-shirts, NO jeans',
-                'required': 'Sepia tones, aged texture, historical atmosphere, mascot character, PERIOD-ACCURATE COSTUMES for all characters'
+                'forbidden': 'NO photorealistic, NO anime style, NO modern clothing, NO modern elements, NO suits, NO t-shirts, NO jeans, NO square glasses on mascot, NO different mascot designs between images',
+                'required': 'Sepia tones, aged texture, historical atmosphere, IDENTICAL mascot in every image (round face, circular wire-frame glasses, black topknot, cream hanbok, olive-green vest, bamboo scroll), PERIOD-ACCURATE COSTUMES for all characters'
             },
             'news': {
                 'name': 'Modern News Infographic',
