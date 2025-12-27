@@ -66,6 +66,8 @@ from .sheets import (
 from .news_collector import (
     collect_entertainment_news,
     search_celebrity_news,
+    collect_and_score_news,
+    get_best_news_for_shorts,
 )
 from .script_generator import (
     generate_complete_shorts_package,
@@ -111,16 +113,18 @@ def generate_tts(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
 
-        # 이슈 타입별 음성 설정
+        # 이슈 타입별 음성 설정 (음성 + 속도)
         voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
         voice_name = voice_config.get("voice", TTS_CONFIG["voice"])
+        speaking_rate = voice_config.get("rate", TTS_CONFIG.get("speaking_rate", 1.2))
 
-        print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}")
+        print(f"[SHORTS] TTS 생성 중: {len(text)}자, 음성={voice_name}, 속도={speaking_rate}x")
 
         # Gemini TTS REST API 호출
         model = "gemini-2.5-flash-preview-tts"  # TTS 전용 모델
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
+        # ★ speakingRate 포함 (쇼츠용 120% 속도)
         payload = {
             "contents": [{"parts": [{"text": text}]}],
             "generationConfig": {
@@ -130,7 +134,8 @@ def generate_tts(
                         "prebuiltVoiceConfig": {
                             "voiceName": voice_name
                         }
-                    }
+                    },
+                    "speakingRate": speaking_rate
                 }
             }
         }
@@ -260,27 +265,57 @@ def generate_tts_with_timing(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
 
-        # 음성 설정
+        # 음성 설정 (이슈 타입별 음성 + 속도)
         voice_config = TTS_VOICE_BY_ISSUE.get(issue_type, TTS_VOICE_BY_ISSUE["default"])
         voice_name = voice_config.get("voice", TTS_CONFIG["voice"])
+        speaking_rate = voice_config.get("rate", TTS_CONFIG.get("speaking_rate", 1.2))
 
-        # 1) 전체 텍스트에서 문장 추출
+        # 1) 전체 텍스트에서 문장 추출 (짧은 문장 병합)
+        # ★ 한국어 뉴스 스타일: "박나래. 갑질 의혹. 그냥 의혹 아냐."
+        #    → 마침표가 임팩트용이므로 너무 짧게 쪼개지면 병합
+        MIN_SENTENCE_LENGTH = 15  # 최소 15자 이상으로 병합
+
         all_sentences = []
         for scene in scenes:
             narration = scene.get("narration", "").strip()
             if not narration:
                 continue
+
             # 문장 분리 (. ! ? 기준)
-            sentences = re.split(r'(?<=[.!?。])\s*', narration)
-            for sent in sentences:
+            raw_sentences = re.split(r'(?<=[.!?。])\s*', narration)
+
+            # 짧은 문장 병합
+            merged = []
+            buffer = ""
+            for sent in raw_sentences:
                 sent = sent.strip()
-                if sent and len(sent) > 1:
-                    all_sentences.append(sent)
+                if not sent or len(sent) <= 1:
+                    continue
+
+                if buffer:
+                    buffer += " " + sent
+                else:
+                    buffer = sent
+
+                # 버퍼가 충분히 길면 추가
+                if len(buffer) >= MIN_SENTENCE_LENGTH:
+                    merged.append(buffer)
+                    buffer = ""
+
+            # 남은 버퍼 처리
+            if buffer:
+                if merged and len(buffer) < MIN_SENTENCE_LENGTH:
+                    # 너무 짧으면 마지막 문장에 붙이기
+                    merged[-1] += " " + buffer
+                else:
+                    merged.append(buffer)
+
+            all_sentences.extend(merged)
 
         if not all_sentences:
             raise ValueError("TTS 생성할 문장이 없습니다")
 
-        print(f"[SHORTS] TTS 생성 중: {len(all_sentences)}개 문장, 음성={voice_name}")
+        print(f"[SHORTS] TTS 생성 중: {len(all_sentences)}개 문장, 음성={voice_name}, 속도={speaking_rate}x")
 
         # 2) 문장별 TTS 생성
         sentence_audios = []
@@ -292,6 +327,7 @@ def generate_tts_with_timing(
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         for idx, sentence in enumerate(all_sentences):
+            # Gemini TTS API 페이로드 (speakingRate 포함)
             payload = {
                 "contents": [{"parts": [{"text": sentence}]}],
                 "generationConfig": {
@@ -301,7 +337,9 @@ def generate_tts_with_timing(
                             "prebuiltVoiceConfig": {
                                 "voiceName": voice_name
                             }
-                        }
+                        },
+                        # ★ 쇼츠용 120% 속도 (이슈 타입별 다름)
+                        "speakingRate": speaking_rate
                     }
                 }
             }
@@ -1716,6 +1754,313 @@ def run_full_pipeline(
     )
 
 
+# ============================================================
+# YouTube 업로드
+# ============================================================
+
+def upload_to_youtube(
+    video_path: str,
+    title: str,
+    description: str = "",
+    tags: List[str] = None,
+    privacy_status: str = "private",
+    channel_id: str = None,
+    playlist_id: str = None,
+) -> Dict[str, Any]:
+    """
+    YouTube에 쇼츠 영상 업로드
+
+    내부적으로 /api/youtube/upload 엔드포인트를 호출합니다.
+
+    Args:
+        video_path: 업로드할 영상 경로
+        title: 영상 제목
+        description: 영상 설명
+        tags: 태그 목록
+        privacy_status: 공개 설정 (private/public/unlisted)
+        channel_id: YouTube 채널 ID (선택)
+        playlist_id: 플레이리스트 ID (선택)
+
+    Returns:
+        {
+            "ok": True,
+            "video_id": "...",
+            "video_url": "https://www.youtube.com/watch?v=...",
+        }
+    """
+    import requests as http_requests
+
+    try:
+        # API 서버 URL (로컬 또는 배포 환경)
+        api_base = os.environ.get("API_BASE_URL", "http://localhost:5003")
+
+        print(f"[SHORTS] YouTube 업로드 시작: {title[:30]}...")
+
+        payload = {
+            "videoPath": video_path,
+            "title": title,
+            "description": description,
+            "tags": tags or [],
+            "categoryId": "22",  # People & Blogs
+            "privacyStatus": privacy_status,
+        }
+
+        if channel_id:
+            payload["channelId"] = channel_id
+        if playlist_id:
+            payload["playlistId"] = playlist_id
+
+        response = http_requests.post(
+            f"{api_base}/api/youtube/upload",
+            json=payload,
+            timeout=600  # 10분 타임아웃
+        )
+
+        result = response.json()
+
+        if result.get("ok"):
+            video_url = result.get("videoUrl", "")
+            print(f"[SHORTS] YouTube 업로드 성공: {video_url}")
+            return {
+                "ok": True,
+                "video_id": result.get("videoId"),
+                "video_url": video_url,
+            }
+        else:
+            error = result.get("error", "Unknown error")
+            print(f"[SHORTS] YouTube 업로드 실패: {error}")
+            return {"ok": False, "error": error}
+
+    except Exception as e:
+        print(f"[SHORTS] YouTube 업로드 오류: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# ============================================================
+# 바이럴 점수 기반 파이프라인 (자동 최적 뉴스 선택)
+# ============================================================
+
+def run_viral_pipeline(
+    min_score: float = 40,
+    categories: List[str] = None,
+    generate_video: bool = True,
+    upload_youtube: bool = False,
+    privacy_status: str = "private",
+    channel_id: str = None,
+    save_to_sheet: bool = True
+) -> Dict[str, Any]:
+    """
+    바이럴 점수 기반 자동 쇼츠 파이프라인
+
+    흐름:
+    1. RSS에서 뉴스 수집
+    2. 네이버/다음 댓글 크롤링 → 바이럴 점수 계산
+    3. 가장 점수 높은 뉴스 선정
+    4. 실제 댓글을 반영한 대본 생성
+    5. 비디오 생성
+    6. (옵션) YouTube 업로드
+
+    Args:
+        min_score: 최소 바이럴 점수 (기본 40)
+        categories: 수집할 카테고리 (None이면 전체)
+        generate_video: 비디오 생성 여부
+        upload_youtube: YouTube 업로드 여부 (기본 False)
+        privacy_status: YouTube 공개 설정 (private/public/unlisted)
+        channel_id: YouTube 채널 ID (선택)
+        save_to_sheet: 시트에 저장 여부
+
+    Returns:
+        {
+            "ok": True,
+            "news": {...},
+            "viral_score": {...},
+            "script_hints": {...},
+            "video_path": "...",
+            "youtube_url": "...",
+            "cost": 0.84
+        }
+    """
+    start_time = datetime.now(timezone.utc)
+
+    print(f"\n{'#'*60}")
+    print(f"# 바이럴 기반 SHORTS 파이프라인 시작")
+    print(f"# 최소 점수: {min_score}, 비디오 생성: {generate_video}")
+    print(f"{'#'*60}\n")
+
+    result = {"ok": False}
+    total_cost = 0
+
+    try:
+        # ============================================================
+        # 1단계: 바이럴 점수 기반 뉴스 선정
+        # ============================================================
+        print("[SHORTS] === 1단계: 바이럴 뉴스 선정 ===\n")
+
+        best_news = get_best_news_for_shorts(
+            categories=categories,
+            min_score=min_score
+        )
+
+        if not best_news:
+            print("[SHORTS] 바이럴 점수 기준을 충족하는 뉴스가 없습니다")
+            return {
+                "ok": False,
+                "error": f"바이럴 점수 {min_score}+ 기준 충족 뉴스 없음"
+            }
+
+        person = best_news.get("person", "")
+        issue_type = best_news.get("issue_type", "근황")
+        viral_score = best_news.get("viral_score", {})
+        script_hints = best_news.get("script_hints", {})
+
+        print(f"\n[SHORTS] 🔥 선정된 뉴스:")
+        print(f"  - 인물: {person}")
+        print(f"  - 이슈: {issue_type}")
+        print(f"  - 바이럴 점수: {viral_score.get('total_score', 0)} ({viral_score.get('grade', 'N/A')}등급)")
+        print(f"  - 논쟁 주제: {script_hints.get('debate_topic', 'N/A')}")
+        print(f"  - 핫 표현: {script_hints.get('hot_phrases', [])[:3]}")
+
+        # ============================================================
+        # 2단계: 실제 댓글 반영 대본 생성
+        # ============================================================
+        print("\n[SHORTS] === 2단계: 댓글 기반 대본 생성 ===\n")
+
+        # script_hints가 포함된 news_data로 대본 생성
+        script_result = generate_complete_shorts_package(best_news)
+
+        if not script_result.get("ok"):
+            return {
+                "ok": False,
+                "error": f"대본 생성 실패: {script_result.get('error')}",
+                "news": best_news,
+            }
+
+        total_cost += script_result.get("cost", 0)
+
+        print(f"[SHORTS] 대본 생성 완료: {script_result.get('total_chars', 0)}자")
+
+        # ============================================================
+        # 3단계: 시트에 저장 (옵션)
+        # ============================================================
+        if save_to_sheet:
+            try:
+                service = get_sheets_service()
+                spreadsheet_id = get_spreadsheet_id()
+                create_shorts_sheet(service, spreadsheet_id)
+
+                # 바이럴 점수 정보 추가
+                best_news["viral_grade"] = viral_score.get("grade", "")
+                best_news["viral_total"] = viral_score.get("total_score", 0)
+
+                if not check_duplicate(service, spreadsheet_id, person, best_news.get("news_url", "")):
+                    append_row(service, spreadsheet_id, best_news)
+                    print(f"[SHORTS] 시트에 저장: {person}")
+            except Exception as e:
+                print(f"[SHORTS] 시트 저장 실패 (무시): {e}")
+
+        # ============================================================
+        # 4단계: 비디오 생성 (옵션)
+        # ============================================================
+        video_result = None
+        if generate_video:
+            print("\n[SHORTS] === 3단계: 비디오 생성 ===\n")
+
+            video_result = run_video_generation(
+                script_result=script_result,
+                person=person,
+                issue_type=issue_type
+            )
+
+            if video_result.get("ok"):
+                total_cost += video_result.get("cost", 0)
+                print(f"[SHORTS] 비디오 생성 완료: {video_result.get('duration', 0):.1f}초")
+            else:
+                print(f"[SHORTS] 비디오 생성 실패: {video_result.get('error')}")
+
+        # ============================================================
+        # 5단계: YouTube 업로드 (옵션)
+        # ============================================================
+        youtube_result = None
+        if upload_youtube and video_result and video_result.get("ok"):
+            print("\n[SHORTS] === 4단계: YouTube 업로드 ===\n")
+
+            # 제목: 쇼츠 제목 사용
+            yt_title = script_result.get("title", f"{person} 이슈")
+            if len(yt_title) > 100:
+                yt_title = yt_title[:97] + "..."
+
+            # 설명: 해시태그 포함
+            hashtags = script_result.get("hashtags", [f"#{person}", "#쇼츠"])
+            yt_description = f"{yt_title}\n\n{' '.join(hashtags)}"
+
+            youtube_result = upload_to_youtube(
+                video_path=video_result.get("video_path"),
+                title=yt_title,
+                description=yt_description,
+                tags=[person, issue_type, "쇼츠", "연예뉴스"],
+                privacy_status=privacy_status,
+                channel_id=channel_id,
+            )
+
+            if youtube_result.get("ok"):
+                print(f"[SHORTS] YouTube 업로드 성공: {youtube_result.get('video_url')}")
+            else:
+                print(f"[SHORTS] YouTube 업로드 실패: {youtube_result.get('error')}")
+
+        # ============================================================
+        # 완료
+        # ============================================================
+        end_time = datetime.now(timezone.utc)
+        duration = (end_time - start_time).total_seconds()
+
+        result = {
+            "ok": True,
+            "person": person,
+            "issue_type": issue_type,
+            "news": {
+                "title": best_news.get("news_title", ""),
+                "url": best_news.get("news_url", ""),
+            },
+            "viral_score": viral_score,
+            "script_hints": script_hints,
+            "script": {
+                "title": script_result.get("title", ""),
+                "total_chars": script_result.get("total_chars", 0),
+                "scenes": len(script_result.get("scenes", [])),
+            },
+            "cost": round(total_cost, 3),
+            "duration_seconds": round(duration, 1),
+        }
+
+        if video_result and video_result.get("ok"):
+            result["video"] = {
+                "path": video_result.get("video_path"),
+                "duration": video_result.get("duration"),
+            }
+
+        if youtube_result and youtube_result.get("ok"):
+            result["youtube"] = {
+                "video_id": youtube_result.get("video_id"),
+                "video_url": youtube_result.get("video_url"),
+            }
+
+        print(f"\n{'#'*60}")
+        print(f"# 바이럴 파이프라인 완료!")
+        print(f"# 인물: {person} ({viral_score.get('grade', 'N/A')}등급)")
+        print(f"# 총 비용: ${total_cost:.3f}, 소요시간: {duration:.1f}초")
+        print(f"{'#'*60}\n")
+
+        return result
+
+    except Exception as e:
+        print(f"[SHORTS] 바이럴 파이프라인 오류: {e}")
+        return {
+            "ok": False,
+            "error": str(e),
+            "cost": total_cost,
+        }
+
+
 # CLI 실행
 if __name__ == "__main__":
     import argparse
@@ -1725,6 +2070,11 @@ if __name__ == "__main__":
     parser.add_argument("--generate", action="store_true", help="대본 생성만")
     parser.add_argument("--video", action="store_true", help="비디오까지 생성")
     parser.add_argument("--full", action="store_true", help="전체 파이프라인 (수집+대본+비디오)")
+    parser.add_argument("--viral", action="store_true", help="바이럴 점수 기반 자동 파이프라인")
+    parser.add_argument("--min-score", type=float, default=40, help="최소 바이럴 점수 (viral 모드)")
+    parser.add_argument("--upload", action="store_true", help="YouTube 업로드 (viral 모드)")
+    parser.add_argument("--privacy", type=str, default="private", help="YouTube 공개 설정 (private/public/unlisted)")
+    parser.add_argument("--channel-id", type=str, help="YouTube 채널 ID")
     parser.add_argument("--person", type=str, help="특정 인물")
     parser.add_argument("--limit", type=int, default=1, help="처리할 행 수")
     parser.add_argument("--create-sheet", action="store_true", help="시트 생성만")
@@ -1736,6 +2086,16 @@ if __name__ == "__main__":
         spreadsheet_id = get_spreadsheet_id()
         create_shorts_sheet(service, spreadsheet_id, force=True)
         print("시트 생성 완료")
+    elif args.viral:
+        # 바이럴 점수 기반 자동 파이프라인
+        result = run_viral_pipeline(
+            min_score=args.min_score,
+            generate_video=args.video,
+            upload_youtube=args.upload,
+            privacy_status=args.privacy,
+            channel_id=args.channel_id,
+        )
+        print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
     elif args.collect:
         result = run_news_collection(max_items=10)
         print(f"결과: {result}")

@@ -26,7 +26,7 @@ class SubtitleAgent(BaseAgent):
         "provider": "gemini",           # gemini 또는 google
         "name": "gemini:Charon",        # Gemini TTS 남성, 신뢰감 있는 톤
         "language_code": "ko-KR",
-        "speaking_rate": 0.95,
+        "speaking_rate": 1.2,           # 쇼츠용 120% 속도
     }
 
     # 음성 프리셋 (슈퍼바이저가 선택 가능)
@@ -36,20 +36,20 @@ class SubtitleAgent(BaseAgent):
             "provider": "gemini",
             "name": "gemini:Charon",
             "language_code": "ko-KR",
-            "speaking_rate": 0.95,
+            "speaking_rate": 1.2,       # 쇼츠용 120%
         },
         "gemini_female": {
             "provider": "gemini",
             "name": "gemini:Kore",
             "language_code": "ko-KR",
-            "speaking_rate": 0.95,
+            "speaking_rate": 1.2,       # 쇼츠용 120%
         },
         # Gemini Pro (고품질, $16/1M자)
         "gemini_pro_male": {
             "provider": "gemini",
             "name": "gemini:pro:Charon",
             "language_code": "ko-KR",
-            "speaking_rate": 0.95,
+            "speaking_rate": 1.2,       # 쇼츠용 120%
         },
         # Google Cloud TTS (고품질, $16/1M자)
         "google_male": {
@@ -57,14 +57,14 @@ class SubtitleAgent(BaseAgent):
             "name": "ko-KR-Neural2-C",
             "language_code": "ko-KR",
             "gender": "MALE",
-            "speaking_rate": 0.95,
+            "speaking_rate": 1.2,       # 쇼츠용 120%
         },
         "google_female": {
             "provider": "google",
             "name": "ko-KR-Neural2-A",
             "language_code": "ko-KR",
             "gender": "FEMALE",
-            "speaking_rate": 0.95,
+            "speaking_rate": 1.2,       # 쇼츠용 120%
         },
     }
 
@@ -234,7 +234,7 @@ class SubtitleAgent(BaseAgent):
             "language": voice.get("language_code", "ko-KR"),
             "voice": {
                 "name": voice_name,
-                "speaking_rate": voice.get("speaking_rate", 0.95),
+                "speaking_rate": voice.get("speaking_rate", 1.2),
             },
             "scenes": scenes,
             "sentence_mode": True,
@@ -426,12 +426,12 @@ class SubtitleAgent(BaseAgent):
         adjustments = {}
         base_voice = self.DEFAULT_VOICE.copy()
 
-        # 속도 관련 피드백
+        # 속도 관련 피드백 (기본 1.2 기준)
         if "빠르" in feedback or "느리" in feedback:
             if "빠르" in feedback:
-                base_voice["speaking_rate"] = 0.85
+                base_voice["speaking_rate"] = 1.0   # 너무 빠르면 100%로
             else:
-                base_voice["speaking_rate"] = 1.05
+                base_voice["speaking_rate"] = 1.35  # 너무 느리면 135%로
 
         # 음성 관련 피드백 (프리셋 사용)
         if "여성" in feedback:

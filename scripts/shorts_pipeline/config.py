@@ -807,29 +807,29 @@ TTS_CONFIG = {
     "model": "chirp3",             # Gemini TTS 모델
     "voice": "Charon",             # 깊고 신뢰감 있는 남성 음성 (긴장감)
     "language": "ko",              # 한국어
-    "speaking_rate": 1.0,          # 말하기 속도
+    "speaking_rate": 1.2,          # 말하기 속도 (쇼츠용 120%)
     "pitch": -2.0,                 # 약간 낮은 톤 (더 무게감)
 }
 
-# 이슈 타입별 추천 음성
+# 이슈 타입별 추천 음성 (쇼츠용 전체 +0.2 속도 업)
 TTS_VOICE_BY_ISSUE = {
     # 긴장감/심각한 이슈 → Charon (깊고 무거운)
-    "논란": {"voice": "Charon", "pitch": -3.0, "rate": 0.95},
-    "사건": {"voice": "Charon", "pitch": -3.0, "rate": 0.9},
+    "논란": {"voice": "Charon", "pitch": -3.0, "rate": 1.15},
+    "사건": {"voice": "Charon", "pitch": -3.0, "rate": 1.1},
 
     # 밝은/신나는 이슈 → Puck (활기찬)
-    "컴백": {"voice": "Puck", "pitch": 0, "rate": 1.05},
-    "성과": {"voice": "Puck", "pitch": 0, "rate": 1.0},
+    "컴백": {"voice": "Puck", "pitch": 0, "rate": 1.25},
+    "성과": {"voice": "Puck", "pitch": 0, "rate": 1.2},
 
     # 감성적 이슈 → Kore (따뜻한 여성)
-    "열애": {"voice": "Kore", "pitch": 0, "rate": 0.95},
+    "열애": {"voice": "Kore", "pitch": 0, "rate": 1.15},
 
     # 웅장한 이슈 → Fenrir (힘있는)
-    "자랑": {"voice": "Fenrir", "pitch": -2.0, "rate": 1.0},
-    "반응": {"voice": "Fenrir", "pitch": -1.0, "rate": 1.0},
+    "자랑": {"voice": "Fenrir", "pitch": -2.0, "rate": 1.2},
+    "반응": {"voice": "Fenrir", "pitch": -1.0, "rate": 1.2},
 
     # 기본
-    "default": {"voice": "Charon", "pitch": -2.0, "rate": 1.0},
+    "default": {"voice": "Charon", "pitch": -2.0, "rate": 1.2},
 }
 
 # Gemini TTS 음성 설명

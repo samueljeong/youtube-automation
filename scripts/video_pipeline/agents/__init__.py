@@ -17,7 +17,7 @@ Video Pipeline Agents
         script="대본 내용...",
         channel_id="UCxxx",
         title_input="영상 제목",
-        voice="ko-KR-Neural2-C"
+        voice="chirp3:Charon"  # 기본: Chirp 3 HD 남성 음성
     )
 
     # 실행

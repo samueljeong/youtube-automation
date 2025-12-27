@@ -553,6 +553,9 @@ class SupervisorAgent(BaseAgent):
         person: str = "",
         category: str = "연예인",
         issue_type: str = "이슈",
+        script_hints: Optional[Dict[str, Any]] = None,
+        viral_score: Optional[Dict[str, Any]] = None,
+        comments_summary: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> AgentResult:
         """
@@ -564,7 +567,8 @@ class SupervisorAgent(BaseAgent):
                 topic="BTS 컴백 소식",
                 person="BTS",
                 category="연예인",
-                issue_type="컴백"
+                issue_type="컴백",
+                script_hints={"hot_phrases": ["선넘었다", ...]}
             )
 
         Args:
@@ -572,6 +576,9 @@ class SupervisorAgent(BaseAgent):
             person: 대상 인물
             category: 카테고리 (연예인/운동선수/국뽕)
             issue_type: 이슈 타입 (논란/열애/컴백/사건/근황/성과)
+            script_hints: 실제 댓글 기반 대본 힌트 (news_scorer에서 생성)
+            viral_score: 바이럴 잠재력 점수
+            comments_summary: 댓글 요약 정보
             **kwargs: 추가 옵션 (skip_images 등)
 
         Returns:
@@ -584,6 +591,10 @@ class SupervisorAgent(BaseAgent):
             category=category,
             issue_type=issue_type,
             max_attempts=kwargs.get("max_attempts", 3),
+            # 뉴스 분석 데이터
+            script_hints=script_hints,
+            viral_score=viral_score,
+            comments_summary=comments_summary,
         )
 
         # 실행
@@ -595,6 +606,9 @@ class SupervisorAgent(BaseAgent):
         person: str = "",
         category: str = "연예인",
         issue_type: str = "이슈",
+        script_hints: Optional[Dict[str, Any]] = None,
+        viral_score: Optional[Dict[str, Any]] = None,
+        comments_summary: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> AgentResult:
         """
@@ -604,10 +618,15 @@ class SupervisorAgent(BaseAgent):
             supervisor = SupervisorAgent()
             result = supervisor.run_sync(
                 topic="BTS 컴백 소식",
-                person="BTS"
+                person="BTS",
+                script_hints={"hot_phrases": ["선넘었다"]}
             )
         """
-        return asyncio.run(self.run(topic, person, category, issue_type, **kwargs))
+        return asyncio.run(self.run(
+            topic, person, category, issue_type,
+            script_hints, viral_score, comments_summary,
+            **kwargs
+        ))
 
     def get_status_report(self, context: TaskContext) -> str:
         """현재 상태 리포트 생성"""

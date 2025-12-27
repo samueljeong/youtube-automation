@@ -27,6 +27,51 @@ except ImportError:
     )
 
 
+def _build_comment_section(script_hints: Optional[Dict[str, Any]]) -> str:
+    """
+    script_hints를 프롬프트용 댓글 섹션으로 변환
+
+    Args:
+        script_hints: generate_script_hints() 결과물
+
+    Returns:
+        프롬프트에 삽입할 텍스트
+    """
+    if not script_hints or not any([
+        script_hints.get("debate_topic"),
+        script_hints.get("hot_phrases"),
+        script_hints.get("pro_arguments"),
+    ]):
+        return ""
+
+    lines = ["## 💬 실제 댓글 분석 (대본에 반영!)"]
+
+    # 논쟁 주제
+    if script_hints.get("debate_topic"):
+        lines.append(f"🔥 **논쟁 주제**: {script_hints['debate_topic']}")
+
+    # 핫한 문구
+    if script_hints.get("hot_phrases"):
+        phrases = ", ".join([f'"{p}"' for p in script_hints["hot_phrases"][:5]])
+        lines.append(f"💬 **인기 댓글**: {phrases}")
+        lines.append("   → 이 표현들을 대본에 녹여주세요!")
+
+    # 찬반 의견
+    if script_hints.get("pro_arguments"):
+        args = " / ".join(script_hints["pro_arguments"][:3])
+        lines.append(f"👎 **비판**: {args}")
+    if script_hints.get("con_arguments"):
+        args = " / ".join(script_hints["con_arguments"][:3])
+        lines.append(f"👍 **옹호**: {args}")
+
+    # 씬4 제안
+    if script_hints.get("suggested_scene4"):
+        lines.append(f"✨ **씬4 추천**: \"{script_hints['suggested_scene4']}\"")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
 class ScriptAgent(BaseAgent):
     """기획/대본 생성 에이전트"""
 
@@ -106,9 +151,21 @@ class ScriptAgent(BaseAgent):
         try:
             client = get_openai_client()
 
+            # 실제 댓글 기반 힌트 (context에 있으면 사용)
+            script_hints = getattr(context, 'script_hints', None)
+            comment_section = _build_comment_section(script_hints)
+
             prompt = f"""
-당신은 YouTube Shorts 대본 전문 작가입니다.
-아래 정보를 바탕으로 30-40초 쇼츠 대본을 작성하세요.
+당신은 **리텐션 85% 쇼츠 전문가**입니다.
+
+## 🎯 목표 우선순위
+1. **리텐션 85%+** - 끝까지 보게 (가장 중요!)
+2. **댓글 유도** - "나도 한마디"
+3. **반복 시청** - 다시 보게
+
+## 📊 알고리즘 핵심
+- 70% 스와이프 → 노출 중단
+- 85%+ 시청률 → 추천 시작
 
 ## 정보
 - 인물: {context.person}
@@ -116,24 +173,48 @@ class ScriptAgent(BaseAgent):
 - 이슈 타입: {context.issue_type}
 - 카테고리: {context.category}
 
-## 대본 규칙
-1. 총 200-260자 (30-40초 TTS 기준)
-2. 5개 씬으로 구성
-3. 씬1: 킬러 훅 (스크롤 멈추게)
-4. 씬2-4: 핵심 내용
-5. 씬5: 결론 (훅 반복 금지)
+{comment_section}
+## 🔒 리텐션 이탈 방지 문구 (씬2, 씬3 필수!)
+- "근데 이게 다가 아니야."
+- "진짜는 지금부터야."
+
+## 🔥 댓글 유도 기법 (씬4 필수!)
+- **편가르기**: "{context.person} 잘못 vs 상대방 예민. 어느 쪽?"
+- **경험 공유**: "이런 경험 있는 사람?"
+
+## ⚡ 문장 규칙
+- **한 문장 = 최대 12자**
+- **씬당 4-6문장**, **총 300-400자**
+- ❌ 금지: "여러분", "이게 사실이라면"
+
+## 🎯 씬 구성 (5개, 300-400자)
+- 씬1 (훅): "{context.person}. 갑질. 터졌다. 이번엔 진짜다."
+- 씬2 (팩트 + 이탈방지): "폭언. 부당대우. 근데 이게 다가 아니야."
+- 씬3 (클라이맥스): "진짜는 이거야. 불법 시술. 선 넘었다."
+- 씬4 (댓글유도): "{context.person} 잘못 vs 상대방 예민. 어느 쪽이야? 댓글로."
+- 씬5 (여운): "복귀? 힘들 듯. 근데 반전 있을 수도. 지켜보자."
 
 ## 출력 형식 (JSON만 반환)
 {{
-    "title": "쇼츠 제목 (30자 이내)",
+    "title": "쇼츠 제목 (20자)",
+    "total_chars": 350,
+    "retention_hooks": {{
+        "scene2": "근데 이게 다가 아니야",
+        "scene3": "진짜는 이거야"
+    }},
+    "comment_bait": {{
+        "scene": 4,
+        "type": "versus",
+        "text": "{context.person} 잘못 vs 상대방 예민. 어느 쪽?"
+    }},
     "scenes": [
-        {{"scene_number": 1, "narration": "킬러 훅 문장", "image_prompt": "영어 이미지 프롬프트"}},
-        {{"scene_number": 2, "narration": "...", "image_prompt": "..."}},
-        {{"scene_number": 3, "narration": "...", "image_prompt": "..."}},
-        {{"scene_number": 4, "narration": "...", "image_prompt": "..."}},
-        {{"scene_number": 5, "narration": "결론", "image_prompt": "..."}}
+        {{"scene_number": 1, "narration": "{context.person}. 갑질. 터졌다. 이번엔 진짜다. 큰일났다.", "image_prompt": "영어 프롬프트"}},
+        {{"scene_number": 2, "narration": "매니저에게 폭언. 부당대우. 제보 폭주. 근데 이게 다가 아니야. 더 있어.", "image_prompt": "..."}},
+        {{"scene_number": 3, "narration": "진짜는 이거야. 불법 시술. 주사 놔줬대. 면허도 없이. 선 넘었다.", "image_prompt": "..."}},
+        {{"scene_number": 4, "narration": "{context.person} 잘못이다. vs 매니저 예민하다. 어느 쪽이야? 댓글로. 비슷한 상사 있었어?", "image_prompt": "..."}},
+        {{"scene_number": 5, "narration": "복귀? 힘들 듯. 근데 반전 있을 수도. 3개월 뒤 어떨까? 지켜보자.", "image_prompt": "..."}}
     ],
-    "hashtags": ["#태그1", "#태그2"]
+    "hashtags": ["#{context.person}", "#이슈"]
 }}
 """
 

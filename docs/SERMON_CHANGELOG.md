@@ -86,7 +86,37 @@
 
 ---
 
-## 2025-12-26 세션
+## 2025-12-26 세션 (오후) - 자연어 입력 UI
+
+### 자연어 입력 + 추천 상세 보기 구현
+
+**커밋**: `0e7540d`
+
+**구현 내용**:
+1. **자연어 입력 분석**: 사용자가 자유롭게 입력 → GPT-5.1이 분석 → 3개 추천
+2. **추천 상세 보기**: 카드 클릭 → 서론/대지/결론 상세 표시
+3. **2단계 선택 흐름**: 추천 목록 → 상세 보기 → 분량 선택 → 시작
+
+**파일 수정**:
+| 파일 | 수정 내용 |
+|------|----------|
+| `sermon_modules/api_sermon.py` | `/api/sermon/analyze-input` 엔드포인트 (GPT-5.1) |
+| `static/js/sermon-init.js` | `analyzeNaturalInput()`, `showRecommendationDetail()`, `confirmSelection()` |
+| `templates/sermon.html` | 상세 보기 UI (`recommendation-detail-box`) 추가 |
+
+**버그 수정**:
+| 문제 | 원인 | 해결 |
+|------|------|------|
+| 시작 버튼 미작동 | `window.currentStyleId` 미설정 | `confirmSelection()`에 설정 추가 |
+| 시작 버튼 안보임 | `startAutoAnalysis()`가 숨긴 후 복구 안함 | `display: block` 명시적 설정 |
+
+**다음 세션에서 확인**:
+- 페이지 새로고침 후 전체 흐름 테스트 필요
+- 자연어 분석 → 상세 보기 → 분량 선택 → 시작 버튼 클릭 → Step1,2 실행
+
+---
+
+## 2025-12-26 세션 (오전)
 
 ### 대지(본론) 풍성함 지침 강화
 

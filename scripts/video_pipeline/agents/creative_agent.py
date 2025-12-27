@@ -24,8 +24,8 @@ class CreativeAgent(BaseAgent):
     def __init__(self, server_url: str = "http://localhost:5059"):
         super().__init__("CreativeAgent", max_retries=2)
         self.server_url = server_url
-        self.image_timeout = 60  # 이미지당 60초
-        self.thumbnail_timeout = 180  # 썸네일 180초
+        self.image_timeout = 300  # 이미지당 5분 (Gemini는 2-3분 소요)
+        self.thumbnail_timeout = 300  # 썸네일 5분
 
     async def execute(self, context: VideoTaskContext, **kwargs) -> AgentResult:
         """
@@ -72,6 +72,11 @@ class CreativeAgent(BaseAgent):
 
             total_cost += image_cost
             context.images = images
+
+            # ★ scenes에 이미지 URL 반영 (영상 생성에 필요)
+            for idx, image_path in enumerate(images):
+                if image_path and idx < len(context.scenes):
+                    context.scenes[idx]['image_url'] = image_path
 
             # 2. 썸네일 생성
             thumbnail_path, thumbnail_cost = await self._generate_thumbnail(context)
@@ -124,7 +129,10 @@ class CreativeAgent(BaseAgent):
         image_style: str
     ) -> Tuple[List[Optional[str]], float]:
         """
-        이미지 병렬 생성
+        이미지 배치 병렬 생성 (한 번에 2개씩)
+
+        Gemini API는 순차 처리하므로 모든 요청을 동시에 보내면 타임아웃 발생.
+        2개씩 배치로 처리하여 안정성 확보.
 
         Args:
             context: 작업 컨텍스트
@@ -134,31 +142,53 @@ class CreativeAgent(BaseAgent):
         Returns:
             (이미지 경로 목록, 총 비용)
         """
-        scenes_to_generate = failed_scenes if failed_scenes else range(len(context.scenes))
+        scenes_to_generate = list(failed_scenes if failed_scenes else range(len(context.scenes)))
 
-        self.log(f"이미지 병렬 생성: {len(list(scenes_to_generate))}개 씬")
+        self.log(f"이미지 배치 생성: {len(scenes_to_generate)}개 씬 (2개씩 병렬)")
 
         # 기존 이미지 복사 (재생성 대상이 아닌 것)
         images = context.images[:] if context.images else [None] * len(context.scenes)
-
-        # 병렬 태스크 생성
-        tasks = []
-        for i in scenes_to_generate:
-            if i < len(context.scenes):
-                scene = context.scenes[i]
-                tasks.append(self._generate_single_image(scene, i, image_style))
-
-        # 병렬 실행
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
         total_cost = 0.0
-        for idx, result in zip(scenes_to_generate, results):
-            if isinstance(result, Exception):
-                self.log(f"이미지 {idx} 생성 실패: {result}", "warning")
-                images[idx] = None
-            elif result:
-                images[idx] = result.get("image_path")
-                total_cost += result.get("cost", 0.02)
+
+        # 2개씩 배치 처리 (Gemini 순차 처리 대응)
+        batch_size = 2
+        for batch_start in range(0, len(scenes_to_generate), batch_size):
+            batch_indices = scenes_to_generate[batch_start:batch_start + batch_size]
+            batch_num = batch_start // batch_size + 1
+            total_batches = (len(scenes_to_generate) + batch_size - 1) // batch_size
+
+            self.log(f"배치 {batch_num}/{total_batches}: 씬 {batch_indices}")
+
+            # 배치 태스크 생성
+            tasks = []
+            for i in batch_indices:
+                if i < len(context.scenes):
+                    scene = context.scenes[i]
+                    tasks.append(self._generate_single_image(scene, i, image_style))
+
+            # 배치 실행
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for idx, result in zip(batch_indices, results):
+                if isinstance(result, Exception):
+                    error_type = type(result).__name__
+                    error_msg = str(result) or "(빈 메시지)"
+                    self.log(f"이미지 {idx} 생성 실패: [{error_type}] {error_msg}", "warning")
+                    images[idx] = None
+                elif result:
+                    image_path = result.get("image_path")
+                    if image_path:
+                        # URL 경로를 파일 경로로 변환 (/uploads/xxx → uploads/xxx)
+                        if image_path.startswith("/"):
+                            image_path = image_path.lstrip("/")
+                        images[idx] = image_path
+                        total_cost += result.get("cost", 0.02)
+                    else:
+                        self.log(f"이미지 {idx} 결과에 image_path 없음: {result}", "warning")
+                        images[idx] = None
+                else:
+                    self.log(f"이미지 {idx} 결과가 None 또는 빈 값", "warning")
+                    images[idx] = None
 
         return images, total_cost
 
@@ -209,21 +239,30 @@ class CreativeAgent(BaseAgent):
         prompt = scene.get("image_prompt") or scene.get("description", "")
 
         if not prompt:
+            self.log(f"씬 {index}: 프롬프트 없음", "warning")
             return {"image_path": None, "cost": 0.0}
 
         payload = {
             "prompt": prompt,
-            "style": style,
+            "size": "1280x720",  # 기존 파이프라인과 동일 (16:9)
+            "imageProvider": "gemini",
             "scene_index": index,
         }
 
-        async with httpx.AsyncClient(timeout=self.image_timeout) as client:
-            response = await client.post(
-                f"{self.server_url}/api/drama/generate-image",
-                json=payload
-            )
-            response.raise_for_status()
-            result = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self.image_timeout) as client:
+                response = await client.post(
+                    f"{self.server_url}/api/drama/generate-image",
+                    json=payload
+                )
+                response.raise_for_status()
+                result = response.json()
+        except httpx.TimeoutException:
+            raise Exception(f"씬 {index} 타임아웃 ({self.image_timeout}초)")
+        except httpx.ConnectError as e:
+            raise Exception(f"씬 {index} 연결 실패: {e}")
+        except httpx.HTTPStatusError as e:
+            raise Exception(f"씬 {index} HTTP {e.response.status_code}: {e.response.text[:100]}")
 
         if result.get("ok"):
             # API 응답: imageUrl 또는 image_url (drama_server.py 호환)
@@ -232,12 +271,15 @@ class CreativeAgent(BaseAgent):
                 result.get("image_url") or
                 result.get("image_path")
             )
+            if not image_path:
+                self.log(f"씬 {index}: API ok=true지만 이미지 경로 없음. 응답: {result}", "warning")
             return {
                 "image_path": image_path,
                 "cost": result.get("costUsd") or result.get("cost", 0.02)
             }
         else:
-            raise Exception(result.get("error", "이미지 생성 실패"))
+            error_msg = result.get("error") or f"API 응답: {result}"
+            raise Exception(f"씬 {index}: {error_msg}")
 
     async def _generate_thumbnail(
         self,
@@ -259,18 +301,42 @@ class CreativeAgent(BaseAgent):
             thumbnail_config = context.thumbnail_config or {}
             title = context.youtube_metadata.get("title", "") if context.youtube_metadata else ""
 
-            # 사용자 입력 썸네일 문구 우선
-            user_text = thumbnail_config.get("user_text", {})
+            # 썸네일 프롬프트 구성 (API 형식에 맞춤)
+            # ai_prompts가 있으면 A 프롬프트 사용, 없으면 기본 생성
+            ai_prompts = thumbnail_config.get("ai_prompts", {})
+            prompt_a = ai_prompts.get("A", {}) if ai_prompts else {}
 
+            # 사용자 입력 또는 AI 생성 텍스트
+            user_text = context.thumbnail_text_input or ""
+            if user_text:
+                # 줄바꿈으로 line1/line2 분리
+                lines = user_text.split("\n")
+                main_text = lines[0] if lines else ""
+                sub_text = lines[1] if len(lines) > 1 else ""
+            else:
+                text_overlay = prompt_a.get("text_overlay", {})
+                main_text = text_overlay.get("main", title[:20] if title else "")
+                sub_text = text_overlay.get("sub", "")
+
+            # 이미지 프롬프트 (ai_prompts.A.prompt 또는 기본)
+            image_prompt = prompt_a.get("prompt", "")
+            if not image_prompt:
+                # 기본 프롬프트 생성
+                image_prompt = f"Korean WEBTOON style YouTube thumbnail. Title: {title}. Style: Korean webtoon/manhwa illustration, exaggerated expression, clean bold outlines, vibrant colors, comic style. NO photorealistic. 16:9 aspect ratio."
+
+            # API 형식으로 payload 구성
             payload = {
-                "title": title,
-                "thumbnail_config": thumbnail_config,
-                "script_summary": context.script[:500] if context.script else "",
+                "session_id": f"thumb_{context.task_id}",
+                "prompt": {
+                    "prompt": image_prompt,
+                    "text_overlay": {"main": main_text, "sub": sub_text}
+                },
+                "category": context.detected_category or "story",
+                "lang": "ko"
             }
 
-            if user_text:
-                payload["text_line1"] = user_text.get("line1", "")
-                payload["text_line2"] = user_text.get("line2", "")
+            self.log(f"  - 프롬프트: {image_prompt[:50]}...")
+            self.log(f"  - 텍스트: {main_text} / {sub_text}")
 
             async with httpx.AsyncClient(timeout=self.thumbnail_timeout) as client:
                 response = await client.post(
@@ -281,13 +347,27 @@ class CreativeAgent(BaseAgent):
                 result = response.json()
 
             if result.get("ok"):
-                return result.get("thumbnail_path"), result.get("cost", 0.03)
+                thumbnail_path = result.get("thumbnail_path") or result.get("image_url")
+                # URL 경로를 파일 경로로 변환 (/uploads/xxx → uploads/xxx)
+                if thumbnail_path and thumbnail_path.startswith("/"):
+                    thumbnail_path = thumbnail_path.lstrip("/")
+                return thumbnail_path, result.get("cost", 0.03)
             else:
                 self.log(f"썸네일 생성 실패: {result.get('error')}", "warning")
                 return None, 0.0
 
+        except httpx.TimeoutException:
+            self.log(f"썸네일 생성 타임아웃 ({self.thumbnail_timeout}초)", "warning")
+            return None, 0.0
+        except httpx.ConnectError as e:
+            self.log(f"썸네일 API 연결 실패: {e}", "warning")
+            return None, 0.0
+        except httpx.HTTPStatusError as e:
+            self.log(f"썸네일 API HTTP {e.response.status_code}: {e.response.text[:100]}", "warning")
+            return None, 0.0
         except Exception as e:
-            self.log(f"썸네일 생성 예외: {e}", "warning")
+            error_type = type(e).__name__
+            self.log(f"썸네일 생성 예외: [{error_type}] {e}", "warning")
             return None, 0.0
 
     async def regenerate_failed_images(

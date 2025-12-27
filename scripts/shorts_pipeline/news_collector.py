@@ -22,6 +22,12 @@ from .config import (
     CONTENT_CATEGORIES,
 )
 
+# 바이럴 점수화 및 댓글 분석
+from .news_scorer import (
+    analyze_news_viral_potential,
+    rank_news_by_viral_potential,
+)
+
 
 def google_news_rss_url(query: str) -> str:
     """Google News RSS URL 생성"""
@@ -443,3 +449,108 @@ def search_celebrity_news(
 
     print(f"[SHORTS] '{person}' 관련 {len(results)}개 뉴스 수집 완료")
     return results
+
+
+def collect_and_score_news(
+    max_per_feed: int = 10,
+    total_limit: int = 20,
+    categories: List[str] = None,
+    score_top_n: int = 5,
+    min_score: float = 30,
+) -> List[Dict[str, Any]]:
+    """
+    뉴스 수집 + 바이럴 점수화 통합 함수
+
+    1. RSS에서 뉴스 수집
+    2. 각 뉴스의 바이럴 잠재력 분석 (댓글 수, 논쟁성)
+    3. 점수 높은 순으로 정렬
+
+    Args:
+        max_per_feed: 피드당 최대 수집 수
+        total_limit: 전체 최대 수집 수
+        categories: 수집할 카테고리 목록
+        score_top_n: 점수화할 상위 N개 (API 호출 최소화)
+        min_score: 최소 바이럴 점수
+
+    Returns:
+        점수순 정렬된 뉴스 목록 (viral_score, script_hints 포함)
+    """
+    print("[SHORTS] === 뉴스 수집 + 바이럴 점수화 시작 ===")
+
+    # 1) RSS에서 뉴스 수집
+    news_items = collect_entertainment_news(
+        max_per_feed=max_per_feed,
+        total_limit=total_limit,
+        categories=categories,
+    )
+
+    if not news_items:
+        print("[SHORTS] 수집된 뉴스가 없습니다")
+        return []
+
+    print(f"[SHORTS] {len(news_items)}개 뉴스 수집 완료, 상위 {score_top_n}개 점수화 중...")
+
+    # 2) 상위 N개만 점수화 (API 호출 비용 절감)
+    top_items = news_items[:score_top_n]
+    scored_items = []
+
+    for item in top_items:
+        url = item.get("news_url", "")
+        issue_type = item.get("issue_type", "근황")
+
+        # 바이럴 잠재력 분석 (댓글 수집 + 점수화)
+        analysis = analyze_news_viral_potential(url, issue_type)
+
+        # 결과 병합
+        item_with_score = item.copy()
+        item_with_score["viral_score"] = analysis["viral_score"]
+        item_with_score["script_hints"] = analysis["script_hints"]
+        item_with_score["comments_summary"] = {
+            "count": analysis["comments_data"].get("comment_count", 0),
+            "top_keywords": analysis["comments_data"].get("top_keywords", []),
+            "pro_ratio": analysis["comments_data"].get("pro_ratio", 0.5),
+        }
+
+        # 최소 점수 이상만 포함
+        if analysis["viral_score"]["total_score"] >= min_score:
+            scored_items.append(item_with_score)
+            print(f"  ✅ {item['person']}: 점수={analysis['viral_score']['total_score']}, 등급={analysis['viral_score']['grade']}")
+        else:
+            print(f"  ❌ {item['person']}: 점수={analysis['viral_score']['total_score']} (최소 {min_score} 미달)")
+
+    # 3) 점수순 정렬
+    scored_items.sort(key=lambda x: x["viral_score"]["total_score"], reverse=True)
+
+    print(f"[SHORTS] 바이럴 점수화 완료: {len(scored_items)}개 뉴스 (점수 {min_score}+ 기준)")
+    return scored_items
+
+
+def get_best_news_for_shorts(
+    categories: List[str] = None,
+    min_score: float = 40,
+) -> Optional[Dict[str, Any]]:
+    """
+    쇼츠 제작에 가장 적합한 뉴스 1개 반환
+
+    Args:
+        categories: 수집할 카테고리
+        min_score: 최소 바이럴 점수
+
+    Returns:
+        가장 점수 높은 뉴스 (없으면 None)
+    """
+    scored_news = collect_and_score_news(
+        max_per_feed=10,
+        total_limit=15,
+        categories=categories,
+        score_top_n=5,
+        min_score=min_score,
+    )
+
+    if not scored_news:
+        print("[SHORTS] 바이럴 점수 기준을 충족하는 뉴스가 없습니다")
+        return None
+
+    best = scored_news[0]
+    print(f"[SHORTS] 🔥 최적 뉴스 선정: {best['person']} ({best['viral_score']['grade']}등급, {best['viral_score']['total_score']}점)")
+    return best

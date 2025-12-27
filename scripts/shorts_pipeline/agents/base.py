@@ -56,6 +56,11 @@ class TaskContext:
     issue_type: str = ""  # 논란/열애/컴백/사건/근황/성과
     person: str = ""
 
+    # 뉴스 분석 데이터 (news_scorer에서 생성)
+    script_hints: Optional[Dict[str, Any]] = None  # 실제 댓글 기반 힌트
+    viral_score: Optional[Dict[str, Any]] = None   # 바이럴 잠재력 점수
+    comments_summary: Optional[Dict[str, Any]] = None  # 댓글 요약
+
     # 생성된 데이터
     script: Optional[Dict[str, Any]] = None
     images: Optional[List[str]] = None  # 이미지 경로 리스트
@@ -93,6 +98,9 @@ class TaskContext:
             "category": self.category,
             "issue_type": self.issue_type,
             "person": self.person,
+            "script_hints": self.script_hints,
+            "viral_score": self.viral_score,
+            "comments_summary": self.comments_summary,
             "script": self.script,
             "images": self.images,
             "subtitle_data": self.subtitle_data,
