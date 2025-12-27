@@ -19770,12 +19770,13 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     "대본": row_data[5] if len(row_data) > 5 else '',
                     "제목": row_data[6] if len(row_data) > 6 else '',
                     "공개설정": (row_data[10] if len(row_data) > 10 else '').strip() or 'private',
-                    "음성": (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C',
+                    "음성": (row_data[13] if len(row_data) > 13 else '').strip() or 'chirp3:Charon',  # ★ 기본 음성 변경
                     "타겟": (row_data[14] if len(row_data) > 14 else '').strip() or 'senior',
                     "카테고리": (row_data[15] if len(row_data) > 15 else '').strip(),
                     "플레이리스트ID": (row_data[17] if len(row_data) > 17 else '').strip(),
                     "제목(입력)": (row_data[18] if len(row_data) > 18 else '').strip(),
                     "썸네일문구(입력)": (row_data[19] if len(row_data) > 19 else '').strip(),
+                    "인용링크": (row_data[20] if len(row_data) > 20 else '').strip(),  # ★ 인용링크 추가
                 }
 
                 print(f"[AGENT] ========== 에이전트 파이프라인 시작 ==========", flush=True)
