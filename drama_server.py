@@ -19770,12 +19770,13 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                     "대본": row_data[5] if len(row_data) > 5 else '',
                     "제목": row_data[6] if len(row_data) > 6 else '',
                     "공개설정": (row_data[10] if len(row_data) > 10 else '').strip() or 'private',
-                    "음성": (row_data[13] if len(row_data) > 13 else '').strip() or 'ko-KR-Neural2-C',
+                    "음성": (row_data[13] if len(row_data) > 13 else '').strip() or 'chirp3:Charon',  # ★ 기본 음성 변경
                     "타겟": (row_data[14] if len(row_data) > 14 else '').strip() or 'senior',
                     "카테고리": (row_data[15] if len(row_data) > 15 else '').strip(),
                     "플레이리스트ID": (row_data[17] if len(row_data) > 17 else '').strip(),
                     "제목(입력)": (row_data[18] if len(row_data) > 18 else '').strip(),
                     "썸네일문구(입력)": (row_data[19] if len(row_data) > 19 else '').strip(),
+                    "인용링크": (row_data[20] if len(row_data) > 20 else '').strip(),  # ★ 인용링크 추가
                 }
 
                 print(f"[AGENT] ========== 에이전트 파이프라인 시작 ==========", flush=True)
@@ -21299,6 +21300,8 @@ def api_sheets_check_and_process():
             'user_thumbnail_text': user_thumbnail_text,
             # ★ 인용링크 (유튜브 설명에 포함)
             'citation_links': get_row_value(row_data, col_map, '인용링크', ''),
+            # ★ 음성 (시트에서 가져옴, 기본값: chirp3:Charon)
+            'voice': get_row_value(row_data, col_map, '음성', ''),
         }
 
         if user_title:
@@ -21593,7 +21596,8 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, sele
         'scheduled_time': 예약시간 (선택),
         'user_title': 사용자 입력 제목 (선택) - GPT 생성 제목 대신 사용,
         'user_thumbnail_text': 사용자 입력 썸네일 문구 (선택) - GPT 생성 문구 대신 사용,
-        'citation_links': 인용링크 (선택) - 유튜브 설명에 포함
+        'citation_links': 인용링크 (선택) - 유튜브 설명에 포함,
+        'voice': 음성 (선택) - TTS 음성 설정
     }
     selected_project: 미리 선택된 YouTube 프로젝트 ('', '_2')
     """
@@ -21617,6 +21621,8 @@ def run_automation_pipeline_v2(pipeline_data, sheet_name, row_num, col_map, sele
         user_thumbnail_text=pipeline_data.get('user_thumbnail_text'),
         # ★ 인용링크 전달 (유튜브 설명에 포함)
         citation_links=pipeline_data.get('citation_links'),
+        # ★ 음성 전달 (TTS 음성 설정)
+        voice=pipeline_data.get('voice'),
     )
 
 
@@ -21624,7 +21630,7 @@ def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy
                                           playlist_id=None, scheduled_time=None,
                                           sheet_name=None, row_num=None, selected_project='',
                                           user_title=None, user_thumbnail_text=None,
-                                          citation_links=None):
+                                          citation_links=None, voice=None):
     """
     자동화 파이프라인 실행 (명시적 파라미터 버전)
     기존 run_automation_pipeline의 로직을 재사용하면서 새 구조 지원
@@ -21633,6 +21639,7 @@ def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy
     user_title: 사용자 입력 제목 (GPT 생성 제목 대신 사용)
     user_thumbnail_text: 사용자 입력 썸네일 문구 (GPT 생성 문구 대신 사용)
     citation_links: 인용링크 (유튜브 설명에 포함)
+    voice: TTS 음성 (빈 값이면 기본 음성 사용)
     """
     # 기존 함수의 row 형식으로 변환하여 호출
     # 기존 컬럼 구조: [상태, 작업시간, 채널ID, 채널명, 예약시간, 대본, 제목, ...]
@@ -21653,7 +21660,7 @@ def run_automation_pipeline_with_channel(channel_id, script, title=None, privacy
         privacy,          # 10: 공개설정
         '',               # 11: 영상URL
         '',               # 12: 에러메시지
-        '',               # 13: 음성
+        voice or '',      # 13: 음성 ★ (빈 값이면 run_automation_pipeline에서 기본값 사용)
         'senior',         # 14: 타겟
         '',               # 15: 카테고리
         '',               # 16: 쇼츠URL
