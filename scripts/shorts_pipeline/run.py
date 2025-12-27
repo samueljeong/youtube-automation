@@ -77,6 +77,7 @@ try:
         get_best_shorts_topic,
         youtube_to_news_format,
         search_shorts_by_category,
+        get_video_comments,
     )
     YOUTUBE_SEARCH_AVAILABLE = True
 except ImportError:
