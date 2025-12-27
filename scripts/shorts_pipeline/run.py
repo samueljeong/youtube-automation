@@ -53,6 +53,7 @@ from .config import (
     SHORTS_TITLE_STYLE,
     TITLE_MAX_LENGTH,
     TITLE_KEYWORDS,
+    VIRAL_SUBTITLE_STYLE,
 )
 from .sheets import (
     get_sheets_service,
@@ -968,6 +969,223 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 # ============================================================
+# 바이럴 자막 생성 (단어별 하이라이팅 + 애니메이션)
+# ============================================================
+
+def generate_viral_subtitles(
+    sentence_timings: List[Dict[str, Any]],
+    total_duration: float,
+    output_path: str,
+    issue_type: str = "default",
+    title_text: str = None,
+    preset: str = "default"
+) -> str:
+    """
+    바이럴 스타일 자막 생성 (단어별 하이라이팅)
+
+    특징:
+    - 현재 읽는 단어: 노란색 + 확대
+    - 이미 읽은 단어: 흰색
+    - 안 읽은 단어: 회색 (흐릿하게)
+    - 팝인 애니메이션
+
+    Args:
+        sentence_timings: TTS에서 생성된 문장별 타이밍 [{text, start, end}, ...]
+        total_duration: 총 영상 길이
+        output_path: ASS 파일 저장 경로
+        issue_type: 이슈 타입 (색상 결정)
+        title_text: 상단 타이틀
+        preset: 프리셋 (default, news, emotional, shocking)
+
+    Returns:
+        ASS 파일 경로
+    """
+    import re
+
+    viral_style = VIRAL_SUBTITLE_STYLE
+    font_config = viral_style.get("font", {})
+    word_config = viral_style.get("word_by_word", {})
+    current_style = viral_style.get("current_word", {})
+    prev_style = viral_style.get("previous_word", {})
+    next_style = viral_style.get("next_word", {})
+    bg_config = viral_style.get("background", {})
+    pos_config = viral_style.get("position", {})
+    impact_config = viral_style.get("impact_keywords", {})
+
+    # 이슈별 강조색
+    issue_colors = viral_style.get("issue_colors", {})
+    highlight_color = issue_colors.get(issue_type, issue_colors.get("default", "#FFFF00"))
+
+    # 폰트 설정
+    font_name = font_config.get("name", "NanumSquareRoundEB")
+    font_size = font_config.get("size", 62)
+    outline_width = font_config.get("outline_width", 5)
+    shadow_offset = font_config.get("shadow_offset", 4)
+
+    # 위치
+    alignment = pos_config.get("alignment", 5)
+    margin_v = pos_config.get("margin_v", 50)
+
+    # BGR 변환 함수
+    def hex_to_ass_color(hex_color, alpha=0):
+        hex_color = hex_color.lstrip("#")
+        r, g, b = hex_color[0:2], hex_color[2:4], hex_color[4:6]
+        return f"&H{alpha:02X}{b}{g}{r}"
+
+    # 색상 변환
+    current_color = hex_to_ass_color(current_style.get("font_color", highlight_color))
+    prev_color = hex_to_ass_color(prev_style.get("font_color", "#FFFFFF"))
+    next_color = hex_to_ass_color(next_style.get("font_color", "#888888"))
+    outline_color = hex_to_ass_color("#000000")
+    title_color = hex_to_ass_color(SHORTS_TITLE_STYLE.get("font_color", "#FFFF00"))
+
+    # 배경색 (반투명)
+    bg_opacity = bg_config.get("opacity", 0.7)
+    bg_alpha = int((1 - bg_opacity) * 255)
+    back_color = hex_to_ass_color(bg_config.get("color", "#000000"), bg_alpha)
+
+    # 임팩트 키워드 목록
+    impact_words = set(impact_config.get("words", [])) if impact_config.get("enabled") else set()
+    impact_color = hex_to_ass_color(impact_config.get("style", {}).get("font_color", "#FF0000"))
+
+    # ASS 헤더 - 여러 스타일 정의
+    ass_content = f"""[Script Info]
+Title: Viral Shorts Subtitles
+ScriptType: v4.00+
+PlayResX: {VIDEO_WIDTH}
+PlayResY: {VIDEO_HEIGHT}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Title,{font_name},64,{title_color},&H000000FF,{outline_color},&H80000000,-1,0,0,0,100,100,0,0,1,5,2,8,40,40,{FRAME_LAYOUT.get('title_y', 160)},1
+Style: Current,{font_name},{font_size},{current_color},&H000000FF,{outline_color},{back_color},-1,0,0,0,115,115,0,0,4,{outline_width},{shadow_offset},{alignment},40,40,{margin_v},1
+Style: Previous,{font_name},{font_size},{prev_color},&H000000FF,{outline_color},{back_color},-1,0,0,0,100,100,0,0,4,{outline_width},{shadow_offset},{alignment},40,40,{margin_v},1
+Style: Next,{font_name},{font_size},{next_color},&H000000FF,{outline_color},{back_color},-1,0,0,0,100,100,0,0,4,{outline_width-1},{shadow_offset},{alignment},40,40,{margin_v},1
+Style: Impact,{font_name},{int(font_size * 1.2)},{impact_color},&H000000FF,{outline_color},{back_color},-1,0,0,0,130,130,0,0,4,{outline_width+1},{shadow_offset},{alignment},40,40,{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+    # 시간 포맷 함수
+    def format_time(seconds):
+        h = int(seconds // 3600)
+        m = int((seconds % 3600) // 60)
+        s = int(seconds % 60)
+        cs = int((seconds % 1) * 100)
+        return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+    # 타이틀 추가
+    if title_text:
+        if len(title_text) > TITLE_MAX_LENGTH:
+            title_text = title_text[:TITLE_MAX_LENGTH]
+        ass_content += f"Dialogue: 1,{format_time(0)},{format_time(total_duration)},Title,,0,0,0,,{{\\fad(300,300)}}{title_text}\n"
+
+    if not sentence_timings:
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(ass_content)
+        return output_path
+
+    # 단어별 타이밍 생성
+    words_per_group = word_config.get("words_per_group", 3)
+
+    for timing in sentence_timings:
+        text = timing.get("text", "").strip()
+        start_time = timing.get("start", 0)
+        end_time = timing.get("end", 0)
+
+        if not text or end_time <= start_time:
+            continue
+
+        # 단어 분리 (공백 기준)
+        words = text.split()
+        if not words:
+            continue
+
+        # 문장 duration
+        sentence_duration = end_time - start_time
+
+        # 각 단어의 대략적인 타이밍 계산 (글자 수 비율)
+        total_chars = sum(len(w) for w in words)
+        if total_chars == 0:
+            continue
+
+        word_timings = []
+        current_time = start_time
+
+        for word in words:
+            word_duration = (len(word) / total_chars) * sentence_duration
+            word_duration = max(0.1, word_duration)  # 최소 0.1초
+
+            word_timings.append({
+                "word": word,
+                "start": current_time,
+                "end": min(current_time + word_duration, end_time),
+            })
+            current_time += word_duration
+
+        # 단어 그룹별로 자막 생성
+        for i in range(0, len(word_timings), words_per_group):
+            group = word_timings[i:i + words_per_group]
+            if not group:
+                continue
+
+            group_start = group[0]["start"]
+            group_end = group[-1]["end"]
+
+            # 그룹 내 각 단어별 스타일 적용
+            styled_text_parts = []
+
+            for j, wt in enumerate(group):
+                word = wt["word"]
+                word_start = wt["start"]
+                word_end = wt["end"]
+
+                # 임팩트 키워드 체크
+                is_impact = any(kw in word for kw in impact_words)
+
+                # ★ ASS 인라인 스타일로 단어별 색상 변경
+                # 현재 그룹의 시작점 기준으로 단어가 "현재" 읽히는 중인지 판단
+                # 여기서는 그룹 전체를 "현재"로 처리하고, 색상 변화로 강조
+
+                if is_impact:
+                    # 임팩트 키워드: 빨간색 + 크게
+                    style_override = f"{{\\c{impact_color}\\fscx130\\fscy130}}"
+                else:
+                    # 일반 단어: 현재 색상
+                    style_override = f"{{\\c{current_color}\\fscx115\\fscy115}}"
+
+                styled_text_parts.append(f"{style_override}{word}{{\\r}}")
+
+            # 조합된 텍스트
+            final_text = " ".join(styled_text_parts)
+
+            # 팝인 애니메이션
+            pop_config = viral_style.get("pop_animation", {})
+            if pop_config.get("enabled"):
+                pop_duration = pop_config.get("duration_ms", 100)
+                start_scale = int(pop_config.get("start_scale", 0.5) * 100)
+                end_scale = 100
+
+                # 팝인 효과: 작게 시작해서 커지면서 나타남
+                fade_effect = f"{{\\fad({pop_duration},50)\\t(0,{pop_duration},\\fscx{end_scale}\\fscy{end_scale})}}"
+            else:
+                fade_effect = "{\\fad(50,50)}"
+
+            # 자막 라인 추가
+            ass_content += f"Dialogue: 0,{format_time(group_start)},{format_time(group_end)},Current,,0,0,0,,{fade_effect}{final_text}\n"
+
+    # 파일 저장
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(ass_content)
+
+    word_count = sum(len(t.get("text", "").split()) for t in sentence_timings)
+    print(f"[SHORTS] 바이럴 자막 생성: {len(sentence_timings)}개 문장, {word_count}개 단어 (단어별 하이라이팅)")
+    return output_path
+
+
+# ============================================================
 # 영상 렌더링 (FFmpeg - Ken Burns + 전환 효과)
 # ============================================================
 
@@ -1089,14 +1307,29 @@ def render_video(
 
         # 4) ASS 자막 생성 (문장 단위 + 상단 타이틀)
         ass_path = output_path.replace(".mp4", ".ass")
-        generate_ass_subtitles(
-            scenes=scenes,
-            total_duration=audio_duration,
-            output_path=ass_path,
-            issue_type=issue_type,
-            title_text=title_text,  # 상단 고정 타이틀
-            sentence_timings=sentence_timings  # TTS 싱크용 정확한 타이밍
-        )
+
+        # ★ 바이럴 자막 스타일 사용 여부 확인
+        use_viral_style = VIRAL_SUBTITLE_STYLE.get("enabled", True) and sentence_timings
+
+        if use_viral_style:
+            # 바이럴 스타일: 단어별 하이라이팅 + 팝인 애니메이션
+            generate_viral_subtitles(
+                sentence_timings=sentence_timings,
+                total_duration=audio_duration,
+                output_path=ass_path,
+                issue_type=issue_type,
+                title_text=title_text,
+            )
+        else:
+            # 기존 스타일: 문장 단위
+            generate_ass_subtitles(
+                scenes=scenes,
+                total_duration=audio_duration,
+                output_path=ass_path,
+                issue_type=issue_type,
+                title_text=title_text,
+                sentence_timings=sentence_timings
+            )
 
         # 5) 자막 burn-in (최종 출력)
         # FFmpeg ass 필터로 자막 합성

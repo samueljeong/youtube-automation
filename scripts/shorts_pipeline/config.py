@@ -576,6 +576,138 @@ KEYWORD_HIGHLIGHT_CONFIG = {
 
 
 # ============================================================
+# 바이럴 자막 스타일 (TikTok/YouTube Shorts 트렌드)
+# ============================================================
+
+VIRAL_SUBTITLE_STYLE = {
+    # 활성화 여부
+    "enabled": True,
+
+    # ★ 단어별 하이라이팅 (핵심 기능)
+    "word_by_word": {
+        "enabled": True,              # 단어별 표시
+        "highlight_mode": "progressive",  # progressive: 순차 강조, all: 전체 표시
+        "words_per_group": 3,         # 한 번에 표시할 단어 수 (1-5)
+    },
+
+    # ★ 현재 단어 스타일 (강조)
+    "current_word": {
+        "font_color": "#FFFF00",      # 노란색 (현재 읽는 단어)
+        "scale": 1.15,                # 15% 확대
+        "bold": True,
+    },
+
+    # ★ 이전 단어 스타일 (읽은 단어)
+    "previous_word": {
+        "font_color": "#FFFFFF",      # 흰색 (이미 읽은 단어)
+        "scale": 1.0,
+        "opacity": 0.9,
+    },
+
+    # ★ 다음 단어 스타일 (아직 안 읽은 단어)
+    "next_word": {
+        "font_color": "#888888",      # 회색 (아직 안 읽은 단어)
+        "scale": 1.0,
+        "opacity": 0.5,
+    },
+
+    # ★ 팝인 애니메이션
+    "pop_animation": {
+        "enabled": True,
+        "duration_ms": 100,           # 팝인 시간 (ms)
+        "start_scale": 0.5,           # 시작 크기
+        "end_scale": 1.0,             # 끝 크기
+        "overshoot": 1.1,             # 바운스 효과 (1.0=없음)
+    },
+
+    # ★ 이슈별 강조색 (현재 단어)
+    "issue_colors": {
+        "논란": "#FF4444",            # 빨강
+        "열애": "#FF69B4",            # 핑크
+        "컴백": "#00FF88",            # 네온 그린
+        "사건": "#FF0000",            # 진한 빨강
+        "성과": "#FFD700",            # 금색
+        "근황": "#00BFFF",            # 하늘색
+        "default": "#FFFF00",         # 노랑
+    },
+
+    # ★ 키워드 특별 강조 (감정/임팩트 단어)
+    "impact_keywords": {
+        "enabled": True,
+        "words": [
+            "충격", "폭로", "논란", "결국", "드디어", "역대급",
+            "확정", "공식", "긴급", "속보", "터졌다", "인정",
+            "실화", "대박", "ㅋㅋ", "진짜", "헐", "와",
+        ],
+        "style": {
+            "font_color": "#FF0000",  # 빨강
+            "scale": 1.3,             # 30% 확대
+            "shake": True,            # 흔들림 효과
+        },
+    },
+
+    # ★ 폰트 설정 (굵은 폰트 권장)
+    "font": {
+        "name": "NanumSquareRoundEB",
+        "size": 62,                   # 기본보다 크게
+        "outline_width": 5,
+        "shadow_offset": 4,
+    },
+
+    # ★ 배경 스타일
+    "background": {
+        "enabled": True,
+        "style": "word_box",          # word_box: 단어별 박스, full_line: 줄 전체
+        "color": "#000000",
+        "opacity": 0.7,
+        "padding": 8,
+        "border_radius": 6,           # 둥근 모서리 (FFmpeg 미지원, 참고용)
+    },
+
+    # ★ 위치
+    "position": {
+        "alignment": 5,               # 화면 중앙
+        "margin_v": 50,               # 약간 아래
+    },
+}
+
+# 바이럴 자막 프리셋 (빠른 적용)
+VIRAL_SUBTITLE_PRESETS = {
+    # 기본 바이럴 스타일
+    "default": {
+        "word_by_word": True,
+        "current_color": "#FFFF00",
+        "pop_animation": True,
+    },
+
+    # 뉴스 스타일 (차분)
+    "news": {
+        "word_by_word": True,
+        "current_color": "#FFFFFF",
+        "previous_color": "#CCCCCC",
+        "pop_animation": False,
+    },
+
+    # 드라마/감성 스타일
+    "emotional": {
+        "word_by_word": True,
+        "current_color": "#FF69B4",
+        "pop_animation": True,
+        "words_per_group": 2,
+    },
+
+    # 충격/논란 스타일
+    "shocking": {
+        "word_by_word": True,
+        "current_color": "#FF0000",
+        "shake_keywords": True,
+        "pop_animation": True,
+        "words_per_group": 1,
+    },
+}
+
+
+# ============================================================
 # Ken Burns 효과 (이미지 확대/이동 애니메이션)
 # ============================================================
 

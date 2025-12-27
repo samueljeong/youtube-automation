@@ -51,6 +51,9 @@ from .config import (
     SHORTS_EMPHASIS_STYLE,
     SUBTITLE_HIGHLIGHT_COLORS,
     KEYWORD_HIGHLIGHT_CONFIG,
+    # 바이럴 자막 스타일
+    VIRAL_SUBTITLE_STYLE,
+    VIRAL_SUBTITLE_PRESETS,
     # Ken Burns 효과
     SHORTS_KEN_BURNS,
     FFMPEG_ZOOMPAN_PRESETS,
@@ -125,6 +128,7 @@ from .run import (
     generate_single_image,
     generate_thumbnail,
     render_video,
+    generate_viral_subtitles,
     YOUTUBE_SEARCH_AVAILABLE,
 )
 
@@ -176,6 +180,9 @@ __all__ = [
     'SHORTS_EMPHASIS_STYLE',
     'SUBTITLE_HIGHLIGHT_COLORS',
     'KEYWORD_HIGHLIGHT_CONFIG',
+    # 바이럴 자막 스타일
+    'VIRAL_SUBTITLE_STYLE',
+    'VIRAL_SUBTITLE_PRESETS',
     # Ken Burns 효과
     'SHORTS_KEN_BURNS',
     'FFMPEG_ZOOMPAN_PRESETS',
@@ -247,6 +254,7 @@ __all__ = [
     'generate_single_image',
     'generate_thumbnail',
     'render_video',
+    'generate_viral_subtitles',
 
     # YouTube Search (선택적)
     'YOUTUBE_SEARCH_AVAILABLE',
