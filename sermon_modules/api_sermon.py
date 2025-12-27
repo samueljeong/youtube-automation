@@ -34,7 +34,8 @@ from .auth import (
 from .step3_prompt_builder import (
     get_system_prompt_for_step, build_prompt_from_json, build_step3_prompt_from_json,
     validate_step1_output, validate_step2_output,
-    parse_step3_self_check, validate_step3_self_check, build_step3_retry_prompt
+    parse_step3_self_check, validate_step3_self_check, build_step3_retry_prompt,
+    build_step3_system_prompt  # ★ 2025-12-26 추가: Step3 시스템 프롬프트 (스토리텔링/대화체 지침)
 )
 from .strongs import analyze_verse_strongs, format_strongs_for_prompt
 from .commentary import (
@@ -968,8 +969,8 @@ def gpt_pro():
 
         has_title = bool(title and title.strip())
 
-        # 시스템 프롬프트
-        system_content = "당신은 한국어 설교 전문가입니다. 마크다운 기호 대신 순수 텍스트만 사용합니다."
+        # 시스템 프롬프트 (★ 2025-12-26 수정: 스토리텔링/대화체 지침 포함)
+        system_content = build_step3_system_prompt()
 
         # 최우선 지침
         system_content += "\n\n" + "=" * 50
