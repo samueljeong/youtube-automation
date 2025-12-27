@@ -3943,6 +3943,101 @@ def merge_audio_chunks_ffmpeg(audio_data_list):
         return b''.join(audio_data_list)
 
 
+# ===== TTS 음성 사전 검증 (파이프라인 시작 시 호출) =====
+def validate_tts_voice(voice: str) -> dict:
+    """
+    TTS 음성 사전 검증 - 비싼 작업 전에 음성 설정과 필수 환경변수 확인
+
+    Args:
+        voice: 음성 이름 (chirp3:Charon, gemini:Kore, ko-KR-Neural2-C 등)
+
+    Returns:
+        dict: {"ok": True, "voice_type": "chirp3"} 또는 {"ok": False, "error": str}
+
+    음성 유형별 필수 환경변수:
+    - chirp3:*  → GOOGLE_SERVICE_ACCOUNT_JSON
+    - gemini:*  → GOOGLE_API_KEY
+    - ko-KR-*, ja-JP-*, en-US-* → GOOGLE_CLOUD_API_KEY
+    """
+    if not voice:
+        return {"ok": False, "error": "음성이 지정되지 않았습니다"}
+
+    voice_lower = voice.lower()
+
+    # ========== Chirp3 HD TTS ==========
+    if voice.startswith("chirp3:") or "chirp3" in voice_lower:
+        voice_type = "chirp3"
+        required_env = "GOOGLE_SERVICE_ACCOUNT_JSON"
+        env_value = os.environ.get(required_env, "")
+
+        if not env_value:
+            return {
+                "ok": False,
+                "error": f"Chirp3 TTS 사용을 위해 {required_env} 환경변수가 필요합니다",
+                "voice_type": voice_type
+            }
+
+        # Chirp3 음성 이름 검증
+        valid_chirp3_voices = ["Charon", "Kore", "Fenrir", "Aoede", "Puck"]
+        voice_name = voice.split(":")[-1] if ":" in voice else voice
+        if voice_name not in valid_chirp3_voices:
+            return {
+                "ok": False,
+                "error": f"지원되지 않는 Chirp3 음성: {voice_name} (지원: {', '.join(valid_chirp3_voices)})",
+                "voice_type": voice_type
+            }
+
+        return {"ok": True, "voice_type": voice_type, "voice_name": voice_name}
+
+    # ========== Gemini TTS ==========
+    elif voice.startswith("gemini:"):
+        voice_type = "gemini"
+        required_env = "GOOGLE_API_KEY"
+        env_value = os.environ.get(required_env, "")
+
+        if not env_value:
+            return {
+                "ok": False,
+                "error": f"Gemini TTS 사용을 위해 {required_env} 환경변수가 필요합니다",
+                "voice_type": voice_type
+            }
+
+        # Gemini 음성 이름 검증
+        valid_gemini_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede"]
+        parts = voice.split(":")
+        voice_name = parts[-1] if len(parts) > 1 else "Kore"
+        if voice_name not in valid_gemini_voices:
+            return {
+                "ok": False,
+                "error": f"지원되지 않는 Gemini 음성: {voice_name} (지원: {', '.join(valid_gemini_voices)})",
+                "voice_type": voice_type
+            }
+
+        return {"ok": True, "voice_type": voice_type, "voice_name": voice_name}
+
+    # ========== Google Cloud TTS ==========
+    elif voice.startswith("ko-KR-") or voice.startswith("ja-JP-") or voice.startswith("en-US-"):
+        voice_type = "google_cloud"
+        required_env = "GOOGLE_CLOUD_API_KEY"
+        env_value = os.environ.get(required_env, "")
+
+        if not env_value:
+            return {
+                "ok": False,
+                "error": f"Google Cloud TTS 사용을 위해 {required_env} 환경변수가 필요합니다",
+                "voice_type": voice_type
+            }
+
+        return {"ok": True, "voice_type": voice_type, "voice_name": voice}
+
+    # ========== 알 수 없는 음성 ==========
+    else:
+        return {
+            "ok": False,
+            "error": f"지원되지 않는 음성 형식: {voice} (지원: chirp3:*, gemini:*, ko-KR-*, ja-JP-*, en-US-*)"
+        }
+
+
 # ===== TTS 텍스트 전처리 (영문 인명 괄호 제거) =====
 def preprocess_tts_text(text: str) -> str:
     """
@@ -12447,9 +12542,9 @@ def api_image_generate_assets_zip():
                 if result.get("ok"):
                     return result['audio_data']
                 else:
-                    print(f"[TTS-CHIRP3] 실패: {result.get('error')}, Neural2로 폴백")
-                    voice_name = lang_ko.TTS.get('fallback_voice', 'ko-KR-Neural2-C')
-                    # 아래 Google Cloud TTS 로직으로 폴백
+                    # ★ 폴백 제거: Chirp3 실패 시 영상 생성 중단 (브랜드 음성 보호)
+                    print(f"[TTS-CHIRP3] ❌ 실패: {result.get('error')} - 폴백 없이 중단")
+                    return None  # 폴백하지 않고 실패 반환
 
             # ===== Gemini TTS 처리 =====
             if is_gemini_voice(voice_name):
@@ -12486,17 +12581,9 @@ def api_image_generate_assets_zip():
                         # MP3 변환 실패 시 WAV 반환
                         return result['audio_data']
                 else:
-                    print(f"[TTS-GEMINI] 실패: {result.get('error')}, Google Cloud TTS로 폴백")
-                    # Gemini 실패 시 Google Cloud TTS로 폴백 (fallback_voice 사용)
-                    voice_name = lang_ko.TTS.get('fallback_voice', 'ko-KR-Neural2-C')
-                    # ★ 폴백 시 Google Cloud API 키 사용 (중요!)
-                    fallback_api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
-                    if fallback_api_key:
-                        api_key = fallback_api_key
-                        print(f"[TTS-GEMINI] Google Cloud TTS 폴백 - 음성: {voice_name}")
-                    else:
-                        print(f"[TTS-GEMINI] 폴백 실패: GOOGLE_CLOUD_API_KEY 없음")
-                        return None
+                    # ★ 폴백 제거: Gemini 실패 시 영상 생성 중단 (브랜드 음성 보호)
+                    print(f"[TTS-GEMINI] ❌ 실패: {result.get('error')} - 폴백 없이 중단")
+                    return None  # 폴백하지 않고 실패 반환
 
             # ===== Google Cloud TTS 처리 =====
             # SSML 태그 감지
@@ -19782,6 +19869,16 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
                 print(f"[AGENT] ========== 에이전트 파이프라인 시작 ==========", flush=True)
                 print(f"[AGENT] 행 {row_index}, 대본 {len(row_dict['대본'])}자, 프로젝트={selected_project or '기본'}", flush=True)
 
+                # ★ 음성 사전 검증 (비싼 작업 전에 확인)
+                agent_voice = row_dict.get("음성", "chirp3:Charon")
+                print(f"[AGENT] 음성 사전 검증: {agent_voice}", flush=True)
+                voice_validation = validate_tts_voice(agent_voice)
+                if not voice_validation["ok"]:
+                    error_msg = f"음성 설정 오류: {voice_validation['error']}"
+                    print(f"[AGENT] ❌ {error_msg}", flush=True)
+                    return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
+                print(f"[AGENT] ✅ 음성 검증 통과: {voice_validation['voice_type']}", flush=True)
+
                 # 비동기 실행
                 video_url, error, cost = asyncio.run(
                     run_agent_pipeline(row_dict, row_index, sheet_name="", selected_project=selected_project)
@@ -19853,6 +19950,15 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
 
         if not script or len(script.strip()) < 10:
             return {"ok": False, "error": "대본이 너무 짧습니다 (최소 10자)", "video_url": None}
+
+        # ========== 0-A. 음성 사전 검증 (비싼 작업 전에 확인) ==========
+        print(f"[AUTOMATION] 0-A. 음성 사전 검증: {voice}", flush=True)
+        voice_validation = validate_tts_voice(voice)
+        if not voice_validation["ok"]:
+            error_msg = f"음성 설정 오류: {voice_validation['error']}"
+            print(f"[AUTOMATION] ❌ {error_msg}", flush=True)
+            return {"ok": False, "error": error_msg, "video_url": None}
+        print(f"[AUTOMATION] ✅ 음성 검증 통과: {voice_validation['voice_type']}", flush=True)
 
         # ========== 0. YouTube 프로젝트 확인 ==========
         # 할당량 체크는 api_sheets_check_and_process에서 이미 완료됨
