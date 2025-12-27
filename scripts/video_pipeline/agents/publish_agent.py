@@ -71,6 +71,7 @@ class PublishAgent(BaseAgent):
             description = youtube.get("description", "")
             hashtags = youtube.get("hashtags", [])
             tags = youtube.get("tags", [])
+            pin_comment = youtube.get("pin_comment", "")  # ★ 고정 댓글
 
             # description이 객체인 경우 문자열로 변환 (원본 파이프라인과 동일)
             if isinstance(description, dict):
@@ -110,6 +111,11 @@ class PublishAgent(BaseAgent):
                 description = description + hashtags_text
                 self.log(f"해시태그 {len(hashtags)}개 추가")
 
+            # ★ 인용링크 추가 (원본 파이프라인과 동일 - 시트에서 가져온 출처 링크)
+            if context.citation_links:
+                description = description + "\n\n📚 출처\n" + context.citation_links
+                self.log(f"인용링크 추가 ({len(context.citation_links)}자)")
+
             # ★ CTA 추가 (구독/좋아요 유도)
             description = self._add_cta(description, title)
 
@@ -137,6 +143,13 @@ class PublishAgent(BaseAgent):
             if context.publish_at:
                 payload["publish_at"] = context.publish_at
 
+            # ★ 고정 댓글 추가 (GPT가 생성한 pin_comment)
+            if pin_comment and pin_comment.strip():
+                payload["firstComment"] = pin_comment
+                self.log(f"  - 고정 댓글: {pin_comment[:50]}...")
+            else:
+                self.log(f"  - 고정 댓글: 없음")
+
             self.log(f"  - 제목: {title[:50]}...")
             self.log(f"  - 썸네일: {'있음' if context.thumbnail_path else '없음'}")
             self.log(f"  - 플레이리스트: {context.playlist_id or '없음'}")
@@ -160,6 +173,15 @@ class PublishAgent(BaseAgent):
             video_url = result.get("video_url") or f"https://www.youtube.com/watch?v={video_id}"
             context.video_url = video_url
 
+            # ★ 댓글 작성 결과 확인
+            comment_posted = result.get("commentPosted", False)
+            comment_id = result.get("commentId")
+            if pin_comment:
+                if comment_posted:
+                    self.log(f"✅ 고정 댓글 작성 완료 (YouTube Studio에서 고정 필요)")
+                else:
+                    self.log(f"⚠️ 고정 댓글 작성 실패 (댓글 비활성화 또는 권한 문제)", "warning")
+
             duration = time.time() - start_time
 
             self.log(f"✅ 업로드 완료: {video_url}")
@@ -177,6 +199,8 @@ class PublishAgent(BaseAgent):
                     "video_id": video_id,
                     "video_url": video_url,
                     "title": title,
+                    "comment_posted": comment_posted,  # ★ 댓글 작성 여부
+                    "comment_id": comment_id,  # ★ 댓글 ID
                 },
                 cost=0.0,  # YouTube API는 무료
                 duration=duration

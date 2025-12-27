@@ -36,7 +36,7 @@ from .review_agent import ReviewAgent
 class PipelineStrategy:
     """파이프라인 실행 전략"""
     image_style: str = "animation"
-    voice: str = "ko-KR-Neural2-C"
+    voice: str = "chirp3:Charon"  # 기본: Chirp 3 HD 남성 음성
     bgm_mood: str = "calm"
     parallel_images: bool = True
     parallel_workers: int = 2
@@ -476,7 +476,7 @@ class VideoSupervisorAgent(BaseAgent):
         script: str,
         channel_id: str = "",
         title: str = "",
-        voice: str = "ko-KR-Neural2-C",
+        voice: str = "chirp3:Charon",  # 기본: Chirp 3 HD 남성 음성
         privacy: str = "private",
         **kwargs
     ) -> AgentResult:

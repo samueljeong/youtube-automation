@@ -338,7 +338,7 @@ class AnalysisAgent(BaseAgent):
         """
         recommendations = {
             "image_style": "animation",
-            "voice": context.voice or "ko-KR-Neural2-C",
+            "voice": context.voice or "chirp3:Charon",  # 기본: Chirp 3 HD 남성 음성
             "bgm_mood": "calm",
             "parallel_images": True,
             "premium_thumbnail": False,

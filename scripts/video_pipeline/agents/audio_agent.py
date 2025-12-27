@@ -54,8 +54,9 @@ class AudioAgent(BaseAgent):
                 )
 
             # 음성 결정 (로그 추가)
+            # ★ 기본 음성: chirp3:Charon (원본 파이프라인과 동일)
             self.log(f"음성 소스: override={voice_override}, context.voice={context.voice}")
-            voice = voice_override or context.voice or "ko-KR-Neural2-C"
+            voice = voice_override or context.voice or "chirp3:Charon"
 
             # 언어 감지
             language = self._detect_language(context.script)

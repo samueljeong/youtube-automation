@@ -73,9 +73,10 @@ class VideoTaskContext:
     privacy_status: str = "private"
     publish_at: Optional[str] = None
     playlist_id: Optional[str] = None
-    voice: str = "ko-KR-Neural2-C"
+    voice: str = "chirp3:Charon"  # 기본: Chirp 3 HD 남성 음성
     project_suffix: str = ""  # YouTube 프로젝트 ('', '_2')
     input_category: str = ""  # 시트에서 입력된 카테고리 (news 등)
+    citation_links: str = ""  # ★ 인용링크 (유튜브 설명에 포함)
 
     # 분석 결과
     analysis_result: Optional[Dict[str, Any]] = None

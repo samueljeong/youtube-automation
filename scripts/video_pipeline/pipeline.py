@@ -7,17 +7,23 @@ Pipeline Runner - 에이전트 파이프라인 실행기
 
 import asyncio
 import os
+import sys
 import logging
 from typing import Any, Dict, Optional, Tuple
 
+# ★ 프로젝트 루트를 Python 경로에 추가 (lang 모듈 import를 위해)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
 from .agents import VideoSupervisorAgent, VideoTaskContext, AgentResult
 
-# ★ 기본 음성 설정 (원본 파이프라인과 동일)
+# ★ 기본 음성 설정 (원본 파이프라인과 동일: chirp3:Charon)
 try:
     from lang import ko as lang_ko
-    DEFAULT_VOICE = lang_ko.TTS.get('default_voice', 'ko-KR-Neural2-C')
+    DEFAULT_VOICE = lang_ko.TTS.get('default_voice', 'chirp3:Charon')
 except ImportError:
-    DEFAULT_VOICE = 'ko-KR-Neural2-C'
+    DEFAULT_VOICE = 'chirp3:Charon'  # ★ 폴백도 chirp3:Charon으로 변경
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +120,8 @@ class AgentPipelineRunner:
         voice = row_data.get("음성", "") or DEFAULT_VOICE  # ★ 원본 파이프라인과 동일한 기본 음성
         # ★ 카테고리 (news/story 등) - 원본 파이프라인과 동일
         input_category = row_data.get("카테고리", "") or ""
+        # ★ 인용링크 (유튜브 설명에 포함)
+        citation_links = row_data.get("인용링크", "") or ""
 
         return VideoTaskContext(
             row_number=row_number,
@@ -128,6 +136,7 @@ class AgentPipelineRunner:
             voice=voice,
             project_suffix=selected_project,  # YouTube 프로젝트
             input_category=input_category,  # ★ 카테고리 추가
+            citation_links=citation_links,  # ★ 인용링크 추가
         )
 
     def run_sync(
