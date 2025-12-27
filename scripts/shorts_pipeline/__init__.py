@@ -119,12 +119,28 @@ from .run import (
     run_shorts_pipeline,
     run_full_pipeline,
     run_video_generation,
+    run_viral_pipeline,
     generate_tts,
     generate_images_parallel,
     generate_single_image,
     generate_thumbnail,
     render_video,
+    YOUTUBE_SEARCH_AVAILABLE,
 )
+
+# YouTube 트렌딩 검색 (선택적)
+try:
+    from .youtube_search import (
+        search_trending_shorts,
+        search_shorts_by_category,
+        get_best_shorts_topic,
+        youtube_to_news_format,
+        get_video_comments,
+        extract_trending_topics,
+    )
+except ImportError:
+    # googleapiclient 미설치 시
+    pass
 
 
 __all__ = [
@@ -222,6 +238,7 @@ __all__ = [
     'run_script_generation',
     'run_shorts_pipeline',
     'run_full_pipeline',
+    'run_viral_pipeline',
 
     # Video Generation (병렬 처리)
     'run_video_generation',
@@ -230,4 +247,13 @@ __all__ = [
     'generate_single_image',
     'generate_thumbnail',
     'render_video',
+
+    # YouTube Search (선택적)
+    'YOUTUBE_SEARCH_AVAILABLE',
+    'search_trending_shorts',
+    'search_shorts_by_category',
+    'get_best_shorts_topic',
+    'youtube_to_news_format',
+    'get_video_comments',
+    'extract_trending_topics',
 ]

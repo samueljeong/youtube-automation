@@ -69,6 +69,18 @@ from .news_collector import (
     collect_and_score_news,
     get_best_news_for_shorts,
 )
+
+# YouTube 트렌딩 검색 (선택적 사용)
+try:
+    from .youtube_search import (
+        get_best_shorts_topic,
+        youtube_to_news_format,
+        search_shorts_by_category,
+    )
+    YOUTUBE_SEARCH_AVAILABLE = True
+except ImportError:
+    YOUTUBE_SEARCH_AVAILABLE = False
+    print("[SHORTS] YouTube 검색 모듈 비활성화 (googleapiclient 미설치)")
 from .script_generator import (
     generate_complete_shorts_package,
     format_script_for_sheet,
@@ -1844,13 +1856,14 @@ def run_viral_pipeline(
     upload_youtube: bool = False,
     privacy_status: str = "private",
     channel_id: str = None,
-    save_to_sheet: bool = True
+    save_to_sheet: bool = True,
+    source: str = "rss"  # "rss" 또는 "youtube"
 ) -> Dict[str, Any]:
     """
     바이럴 점수 기반 자동 쇼츠 파이프라인
 
     흐름:
-    1. RSS에서 뉴스 수집
+    1. RSS 또는 YouTube에서 트렌딩 주제 수집
     2. 네이버/다음 댓글 크롤링 → 바이럴 점수 계산
     3. 가장 점수 높은 뉴스 선정
     4. 실제 댓글을 반영한 대본 생성
@@ -1865,6 +1878,7 @@ def run_viral_pipeline(
         privacy_status: YouTube 공개 설정 (private/public/unlisted)
         channel_id: YouTube 채널 ID (선택)
         save_to_sheet: 시트에 저장 여부
+        source: 소스 선택 - "rss" (뉴스 RSS) 또는 "youtube" (YouTube 트렌딩)
 
     Returns:
         {
@@ -1881,7 +1895,7 @@ def run_viral_pipeline(
 
     print(f"\n{'#'*60}")
     print(f"# 바이럴 기반 SHORTS 파이프라인 시작")
-    print(f"# 최소 점수: {min_score}, 비디오 생성: {generate_video}")
+    print(f"# 소스: {source.upper()}, 최소 점수: {min_score}")
     print(f"{'#'*60}\n")
 
     result = {"ok": False}
@@ -1891,12 +1905,33 @@ def run_viral_pipeline(
         # ============================================================
         # 1단계: 바이럴 점수 기반 뉴스 선정
         # ============================================================
-        print("[SHORTS] === 1단계: 바이럴 뉴스 선정 ===\n")
+        print(f"[SHORTS] === 1단계: {'YouTube 트렌딩' if source == 'youtube' else 'RSS 뉴스'} 검색 ===\n")
 
-        best_news = get_best_news_for_shorts(
-            categories=categories,
-            min_score=min_score
-        )
+        best_news = None
+
+        if source == "youtube":
+            # YouTube 트렌딩 쇼츠에서 주제 찾기
+            if not YOUTUBE_SEARCH_AVAILABLE:
+                return {
+                    "ok": False,
+                    "error": "YouTube 검색 모듈 비활성화 (YOUTUBE_API_KEY 또는 googleapiclient 필요)"
+                }
+
+            topic = get_best_shorts_topic(
+                categories=categories,
+                min_engagement=min_score
+            )
+
+            if topic:
+                # YouTube 주제를 뉴스 형식으로 변환
+                best_news = youtube_to_news_format(topic)
+                print(f"[SHORTS] YouTube 트렌딩 주제 발견: {topic.get('topic')}")
+        else:
+            # 기존 RSS 기반 뉴스 수집
+            best_news = get_best_news_for_shorts(
+                categories=categories,
+                min_score=min_score
+            )
 
         if not best_news:
             print("[SHORTS] 바이럴 점수 기준을 충족하는 뉴스가 없습니다")
@@ -2068,6 +2103,7 @@ if __name__ == "__main__":
     parser.add_argument("--video", action="store_true", help="비디오까지 생성")
     parser.add_argument("--full", action="store_true", help="전체 파이프라인 (수집+대본+비디오)")
     parser.add_argument("--viral", action="store_true", help="바이럴 점수 기반 자동 파이프라인")
+    parser.add_argument("--youtube", action="store_true", help="YouTube 트렌딩 기반 (--viral과 함께 사용)")
     parser.add_argument("--min-score", type=float, default=40, help="최소 바이럴 점수 (viral 모드)")
     parser.add_argument("--upload", action="store_true", help="YouTube 업로드 (viral 모드)")
     parser.add_argument("--privacy", type=str, default="private", help="YouTube 공개 설정 (private/public/unlisted)")
@@ -2085,12 +2121,14 @@ if __name__ == "__main__":
         print("시트 생성 완료")
     elif args.viral:
         # 바이럴 점수 기반 자동 파이프라인
+        source = "youtube" if args.youtube else "rss"
         result = run_viral_pipeline(
             min_score=args.min_score,
             generate_video=args.video,
             upload_youtube=args.upload,
             privacy_status=args.privacy,
             channel_id=args.channel_id,
+            source=source,
         )
         print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
     elif args.collect:
