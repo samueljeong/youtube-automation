@@ -118,6 +118,7 @@ from .script_generator import (
 
 from .run import (
     run_news_collection,
+    run_youtube_collection,
     run_script_generation,
     run_shorts_pipeline,
     run_full_pipeline,
@@ -242,6 +243,7 @@ __all__ = [
 
     # Main Pipeline
     'run_news_collection',
+    'run_youtube_collection',
     'run_script_generation',
     'run_shorts_pipeline',
     'run_full_pipeline',

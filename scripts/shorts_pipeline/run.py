@@ -1759,6 +1759,134 @@ def run_news_collection(
         return {"ok": False, "error": str(e)}
 
 
+def run_youtube_collection(
+    max_items: int = 10,
+    categories: List[str] = None,
+    hours_ago: int = 48,
+    min_engagement: float = 30,
+    save_to_sheet: bool = True
+) -> Dict[str, Any]:
+    """
+    YouTube 트렌딩 쇼츠 수집 및 시트 저장
+
+    Args:
+        max_items: 수집할 최대 주제 수
+        categories: 카테고리 목록 (None이면 ["연예인"])
+        hours_ago: 검색 시간 범위
+        min_engagement: 최소 참여도 점수
+        save_to_sheet: True면 시트에 저장
+
+    Returns:
+        {
+            "ok": True,
+            "collected": 5,
+            "saved": 3,
+            "topics": [...]
+        }
+    """
+    if not YOUTUBE_SEARCH_AVAILABLE:
+        return {
+            "ok": False,
+            "error": "YouTube 검색 모듈 비활성화 (YOUTUBE_API_KEY 또는 googleapiclient 필요)"
+        }
+
+    print(f"\n{'='*50}")
+    print(f"[SHORTS] YouTube 트렌딩 수집 시작")
+    print(f"{'='*50}\n")
+
+    if categories is None:
+        categories = ["연예인"]
+
+    all_topics = []
+
+    try:
+        for category in categories:
+            print(f"[SHORTS] === {category} 카테고리 검색 ===")
+
+            result = search_shorts_by_category(
+                category=category,
+                hours_ago=hours_ago,
+                max_results=max_items * 3  # 필터링 여유분
+            )
+
+            topics = result.get("topics", [])
+
+            for topic in topics[:max_items]:
+                # 참여도 필터
+                if topic.get("avg_engagement", 0) < min_engagement:
+                    continue
+
+                # 뉴스 형식으로 변환
+                news_format = youtube_to_news_format(topic)
+                news_format["category"] = category
+                news_format["source"] = "youtube"  # 소스 표시
+
+                # 상위 영상 댓글 수집 (script_hints용)
+                if topic.get("sample_videos"):
+                    top_video = topic["sample_videos"][0]
+                    comments = get_video_comments(top_video["video_id"], max_results=20)
+                    news_format["script_hints"] = {
+                        "debate_topic": f"{news_format['person']} 관련 논쟁",
+                        "hot_phrases": [c.get("text", "")[:50] for c in comments[:5]],
+                        "pro_comments": [],
+                        "con_comments": [],
+                    }
+
+                all_topics.append(news_format)
+
+                print(f"  ✅ {topic['topic']}: {topic['video_count']}개 영상, 참여도 {topic.get('avg_engagement', 0):.1f}")
+
+        if not all_topics:
+            return {"ok": False, "error": "수집된 트렌딩 주제 없음"}
+
+        if not save_to_sheet:
+            return {
+                "ok": True,
+                "collected": len(all_topics),
+                "saved": 0,
+                "topics": all_topics
+            }
+
+        # 시트에 저장
+        service = get_sheets_service()
+        spreadsheet_id = get_spreadsheet_id()
+        create_shorts_sheet(service, spreadsheet_id)
+
+        saved = 0
+        duplicates = 0
+
+        for item in all_topics:
+            person = item.get("person", "")
+            news_url = item.get("news_url", "")
+
+            # 중복 체크
+            if check_duplicate(service, spreadsheet_id, person, news_url):
+                duplicates += 1
+                print(f"[SHORTS] 중복 스킵: {person}")
+                continue
+
+            # 시트에 추가
+            append_row(service, spreadsheet_id, item)
+            saved += 1
+            print(f"[SHORTS] 저장: {person} ({item.get('issue_type', '근황')}) - YouTube 트렌딩")
+
+        print(f"\n[SHORTS] YouTube 수집 완료: {len(all_topics)}개 중 {saved}개 저장, {duplicates}개 중복")
+
+        return {
+            "ok": True,
+            "collected": len(all_topics),
+            "saved": saved,
+            "duplicates": duplicates,
+            "topics": all_topics
+        }
+
+    except Exception as e:
+        print(f"[SHORTS] YouTube 수집 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
 def run_script_generation(
     limit: int = 1,
     generate_video: bool = False
@@ -2331,18 +2459,19 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="쇼츠 파이프라인")
-    parser.add_argument("--collect", action="store_true", help="뉴스 수집만")
+    parser.add_argument("--collect", action="store_true", help="뉴스 수집만 (RSS)")
+    parser.add_argument("--youtube-collect", action="store_true", help="YouTube 트렌딩 수집 → 시트 저장")
     parser.add_argument("--generate", action="store_true", help="대본 생성만")
     parser.add_argument("--video", action="store_true", help="비디오까지 생성")
     parser.add_argument("--full", action="store_true", help="전체 파이프라인 (수집+대본+비디오)")
     parser.add_argument("--viral", action="store_true", help="바이럴 점수 기반 자동 파이프라인")
     parser.add_argument("--youtube", action="store_true", help="YouTube 트렌딩 기반 (--viral과 함께 사용)")
-    parser.add_argument("--min-score", type=float, default=40, help="최소 바이럴 점수 (viral 모드)")
+    parser.add_argument("--min-score", type=float, default=30, help="최소 참여도/바이럴 점수")
     parser.add_argument("--upload", action="store_true", help="YouTube 업로드 (viral 모드)")
     parser.add_argument("--privacy", type=str, default="private", help="YouTube 공개 설정 (private/public/unlisted)")
     parser.add_argument("--channel-id", type=str, help="YouTube 채널 ID")
     parser.add_argument("--person", type=str, help="특정 인물")
-    parser.add_argument("--limit", type=int, default=1, help="처리할 행 수")
+    parser.add_argument("--limit", type=int, default=10, help="수집/처리할 최대 수")
     parser.add_argument("--create-sheet", action="store_true", help="시트 생성만")
 
     args = parser.parse_args()
@@ -2364,8 +2493,15 @@ if __name__ == "__main__":
             source=source,
         )
         print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
+    elif args.youtube_collect:
+        # YouTube 트렌딩 수집 → 시트 저장
+        result = run_youtube_collection(
+            max_items=args.limit,
+            min_engagement=args.min_score,
+        )
+        print(f"\n결과: {json.dumps(result, ensure_ascii=False, indent=2)}")
     elif args.collect:
-        result = run_news_collection(max_items=10)
+        result = run_news_collection(max_items=args.limit)
         print(f"결과: {result}")
     elif args.generate:
         result = run_script_generation(limit=args.limit, generate_video=args.video)
