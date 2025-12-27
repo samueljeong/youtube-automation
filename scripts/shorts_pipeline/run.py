@@ -1809,11 +1809,28 @@ def run_youtube_collection(
                 max_results=max_items * 3  # 필터링 여유분
             )
 
+            videos = result.get("videos", [])
             topics = result.get("topics", [])
 
+            print(f"[SHORTS] 검색 결과: {len(videos)}개 영상, {len(topics)}개 주제 추출")
+
+            if not topics and videos:
+                # 주제 추출 실패 시 상위 영상 직접 사용
+                print(f"[SHORTS] 주제 추출 실패, 상위 영상 직접 사용")
+                for video in videos[:max_items]:
+                    topics.append({
+                        "topic": video.get("title", "")[:30],
+                        "video_count": 1,
+                        "total_views": video.get("view_count", 0),
+                        "avg_engagement": video.get("engagement_score", 50),
+                        "sample_videos": [video],
+                    })
+
             for topic in topics[:max_items]:
-                # 참여도 필터
-                if topic.get("avg_engagement", 0) < min_engagement:
+                # 참여도 필터 (0이면 필터 비활성화)
+                engagement = topic.get("avg_engagement", 0)
+                if min_engagement > 0 and engagement < min_engagement:
+                    print(f"  ⏭️ {topic['topic']}: 참여도 {engagement:.1f} < {min_engagement} (스킵)")
                     continue
 
                 # 뉴스 형식으로 변환

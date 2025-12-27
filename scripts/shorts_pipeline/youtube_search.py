@@ -285,13 +285,29 @@ def extract_trending_topics(videos: List[Dict[str, Any]]) -> List[Dict[str, Any]
     # 주제별 집계
     topics = []
     for topic, vids in keyword_videos.items():
-        if len(vids) >= 2:  # 최소 2개 이상 영상
+        if len(vids) >= 1:  # 1개 이상이면 포함 (기존: 2개)
             topics.append({
                 "topic": topic,
                 "video_count": len(vids),
                 "total_views": sum(v.get("view_count", 0) for v in vids),
                 "avg_engagement": sum(calculate_engagement_score(v) for v in vids) / len(vids),
                 "sample_videos": vids[:3],
+            })
+
+    # 주제가 없으면 상위 영상을 개별 주제로 추가
+    if not topics and videos:
+        for video in videos[:5]:
+            title = video.get("title", "")
+            # 제목에서 첫 번째 한글 이름 추출 시도
+            names = re.findall(r'([가-힣]{2,4})', title)
+            topic_name = names[0] if names else title[:20]
+
+            topics.append({
+                "topic": topic_name,
+                "video_count": 1,
+                "total_views": video.get("view_count", 0),
+                "avg_engagement": calculate_engagement_score(video),
+                "sample_videos": [video],
             })
 
     # 조회수순 정렬
