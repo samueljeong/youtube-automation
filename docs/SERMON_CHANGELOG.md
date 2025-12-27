@@ -5,6 +5,45 @@
 
 ---
 
+## 2025-12-27 세션
+
+### Step2 → Step3/Step4 데이터 전달 버그 수정 + 비중 통일
+
+**문제 1**: Step2에서 수집한 데이터가 Step3/Step4로 제대로 전달되지 않음
+- `ending` 필드 → `conclusion` 으로 찾아서 **결론 구조 100% 손실**
+- `section_1`, `section_2`, `section_3` → `sections` 배열로 찾아서 **본론 상세 구조 손실**
+- `big_idea_candidate` → 접근 안 함 → **핵심 메시지 손실**
+
+**문제 2**: 서론/본론/결론 비중 불일치
+| 단계 | 서론 | 본론 | 결론 |
+|------|------|------|------|
+| Step2 스키마 | 10% | 81% | 9% |
+| Step3/Step4 | 15% | 65% | **20%** |
+
+**수정**:
+1. `sermon-step4-copy.js:219-304`: Step2 데이터 매핑 전면 수정
+   - `ending` 필드 우선 접근 (summary_points, decision_questions, prayer_points)
+   - `section_1/2/3` 개별 접근 후 배열로 변환
+   - `big_idea_candidate` 추가
+   - `intro.flow_preview_only` 흐름 예고 추가
+
+2. `sermon-step4-copy.js:77-87`: 비중 통일
+   - 서론: 15% → **10%**
+   - 본론: 65% → **80%**
+   - 결론: 20% → **10%**
+
+3. `step3_prompt_builder.py:1204-1212`: Step3도 동일하게 비중 수정
+
+4. `step3_prompt_builder.py:724`: Step2 스키마 time_map_percent 조정
+   - `ending: 9` → `ending: 10`
+
+**결과**:
+- Step2에서 수집한 결론 구조(요약, 결단 질문, 기도제목)가 Step4에 전달됨
+- 서론/본론/결론 = 10/80/10 으로 전 단계 통일
+- 본론 비중 증가로 분량 부족 문제 개선 기대
+
+---
+
 ## 2025-12-26 세션
 
 ### 대지(본론) 풍성함 지침 강화

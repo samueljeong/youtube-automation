@@ -721,7 +721,7 @@ Step2에서 사용 가능한 ID:
   "reference": "<성경구절>",
   "title": "<설교 제목(사용자 제공 또는 후보)>",
   "big_idea_candidate": "<한 문장>",
-  "time_map_percent": { "intro": 10, "s1": 27, "s2": 27, "s3": 27, "ending": 9 },
+  "time_map_percent": { "intro": 10, "s1": 27, "s2": 27, "s3": 26, "ending": 10 },
 
   "intro": {
     "intro_question": "<한 문장 질문>",
@@ -1201,13 +1201,15 @@ def build_step3_prompt_from_json(
 
         draft += "   [분량 맞추기 전략]\n"
         if minutes >= 25:
-            draft += f"   - 서론: 약 {round(target_chars * 0.15):,}자 (도입, 성경 배경)\n"
-            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 설명)\n"
-            draft += f"   - 결론: 약 {round(target_chars * 0.20):,}자 (요약 + 결단 촉구 + 기도)\n"
+            # ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+            draft += f"   - 서론: 약 {round(target_chars * 0.10):,}자 (도입, 성경 배경)\n"
+            draft += f"   - 본론: 약 {round(target_chars * 0.80):,}자 (대지별 설명 - 풍성하게)\n"
+            draft += f"   - 결론: 약 {round(target_chars * 0.10):,}자 (요약 + 결단 촉구)\n"
         elif minutes >= 15:
-            draft += f"   - 서론: 약 {round(target_chars * 0.15):,}자\n"
-            draft += f"   - 본론: 약 {round(target_chars * 0.65):,}자 (대지별 설명)\n"
-            draft += f"   - 결론: 약 {round(target_chars * 0.20):,}자\n"
+            # ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+            draft += f"   - 서론: 약 {round(target_chars * 0.10):,}자\n"
+            draft += f"   - 본론: 약 {round(target_chars * 0.80):,}자 (대지별 설명 - 풍성하게)\n"
+            draft += f"   - 결론: 약 {round(target_chars * 0.10):,}자\n"
         else:
             draft += "   - 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n"
 

@@ -75,13 +75,15 @@ async function assembleGptProDraft() {
     draft += `\n`;
     draft += `   [분량 맞추기 전략]\n`;
     if (durationInfo.minutes >= 25) {
-      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자 (도입, 성경 배경)\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
-      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자 (요약 + 결단 촉구 + 기도)\n`;
+      // ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자 (도입, 성경 배경)\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.80).toLocaleString()}자 (대지별 설명 - 풍성하게)\n`;
+      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자 (요약 + 결단 촉구)\n`;
     } else if (durationInfo.minutes >= 15) {
-      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
-      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자\n`;
+      // ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.80).toLocaleString()}자 (대지별 설명 - 풍성하게)\n`;
+      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자\n`;
     } else {
       draft += `   - 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n`;
     }
@@ -217,27 +219,80 @@ async function assembleGptProDraft() {
           }
           draft += summary || stepResult;
         } else if (stepType === 'step2') {
-          // Step2 핵심 요약
+          // Step2 핵심 요약 (★ 2025-12-27 수정: ending, section_1/2/3, big_idea 매핑)
           let summary = '';
-          if (parsed.introduction || parsed.서론) {
-            const intro = parsed.introduction || parsed.서론;
-            summary += `▶ 서론:\n${typeof intro === 'object' ? JSON.stringify(intro).substring(0, 300) : intro}\n\n`;
+
+          // ★ big_idea_candidate (핵심 메시지)
+          if (parsed.big_idea_candidate) {
+            summary += `▶ 핵심 메시지 (Big Idea):\n${parsed.big_idea_candidate}\n\n`;
           }
-          // 본론 상위 3개
-          const points = parsed.main_points || parsed.본론 || parsed.대지 || parsed.sections;
-          if (points && Array.isArray(points)) {
-            const limitedPoints = points.slice(0, 3);
-            summary += `▶ 본론 (대지) - 상위 ${limitedPoints.length}개:\n`;
-            limitedPoints.forEach((p, i) => {
+
+          // 서론 (intro 또는 introduction)
+          const intro = parsed.intro || parsed.introduction || parsed.서론;
+          if (intro) {
+            summary += `▶ 서론:\n`;
+            if (typeof intro === 'object') {
+              if (intro.intro_question) summary += `  질문: ${intro.intro_question}\n`;
+              if (intro.flow_preview_only && Array.isArray(intro.flow_preview_only)) {
+                summary += `  흐름 예고: ${intro.flow_preview_only.join(' → ')}\n`;
+              }
+            } else {
+              summary += `  ${intro}\n`;
+            }
+            summary += '\n';
+          }
+
+          // ★ 본론: section_1/2/3 개별 접근 (Step2 실제 출력 형식)
+          const sections = [];
+          for (let i = 1; i <= 3; i++) {
+            const section = parsed[`section_${i}`];
+            if (section) sections.push(section);
+          }
+          // fallback: 기존 형식도 지원
+          const points = sections.length > 0 ? sections :
+                         (parsed.main_points || parsed.본론 || parsed.대지 || parsed.sections || []);
+          if (points && Array.isArray(points) && points.length > 0) {
+            summary += `▶ 본론 (대지) - ${points.length}개:\n`;
+            points.forEach((p, i) => {
+              const unitId = p.unit_id || '';
+              const range = p.range || '';
+              // sub_1, sub_2 제목 추출
+              const sub1Title = p.sub_1?.title || '';
+              const sub2Title = p.sub_2?.title || '';
               const title = p.title || p.제목 || p.point || p.theme || '';
-              summary += `  ${i+1}. ${title}\n`;
+
+              if (unitId && range) {
+                summary += `  ${i+1}. [${unitId}] ${range}`;
+                if (sub1Title) summary += ` - ${sub1Title}`;
+                if (sub2Title) summary += `, ${sub2Title}`;
+                summary += '\n';
+              } else if (title) {
+                summary += `  ${i+1}. ${title}\n`;
+              }
             });
             summary += '\n';
           }
-          if (parsed.conclusion || parsed.결론) {
-            const conclusion = parsed.conclusion || parsed.결론;
-            summary += `▶ 결론:\n${typeof conclusion === 'object' ? JSON.stringify(conclusion).substring(0, 200) : conclusion}\n\n`;
+
+          // ★ 결론: ending 매핑 추가 (Step2 실제 출력 형식)
+          const ending = parsed.ending || parsed.conclusion || parsed.결론;
+          if (ending) {
+            summary += `▶ 결론:\n`;
+            if (typeof ending === 'object') {
+              if (ending.summary_points && Array.isArray(ending.summary_points)) {
+                summary += `  요약: ${ending.summary_points.slice(0, 3).join(', ')}\n`;
+              }
+              if (ending.decision_questions && Array.isArray(ending.decision_questions)) {
+                summary += `  결단 질문: ${ending.decision_questions.slice(0, 2).join(', ')}\n`;
+              }
+              if (ending.prayer_points && Array.isArray(ending.prayer_points)) {
+                summary += `  기도제목: ${ending.prayer_points.slice(0, 2).join(', ')}\n`;
+              }
+            } else {
+              summary += `  ${String(ending).substring(0, 200)}\n`;
+            }
+            summary += '\n';
           }
+
           // 예화 상위 2개
           const illustrations = parsed.illustrations || parsed.예화;
           if (illustrations && Array.isArray(illustrations)) {
