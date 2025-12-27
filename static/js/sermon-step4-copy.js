@@ -75,13 +75,15 @@ async function assembleGptProDraft() {
     draft += `\n`;
     draft += `   [분량 맞추기 전략]\n`;
     if (durationInfo.minutes >= 25) {
-      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자 (도입, 성경 배경)\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
-      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자 (요약 + 결단 촉구 + 기도)\n`;
+      // ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자 (도입, 성경 배경)\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.80).toLocaleString()}자 (대지별 설명 - 풍성하게)\n`;
+      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자 (요약 + 결단 촉구)\n`;
     } else if (durationInfo.minutes >= 15) {
-      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.15).toLocaleString()}자\n`;
-      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.65).toLocaleString()}자 (대지별 설명)\n`;
-      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.20).toLocaleString()}자\n`;
+      // ★ 2025-12-27 수정: 결론 비중 20% → 10%, 본론 강화
+      draft += `   - 서론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자\n`;
+      draft += `   - 본론: 약 ${Math.round(durationInfo.targetChars * 0.80).toLocaleString()}자 (대지별 설명 - 풍성하게)\n`;
+      draft += `   - 결론: 약 ${Math.round(durationInfo.targetChars * 0.10).toLocaleString()}자\n`;
     } else {
       draft += `   - 짧은 설교이므로 핵심에 집중하되, 구조(서론/본론/결론)는 유지하세요.\n`;
     }
@@ -145,24 +147,58 @@ async function assembleGptProDraft() {
           if (parsed.passage_overview?.one_paragraph_summary) {
             summary += `▶ 본문 요약:\n${parsed.passage_overview.one_paragraph_summary}\n\n`;
           }
-          // anchors 상위 5개만
+          // anchors 상위 5개 (★ 2025-12-27: preaching_point, emotion 추가)
           if (parsed.anchors && Array.isArray(parsed.anchors)) {
             const anchors = parsed.anchors.slice(0, 5);
             summary += `▶ Anchors 핵심 근거 (상위 ${anchors.length}개):\n`;
             anchors.forEach((a, i) => {
-              summary += `  ${i+1}. [${a.anchor_id || a.id || ''}] ${a.range || ''}: ${a.anchor_phrase || a.phrase || ''}\n`;
+              summary += `  ${i+1}. [${a.anchor_id || a.id || ''}] ${a.anchor_phrase || a.phrase || ''}\n`;
+              // ★ preaching_point (설교 메시지) 강조 표시
+              if (a.preaching_point) {
+                summary += `      → ★설교 메시지: ${a.preaching_point}\n`;
+              }
+              // ★ emotion (감정 흐름)
+              if (a.emotion) {
+                summary += `      → 감정 흐름: ${a.emotion}\n`;
+              }
             });
             summary += '\n';
           }
-          // guardrails 핵심만
-          if (parsed.guardrails?.does_not_claim) {
-            const claims = parsed.guardrails.does_not_claim.slice(0, 3);
-            summary += `▶ 본문이 말하지 않는 것 (상위 3개):\n`;
-            claims.forEach((c, i) => {
-              const claimText = typeof c === 'object' ? (c.claim || c.text || JSON.stringify(c)) : c;
-              summary += `  ${i+1}. ${claimText}\n`;
-            });
-            summary += '\n';
+          // guardrails (★ 2025-12-27: 새 형식 affirms/avoids 지원)
+          if (parsed.guardrails) {
+            const g = parsed.guardrails;
+            // 새 형식: affirms
+            if (g.affirms && Array.isArray(g.affirms)) {
+              summary += `▶ 본문이 말하는 것:\n`;
+              g.affirms.slice(0, 3).forEach((item, i) => {
+                summary += `  ✓ ${item}\n`;
+              });
+              summary += '\n';
+            } else if (g.clearly_affirms && Array.isArray(g.clearly_affirms)) {
+              // 이전 형식
+              summary += `▶ 본문이 말하는 것 (상위 3개):\n`;
+              g.clearly_affirms.slice(0, 3).forEach((item, i) => {
+                summary += `  ✓ ${item}\n`;
+              });
+              summary += '\n';
+            }
+            // 새 형식: avoids
+            if (g.avoids && Array.isArray(g.avoids)) {
+              summary += `▶ 피해야 할 해석:\n`;
+              g.avoids.slice(0, 2).forEach((item, i) => {
+                summary += `  ✗ ${item}\n`;
+              });
+              summary += '\n';
+            } else if (g.does_not_claim && Array.isArray(g.does_not_claim)) {
+              // 이전 형식
+              const claims = g.does_not_claim.slice(0, 3);
+              summary += `▶ 본문이 말하지 않는 것 (상위 3개):\n`;
+              claims.forEach((c, i) => {
+                const claimText = typeof c === 'object' ? (c.claim || c.text || JSON.stringify(c)) : c;
+                summary += `  ✗ ${claimText}\n`;
+              });
+              summary += '\n';
+            }
           }
           // ★ 2025-12-26 추가: cross_references (참조 구절)
           if (parsed.cross_references && Array.isArray(parsed.cross_references) && parsed.cross_references.length > 0) {
@@ -217,27 +253,109 @@ async function assembleGptProDraft() {
           }
           draft += summary || stepResult;
         } else if (stepType === 'step2') {
-          // Step2 핵심 요약
+          // Step2 핵심 요약 (★ 2025-12-27 수정: ending, section_1/2/3, big_idea 매핑)
           let summary = '';
-          if (parsed.introduction || parsed.서론) {
-            const intro = parsed.introduction || parsed.서론;
-            summary += `▶ 서론:\n${typeof intro === 'object' ? JSON.stringify(intro).substring(0, 300) : intro}\n\n`;
+
+          // ★ big_idea_candidate (핵심 메시지)
+          if (parsed.big_idea_candidate) {
+            summary += `▶ 핵심 메시지 (Big Idea):\n${parsed.big_idea_candidate}\n\n`;
           }
-          // 본론 상위 3개
-          const points = parsed.main_points || parsed.본론 || parsed.대지 || parsed.sections;
-          if (points && Array.isArray(points)) {
-            const limitedPoints = points.slice(0, 3);
-            summary += `▶ 본론 (대지) - 상위 ${limitedPoints.length}개:\n`;
-            limitedPoints.forEach((p, i) => {
+
+          // 서론 (intro 또는 introduction)
+          const intro = parsed.intro || parsed.introduction || parsed.서론;
+          if (intro) {
+            summary += `▶ 서론:\n`;
+            if (typeof intro === 'object') {
+              if (intro.intro_question) summary += `  질문: ${intro.intro_question}\n`;
+              if (intro.flow_preview_only && Array.isArray(intro.flow_preview_only)) {
+                summary += `  흐름 예고: ${intro.flow_preview_only.join(' → ')}\n`;
+              }
+            } else {
+              summary += `  ${intro}\n`;
+            }
+            summary += '\n';
+          }
+
+          // ★ 2025-12-27 수정: section_1/2/3 + key_point, develop_how 표시
+          const sections = [];
+          for (let i = 1; i <= 3; i++) {
+            const section = parsed[`section_${i}`];
+            if (section) sections.push({ ...section, _idx: i });
+          }
+          // fallback: 기존 형식도 지원
+          const points = sections.length > 0 ? sections :
+                         (parsed.main_points || parsed.본론 || parsed.대지 || parsed.sections || []);
+          if (points && Array.isArray(points) && points.length > 0) {
+            summary += `▶ 본론 (대지) - ${points.length}개:\n`;
+            points.forEach((p, i) => {
+              const idx = p._idx || (i + 1);
               const title = p.title || p.제목 || p.point || p.theme || '';
-              summary += `  ${i+1}. ${title}\n`;
+              const range = p.range || '';
+              const keyPoint = p.key_point || '';
+              const developHow = p.develop_how || '';
+              const anchorsUsed = p.anchors_used || [];
+
+              // 대지 헤더
+              summary += `  [${idx}대지] ${title}`;
+              if (range) summary += ` (${range})`;
+              summary += '\n';
+
+              // ★ key_point (핵심 메시지) - 가장 중요
+              if (keyPoint) {
+                summary += `      ★ 핵심 메시지: ${keyPoint}\n`;
+              }
+              // ★ develop_how (전개 방향)
+              if (developHow) {
+                summary += `      ★ 전개 방향: ${developHow}\n`;
+              }
+              // 사용 앵커
+              if (anchorsUsed.length > 0) {
+                summary += `      → 사용 앵커: ${anchorsUsed.join(', ')}\n`;
+              }
             });
             summary += '\n';
           }
-          if (parsed.conclusion || parsed.결론) {
-            const conclusion = parsed.conclusion || parsed.결론;
-            summary += `▶ 결론:\n${typeof conclusion === 'object' ? JSON.stringify(conclusion).substring(0, 200) : conclusion}\n\n`;
+
+          // ★ 2025-12-27 수정: ending 새 형식 (summary, application, prayer_direction) 지원
+          const ending = parsed.ending || parsed.conclusion || parsed.결론;
+          if (ending) {
+            summary += `▶ 결론:\n`;
+            if (typeof ending === 'object') {
+              // 새 형식: summary (배열 또는 문자열)
+              if (ending.summary) {
+                const summaryText = Array.isArray(ending.summary)
+                  ? ending.summary.slice(0, 3).join(', ')
+                  : ending.summary;
+                summary += `  요약: ${summaryText}\n`;
+              }
+              // 이전 형식: summary_points
+              else if (ending.summary_points && Array.isArray(ending.summary_points)) {
+                summary += `  요약: ${ending.summary_points.slice(0, 3).join(', ')}\n`;
+              }
+
+              // 새 형식: application (★ 강조)
+              if (ending.application) {
+                summary += `  ★ 적용: ${ending.application}\n`;
+              }
+              // 이전 형식: decision_questions
+              else if (ending.decision_questions && Array.isArray(ending.decision_questions)) {
+                summary += `  결단 질문: ${ending.decision_questions.slice(0, 2).join(', ')}\n`;
+              }
+
+              // 새 형식: prayer_direction
+              if (ending.prayer_direction) {
+                summary += `  기도 방향: ${ending.prayer_direction}\n`;
+              }
+              // 이전 형식: prayer_points
+              else if (ending.prayer_points && Array.isArray(ending.prayer_points)) {
+                summary += `  기도제목: ${ending.prayer_points.slice(0, 2).join(', ')}\n`;
+              }
+            } else {
+              summary += `  ${String(ending).substring(0, 200)}\n`;
+            }
+            summary += '\n';
           }
+
           // 예화 상위 2개
           const illustrations = parsed.illustrations || parsed.예화;
           if (illustrations && Array.isArray(illustrations)) {

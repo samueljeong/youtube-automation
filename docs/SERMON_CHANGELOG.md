@@ -5,6 +5,87 @@
 
 ---
 
+## 2025-12-27 세션 (계속)
+
+### Step3/Step4: 새 필드 활용 (preaching_point, key_point, develop_how)
+
+**문제**: Step1/2에서 수집한 새로운 필드들이 Step3/4에서 활용되지 않음
+
+**새 필드**:
+- Step1 anchors: `preaching_point` (설교 메시지), `emotion` (감정 흐름)
+- Step1 guardrails: `affirms` (본문이 말하는 것), `avoids` (피해야 할 해석)
+- Step2 sections: `key_point` (핵심 메시지), `develop_how` (전개 방향)
+- Step2 ending: `summary` (배열), `application`, `prayer_direction`
+
+**수정**:
+1. `step3_prompt_builder.py:1246-1275`: Step1 anchors 처리
+   - `preaching_point` 강조 표시 (`→ ★설교 메시지`)
+   - `emotion` 감정 흐름 표시
+
+2. `step3_prompt_builder.py:1277-1313`: Step1 guardrails 처리
+   - 새 형식 `affirms`/`avoids` 지원
+   - 이전 형식 `clearly_affirms`/`does_not_claim` 호환
+
+3. `step3_prompt_builder.py:1424-1526`: Step2 처리 전면 개편
+   - `big_idea` 핵심 메시지 표시
+   - `intro` 새 형식 (hook, flow_preview) 지원
+   - `section_1/2/3` 개별 접근 + `key_point`, `develop_how` 강조
+   - `ending` 새 형식 (summary, application, prayer_direction) 지원
+
+4. `sermon-step4-copy.js:150-202`: Step1 처리
+   - anchors에 `preaching_point`, `emotion` 표시
+   - guardrails 새 형식 지원
+
+5. `sermon-step4-copy.js:279-356`: Step2 처리
+   - sections에 `key_point`, `develop_how` 표시
+   - ending 새 형식 지원
+
+**결과**:
+- Step1/2에서 수집한 "설교 방향" 정보가 Step3/4에 명확히 전달됨
+- GPT가 "무엇을 설교할지" 알 수 있어 분량 부족 문제 개선 기대
+- 이전 형식과도 하위 호환성 유지
+
+---
+
+## 2025-12-27 세션
+
+### Step2 → Step3/Step4 데이터 전달 버그 수정 + 비중 통일
+
+**문제 1**: Step2에서 수집한 데이터가 Step3/Step4로 제대로 전달되지 않음
+- `ending` 필드 → `conclusion` 으로 찾아서 **결론 구조 100% 손실**
+- `section_1`, `section_2`, `section_3` → `sections` 배열로 찾아서 **본론 상세 구조 손실**
+- `big_idea_candidate` → 접근 안 함 → **핵심 메시지 손실**
+
+**문제 2**: 서론/본론/결론 비중 불일치
+| 단계 | 서론 | 본론 | 결론 |
+|------|------|------|------|
+| Step2 스키마 | 10% | 81% | 9% |
+| Step3/Step4 | 15% | 65% | **20%** |
+
+**수정**:
+1. `sermon-step4-copy.js:219-304`: Step2 데이터 매핑 전면 수정
+   - `ending` 필드 우선 접근 (summary_points, decision_questions, prayer_points)
+   - `section_1/2/3` 개별 접근 후 배열로 변환
+   - `big_idea_candidate` 추가
+   - `intro.flow_preview_only` 흐름 예고 추가
+
+2. `sermon-step4-copy.js:77-87`: 비중 통일
+   - 서론: 15% → **10%**
+   - 본론: 65% → **80%**
+   - 결론: 20% → **10%**
+
+3. `step3_prompt_builder.py:1204-1212`: Step3도 동일하게 비중 수정
+
+4. `step3_prompt_builder.py:724`: Step2 스키마 time_map_percent 조정
+   - `ending: 9` → `ending: 10`
+
+**결과**:
+- Step2에서 수집한 결론 구조(요약, 결단 질문, 기도제목)가 Step4에 전달됨
+- 서론/본론/결론 = 10/80/10 으로 전 단계 통일
+- 본론 비중 증가로 분량 부족 문제 개선 기대
+
+---
+
 ## 2025-12-26 세션 (오후) - 자연어 입력 UI
 
 ### 자연어 입력 + 추천 상세 보기 구현
