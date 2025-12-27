@@ -147,24 +147,58 @@ async function assembleGptProDraft() {
           if (parsed.passage_overview?.one_paragraph_summary) {
             summary += `▶ 본문 요약:\n${parsed.passage_overview.one_paragraph_summary}\n\n`;
           }
-          // anchors 상위 5개만
+          // anchors 상위 5개 (★ 2025-12-27: preaching_point, emotion 추가)
           if (parsed.anchors && Array.isArray(parsed.anchors)) {
             const anchors = parsed.anchors.slice(0, 5);
             summary += `▶ Anchors 핵심 근거 (상위 ${anchors.length}개):\n`;
             anchors.forEach((a, i) => {
-              summary += `  ${i+1}. [${a.anchor_id || a.id || ''}] ${a.range || ''}: ${a.anchor_phrase || a.phrase || ''}\n`;
+              summary += `  ${i+1}. [${a.anchor_id || a.id || ''}] ${a.anchor_phrase || a.phrase || ''}\n`;
+              // ★ preaching_point (설교 메시지) 강조 표시
+              if (a.preaching_point) {
+                summary += `      → ★설교 메시지: ${a.preaching_point}\n`;
+              }
+              // ★ emotion (감정 흐름)
+              if (a.emotion) {
+                summary += `      → 감정 흐름: ${a.emotion}\n`;
+              }
             });
             summary += '\n';
           }
-          // guardrails 핵심만
-          if (parsed.guardrails?.does_not_claim) {
-            const claims = parsed.guardrails.does_not_claim.slice(0, 3);
-            summary += `▶ 본문이 말하지 않는 것 (상위 3개):\n`;
-            claims.forEach((c, i) => {
-              const claimText = typeof c === 'object' ? (c.claim || c.text || JSON.stringify(c)) : c;
-              summary += `  ${i+1}. ${claimText}\n`;
-            });
-            summary += '\n';
+          // guardrails (★ 2025-12-27: 새 형식 affirms/avoids 지원)
+          if (parsed.guardrails) {
+            const g = parsed.guardrails;
+            // 새 형식: affirms
+            if (g.affirms && Array.isArray(g.affirms)) {
+              summary += `▶ 본문이 말하는 것:\n`;
+              g.affirms.slice(0, 3).forEach((item, i) => {
+                summary += `  ✓ ${item}\n`;
+              });
+              summary += '\n';
+            } else if (g.clearly_affirms && Array.isArray(g.clearly_affirms)) {
+              // 이전 형식
+              summary += `▶ 본문이 말하는 것 (상위 3개):\n`;
+              g.clearly_affirms.slice(0, 3).forEach((item, i) => {
+                summary += `  ✓ ${item}\n`;
+              });
+              summary += '\n';
+            }
+            // 새 형식: avoids
+            if (g.avoids && Array.isArray(g.avoids)) {
+              summary += `▶ 피해야 할 해석:\n`;
+              g.avoids.slice(0, 2).forEach((item, i) => {
+                summary += `  ✗ ${item}\n`;
+              });
+              summary += '\n';
+            } else if (g.does_not_claim && Array.isArray(g.does_not_claim)) {
+              // 이전 형식
+              const claims = g.does_not_claim.slice(0, 3);
+              summary += `▶ 본문이 말하지 않는 것 (상위 3개):\n`;
+              claims.forEach((c, i) => {
+                const claimText = typeof c === 'object' ? (c.claim || c.text || JSON.stringify(c)) : c;
+                summary += `  ✗ ${claimText}\n`;
+              });
+              summary += '\n';
+            }
           }
           // ★ 2025-12-26 추가: cross_references (참조 구절)
           if (parsed.cross_references && Array.isArray(parsed.cross_references) && parsed.cross_references.length > 0) {
@@ -242,11 +276,11 @@ async function assembleGptProDraft() {
             summary += '\n';
           }
 
-          // ★ 본론: section_1/2/3 개별 접근 (Step2 실제 출력 형식)
+          // ★ 2025-12-27 수정: section_1/2/3 + key_point, develop_how 표시
           const sections = [];
           for (let i = 1; i <= 3; i++) {
             const section = parsed[`section_${i}`];
-            if (section) sections.push(section);
+            if (section) sections.push({ ...section, _idx: i });
           }
           // fallback: 기존 형식도 지원
           const points = sections.length > 0 ? sections :
@@ -254,37 +288,66 @@ async function assembleGptProDraft() {
           if (points && Array.isArray(points) && points.length > 0) {
             summary += `▶ 본론 (대지) - ${points.length}개:\n`;
             points.forEach((p, i) => {
-              const unitId = p.unit_id || '';
-              const range = p.range || '';
-              // sub_1, sub_2 제목 추출
-              const sub1Title = p.sub_1?.title || '';
-              const sub2Title = p.sub_2?.title || '';
+              const idx = p._idx || (i + 1);
               const title = p.title || p.제목 || p.point || p.theme || '';
+              const range = p.range || '';
+              const keyPoint = p.key_point || '';
+              const developHow = p.develop_how || '';
+              const anchorsUsed = p.anchors_used || [];
 
-              if (unitId && range) {
-                summary += `  ${i+1}. [${unitId}] ${range}`;
-                if (sub1Title) summary += ` - ${sub1Title}`;
-                if (sub2Title) summary += `, ${sub2Title}`;
-                summary += '\n';
-              } else if (title) {
-                summary += `  ${i+1}. ${title}\n`;
+              // 대지 헤더
+              summary += `  [${idx}대지] ${title}`;
+              if (range) summary += ` (${range})`;
+              summary += '\n';
+
+              // ★ key_point (핵심 메시지) - 가장 중요
+              if (keyPoint) {
+                summary += `      ★ 핵심 메시지: ${keyPoint}\n`;
+              }
+              // ★ develop_how (전개 방향)
+              if (developHow) {
+                summary += `      ★ 전개 방향: ${developHow}\n`;
+              }
+              // 사용 앵커
+              if (anchorsUsed.length > 0) {
+                summary += `      → 사용 앵커: ${anchorsUsed.join(', ')}\n`;
               }
             });
             summary += '\n';
           }
 
-          // ★ 결론: ending 매핑 추가 (Step2 실제 출력 형식)
+          // ★ 2025-12-27 수정: ending 새 형식 (summary, application, prayer_direction) 지원
           const ending = parsed.ending || parsed.conclusion || parsed.결론;
           if (ending) {
             summary += `▶ 결론:\n`;
             if (typeof ending === 'object') {
-              if (ending.summary_points && Array.isArray(ending.summary_points)) {
+              // 새 형식: summary (배열 또는 문자열)
+              if (ending.summary) {
+                const summaryText = Array.isArray(ending.summary)
+                  ? ending.summary.slice(0, 3).join(', ')
+                  : ending.summary;
+                summary += `  요약: ${summaryText}\n`;
+              }
+              // 이전 형식: summary_points
+              else if (ending.summary_points && Array.isArray(ending.summary_points)) {
                 summary += `  요약: ${ending.summary_points.slice(0, 3).join(', ')}\n`;
               }
-              if (ending.decision_questions && Array.isArray(ending.decision_questions)) {
+
+              // 새 형식: application (★ 강조)
+              if (ending.application) {
+                summary += `  ★ 적용: ${ending.application}\n`;
+              }
+              // 이전 형식: decision_questions
+              else if (ending.decision_questions && Array.isArray(ending.decision_questions)) {
                 summary += `  결단 질문: ${ending.decision_questions.slice(0, 2).join(', ')}\n`;
               }
-              if (ending.prayer_points && Array.isArray(ending.prayer_points)) {
+
+              // 새 형식: prayer_direction
+              if (ending.prayer_direction) {
+                summary += `  기도 방향: ${ending.prayer_direction}\n`;
+              }
+              // 이전 형식: prayer_points
+              else if (ending.prayer_points && Array.isArray(ending.prayer_points)) {
                 summary += `  기도제목: ${ending.prayer_points.slice(0, 2).join(', ')}\n`;
               }
             } else {

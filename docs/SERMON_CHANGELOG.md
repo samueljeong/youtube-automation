@@ -5,6 +5,48 @@
 
 ---
 
+## 2025-12-27 세션 (계속)
+
+### Step3/Step4: 새 필드 활용 (preaching_point, key_point, develop_how)
+
+**문제**: Step1/2에서 수집한 새로운 필드들이 Step3/4에서 활용되지 않음
+
+**새 필드**:
+- Step1 anchors: `preaching_point` (설교 메시지), `emotion` (감정 흐름)
+- Step1 guardrails: `affirms` (본문이 말하는 것), `avoids` (피해야 할 해석)
+- Step2 sections: `key_point` (핵심 메시지), `develop_how` (전개 방향)
+- Step2 ending: `summary` (배열), `application`, `prayer_direction`
+
+**수정**:
+1. `step3_prompt_builder.py:1246-1275`: Step1 anchors 처리
+   - `preaching_point` 강조 표시 (`→ ★설교 메시지`)
+   - `emotion` 감정 흐름 표시
+
+2. `step3_prompt_builder.py:1277-1313`: Step1 guardrails 처리
+   - 새 형식 `affirms`/`avoids` 지원
+   - 이전 형식 `clearly_affirms`/`does_not_claim` 호환
+
+3. `step3_prompt_builder.py:1424-1526`: Step2 처리 전면 개편
+   - `big_idea` 핵심 메시지 표시
+   - `intro` 새 형식 (hook, flow_preview) 지원
+   - `section_1/2/3` 개별 접근 + `key_point`, `develop_how` 강조
+   - `ending` 새 형식 (summary, application, prayer_direction) 지원
+
+4. `sermon-step4-copy.js:150-202`: Step1 처리
+   - anchors에 `preaching_point`, `emotion` 표시
+   - guardrails 새 형식 지원
+
+5. `sermon-step4-copy.js:279-356`: Step2 처리
+   - sections에 `key_point`, `develop_how` 표시
+   - ending 새 형식 지원
+
+**결과**:
+- Step1/2에서 수집한 "설교 방향" 정보가 Step3/4에 명확히 전달됨
+- GPT가 "무엇을 설교할지" 알 수 있어 분량 부족 문제 개선 기대
+- 이전 형식과도 하위 호환성 유지
+
+---
+
 ## 2025-12-27 세션
 
 ### Step2 → Step3/Step4 데이터 전달 버그 수정 + 비중 통일

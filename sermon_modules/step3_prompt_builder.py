@@ -400,7 +400,7 @@ def build_step1_research_prompt(style_id=None):
 
 반드시 아래 JSON 스키마 그대로만 출력하십시오(추가 텍스트 금지).
 (스키마 내 모든 배열은 최소 개수를 충족해야 함:
- anchors {anchors_min}개 이상, historical_background 3개 이상, places 3개 이상, does_not_claim 5개 이상)
+ anchors {anchors_min}개 이상, historical_background 2개 이상, places 2개 이상, affirms 3개, avoids 2개)
 
 ⚠️ meta는 생성하지 마세요. 시스템이 자동 주입합니다.
 
@@ -500,7 +500,8 @@ def build_step1_research_prompt(style_id=None):
       "anchor_phrase": "핵심 구절/표현 (예: 전에는… 이제는…)",
       "text_observation": "텍스트에서 직접 관찰되는 것",
       "function_in_flow": "이 앵커가 본문 흐름에서 하는 역할",
-      "interpretation_boundary": "이 앵커에서 확대 해석의 한계/오해 주의"
+      "preaching_point": "★ 이 앵커로 전달할 설교 메시지 (예: 가장 버림받은 곳에 빛이 먼저 온다)",
+      "emotion": "★ 이 앵커가 불러일으킬 감정 흐름 (예: 절망→반전→희망)"
     }},
     {{
       "anchor_id": "A2",
@@ -508,7 +509,8 @@ def build_step1_research_prompt(style_id=None):
       "anchor_phrase": "",
       "text_observation": "",
       "function_in_flow": "",
-      "interpretation_boundary": ""
+      "preaching_point": "",
+      "emotion": ""
     }}
   ],
 
@@ -526,24 +528,14 @@ def build_step1_research_prompt(style_id=None):
   ],
 {cross_refs_section}
   "guardrails": {{
-    "clearly_affirms": [
-      {{ "id": "C1", "claim": "본문이 명확히 말하는 것 1 (앵커 기반)", "anchor_ids": ["A1"] }},
-      {{ "id": "C2", "claim": "본문이 명확히 말하는 것 2 (앵커 기반)", "anchor_ids": ["A2", "A3"] }},
-      {{ "id": "C3", "claim": "", "anchor_ids": [] }},
-      {{ "id": "C4", "claim": "", "anchor_ids": [] }},
-      {{ "id": "C5", "claim": "", "anchor_ids": [] }}
+    "affirms": [
+      "본문이 명확히 말하는 것 1 (예: 어둠 속에 빛이 비춘다)",
+      "본문이 명확히 말하는 것 2 (예: 한 아이가 태어난다)",
+      "본문이 명확히 말하는 것 3"
     ],
-    "does_not_claim": [
-      {{ "id": "D1", "claim": "★ 본문 경계만 기술: 본문은 [X]를 즉시/자동 보장한다고 말하지 않는다", "reason": "본문 텍스트에 해당 표현이 없음", "avoid_in_step2_3": true }},
-      {{ "id": "D2", "claim": "★ 본문은 구체적 시기/정치 체제/국경선 확정을 제공하지 않는다", "reason": "", "avoid_in_step2_3": true }},
-      {{ "id": "D3", "claim": "★ 본문은 [특정 이미지]를 [특정 시간표]로 확정하지 않는다", "reason": "", "avoid_in_step2_3": true }},
-      {{ "id": "D4", "claim": "★ 본문은 [X]가 모든 개인에게 동일하게 적용된다고 단정하지 않는다", "reason": "", "avoid_in_step2_3": true }},
-      {{ "id": "D5", "claim": "", "reason": "", "avoid_in_step2_3": true }}
-    ],
-    "common_misreads": [
-      {{ "id": "M1", "misread": "흔히 하는 잘못된 해석 1", "why_wrong": "왜 틀렸는지 (본문 텍스트 기준)", "correct_boundary": "★ 경계만 표시! (예: '시간표/국경/정권 형태를 확정하지 않음')" }},
-      {{ "id": "M2", "misread": "", "why_wrong": "", "correct_boundary": "★ 신학 해석이 아닌 '본문이 제공하는 범위'만 기술" }},
-      {{ "id": "M3", "misread": "", "why_wrong": "", "correct_boundary": "" }}
+    "avoids": [
+      "★ 피해야 할 해석 1 (예: 즉각적/자동적 평화 실현을 약속하지 않음)",
+      "★ 피해야 할 해석 2 (예: 정치적 해방만을 말하지 않음)"
     ]
   }},
 
@@ -567,14 +559,13 @@ def build_step1_research_prompt(style_id=None):
 【 최소 개수 요구사항 (스타일별) 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- anchors: 최소 {anchors_min}개
+- anchors: 최소 {anchors_min}개 (★ 각 앵커에 preaching_point 필수!)
 - key_terms: 최대 {key_terms_max}개
 - cross_references: 최소 {cross_refs_min}개 (주제설교용)
-- historical_background: 최소 3개 (H1~H3+)
-- places: 최소 3개 (G1~G3+)
-- clearly_affirms: 최소 5개 (C1~C5+)
-- does_not_claim: 최소 5개 (D1~D5+)
-- common_misreads: 최소 3개 (M1~M3+)
+- historical_background: 최소 2개
+- places: 최소 2개
+- guardrails.affirms: 3개
+- guardrails.avoids: 2개
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【 ⚠️ Placeholder 금지 규칙 (필수) 】
@@ -588,36 +579,29 @@ def build_step1_research_prompt(style_id=None):
 ★ topic, name 필드는 반드시 구체적인 고유명사/사건명으로 채우세요.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【 ⚠️ Guardrails does_not_claim 작성 규칙 (필수) 】
+【 ★★★ preaching_point 작성 규칙 (매우 중요) ★★★ 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-does_not_claim은 '신학 해석/결론'이 아니라 '본문이 말하지 않는 범위'만 기술:
+각 anchor의 preaching_point는 "이 구절로 무엇을 설교할지"를 명확히 기술:
 
-✅ 올바른 예시:
-- "본문은 '평화'를 모든 개인이 즉시 체감하는 심리 상태로 자동 보장한다고 말하지 않는다"
-- "본문은 구체적인 시기/정치 체제/국경선 확정을 제공하지 않는다"
-- "본문은 '전쟁 도구의 불사름'을 모든 전쟁의 종결 시간표로 확정하지 않는다"
+✅ 좋은 예시:
+- "가장 버림받은 땅에 빛이 먼저 비춘다 - 하나님은 포기된 자를 먼저 찾으신다"
+- "한 아이의 탄생이 역사를 바꾼다 - 작은 시작이 큰 변화를 이끈다"
+- "전쟁 도구가 불에 탄다 - 하나님의 평화는 인간의 방법과 다르다"
 
-❌ 금지된 예시 (신학 해석):
-- "평화는 선택적 반응과 연결된다" ← 이건 해석/신학 결론, STEP1에서 금지
+❌ 나쁜 예시 (너무 추상적):
+- "빛이 중요하다" ← 무슨 메시지인지 불명확
+- "평화가 온다" ← 어떤 의미의 평화인지 불명확
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【 ⚠️ Guardrails common_misreads(M*) 작성 규칙 (필수) 】
+【 guardrails 작성 규칙 】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-common_misreads의 correct_boundary는 '경계 표현'만 사용:
-
-✅ 올바른 예시 (경계 표현):
-- "정치적 요소를 배제한다고 단정하지 말고, 본문이 제공하는 범위를 넘지 않게"
-- "시간표/국경/정권 형태를 확정하지 않음"
-- "영적/정치적 구원 중 하나만 선택하라고 요구하지 않음"
-
-❌ 금지된 예시 (신학 해석/결론):
-- "정치적 맥락보다는 영적 구원을 강조" ← 이건 STEP1치고 해석이 강함, 금지
+affirms: 본문이 명확히 말하는 것 (설교에서 자신있게 선포할 수 있는 것)
+avoids: 본문이 말하지 않는 것 (확대해석 주의, 피해야 할 방향)
 
 ⚠️ 중요: 반드시 위 JSON 스키마 그대로만 출력하세요. 추가 텍스트 금지.
-⚠️ 설교 톤, 적용, 권면, 예화는 절대 금지입니다. 객관적 관찰만 하세요.
-⚠️ 모든 ID는 STEP2에서 필수 참조됩니다. ID를 빠뜨리지 마세요.
+⚠️ 모든 ID는 STEP2에서 참조됩니다. ID를 빠뜨리지 마세요.
 '''
 
 
@@ -717,114 +701,56 @@ Step2에서 사용 가능한 ID:
 ```json
 {
   "step": "STEP2",
-  "mode": "structure_only",
   "reference": "<성경구절>",
-  "title": "<설교 제목(사용자 제공 또는 후보)>",
-  "big_idea_candidate": "<한 문장>",
-  "time_map_percent": { "intro": 10, "s1": 27, "s2": 27, "s3": 26, "ending": 10 },
+  "title": "<설교 제목>",
+  "big_idea": "<본문의 핵심 메시지 한 문장>",
 
   "intro": {
-    "intro_question": "<한 문장 질문>",
-    "flow_preview_only": ["U1(1-2절): 어둠→빛", "U2(3-5절): 압제→해방", "U3(6-7절): 왕권→정의"],
-    "constraints": ["시사/뉴스/통계 금지", "예화/적용 문장 금지", "본문 흐름(U1→U2→U3)만 예고"]
+    "hook": "<청중의 관심을 끄는 질문이나 상황>",
+    "flow_preview": "어둠→빛→아이→왕 (전체 흐름 한 줄)"
   },
 
   "section_1": {
-    "unit_id": "U1",
     "range": "1-2절",
-    "background_support": ["H1", "G1"],
-    "sub_1": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A1", "A2"],
-      "outline_blocks": [
-        { "type": "anchor", "id": "A1", "note": "앵커 설명" },
-        { "type": "supporting_verse", "ref": "시편 23:4", "note": "보충구절 연결 이유" },
-        { "type": "anchor", "id": "A2", "note": "앵커 설명" },
-        { "type": "supporting_verse", "ref": "요한복음 1:5", "note": "보충구절 연결 이유" }
-      ],
-      "guardrail_refs": ["D1"],
-      "misread_refs": ["M1"]
-    },
-    "sub_2": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A1", "A2"],
-      "outline_blocks": [],
-      "guardrail_refs": ["D2"],
-      "misread_refs": ["M2"]
-    }
+    "title": "<1대지 제목>",
+    "key_point": "★ 이 대지에서 전달할 핵심 메시지 (예: 가장 버림받은 땅에 빛이 먼저 온다)",
+    "anchors_used": ["A1", "A2"],
+    "develop_how": "★ 어떻게 전개할지 (예: 스불론/납달리의 수치 역사 → 거기에 빛이 → 역전의 하나님)",
+    "background_ref": "H1",
+    "connect_next": "이 빛이 어떤 변화를 가져오는지..."
   },
 
   "section_2": {
-    "unit_id": "U2",
     "range": "3-5절",
-    "background_support": ["H2"],
-    "sub_1": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A3", "A4"],
-      "outline_blocks": [],
-      "guardrail_refs": ["D1"],
-      "misread_refs": ["M1"]
-    },
-    "sub_2": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A4", "A5"],
-      "outline_blocks": [],
-      "guardrail_refs": ["D3"],
-      "misread_refs": ["M3"]
-    }
+    "title": "<2대지 제목>",
+    "key_point": "★ 이 대지에서 전달할 핵심 메시지",
+    "anchors_used": ["A3", "A4"],
+    "develop_how": "★ 어떻게 전개할지",
+    "background_ref": "H2",
+    "connect_next": "이 해방이 누구를 통해 완성되는지..."
   },
 
   "section_3": {
-    "unit_id": "U3",
     "range": "6-7절",
-    "background_support": ["H3"],
-    "sub_1": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A6", "A7"],
-      "outline_blocks": [],
-      "guardrail_refs": ["D5"],
-      "misread_refs": ["M2"]
-    },
-    "sub_2": {
-      "title": "<구조적 소제목>",
-      "anchor_ids": ["A9", "A10"],
-      "outline_blocks": [],
-      "guardrail_refs": ["D2"],
-      "misread_refs": ["M2"]
-    }
+    "title": "<3대지 제목 (클라이맥스)>",
+    "key_point": "★ 이 대지에서 전달할 핵심 메시지 (가장 강력한 메시지)",
+    "anchors_used": ["A5", "A6"],
+    "develop_how": "★ 어떻게 전개할지",
+    "background_ref": "H2",
+    "connect_next": ""
   },
 
   "ending": {
-    "summary_points": ["<요약1>", "<요약2>", "<요약3>"],
-    "decision_questions": ["<질문1>", "<질문2>"],
-    "prayer_points": ["<기도1>", "<기도2>"],
-    "guardrail_refs": ["D*", "D*"]
-  },
-
-  "self_check": [
-    { "check": "all_anchor_ids_exist_in_step1", "pass": true, "notes": "" },
-    { "check": "anchors_within_unit_range", "pass": true, "notes": "" },
-    { "check": "each_sub_has_2plus_anchors", "pass": true, "notes": "" },
-    { "check": "each_sub_has_exactly_2_supporting_verses", "pass": true, "notes": "" },
-    { "check": "each_section_has_background_support", "pass": true, "notes": "" },
-    { "check": "misread_ids_exist_in_step1_only", "pass": true, "notes": "M1~M3만 사용" },
-    { "check": "does_not_claim_ids_exist_in_step1_only", "pass": true, "notes": "D1~D5만 사용" },
-    { "check": "no_sermon_paragraphs_or_applications", "pass": true, "notes": "" },
-    { "check": "no_news_stats_examples", "pass": true, "notes": "" }
-  ]
+    "summary": ["핵심 요약 1", "핵심 요약 2", "핵심 요약 3"],
+    "application": "★ 구체적 적용/결단 촉구 한 문장",
+    "prayer_direction": "기도 방향"
+  }
 }
 ```
 
-검증 규칙 (self_check pass=false 조건):
-1. all_anchor_ids_exist_in_step1: Step1에 없는 A* ID 사용 시 pass=false (예: A12가 없는데 사용)
-2. all_anchors_in_correct_unit_range: Anchor가 해당 section의 절 범위를 벗어나면 pass=false
-   - section_1에서 A3 사용 → pass=false (A3는 3절, section_1은 1-2절)
-   - section_2에서 A6 사용 → pass=false (A6은 6절, section_2는 3-5절)
-3. all_guardrail_ids_exist_in_step1: Step1에 없는 D*, M* 사용 시 pass=false (예: M4, D6 등)
-4. all_background_ids_exist_in_step1: Step1에 없는 H*, G*, P* 사용 시 pass=false
-5. each_sub_has_2plus_anchors: 각 sub의 passage_anchors가 2개 미만이면 pass=false
-6. each_sub_has_exactly_2_supporting_verses: supporting_verses가 2개가 아니면 pass=false
-7. does_not_claim_respected: D* 위반 소지가 있으면 pass=false
+★★★ key_point와 develop_how가 가장 중요합니다! ★★★
+- key_point: Step3가 "이 대지에서 무슨 메시지를 전달할지" 알 수 있게
+- develop_how: Step3가 "어떤 순서로 전개할지" 알 수 있게
 
 반드시 한국어로만, JSON만 출력하세요.
 '''
@@ -1317,33 +1243,73 @@ def build_step3_prompt_from_json(
                     bg = bg[:2]
                 draft += f"▶ 역사적 배경 (상위 2개):\n{json_to_text(bg)}\n\n"
 
-            # 6. anchors (★ 상위 5개만 - 토큰 절약 핵심)
+            # 6. anchors (★ 2025-12-27 수정: preaching_point, emotion 강조)
             if step1_result.get("anchors"):
                 anchors = step1_result['anchors']
-                if isinstance(anchors, list) and len(anchors) > 5:
-                    anchors = anchors[:5]
-                    draft += f"▶ Anchors 핵심 근거 (상위 5개/{len(step1_result['anchors'])}개):\n"
-                else:
-                    draft += f"▶ Anchors 핵심 근거:\n"
-                draft += f"{json_to_text(anchors)}\n\n"
+                if isinstance(anchors, list):
+                    total_count = len(anchors)
+                    if total_count > 5:
+                        anchors = anchors[:5]
+                        draft += f"▶ Anchors 핵심 근거 (상위 5개/{total_count}개):\n"
+                    else:
+                        draft += f"▶ Anchors 핵심 근거:\n"
 
-            # 7. guardrails (★ 핵심만 추출 - does_not_claim 상위 3개)
+                    # ★ preaching_point와 emotion이 있으면 강조 표시
+                    for a in anchors:
+                        if isinstance(a, dict):
+                            anchor_id = a.get("anchor_id", "")
+                            anchor_phrase = a.get("anchor_phrase", "")
+                            preaching_point = a.get("preaching_point", "")
+                            emotion = a.get("emotion", "")
+
+                            draft += f"  [{anchor_id}] {anchor_phrase}\n"
+                            if preaching_point:
+                                draft += f"      → ★설교 메시지: {preaching_point}\n"
+                            if emotion:
+                                draft += f"      → 감정 흐름: {emotion}\n"
+                            # 나머지 필드도 간략히
+                            if a.get("text_observation"):
+                                draft += f"      → 관찰: {a['text_observation'][:80]}{'...' if len(a.get('text_observation', '')) > 80 else ''}\n"
+                        else:
+                            draft += f"  - {a}\n"
+                    draft += "\n"
+
+            # 7. guardrails (★ 2025-12-27 수정: 새 형식 affirms/avoids 지원)
             if step1_result.get("guardrails"):
                 guardrails = step1_result['guardrails']
                 if isinstance(guardrails, dict):
-                    draft += "▶ Guardrails (주의사항 핵심):\n"
-                    # clearly_affirms 상위 3개
-                    if guardrails.get("clearly_affirms"):
+                    draft += "▶ Guardrails (주의사항):\n"
+
+                    # 새 형식: affirms (본문이 말하는 것)
+                    if guardrails.get("affirms"):
+                        affirms = guardrails["affirms"]
+                        if isinstance(affirms, list):
+                            draft += "  [본문이 말하는 것]:\n"
+                            for item in affirms[:3]:
+                                draft += f"    ✓ {item}\n"
+                    # 이전 형식: clearly_affirms
+                    elif guardrails.get("clearly_affirms"):
                         affirms = guardrails["clearly_affirms"]
-                        if isinstance(affirms, list) and len(affirms) > 3:
-                            affirms = affirms[:3]
-                        draft += f"  [본문이 말하는 것] (상위 3개):\n{json_to_text(affirms)}\n"
-                    # does_not_claim 상위 3개
-                    if guardrails.get("does_not_claim"):
+                        if isinstance(affirms, list):
+                            draft += "  [본문이 말하는 것]:\n"
+                            for item in affirms[:3]:
+                                draft += f"    ✓ {item}\n"
+
+                    # 새 형식: avoids (피해야 할 해석)
+                    if guardrails.get("avoids"):
+                        avoids = guardrails["avoids"]
+                        if isinstance(avoids, list):
+                            draft += "  [피해야 할 해석]:\n"
+                            for item in avoids[:2]:
+                                draft += f"    ✗ {item}\n"
+                    # 이전 형식: does_not_claim
+                    elif guardrails.get("does_not_claim"):
                         claims = guardrails["does_not_claim"]
-                        if isinstance(claims, list) and len(claims) > 3:
-                            claims = claims[:3]
-                        draft += f"  [본문이 말하지 않는 것] (상위 3개):\n{json_to_text(claims)}\n"
+                        if isinstance(claims, list):
+                            draft += "  [본문이 말하지 않는 것]:\n"
+                            for item in claims[:3]:
+                                draft += f"    ✗ {item}\n"
+
                     draft += "\n"
                 else:
                     draft += f"▶ Guardrails:\n{json_to_text(guardrails)}\n\n"
@@ -1455,56 +1421,101 @@ def build_step3_prompt_from_json(
 
         draft += "=" * 50 + "\n\n"
 
-    # Step2 결과 (★ 토큰 절약을 위해 핵심 구조만 추출)
+    # Step2 결과 (★ 2025-12-27 수정: 새 형식 section_1/2/3, key_point, develop_how 지원)
     if step2_result:
         draft += "【 STEP 2 — 설교 구조 및 개요 (핵심 요약) 】\n\n"
         if isinstance(step2_result, dict):
-            # 1. 서론 (요약)
-            if step2_result.get("introduction") or step2_result.get("서론"):
-                intro = step2_result.get("introduction") or step2_result.get("서론")
+            # 0. big_idea (★ 새 필드: 핵심 메시지)
+            if step2_result.get("big_idea"):
+                draft += f"▶ ★핵심 메시지 (Big Idea):\n  {step2_result['big_idea']}\n\n"
+
+            # 1. 서론 (새 형식: intro, 이전 형식: introduction/서론)
+            intro = step2_result.get("intro") or step2_result.get("introduction") or step2_result.get("서론")
+            if intro:
                 if isinstance(intro, dict):
-                    # 핵심 필드만 추출
-                    intro_summary = {}
-                    for key in ['hook', 'bridge', 'thesis', '도입', '연결', '주제문']:
-                        if intro.get(key):
-                            intro_summary[key] = intro[key]
-                    if intro_summary:
-                        draft += f"▶ 서론:\n{json_to_text(intro_summary)}\n\n"
-                    else:
-                        draft += f"▶ 서론:\n{json_to_text(intro)}\n\n"
+                    draft += "▶ 서론:\n"
+                    if intro.get("hook"):
+                        draft += f"  - Hook: {intro['hook']}\n"
+                    if intro.get("flow_preview"):
+                        draft += f"  - 흐름 예고: {intro['flow_preview']}\n"
+                    # 이전 형식 필드도 지원
+                    if intro.get("bridge"):
+                        draft += f"  - Bridge: {intro['bridge']}\n"
+                    if intro.get("thesis"):
+                        draft += f"  - Thesis: {intro['thesis']}\n"
+                    draft += "\n"
                 else:
-                    draft += f"▶ 서론:\n{json_to_text(intro)}\n\n"
+                    draft += f"▶ 서론:\n  {intro}\n\n"
 
-            # 2. 본론/대지 (상위 3개 대지만)
-            if step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지"):
-                points = step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지")
-                if isinstance(points, list) and len(points) > 3:
-                    points = points[:3]
-                    draft += f"▶ 본론 (대지) - 상위 3개:\n{json_to_text(points)}\n\n"
-                else:
-                    draft += f"▶ 본론 (대지):\n{json_to_text(points)}\n\n"
+            # 2. 본론/대지 (★ 새 형식: section_1, section_2, section_3)
+            sections_found = False
+            for i in range(1, 4):
+                section_key = f"section_{i}"
+                section = step2_result.get(section_key)
+                if section and isinstance(section, dict):
+                    sections_found = True
+                    title = section.get("title", f"대지 {i}")
+                    range_text = section.get("range", "")
+                    key_point = section.get("key_point", "")
+                    develop_how = section.get("develop_how", "")
+                    connect_next = section.get("connect_next", "")
+                    anchors_used = section.get("anchors_used", [])
 
-            # 3. sections (ID 스키마) - 상위 3개만
-            if step2_result.get("sections"):
+                    draft += f"▶ [{i}대지] {title}"
+                    if range_text:
+                        draft += f" ({range_text})"
+                    draft += "\n"
+
+                    if key_point:
+                        draft += f"  ★ 핵심 메시지: {key_point}\n"
+                    if develop_how:
+                        draft += f"  ★ 전개 방향: {develop_how}\n"
+                    if anchors_used and isinstance(anchors_used, list):
+                        draft += f"  → 사용 앵커: {', '.join(anchors_used)}\n"
+                    if connect_next:
+                        draft += f"  → 다음 연결: {connect_next}\n"
+                    draft += "\n"
+
+            # 이전 형식 지원: sections 배열
+            if not sections_found and step2_result.get("sections"):
                 sections = step2_result['sections']
-                if isinstance(sections, list) and len(sections) > 3:
-                    sections = sections[:3]
-                    draft += f"▶ 설교 구조 (상위 3개):\n{json_to_text(sections)}\n\n"
+                if isinstance(sections, list):
+                    draft += f"▶ 설교 구조:\n{json_to_text(sections[:3])}\n\n"
+
+            # 이전 형식 지원: main_points/본론/대지
+            if not sections_found and not step2_result.get("sections"):
+                if step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지"):
+                    points = step2_result.get("main_points") or step2_result.get("본론") or step2_result.get("대지")
+                    if isinstance(points, list):
+                        draft += f"▶ 본론 (대지):\n{json_to_text(points[:3])}\n\n"
+
+            # 3. 결론 (★ 새 형식: ending, 이전 형식: conclusion/결론)
+            ending = step2_result.get("ending") or step2_result.get("conclusion") or step2_result.get("결론")
+            if ending:
+                draft += "▶ 결론:\n"
+                if isinstance(ending, dict):
+                    if ending.get("summary"):
+                        summary = ending["summary"]
+                        if isinstance(summary, list):
+                            for s in summary[:3]:
+                                draft += f"  - 요약: {s}\n"
+                        else:
+                            draft += f"  - 요약: {summary}\n"
+                    if ending.get("application"):
+                        draft += f"  ★ 적용: {ending['application']}\n"
+                    if ending.get("prayer_direction"):
+                        draft += f"  - 기도 방향: {ending['prayer_direction']}\n"
                 else:
-                    draft += f"▶ 설교 구조:\n{json_to_text(sections)}\n\n"
+                    draft += f"  {ending}\n"
+                draft += "\n"
 
-            # 4. 결론 (요약)
-            if step2_result.get("conclusion") or step2_result.get("결론"):
-                conclusion = step2_result.get("conclusion") or step2_result.get("결론")
-                draft += f"▶ 결론:\n{json_to_text(conclusion)}\n\n"
-
-            # 5. 예화 (상위 2개만)
+            # 4. 예화 (있으면 - 상위 2개만)
             if step2_result.get("illustrations") or step2_result.get("예화"):
                 illust = step2_result.get("illustrations") or step2_result.get("예화")
                 if isinstance(illust, list) and len(illust) > 2:
                     illust = illust[:2]
                     draft += f"▶ 예화 (상위 2개):\n{json_to_text(illust)}\n\n"
-                else:
+                elif illust:
                     draft += f"▶ 예화:\n{json_to_text(illust)}\n\n"
 
         else:
@@ -1886,22 +1897,16 @@ Meta:
 
 def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict:
     """
-    Step2 출력물의 필수 ID 참조를 검증합니다. (section_* 스키마)
+    Step2 출력물을 검증합니다. (2025-12-27 간소화)
 
     검증 항목:
-    1. ID 존재 검증 (step1_result 제공 시):
-       - 사용된 A*, D*, M*, H*, G*, P*가 Step1에 실제 존재하는지
-    2. Unit-Anchor 범위 매칭:
-       - section_1(1-2절)은 1-2절 Anchor만, section_2(3-5절)은 3-5절 Anchor만 사용
-    3. 각 sub별:
-       - passage_anchors: A* ID 2개 이상
-       - supporting_verses: 정확히 2개
-       - background_support: H*/G*/P* ID 1개 이상
-       - guardrail_refs: D*/M* ID 1개 이상
+    1. big_idea 존재
+    2. 각 section의 key_point, develop_how 존재 (★ 가장 중요)
+    3. anchors_used가 Step1에 존재하는지
 
     Args:
         step2_result: Step2 출력 결과
-        step1_result: Step1 결과 (선택, ID 존재 및 범위 검증용)
+        step1_result: Step1 결과 (선택, ID 존재 검증용)
 
     Returns:
         {
@@ -1916,189 +1921,59 @@ def validate_step2_output(step2_result: dict, step1_result: dict = None) -> dict
     errors = []
     warnings = []
 
-    # Step1에서 유효한 ID 목록 추출
+    # Step1에서 유효한 Anchor IDs 추출
     valid_anchor_ids = set()
-    anchor_ranges = {}  # anchor_id -> verse number (예: "A1" -> 1, "A3" -> 3)
-    valid_d_ids = set()
-    valid_m_ids = set()
-    valid_h_ids = set()
-    valid_g_ids = set()
-    valid_p_ids = set()
-
     if step1_result and isinstance(step1_result, dict):
-        # Anchor IDs 및 범위 추출
         for anchor in step1_result.get("anchors", []):
             aid = anchor.get("anchor_id", "")
             if aid:
                 valid_anchor_ids.add(aid)
-                # range에서 절 번호 추출 (예: "사9:1" -> 1, "1절" -> 1)
-                range_str = anchor.get("range", "")
-                verse_match = re.search(r"(\d+)", range_str)
-                if verse_match:
-                    anchor_ranges[aid] = int(verse_match.group(1))
 
-        # Guardrails IDs 추출
-        guardrails = step1_result.get("guardrails", {})
-        for d in guardrails.get("does_not_claim", []):
-            did = d.get("id", "")
-            if did:
-                valid_d_ids.add(did)
-        for m in guardrails.get("common_misreads", []):
-            mid = m.get("id", "")
-            if mid:
-                valid_m_ids.add(mid)
+    # 1. big_idea 검증
+    big_idea = step2_result.get("big_idea", "")
+    if not big_idea or len(big_idea) < 10:
+        errors.append("big_idea가 없거나 너무 짧음 (핵심 메시지 필수)")
 
-        # Background IDs 추출
-        for h in step1_result.get("historical_background", []):
-            hid = h.get("id", "")
-            if hid:
-                valid_h_ids.add(hid)
-
-        geo = step1_result.get("geography_people", {})
-        for g in geo.get("places", []):
-            gid = g.get("id", "")
-            if gid:
-                valid_g_ids.add(gid)
-        for p in geo.get("people_groups", []):
-            pid = p.get("id", "")
-            if pid:
-                valid_p_ids.add(pid)
-
-    # section별 허용 절 범위 정의 (★ Step1의 structure_outline에서 동적 추출)
-    section_verse_ranges = {}
-    if step1_result and isinstance(step1_result, dict):
-        structure = step1_result.get("structure_outline", [])
-        for idx, unit in enumerate(structure):
-            if isinstance(unit, dict):
-                unit_id = unit.get("unit_id", f"U{idx+1}")
-                verse_range = unit.get("verse_range", unit.get("range", ""))
-                # "1-2절", "3-5", "6절~7절" 등에서 숫자 추출
-                verse_nums = re.findall(r"(\d+)", verse_range)
-                if verse_nums:
-                    min_v = int(verse_nums[0])
-                    max_v = int(verse_nums[-1]) if len(verse_nums) > 1 else min_v
-                    section_verse_ranges[f"section_{idx+1}"] = (min_v, max_v)
-
-    # fallback: Step1이 없거나 structure_outline이 없으면 기본값 사용
-    if not section_verse_ranges:
-        section_verse_ranges = {
-            "section_1": (1, 99),  # 제한 없음 (검증 비활성화)
-            "section_2": (1, 99),
-            "section_3": (1, 99),
-        }
-        if step1_result:
-            warnings.append("structure_outline 없음 - Unit-Anchor 범위 검증 비활성화")
-
-    # section별 검증 (section_1, section_2, section_3)
+    # 2. section별 검증 (section_1, section_2, section_3)
     for i in range(1, 4):
         section_key = f"section_{i}"
-        legacy_key = f"대지_{i}"
-        section = step2_result.get(section_key) or step2_result.get(legacy_key, {})
+        section = step2_result.get(section_key, {})
 
         if not section:
             errors.append(f"{section_key}이(가) 없음")
             continue
 
-        # 해당 section의 허용 절 범위
-        min_verse, max_verse = section_verse_ranges.get(section_key, (1, 7))
+        # ★ key_point 검증 (가장 중요)
+        key_point = section.get("key_point", "")
+        if not key_point or len(key_point) < 10:
+            errors.append(f"{section_key}: key_point가 없거나 너무 짧음 (핵심 메시지 필수)")
 
-        # ★ background_support는 section 레벨에서 검증 (sub 레벨이 아님)
-        section_bg_support = section.get("background_support") or section.get("background_ids") or []
-        if len(section_bg_support) < 1:
-            errors.append(f"{section_key}: background_support가 1개 이상 필요 (현재 {len(section_bg_support)}개)")
+        # ★ develop_how 검증 (가장 중요)
+        develop_how = section.get("develop_how", "")
+        if not develop_how or len(develop_how) < 10:
+            errors.append(f"{section_key}: develop_how가 없거나 너무 짧음 (전개 방법 필수)")
+
+        # anchors_used 검증
+        anchors = section.get("anchors_used", [])
+        if len(anchors) < 1:
+            warnings.append(f"{section_key}: anchors_used가 비어있음")
         else:
-            for b in section_bg_support:
-                b_str = str(b)
-                # Step1 존재 검증
-                if step1_result:
-                    if b_str.startswith("H") and b_str not in valid_h_ids:
-                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
-                    elif b_str.startswith("G") and b_str not in valid_g_ids:
-                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
-                    elif b_str.startswith("P") and b_str not in valid_p_ids:
-                        errors.append(f"{section_key}: '{b}'가 Step1에 없음")
-                    elif not any(b_str.startswith(p) for p in ("H", "G", "P")):
-                        warnings.append(f"{section_key}: '{b}'는 H*/G*/P* 형식이 아님")
+            for a in anchors:
+                a_str = str(a)
+                if step1_result and valid_anchor_ids and a_str not in valid_anchor_ids:
+                    warnings.append(f"{section_key}: '{a}'가 Step1에 없음")
 
-        # 소대지별 검증 (sub_1, sub_2)
-        for sub_i in [1, 2]:
-            sub_key = f"sub_{sub_i}"
-            sub = section.get(sub_key, {})
-
-            if not sub:
-                warnings.append(f"{section_key}.{sub_key}가 없음")
-                continue
-
-            # passage_anchors 검증
-            anchors = sub.get("passage_anchors") or sub.get("anchor_ids") or []
-            if len(anchors) < 2:
-                errors.append(f"{section_key}.{sub_key}: passage_anchors가 2개 이상 필요 (현재 {len(anchors)}개)")
-            else:
-                for a in anchors:
-                    a_str = str(a)
-                    # A* 형식 검증
-                    if not a_str.startswith("A"):
-                        warnings.append(f"{section_key}.{sub_key}: '{a}'는 A* 형식이 아님")
-                        continue
-
-                    # Step1 존재 검증
-                    if step1_result and a_str not in valid_anchor_ids:
-                        errors.append(f"{section_key}.{sub_key}: '{a}'가 Step1에 없음")
-
-                    # Unit-Anchor 범위 매칭 검증
-                    if step1_result and a_str in anchor_ranges:
-                        verse_num = anchor_ranges[a_str]
-                        if verse_num < min_verse or verse_num > max_verse:
-                            errors.append(
-                                f"{section_key}.{sub_key}: '{a}'({verse_num}절)는 "
-                                f"{section_key}({min_verse}-{max_verse}절) 범위 밖 - 범위 침범!"
-                            )
-
-            # ★ supporting_verses 검증: outline_blocks에서 추출 (정확히 2개)
-            outline_blocks = sub.get("outline_blocks") or []
-            sup_verses_from_blocks = [
-                block for block in outline_blocks
-                if isinstance(block, dict) and block.get("type") == "supporting_verse"
-            ]
-            # fallback: 기존 supporting_verses 필드도 확인
-            sup_verses_direct = sub.get("supporting_verses") or []
-            sup_verse_count = len(sup_verses_from_blocks) if sup_verses_from_blocks else len(sup_verses_direct)
-
-            if sup_verse_count != 2:
-                errors.append(f"{section_key}.{sub_key}: supporting_verses가 정확히 2개 필요 (현재 {sup_verse_count}개)")
-
-            # guardrail_refs 검증
-            guardrails = sub.get("guardrail_refs") or []
-            if len(guardrails) < 1:
-                errors.append(f"{section_key}.{sub_key}: guardrail_refs가 1개 이상 필요 (현재 {len(guardrails)}개)")
-            else:
-                for g in guardrails:
-                    g_str = str(g)
-                    # Step1 존재 검증
-                    if step1_result:
-                        if g_str.startswith("D") and g_str not in valid_d_ids:
-                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (D1~D5만 존재)")
-                        elif g_str.startswith("M") and g_str not in valid_m_ids:
-                            errors.append(f"{section_key}.{sub_key}: '{g}'가 Step1에 없음 (M1~M3만 존재)")
-                        elif not any(g_str.startswith(p) for p in ("D", "M")):
-                            warnings.append(f"{section_key}.{sub_key}: '{g}'는 D*/M* 형식이 아님")
-
-            # misread_refs 검증 (선택적, 경고만)
-            misreads = sub.get("misread_refs") or []
-            if len(misreads) < 1:
-                warnings.append(f"{section_key}.{sub_key}: misread_refs가 비어있음 (M* ID 권장)")
-
-    # ending 검증
+    # 3. ending 검증
     ending = step2_result.get("ending", {})
-    if ending:
-        affirms = ending.get("affirms_used") or []
-        if len(affirms) < 1:
-            warnings.append("ending.affirms_used가 비어있음 (C* ID 권장)")
-
-    # self_check 검증
-    self_check = step2_result.get("self_check", [])
-    if not self_check:
-        warnings.append("self_check가 없음")
+    if not ending:
+        warnings.append("ending이 없음")
+    else:
+        summary = ending.get("summary", [])
+        if len(summary) < 2:
+            warnings.append("ending.summary가 2개 이상 권장")
+        application = ending.get("application", "")
+        if not application:
+            warnings.append("ending.application이 없음 (적용/결단 필수)")
 
     return {
         "valid": len(errors) == 0,
@@ -2126,8 +2001,9 @@ def validate_step1_output(step1_result: dict) -> dict:
 
     검증 항목:
     - placeholder 키워드 금지
-    - 최소 개수 충족 (anchors 10개, places 3개, does_not_claim 5개)
+    - 최소 개수 충족 (anchors 6개, places 2개, affirms 3개, avoids 2개)
     - historical_background topic이 구체적인지
+    - anchors에 preaching_point가 있는지 (★ 2025-12-27 추가)
 
     Returns:
         {
@@ -2142,10 +2018,10 @@ def validate_step1_output(step1_result: dict) -> dict:
     errors = []
     warnings = []
 
-    # 1. Historical Background 검증
+    # 1. Historical Background 검증 (2개 이상)
     hist_bg = step1_result.get("historical_background", [])
-    if len(hist_bg) < 3:
-        errors.append(f"historical_background가 3개 이상 필요 (현재 {len(hist_bg)}개)")
+    if len(hist_bg) < 2:
+        errors.append(f"historical_background가 2개 이상 필요 (현재 {len(hist_bg)}개)")
 
     for h in hist_bg:
         topic = h.get("topic", "")
@@ -2156,11 +2032,11 @@ def validate_step1_output(step1_result: dict) -> dict:
                 errors.append(f"{h_id}.topic에 placeholder 포함: '{topic}' (구체 명사로 대체 필요)")
                 break
 
-    # 2. Geography Places 검증
+    # 2. Geography Places 검증 (2개 이상)
     geo = step1_result.get("geography_people", {})
     places = geo.get("places", [])
-    if len(places) < 3:
-        errors.append(f"places가 3개 이상 필요 (현재 {len(places)}개)")
+    if len(places) < 2:
+        warnings.append(f"places가 2개 이상 권장 (현재 {len(places)}개)")
 
     for p in places:
         name = p.get("name", "")
@@ -2170,34 +2046,27 @@ def validate_step1_output(step1_result: dict) -> dict:
                 errors.append(f"{p_id}.name에 placeholder 포함: '{name}' (구체 지명으로 대체 필요)")
                 break
 
-    # 3. Anchors 검증
+    # 3. Anchors 검증 (6개 이상, preaching_point 필수)
     anchors = step1_result.get("anchors", [])
-    if len(anchors) < 10:
-        errors.append(f"anchors가 10개 이상 필요 (현재 {len(anchors)}개)")
+    if len(anchors) < 6:
+        errors.append(f"anchors가 6개 이상 필요 (현재 {len(anchors)}개)")
 
-    # 4. Guardrails 검증
+    # preaching_point 검증
+    for a in anchors:
+        anchor_id = a.get("anchor_id", "?")
+        preaching_point = a.get("preaching_point", "")
+        if not preaching_point or len(preaching_point) < 10:
+            warnings.append(f"{anchor_id}: preaching_point가 비어있거나 너무 짧음")
+
+    # 4. Guardrails 검증 (affirms 3개, avoids 2개)
     guardrails = step1_result.get("guardrails", {})
-    does_not_claim = guardrails.get("does_not_claim", [])
-    if len(does_not_claim) < 5:
-        errors.append(f"does_not_claim이 5개 이상 필요 (현재 {len(does_not_claim)}개)")
+    affirms = guardrails.get("affirms", [])
+    avoids = guardrails.get("avoids", [])
 
-    clearly_affirms = guardrails.get("clearly_affirms", [])
-    if len(clearly_affirms) < 5:
-        warnings.append(f"clearly_affirms가 5개 이상 권장 (현재 {len(clearly_affirms)}개)")
-
-    common_misreads = guardrails.get("common_misreads", [])
-    if len(common_misreads) < 3:
-        warnings.append(f"common_misreads가 3개 이상 권장 (현재 {len(common_misreads)}개)")
-
-    # 5. does_not_claim 내용 검증 (신학 해석 금지)
-    theology_keywords = ["선택적 반응", "개인의 결단", "믿음으로만", "은혜와 행위"]
-    for d in does_not_claim:
-        claim = d.get("claim", "")
-        d_id = d.get("id", "?")
-        for kw in theology_keywords:
-            if kw in claim:
-                warnings.append(f"{d_id}: 신학 해석 의심 '{kw}' - 본문 경계만 기술 필요")
-                break
+    if len(affirms) < 3:
+        warnings.append(f"affirms가 3개 권장 (현재 {len(affirms)}개)")
+    if len(avoids) < 2:
+        warnings.append(f"avoids가 2개 권장 (현재 {len(avoids)}개)")
 
     return {
         "valid": len(errors) == 0,
