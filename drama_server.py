@@ -24055,6 +24055,49 @@ def api_shorts_collect_news():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/api/shorts/youtube-collect', methods=['GET', 'POST'])
+def api_shorts_youtube_collect():
+    """
+    YouTube 트렌딩 쇼츠 수집 및 SHORTS 시트 저장
+
+    Query params / JSON body:
+        limit: 수집할 최대 주제 수 (기본: 10)
+        min_engagement: 최소 참여도 점수 (기본: 30)
+        categories: 카테고리 목록 (기본: ["연예인"])
+        save: 0이면 시트 저장 안함 (테스트용)
+
+    Returns:
+        {"ok": True, "collected": 5, "saved": 3, "topics": [...]}
+    """
+    try:
+        from scripts.shorts_pipeline import run_youtube_collection
+
+        # GET 또는 POST에서 파라미터 추출
+        if request.is_json:
+            data = request.get_json() or {}
+        else:
+            data = {}
+
+        limit = int(data.get('limit') or request.args.get('limit', '10'))
+        min_engagement = float(data.get('min_engagement') or request.args.get('min_engagement', '30'))
+        categories = data.get('categories') or None
+        save_to_sheet = str(data.get('save', request.args.get('save', '1'))) != '0'
+
+        result = run_youtube_collection(
+            max_items=limit,
+            min_engagement=min_engagement,
+            categories=categories,
+            save_to_sheet=save_to_sheet
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route('/api/shorts/generate-script', methods=['POST'])
 def api_shorts_generate_script():
     """
