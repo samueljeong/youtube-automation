@@ -2,15 +2,164 @@
 쇼츠 파이프라인 - YouTube 트렌딩 검색
 
 YouTube Data API를 사용하여 트렌딩 쇼츠 검색 및 분석
++ Google News 연동으로 원본 자료 확보
 """
 
 import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
+from urllib.parse import quote_plus
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+# feedparser (뉴스 검색용)
+try:
+    import feedparser
+    FEEDPARSER_AVAILABLE = True
+except ImportError:
+    feedparser = None
+    FEEDPARSER_AVAILABLE = False
+
+try:
+    from dateutil import parser as dtparser
+except ImportError:
+    dtparser = None
+
+
+# ========== Google News 검색 ==========
+
+def search_google_news(
+    query: str,
+    max_results: int = 5,
+    hours_ago: int = 72,
+) -> List[Dict[str, Any]]:
+    """
+    Google News RSS로 관련 뉴스 기사 검색
+
+    Args:
+        query: 검색어 (예: "박나래 논란")
+        max_results: 최대 결과 수
+        hours_ago: 최근 몇 시간 이내 기사만
+
+    Returns:
+        [
+            {
+                "title": "기사 제목",
+                "link": "https://...",
+                "summary": "기사 요약",
+                "published_at": "2025-12-28T...",
+                "source": "연합뉴스",
+            },
+            ...
+        ]
+    """
+    if not FEEDPARSER_AVAILABLE:
+        print("[NEWS] feedparser 모듈 없음 - 뉴스 검색 불가")
+        return []
+
+    # Google News RSS URL
+    q = quote_plus(query)
+    url = f"https://news.google.com/rss/search?q={q}&hl=ko&gl=KR&ceid=KR:ko"
+
+    print(f"[NEWS] '{query}' 뉴스 검색 중...")
+
+    try:
+        feed = feedparser.parse(url)
+        entries = feed.entries[:max_results * 2]  # 필터링 여유분
+
+        if not entries:
+            print(f"[NEWS] '{query}' 관련 뉴스 없음")
+            return []
+
+        # 시간 필터
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
+        results = []
+
+        for entry in entries:
+            title = getattr(entry, "title", "")
+            link = getattr(entry, "link", "")
+            summary = getattr(entry, "summary", "")
+            published = getattr(entry, "published", None)
+
+            # 발행 시간 파싱
+            published_at = None
+            if published and dtparser:
+                try:
+                    published_at = dtparser.parse(published).astimezone(timezone.utc)
+                except Exception:
+                    pass
+
+            # 시간 필터 적용
+            if published_at and published_at < cutoff_time:
+                continue
+
+            # 출처 추출 (제목에서 " - 출처명" 형태)
+            source = ""
+            if " - " in title:
+                parts = title.rsplit(" - ", 1)
+                if len(parts) == 2:
+                    title = parts[0].strip()
+                    source = parts[1].strip()
+
+            results.append({
+                "title": title,
+                "link": link,
+                "summary": summary.replace("<b>", "").replace("</b>", ""),  # HTML 태그 제거
+                "published_at": published_at.isoformat() if published_at else "",
+                "source": source,
+            })
+
+            if len(results) >= max_results:
+                break
+
+        print(f"[NEWS] '{query}': {len(results)}개 기사 발견")
+        return results
+
+    except Exception as e:
+        print(f"[NEWS] 뉴스 검색 실패: {e}")
+        return []
+
+
+def enrich_topic_with_news(topic: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    YouTube 트렌딩 주제에 뉴스 기사 추가
+
+    뉴스가 없으면 None 반환 (저장 스킵용)
+    """
+    person = topic.get("topic", "")
+    issue = topic.get("issue", "")
+
+    if not person:
+        return None
+
+    # 검색어 구성 (인물 + 이슈)
+    if issue and issue not in ["소식", "트렌딩"]:
+        search_query = f"{person} {issue}"
+    else:
+        search_query = person
+
+    # 뉴스 검색
+    news_articles = search_google_news(search_query, max_results=3, hours_ago=72)
+
+    if not news_articles:
+        # 인물 이름만으로 재검색
+        news_articles = search_google_news(person, max_results=3, hours_ago=72)
+
+    if not news_articles:
+        print(f"[NEWS] ❌ '{person}' 관련 뉴스 없음 - 스킵")
+        return None
+
+    # 뉴스 정보 추가
+    topic["news_articles"] = news_articles
+    topic["primary_news"] = news_articles[0]  # 대표 기사
+
+    print(f"[NEWS] ✅ '{person}': {len(news_articles)}개 뉴스 기사 연동")
+    return topic
+
+
+# ========== YouTube API ==========
 
 def get_youtube_client():
     """YouTube Data API 클라이언트 생성"""
@@ -532,6 +681,8 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
     """
     YouTube 주제를 기존 뉴스 형식으로 변환
     (기존 파이프라인과 호환)
+
+    topic에 news_articles가 있으면 뉴스 기사 정보도 포함
     """
     from datetime import datetime, timezone
 
@@ -545,8 +696,21 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
     sample_videos = topic.get("sample_videos", [])
     best_video = sample_videos[0] if sample_videos else {}
 
-    # 뉴스 제목 = 인물 + 이슈
-    news_title = f"{person} {issue_type}"
+    # 뉴스 기사 정보 (있는 경우)
+    news_articles = topic.get("news_articles", [])
+    primary_news = topic.get("primary_news", {})
+
+    # 뉴스 제목 = 뉴스 기사 제목 우선, 없으면 인물 + 이슈
+    if primary_news:
+        news_title = primary_news.get("title", f"{person} {issue_type}")
+        news_url = primary_news.get("link", "")
+        news_summary = primary_news.get("summary", "")
+        news_source = primary_news.get("source", "")
+    else:
+        news_title = f"{person} {issue_type}"
+        news_url = f"https://youtube.com/watch?v={best_video.get('video_id', '')}" if best_video else ""
+        news_summary = f"{topic.get('video_count', 0)}개 쇼츠, {topic.get('total_views', 0):,}회 조회"
+        news_source = "YouTube"
 
     return {
         "run_id": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -554,8 +718,9 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
         "person": person,
         "issue_type": issue_type,
         "news_title": news_title,
-        "news_url": f"https://youtube.com/watch?v={best_video.get('video_id', '')}" if best_video else "",
-        "news_summary": f"{topic.get('video_count', 0)}개 쇼츠, {topic.get('total_views', 0):,}회 조회",
+        "news_url": news_url,
+        "news_summary": news_summary,
+        "news_source": news_source,
         "viral_score": {
             "total_score": topic.get("avg_engagement", 0),
             "grade": get_grade(topic.get("avg_engagement", 0)),
@@ -577,6 +742,7 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
             "total_views": topic.get("total_views", 0),
             "sample_videos": sample_videos,
         },
+        "news_articles": news_articles,  # 전체 뉴스 기사 목록
         "상태": "준비",
     }
 

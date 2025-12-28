@@ -142,6 +142,9 @@ try:
         youtube_to_news_format,
         get_video_comments,
         extract_trending_topics,
+        # 뉴스 연동 (하이브리드)
+        search_google_news,
+        enrich_topic_with_news,
     )
 except ImportError:
     # googleapiclient 미설치 시
@@ -266,4 +269,7 @@ __all__ = [
     'youtube_to_news_format',
     'get_video_comments',
     'extract_trending_topics',
+    # 뉴스 연동 (하이브리드)
+    'search_google_news',
+    'enrich_topic_with_news',
 ]

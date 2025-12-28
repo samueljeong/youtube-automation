@@ -78,6 +78,7 @@ try:
         youtube_to_news_format,
         search_shorts_by_category,
         get_video_comments,
+        enrich_topic_with_news,  # 뉴스 기사 연동
     )
     YOUTUBE_SEARCH_AVAILABLE = True
 except ImportError:
@@ -1834,25 +1835,27 @@ def run_youtube_collection(
                     print(f"  ⏭️ {topic['topic']}: 참여도 {engagement:.1f} < {min_engagement} (스킵)")
                     continue
 
-                # 뉴스 형식으로 변환
-                news_format = youtube_to_news_format(topic)
+                # ★ 뉴스 기사 검색 (원본 자료 확보)
+                enriched_topic = enrich_topic_with_news(topic)
+                if enriched_topic is None:
+                    # 뉴스 기사가 없으면 저장하지 않음
+                    print(f"  ⏭️ {topic['topic']}: 뉴스 기사 없음 (스킵)")
+                    continue
+
+                # 뉴스 형식으로 변환 (뉴스 기사 정보 포함)
+                news_format = youtube_to_news_format(enriched_topic)
                 news_format["category"] = category
-                news_format["source"] = "youtube"  # 소스 표시
+                news_format["source"] = "youtube+news"  # 하이브리드 소스
 
                 # 상위 영상 댓글 수집 (script_hints용)
-                if topic.get("sample_videos"):
-                    top_video = topic["sample_videos"][0]
+                if enriched_topic.get("sample_videos"):
+                    top_video = enriched_topic["sample_videos"][0]
                     comments = get_video_comments(top_video["video_id"], max_results=20)
-                    news_format["script_hints"] = {
-                        "debate_topic": f"{news_format['person']} 관련 논쟁",
-                        "hot_phrases": [c.get("text", "")[:50] for c in comments[:5]],
-                        "pro_comments": [],
-                        "con_comments": [],
-                    }
+                    news_format["script_hints"]["hot_phrases"] = [c.get("text", "")[:50] for c in comments[:5]]
 
                 all_topics.append(news_format)
 
-                print(f"  ✅ {topic['topic']}: {topic['video_count']}개 영상, 참여도 {topic.get('avg_engagement', 0):.1f}")
+                print(f"  ✅ {topic['topic']}: {topic['video_count']}개 영상 + {len(enriched_topic.get('news_articles', []))}개 뉴스")
 
         if not all_topics:
             return {"ok": False, "error": "수집된 트렌딩 주제 없음"}
