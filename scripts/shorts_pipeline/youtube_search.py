@@ -21,6 +21,55 @@ def get_youtube_client():
     return build("youtube", "v3", developerKey=api_key)
 
 
+# 연예인/유명인 이름 DB (자주 등장하는 인물)
+CELEBRITY_NAMES = {
+    # 아이돌
+    "뉴진스", "아이브", "에스파", "르세라핌", "카리나", "윈터", "지젤", "닝닝",
+    "민지", "하니", "다니엘", "해린", "혜인", "장원영", "안유진", "레이",
+    "사쿠라", "카즈하", "홍은채", "김채원", "허윤진", "BTS", "방탄소년단",
+    "지민", "정국", "뷔", "슈가", "RM", "진", "제이홉", "블랙핑크", "제니",
+    "지수", "로제", "리사", "트와이스", "나연", "정연", "모모", "사나", "지효",
+    "미나", "다현", "채영", "쯔위", "스트레이키즈", "방찬", "리노", "창빈",
+    "현진", "한", "필릭스", "승민", "아이엔", "세븐틴", "에스쿱스", "정한",
+    "조슈아", "준", "호시", "원우", "우지", "디에잇", "민규", "도겸", "승관",
+    "버논", "디노", "엔시티", "태용", "도영", "재현", "마크", "해찬", "쟈니",
+    "유타", "텐", "루카스", "천러", "지성", "런쥔", "제노", "샤오쥔", "헨드리",
+
+    # 배우
+    "송혜교", "전지현", "김태희", "손예진", "공유", "현빈", "이민호", "김수현",
+    "박서준", "송강", "차은우", "이도현", "변우석", "김지원", "신세경", "박민영",
+    "한소희", "김유정", "아이유", "수지", "박보영", "김고은", "전소민", "이광수",
+    "유재석", "강호동", "신동엽", "이효리", "비", "정우성", "이정재", "하정우",
+    "마동석", "황정민", "조인성", "송중기", "박보검", "이종석", "남주혁", "공효진",
+
+    # MC/개그맨
+    "박나래", "이영지", "전현무", "김종국", "하하", "지석진", "양세찬", "송지효",
+    "나영석", "조세호", "남창희", "김신영", "안영미", "장도연", "이은지", "문세윤",
+
+    # 운동선수
+    "손흥민", "김민재", "이강인", "황희찬", "오타니", "류현진", "김하성", "이정후",
+    "박세리", "김연아", "임영웅", "영탁", "이찬원", "정동원",
+
+    # 유튜버/인플루언서
+    "침착맨", "주호민", "풍자", "쯔양", "먹방", "뻑가", "보겸", "대도서관",
+}
+
+# 제외할 일반 단어
+COMMON_WORDS_BLACKLIST = {
+    # 일반 단어
+    "제발", "정말", "진짜", "하지만", "그래서", "때문", "오늘", "내일", "어제",
+    "예전", "처럼", "같이", "함께", "우리", "나는", "너는", "이것", "저것",
+    "여기", "저기", "지금", "나중", "먼저", "다음", "마지막", "처음", "결국",
+    "아직", "벌써", "이미", "계속", "다시", "또", "더", "덜", "매우", "너무",
+    "완전", "진심", "사실", "근데", "그냥", "일단", "혹시", "아마", "당연",
+    # 쇼츠 관련
+    "쇼츠", "shorts", "영상", "뉴스", "속보", "긴급", "단독", "최초", "공개",
+    "반응", "리액션", "요약", "정리", "모음", "하이라이트", "예고", "티저",
+    # 감정 표현
+    "충격", "감동", "웃음", "눈물", "소름", "대박", "실화", "레전드", "미쳤",
+}
+
+
 def search_trending_shorts(
     query: str = "연예 뉴스",
     max_results: int = 20,
@@ -233,77 +282,123 @@ def get_video_comments(
         return []
 
 
+def extract_celebrity_from_title(title: str) -> Optional[str]:
+    """
+    제목에서 연예인/유명인 이름 추출
+
+    1. CELEBRITY_NAMES DB에서 매칭
+    2. 없으면 한글 이름 패턴 + 블랙리스트 필터
+    """
+    # 1. DB에서 직접 매칭 (가장 정확)
+    for name in CELEBRITY_NAMES:
+        if name in title:
+            return name
+
+    # 2. 한글 이름 패턴 (3글자 성+이름 형태)
+    # "김OO", "이OO", "박OO" 등 성씨로 시작하는 3글자
+    korean_surnames = "김이박최정강조윤장임한오서신권황안송류홍"
+    name_pattern = rf'([{korean_surnames}][가-힣]{{2}})(?:가|이|는|의|를|에게|측|씨|,|\s|$)'
+
+    matches = re.findall(name_pattern, title)
+    for name in matches:
+        # 블랙리스트 체크
+        if name not in COMMON_WORDS_BLACKLIST and len(name) >= 2:
+            return name
+
+    return None
+
+
 def extract_trending_topics(videos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    트렌딩 쇼츠에서 주제 추출
+    트렌딩 쇼츠에서 주제 추출 (연예인 중심)
 
     Returns:
         [
             {
-                "topic": "박나래 갑질",
+                "topic": "박나래",
                 "video_count": 5,
                 "total_views": 1234567,
                 "sample_videos": [...],
-                "keywords": ["갑질", "논란"],
+                "issue": "논란",
             },
             ...
         ]
     """
     from collections import defaultdict
 
-    # 키워드 빈도 분석
-    keyword_videos = defaultdict(list)
-
-    # 연예인 이름 패턴
-    name_pattern = r'([가-힣]{2,4})(?:가|이|는|의|를|에게|측|씨|,|\s)'
+    # 연예인별 영상 그룹화
+    celebrity_videos = defaultdict(list)
 
     # 이슈 키워드
     issue_keywords = [
         "논란", "갑질", "폭로", "고백", "결혼", "이혼", "열애", "파혼",
-        "컴백", "사과", "해명", "충격", "근황", "복귀", "은퇴", "탈퇴",
+        "컴백", "사과", "해명", "근황", "복귀", "은퇴", "탈퇴", "소식",
     ]
 
     for video in videos:
         title = video.get("title", "")
 
         # 연예인 이름 추출
-        names = re.findall(name_pattern, title)
+        celebrity = extract_celebrity_from_title(title)
 
-        # 이슈 키워드 추출
-        found_issues = [kw for kw in issue_keywords if kw in title]
+        if celebrity:
+            # 이슈 키워드 추출
+            found_issue = None
+            for kw in issue_keywords:
+                if kw in title:
+                    found_issue = kw
+                    break
 
-        # 조합 (이름 + 이슈)
-        for name in names:
-            if len(name) >= 2:
-                for issue in found_issues:
-                    topic = f"{name} {issue}"
-                    keyword_videos[topic].append(video)
-
-                # 이름만도 추가
-                keyword_videos[name].append(video)
+            video["detected_celebrity"] = celebrity
+            video["detected_issue"] = found_issue or "소식"
+            celebrity_videos[celebrity].append(video)
 
     # 주제별 집계
     topics = []
-    for topic, vids in keyword_videos.items():
-        if len(vids) >= 1:  # 1개 이상이면 포함 (기존: 2개)
-            topics.append({
-                "topic": topic,
-                "video_count": len(vids),
-                "total_views": sum(v.get("view_count", 0) for v in vids),
-                "avg_engagement": sum(calculate_engagement_score(v) for v in vids) / len(vids),
-                "sample_videos": vids[:3],
-            })
+    seen_video_ids = set()  # 중복 영상 방지
 
-    # 주제가 없으면 상위 영상을 개별 주제로 추가
+    for celebrity, vids in celebrity_videos.items():
+        # 중복 영상 제거
+        unique_vids = []
+        for v in vids:
+            vid = v.get("video_id")
+            if vid and vid not in seen_video_ids:
+                seen_video_ids.add(vid)
+                unique_vids.append(v)
+
+        if not unique_vids:
+            continue
+
+        # 가장 많이 나온 이슈 찾기
+        issues = [v.get("detected_issue", "소식") for v in unique_vids]
+        main_issue = max(set(issues), key=issues.count)
+
+        topics.append({
+            "topic": celebrity,
+            "issue": main_issue,
+            "video_count": len(unique_vids),
+            "total_views": sum(v.get("view_count", 0) for v in unique_vids),
+            "avg_engagement": sum(calculate_engagement_score(v) for v in unique_vids) / len(unique_vids),
+            "sample_videos": unique_vids[:3],
+        })
+
+    # 연예인을 못 찾은 경우: 상위 영상을 제목 기준으로 추가
     if not topics and videos:
         for video in videos[:5]:
+            vid = video.get("video_id")
+            if vid in seen_video_ids:
+                continue
+            seen_video_ids.add(vid)
+
             title = video.get("title", "")
-            # 제목에서 첫 번째 한글 이름 추출 시도
-            names = re.findall(r'([가-힣]{2,4})', title)
-            topic_name = names[0] if names else title[:20]
+            # 제목 앞부분을 주제로 사용 (최대 15자)
+            topic_name = title[:15].strip()
+            if not topic_name:
+                continue
 
             topics.append({
                 "topic": topic_name,
+                "issue": "트렌딩",
                 "video_count": 1,
                 "total_views": video.get("view_count", 0),
                 "avg_engagement": calculate_engagement_score(video),
@@ -440,34 +535,25 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
     """
     from datetime import datetime, timezone
 
-    # 인물 이름 추출
-    person = topic.get("topic", "").split()[0] if topic.get("topic") else "연예인"
+    # 인물 이름 (topic이 이제 연예인 이름)
+    person = topic.get("topic", "연예인")
 
-    # 이슈 타입 추출
-    issue_keywords = {
-        "논란": "논란", "갑질": "논란", "폭로": "논란",
-        "열애": "열애", "결혼": "열애", "이혼": "열애",
-        "컴백": "컴백", "신곡": "컴백",
-        "근황": "근황", "복귀": "근황",
-    }
-
-    issue_type = "근황"
-    topic_text = topic.get("topic", "")
-    for kw, issue in issue_keywords.items():
-        if kw in topic_text:
-            issue_type = issue
-            break
+    # 이슈 타입 (새로운 issue 필드 사용)
+    issue_type = topic.get("issue", "근황")
 
     # 샘플 영상에서 정보 추출
     sample_videos = topic.get("sample_videos", [])
     best_video = sample_videos[0] if sample_videos else {}
+
+    # 뉴스 제목 = 인물 + 이슈
+    news_title = f"{person} {issue_type}"
 
     return {
         "run_id": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "category": topic.get("category", "연예인"),
         "person": person,
         "issue_type": issue_type,
-        "news_title": topic.get("topic", "트렌딩 주제"),
+        "news_title": news_title,
         "news_url": f"https://youtube.com/watch?v={best_video.get('video_id', '')}" if best_video else "",
         "news_summary": f"{topic.get('video_count', 0)}개 쇼츠, {topic.get('total_views', 0):,}회 조회",
         "viral_score": {
@@ -479,13 +565,14 @@ def youtube_to_news_format(topic: Dict[str, Any]) -> Dict[str, Any]:
             "recency_score": 100,
         },
         "script_hints": {
-            "debate_topic": f"{person} 관련 논쟁",
+            "debate_topic": f"{person} {issue_type} 관련 논쟁",
             "hot_phrases": [c.get("text", "")[:30] for c in topic.get("top_comments", [])[:5]],
             "pro_comments": [],
             "con_comments": [],
         },
         "youtube_source": {
-            "topic": topic.get("topic"),
+            "topic": person,
+            "issue": issue_type,
             "video_count": topic.get("video_count", 0),
             "total_views": topic.get("total_views", 0),
             "sample_videos": sample_videos,
