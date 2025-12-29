@@ -881,6 +881,35 @@ curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON
 - `scripts/news_pipeline/run.py` - 메인 파이프라인 (채널 기반)
 - `scripts/news_pipeline/__init__.py` - 모듈 export
 
+### 히스토리 파이프라인 통합 (2025-12-29)
+
+뉴스 파이프라인 실행 시 **히스토리 파이프라인도 자동 실행**됩니다.
+
+```
+/api/news/run-pipeline 호출 시:
+1. 뉴스 수집 파이프라인 실행
+2. 히스토리 파이프라인 실행 (준비 10개 미만이면 에피소드 추가)
+```
+
+**응답 예시:**
+```json
+{
+    "ok": true,
+    "result": { ... },  // 뉴스 결과
+    "history": {        // 히스토리 결과
+        "success": true,
+        "pending_before": 6,
+        "pending_after": 10,
+        "episodes_added": 4
+    }
+}
+```
+
+**히스토리 파이프라인 참고 파일:**
+- `scripts/history_pipeline/run.py` - 메인 오케스트레이션
+- `scripts/history_pipeline/config.py` - 시대/주제 설정 (11개 시대)
+- `scripts/history_pipeline/collector.py` - 자료 수집 (Opus 직접 검색 모드)
+
 ---
 
 ## 연예 쇼츠 바이럴 파이프라인 (2025-12-26)

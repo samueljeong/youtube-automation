@@ -54,198 +54,178 @@ HISTORY_RULES = """
 
 ⚠️ CRITICAL: Extract {keyword} from the ACTUAL SCRIPT CONTENT!
 
-### Thumbnail Style: HISTORICAL CONCEPT ART + MASCOT (SAME STYLE AS SCENES!)
-⚠️ CRITICAL: Thumbnail MUST use the EXACT SAME style as scene images!
-⚠️ Historical setting and costume matching the era
-⚠️ SAME MASCOT CHARACTER as scenes (larger size for thumbnail visibility)
+### Thumbnail Style: HISTORICAL WEBTOON STYLE (과장된 역사 인물!)
+⚠️ CRITICAL: 역사 인물이 과장된 웹툰 표정으로 등장!
+⚠️ 마스코트 대신 시대에 맞는 역사적 인물 사용!
+⚠️ 웹툰 스타일의 극단적 감정 표현 필수!
 
-**Thumbnail Prompt Template (MUST MATCH SCENE STYLE!):**
+**Thumbnail Prompt Template (HISTORICAL WEBTOON!):**
 ```
-Historical concept art thumbnail, [MAIN SCENE DESCRIPTION],
-sepia and earth tone color palette, aged parchment texture border, vintage canvas feel,
-digital painting with visible brush strokes, dramatic cinematic lighting,
-LEFT SIDE (30% of frame): EXACT MASCOT - cute Korean scholar character with round face, circular wire-frame glasses, black traditional topknot (sangtu) hairstyle, wearing cream/beige hanbok with olive-green patterned vest, holding bamboo scroll, warm earth tone colors only, thick clean outlines, friendly expression, expressive pose pointing at or reacting to scene,
-historical scene on right side with period-accurate costumes,
-aged vintage feel, eye-catching YouTube thumbnail composition,
-NO text, NO watermark, NO labels, 16:9 aspect ratio
+Korean webtoon style illustration, [ERA] [HISTORICAL ROLE] with EXTREMELY EXAGGERATED [EMOTION] EXPRESSION,
+[SPECIFIC EXPRESSION DETAILS: wide eyes 2x larger, pupils dilated, mouth wide open/gritted teeth, eyebrows raised/furrowed],
+wearing period-accurate [ERA] costume ([COSTUME DETAILS]),
+[HISTORICAL BACKGROUND: fortress/palace/battlefield with smoke/fire/dramatic sky],
+bold black outlines, vibrant colors with sepia/earth undertones,
+dramatic [CAMERA ANGLE] shot, manga-style impact lines and emotion effects,
+sweat drops, action lines emphasizing intensity,
+eye-catching YouTube thumbnail composition,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**ai_prompts A/B/C templates (ALL use EXACT SAME MASCOT!):**
-- A: Wide historical scene + mascot on LEFT (30%) pointing at key element with curious expression
-- B: Battle/court scene + mascot on LEFT (30%) reacting with surprised/concerned expression
-- C: Dramatic moment + mascot on LEFT (30%) with thoughtful/contemplative expression
+**ai_prompts A/B/C templates (역사 인물 + 과장된 표정!):**
+- A: 충격/놀람 - [ERA] figure with SHOCKED expression (wide eyes, dropped jaw, sweat drops, hands on face)
+- B: 분노/결의 - [ERA] figure with INTENSE ANGRY expression (fierce eyes with fire, gritted teeth, clenched fist, veins)
+- C: 슬픔/비장 - [ERA] figure with SORROWFUL expression (tearful eyes, trembling lips, dramatic pose)
 
-⚠️ MASCOT MUST BE IDENTICAL IN ALL IMAGES:
-- Round face, circular wire-frame glasses
-- Black topknot (sangtu) on top of head
-- Cream/beige hanbok with olive-green patterned vest
-- Holding bamboo scroll or book
-- Warm earth tones ONLY (beige, cream, olive, muted gold)
-- Thick clean outlines, NOT anime style
+⚠️ 시대별 인물/의상 가이드:
+- 고조선: Bronze age warrior, fur cape, bronze helmet/sword
+- 삼국시대: Goguryeo/Baekje/Silla general, iron armor, decorative helmet
+- 고려: Goryeo official/warrior, ornate armor or court robes, gat hat
+- 조선: Joseon scholar/general, hanbok with armor or dopo robe, traditional hairstyle
+- 근대: Korean independence fighter, western-influenced clothing, determined expression
+
+⚠️ 표정 필수 요소 (클릭 유도!):
+- 눈: 평소의 2배 크기, 흰자위 보이게
+- 입: 크게 벌리거나 이 악물기
+- 눈썹: 극단적으로 올리거나 찌푸리기
+- 효과: 땀방울, 눈물, 충격선, 불꽃 반사 등
 
 ---
 
 ## ★★★ IMAGE PROMPT STYLE FOR HISTORY (CRITICAL!) ★★★
 
-### Style Definition: HISTORICAL CONCEPT ART
-This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
+### Style Definition: HISTORICAL WEBTOON (역사 웹툰 스타일)
+⚠️ 웹툰 스타일 역사 인물 + 디테일한 역사적 배경
+⚠️ 캐릭터:배경 = 1:1 비율 (캐릭터 30-40%, 배경 50-60%)
+⚠️ 장면별 전체 색조가 확 달라야 함! (티나게!)
 
 ---
 
-## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
+### ★★★ 전체 색조 가이드 (장면마다 완전히 다른 색감!) ★★★
+| 장면 | 전체 색조 (하늘+배경+의상 전부!) | 절대 금지 |
+|------|-------------------------------|----------|
+| 전쟁/분노 | 🔴 FIERY ORANGE-RED (주황 노을 하늘, 붉은 불꽃, 노란 먼지) | 파랑/초록/차가운색 금지 |
+| 권위/왕실 | 🟡 WARM GOLD-AMBER (황금빛 조명, 붉은 단청, 주황 촛불) | 파랑/차가운색 금지 |
+| 슬픔/비극 | 🔵 COLD BLUE-GRAY (회청색 하늘, 푸른 빗물, 회색 안개) | 따뜻한색 금지, 채도↓ |
+| 희망/승리 | 🟢 BRIGHT GREEN-BLUE (맑은 파란 하늘, 초록 자연, 금빛 햇살) | 어두운색 금지, 채도↑ |
+| 음모/긴장 | 🟣 DARK PURPLE-BLACK (보라 달빛, 검은 그림자, 차가운 남색) | 밝은색 금지, 명도↓ |
 
-### ⚠️⚠️⚠️ MASCOT CONSISTENCY IS CRITICAL! ⚠️⚠️⚠️
-The SAME mascot must appear in ALL images (thumbnail + all scenes).
-AI image generators tend to vary character designs - use EXACT description every time!
-
-### Mascot Definition (COPY THIS EXACT TEXT FOR EVERY IMAGE!):
-```
-cute Korean scholar mascot character,
-round friendly face shape (not oval, not square - ROUND),
-circular wire-frame glasses (thin metal frame, round lenses),
-black hair in traditional Korean topknot (sangtu/상투) style on top of head,
-wearing cream/beige traditional hanbok (저고리) with olive-green patterned vest (조끼),
-holding rolled bamboo scroll in one hand,
-skin tone: warm beige,
-color palette: ONLY cream, beige, olive-green, muted gold (NO bright colors!),
-thick clean black outlines (3-4px stroke),
-simple friendly expression,
-chibi/SD proportions (large head, small body),
-NOT anime style, NOT realistic
-```
-
-### Character Details (ABSOLUTE REQUIREMENTS - CHECK EVERY IMAGE!):
-- **Face Shape**: ROUND (like a circle), friendly smile
-- **Glasses**: Circular wire-frame glasses (NOT square, NOT thick frame)
-- **Hair**: Black topknot (상투) pointing UP from top of head
-- **Top Clothing**: Cream/beige hanbok jeogori (저고리)
-- **Vest**: Olive-green with subtle gold pattern
-- **Props**: Rolled bamboo scroll (yellowish-brown color)
-- **Skin**: Warm beige tone
-- **Colors**: ONLY earth tones - cream, beige, olive, muted gold
-- **Outlines**: Thick clean black outlines (cartoon style)
-- **Proportions**: Chibi/SD style (big head, small body, about 2-3 heads tall)
-- **Style**: Korean cartoon style, NOT Japanese anime, NOT realistic
-
-### ⛔ MASCOT FORBIDDEN VARIATIONS:
-- Square or oval glasses (must be circular!)
-- Different hair style (must be topknot!)
-- Blue, red, or bright colored clothing (must be earth tones!)
-- No glasses (must have circular glasses!)
-- Anime style eyes or proportions
-- Realistic proportions
-
-### Mascot Placement in Scene Images:
-- Position: BOTTOM RIGHT CORNER (10-15% of frame)
-- The mascot observes/reacts to the historical scene
-- Mascot style contrasts with realistic background (intentional)
-- Mascot expression should match scene mood (curious, surprised, thoughtful, etc.)
-
-### Mascot in Thumbnail:
-- Position: LEFT or RIGHT side (25-35% of frame)
-- Larger size for thumbnail visibility
-- More expressive pose (pointing, explaining, reacting)
-- Can overlap slightly with main scene
+⚠️ CRITICAL: "earth tone", "sepia", "brown base" 절대 사용 금지!
+⚠️ 각 장면은 위 색조로 전체가 물들어야 함!
 
 ---
 
-### MANDATORY Style Keywords (MUST include in every image_prompt):
+### Scene Type Templates (전체 색조가 확 다르게!):
+
+**1. Battle/War Scene (전쟁 장면) - 🔴 FIERY SUNSET PALETTE:**
 ```
-Historical concept art, [SCENE DESCRIPTION],
-sepia and earth tone color palette,
-aged parchment texture border, vintage canvas feel,
-digital painting with visible brush strokes,
-dramatic lighting, misty atmospheric perspective,
-clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only,
-NO text, NO watermark, NO labels,
-16:9 cinematic composition
+Korean webtoon style illustration,
+ENTIRE SCENE BATHED IN FIERY ORANGE-RED SUNSET LIGHT,
+wide shot of ancient Korean battlefield under BLAZING ORANGE SKY,
+[ERA] general in mid-ground (35% of frame),
+fierce expression with furrowed brows,
+wearing armor with RED cape billowing,
+BACKGROUND (55%): ORANGE flames engulfing fortress, CRIMSON sunset clouds,
+YELLOW-ORANGE dust rising from battle, RED flags everywhere,
+ALL colors in warm spectrum: orange, red, yellow, crimson (NO blue, NO green),
+bold black outlines, cinematic wide shot,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-### ⚠️ EXACT MASCOT TEXT (COPY-PASTE THIS FOR EVERY SCENE!):
+**2. Royal/Court Scene (궁궐 장면) - 🟡 GOLDEN AMBER PALETTE:**
 ```
-BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only
-```
-
-### Scene Type Templates (ALL include IDENTICAL mascot!):
-
-**1. Single Character (인물 단독):**
-```
-Historical concept art, ancient Korean [ERA] [ROLE],
-[POSE/ACTION] at [LOCATION],
-traditional period-accurate clothing and accessories,
-sepia and earth tone palette, aged parchment texture,
-dramatic [TIME OF DAY] lighting,
-digital painting with visible brush strokes,
-epic landscape background with mountains/fortress,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching curiously - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+ENTIRE SCENE GLOWING IN WARM GOLDEN AMBER LIGHT,
+wide shot of [ERA] palace interior bathed in AMBER TORCHLIGHT,
+court official/king in mid-ground (35% of frame),
+dignified expression with sweat drops,
+wearing GOLD-embroidered dragon robes,
+BACKGROUND (55%): GOLDEN throne, ORANGE-RED lacquered pillars,
+AMBER candlelight reflecting on silk, warm YELLOW lantern glow,
+ALL colors warm: gold, amber, orange, burgundy (NO blue, NO cold tones),
+bold black outlines, cinematic composition,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**2. Crowd/Group Scene (군중/집단 장면):**
+**3. Tragedy/Sorrow Scene (비극 장면) - 🔵 COLD BLUE-GRAY PALETTE:**
 ```
-Historical concept art, ancient Korean [ERA] scene,
-[NUMBER] of [PEOPLE TYPE] [ACTION],
-wide cinematic shot showing scale of [EVENT],
-sepia earth tones, aged canvas texture,
-dramatic lighting with dust/mist particles,
-detailed crowd with period-accurate costumes,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot observing with amazement - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
-```
-
-**3. Battle/Conflict (전투/갈등):**
-```
-Historical concept art, ancient Korean [ERA] battle,
-[ARMY/SOLDIERS] in formation with [WEAPONS],
-epic wide shot showing military scale,
-dust and tension atmosphere,
-sepia palette with dramatic sunset/stormy sky,
-aged parchment border, cinematic composition,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching tensely - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+ENTIRE SCENE DRENCHED IN COLD BLUE-GRAY TONES,
+wide shot of rainy Korean landscape under STEEL GRAY SKY,
+[ERA] warrior walking alone in mid-ground (30% of frame),
+sorrowful expression with downcast eyes,
+wearing worn armor in COLD BLUE-GRAY steel,
+BACKGROUND (60%): BLUE-GRAY rain falling, PALE CYAN puddles,
+SLATE GRAY destroyed village, DARK BLUE storm clouds,
+ALL colors cold and desaturated: blue-gray, cyan, slate, pale blue (NO warm colors),
+bold black outlines, wide shot emphasizing isolation,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**4. Court/Interior (궁궐/실내):**
+**4. Victory/Hope Scene (승리/희망 장면) - 🟢 BRIGHT VIVID PALETTE:**
 ```
-Historical concept art, ancient Korean [ERA] [ROOM TYPE],
-[FIGURES] in formal/ceremonial positions,
-traditional architecture with period details,
-warm torchlight/candlelight atmosphere,
-earth tones with gold accents,
-aged texture, vintage illustration style,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot peeking thoughtfully - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
-```
-
-**5. Labor/Construction (노동/건설):**
-```
-Historical concept art, ancient Korean [ERA] [ACTIVITY],
-workers [ACTION] with [TOOLS/MATERIALS],
-coordinated group effort showing scale,
-wide shot with landscape background,
-sepia earth tones, aged parchment texture,
-dramatic natural lighting,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching with interest - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+ENTIRE SCENE BRIGHT AND VIVID WITH SATURATED COLORS,
+wide shot of Korean mountain vista under CLEAR BLUE SKY,
+[ERA] hero standing triumphantly in mid-ground (35% of frame),
+confident expression with proud smile,
+wearing armor with JADE GREEN and GOLD decorations,
+BACKGROUND (55%): LUSH EMERALD GREEN valleys, BRIGHT BLUE sky,
+GOLDEN sunrays, VIVID GREEN pine forests, WHITE clouds,
+ALL colors bright and saturated: green, blue, gold, white (NO dark, NO muted),
+bold black outlines, epic cinematic composition,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-### ⛔ FORBIDDEN for History Category:
-- Webtoon/manhwa style
-- Exaggerated cartoon expressions
-- Bright vivid colors
+**5. Conspiracy/Tension Scene (음모/긴장 장면) - 🟣 DARK PURPLE-BLACK PALETTE:**
+```
+Korean webtoon style illustration,
+ENTIRE SCENE SHROUDED IN DARK PURPLE-BLACK SHADOWS,
+wide shot of dimly lit [ERA] secret chamber in DEEP NIGHT,
+two figures whispering in mid-ground (40% of frame),
+suspicious expressions with narrowed eyes,
+wearing DARK PURPLE and BLACK robes,
+BACKGROUND (50%): DEEP INDIGO shadows, PURPLE moonlight through window,
+BLACK silhouettes, single PALE VIOLET candle flame,
+ALL colors dark and cold: purple, black, indigo, navy (NO bright colors),
+bold black outlines, high contrast noir atmosphere,
+NO text, NO watermark, 16:9 aspect ratio
+```
+
+**6. Discovery/Revelation Scene (발견/전환점 장면) - ✨ ETHEREAL GOLD-WHITE PALETTE:**
+```
+Korean webtoon style illustration,
+ENTIRE SCENE ILLUMINATED BY ETHEREAL GOLDEN-WHITE LIGHT,
+wide shot of ancient Korean sacred site with DIVINE GLOW,
+[ERA] scholar in mid-ground (35% of frame),
+awestruck expression with wide eyes,
+wearing WHITE and GOLD trimmed robes,
+BACKGROUND (55%): BRILLIANT WHITE light rays, GLOWING GOLD artifacts,
+SOFT CREAM temple walls, WARM WHITE divine illumination,
+ALL colors bright and ethereal: gold, white, cream, soft yellow (NO dark shadows),
+bold black outlines, dramatic revelation composition,
+NO text, NO watermark, 16:9 aspect ratio
+```
+
+---
+
+### ⛔ FORBIDDEN for History Scene Images:
+- "earth tone", "sepia", "brown base" 사용 금지!
+- 모든 장면이 비슷한 색감 (확 달라야 함!)
+- Photorealistic human faces
+- Character taking more than 45% of frame
+- Flat/boring backgrounds
 - Modern elements
-- Photorealistic style
-- Any text or labels in image
-- Clean digital/vector style
 
-### ✅ REQUIRED for History Category:
-- Sepia/earth tone color palette
-- Aged parchment/canvas texture
-- Visible brush strokes
+### ✅ REQUIRED for History Scene Images:
+- Korean webtoon style illustration
+- Bold black outlines
+- Character in mid-ground (30-40% of frame)
+- Detailed historical background (50-60% of frame)
+- ★ 장면 분위기에 맞는 전체 색조 (ENTIRE SCENE 색조 지정!)
+- ★ 금지 색상 명시 (NO blue, NO warm colors 등)
 - Period-accurate costumes and settings
-- Dramatic cinematic lighting
-- Artistic illustration feel (clearly NOT a photo)
+- Cinematic wide shot composition
 """
 
 def get_history_prompt():

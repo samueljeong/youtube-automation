@@ -132,8 +132,18 @@ YOUTUBE_META_STRUCTURE = """
     "- Trending/popular related terms (3-4)",
     "- Category/niche keywords (2-3)"
   ],
-  "pin_comment": "engaging question about SCRIPT TOPIC (encourages comments)"
+  "pin_comment": "⚠️ REQUIRED! 50-150 chars. Format: [1-2 sentences about video content] + [engaging question]. Example: 'This video covered XX - what an amazing story! What do you think? Share your thoughts in comments!'"
 }
+
+### ⚠️ PIN_COMMENT RULES (CRITICAL!):
+- **MUST generate** - never leave empty!
+- **Language**: Same as script language (Korean script → Korean comment)
+- **Length**: 50-150 characters
+- **Structure**: [Key content summary] + [Viewer engagement question]
+- **Question examples**:
+  - "What do you think about this?"
+  - "Have you had a similar experience? Share in comments!"
+  - "Which part resonated with you the most?"
 
 ### ⚠️ SEO REQUIREMENTS:
 - **Tags**: Generate exactly 15-20 relevant tags. Mix short keywords and long-tail phrases.

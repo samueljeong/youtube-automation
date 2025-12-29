@@ -11402,7 +11402,17 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
 - **해시태그**: 3-5개 (주제태그 + 카테고리태그)
 - **태그**: 5-12개 (넓은/구체/변형/채널 키워드)
 - **톤**: 과장 금지, 팩트 → 의미 → 액션 순서
-- **고정 댓글**: 대본 언어와 동일한 언어로 작성! (일본어 대본 → 일본어 댓글)
+
+## ⚠️ 고정 댓글 (pin_comment) 생성 규칙 - 필수!
+- **반드시 생성할 것!** 절대 빈 값으로 두지 마세요!
+- **언어**: 대본과 동일한 언어로 작성 (한국어 대본 → 한국어 댓글)
+- **길이**: 50-150자
+- **구조**: [핵심 내용 1-2문장] + [시청자 참여 유도 질문 1개]
+- **질문 예시**:
+  - "여러분은 어떻게 생각하시나요?"
+  - "비슷한 경험 있으신 분 댓글로 공유해주세요!"
+  - "이 중에서 가장 공감되는 건 뭔가요?"
+  - "더 알고 싶은 내용 있으면 댓글 남겨주세요!"
 
 {seo_prompt}
 
@@ -11422,7 +11432,7 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
     }},
     "hashtags": ["#주제태그1", "#주제태그2", "#카테고리태그"],
     "tags": ["넓은 키워드", "구체 키워드", "변형 키워드"],
-    "pin_comment": "고정 댓글 (핵심 요약 + 질문)"
+    "pin_comment": "⚠️ 필수! 50-150자 고정 댓글: [영상 핵심 내용 1-2문장] + [참여 유도 질문]. 예: '오늘 영상에서 다룬 XX 정말 놀랍지 않나요? 여러분은 어떻게 생각하시나요? 댓글로 알려주세요!'"
   }},
   "thumbnail": {{
     "thumbnail_text_candidates": [
@@ -22328,9 +22338,25 @@ def api_news_run_pipeline():
             llm_min_score=llm_min_score
         )
 
+        # ===== 히스토리 파이프라인도 함께 실행 (매일 1회) =====
+        history_result = None
+        try:
+            from scripts.history_pipeline import run_history_pipeline
+            print("[NEWS] ===== 히스토리 파이프라인 시작 =====")
+            history_result = run_history_pipeline(
+                sheet_id=sheet_id,
+                service=service,
+                force=False  # 준비 10개 미만일 때만 추가
+            )
+            print(f"[NEWS] 히스토리 파이프라인 완료: {history_result.get('episodes_added', 0)}개 에피소드 추가")
+        except Exception as hist_err:
+            print(f"[NEWS] 히스토리 파이프라인 오류 (무시): {hist_err}")
+            history_result = {"error": str(hist_err)}
+
         return jsonify({
             "ok": result["success"],
             "result": result,
+            "history": history_result,
             "sheets_setup": sheets_result
         })
 
