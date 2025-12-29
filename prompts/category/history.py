@@ -94,162 +94,150 @@ NO text, NO watermark, 16:9 aspect ratio
 
 ## ★★★ IMAGE PROMPT STYLE FOR HISTORY (CRITICAL!) ★★★
 
-### Style Definition: HISTORICAL CONCEPT ART
-This is NOT webtoon/manhwa style. Use cinematic historical illustration style.
+### Style Definition: HISTORICAL WEBTOON (역사 웹툰 스타일)
+⚠️ 웹툰 스타일 역사 인물 + 디테일한 역사적 배경
+⚠️ 캐릭터:배경 = 1:1 비율 (캐릭터 30-40%, 배경 50-60%)
+⚠️ 장면별 포인트 색상으로 시각적 임팩트!
 
 ---
 
-## ★★★ MASCOT CHARACTER (MUST INCLUDE IN EVERY IMAGE!) ★★★
-
-### ⚠️⚠️⚠️ MASCOT CONSISTENCY IS CRITICAL! ⚠️⚠️⚠️
-The SAME mascot must appear in ALL images (thumbnail + all scenes).
-AI image generators tend to vary character designs - use EXACT description every time!
-
-### Mascot Definition (COPY THIS EXACT TEXT FOR EVERY IMAGE!):
-```
-cute Korean scholar mascot character,
-round friendly face shape (not oval, not square - ROUND),
-circular wire-frame glasses (thin metal frame, round lenses),
-black hair in traditional Korean topknot (sangtu/상투) style on top of head,
-wearing cream/beige traditional hanbok (저고리) with olive-green patterned vest (조끼),
-holding rolled bamboo scroll in one hand,
-skin tone: warm beige,
-color palette: ONLY cream, beige, olive-green, muted gold (NO bright colors!),
-thick clean black outlines (3-4px stroke),
-simple friendly expression,
-chibi/SD proportions (large head, small body),
-NOT anime style, NOT realistic
-```
-
-### Character Details (ABSOLUTE REQUIREMENTS - CHECK EVERY IMAGE!):
-- **Face Shape**: ROUND (like a circle), friendly smile
-- **Glasses**: Circular wire-frame glasses (NOT square, NOT thick frame)
-- **Hair**: Black topknot (상투) pointing UP from top of head
-- **Top Clothing**: Cream/beige hanbok jeogori (저고리)
-- **Vest**: Olive-green with subtle gold pattern
-- **Props**: Rolled bamboo scroll (yellowish-brown color)
-- **Skin**: Warm beige tone
-- **Colors**: ONLY earth tones - cream, beige, olive, muted gold
-- **Outlines**: Thick clean black outlines (cartoon style)
-- **Proportions**: Chibi/SD style (big head, small body, about 2-3 heads tall)
-- **Style**: Korean cartoon style, NOT Japanese anime, NOT realistic
-
-### ⛔ MASCOT FORBIDDEN VARIATIONS:
-- Square or oval glasses (must be circular!)
-- Different hair style (must be topknot!)
-- Blue, red, or bright colored clothing (must be earth tones!)
-- No glasses (must have circular glasses!)
-- Anime style eyes or proportions
-- Realistic proportions
-
-### Mascot Placement in Scene Images:
-- Position: BOTTOM RIGHT CORNER (10-15% of frame)
-- The mascot observes/reacts to the historical scene
-- Mascot style contrasts with realistic background (intentional)
-- Mascot expression should match scene mood (curious, surprised, thoughtful, etc.)
-
-### Mascot in Thumbnail:
-- Position: LEFT or RIGHT side (25-35% of frame)
-- Larger size for thumbnail visibility
-- More expressive pose (pointing, explaining, reacting)
-- Can overlap slightly with main scene
+### 포인트 색상 가이드 (장면 분위기별)
+| 장면 | 포인트 색상 | 적용 요소 |
+|------|------------|----------|
+| 전쟁/분노 | 🔴 RED + ORANGE | 망토, 불꽃, 깃발, 갑옷 장식 |
+| 권위/왕실 | 🟡 GOLD + AMBER | 왕좌, 장신구, 촛불, 용포 |
+| 슬픔/비극 | 🔵 BLUE + CYAN | 비, 달빛, 물, 차가운 갑옷 |
+| 희망/승리 | 🟢 GREEN + GOLD | 자연, 햇빛, 옥 장신구 |
+| 음모/긴장 | 🟣 PURPLE + BLACK | 그림자, 달빛, 비단, 독약 |
 
 ---
 
 ### MANDATORY Style Keywords (MUST include in every image_prompt):
 ```
-Historical concept art, [SCENE DESCRIPTION],
-sepia and earth tone color palette,
-aged parchment texture border, vintage canvas feel,
-digital painting with visible brush strokes,
-dramatic lighting, misty atmospheric perspective,
-clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only,
-NO text, NO watermark, NO labels,
-16:9 cinematic composition
+Korean webtoon style illustration,
+wide establishing shot of [HISTORICAL SCENE],
+[ERA] [HISTORICAL ROLE] in mid-ground (35% of frame),
+[EMOTION] expression with [EXPRESSION DETAILS],
+wearing period-accurate [ERA] costume with [ACCENT COLOR] details,
+DETAILED BACKGROUND (55% of frame): [BACKGROUND DESCRIPTION],
+[ACCENT COLOR] as visual focal point,
+bold black outlines, vibrant colors with earth tone base,
+cinematic wide shot showing both character and environment,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-### ⚠️ EXACT MASCOT TEXT (COPY-PASTE THIS FOR EVERY SCENE!):
+---
+
+### Scene Type Templates (웹툰 스타일 + 포인트 색상):
+
+**1. Battle/War Scene (전쟁 장면) - 🔴 RED ACCENT:**
 ```
-BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only
+Korean webtoon style illustration,
+wide establishing shot of ancient Korean battlefield,
+[ERA] general standing in mid-ground (35% of frame),
+fierce determined expression with furrowed brows and clenched jaw,
+wearing iron armor with VIBRANT RED flowing cape (color accent),
+BACKGROUND (55% of frame): burning fortress walls with ORANGE FLAMES,
+RED battle flags waving, soldiers clashing in smoky distance,
+dramatic sunset sky with dark storm clouds,
+bold black outlines, earth tones with strong RED/ORANGE accents,
+cinematic wide shot showing scale of battle,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-### Scene Type Templates (ALL include IDENTICAL mascot!):
-
-**1. Single Character (인물 단독):**
+**2. Royal/Court Scene (궁궐 장면) - 🟡 GOLD ACCENT:**
 ```
-Historical concept art, ancient Korean [ERA] [ROLE],
-[POSE/ACTION] at [LOCATION],
-traditional period-accurate clothing and accessories,
-sepia and earth tone palette, aged parchment texture,
-dramatic [TIME OF DAY] lighting,
-digital painting with visible brush strokes,
-epic landscape background with mountains/fortress,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching curiously - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
-```
-
-**2. Crowd/Group Scene (군중/집단 장면):**
-```
-Historical concept art, ancient Korean [ERA] scene,
-[NUMBER] of [PEOPLE TYPE] [ACTION],
-wide cinematic shot showing scale of [EVENT],
-sepia earth tones, aged canvas texture,
-dramatic lighting with dust/mist particles,
-detailed crowd with period-accurate costumes,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot observing with amazement - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+wide shot of [ERA] palace throne room interior,
+court official/king in mid-ground (35% of frame),
+dignified or tense expression with sweat drops,
+wearing formal robes with GOLD embroidered dragons (color accent),
+BACKGROUND (55% of frame): GOLDEN dragon throne,
+AMBER torchlight illuminating ornate red lacquered pillars,
+officials in formal positions, royal banners with gold trim,
+bold black outlines, warm earth tones with rich GOLD/AMBER highlights,
+cinematic composition showing palace grandeur,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**3. Battle/Conflict (전투/갈등):**
+**3. Tragedy/Sorrow Scene (비극 장면) - 🔵 BLUE ACCENT:**
 ```
-Historical concept art, ancient Korean [ERA] battle,
-[ARMY/SOLDIERS] in formation with [WEAPONS],
-epic wide shot showing military scale,
-dust and tension atmosphere,
-sepia palette with dramatic sunset/stormy sky,
-aged parchment border, cinematic composition,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching tensely - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
-```
-
-**4. Court/Interior (궁궐/실내):**
-```
-Historical concept art, ancient Korean [ERA] [ROOM TYPE],
-[FIGURES] in formal/ceremonial positions,
-traditional architecture with period details,
-warm torchlight/candlelight atmosphere,
-earth tones with gold accents,
-aged texture, vintage illustration style,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot peeking thoughtfully - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+wide shot of rainy Korean landscape,
+[ERA] warrior/scholar walking alone in mid-ground (30% of frame),
+sorrowful expression with downcast eyes and slumped shoulders,
+wearing battle-worn armor with COLD BLUE steel tones (color accent),
+BACKGROUND (60% of frame): destroyed village under BLUE-GRAY rain,
+PALE BLUE moonlight breaking through dark clouds,
+puddles reflecting CYAN sky, dead trees silhouetted,
+bold black outlines, muted tones with melancholic BLUE/CYAN accents,
+wide shot emphasizing isolation and tragedy,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**5. Labor/Construction (노동/건설):**
+**4. Victory/Hope Scene (승리/희망 장면) - 🟢 GREEN+GOLD ACCENT:**
 ```
-Historical concept art, ancient Korean [ERA] [ACTIVITY],
-workers [ACTION] with [TOOLS/MATERIALS],
-coordinated group effort showing scale,
-wide shot with landscape background,
-sepia earth tones, aged parchment texture,
-dramatic natural lighting,
-BOTTOM RIGHT CORNER (10% of frame): cute Korean scholar mascot watching with interest - round face, circular wire-frame glasses, black topknot (sangtu), cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines,
-NO text, NO watermark
+Korean webtoon style illustration,
+wide shot of ancient Korean mountain vista,
+[ERA] hero standing triumphantly in mid-ground (35% of frame),
+confident expression with proud smile and raised chin,
+wearing armor decorated with JADE GREEN gemstones (color accent),
+BACKGROUND (55% of frame): LUSH GREEN mountain valleys,
+GOLDEN sunrise rays breaking through morning mist,
+GREEN pine forests and distant fortress with victory flags,
+bold black outlines, earth tones with vibrant GREEN/GOLD highlights,
+epic cinematic composition showing triumph,
+NO text, NO watermark, 16:9 aspect ratio
 ```
 
-### ⛔ FORBIDDEN for History Category:
-- Webtoon/manhwa style
-- Exaggerated cartoon expressions
-- Bright vivid colors
-- Modern elements
-- Photorealistic style
-- Any text or labels in image
-- Clean digital/vector style
+**5. Conspiracy/Tension Scene (음모/긴장 장면) - 🟣 PURPLE ACCENT:**
+```
+Korean webtoon style illustration,
+wide shot of dimly lit [ERA] secret chamber,
+two figures in mid-ground (40% of frame),
+suspicious expressions with narrowed eyes and whispered conversation,
+wearing dark robes with DEEP PURPLE silk accents (color accent),
+BACKGROUND (50% of frame): shadows and single candlelight,
+PURPLE moonlight streaming through paper window,
+poison vial or secret document glinting on table,
+bold black outlines, dark palette with mysterious PURPLE highlights,
+high contrast noir atmosphere,
+NO text, NO watermark, 16:9 aspect ratio
+```
 
-### ✅ REQUIRED for History Category:
-- Sepia/earth tone color palette
-- Aged parchment/canvas texture
-- Visible brush strokes
+**6. Discovery/Revelation Scene (발견/전환점 장면) - 🟡 GOLD+WHITE ACCENT:**
+```
+Korean webtoon style illustration,
+wide shot of ancient Korean sacred site,
+[ERA] scholar/explorer in mid-ground (35% of frame),
+awestruck expression with wide eyes looking at discovery,
+wearing traditional robes with WHITE and GOLD trim (color accent),
+BACKGROUND (55% of frame): ancient artifact glowing with GOLDEN light,
+WHITE divine rays illuminating dusty temple interior,
+mysterious symbols and treasures emerging from shadows,
+bold black outlines, earth tones with ethereal GOLD/WHITE highlights,
+dramatic revelation composition,
+NO text, NO watermark, 16:9 aspect ratio
+```
+
+---
+
+### ⛔ FORBIDDEN for History Scene Images:
+- Photorealistic human faces
+- Stickman/stick figures
+- Character taking more than 45% of frame
+- Flat/boring single-color backgrounds
+- Modern elements or clothing
+- Text or labels in image
+
+### ✅ REQUIRED for History Scene Images:
+- Korean webtoon style illustration
+- Bold black outlines
+- Character in mid-ground (30-40% of frame)
+- Detailed historical background (50-60% of frame)
+- ONE strong accent color per scene
+- Period-accurate costumes and settings
+- Cinematic wide shot composition
 - Period-accurate costumes and settings
 - Dramatic cinematic lighting
 - Artistic illustration feel (clearly NOT a photo)
