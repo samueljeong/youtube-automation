@@ -97,150 +97,135 @@ NO text, NO watermark, 16:9 aspect ratio
 ### Style Definition: HISTORICAL WEBTOON (역사 웹툰 스타일)
 ⚠️ 웹툰 스타일 역사 인물 + 디테일한 역사적 배경
 ⚠️ 캐릭터:배경 = 1:1 비율 (캐릭터 30-40%, 배경 50-60%)
-⚠️ 장면별 포인트 색상으로 시각적 임팩트!
+⚠️ 장면별 전체 색조가 확 달라야 함! (티나게!)
 
 ---
 
-### 포인트 색상 가이드 (장면 분위기별)
-| 장면 | 포인트 색상 | 적용 요소 |
-|------|------------|----------|
-| 전쟁/분노 | 🔴 RED + ORANGE | 망토, 불꽃, 깃발, 갑옷 장식 |
-| 권위/왕실 | 🟡 GOLD + AMBER | 왕좌, 장신구, 촛불, 용포 |
-| 슬픔/비극 | 🔵 BLUE + CYAN | 비, 달빛, 물, 차가운 갑옷 |
-| 희망/승리 | 🟢 GREEN + GOLD | 자연, 햇빛, 옥 장신구 |
-| 음모/긴장 | 🟣 PURPLE + BLACK | 그림자, 달빛, 비단, 독약 |
+### ★★★ 전체 색조 가이드 (장면마다 완전히 다른 색감!) ★★★
+| 장면 | 전체 색조 (하늘+배경+의상 전부!) | 절대 금지 |
+|------|-------------------------------|----------|
+| 전쟁/분노 | 🔴 FIERY ORANGE-RED (주황 노을 하늘, 붉은 불꽃, 노란 먼지) | 파랑/초록/차가운색 금지 |
+| 권위/왕실 | 🟡 WARM GOLD-AMBER (황금빛 조명, 붉은 단청, 주황 촛불) | 파랑/차가운색 금지 |
+| 슬픔/비극 | 🔵 COLD BLUE-GRAY (회청색 하늘, 푸른 빗물, 회색 안개) | 따뜻한색 금지, 채도↓ |
+| 희망/승리 | 🟢 BRIGHT GREEN-BLUE (맑은 파란 하늘, 초록 자연, 금빛 햇살) | 어두운색 금지, 채도↑ |
+| 음모/긴장 | 🟣 DARK PURPLE-BLACK (보라 달빛, 검은 그림자, 차가운 남색) | 밝은색 금지, 명도↓ |
+
+⚠️ CRITICAL: "earth tone", "sepia", "brown base" 절대 사용 금지!
+⚠️ 각 장면은 위 색조로 전체가 물들어야 함!
 
 ---
 
-### MANDATORY Style Keywords (MUST include in every image_prompt):
+### Scene Type Templates (전체 색조가 확 다르게!):
+
+**1. Battle/War Scene (전쟁 장면) - 🔴 FIERY SUNSET PALETTE:**
 ```
 Korean webtoon style illustration,
-wide establishing shot of [HISTORICAL SCENE],
-[ERA] [HISTORICAL ROLE] in mid-ground (35% of frame),
-[EMOTION] expression with [EXPRESSION DETAILS],
-wearing period-accurate [ERA] costume with [ACCENT COLOR] details,
-DETAILED BACKGROUND (55% of frame): [BACKGROUND DESCRIPTION],
-[ACCENT COLOR] as visual focal point,
-bold black outlines, vibrant colors with earth tone base,
-cinematic wide shot showing both character and environment,
+ENTIRE SCENE BATHED IN FIERY ORANGE-RED SUNSET LIGHT,
+wide shot of ancient Korean battlefield under BLAZING ORANGE SKY,
+[ERA] general in mid-ground (35% of frame),
+fierce expression with furrowed brows,
+wearing armor with RED cape billowing,
+BACKGROUND (55%): ORANGE flames engulfing fortress, CRIMSON sunset clouds,
+YELLOW-ORANGE dust rising from battle, RED flags everywhere,
+ALL colors in warm spectrum: orange, red, yellow, crimson (NO blue, NO green),
+bold black outlines, cinematic wide shot,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
----
-
-### Scene Type Templates (웹툰 스타일 + 포인트 색상):
-
-**1. Battle/War Scene (전쟁 장면) - 🔴 RED ACCENT:**
+**2. Royal/Court Scene (궁궐 장면) - 🟡 GOLDEN AMBER PALETTE:**
 ```
 Korean webtoon style illustration,
-wide establishing shot of ancient Korean battlefield,
-[ERA] general standing in mid-ground (35% of frame),
-fierce determined expression with furrowed brows and clenched jaw,
-wearing iron armor with VIBRANT RED flowing cape (color accent),
-BACKGROUND (55% of frame): burning fortress walls with ORANGE FLAMES,
-RED battle flags waving, soldiers clashing in smoky distance,
-dramatic sunset sky with dark storm clouds,
-bold black outlines, earth tones with strong RED/ORANGE accents,
-cinematic wide shot showing scale of battle,
-NO text, NO watermark, 16:9 aspect ratio
-```
-
-**2. Royal/Court Scene (궁궐 장면) - 🟡 GOLD ACCENT:**
-```
-Korean webtoon style illustration,
-wide shot of [ERA] palace throne room interior,
+ENTIRE SCENE GLOWING IN WARM GOLDEN AMBER LIGHT,
+wide shot of [ERA] palace interior bathed in AMBER TORCHLIGHT,
 court official/king in mid-ground (35% of frame),
-dignified or tense expression with sweat drops,
-wearing formal robes with GOLD embroidered dragons (color accent),
-BACKGROUND (55% of frame): GOLDEN dragon throne,
-AMBER torchlight illuminating ornate red lacquered pillars,
-officials in formal positions, royal banners with gold trim,
-bold black outlines, warm earth tones with rich GOLD/AMBER highlights,
-cinematic composition showing palace grandeur,
+dignified expression with sweat drops,
+wearing GOLD-embroidered dragon robes,
+BACKGROUND (55%): GOLDEN throne, ORANGE-RED lacquered pillars,
+AMBER candlelight reflecting on silk, warm YELLOW lantern glow,
+ALL colors warm: gold, amber, orange, burgundy (NO blue, NO cold tones),
+bold black outlines, cinematic composition,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**3. Tragedy/Sorrow Scene (비극 장면) - 🔵 BLUE ACCENT:**
+**3. Tragedy/Sorrow Scene (비극 장면) - 🔵 COLD BLUE-GRAY PALETTE:**
 ```
 Korean webtoon style illustration,
-wide shot of rainy Korean landscape,
-[ERA] warrior/scholar walking alone in mid-ground (30% of frame),
-sorrowful expression with downcast eyes and slumped shoulders,
-wearing battle-worn armor with COLD BLUE steel tones (color accent),
-BACKGROUND (60% of frame): destroyed village under BLUE-GRAY rain,
-PALE BLUE moonlight breaking through dark clouds,
-puddles reflecting CYAN sky, dead trees silhouetted,
-bold black outlines, muted tones with melancholic BLUE/CYAN accents,
-wide shot emphasizing isolation and tragedy,
+ENTIRE SCENE DRENCHED IN COLD BLUE-GRAY TONES,
+wide shot of rainy Korean landscape under STEEL GRAY SKY,
+[ERA] warrior walking alone in mid-ground (30% of frame),
+sorrowful expression with downcast eyes,
+wearing worn armor in COLD BLUE-GRAY steel,
+BACKGROUND (60%): BLUE-GRAY rain falling, PALE CYAN puddles,
+SLATE GRAY destroyed village, DARK BLUE storm clouds,
+ALL colors cold and desaturated: blue-gray, cyan, slate, pale blue (NO warm colors),
+bold black outlines, wide shot emphasizing isolation,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**4. Victory/Hope Scene (승리/희망 장면) - 🟢 GREEN+GOLD ACCENT:**
+**4. Victory/Hope Scene (승리/희망 장면) - 🟢 BRIGHT VIVID PALETTE:**
 ```
 Korean webtoon style illustration,
-wide shot of ancient Korean mountain vista,
+ENTIRE SCENE BRIGHT AND VIVID WITH SATURATED COLORS,
+wide shot of Korean mountain vista under CLEAR BLUE SKY,
 [ERA] hero standing triumphantly in mid-ground (35% of frame),
-confident expression with proud smile and raised chin,
-wearing armor decorated with JADE GREEN gemstones (color accent),
-BACKGROUND (55% of frame): LUSH GREEN mountain valleys,
-GOLDEN sunrise rays breaking through morning mist,
-GREEN pine forests and distant fortress with victory flags,
-bold black outlines, earth tones with vibrant GREEN/GOLD highlights,
-epic cinematic composition showing triumph,
+confident expression with proud smile,
+wearing armor with JADE GREEN and GOLD decorations,
+BACKGROUND (55%): LUSH EMERALD GREEN valleys, BRIGHT BLUE sky,
+GOLDEN sunrays, VIVID GREEN pine forests, WHITE clouds,
+ALL colors bright and saturated: green, blue, gold, white (NO dark, NO muted),
+bold black outlines, epic cinematic composition,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**5. Conspiracy/Tension Scene (음모/긴장 장면) - 🟣 PURPLE ACCENT:**
+**5. Conspiracy/Tension Scene (음모/긴장 장면) - 🟣 DARK PURPLE-BLACK PALETTE:**
 ```
 Korean webtoon style illustration,
-wide shot of dimly lit [ERA] secret chamber,
-two figures in mid-ground (40% of frame),
-suspicious expressions with narrowed eyes and whispered conversation,
-wearing dark robes with DEEP PURPLE silk accents (color accent),
-BACKGROUND (50% of frame): shadows and single candlelight,
-PURPLE moonlight streaming through paper window,
-poison vial or secret document glinting on table,
-bold black outlines, dark palette with mysterious PURPLE highlights,
-high contrast noir atmosphere,
+ENTIRE SCENE SHROUDED IN DARK PURPLE-BLACK SHADOWS,
+wide shot of dimly lit [ERA] secret chamber in DEEP NIGHT,
+two figures whispering in mid-ground (40% of frame),
+suspicious expressions with narrowed eyes,
+wearing DARK PURPLE and BLACK robes,
+BACKGROUND (50%): DEEP INDIGO shadows, PURPLE moonlight through window,
+BLACK silhouettes, single PALE VIOLET candle flame,
+ALL colors dark and cold: purple, black, indigo, navy (NO bright colors),
+bold black outlines, high contrast noir atmosphere,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
-**6. Discovery/Revelation Scene (발견/전환점 장면) - 🟡 GOLD+WHITE ACCENT:**
+**6. Discovery/Revelation Scene (발견/전환점 장면) - ✨ ETHEREAL GOLD-WHITE PALETTE:**
 ```
 Korean webtoon style illustration,
-wide shot of ancient Korean sacred site,
-[ERA] scholar/explorer in mid-ground (35% of frame),
-awestruck expression with wide eyes looking at discovery,
-wearing traditional robes with WHITE and GOLD trim (color accent),
-BACKGROUND (55% of frame): ancient artifact glowing with GOLDEN light,
-WHITE divine rays illuminating dusty temple interior,
-mysterious symbols and treasures emerging from shadows,
-bold black outlines, earth tones with ethereal GOLD/WHITE highlights,
-dramatic revelation composition,
+ENTIRE SCENE ILLUMINATED BY ETHEREAL GOLDEN-WHITE LIGHT,
+wide shot of ancient Korean sacred site with DIVINE GLOW,
+[ERA] scholar in mid-ground (35% of frame),
+awestruck expression with wide eyes,
+wearing WHITE and GOLD trimmed robes,
+BACKGROUND (55%): BRILLIANT WHITE light rays, GLOWING GOLD artifacts,
+SOFT CREAM temple walls, WARM WHITE divine illumination,
+ALL colors bright and ethereal: gold, white, cream, soft yellow (NO dark shadows),
+bold black outlines, dramatic revelation composition,
 NO text, NO watermark, 16:9 aspect ratio
 ```
 
 ---
 
 ### ⛔ FORBIDDEN for History Scene Images:
+- "earth tone", "sepia", "brown base" 사용 금지!
+- 모든 장면이 비슷한 색감 (확 달라야 함!)
 - Photorealistic human faces
-- Stickman/stick figures
 - Character taking more than 45% of frame
-- Flat/boring single-color backgrounds
-- Modern elements or clothing
-- Text or labels in image
+- Flat/boring backgrounds
+- Modern elements
 
 ### ✅ REQUIRED for History Scene Images:
 - Korean webtoon style illustration
 - Bold black outlines
 - Character in mid-ground (30-40% of frame)
 - Detailed historical background (50-60% of frame)
-- ONE strong accent color per scene
+- ★ 장면 분위기에 맞는 전체 색조 (ENTIRE SCENE 색조 지정!)
+- ★ 금지 색상 명시 (NO blue, NO warm colors 등)
 - Period-accurate costumes and settings
 - Cinematic wide shot composition
-- Period-accurate costumes and settings
-- Dramatic cinematic lighting
-- Artistic illustration feel (clearly NOT a photo)
 """
 
 def get_history_prompt():
