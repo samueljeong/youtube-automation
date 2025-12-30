@@ -21310,7 +21310,10 @@ def api_sheets_check_and_process():
                 pending_tasks = [pending_tasks[0]]
 
         if not pending_tasks:
-            # ========== 대기 작업 없음 → SHORTS 뉴스 수집 (8시, 17시 KST) ==========
+            # ========== SHORTS 자동 수집 비활성화 (2025-12-30) ==========
+            # 롱폼 콘텐츠에 집중하기 위해 쇼츠 수집 일시 중단
+            # 재활성화하려면 아래 주석 해제
+            """
             if "SHORTS" in sheet_names:
                 try:
                     from scripts.shorts_pipeline import run_news_collection
@@ -21361,6 +21364,8 @@ def api_sheets_check_and_process():
 
                 except Exception as shorts_err:
                     print(f"[SHORTS] 뉴스 수집 오류 (무시): {shorts_err}")
+            """
+            print("[SHORTS] 자동 수집 비활성화됨 (롱폼 집중 모드)")
 
             return jsonify({
                 "ok": True,
@@ -22724,6 +22729,277 @@ def api_history_status():
             episode_num += len(topics)
 
         return jsonify(status)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ========== 벤치마킹 영상 분석 API ==========
+
+@app.route('/api/benchmark/analyze-video', methods=['POST'])
+def api_benchmark_analyze_video():
+    """
+    벤치마킹 영상 스토리텔링 분석 (Gemini 2.0 Flash 사용)
+
+    YouTube URL을 받아서 영상의 스토리텔링 방식을 분석합니다.
+
+    Request:
+    {
+        "youtube_url": "https://www.youtube.com/watch?v=...",
+        "analyze_type": "storytelling" | "visual" | "full"
+    }
+
+    Response:
+    {
+        "ok": true,
+        "analysis": {
+            "opening_hook": "오프닝 훅 분석",
+            "narrative_structure": "서사 구조",
+            "pacing": "페이싱 분석",
+            "narration_tone": "나레이션 톤",
+            "scene_transitions": "씬 전환 방식",
+            "ending_style": "엔딩 스타일",
+            "key_techniques": ["기법1", "기법2"],
+            "applicable_tips": ["적용 가능한 팁1", "팁2"]
+        }
+    }
+    """
+    import google.generativeai as genai
+
+    try:
+        data = request.get_json() or {}
+        youtube_url = data.get('youtube_url', '')
+        analyze_type = data.get('analyze_type', 'storytelling')
+
+        if not youtube_url:
+            return jsonify({"ok": False, "error": "youtube_url이 필요합니다"}), 400
+
+        # YouTube URL 검증
+        if 'youtube.com' not in youtube_url and 'youtu.be' not in youtube_url:
+            return jsonify({"ok": False, "error": "유효한 YouTube URL이 아닙니다"}), 400
+
+        # Gemini API 설정
+        api_key = os.environ.get('GOOGLE_API_KEY')
+        if not api_key:
+            return jsonify({"ok": False, "error": "GOOGLE_API_KEY가 설정되지 않았습니다"}), 400
+
+        genai.configure(api_key=api_key)
+
+        # 분석 유형별 프롬프트
+        if analyze_type == 'storytelling':
+            analysis_prompt = """이 영상의 스토리텔링 방식을 상세히 분석해주세요.
+
+다음 항목을 JSON 형식으로 분석해주세요:
+
+{
+    "opening_hook": "영상 시작 30초의 훅 방식 (어떻게 시청자를 끌어들이는지)",
+    "narrative_structure": "전체 서사 구조 (시간순/역순/미스터리형 등)",
+    "pacing": "페이싱 분석 (긴장-이완 리듬, 씬 길이 변화)",
+    "narration_tone": "나레이션 톤과 스타일 (담담/극적/질문형 등)",
+    "scene_transitions": "씬 전환 방식 (어떤 문장/기법으로 전환하는지)",
+    "ending_style": "엔딩 스타일 (교훈/여운/예고 등)",
+    "tension_building": "긴장감을 만드는 방법",
+    "key_techniques": ["핵심 스토리텔링 기법 3-5개"],
+    "example_phrases": ["인상적인 문장/표현 3-5개"],
+    "applicable_tips": ["내 채널에 적용할 수 있는 팁 3-5개"]
+}
+
+JSON만 출력해주세요."""
+
+        elif analyze_type == 'visual':
+            analysis_prompt = """이 영상의 시각적 스타일을 분석해주세요.
+
+다음 항목을 JSON 형식으로 분석해주세요:
+
+{
+    "thumbnail_style": "썸네일 스타일 (구도, 색감, 텍스트)",
+    "color_grading": "전체 색보정 스타일",
+    "scene_composition": "씬 구성 방식",
+    "text_overlay_style": "자막/텍스트 오버레이 스타일",
+    "image_style": "이미지/영상 스타일 (실사/일러스트/혼합)",
+    "key_visual_elements": ["핵심 시각 요소 3-5개"],
+    "applicable_tips": ["적용 가능한 시각 팁 3-5개"]
+}
+
+JSON만 출력해주세요."""
+
+        else:  # full
+            analysis_prompt = """이 영상을 종합적으로 분석해주세요.
+
+다음 항목을 JSON 형식으로 분석해주세요:
+
+{
+    "summary": "영상 주제 및 내용 요약",
+    "storytelling": {
+        "opening_hook": "오프닝 훅 방식",
+        "narrative_structure": "서사 구조",
+        "pacing": "페이싱",
+        "key_techniques": ["핵심 기법"]
+    },
+    "visual": {
+        "style": "시각 스타일",
+        "color_grading": "색보정",
+        "composition": "구성"
+    },
+    "audio": {
+        "narration_tone": "나레이션 톤",
+        "bgm_usage": "BGM 활용"
+    },
+    "engagement": {
+        "hook_effectiveness": "훅 효과 (1-10)",
+        "retention_techniques": ["시청 유지 기법"],
+        "cta_style": "CTA 스타일"
+    },
+    "applicable_tips": ["적용 가능한 팁 5-7개"]
+}
+
+JSON만 출력해주세요."""
+
+        print(f"[BENCHMARK] 영상 분석 시작: {youtube_url}")
+        print(f"[BENCHMARK] 분석 유형: {analyze_type}")
+
+        # Gemini 2.0 Flash로 영상 분석
+        model = genai.GenerativeModel('gemini-2.0-flash')
+
+        response = model.generate_content([
+            analysis_prompt,
+            genai.types.Part.from_uri(
+                uri=youtube_url,
+                mime_type="video/*"
+            )
+        ])
+
+        # 응답 파싱
+        response_text = response.text.strip()
+
+        # JSON 추출 (마크다운 코드 블록 제거)
+        if response_text.startswith('```'):
+            lines = response_text.split('\n')
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.startswith('```json'):
+                    in_json = True
+                    continue
+                elif line.startswith('```'):
+                    in_json = False
+                    continue
+                if in_json:
+                    json_lines.append(line)
+            response_text = '\n'.join(json_lines)
+
+        try:
+            import json
+            analysis = json.loads(response_text)
+        except json.JSONDecodeError:
+            # JSON 파싱 실패 시 텍스트 그대로 반환
+            analysis = {"raw_analysis": response_text}
+
+        print(f"[BENCHMARK] 분석 완료")
+
+        return jsonify({
+            "ok": True,
+            "youtube_url": youtube_url,
+            "analyze_type": analyze_type,
+            "analysis": analysis
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[BENCHMARK] 분석 오류: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/benchmark/save-style', methods=['POST'])
+def api_benchmark_save_style():
+    """
+    분석된 스타일을 저장하여 대본 생성 시 참조
+
+    Request:
+    {
+        "style_name": "다큐 스타일 A",
+        "category": "history",
+        "analysis": { ... 분석 결과 ... },
+        "notes": "추가 메모"
+    }
+    """
+    try:
+        data = request.get_json() or {}
+        style_name = data.get('style_name', '')
+        category = data.get('category', 'history')
+        analysis = data.get('analysis', {})
+        notes = data.get('notes', '')
+
+        if not style_name:
+            return jsonify({"ok": False, "error": "style_name이 필요합니다"}), 400
+
+        # 스타일 저장 경로
+        styles_dir = os.path.join(os.path.dirname(__file__), 'benchmark_styles')
+        os.makedirs(styles_dir, exist_ok=True)
+
+        style_file = os.path.join(styles_dir, f"{category}_{style_name.replace(' ', '_')}.json")
+
+        import json
+        from datetime import datetime
+
+        style_data = {
+            "style_name": style_name,
+            "category": category,
+            "analysis": analysis,
+            "notes": notes,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        with open(style_file, 'w', encoding='utf-8') as f:
+            json.dump(style_data, f, ensure_ascii=False, indent=2)
+
+        print(f"[BENCHMARK] 스타일 저장: {style_file}")
+
+        return jsonify({
+            "ok": True,
+            "message": f"스타일 '{style_name}' 저장 완료",
+            "file_path": style_file
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/benchmark/list-styles', methods=['GET'])
+def api_benchmark_list_styles():
+    """저장된 벤치마킹 스타일 목록 조회"""
+    try:
+        category = request.args.get('category', '')
+
+        styles_dir = os.path.join(os.path.dirname(__file__), 'benchmark_styles')
+
+        if not os.path.exists(styles_dir):
+            return jsonify({"ok": True, "styles": []})
+
+        import json
+        styles = []
+
+        for filename in os.listdir(styles_dir):
+            if filename.endswith('.json'):
+                if category and not filename.startswith(f"{category}_"):
+                    continue
+
+                file_path = os.path.join(styles_dir, filename)
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    style_data = json.load(f)
+                    styles.append({
+                        "filename": filename,
+                        "style_name": style_data.get("style_name"),
+                        "category": style_data.get("category"),
+                        "created_at": style_data.get("created_at"),
+                    })
+
+        return jsonify({"ok": True, "styles": styles})
 
     except Exception as e:
         import traceback
