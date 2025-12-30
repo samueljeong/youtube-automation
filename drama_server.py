@@ -20197,6 +20197,17 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
             tags = youtube_meta.get('tags', [])
             pin_comment = youtube_meta.get('pin_comment', '')
 
+            # ★ pin_comment Fallback: GPT가 생성 안 했으면 기본 댓글 생성
+            if not pin_comment or not pin_comment.strip():
+                # 카테고리별 기본 댓글
+                fallback_comments = {
+                    'history': '이 역사 이야기가 흥미로우셨나요? 더 알고 싶은 역사 주제가 있다면 댓글로 알려주세요!',
+                    'news': '이 소식에 대해 어떻게 생각하시나요? 의견을 댓글로 남겨주세요!',
+                    'mystery': '이 미스터리에 대한 여러분의 추리는? 댓글로 공유해주세요!',
+                }
+                pin_comment = fallback_comments.get(detected_category, '이 영상이 도움이 되셨나요? 궁금한 점은 댓글로 남겨주세요!')
+                print(f"[AUTOMATION] ⚠️ pin_comment 없음 → 기본 댓글 사용: {pin_comment[:30]}...")
+
             # 대본 언어 감지 (CTA 언어 결정용)
             def detect_lang_simple(text):
                 """일본어 뉴스/비즈니스 대본은 한자가 많고 히라가나/가타카나가 적음.
