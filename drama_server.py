@@ -22965,14 +22965,12 @@ JSON만 출력해주세요."""
         print(f"[BENCHMARK] 분석 유형: {analyze_type}")
 
         # Gemini 2.0 Flash로 영상 분석
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
+        # YouTube URL을 Gemini에 전달
         response = model.generate_content([
             analysis_prompt,
-            genai.types.Part.from_uri(
-                uri=youtube_url,
-                mime_type="video/*"
-            )
+            {"file_data": {"file_uri": youtube_url, "mime_type": "video/*"}}
         ])
 
         # 응답 파싱
