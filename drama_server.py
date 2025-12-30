@@ -21310,7 +21310,10 @@ def api_sheets_check_and_process():
                 pending_tasks = [pending_tasks[0]]
 
         if not pending_tasks:
-            # ========== 대기 작업 없음 → SHORTS 뉴스 수집 (8시, 17시 KST) ==========
+            # ========== SHORTS 자동 수집 비활성화 (2025-12-30) ==========
+            # 롱폼 콘텐츠에 집중하기 위해 쇼츠 수집 일시 중단
+            # 재활성화하려면 아래 주석 해제
+            """
             if "SHORTS" in sheet_names:
                 try:
                     from scripts.shorts_pipeline import run_news_collection
@@ -21361,6 +21364,8 @@ def api_sheets_check_and_process():
 
                 except Exception as shorts_err:
                     print(f"[SHORTS] 뉴스 수집 오류 (무시): {shorts_err}")
+            """
+            print("[SHORTS] 자동 수집 비활성화됨 (롱폼 집중 모드)")
 
             return jsonify({
                 "ok": True,
