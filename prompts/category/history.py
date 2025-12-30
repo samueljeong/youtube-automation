@@ -226,6 +226,48 @@ NO text, NO watermark, 16:9 aspect ratio
 - ★ 금지 색상 명시 (NO blue, NO warm colors 등)
 - Period-accurate costumes and settings
 - Cinematic wide shot composition
+
+---
+
+## ★★★ VIDEO EFFECTS FOR HISTORY (벤치마킹 스타일 적용!) ★★★
+
+### BGM 분위기 가이드 (긴장-이완 패턴!)
+⚠️ 역사 콘텐츠는 긴장과 이완을 반복해야 집중도 유지!
+
+**권장 BGM 흐름:**
+| 장면 타입 | BGM mood | 설명 |
+|----------|----------|------|
+| 도입/질문 | mysterious | 호기심 유발 |
+| 위기/갈등 | tense, dramatic | 긴장감 고조 |
+| 설명/분석 | calm, cinematic | 잠시 이완 |
+| 반전/충격 | dramatic, epic | 클라이맥스 |
+| 결말/여운 | nostalgic, emotional | 생각할 거리 |
+
+**scene_bgm_changes 필수!**
+- 최소 3-5회 BGM 변경
+- 긴장(tense) → 이완(calm) → 긴장(dramatic) 패턴
+- 단조로운 BGM 유지 금지!
+
+### SFX 효과음 가이드
+**역사 콘텐츠 권장 SFX:**
+| 장면 | SFX type | 사용 예시 |
+|------|----------|----------|
+| 질문 던지기 | whoosh | "왜 이런 일이 벌어졌을까?" |
+| 핵심 사실 | impact, dramatic_hit | 충격적인 역사적 사실 |
+| 갈등/대립 | tension | 위기 상황, 전쟁 |
+| 반전 | gasp | 예상 밖의 전개 |
+| 결론 | emotional | 교훈, 여운 |
+
+### 전환 효과 (씬 길이 짧게!)
+- **transitions.style**: "crossfade" (자연스러운 장면 전환)
+- **transitions.duration**: 0.3-0.5초 (빠른 전환으로 집중도 유지)
+- 긴 씬 금지! 씬당 30-60초 권장
+
+### ⚠️ 벤치마킹 핵심 적용:
+1. 질문으로 시작 → 호기심 유발 (opening_hook)
+2. 긴장-이완 반복 → BGM 자주 변경 (pacing)
+3. 갈등/위기에 SFX → 긴장감 강화 (tension_building)
+4. 질문으로 마무리 → 여운 남기기 (ending_style)
 """
 
 def get_history_prompt():

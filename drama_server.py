@@ -11240,18 +11240,22 @@ def api_image_analyze_script():
         # ★★★ 카테고리별 씬 이미지 스타일 정의 ★★★
         CATEGORY_IMAGE_STYLES = {
             'history': {
-                'name': 'Historical Concept Art',
-                'style_prompt': '''Historical concept art style, [SCENE DESCRIPTION],
-ALL CHARACTERS MUST WEAR PERIOD-ACCURATE HISTORICAL CLOTHING (traditional hanbok, ancient armor, royal robes, peasant clothing matching the era),
-sepia and earth tone color palette, aged parchment texture border, vintage canvas feel,
-digital painting with visible brush strokes,
-dramatic lighting, misty atmospheric perspective,
-clearly artistic interpretation NOT photograph,
-BOTTOM RIGHT CORNER (10-15% of frame): cute Korean scholar mascot - round face, circular wire-frame glasses, black topknot (sangtu) hairstyle, cream hanbok with olive-green vest, holding bamboo scroll, chibi proportions, thick black outlines, earth tones only,
-NO text, NO watermark, NO labels,
-16:9 cinematic composition''',
-                'forbidden': 'NO photorealistic, NO anime style, NO modern clothing, NO modern elements, NO suits, NO t-shirts, NO jeans, NO square glasses on mascot, NO different mascot designs between images',
-                'required': 'Sepia tones, aged texture, historical atmosphere, IDENTICAL mascot in every image (round face, circular wire-frame glasses, black topknot, cream hanbok, olive-green vest, bamboo scroll), PERIOD-ACCURATE COSTUMES for all characters'
+                'name': 'Historical Webtoon with Vivid Colors',
+                'style_prompt': '''Korean webtoon style illustration, [SCENE DESCRIPTION],
+[SCENE MOOD] color palette - SEE BELOW FOR SPECIFIC COLORS:
+- Battle/War: ENTIRE SCENE in FIERY ORANGE-RED (orange sky, red flames, yellow dust, NO blue/green)
+- Royal/Court: ENTIRE SCENE in WARM GOLD-AMBER (golden light, orange-red pillars, amber candles, NO blue)
+- Tragedy/Sorrow: ENTIRE SCENE in COLD BLUE-GRAY (steel gray sky, blue rain, slate fog, NO warm colors)
+- Victory/Hope: ENTIRE SCENE in BRIGHT GREEN-BLUE (clear blue sky, emerald valleys, golden sun, NO dark)
+- Conspiracy/Tension: ENTIRE SCENE in DARK PURPLE-BLACK (purple moonlight, black shadows, indigo, NO bright)
+Period-accurate Korean historical costume ([ERA] style),
+Character in mid-ground (30-40% of frame),
+Detailed historical background (50-60% of frame),
+Bold black outlines, cinematic wide shot composition,
+NO photorealistic, NO anime, NO modern elements,
+NO text, NO watermark, 16:9 aspect ratio''',
+                'forbidden': 'NO earth tone, NO sepia, NO brown base (장면마다 색이 달라야 함!), NO photorealistic, NO anime style, NO modern clothing, NO character taking more than 45% of frame',
+                'required': 'Korean webtoon style, bold black outlines, vivid scene-specific colors (orange-red for war, gold for court, blue-gray for tragedy, etc.), period-accurate costumes, cinematic wide shot'
             },
             'news': {
                 'name': 'Modern News Infographic',
@@ -20196,6 +20200,17 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
             hashtags = youtube_meta.get('hashtags', [])
             tags = youtube_meta.get('tags', [])
             pin_comment = youtube_meta.get('pin_comment', '')
+
+            # ★ pin_comment Fallback: GPT가 생성 안 했으면 기본 댓글 생성
+            if not pin_comment or not pin_comment.strip():
+                # 카테고리별 기본 댓글
+                fallback_comments = {
+                    'history': '이 역사 이야기가 흥미로우셨나요? 더 알고 싶은 역사 주제가 있다면 댓글로 알려주세요!',
+                    'news': '이 소식에 대해 어떻게 생각하시나요? 의견을 댓글로 남겨주세요!',
+                    'mystery': '이 미스터리에 대한 여러분의 추리는? 댓글로 공유해주세요!',
+                }
+                pin_comment = fallback_comments.get(detected_category, '이 영상이 도움이 되셨나요? 궁금한 점은 댓글로 남겨주세요!')
+                print(f"[AUTOMATION] ⚠️ pin_comment 없음 → 기본 댓글 사용: {pin_comment[:30]}...")
 
             # 대본 언어 감지 (CTA 언어 결정용)
             def detect_lang_simple(text):
