@@ -10861,6 +10861,95 @@ def load_prompt_guides():
     return guides
 
 
+# ===== 벤치마킹 스타일 로드 함수 =====
+def _load_benchmark_style_prompt(style_name, category=''):
+    """저장된 벤치마킹 스타일을 로드하여 프롬프트로 변환
+
+    Args:
+        style_name: 스타일 이름 또는 파일명
+        category: 카테고리 (history/news/mystery)
+
+    Returns:
+        str: GPT에게 전달할 스토리텔링 가이드 프롬프트
+    """
+    import json
+
+    styles_dir = os.path.join(os.path.dirname(__file__), 'benchmark_styles')
+    if not os.path.exists(styles_dir):
+        print(f"[BENCHMARK] 스타일 폴더 없음: {styles_dir}")
+        return ""
+
+    # 스타일 파일 찾기
+    style_file = None
+    for filename in os.listdir(styles_dir):
+        if filename.endswith('.json'):
+            # 정확히 일치하거나 스타일 이름 포함
+            if style_name in filename or filename == f"{category}_{style_name.replace(' ', '_')}.json":
+                style_file = os.path.join(styles_dir, filename)
+                break
+
+    if not style_file:
+        print(f"[BENCHMARK] 스타일 파일 없음: {style_name}")
+        return ""
+
+    try:
+        with open(style_file, 'r', encoding='utf-8') as f:
+            style_data = json.load(f)
+
+        analysis = style_data.get('analysis', {})
+        if not analysis:
+            return ""
+
+        # 분석 결과를 프롬프트로 변환
+        prompt_parts = ["\n\n★★★ 벤치마킹 스타일 가이드 (반드시 적용) ★★★"]
+
+        if analysis.get('opening_hook'):
+            prompt_parts.append(f"[오프닝 훅] {analysis['opening_hook']}")
+
+        if analysis.get('narrative_structure'):
+            prompt_parts.append(f"[서사 구조] {analysis['narrative_structure']}")
+
+        if analysis.get('pacing'):
+            prompt_parts.append(f"[페이싱] {analysis['pacing']}")
+
+        if analysis.get('narration_tone'):
+            prompt_parts.append(f"[나레이션 톤] {analysis['narration_tone']}")
+
+        if analysis.get('scene_transitions'):
+            prompt_parts.append(f"[씬 전환] {analysis['scene_transitions']}")
+
+        if analysis.get('tension_building'):
+            prompt_parts.append(f"[긴장감 구축] {analysis['tension_building']}")
+
+        if analysis.get('ending_style'):
+            prompt_parts.append(f"[엔딩 스타일] {analysis['ending_style']}")
+
+        if analysis.get('key_techniques'):
+            techniques = analysis['key_techniques']
+            if isinstance(techniques, list):
+                prompt_parts.append(f"[핵심 기법] {', '.join(techniques)}")
+
+        if analysis.get('example_phrases'):
+            phrases = analysis['example_phrases']
+            if isinstance(phrases, list):
+                prompt_parts.append(f"[참고 표현] {' / '.join(phrases[:3])}")
+
+        if analysis.get('applicable_tips'):
+            tips = analysis['applicable_tips']
+            if isinstance(tips, list):
+                prompt_parts.append(f"[적용 팁] {', '.join(tips)}")
+
+        style_prompt = "\n".join(prompt_parts)
+        print(f"[BENCHMARK] 스타일 로드 성공: {style_name}")
+        print(f"[BENCHMARK] 적용 항목: {list(analysis.keys())}")
+
+        return style_prompt
+
+    except Exception as e:
+        print(f"[BENCHMARK] 스타일 로드 오류: {e}")
+        return ""
+
+
 # ===== SEO 키워드 분석 함수 =====
 def _analyze_seo_keywords(script, lang='ko'):
     """대본에서 키워드를 추출하고 YouTube SEO 데이터 분석
@@ -11123,6 +11212,12 @@ def api_image_analyze_script():
         category = data.get('category', '').strip()  # 카테고리 (뉴스 등)
         output_language = data.get('output_language', 'ko')  # 출력 언어 (ko/en/ja/auto)
         channel_style = data.get('channel_style', '')  # [TUBELENS] 채널별 스타일 정보
+        benchmark_style = data.get('benchmark_style', '')  # 벤치마킹 스타일 이름
+
+        # ★ 벤치마킹 스타일 로드
+        benchmark_prompt = ""
+        if benchmark_style:
+            benchmark_prompt = _load_benchmark_style_prompt(benchmark_style, category)
 
         # 언어 설정 매핑
         language_config = {
@@ -11415,6 +11510,7 @@ Target audience: {'General (20-40s)' if audience == 'general' else 'Senior (50-7
   - "더 알고 싶은 내용 있으면 댓글 남겨주세요!"
 
 {seo_prompt}
+{benchmark_prompt}
 
 ## Output Format (MUST be valid JSON)
 {{
@@ -22931,6 +23027,7 @@ def api_benchmark_save_style():
         "style_name": "다큐 스타일 A",
         "category": "history",
         "analysis": { ... 분석 결과 ... },
+        "selected_fields": ["opening_hook", "pacing", "narration_tone"],  # 선택한 항목만
         "notes": "추가 메모"
     }
     """
@@ -22939,7 +23036,12 @@ def api_benchmark_save_style():
         style_name = data.get('style_name', '')
         category = data.get('category', 'history')
         analysis = data.get('analysis', {})
+        selected_fields = data.get('selected_fields', [])  # 선택한 필드만 저장
         notes = data.get('notes', '')
+
+        # 선택한 필드만 필터링
+        if selected_fields and isinstance(analysis, dict):
+            analysis = {k: v for k, v in analysis.items() if k in selected_fields}
 
         if not style_name:
             return jsonify({"ok": False, "error": "style_name이 필요합니다"}), 400
