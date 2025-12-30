@@ -579,7 +579,21 @@
       </div>
 
       <div class="input-area">
+        <!-- 첨부 파일 미리보기 -->
+        <div id="attachmentPreview" style="display:none;padding:8px;margin-bottom:8px;background:var(--bg);border-radius:8px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;" id="attachmentList"></div>
+        </div>
+
         <div class="input-row">
+          <!-- 파일 첨부 버튼 -->
+          <input type="file" id="fileInput" multiple accept="image/*,.pdf,.csv,.xlsx,.xls" style="display:none;" onchange="handleFileSelect(event)">
+          <button class="btn btn-outline" onclick="document.getElementById('fileInput').click()" style="padding:0.875rem;min-width:50px;" title="파일 첨부">
+            📎
+          </button>
+          <!-- URL 입력 버튼 -->
+          <button class="btn btn-outline" onclick="promptUrlInput()" style="padding:0.875rem;min-width:50px;" title="URL 분석">
+            🔗
+          </button>
           <textarea
             class="chat-input"
             id="chatInput"
@@ -597,6 +611,9 @@
             <input type="checkbox" id="includeContext" checked>
             <span>📎 이전 대화 포함</span>
           </label>
+        </div>
+        <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">
+          지원: 이미지(JPG, PNG), PDF, 엑셀(CSV, XLSX), URL
         </div>
       </div>
     </main>
@@ -618,6 +635,7 @@
     let conversationId = null;
     let messages = [];
     let isProcessing = false;
+    let attachments = [];  // 첨부 파일 목록
 
     // Elements
     const chatMessages = document.getElementById('chatMessages');
@@ -643,6 +661,166 @@
         }
       });
     });
+
+    // ===== 파일 첨부 관련 함수 =====
+
+    // 파일 선택 처리
+    function handleFileSelect(event) {
+      const files = event.target.files;
+      for (const file of files) {
+        addAttachment(file);
+      }
+      event.target.value = '';  // 초기화
+    }
+
+    // 첨부 파일 추가
+    function addAttachment(file) {
+      const id = 'att_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      const type = getFileType(file);
+
+      const attachment = {
+        id,
+        file,
+        name: file.name,
+        type,
+        size: file.size
+      };
+
+      // 이미지는 미리보기 생성
+      if (type === 'image') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          attachment.preview = e.target.result;
+          attachments.push(attachment);
+          renderAttachments();
+        };
+        reader.readAsDataURL(file);
+      } else {
+        attachments.push(attachment);
+        renderAttachments();
+      }
+    }
+
+    // 파일 타입 감지
+    function getFileType(file) {
+      const name = file.name.toLowerCase();
+      if (file.type.startsWith('image/')) return 'image';
+      if (name.endsWith('.pdf')) return 'pdf';
+      if (name.endsWith('.csv')) return 'csv';
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) return 'excel';
+      return 'unknown';
+    }
+
+    // 첨부 파일 UI 렌더링
+    function renderAttachments() {
+      const preview = document.getElementById('attachmentPreview');
+      const list = document.getElementById('attachmentList');
+
+      if (attachments.length === 0) {
+        preview.style.display = 'none';
+        return;
+      }
+
+      preview.style.display = 'block';
+      list.innerHTML = attachments.map(att => {
+        const icons = { image: '🖼️', pdf: '📄', csv: '📊', excel: '📊', url: '🔗' };
+        const icon = icons[att.type] || '📎';
+
+        let previewHtml = '';
+        if (att.type === 'image' && att.preview) {
+          previewHtml = `<img src="${att.preview}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;">`;
+        } else {
+          previewHtml = `<span style="font-size:1.5rem;">${icon}</span>`;
+        }
+
+        return `
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg-card);border-radius:6px;border:1px solid var(--border);">
+            ${previewHtml}
+            <div style="max-width:120px;">
+              <div style="font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${att.name}</div>
+              <div style="font-size:0.65rem;color:var(--text-muted);">${formatFileSize(att.size)}</div>
+            </div>
+            <button onclick="removeAttachment('${att.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;">✕</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 첨부 파일 제거
+    function removeAttachment(id) {
+      attachments = attachments.filter(a => a.id !== id);
+      renderAttachments();
+    }
+
+    // 파일 크기 포맷
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // URL 입력 프롬프트
+    function promptUrlInput() {
+      const url = prompt('분석할 URL을 입력하세요:');
+      if (url && url.trim()) {
+        const id = 'att_' + Date.now();
+        attachments.push({
+          id,
+          type: 'url',
+          name: url.trim(),
+          url: url.trim(),
+          size: 0
+        });
+        renderAttachments();
+      }
+    }
+
+    // 첨부 파일 업로드 및 분석
+    async function uploadAndAnalyzeAttachments(userMessage) {
+      const results = [];
+
+      for (const att of attachments) {
+        try {
+          if (att.type === 'url') {
+            // URL 분석
+            showToast(`🔗 URL 분석 중: ${att.name}`);
+            const response = await fetch('/api/ai-chat/analyze-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: att.url, prompt: userMessage })
+            });
+            const data = await response.json();
+            if (data.ok) {
+              results.push({ type: 'url', name: att.name, content: data.content, summary: data.summary });
+            } else {
+              results.push({ type: 'url', name: att.name, error: data.error });
+            }
+          } else {
+            // 파일 업로드
+            showToast(`📎 파일 분석 중: ${att.name}`);
+            const formData = new FormData();
+            formData.append('file', att.file);
+            formData.append('type', att.type);
+            formData.append('prompt', userMessage);
+
+            const response = await fetch('/api/ai-chat/analyze-file', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+            if (data.ok) {
+              results.push({ type: att.type, name: att.name, content: data.content, summary: data.summary });
+            } else {
+              results.push({ type: att.type, name: att.name, error: data.error });
+            }
+          }
+        } catch (err) {
+          results.push({ type: att.type, name: att.name, error: err.message });
+        }
+      }
+
+      return results;
+    }
 
     // Toggle sidebar
     function toggleSidebar() {
@@ -790,7 +968,7 @@
     // Send message
     async function sendMessage() {
       const content = chatInput.value.trim();
-      if (!content || isProcessing) return;
+      if ((!content && attachments.length === 0) || isProcessing) return;
 
       const models = getEnabledModels();
       if (models.length === 0) {
@@ -803,15 +981,56 @@
       chatInput.value = '';
       chatInput.style.height = 'auto';
 
+      // 첨부 파일 정보를 메시지에 표시
+      let displayContent = content;
+      if (attachments.length > 0) {
+        const attNames = attachments.map(a => `[${a.type}: ${a.name}]`).join(' ');
+        displayContent = content ? `${content}\n\n📎 첨부: ${attNames}` : `📎 첨부: ${attNames}`;
+      }
+
       // Add user message
-      addMessage('user', content);
+      addMessage('user', displayContent);
 
       const settings = getSettings();
 
       try {
+        // 첨부 파일이 있으면 먼저 분석
+        let attachmentContext = '';
+        if (attachments.length > 0) {
+          const analysisResults = await uploadAndAnalyzeAttachments(content);
+
+          for (const result of analysisResults) {
+            if (result.error) {
+              addMessage('System', `❌ ${result.name} 분석 실패: ${result.error}`);
+            } else {
+              // 분석 결과를 컨텍스트에 추가
+              attachmentContext += `\n\n[${result.type.toUpperCase()}: ${result.name}]\n`;
+              if (result.summary) {
+                attachmentContext += `요약: ${result.summary}\n`;
+              }
+              if (result.content) {
+                // 내용이 너무 길면 자르기
+                const maxLen = 3000;
+                attachmentContext += result.content.length > maxLen
+                  ? result.content.substring(0, maxLen) + '...(생략)'
+                  : result.content;
+              }
+            }
+          }
+
+          // 첨부 파일 초기화
+          attachments = [];
+          renderAttachments();
+        }
+
+        // 최종 메시지 구성
+        const finalMessage = attachmentContext
+          ? `${content}\n\n--- 첨부 파일 분석 결과 ---${attachmentContext}`
+          : content;
+
         if (settings.debateMode) {
           // AI Debate Mode
-          await runDebate(content, models, settings);
+          await runDebate(finalMessage, models, settings);
         } else {
           // Single response from each model
           for (const model of models) {
@@ -821,7 +1040,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                message: content,
+                message: finalMessage,
                 model: model.id,
                 role: model.role,
                 context: settings.includeContext ? messages.slice(-10) : [],

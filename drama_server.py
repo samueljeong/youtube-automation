@@ -25521,6 +25521,227 @@ def api_ai_chat_debate():
     return Response(generate(), mimetype='text/event-stream')
 
 
+@app.route('/api/ai-chat/analyze-file', methods=['POST'])
+def api_ai_chat_analyze_file():
+    """파일 분석 (이미지, PDF, 엑셀)"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({"ok": False, "error": "파일이 없습니다."})
+
+        file = request.files['file']
+        file_type = request.form.get('type', 'unknown')
+        prompt = request.form.get('prompt', '이 파일을 분석해주세요.')
+
+        if not file.filename:
+            return jsonify({"ok": False, "error": "파일명이 없습니다."})
+
+        # 파일 읽기
+        file_content = file.read()
+        filename = file.filename
+
+        if file_type == 'image':
+            # 이미지 분석 (Gemini Vision)
+            return analyze_image_with_gemini(file_content, filename, prompt)
+
+        elif file_type == 'pdf':
+            # PDF 분석
+            return analyze_pdf(file_content, filename, prompt)
+
+        elif file_type in ['csv', 'excel']:
+            # 엑셀/CSV 분석
+            return analyze_spreadsheet(file_content, filename, file_type, prompt)
+
+        else:
+            return jsonify({"ok": False, "error": f"지원하지 않는 파일 타입: {file_type}"})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+def analyze_image_with_gemini(file_content: bytes, filename: str, prompt: str) -> dict:
+    """Gemini Vision으로 이미지 분석"""
+    api_key = os.getenv("GOOGLE_API_KEY", "")
+    if not api_key:
+        return jsonify({"ok": False, "error": "GOOGLE_API_KEY가 설정되지 않았습니다."})
+
+    try:
+        import google.generativeai as genai
+        import base64
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        # 이미지를 base64로 인코딩
+        image_data = base64.b64encode(file_content).decode('utf-8')
+
+        # MIME 타입 추정
+        ext = filename.lower().split('.')[-1]
+        mime_types = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif', 'webp': 'image/webp'}
+        mime_type = mime_types.get(ext, 'image/jpeg')
+
+        # Gemini Vision 호출
+        response = model.generate_content([
+            f"다음 이미지를 분석해주세요. 사용자 요청: {prompt}",
+            {"mime_type": mime_type, "data": image_data}
+        ])
+
+        return jsonify({
+            "ok": True,
+            "content": response.text,
+            "summary": f"이미지 '{filename}' 분석 완료"
+        })
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"이미지 분석 실패: {str(e)}"})
+
+
+def analyze_pdf(file_content: bytes, filename: str, prompt: str) -> dict:
+    """PDF 텍스트 추출 및 분석"""
+    try:
+        import io
+
+        # PyPDF2 또는 pdfplumber 사용 시도
+        text = ""
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                for page in pdf.pages[:20]:  # 최대 20페이지
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n\n"
+        except ImportError:
+            try:
+                import PyPDF2
+                reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+                for page in reader.pages[:20]:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n\n"
+            except ImportError:
+                return jsonify({"ok": False, "error": "PDF 라이브러리가 설치되지 않았습니다. (pdfplumber 또는 PyPDF2)"})
+
+        if not text.strip():
+            return jsonify({"ok": False, "error": "PDF에서 텍스트를 추출할 수 없습니다."})
+
+        # 텍스트가 너무 길면 자르기
+        max_len = 10000
+        if len(text) > max_len:
+            text = text[:max_len] + "\n\n...(이하 생략)"
+
+        return jsonify({
+            "ok": True,
+            "content": text,
+            "summary": f"PDF '{filename}'에서 텍스트 추출 완료 ({len(text)} 글자)"
+        })
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"PDF 분석 실패: {str(e)}"})
+
+
+def analyze_spreadsheet(file_content: bytes, filename: str, file_type: str, prompt: str) -> dict:
+    """엑셀/CSV 분석"""
+    try:
+        import io
+        import pandas as pd
+
+        # 파일 읽기
+        if file_type == 'csv':
+            # CSV 인코딩 자동 감지
+            try:
+                df = pd.read_csv(io.BytesIO(file_content), encoding='utf-8')
+            except:
+                df = pd.read_csv(io.BytesIO(file_content), encoding='cp949')
+        else:
+            # Excel
+            df = pd.read_excel(io.BytesIO(file_content))
+
+        # 데이터 요약
+        summary_parts = []
+        summary_parts.append(f"행 수: {len(df)}, 열 수: {len(df.columns)}")
+        summary_parts.append(f"컬럼: {', '.join(df.columns.tolist()[:10])}")
+
+        # 데이터 미리보기 (처음 10행)
+        preview = df.head(10).to_string()
+
+        # 기본 통계 (숫자 컬럼)
+        numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        if numeric_cols:
+            stats = df[numeric_cols].describe().to_string()
+            content = f"=== 데이터 미리보기 (처음 10행) ===\n{preview}\n\n=== 숫자 컬럼 통계 ===\n{stats}"
+        else:
+            content = f"=== 데이터 미리보기 (처음 10행) ===\n{preview}"
+
+        return jsonify({
+            "ok": True,
+            "content": content,
+            "summary": "; ".join(summary_parts)
+        })
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"스프레드시트 분석 실패: {str(e)}"})
+
+
+@app.route('/api/ai-chat/analyze-url', methods=['POST'])
+def api_ai_chat_analyze_url():
+    """URL 웹페이지 분석"""
+    try:
+        data = request.get_json()
+        url = data.get('url', '')
+        prompt = data.get('prompt', '이 웹페이지를 분석해주세요.')
+
+        if not url:
+            return jsonify({"ok": False, "error": "URL이 없습니다."})
+
+        # URL 유효성 검사
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
+        # 웹페이지 가져오기
+        import requests
+        from bs4 import BeautifulSoup
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        # HTML 파싱
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # 불필요한 요소 제거
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+            tag.decompose()
+
+        # 제목 추출
+        title = soup.title.string if soup.title else url
+
+        # 본문 텍스트 추출
+        text = soup.get_text(separator='\n', strip=True)
+
+        # 텍스트 정리 (중복 공백/줄바꿈 제거)
+        import re
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+        text = re.sub(r' +', ' ', text)
+
+        # 길이 제한
+        max_len = 8000
+        if len(text) > max_len:
+            text = text[:max_len] + "\n\n...(이하 생략)"
+
+        return jsonify({
+            "ok": True,
+            "content": text,
+            "summary": f"'{title}' 페이지 내용 추출 완료 ({len(text)} 글자)"
+        })
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({"ok": False, "error": f"URL 접근 실패: {str(e)}"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"URL 분석 실패: {str(e)}"})
+
+
 @app.route('/api/ai-chat/save', methods=['POST'])
 def api_ai_chat_save():
     """대화 내용을 MD 파일로 저장"""
