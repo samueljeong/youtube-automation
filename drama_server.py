@@ -22738,14 +22738,17 @@ def api_history_status():
 
 # ========== 벤치마킹 영상 분석 API ==========
 
-@app.route('/api/benchmark/analyze-video', methods=['POST'])
+@app.route('/api/benchmark/analyze-video', methods=['GET', 'POST'])
 def api_benchmark_analyze_video():
     """
     벤치마킹 영상 스토리텔링 분석 (Gemini 2.0 Flash 사용)
 
     YouTube URL을 받아서 영상의 스토리텔링 방식을 분석합니다.
 
-    Request:
+    GET 요청 (브라우저에서 바로 테스트):
+    /api/benchmark/analyze-video?youtube_url=https://www.youtube.com/watch?v=...&type=storytelling
+
+    POST 요청:
     {
         "youtube_url": "https://www.youtube.com/watch?v=...",
         "analyze_type": "storytelling" | "visual" | "full"
@@ -22769,9 +22772,14 @@ def api_benchmark_analyze_video():
     import google.generativeai as genai
 
     try:
-        data = request.get_json() or {}
-        youtube_url = data.get('youtube_url', '')
-        analyze_type = data.get('analyze_type', 'storytelling')
+        # GET 또는 POST에서 파라미터 추출
+        if request.method == 'GET':
+            youtube_url = request.args.get('youtube_url', '')
+            analyze_type = request.args.get('type', 'storytelling')
+        else:
+            data = request.get_json() or {}
+            youtube_url = data.get('youtube_url', '')
+            analyze_type = data.get('analyze_type', 'storytelling')
 
         if not youtube_url:
             return jsonify({"ok": False, "error": "youtube_url이 필요합니다"}), 400
