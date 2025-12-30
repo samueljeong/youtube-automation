@@ -65,7 +65,7 @@ Korean webtoon style illustration, [ERA] [HISTORICAL ROLE] with EXTREMELY EXAGGE
 [SPECIFIC EXPRESSION DETAILS: wide eyes 2x larger, pupils dilated, mouth wide open/gritted teeth, eyebrows raised/furrowed],
 wearing period-accurate [ERA] costume ([COSTUME DETAILS]),
 [HISTORICAL BACKGROUND: fortress/palace/battlefield with smoke/fire/dramatic sky],
-bold black outlines, vibrant colors with sepia/earth undertones,
+bold black outlines, SCENE-SPECIFIC vivid color palette (see color guide above),
 dramatic [CAMERA ANGLE] shot, manga-style impact lines and emotion effects,
 sweat drops, action lines emphasizing intensity,
 eye-catching YouTube thumbnail composition,
