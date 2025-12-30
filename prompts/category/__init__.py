@@ -11,6 +11,7 @@ from .cooking import COOKING_RULES, get_cooking_prompt
 from .finance import FINANCE_RULES, get_finance_prompt
 from .motivation import MOTIVATION_RULES, get_motivation_prompt
 from .mystery import MYSTERY_RULES, get_mystery_prompt
+from .styles import CATEGORY_IMAGE_STYLES, get_category_style
 
 CATEGORY_PROMPTS = {
     'health': get_health_prompt,

@@ -25,6 +25,7 @@ from lang import en as lang_en
 
 # GPT-5.1 프롬프트 모듈 (토큰 최적화)
 from prompts import build_system_prompt, detect_category_simple, detect_language_simple
+from prompts.category.styles import CATEGORY_IMAGE_STYLES, get_category_style
 
 # YouTube 토큰/할당량 관리 모듈
 import youtube_auth
@@ -11237,59 +11238,8 @@ def api_image_analyze_script():
         pre_detected_category = detect_category_simple(script)
         print(f"[IMAGE-ANALYZE] Pre-detected category: {pre_detected_category} (keyword-based)")
 
-        # ★★★ 카테고리별 씬 이미지 스타일 정의 ★★★
-        CATEGORY_IMAGE_STYLES = {
-            'history': {
-                'name': 'Historical Webtoon with Vivid Colors',
-                'style_prompt': '''Korean webtoon style illustration, [SCENE DESCRIPTION],
-[SCENE MOOD] color palette - SEE BELOW FOR SPECIFIC COLORS:
-- Battle/War: ENTIRE SCENE in FIERY ORANGE-RED (orange sky, red flames, yellow dust, NO blue/green)
-- Royal/Court: ENTIRE SCENE in WARM GOLD-AMBER (golden light, orange-red pillars, amber candles, NO blue)
-- Tragedy/Sorrow: ENTIRE SCENE in COLD BLUE-GRAY (steel gray sky, blue rain, slate fog, NO warm colors)
-- Victory/Hope: ENTIRE SCENE in BRIGHT GREEN-BLUE (clear blue sky, emerald valleys, golden sun, NO dark)
-- Conspiracy/Tension: ENTIRE SCENE in DARK PURPLE-BLACK (purple moonlight, black shadows, indigo, NO bright)
-Period-accurate Korean historical costume ([ERA] style),
-Character in mid-ground (30-40% of frame),
-Detailed historical background (50-60% of frame),
-Bold black outlines, cinematic wide shot composition,
-NO photorealistic, NO anime, NO modern elements,
-NO text, NO watermark, 16:9 aspect ratio''',
-                'forbidden': 'NO earth tone, NO sepia, NO brown base (장면마다 색이 달라야 함!), NO photorealistic, NO anime style, NO modern clothing, NO character taking more than 45% of frame',
-                'required': 'Korean webtoon style, bold black outlines, vivid scene-specific colors (orange-red for war, gold for court, blue-gray for tragedy, etc.), period-accurate costumes, cinematic wide shot'
-            },
-            'news': {
-                'name': 'Modern News Infographic',
-                'style_prompt': '''Modern news explainer illustration, [SCENE DESCRIPTION],
-clean professional style with subtle webtoon influence,
-corporate color palette (navy blue, white, subtle orange accents),
-clean geometric shapes, minimal shadows,
-infographic-inspired composition,
-professional lighting, sharp clean lines,
-clearly illustration NOT photograph,
-NO text, NO watermark, NO labels,
-16:9 cinematic composition''',
-                'forbidden': 'NO photorealistic, NO extreme expressions, NO cluttered backgrounds',
-                'required': 'Clean professional aesthetic, corporate colors, infographic style'
-            },
-            'mystery': {
-                'name': 'Dark Cinematic Thriller',
-                'style_prompt': '''Dark cinematic thriller illustration, [SCENE DESCRIPTION],
-film noir inspired lighting with deep shadows,
-muted desaturated color palette (dark blues, grays, blacks),
-high contrast dramatic lighting,
-mysterious atmospheric fog or haze,
-single spotlight or moonlight source,
-suspenseful tense atmosphere,
-clearly artistic illustration NOT photograph,
-NO text, NO watermark, NO labels,
-16:9 cinematic composition''',
-                'forbidden': 'NO bright colors, NO cartoon style, NO gore, NO cheap horror clichés',
-                'required': 'Dark moody atmosphere, film noir lighting, muted colors, suspenseful tension'
-            }
-        }
-
-        # 감지된 카테고리에 해당하는 스타일 가져오기
-        category_style = CATEGORY_IMAGE_STYLES.get(pre_detected_category)
+        # ★★★ 카테고리별 씬 이미지 스타일 (prompts/category/styles.py에서 import) ★★★
+        category_style = get_category_style(pre_detected_category)
         if category_style:
             print(f"[IMAGE-ANALYZE] ★ Using category-specific style: {category_style['name']}")
 
