@@ -471,6 +471,7 @@
     <div class="header-actions">
       <button class="btn btn-outline" onclick="toggleSidebar()">⚙️ 설정</button>
       <button class="btn btn-outline" onclick="toggleHistory()">📂 기록</button>
+      <button class="btn btn-outline" onclick="copyConversation()">📋 복사</button>
       <button class="btn btn-primary" onclick="saveConversation()">💾 저장</button>
     </div>
   </header>
@@ -541,8 +542,14 @@
       <div class="setting-group">
         <h3>🔄 토론 설정</h3>
         <div class="debate-settings">
+          <label>토론 목적</label>
+          <select id="debate-purpose">
+            <option value="idea">💡 아이디어 (개념, 방향성)</option>
+            <option value="implementation" selected>🔧 구현 (코드, 구체적 단계)</option>
+          </select>
+
           <label>토론 라운드 수</label>
-          <input type="number" id="debate-rounds" value="3" min="1" max="10">
+          <input type="number" id="debate-rounds" value="2" min="1" max="5">
 
           <label>토론 스타일</label>
           <select id="debate-style">
@@ -554,7 +561,7 @@
           <label>최종 정리자</label>
           <select id="debate-summarizer">
             <option value="gemini">Gemini</option>
-            <option value="gpt">GPT</option>
+            <option value="gpt" selected>GPT (진행자)</option>
             <option value="llama">Llama</option>
           </select>
         </div>
@@ -868,6 +875,7 @@
     function getSettings() {
       return {
         debateMode: document.getElementById('debateMode').checked,
+        debatePurpose: document.getElementById('debate-purpose').value,
         debateRounds: parseInt(document.getElementById('debate-rounds').value),
         debateStyle: document.getElementById('debate-style').value,
         summarizer: document.getElementById('debate-summarizer').value,
@@ -1086,7 +1094,8 @@
 
     // Run AI Debate
     async function runDebate(problem, models, settings) {
-      addMessage('System', `🔄 AI 토론 시작 (${settings.debateRounds}라운드, ${settings.debateStyle} 모드)`);
+      const purposeLabel = settings.debatePurpose === 'implementation' ? '🔧 구현' : '💡 아이디어';
+      addMessage('System', `🔄 AI 토론 시작 (${purposeLabel}, ${settings.debateRounds}라운드)`);
 
       try {
         const response = await fetch('/api/ai-chat/debate', {
@@ -1097,6 +1106,7 @@
             models: models.map(m => ({ id: m.id, role: m.role })),
             rounds: settings.debateRounds,
             style: settings.debateStyle,
+            purpose: settings.debatePurpose,
             summarizer: settings.summarizer,
             autoTier: settings.autoTier
           })
@@ -1142,6 +1152,55 @@
       } catch (err) {
         hideTyping();
         addMessage('System', `토론 오류: ${err.message}`);
+      }
+    }
+
+    // Copy conversation to clipboard
+    async function copyConversation() {
+      if (messages.length === 0) {
+        showToast('복사할 대화가 없습니다');
+        return;
+      }
+
+      try {
+        const now = new Date();
+
+        // 제목 추출 (첫 번째 사용자 메시지)
+        let title = "제목 없음";
+        for (const msg of messages) {
+          if (msg.sender === 'user') {
+            title = msg.content.slice(0, 50);
+            if (msg.content.length > 50) title += "...";
+            break;
+          }
+        }
+
+        // 활성화된 모델 목록
+        const enabledModels = getEnabledModels();
+        const modelNames = enabledModels.map(m => m.name || m.id).join(', ');
+
+        // MD 내용 생성
+        let mdContent = `# ${title}\n\n`;
+        mdContent += `**생성 시간**: ${now.toLocaleString('ko-KR')}\n`;
+        mdContent += `**참여 모델**: ${modelNames}\n\n`;
+        mdContent += `---\n\n`;
+        mdContent += `## 대화 내용\n\n`;
+
+        for (const msg of messages) {
+          const time = new Date(msg.timestamp).toLocaleTimeString('ko-KR');
+          if (msg.sender === 'user') {
+            mdContent += `### 👤 사용자 (${time})\n\n${msg.content}\n\n`;
+          } else {
+            mdContent += `### 🤖 ${msg.sender} (${time})\n\n${msg.content}\n\n`;
+          }
+        }
+
+        // 클립보드에 복사
+        await navigator.clipboard.writeText(mdContent);
+        showToast('📋 클립보드에 복사됨!');
+
+      } catch (err) {
+        showToast(`복사 오류: ${err.message}`);
       }
     }
 
