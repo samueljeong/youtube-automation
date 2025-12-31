@@ -18096,8 +18096,8 @@ def get_all_sheet_names(service, sheet_id):
 
     반환: ['채널A', '채널B', ...] 또는 None (실패 시)
     """
-    # 메인 파이프라인에서 제외할 시트 목록 (통합됨 - 분기 처리)
-    EXCLUDED_SHEETS = set()  # SHORTS, BIBLE도 포함하여 분기 처리
+    # 메인 파이프라인에서 제외할 시트 목록 (별도 파이프라인 사용)
+    EXCLUDED_SHEETS = {'SHORTS', 'BIBLE'}
 
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
