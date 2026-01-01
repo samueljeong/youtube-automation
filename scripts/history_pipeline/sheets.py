@@ -917,3 +917,72 @@ def _idx_to_col(idx: int) -> str:
         return chr(65 + idx)
     else:
         return chr(64 + idx // 26) + chr(65 + idx % 26)
+
+
+def update_status_to_failed(
+    service,
+    spreadsheet_id: str,
+    row_index: int,
+    error_message: str,
+) -> Dict[str, Any]:
+    """
+    대본 생성 실패 시 상태를 '실패'로 변경하고 에러메시지 저장
+
+    Args:
+        service: Google Sheets API 서비스 객체
+        spreadsheet_id: 스프레드시트 ID
+        row_index: 시트 행 번호 (1-based)
+        error_message: 에러 메시지
+
+    Returns:
+        {"success": bool, "error": str}
+    """
+    result = {"success": False, "error": None}
+
+    try:
+        # 1) 시트 헤더(행 2) 읽기
+        header_result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{UNIFIED_HISTORY_SHEET}'!A2:AZ2"
+        ).execute()
+        header_rows = header_result.get('values', [])
+
+        if not header_rows:
+            result["error"] = "헤더 없음"
+            return result
+
+        headers = header_rows[0]
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        # 2) 상태 열 업데이트 → "실패"
+        status_idx = col_map.get("상태", -1)
+        if status_idx >= 0:
+            status_col = _idx_to_col(status_idx)
+            status_range = f"'{UNIFIED_HISTORY_SHEET}'!{status_col}{row_index}"
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=status_range,
+                valueInputOption="RAW",
+                body={"values": [["실패"]]}
+            ).execute()
+
+        # 3) 에러메시지 열 업데이트
+        error_idx = col_map.get("에러메시지", -1)
+        if error_idx >= 0:
+            error_col = _idx_to_col(error_idx)
+            error_range = f"'{UNIFIED_HISTORY_SHEET}'!{error_col}{row_index}"
+            service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=error_range,
+                valueInputOption="RAW",
+                body={"values": [[error_message[:500]]]}  # 500자 제한
+            ).execute()
+
+        print(f"[HISTORY] 행 {row_index}: 상태='실패', 에러={error_message[:50]}...")
+        result["success"] = True
+
+    except Exception as e:
+        result["error"] = str(e)
+        print(f"[HISTORY] 실패 상태 업데이트 오류: {e}")
+
+    return result

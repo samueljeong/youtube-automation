@@ -407,6 +407,7 @@ def run_auto_script_pipeline(
     from .sheets import (
         get_pending_episodes_for_script,
         update_script_and_status,
+        update_status_to_failed,
     )
 
     result = {
@@ -452,12 +453,15 @@ def run_auto_script_pipeline(
             collected = collect_topic_materials(era, era_episode)
 
             if "error" in collected:
-                print(f"[AUTO-SCRIPT] 자료 수집 실패: {collected['error']}")
+                error_msg = f"자료 수집 실패: {collected['error']}"
+                print(f"[AUTO-SCRIPT] {error_msg}")
+                # ★ 시트에 실패 상태 기록
+                update_status_to_failed(service, sheet_id, row_index, error_msg)
                 result["details"].append({
                     "era": era,
                     "era_episode": era_episode,
                     "title": title,
-                    "error": f"자료 수집 실패: {collected['error']}"
+                    "error": error_msg
                 })
                 continue
 
@@ -499,12 +503,15 @@ def run_auto_script_pipeline(
             )
 
             if "error" in script_result:
-                print(f"[AUTO-SCRIPT] 대본 생성 실패: {script_result['error']}")
+                error_msg = f"대본 생성 실패: {script_result['error']}"
+                print(f"[AUTO-SCRIPT] {error_msg}")
+                # ★ 시트에 실패 상태 기록
+                update_status_to_failed(service, sheet_id, row_index, error_msg)
                 result["details"].append({
                     "era": era,
                     "era_episode": era_episode,
                     "title": title,
-                    "error": f"대본 생성 실패: {script_result['error']}"
+                    "error": error_msg
                 })
                 continue
 
@@ -528,12 +535,15 @@ def run_auto_script_pipeline(
             )
 
             if not update_result.get("success"):
-                print(f"[AUTO-SCRIPT] 시트 저장 실패: {update_result.get('error')}")
+                error_msg = f"시트 저장 실패: {update_result.get('error')}"
+                print(f"[AUTO-SCRIPT] {error_msg}")
+                # ★ 시트에 실패 상태 기록
+                update_status_to_failed(service, sheet_id, row_index, error_msg)
                 result["details"].append({
                     "era": era,
                     "era_episode": era_episode,
                     "title": title,
-                    "error": f"시트 저장 실패: {update_result.get('error')}"
+                    "error": error_msg
                 })
                 continue
 
