@@ -69,6 +69,36 @@ def ensure_sheet_exists(
 
         if sheet_name in existing_sheets:
             print(f"[HISTORY] 시트 '{sheet_name}' 이미 존재")
+
+            # ★ 기존 시트에 누락된 열 추가
+            # HISTORY 시트 구조: 행1=채널ID, 행2=헤더, 행3~=데이터
+            if headers and sheet_name == UNIFIED_HISTORY_SHEET:
+                try:
+                    # 현재 헤더 읽기 (행 2)
+                    result = service.spreadsheets().values().get(
+                        spreadsheetId=spreadsheet_id,
+                        range=f"'{sheet_name}'!2:2"
+                    ).execute()
+                    current_headers = result.get('values', [[]])[0] if result.get('values') else []
+
+                    # 누락된 열 찾기
+                    missing_headers = [h for h in headers if h not in current_headers]
+
+                    if missing_headers:
+                        print(f"[HISTORY] 시트 '{sheet_name}'에 누락된 열 추가: {missing_headers}")
+
+                        # 기존 헤더 뒤에 추가 (행 2)
+                        new_headers = current_headers + missing_headers
+                        service.spreadsheets().values().update(
+                            spreadsheetId=spreadsheet_id,
+                            range=f"'{sheet_name}'!A2",
+                            valueInputOption="RAW",
+                            body={"values": [new_headers]}
+                        ).execute()
+                        print(f"[HISTORY] 시트 '{sheet_name}' 헤더 업데이트 완료 (행 2)")
+                except Exception as header_err:
+                    print(f"[HISTORY] 헤더 업데이트 실패 (무시): {header_err}")
+
             return False
 
         # 2) 시트 생성
@@ -89,13 +119,29 @@ def ensure_sheet_exists(
 
         # 3) 헤더 추가
         if headers:
-            service.spreadsheets().values().update(
-                spreadsheetId=spreadsheet_id,
-                range=f"{sheet_name}!A1",
-                valueInputOption="RAW",
-                body={"values": [headers]}
-            ).execute()
-            print(f"[HISTORY] 시트 '{sheet_name}' 헤더 추가 완료")
+            # HISTORY 시트는 행1=채널ID, 행2=헤더 구조
+            if sheet_name == UNIFIED_HISTORY_SHEET:
+                # 행 1: 채널ID 레이블
+                # 행 2: 헤더
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"'{sheet_name}'!A1",
+                    valueInputOption="RAW",
+                    body={"values": [
+                        ["채널ID", ""],  # 행 1: 채널ID (값은 사용자가 입력)
+                        headers           # 행 2: 헤더
+                    ]}
+                ).execute()
+                print(f"[HISTORY] 시트 '{sheet_name}' 구조 생성 완료 (행1=채널ID, 행2=헤더)")
+            else:
+                # 다른 시트는 행 1에 헤더
+                service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"{sheet_name}!A1",
+                    valueInputOption="RAW",
+                    body={"values": [headers]}
+                ).execute()
+                print(f"[HISTORY] 시트 '{sheet_name}' 헤더 추가 완료")
 
         return True
 
@@ -106,9 +152,10 @@ def ensure_sheet_exists(
 
 def ensure_history_opus_input_sheet(service, spreadsheet_id: str) -> bool:
     """
-    단일 통합 OPUS_INPUT 시트 자동 생성 (HISTORY_OPUS_INPUT)
+    통합 HISTORY 시트 자동 생성 (영상 자동화용)
 
     모든 에피소드가 여기에 누적됨
+    ★ UNIFIED_HISTORY_SHEET ("HISTORY")를 사용
 
     Args:
         service: Google Sheets API 서비스 객체
@@ -120,12 +167,13 @@ def ensure_history_opus_input_sheet(service, spreadsheet_id: str) -> bool:
     headers = SHEET_HEADERS.get("OPUS_INPUT", [])
 
     try:
+        # ★ UNIFIED_HISTORY_SHEET ("HISTORY") 시트 생성
         created = ensure_sheet_exists(
-            service, spreadsheet_id, HISTORY_OPUS_INPUT_SHEET, headers
+            service, spreadsheet_id, UNIFIED_HISTORY_SHEET, headers
         )
         return created
     except Exception as e:
-        print(f"[HISTORY] OPUS_INPUT 시트 생성 오류: {e}")
+        print(f"[HISTORY] HISTORY 시트 생성 오류: {e}")
         return False
 
 

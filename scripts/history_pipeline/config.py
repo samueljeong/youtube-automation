@@ -979,7 +979,9 @@ SHEET_HEADERS = {
     # HISTORY_OPUS_INPUT (단일 통합 시트) 헤더
     # ⚠️ 패러다임: episode_slot은 순서가 아닌 슬롯 번호
     # ⚠️ code는 정렬/연결/중복판단 하지 않음 - 사고 재료 전달만
+    # ★ 영상 자동화 열 포함 (대본, 제목, 영상URL 등)
     "OPUS_INPUT": [
+        # === 수집 영역 ===
         "era",               # 시대 (고조선, 부여·옥저·동예, ...)
         "episode_slot",      # ★ 슬롯 번호 (1~6) - 순서 의미 ❌
         "structure_role",    # 형성기/제도기/변동기/유산기/연결기
@@ -990,8 +992,19 @@ SHEET_HEADERS = {
         "source_url",        # 출처 URL
         "opus_prompt_pack",  # ★ Opus에 붙여넣을 완제품
         "thumbnail_copy",    # 썸네일 문구 추천
-        "status",            # 준비/완료
-        "created_at",        # 생성 시간 (ISO)
+        # === 영상 자동화 영역 ===
+        "상태",              # 준비/대기/처리중/완료/실패
+        "대본",              # ★ GPT-5.2 자동 생성 대본
+        "제목(GPT생성)",     # YouTube SEO 제목
+        "썸네일문구(입력)",  # 썸네일 문구
+        "공개설정",          # public/private/unlisted
+        "예약시간",          # YouTube 예약 공개
+        "플레이리스트ID",    # YouTube 플레이리스트
+        "음성",              # TTS 음성 설정
+        "영상URL",           # 업로드된 YouTube URL
+        "에러메시지",        # 실패 시 에러
+        "작업시간",          # 처리 시간
+        "비용",              # 생성 비용
     ],
 }
 
