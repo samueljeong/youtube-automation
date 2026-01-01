@@ -34,7 +34,7 @@ def collect_topic_materials(
     episode: int,
 ) -> Dict[str, Any]:
     """
-    주제별 자료 수집
+    주제별 자료 수집 (4개 공신력 있는 소스에서 수집)
 
     Args:
         era: 시대 키 (예: "GOJOSEON")
@@ -45,7 +45,7 @@ def collect_topic_materials(
         {
             "topic": 주제 정보,
             "materials": [자료 리스트],
-            "full_content": 추출된 전체 내용 (Opus용),
+            "full_content": 추출된 전체 내용 (GPT-5.1용),
             "sources": 출처 목록,
         }
     """
@@ -74,19 +74,86 @@ def collect_topic_materials(
     print(f"[HISTORY] 에피소드: {episode}화 - {topic_info['title']}")
     print(f"[HISTORY] 주제: {topic_info['topic']}")
 
-    # ★ 2024-12 변경: Opus가 직접 검색하므로 자료 수집 스킵
-    # 키워드와 주제 정보만 반환, Opus가 한국민족문화대백과사전에서 직접 검색
     keywords = topic_info.get("keywords", [])
-
     print(f"[HISTORY] 키워드: {', '.join(keywords[:5])}")
-    print(f"[HISTORY] → Opus가 직접 한국민족문화대백과사전에서 검색 예정")
 
-    # 빈 자료로 반환 (Opus가 직접 수집)
+    # ★ 2025-01 변경: 4개 공신력 있는 소스에서 자료 수집
+    # GPT-5.1에 전달하여 대본 자동 생성
+    all_materials = []
+    all_sources = []
+
+    # 1. 한국민족문화대백과사전 (최우선)
+    print(f"[HISTORY] → 한국민족문화대백과사전 검색 중...")
+    for keyword in keywords[:5]:
+        items = _search_encykorea(keyword, max_results=2)
+        for item in items:
+            if item not in all_materials:
+                all_materials.append(item)
+                if item.get("url") and item["url"] not in all_sources:
+                    all_sources.append(item["url"])
+        time.sleep(0.3)
+
+    # 2. 국사편찬위원회 한국사DB
+    print(f"[HISTORY] → 국사편찬위원회 한국사DB 검색 중...")
+    for keyword in keywords[:3]:
+        items = _search_history_db(keyword, max_results=2)
+        for item in items:
+            if item not in all_materials:
+                all_materials.append(item)
+                if item.get("url") and item["url"] not in all_sources:
+                    all_sources.append(item["url"])
+        time.sleep(0.3)
+
+    # 3. 문화재청 국가문화유산포털
+    print(f"[HISTORY] → 문화재청 국가문화유산포털 검색 중...")
+    for keyword in keywords[:2]:
+        items = _search_heritage(keyword, max_results=2)
+        for item in items:
+            if item not in all_materials:
+                all_materials.append(item)
+                if item.get("url") and item["url"] not in all_sources:
+                    all_sources.append(item["url"])
+        time.sleep(0.3)
+
+    # 4. 국립중앙박물관
+    print(f"[HISTORY] → 국립중앙박물관 검색 중...")
+    items = _search_emuseum(era_name, keywords[:3], max_results=3)
+    for item in items:
+        if item not in all_materials:
+            all_materials.append(item)
+            if item.get("url") and item["url"] not in all_sources:
+                all_sources.append(item["url"])
+
+    # full_content 생성 (GPT-5.1에 전달할 자료)
+    content_parts = []
+    for i, material in enumerate(all_materials, 1):
+        source_name = material.get("source_name", "")
+        title = material.get("title", "")
+        content = material.get("content", "")
+        url = material.get("url", "")
+
+        if content:
+            content_parts.append(f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[자료 {i}] {title}
+출처: {source_name}
+URL: {url}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{content}
+""")
+
+    full_content = "\n".join(content_parts)
+
+    print(f"[HISTORY] === 자료 수집 완료 ===")
+    print(f"[HISTORY] 수집된 자료: {len(all_materials)}개")
+    print(f"[HISTORY] 총 내용 길이: {len(full_content):,}자")
+    print(f"[HISTORY] 출처 수: {len(all_sources)}개")
+
     return {
         "topic": topic_info,
-        "materials": [],  # Opus가 직접 수집
-        "full_content": "",  # Opus가 직접 수집
-        "sources": [],  # Opus가 직접 수집
+        "materials": all_materials,
+        "full_content": full_content,
+        "sources": all_sources,
         "era": era,
         "era_name": era_name,
         "episode": episode,
