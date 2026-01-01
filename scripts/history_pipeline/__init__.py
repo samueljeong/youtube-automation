@@ -37,6 +37,7 @@ from .run import (
     run_history_pipeline,
     run_single_episode,
     get_pipeline_status,
+    run_auto_script_pipeline,  # GPT-5.2 대본 자동 생성
 )
 
 from .sheets import (
@@ -63,6 +64,7 @@ __all__ = [
     "run_history_pipeline",
     "run_single_episode",
     "get_pipeline_status",
+    "run_auto_script_pipeline",  # GPT-5.2 대본 자동 생성
     # 설정
     "ERAS",
     "ERA_ORDER",
