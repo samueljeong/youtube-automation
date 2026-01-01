@@ -733,11 +733,17 @@ def _search_encykorea(keyword: str, max_results: int = 3) -> List[Dict[str, Any]
 
         response = requests.get(search_url, headers=headers, timeout=15)
 
-        if response.status_code != 200:
+        # 200, 202 모두 콘텐츠가 있을 수 있음
+        if response.status_code not in (200, 202):
             print(f"[HISTORY] 대백과사전 검색 실패: HTTP {response.status_code}")
             return items
 
         page_html = response.text
+
+        # 빈 응답 또는 봇 감지 페이지 체크
+        if len(page_html) < 500 or "robot" in page_html.lower():
+            print(f"[HISTORY] 대백과사전: DuckDuckGo 봇 감지 또는 빈 응답")
+            return items
 
         # DuckDuckGo 결과에서 encykorea 링크 추출
         # 패턴: href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fencykorea.aks.ac.kr%2FArticle%2FE..."

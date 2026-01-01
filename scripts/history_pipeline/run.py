@@ -518,7 +518,7 @@ def run_auto_script_pipeline(
             print(f"[AUTO-SCRIPT] 시트 저장 중...")
             update_result = update_script_and_status(
                 service=service,
-                sheet_id=sheet_id,
+                spreadsheet_id=sheet_id,
                 row_index=row_index,
                 script=script,
                 new_status="대기",
