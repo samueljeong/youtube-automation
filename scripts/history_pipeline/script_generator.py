@@ -1,16 +1,20 @@
 """
-GPT-5.1 기반 대본 자동 생성 모듈
+GPT-5.2 기반 대본 자동 생성 모듈
 
 2025-01 신규:
 - 4개 공신력 있는 소스에서 수집한 자료 기반
 - 20,000자 분량의 역사 다큐멘터리 대본 생성
 - 학술적 신중함 + 객관적 서술 스타일
+
+2025-01 업데이트:
+- GPT-5.1 → GPT-5.2 모델 업그레이드
+- 비용: $1.75/1M input, $14/1M output
 """
 
 import os
 from typing import Dict, Any, Optional
 
-# GPT-5.1 Responses API 사용
+# GPT-5.2 Responses API 사용
 from openai import OpenAI
 
 
@@ -132,7 +136,7 @@ def generate_script_by_parts(
     series_context: Dict[str, Any] = None,     # ★ 시리즈 전체 맥락 (API 장점 활용)
 ) -> Dict[str, Any]:
     """
-    GPT-5.1로 파트별 대본 생성 (API 장점 극대화)
+    GPT-5.2로 파트별 대본 생성 (API 장점 극대화)
 
     ★★★ API 활용 장점 ★★★
     - prev_episode_info: 이전 에피소드 내용 (자연스러운 연결)
@@ -555,7 +559,7 @@ def generate_script_by_parts(
         return {
             "script": full_script,
             "length": script_length,
-            "model": "gpt-5.1",
+            "model": "gpt-5.2",
             "cost": total_cost,
             "parts": {
                 "intro": len(all_parts[0]) if len(all_parts) > 0 else 0,
@@ -575,11 +579,16 @@ def generate_script_by_parts(
         return {"error": str(e)}
 
 
-def _call_gpt51(client, prompt: str) -> Dict[str, Any]:
-    """GPT-5.1 API 호출 (Responses API)"""
+def _call_gpt52(client, prompt: str) -> Dict[str, Any]:
+    """GPT-5.2 API 호출 (Responses API)
+
+    GPT-5.2 가격:
+    - Input: $1.75 / 1M tokens
+    - Output: $14 / 1M tokens
+    """
     try:
         response = client.responses.create(
-            model="gpt-5.1",
+            model="gpt-5.2",
             input=prompt,
         )
 
@@ -593,15 +602,19 @@ def _call_gpt51(client, prompt: str) -> Dict[str, Any]:
                     if getattr(content, "type", "") == "text":
                         text += getattr(content, "text", "")
 
-        # 비용 계산
-        input_tokens = len(prompt) // 2
+        # 비용 계산 (GPT-5.2 가격: $1.75/1M input, $14/1M output)
+        input_tokens = len(prompt) // 2  # 한국어 약 2자 = 1토큰
         output_tokens = len(text) // 2
-        cost = (input_tokens * 0.001 / 1000) + (output_tokens * 0.003 / 1000)
+        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
 
         return {"text": text.strip(), "cost": cost}
 
     except Exception as e:
         return {"error": str(e)}
+
+
+# 이전 버전 호환성을 위한 별칭
+_call_gpt51 = _call_gpt52
 
 
 def _build_next_preview(next_info: Dict[str, Any], era_name: str) -> str:
@@ -911,7 +924,7 @@ def generate_script_gpt51(
     next_episode_info: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
-    GPT-5.1로 20,000자 대본 생성
+    GPT-5.2로 20,000자 대본 생성 (이전 버전 호환용 함수명 유지)
 
     Args:
         era_name: 시대명 (예: "삼국시대")
@@ -1000,12 +1013,12 @@ def generate_script_gpt51(
     try:
         client = OpenAI(api_key=api_key)
 
-        print(f"[SCRIPT] GPT-5.1 대본 생성 시작...")
+        print(f"[SCRIPT] GPT-5.2 대본 생성 시작...")
         print(f"[SCRIPT] 입력 자료: {len(full_content):,}자")
 
-        # GPT-5.1 Responses API 호출
+        # GPT-5.2 Responses API 호출
         response = client.responses.create(
-            model="gpt-5.1",
+            model="gpt-5.2",
             input=[
                 {
                     "role": "system",
@@ -1033,9 +1046,10 @@ def generate_script_gpt51(
         script_length = len(script)
 
         # 토큰 계산 (한국어 약 2자 = 1토큰)
+        # GPT-5.2 가격: $1.75/1M input, $14/1M output
         input_tokens = (len(SCRIPT_STYLE_PROMPT) + len(user_prompt)) // 2
         output_tokens = script_length // 2
-        cost = (input_tokens * 0.001 / 1000) + (output_tokens * 0.003 / 1000)
+        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
 
         print(f"[SCRIPT] 대본 생성 완료: {script_length:,}자")
         print(f"[SCRIPT] 예상 비용: ${cost:.4f}")
@@ -1049,14 +1063,14 @@ def generate_script_gpt51(
         return {
             "script": script,
             "length": script_length,
-            "model": "gpt-5.1",
+            "model": "gpt-5.2",
             "cost": cost,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
         }
 
     except Exception as e:
-        print(f"[SCRIPT] GPT-5.1 호출 실패: {e}")
+        print(f"[SCRIPT] GPT-5.2 호출 실패: {e}")
         return {"error": str(e)}
 
 
@@ -1154,7 +1168,7 @@ def _continue_script(
         client = OpenAI(api_key=api_key)
 
         response = client.responses.create(
-            model="gpt-5.1",
+            model="gpt-5.2",
             input=[
                 {
                     "role": "system",
@@ -1178,10 +1192,10 @@ def _continue_script(
                         text_chunks.append(getattr(content, "text", ""))
             continuation = "\n".join(text_chunks).strip()
 
-        # 비용 계산
+        # 비용 계산 (GPT-5.2 가격: $1.75/1M input, $14/1M output)
         input_tokens = len(prompt) // 2
         output_tokens = len(continuation) // 2
-        cost = (input_tokens * 0.001 / 1000) + (output_tokens * 0.003 / 1000)
+        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
 
         print(f"[SCRIPT] 이어쓰기 완료: +{len(continuation):,}자")
 
