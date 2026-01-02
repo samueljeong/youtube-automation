@@ -4615,8 +4615,30 @@ def api_sync_god4u_to_registry():
                             rel_type = 'extended'  # 기본값
                             rel_detail = None
 
-                            # partner_id로 배우자 관계인지 확인
-                            if str(member.partner_id) == related.external_id or str(related.partner_id) == member.external_id:
+                            # 1. partner_id로 배우자 관계인지 확인
+                            is_spouse = False
+                            if member.partner_id and related.external_id:
+                                if str(member.partner_id) == str(related.external_id):
+                                    is_spouse = True
+                            if related.partner_id and member.external_id:
+                                if str(related.partner_id) == str(member.external_id):
+                                    is_spouse = True
+
+                            # 2. partner_id 없어도 배우자 추론: 성별 다름 + 나이 비슷(18년 미만) + 가족목록 첫번째/두번째
+                            if not is_spouse and member.birth_date and related.birth_date:
+                                age_diff = abs((member.birth_date - related.birth_date).days / 365)
+                                # 성별이 다르고 나이 차이 18년 미만이면 배우자 가능성
+                                if age_diff < 18:
+                                    # 성별 확인 (M/F 또는 남/여)
+                                    m_gender = (member.gender or '').upper()
+                                    r_gender = (related.gender or '').upper()
+                                    if m_gender and r_gender:
+                                        m_is_male = m_gender in ['M', '남', '남성', '남자']
+                                        r_is_male = r_gender in ['M', '남', '남성', '남자']
+                                        if m_is_male != r_is_male:  # 성별이 다름
+                                            is_spouse = True
+
+                            if is_spouse:
                                 rel_type = 'spouse'
                             # 나이 차이로 부모/자녀 추론
                             elif member.birth_date and related.birth_date:
