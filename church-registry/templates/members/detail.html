@@ -26,10 +26,8 @@
                 <div class="detail-title">
                     <h1>
                         {{ member.display_name }}
-                        <span class="status-badge status-{{ member.status }}" style="font-size: 14px; vertical-align: middle;">
-                            {% if member.status == 'active' %}활동
-                            {% elif member.status == 'inactive' %}비활동
-                            {% else %}새신자{% endif %}
+                        <span class="status-badge status-{{ member.status_class }}" style="font-size: 14px; vertical-align: middle;">
+                            {{ member.status_display }}
                         </span>
                     </h1>
                     <p style="color: var(--apple-text-secondary); margin: 0;">

@@ -108,8 +108,9 @@ class Member(db.Model):
     family_id = db.Column(db.Integer, db.ForeignKey('families.id'))
     family_role = db.Column(db.String(20))  # 가장, 배우자, 자녀 등
 
-    # 상태
-    status = db.Column(db.String(20), default='active')  # active, inactive, newcomer
+    # 상태 (active: 활동, inactive: 비활동, newcomer: 새신자, deceased: 별세, transferred: 타교회)
+    status = db.Column(db.String(20), default='active')
+    member_status = db.Column(db.String(30))  # god4u state 필드 (재적, 별세, 타교회 등)
     notes = db.Column(db.Text)  # 메모
 
     # 성도 구분 (god4u 매핑)
@@ -158,11 +159,40 @@ class Member(db.Model):
 
     @property
     def is_newcomer(self):
-        """새가족 여부 (등록 후 2년 이내)"""
+        """새신자 여부 (등록 후 1년 이내, 한국 시간 기준)"""
         if not self.registration_date:
             return False
-        two_years_ago = get_seoul_today() - timedelta(days=730)  # 약 2년
-        return self.registration_date > two_years_ago
+        one_year_ago = get_seoul_today() - timedelta(days=365)  # 1년
+        return self.registration_date > one_year_ago
+
+    @property
+    def status_display(self):
+        """상태 표시 텍스트"""
+        # 별세자와 타교회는 우선 표시
+        if self.status == 'deceased' or self.member_status in ['별세', '소천']:
+            return '별세'
+        if self.status == 'transferred' or self.member_status in ['타교회', '타교인', '이명']:
+            return '타교회'
+        # 새신자 체크 (등록 1년 이내)
+        if self.is_newcomer:
+            return '새신자'
+        # 일반 상태
+        if self.status == 'active':
+            return '활동'
+        if self.status == 'inactive':
+            return '비활동'
+        return self.status or '활동'
+
+    @property
+    def status_class(self):
+        """CSS 클래스용 상태"""
+        if self.status == 'deceased' or self.member_status in ['별세', '소천']:
+            return 'deceased'
+        if self.status == 'transferred' or self.member_status in ['타교회', '타교인', '이명']:
+            return 'transferred'
+        if self.is_newcomer:
+            return 'newcomer'
+        return self.status or 'active'
 
     @property
     def display_name(self):
@@ -2716,6 +2746,7 @@ def migrate_db():
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS zipcode VARCHAR(20)",  # 우편번호
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)",  # 직업
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS partner_id INTEGER",  # 배우자 ID
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS member_status VARCHAR(30)",  # god4u state (재적, 별세, 타교회 등)
 
         # Group 테이블 새 컬럼들 (계층 구조)
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES groups(id)",
@@ -4106,6 +4137,7 @@ def api_sync_god4u_to_registry():
                     # 상태 정보
                     "age_group": person.get("state1", ""),  # 장년, 청년 등
                     "attendance_status": person.get("state3", ""),  # 예배출석, 장기결석 등
+                    "member_status": person.get("state", ""),  # 재적, 별세, 타교회 등
 
                     # 기타 정보
                     "occupation": person.get("occu") or person.get("occu1", ""),
@@ -4135,8 +4167,22 @@ def api_sync_god4u_to_registry():
                 god4u_notes = "\n".join(notes_parts) if notes_parts else ""
                 god4u_family_info = ran1  # 별도로 저장하여 가족 관계 연결에 사용
 
+                # 상태 결정 로직
+                # god4u state 필드 기반 (별세, 타교회 우선)
+                member_state = person.get("state", "")
+                attendance_state = person.get("state3", "")
+
+                if member_state in ['별세', '소천']:
+                    determined_status = "deceased"
+                elif member_state in ['타교회', '타교인', '이명']:
+                    determined_status = "transferred"
+                elif attendance_state == "예배출석":
+                    determined_status = "active"
+                else:
+                    determined_status = "inactive"
+
                 local_data = {
-                    "status": "active" if person.get("state3") == "예배출석" else "inactive",
+                    "status": determined_status,
                     "notes": god4u_notes,
                 }
 
@@ -4149,6 +4195,9 @@ def api_sync_god4u_to_registry():
                     for key, value in god4u_data.items():
                         if value is not None:
                             setattr(existing, key, value)
+
+                    # 상태 업데이트: god4u state 기반으로 덮어씀
+                    existing.status = determined_status
 
                     # 메모: 기존에 없으면 god4u에서 가져옴
                     if not existing.notes and god4u_notes:
