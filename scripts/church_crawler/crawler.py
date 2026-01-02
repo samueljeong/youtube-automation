@@ -287,6 +287,232 @@ def upload_to_registry(persons: list, with_photos: bool = True) -> dict:
     return results
 
 
+# =============================================================================
+# god4u로 데이터 동기화 (church-registry → god4u)
+# =============================================================================
+
+GOD4U_UPDATE_URL = f"{GOD4U_BASE_URL}/WebMobile/WebChurch/PersonModifyDetailExecute.cshtml"
+
+
+def sync_to_god4u(member_data: dict, cookies: dict = None) -> bool:
+    """
+    church-registry 데이터를 god4u로 동기화
+
+    Args:
+        member_data: church-registry 형식의 회원 데이터
+            - external_id: god4u 교적번호 (필수)
+            - name, phone, email, address, birth_date, gender 등
+        cookies: god4u 인증 쿠키
+
+    Returns:
+        성공 여부
+    """
+    if cookies is None:
+        cookies = COOKIES
+
+    external_id = member_data.get("external_id")
+    if not external_id:
+        print(f"⚠️ external_id가 없습니다: {member_data.get('name')}")
+        return False
+
+    session = requests.Session()
+    session.cookies.update(cookies)
+
+    # 주소 파싱 (전체 주소를 분리)
+    address = member_data.get("address", "")
+    sido, gugun, dong, bunji = "", "", "", ""
+    if address:
+        parts = address.split()
+        if len(parts) >= 1:
+            sido = parts[0]
+        if len(parts) >= 2:
+            gugun = parts[1]
+        if len(parts) >= 3:
+            dong = parts[2]
+        if len(parts) >= 4:
+            bunji = " ".join(parts[3:])
+
+    # 성별 변환
+    gender = member_data.get("gender", "")
+    if gender in ["M", "male", "남성"]:
+        gender = "남"
+    elif gender in ["F", "female", "여성"]:
+        gender = "여"
+
+    # god4u 형식의 페이로드 생성
+    payload = {
+        "mode": "mod",
+        "hidIdM": external_id,
+        "txtHidM": external_id,
+        "txtNameM": member_data.get("name", ""),
+        "txtHandphoneM": member_data.get("phone", ""),
+        "txtTelM": "",
+        "txtEmailM": member_data.get("email", ""),
+        "txtBirthDayM": member_data.get("birth_date", ""),
+        "ddlGenderM": gender,
+        "txtZipcodeM": member_data.get("zipcode", ""),
+        "txtSidoM": sido,
+        "txtGugunM": gugun,
+        "txtDongM": dong,
+        "txtBunjiM": bunji,
+        "ddlState3": "예배출석" if member_data.get("status") == "active" else "결석",
+        "txtRegDayM": member_data.get("registration_date", ""),
+        # 기존 값 유지를 위한 필드들 (빈 값으로 두면 기존 값 유지)
+        "hidRange": "",
+        "hidRange1": "",
+        "hidRange2": "",
+        "hidRange3": "",
+        "hidcvname": member_data.get("position", "") or member_data.get("member_type", ""),
+        "hidcvname1": "",
+        "hidstate": "교인",
+        "hidstate1": "장년",
+        "txtENameF": "",
+        "txtENameM": "",
+        "txtENameL": "",
+        "ddlSolarM": "양",
+        "txtAgeM": "",
+        "txtCoreM": member_data.get("name", ""),
+        "ddlRelative": "본인",
+        "txtLeaderidM": "0",
+        "txtLeaderM": "",
+        "txtCarKind": "",
+        "txtCarNum": "",
+        "txtCarKind1": "",
+        "txtCarNum1": "",
+        "txPrechurchM": "",
+        "txtEtcM": member_data.get("notes", ""),
+        # Org 필드들 (원래 값 - 변경 감지용)
+        "txtZipcodeMOrg": "",
+        "txtSidoMOrg": "",
+        "txtGugunMOrg": "",
+        "txtDongMOrg": "",
+        "txtBunjiMOrg": "",
+        "txtCityM": "",
+        "txtStM": "",
+        "txtCityMOrg": "",
+        "txtStMOrg": "",
+        "ddlGYear": "2026",
+        "txtRangeOrg": "",
+        "txtRange1Org": "",
+        "txtRange2Org": "",
+        "txtRange3Org": "",
+        "ddlCvAct": "",
+        "txtCvDay": "",
+        "txtAppointChurch": "",
+        "txtCvnameOrg": "",
+        "txtCvname1Org": "",
+        "txtCvActorg": "",
+        "txtCvDayOrg": "",
+        "txtAppointChurchOrg": "",
+        "txtStateDay": "",
+        "txtStateOrg": "교인",
+        "txtState1Org": "장년",
+        "txtState3Org": "예배출석",
+        "txtStateDayOrg": "",
+        "hidvaccinename": "",
+        "hidvaccinenumber": "",
+        "txtVaccineDate": "",
+        "txtVaccineNameOrg": "",
+        "txtVaccineNumberOrg": "",
+        "txtVaccineDateOrg": "",
+        "txtVaccineIndex": "0",
+        "txtOffnameM": "",
+        "txtOfftelM": "",
+        "ddlGrade": "",
+        "txtBaptday": "",
+        "txtBaptchurch": "",
+        "txtBaptist": "",
+        "txtGradeOrg": "",
+        "txtBaptdayOrg": "",
+        "txtBaptchurchOrg": "",
+        "txtBaptistOrg": "",
+        "txtFree1": "",
+        "txtFree2": "",
+        "txtFree3": "",
+        "txtFree4": "",
+        "txtFree5": "",
+        "txtFree6": "",
+        "txtFree7": "",
+        "txtFree8": "",
+        "txtFree9": "",
+        "txtFree10": "",
+        "txtFree11": "",
+        "txtFree12": "",
+    }
+
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "text/html, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": GOD4U_BASE_URL,
+        "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/PersonModifyDetail.cshtml?id={external_id}",
+    }
+
+    try:
+        response = session.post(GOD4U_UPDATE_URL, data=payload, headers=headers, timeout=30)
+
+        # 성공 여부 확인 (응답에 "정보수정 완료" 포함)
+        if response.status_code == 200 and "정보수정 완료" in response.text:
+            return True
+        else:
+            print(f"⚠️ god4u 업데이트 실패: {member_data.get('name')} (status: {response.status_code})")
+            return False
+
+    except Exception as e:
+        print(f"❌ god4u 업데이트 오류: {member_data.get('name')} - {str(e)}")
+        return False
+
+
+def sync_registry_to_god4u(cookies: dict = None) -> dict:
+    """
+    church-registry의 모든 회원을 god4u로 동기화
+    (external_id가 있는 회원만)
+    """
+    print("\n🔄 church-registry → god4u 동기화 시작...")
+
+    results = {"success": 0, "failed": 0, "skipped": 0, "errors": []}
+
+    # church-registry에서 회원 목록 가져오기
+    try:
+        resp = requests.get(f"{REGISTRY_BASE_URL}/api/members", timeout=30)
+        if resp.status_code != 200:
+            print(f"❌ church-registry 조회 실패: {resp.status_code}")
+            return results
+
+        members = resp.json().get("members", [])
+        print(f"📊 church-registry 회원: {len(members)}명")
+
+    except Exception as e:
+        print(f"❌ church-registry 연결 실패: {str(e)}")
+        return results
+
+    # god4u로 동기화
+    for i, member in enumerate(members):
+        external_id = member.get("external_id")
+
+        if not external_id:
+            results["skipped"] += 1
+            continue
+
+        if sync_to_god4u(member, cookies):
+            results["success"] += 1
+        else:
+            results["failed"] += 1
+            results["errors"].append(member.get("name", "Unknown"))
+
+        if (i + 1) % 50 == 0:
+            print(f"   {i + 1}/{len(members)} 처리 완료")
+
+        time.sleep(0.5)  # API 부하 방지
+
+    print(f"\n✅ 동기화 완료!")
+    print(f"   성공: {results['success']}명")
+    print(f"   실패: {results['failed']}명")
+    print(f"   건너뜀 (external_id 없음): {results['skipped']}명")
+
+    return results
+
+
 def save_to_csv(persons: list, filename: str = None) -> str:
     """CSV 파일로 저장"""
     if not persons:
@@ -362,13 +588,47 @@ def main():
     """메인 실행"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="교적 크롤링 및 업로드")
+    parser = argparse.ArgumentParser(description="교적 크롤링 및 양방향 동기화")
     parser.add_argument("--no-photos", action="store_true", help="사진 다운로드 건너뛰기")
-    parser.add_argument("--upload", action="store_true", help="church-registry에 업로드")
+    parser.add_argument("--upload", action="store_true", help="church-registry에 업로드 (god4u → registry)")
     parser.add_argument("--csv-only", action="store_true", help="CSV만 저장 (사진/업로드 없음)")
+    parser.add_argument("--sync-to-god4u", action="store_true", help="church-registry → god4u 동기화")
+    parser.add_argument("--full-sync", action="store_true", help="양방향 전체 동기화 (god4u ↔ registry)")
     args = parser.parse_args()
 
     print("=" * 60)
+
+    # church-registry → god4u 동기화만 실행
+    if args.sync_to_god4u:
+        print("🔄 church-registry → god4u 동기화")
+        print("=" * 60)
+        sync_registry_to_god4u()
+        print("\n" + "=" * 60)
+        print("🎉 완료!")
+        print("=" * 60)
+        return
+
+    # 양방향 전체 동기화
+    if args.full_sync:
+        print("🔄 양방향 전체 동기화 (god4u ↔ church-registry)")
+        print("=" * 60)
+
+        # 1. god4u → church-registry
+        print("\n[1/2] god4u → church-registry")
+        persons = crawl_all(download_photos=True)
+        if persons:
+            upload_to_registry(persons, with_photos=True)
+
+        # 2. church-registry → god4u (새로 추가된 회원만)
+        print("\n[2/2] church-registry → god4u")
+        sync_registry_to_god4u()
+
+        print("\n" + "=" * 60)
+        print("🎉 양방향 동기화 완료!")
+        print("=" * 60)
+        return
+
+    # 기본: god4u 크롤링
     print("🏛️  교적 크롤링 시작")
     print("=" * 60)
 

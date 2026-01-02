@@ -5,6 +5,7 @@ AI 채팅 기반 교적 관리
 import os
 import json
 import base64
+import requests
 from datetime import datetime, date, timedelta
 try:
     from zoneinfo import ZoneInfo
@@ -2695,6 +2696,327 @@ def _parse_date(date_str):
         return None
     except:
         return None
+
+
+# =============================================================================
+# god4u 연동 (양방향 동기화)
+# =============================================================================
+
+GOD4U_BASE_URL = "http://god4u.dimode.co.kr"
+GOD4U_API_URL = f"{GOD4U_BASE_URL}/Handler/GetPersonListMobileJSon.asmx/GetPersonSearchListDefault"
+GOD4U_UPDATE_URL = f"{GOD4U_BASE_URL}/WebMobile/WebChurch/PersonModifyDetailExecute.cshtml"
+GOD4U_PHOTO_URL = f"{GOD4U_BASE_URL}/Handler/DisplayImage.ashx"
+
+
+@app.route('/sync')
+def sync_page():
+    """동기화 페이지"""
+    return render_template('sync.html')
+
+
+@app.route('/api/sync/backup-god4u', methods=['POST'])
+def api_backup_god4u():
+    """god4u 데이터 백업 API - JSON 파일로 다운로드"""
+    import time
+    from flask import Response
+
+    data = request.get_json() or {}
+    cookies = data.get('cookies', {})
+
+    if not cookies.get('ASP.NET_SessionId') or not cookies.get('pastorinfo'):
+        return jsonify({"error": "god4u 쿠키가 필요합니다"}), 400
+
+    try:
+        session = requests.Session()
+        session.cookies.update(cookies)
+
+        headers = {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": GOD4U_BASE_URL,
+            "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/RangeList.cshtml",
+        }
+
+        # 첫 페이지 조회
+        payload = _create_god4u_payload(page=1, page_size=100)
+        response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"god4u 연결 실패: {response.status_code}"}), 500
+
+        result = response.json()
+        if "d" in result:
+            result = json.loads(result["d"])
+
+        total_pages = int(result.get("totalpage", 1))
+        all_persons = result.get("personInfo", [])
+
+        # 모든 페이지 조회
+        for page in range(2, total_pages + 1):
+            time.sleep(0.3)
+            payload = _create_god4u_payload(page=page, page_size=100)
+            response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+            if response.status_code == 200:
+                page_data = response.json()
+                if "d" in page_data:
+                    page_data = json.loads(page_data["d"])
+                all_persons.extend(page_data.get("personInfo", []))
+
+        # JSON 백업 파일 생성
+        backup_data = {
+            "backup_date": datetime.now().isoformat(),
+            "total_count": len(all_persons),
+            "source": "god4u.dimode.co.kr",
+            "members": all_persons
+        }
+
+        json_str = json.dumps(backup_data, ensure_ascii=False, indent=2)
+
+        return Response(
+            json_str,
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment;filename=god4u_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'}
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"백업 실패: {str(e)}"}), 500
+
+
+@app.route('/api/sync/god4u-to-registry', methods=['POST'])
+def api_sync_god4u_to_registry():
+    """god4u → church-registry 동기화 API"""
+    import time
+
+    data = request.get_json() or {}
+    cookies = data.get('cookies', {})
+
+    if not cookies.get('ASP.NET_SessionId') or not cookies.get('pastorinfo'):
+        return jsonify({"error": "god4u 쿠키가 필요합니다 (ASP.NET_SessionId, pastorinfo)"}), 400
+
+    try:
+        session = requests.Session()
+        session.cookies.update(cookies)
+
+        results = {"created": 0, "updated": 0, "failed": 0, "total": 0}
+
+        # 첫 페이지로 전체 개수 확인
+        headers = {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": GOD4U_BASE_URL,
+            "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/RangeList.cshtml",
+        }
+
+        payload = _create_god4u_payload(page=1, page_size=100)
+        response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"god4u API 오류: {response.status_code}"}), 500
+
+        data = response.json()
+        if "d" in data:
+            data = json.loads(data["d"])
+
+        total_count = int(data.get("totalcount", 0))
+        total_pages = int(data.get("totalpage", 1))
+        results["total"] = total_count
+
+        # 모든 페이지 크롤링 및 동기화
+        all_persons = data.get("personInfo", [])
+
+        for page in range(2, total_pages + 1):
+            time.sleep(0.3)
+            payload = _create_god4u_payload(page=page, page_size=100)
+            response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+            if response.status_code == 200:
+                page_data = response.json()
+                if "d" in page_data:
+                    page_data = json.loads(page_data["d"])
+                all_persons.extend(page_data.get("personInfo", []))
+
+        # church-registry에 저장
+        for person in all_persons:
+            try:
+                external_id = person.get("id")
+                existing = Member.query.filter_by(external_id=external_id).first() if external_id else None
+
+                member_data = {
+                    "name": person.get("name", ""),
+                    "phone": person.get("handphone", "") or person.get("tel", ""),
+                    "email": person.get("email", ""),
+                    "address": person.get("addr", ""),
+                    "birth_date": _parse_date(person.get("birth", "")),
+                    "gender": "M" if person.get("sex") == "남" else "F" if person.get("sex") == "여" else None,
+                    "registration_date": _parse_date(person.get("regday", "")),
+                    "member_type": person.get("cvname1") or person.get("cvname", ""),
+                    "status": "active" if person.get("state3") == "예배출석" else "inactive",
+                    "external_id": external_id,
+                    "notes": f"가족: {person.get('ran1', '')}\n차량: {person.get('carnum', '')}",
+                }
+
+                if existing:
+                    for key, value in member_data.items():
+                        if value is not None:
+                            setattr(existing, key, value)
+                    results["updated"] += 1
+                else:
+                    member = Member(**{k: v for k, v in member_data.items() if v is not None})
+                    db.session.add(member)
+                    results["created"] += 1
+
+            except Exception as e:
+                results["failed"] += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"동기화 완료: {results['created']}명 생성, {results['updated']}명 업데이트",
+            "results": results
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"동기화 실패: {str(e)}"}), 500
+
+
+@app.route('/api/sync/registry-to-god4u', methods=['POST'])
+def api_sync_registry_to_god4u():
+    """church-registry → god4u 동기화 API"""
+    import time
+
+    data = request.get_json() or {}
+    cookies = data.get('cookies', {})
+
+    if not cookies.get('ASP.NET_SessionId') or not cookies.get('pastorinfo'):
+        return jsonify({"error": "god4u 쿠키가 필요합니다"}), 400
+
+    results = {"success": 0, "failed": 0, "skipped": 0}
+
+    # external_id가 있는 회원만 동기화
+    members = Member.query.filter(Member.external_id.isnot(None)).all()
+
+    session = requests.Session()
+    session.cookies.update(cookies)
+
+    for member in members:
+        try:
+            success = _sync_member_to_god4u(session, member)
+            if success:
+                results["success"] += 1
+            else:
+                results["failed"] += 1
+        except:
+            results["failed"] += 1
+
+        time.sleep(0.3)
+
+    return jsonify({
+        "success": True,
+        "message": f"god4u 동기화 완료: {results['success']}명 성공",
+        "results": results
+    })
+
+
+def _create_god4u_payload(page=1, page_size=100):
+    """god4u API 페이로드 생성"""
+    return {
+        "paramName": "", "paramEName": "", "paramIds": "",
+        "paramFree1": "", "paramFree2": "", "paramFree3": "", "paramFree4": "",
+        "paramFree5": "", "paramFree6": "", "paramFree7": "", "paramFree8": "",
+        "paramFree9": "", "paramFree10": "", "paramFree11": "", "paramFree12": "",
+        "paramRange": "", "paramRange1": "", "paramRange2": "", "paramRange3": "",
+        "paramRvname": "", "paramSection1": "", "paramSection2": "",
+        "paramSection3": "", "paramSection4": "", "paramRvname2": "",
+        "paramCoreChk": "", "paramCarNum": "", "paramGJeon": "",
+        "paramLastSchool": "", "paramOffName": "", "paramGJeon1": "",
+        "paramCvname": "", "paramCvname1": "", "paramState": "",
+        "paramState1": "", "paramState3": "", "encryptOpt": "ALL",
+        "rangeLimitUse": "false", "paramPage": str(page),
+        "paramPageSize": str(page_size), "paramOrder": "NAME",
+        "paramOrder2": "", "paramOrderAsc": "ASC", "paramOrder2Asc": "ASC",
+        "paramPType": "P", "paramAddr": "", "paramRegDateS": "", "paramRegDateE": "",
+    }
+
+
+def _sync_member_to_god4u(session, member):
+    """개별 회원을 god4u로 동기화"""
+    if not member.external_id:
+        return False
+
+    # 주소 파싱
+    address = member.address or ""
+    parts = address.split() if address else []
+    sido = parts[0] if len(parts) >= 1 else ""
+    gugun = parts[1] if len(parts) >= 2 else ""
+    dong = parts[2] if len(parts) >= 3 else ""
+    bunji = " ".join(parts[3:]) if len(parts) >= 4 else ""
+
+    gender = "남" if member.gender == "M" else "여" if member.gender == "F" else ""
+
+    payload = {
+        "mode": "mod",
+        "hidIdM": member.external_id,
+        "txtHidM": member.external_id,
+        "txtNameM": member.name or "",
+        "txtHandphoneM": member.phone or "",
+        "txtTelM": "",
+        "txtEmailM": member.email or "",
+        "txtBirthDayM": member.birth_date.isoformat() if member.birth_date else "",
+        "ddlGenderM": gender,
+        "txtSidoM": sido,
+        "txtGugunM": gugun,
+        "txtDongM": dong,
+        "txtBunjiM": bunji,
+        "ddlState3": "예배출석" if member.status == "active" else "결석",
+        "txtRegDayM": member.registration_date.isoformat() if member.registration_date else "",
+        "hidcvname": member.member_type or "",
+        "hidcvname1": "",
+        "hidstate": "교인",
+        "hidstate1": "장년",
+        "hidRange": "", "hidRange1": "", "hidRange2": "", "hidRange3": "",
+        "txtENameF": "", "txtENameM": "", "txtENameL": "",
+        "ddlSolarM": "양", "txtAgeM": "",
+        "txtCoreM": member.name or "",
+        "ddlRelative": "본인",
+        "txtZipcodeM": "", "txtZipcodeMOrg": "",
+        "txtSidoMOrg": "", "txtGugunMOrg": "", "txtDongMOrg": "", "txtBunjiMOrg": "",
+        "txtCityM": "", "txtStM": "", "txtCityMOrg": "", "txtStMOrg": "",
+        "ddlGYear": "2026",
+        "txtRangeOrg": "", "txtRange1Org": "", "txtRange2Org": "", "txtRange3Org": "",
+        "ddlCvAct": "", "txtCvDay": "", "txtAppointChurch": "",
+        "txtCvnameOrg": "", "txtCvname1Org": "", "txtCvActorg": "",
+        "txtCvDayOrg": "", "txtAppointChurchOrg": "",
+        "txtStateDay": "", "txtStateOrg": "교인", "txtState1Org": "장년",
+        "txtState3Org": "예배출석", "txtStateDayOrg": "",
+        "hidvaccinename": "", "hidvaccinenumber": "",
+        "txtVaccineDate": "", "txtVaccineNameOrg": "", "txtVaccineNumberOrg": "",
+        "txtVaccineDateOrg": "", "txtVaccineIndex": "0",
+        "txtLeaderidM": "0", "txtLeaderM": "",
+        "txtOffnameM": "", "txtOfftelM": "",
+        "ddlGrade": "", "txtBaptday": "", "txtBaptchurch": "", "txtBaptist": "",
+        "txtGradeOrg": "", "txtBaptdayOrg": "", "txtBaptchurchOrg": "", "txtBaptistOrg": "",
+        "txtCarKind": "", "txtCarNum": "", "txtCarKind1": "", "txtCarNum1": "",
+        "txPrechurchM": "", "txtEtcM": member.notes or "",
+        "txtFree1": "", "txtFree2": "", "txtFree3": "", "txtFree4": "",
+        "txtFree5": "", "txtFree6": "", "txtFree7": "", "txtFree8": "",
+        "txtFree9": "", "txtFree10": "", "txtFree11": "", "txtFree12": "",
+    }
+
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "text/html, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": GOD4U_BASE_URL,
+        "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/PersonModifyDetail.cshtml?id={member.external_id}",
+    }
+
+    try:
+        response = session.post(GOD4U_UPDATE_URL, data=payload, headers=headers, timeout=30)
+        return response.status_code == 200 and "정보수정 완료" in response.text
+    except:
+        return False
 
 
 # =============================================================================

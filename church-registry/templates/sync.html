@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}god4u 동기화{% endblock %}
+
+{% block content %}
+<div class="content-area">
+    <div class="page-header">
+        <h1><i class="bi bi-arrow-repeat"></i> god4u 동기화</h1>
+        <p class="text-secondary">god4u 교적 시스템과 양방향 동기화</p>
+    </div>
+
+    <!-- 쿠키 입력 섹션 -->
+    <div class="apple-card mb-4">
+        <h3><i class="bi bi-key"></i> god4u 인증</h3>
+        <p class="text-secondary mb-3">god4u에 로그인한 후 쿠키를 입력하세요.</p>
+
+        <div class="mb-3">
+            <label class="form-label">ASP.NET_SessionId</label>
+            <input type="text" id="sessionId" class="form-control" placeholder="xgsyv0zp5q0b14znzorohsk2">
+            <small class="text-muted">F12 → Application → Cookies에서 복사</small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">pastorinfo</label>
+            <input type="text" id="pastorinfo" class="form-control" placeholder="sUser=...&sID=...">
+            <small class="text-muted">F12 → Application → Cookies에서 복사</small>
+        </div>
+
+        <button onclick="testConnection()" class="btn btn-outline-primary">
+            <i class="bi bi-plug"></i> 연결 테스트
+        </button>
+        <span id="connectionStatus" class="ms-2"></span>
+    </div>
+
+    <!-- 백업 섹션 -->
+    <div class="apple-card mb-4" style="border-left: 4px solid #ffc107;">
+        <h3><i class="bi bi-shield-check"></i> 1단계: 백업 (필수)</h3>
+        <p class="text-secondary">동기화 전 반드시 백업하세요. 문제 발생 시 복원할 수 있습니다.</p>
+
+        <div class="d-flex gap-2 flex-wrap">
+            <button onclick="backupGod4u()" class="btn btn-warning">
+                <i class="bi bi-download"></i> god4u 백업 다운로드
+            </button>
+            <button onclick="backupRegistry()" class="btn btn-secondary">
+                <i class="bi bi-download"></i> church-registry 백업
+            </button>
+        </div>
+
+        <div id="backupStatus" class="mt-3"></div>
+    </div>
+
+    <!-- 동기화 섹션 -->
+    <div class="apple-card mb-4">
+        <h3><i class="bi bi-arrow-left-right"></i> 2단계: 동기화</h3>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="p-3 border rounded">
+                    <h5>god4u → church-registry</h5>
+                    <p class="text-secondary small">god4u의 교적을 이 시스템으로 가져옵니다.</p>
+                    <button onclick="syncFromGod4u()" class="btn btn-primary w-100">
+                        <i class="bi bi-cloud-download"></i> god4u에서 가져오기
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <div class="p-3 border rounded">
+                    <h5>church-registry → god4u</h5>
+                    <p class="text-secondary small">이 시스템의 변경사항을 god4u에 반영합니다.</p>
+                    <button onclick="syncToGod4u()" class="btn btn-success w-100">
+                        <i class="bi bi-cloud-upload"></i> god4u로 내보내기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 진행 상황 -->
+    <div class="apple-card" id="progressCard" style="display: none;">
+        <h3><i class="bi bi-hourglass-split"></i> 진행 상황</h3>
+        <div class="progress mb-3" style="height: 25px;">
+            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+        </div>
+        <div id="progressLog" class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px;">
+        </div>
+    </div>
+</div>
+
+<script>
+function getCookies() {
+    return {
+        "ASP.NET_SessionId": document.getElementById('sessionId').value.trim(),
+        "pastorinfo": document.getElementById('pastorinfo').value.trim(),
+        "AUTOLOGIN": "YES"
+    };
+}
+
+function log(message, type = 'info') {
+    const logDiv = document.getElementById('progressLog');
+    const time = new Date().toLocaleTimeString();
+    const color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc';
+    logDiv.innerHTML += `<div style="color: ${color}">[${time}] ${message}</div>`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+function showProgress() {
+    document.getElementById('progressCard').style.display = 'block';
+    document.getElementById('progressLog').innerHTML = '';
+}
+
+function updateProgress(percent) {
+    const bar = document.getElementById('progressBar');
+    bar.style.width = percent + '%';
+    bar.textContent = percent + '%';
+}
+
+async function testConnection() {
+    const cookies = getCookies();
+    if (!cookies['ASP.NET_SessionId'] || !cookies['pastorinfo']) {
+        alert('쿠키를 입력하세요.');
+        return;
+    }
+
+    document.getElementById('connectionStatus').innerHTML = '<span class="text-warning">테스트 중...</span>';
+
+    try {
+        const resp = await fetch('/api/sync/god4u-to-registry', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: cookies, test_only: true})
+        });
+
+        if (resp.ok) {
+            document.getElementById('connectionStatus').innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> 연결 성공</span>';
+        } else {
+            document.getElementById('connectionStatus').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> 연결 실패</span>';
+        }
+    } catch (e) {
+        document.getElementById('connectionStatus').innerHTML = '<span class="text-danger">오류: ' + e.message + '</span>';
+    }
+}
+
+async function backupGod4u() {
+    const cookies = getCookies();
+    if (!cookies['ASP.NET_SessionId']) {
+        alert('god4u 쿠키를 먼저 입력하세요.');
+        return;
+    }
+
+    showProgress();
+    log('god4u 백업 시작...');
+    updateProgress(10);
+
+    try {
+        const resp = await fetch('/api/sync/backup-god4u', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: cookies})
+        });
+
+        if (resp.ok) {
+            const blob = await resp.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `god4u_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+
+            updateProgress(100);
+            log('백업 완료! 파일이 다운로드됩니다.', 'success');
+            document.getElementById('backupStatus').innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> god4u 백업 완료</span>';
+        } else {
+            const data = await resp.json();
+            log('백업 실패: ' + data.error, 'error');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+
+async function backupRegistry() {
+    showProgress();
+    log('church-registry 백업 시작...');
+
+    try {
+        const resp = await fetch('/api/members');
+        if (resp.ok) {
+            const data = await resp.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `registry_backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+
+            updateProgress(100);
+            log('church-registry 백업 완료!', 'success');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+
+async function syncFromGod4u() {
+    const cookies = getCookies();
+    if (!cookies['ASP.NET_SessionId']) {
+        alert('god4u 쿠키를 먼저 입력하세요.');
+        return;
+    }
+
+    if (!confirm('god4u 데이터를 church-registry로 가져옵니다. 계속하시겠습니까?')) {
+        return;
+    }
+
+    showProgress();
+    log('god4u → church-registry 동기화 시작...');
+    updateProgress(10);
+
+    try {
+        const resp = await fetch('/api/sync/god4u-to-registry', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: cookies})
+        });
+
+        updateProgress(90);
+        const data = await resp.json();
+
+        if (resp.ok) {
+            updateProgress(100);
+            log(`동기화 완료!`, 'success');
+            log(`- 신규 생성: ${data.results.created}명`, 'success');
+            log(`- 업데이트: ${data.results.updated}명`, 'success');
+            log(`- 실패: ${data.results.failed}명`, data.results.failed > 0 ? 'error' : 'info');
+        } else {
+            log('동기화 실패: ' + data.error, 'error');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+
+async function syncToGod4u() {
+    const cookies = getCookies();
+    if (!cookies['ASP.NET_SessionId']) {
+        alert('god4u 쿠키를 먼저 입력하세요.');
+        return;
+    }
+
+    if (!confirm('church-registry 데이터를 god4u로 내보냅니다.\n\n주의: god4u의 기존 데이터가 덮어쓰여질 수 있습니다.\n백업을 먼저 하셨나요?')) {
+        return;
+    }
+
+    showProgress();
+    log('church-registry → god4u 동기화 시작...');
+    updateProgress(10);
+
+    try {
+        const resp = await fetch('/api/sync/registry-to-god4u', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: cookies})
+        });
+
+        updateProgress(90);
+        const data = await resp.json();
+
+        if (resp.ok) {
+            updateProgress(100);
+            log(`god4u 동기화 완료!`, 'success');
+            log(`- 성공: ${data.results.success}명`, 'success');
+            log(`- 실패: ${data.results.failed}명`, data.results.failed > 0 ? 'error' : 'info');
+            log(`- 건너뜀 (external_id 없음): ${data.results.skipped}명`, 'info');
+        } else {
+            log('동기화 실패: ' + data.error, 'error');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+</script>
+{% endblock %}
