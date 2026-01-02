@@ -3382,7 +3382,7 @@ def api_bulk_create_members():
 
 @app.route('/api/members/<int:member_id>/family', methods=['GET'])
 def api_get_member_family(member_id):
-    """교인의 가족 관계 조회"""
+    """교인의 가족 관계 조회 (양방향)"""
     member = Member.query.get_or_404(member_id)
 
     def member_summary(m):
@@ -3397,8 +3397,17 @@ def api_get_member_family(member_id):
             "age": m.age,
         }
 
-    # 관계별 정리
-    relationships = FamilyRelationship.query.filter_by(member_id=member_id).all()
+    # 관계 유형 역방향 매핑
+    REVERSE_TYPE = {
+        'spouse': 'spouse',
+        'parent': 'child',      # 상대가 나의 부모 → 나는 상대의 자녀
+        'child': 'parent',      # 상대가 나의 자녀 → 나는 상대의 부모
+        'sibling': 'sibling',
+        'in_law': 'in_law',
+        'grandparent': 'grandchild',
+        'grandchild': 'grandparent',
+        'extended': 'extended',
+    }
 
     family_data = {
         "member": member_summary(member),
@@ -3412,6 +3421,8 @@ def api_get_member_family(member_id):
         "extended": [],      # 확대가족 (삼촌/고모/조카/사촌 등)
     }
 
+    # 1. 정방향 관계: 내가 member_id인 경우
+    relationships = FamilyRelationship.query.filter_by(member_id=member_id).all()
     for rel in relationships:
         related = rel.related_member
         rel_info = {
@@ -3423,7 +3434,7 @@ def api_get_member_family(member_id):
 
         if rel.relationship_type == 'spouse':
             family_data["spouse"] = rel_info
-        elif rel.relationship_type == 'child':  # 내가 자녀의 부모 = 상대가 부모
+        elif rel.relationship_type == 'child':  # 내가 자녀 = 상대가 부모
             family_data["parents"].append(rel_info)
         elif rel.relationship_type == 'parent':  # 내가 부모 = 상대가 자녀
             family_data["children"].append(rel_info)
@@ -3437,6 +3448,50 @@ def api_get_member_family(member_id):
             family_data["grandparents"].append(rel_info)
         elif rel.relationship_type == 'extended':
             family_data["extended"].append(rel_info)
+
+    # 2. 역방향 관계: 내가 related_member_id인 경우 (중복 제외)
+    existing_ids = set()
+    if family_data["spouse"]:
+        existing_ids.add(family_data["spouse"]["id"])
+    for lst in [family_data["parents"], family_data["children"], family_data["siblings"],
+                family_data["in_laws"], family_data["grandparents"], family_data["grandchildren"],
+                family_data["extended"]]:
+        for item in lst:
+            existing_ids.add(item["id"])
+
+    reverse_relationships = FamilyRelationship.query.filter_by(related_member_id=member_id).all()
+    for rel in reverse_relationships:
+        if rel.member_id in existing_ids:
+            continue  # 이미 정방향에서 추가됨
+
+        related = rel.member  # 역방향이므로 member가 상대방
+        reversed_type = REVERSE_TYPE.get(rel.relationship_type, 'extended')
+
+        rel_info = {
+            **member_summary(related),
+            "relationship_id": rel.id,
+            "relationship_detail": rel.relationship_detail,
+            "relationship_type": reversed_type,
+        }
+
+        if reversed_type == 'spouse' and not family_data["spouse"]:
+            family_data["spouse"] = rel_info
+        elif reversed_type == 'parent':  # 역방향: 상대가 child → 나는 parent → 상대는 내 자녀
+            family_data["children"].append(rel_info)
+        elif reversed_type == 'child':  # 역방향: 상대가 parent → 나는 child → 상대는 내 부모
+            family_data["parents"].append(rel_info)
+        elif reversed_type == 'sibling':
+            family_data["siblings"].append(rel_info)
+        elif reversed_type == 'in_law':
+            family_data["in_laws"].append(rel_info)
+        elif reversed_type == 'grandparent':
+            family_data["grandchildren"].append(rel_info)
+        elif reversed_type == 'grandchild':
+            family_data["grandparents"].append(rel_info)
+        elif reversed_type == 'extended':
+            family_data["extended"].append(rel_info)
+
+        existing_ids.add(related.id)
 
     # 대가족 (Family 모델)
     if member.family_id:
@@ -3702,6 +3757,21 @@ def api_delete_family_relationship(relationship_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": f"관계 삭제 실패: {str(e)}"}), 500
+
+
+@app.route('/api/family-relationships/reset', methods=['GET', 'POST'])
+def api_reset_family_relationships():
+    """모든 가족 관계 삭제 (재생성 전 초기화용)"""
+    try:
+        count = FamilyRelationship.query.delete()
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"가족 관계 {count}건 삭제 완료. god4u 동기화를 다시 실행하세요."
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"삭제 실패: {str(e)}"}), 500
 
 
 @app.route('/api/families', methods=['GET'])
@@ -4440,10 +4510,9 @@ def api_sync_god4u_to_registry():
                 if ran1:
                     god4u_data["family_members"] = ran1
 
-                # 메모 (god4u etc)
+                # 메모 (god4u etc) - 항상 덮어씀 (이전 "가족:" "차량:" 텍스트 제거)
                 etc_notes = person.get("etc", "").strip()
-                if etc_notes:
-                    god4u_data["notes"] = etc_notes
+                god4u_data["notes"] = etc_notes  # 빈 값이어도 저장하여 이전 데이터 정리
 
                 # 상태 결정 로직
                 # god4u state 필드 기반 (별세, 타교회 우선)
@@ -4560,8 +4629,30 @@ def api_sync_god4u_to_registry():
                             rel_type = 'extended'  # 기본값
                             rel_detail = None
 
-                            # partner_id로 배우자 관계인지 확인
-                            if str(member.partner_id) == related.external_id or str(related.partner_id) == member.external_id:
+                            # 1. partner_id로 배우자 관계인지 확인
+                            is_spouse = False
+                            if member.partner_id and related.external_id:
+                                if str(member.partner_id) == str(related.external_id):
+                                    is_spouse = True
+                            if related.partner_id and member.external_id:
+                                if str(related.partner_id) == str(member.external_id):
+                                    is_spouse = True
+
+                            # 2. partner_id 없어도 배우자 추론: 성별 다름 + 나이 비슷(18년 미만) + 가족목록 첫번째/두번째
+                            if not is_spouse and member.birth_date and related.birth_date:
+                                age_diff = abs((member.birth_date - related.birth_date).days / 365)
+                                # 성별이 다르고 나이 차이 18년 미만이면 배우자 가능성
+                                if age_diff < 18:
+                                    # 성별 확인 (M/F 또는 남/여)
+                                    m_gender = (member.gender or '').upper()
+                                    r_gender = (related.gender or '').upper()
+                                    if m_gender and r_gender:
+                                        m_is_male = m_gender in ['M', '남', '남성', '남자']
+                                        r_is_male = r_gender in ['M', '남', '남성', '남자']
+                                        if m_is_male != r_is_male:  # 성별이 다름
+                                            is_spouse = True
+
+                            if is_spouse:
                                 rel_type = 'spouse'
                             # 나이 차이로 부모/자녀 추론
                             elif member.birth_date and related.birth_date:
