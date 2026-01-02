@@ -3,73 +3,102 @@
 {% block title %}god4u 동기화{% endblock %}
 
 {% block content %}
-<div class="content-area">
+<div class="container">
+    <!-- 페이지 헤더 -->
     <div class="page-header">
-        <h1><i class="bi bi-arrow-repeat"></i> god4u 동기화</h1>
-        <p class="text-secondary">god4u 교적 시스템과 양방향 동기화</p>
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-arrow-repeat"></i>
+                god4u 동기화
+            </h1>
+            <p class="page-subtitle">god4u 교적 데이터를 가져옵니다 (단방향, 읽기 전용)</p>
+        </div>
     </div>
 
     <!-- 쿠키 입력 섹션 -->
-    <div class="apple-card mb-4">
-        <h3><i class="bi bi-key"></i> god4u 인증</h3>
-        <p class="text-secondary mb-3">god4u에 로그인한 후 쿠키를 입력하세요.</p>
+    <div class="form-section" style="margin-bottom: 24px;">
+        <div class="form-section-title">
+            <i class="bi bi-key"></i>
+            god4u 인증
+        </div>
+        <p style="color: var(--apple-text-secondary); margin-bottom: 20px;">
+            god4u에 로그인한 후, 브라우저 개발자 도구에서 쿠키를 복사하여 입력하세요.
+        </p>
 
-        <div class="mb-3">
-            <label class="form-label">ASP.NET_SessionId</label>
-            <input type="text" id="sessionId" class="form-control" placeholder="xgsyv0zp5q0b14znzorohsk2">
-            <small class="text-muted">F12 → Application → Cookies에서 복사</small>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">ASP.NET_SessionId</label>
+                <input type="text" id="sessionId" class="form-control" placeholder="xgsyv0zp5q0b14znzorohsk2">
+                <small style="color: var(--apple-text-secondary); font-size: 12px;">F12 → Application → Cookies에서 복사</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">pastorinfo</label>
+                <input type="text" id="pastorinfo" class="form-control" placeholder="sUser=...&sID=...">
+                <small style="color: var(--apple-text-secondary); font-size: 12px;">F12 → Application → Cookies에서 복사</small>
+            </div>
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">pastorinfo</label>
-            <input type="text" id="pastorinfo" class="form-control" placeholder="sUser=...&sID=...">
-            <small class="text-muted">F12 → Application → Cookies에서 복사</small>
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+            <button onclick="testConnection()" class="apple-btn apple-btn-secondary">
+                <i class="bi bi-plug"></i> 연결 테스트
+            </button>
+            <span id="connectionStatus"></span>
         </div>
-
-        <button onclick="testConnection()" class="btn btn-outline-primary">
-            <i class="bi bi-plug"></i> 연결 테스트
-        </button>
-        <span id="connectionStatus" class="ms-2"></span>
     </div>
 
     <!-- 백업 섹션 -->
-    <div class="apple-card mb-4" style="border-left: 4px solid #ffc107;">
-        <h3><i class="bi bi-shield-check"></i> 1단계: 백업 (필수)</h3>
-        <p class="text-secondary">동기화 전 반드시 백업하세요. 문제 발생 시 복원할 수 있습니다.</p>
+    <div class="form-section" style="margin-bottom: 24px; border-left: 4px solid #f59e0b;">
+        <div class="form-section-title">
+            <i class="bi bi-shield-check"></i>
+            1단계: 백업 (권장)
+        </div>
+        <p style="color: var(--apple-text-secondary); margin-bottom: 16px;">
+            동기화 전 백업하면 문제 발생 시 복원할 수 있습니다.
+        </p>
 
-        <div class="d-flex gap-2 flex-wrap">
-            <button onclick="backupGod4u()" class="btn btn-warning">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button onclick="backupGod4u()" class="apple-btn apple-btn-secondary" style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;">
                 <i class="bi bi-download"></i> god4u 백업 다운로드
             </button>
-            <button onclick="backupRegistry()" class="btn btn-secondary">
+            <button onclick="backupRegistry()" class="apple-btn apple-btn-secondary">
                 <i class="bi bi-download"></i> church-registry 백업
             </button>
         </div>
 
-        <div id="backupStatus" class="mt-3"></div>
+        <div id="backupStatus" style="margin-top: 12px;"></div>
     </div>
 
     <!-- 동기화 섹션 -->
-    <div class="apple-card mb-4">
-        <h3><i class="bi bi-cloud-download"></i> 2단계: 데이터 가져오기</h3>
-        <p class="text-secondary">god4u의 교적 데이터를 이 시스템으로 가져옵니다. (단방향)</p>
+    <div class="form-section" style="margin-bottom: 24px;">
+        <div class="form-section-title">
+            <i class="bi bi-cloud-download"></i>
+            2단계: 데이터 가져오기
+        </div>
+        <p style="color: var(--apple-text-secondary); margin-bottom: 16px;">
+            god4u의 교적 데이터를 이 시스템으로 가져옵니다.
+        </p>
 
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> <strong>안전 모드:</strong> god4u 데이터는 변경되지 않습니다. 읽기만 합니다.
+        <div class="apple-alert success" style="background: #dbeafe; color: #1e40af; margin-bottom: 20px;">
+            <i class="bi bi-shield-check"></i>
+            <strong>안전 모드:</strong> god4u 데이터는 변경되지 않습니다. 읽기만 합니다.
         </div>
 
-        <button onclick="syncFromGod4u()" class="btn btn-primary btn-lg">
+        <button onclick="syncFromGod4u()" class="btn-submit" style="font-size: 16px; padding: 16px 32px;">
             <i class="bi bi-cloud-download"></i> god4u에서 가져오기
         </button>
     </div>
 
     <!-- 진행 상황 -->
-    <div class="apple-card" id="progressCard" style="display: none;">
-        <h3><i class="bi bi-hourglass-split"></i> 진행 상황</h3>
-        <div class="progress mb-3" style="height: 25px;">
-            <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+    <div class="form-section" id="progressCard" style="display: none;">
+        <div class="form-section-title">
+            <i class="bi bi-hourglass-split"></i>
+            진행 상황
         </div>
-        <div id="progressLog" class="bg-dark text-light p-3 rounded" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px;">
+        <div style="background: #f0f0f5; border-radius: 12px; overflow: hidden; margin-bottom: 16px;">
+            <div id="progressBar" style="height: 8px; background: linear-gradient(90deg, #0071e3, #5856d6); width: 0%; transition: width 0.3s ease;"></div>
+        </div>
+        <div id="progressText" style="text-align: center; font-weight: 500; color: var(--apple-blue); margin-bottom: 16px;">0%</div>
+        <div id="progressLog" style="background: #1d1d1f; color: #f5f5f7; padding: 16px; border-radius: var(--apple-radius-sm); max-height: 300px; overflow-y: auto; font-family: 'SF Mono', Monaco, monospace; font-size: 13px; line-height: 1.6;">
         </div>
     </div>
 </div>
@@ -94,22 +123,25 @@ function log(message, type = 'info') {
 function showProgress() {
     document.getElementById('progressCard').style.display = 'block';
     document.getElementById('progressLog').innerHTML = '';
+    document.getElementById('progressBar').style.width = '0%';
+    document.getElementById('progressText').textContent = '0%';
 }
 
 function updateProgress(percent) {
-    const bar = document.getElementById('progressBar');
-    bar.style.width = percent + '%';
-    bar.textContent = percent + '%';
+    document.getElementById('progressBar').style.width = percent + '%';
+    document.getElementById('progressText').textContent = percent + '%';
 }
 
 async function testConnection() {
     const cookies = getCookies();
+    const statusEl = document.getElementById('connectionStatus');
+
     if (!cookies['ASP.NET_SessionId'] || !cookies['pastorinfo']) {
-        alert('쿠키를 입력하세요.');
+        statusEl.innerHTML = '<span style="color: #dc2626;"><i class="bi bi-x-circle"></i> 쿠키를 입력하세요</span>';
         return;
     }
 
-    document.getElementById('connectionStatus').innerHTML = '<span class="text-warning">테스트 중...</span>';
+    statusEl.innerHTML = '<span style="color: var(--apple-blue);"><i class="bi bi-hourglass-split"></i> 연결 중...</span>';
 
     try {
         const resp = await fetch('/api/sync/god4u-to-registry', {
@@ -119,19 +151,21 @@ async function testConnection() {
         });
 
         if (resp.ok) {
-            document.getElementById('connectionStatus').innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> 연결 성공</span>';
+            statusEl.innerHTML = '<span style="color: #16a34a;"><i class="bi bi-check-circle"></i> 연결 성공</span>';
         } else {
-            document.getElementById('connectionStatus').innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> 연결 실패</span>';
+            statusEl.innerHTML = '<span style="color: #dc2626;"><i class="bi bi-x-circle"></i> 연결 실패</span>';
         }
     } catch (e) {
-        document.getElementById('connectionStatus').innerHTML = '<span class="text-danger">오류: ' + e.message + '</span>';
+        statusEl.innerHTML = '<span style="color: #dc2626;"><i class="bi bi-x-circle"></i> 오류: ' + e.message + '</span>';
     }
 }
 
 async function backupGod4u() {
     const cookies = getCookies();
+    const statusEl = document.getElementById('backupStatus');
+
     if (!cookies['ASP.NET_SessionId']) {
-        alert('god4u 쿠키를 먼저 입력하세요.');
+        statusEl.innerHTML = '<div style="color: #dc2626;"><i class="bi bi-exclamation-circle"></i> god4u 쿠키를 먼저 입력하세요</div>';
         return;
     }
 
@@ -156,7 +190,7 @@ async function backupGod4u() {
 
             updateProgress(100);
             log('백업 완료! 파일이 다운로드됩니다.', 'success');
-            document.getElementById('backupStatus').innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> god4u 백업 완료</span>';
+            statusEl.innerHTML = '<div style="color: #16a34a;"><i class="bi bi-check-circle"></i> god4u 백업 완료</div>';
         } else {
             const data = await resp.json();
             log('백업 실패: ' + data.error, 'error');
@@ -227,7 +261,5 @@ async function syncFromGod4u() {
         log('오류: ' + e.message, 'error');
     }
 }
-
-// god4u → registry 단방향만 지원 (안전 모드)
 </script>
 {% endblock %}
