@@ -191,11 +191,12 @@
 
     <!-- AI 검색 결과 컨테이너 -->
     <div id="aiSearchResults" style="display: none;">
-        <div class="apple-alert success" style="background: #e8f5e9; color: #2e7d32; margin-bottom: 16px;">
-            <i class="bi bi-stars"></i>
+        <div id="aiSearchAlert" class="apple-alert success" style="background: #e8f5e9; color: #2e7d32; margin-bottom: 16px;">
+            <i id="aiSearchIcon" class="bi bi-stars"></i>
             <span id="aiSearchExplanation"></span>
             · <strong><span id="aiSearchCount">0</span>명</strong>
-            <button onclick="clearAISearch()" style="margin-left: auto; background: none; border: none; color: #2e7d32; cursor: pointer;">
+            <span id="aiSearchMode" style="margin-left: 8px; font-size: 12px; opacity: 0.8;"></span>
+            <button onclick="clearAISearch()" style="margin-left: auto; background: none; border: none; color: inherit; cursor: pointer;">
                 <i class="bi bi-x-lg"></i> 초기화
             </button>
         </div>
@@ -339,6 +340,25 @@ async function performAISearch() {
         // 결과 표시
         countEl.textContent = data.count;
         explanationEl.textContent = data.criteria?.explanation || query;
+
+        // GPT 사용 여부에 따른 스타일 변경
+        const alertEl = document.getElementById('aiSearchAlert');
+        const iconEl = document.getElementById('aiSearchIcon');
+        const modeEl = document.getElementById('aiSearchMode');
+
+        if (data.criteria?.gpt_used === false) {
+            // 직접 검색 (GPT 미사용)
+            alertEl.style.background = '#e3f2fd';
+            alertEl.style.color = '#1565c0';
+            iconEl.className = 'bi bi-lightning-fill';
+            modeEl.textContent = '(빠른 검색)';
+        } else {
+            // GPT 사용
+            alertEl.style.background = '#f3e5f5';
+            alertEl.style.color = '#7b1fa2';
+            iconEl.className = 'bi bi-stars';
+            modeEl.textContent = '(AI 분석)';
+        }
 
         // 카드 그리드 생성
         gridEl.innerHTML = data.members.map(m => renderMemberCard(m)).join('');

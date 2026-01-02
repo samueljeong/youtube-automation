@@ -3241,6 +3241,47 @@ def api_natural_search_members():
     if not query_text:
         return jsonify({"error": "검색어(query)가 필요합니다"}), 400
 
+    # === 빠른 검색 (GPT 없이 직접 처리) ===
+    # 1. 단순 이름 검색 (한글 2-4자, 공백 없음)
+    import re
+    is_simple_name = re.match(r'^[가-힣]{2,4}$', query_text)
+
+    # 2. 숫자만 있는 경우 (차량번호 일부)
+    is_car_number_partial = re.match(r'^[0-9]{2,4}$', query_text)
+
+    # 3. 전화번호 일부 (숫자와 하이픈)
+    is_phone_partial = re.match(r'^[0-9-]{4,}$', query_text) and not is_car_number_partial
+
+    if is_simple_name or is_car_number_partial or is_phone_partial:
+        # GPT 호출 없이 직접 검색 (토큰 절약)
+        try:
+            if is_simple_name:
+                members = Member.query.filter(
+                    Member.name.ilike(f'%{query_text}%')
+                ).order_by(Member.name).limit(50).all()
+                explanation = f"'{query_text}' 이름으로 직접 검색"
+            elif is_car_number_partial:
+                members = Member.query.filter(
+                    Member.car_number.ilike(f'%{query_text}%')
+                ).order_by(Member.name).limit(50).all()
+                explanation = f"차량번호 '{query_text}' 포함 검색"
+            else:  # is_phone_partial
+                members = Member.query.filter(
+                    Member.phone.ilike(f'%{query_text}%')
+                ).order_by(Member.name).limit(50).all()
+                explanation = f"전화번호 '{query_text}' 포함 검색"
+
+            return jsonify({
+                "success": True,
+                "query": query_text,
+                "criteria": {"explanation": explanation, "gpt_used": False},
+                "count": len(members),
+                "members": [_member_to_dict(m) for m in members]
+            })
+        except Exception as e:
+            app.logger.error(f"[빠른검색] 오류: {str(e)}")
+            # 에러 발생 시 GPT 검색으로 fallback
+
     if not openai_client:
         return jsonify({"error": "OpenAI API 키가 설정되지 않았습니다"}), 500
 
@@ -3358,6 +3399,12 @@ def api_natural_search_members():
             result_text = result_text.split("```")[1].split("```")[0].strip()
 
         search_criteria = json.loads(result_text)
+
+        # DB 세션 리프레시 (GPT API 호출 중 SSL 연결이 끊어질 수 있음)
+        try:
+            db.session.remove()  # 세션 완전 제거 후 새 연결 획득
+        except Exception:
+            pass
 
         # 검색 실행
         members = _execute_natural_search(search_criteria)
