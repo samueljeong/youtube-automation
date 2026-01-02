@@ -999,26 +999,13 @@ def _format_materials_for_youtube(materials: list) -> str:
                 first_line = content.split("\n")[0][:50]
                 title = first_line.strip("[]").strip()
 
-            # 내용 요약 (첫 100자)
-            if content:
-                # [제목] 형태 제거
-                summary = content.replace(f"[{title}]", "").strip()
-                summary = summary[:100].strip()
-                if len(content) > 100:
-                    summary += "..."
-            else:
-                summary = ""
-
-            # 출력 형식: 제목 + 요약 + URL
+            # 출력 형식: 제목 + URL (깔끔하게)
             if title:
                 lines.append(f"  • {title}")
-                if summary:
-                    # 요약이 너무 길면 줄바꿈
-                    lines.append(f"    → {summary}")
                 if url and not url.startswith("http://vertexaisearch"):
                     # Vertex AI redirect URL은 표시 안함 (보기 안좋음)
                     lines.append(f"    {url}")
-            elif url:
+            elif url and not url.startswith("http://vertexaisearch"):
                 lines.append(f"  {url}")
 
         lines.append("")
