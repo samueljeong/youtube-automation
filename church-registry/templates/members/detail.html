@@ -94,7 +94,11 @@
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">이름</div>
-                    <div class="info-value">{{ member.display_name }}</div>
+                    <div class="info-value">{{ member.name }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">직분</div>
+                    <div class="info-value">{{ member.member_type or '-' }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">전화번호</div>
@@ -102,16 +106,6 @@
                         {% if member.phone %}
                         <a href="tel:{{ member.phone }}" style="color: var(--apple-blue); text-decoration: none;">
                             {{ member.phone }}
-                        </a>
-                        {% else %}-{% endif %}
-                    </div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">이메일</div>
-                    <div class="info-value">
-                        {% if member.email %}
-                        <a href="mailto:{{ member.email }}" style="color: var(--apple-blue); text-decoration: none;">
-                            {{ member.email }}
                         </a>
                         {% else %}-{% endif %}
                     </div>
@@ -133,7 +127,15 @@
                 </div>
                 <div class="info-item">
                     <div class="info-label">성별</div>
-                    <div class="info-value">{{ member.gender or '-' }}</div>
+                    <div class="info-value">
+                        {% if member.gender == 'M' or member.gender == '남' or member.gender == '남성' %}
+                            남자
+                        {% elif member.gender == 'F' or member.gender == '여' or member.gender == '여성' %}
+                            여자
+                        {% else %}
+                            {{ member.gender or '-' }}
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -159,10 +161,6 @@
                             {% endif %}
                         {% else %}-{% endif %}
                     </div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">직분</div>
-                    <div class="info-value">{{ member.member_type or '-' }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">교회학교</div>
