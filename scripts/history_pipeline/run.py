@@ -502,6 +502,7 @@ def run_auto_script_pipeline(
                 next_episode_info=next_info,
                 prev_episode_info=prev_info,      # ★ 이전 에피소드 연결
                 series_context=series_ctx,         # ★ 시리즈 전체 맥락
+                materials=collected.get("materials", []),  # ★ 참고자료 제목+내용 포함
             )
 
             if "error" in script_result:
