@@ -4487,6 +4487,106 @@ def api_sync_god4u_to_registry():
 
         db.session.commit()
 
+        # ===== 가족 관계 자동 생성 =====
+        family_results = {"created": 0, "skipped": 0}
+
+        # 1. partner_id로 배우자 관계 생성
+        members_with_partner = Member.query.filter(Member.partner_id.isnot(None)).all()
+        for member in members_with_partner:
+            try:
+                # partner_id로 배우자 찾기 (external_id 기준)
+                spouse = Member.query.filter_by(external_id=str(member.partner_id)).first()
+                if spouse and spouse.id != member.id:
+                    # 이미 관계가 있는지 확인
+                    existing = FamilyRelationship.query.filter_by(
+                        member_id=member.id,
+                        related_member_id=spouse.id,
+                        relationship_type='spouse'
+                    ).first()
+                    if not existing:
+                        # 배우자 관계 생성 (양방향)
+                        rel1 = FamilyRelationship(
+                            member_id=member.id,
+                            related_member_id=spouse.id,
+                            relationship_type='spouse'
+                        )
+                        db.session.add(rel1)
+
+                        # 역방향 관계도 없으면 생성
+                        existing_reverse = FamilyRelationship.query.filter_by(
+                            member_id=spouse.id,
+                            related_member_id=member.id,
+                            relationship_type='spouse'
+                        ).first()
+                        if not existing_reverse:
+                            rel2 = FamilyRelationship(
+                                member_id=spouse.id,
+                                related_member_id=member.id,
+                                relationship_type='spouse'
+                            )
+                            db.session.add(rel2)
+
+                        family_results["created"] += 1
+            except:
+                pass
+
+        # 2. family_members (ran1)로 가족 관계 생성
+        members_with_family = Member.query.filter(
+            Member.family_members.isnot(None),
+            Member.family_members != ''
+        ).all()
+
+        for member in members_with_family:
+            try:
+                # 공백으로 구분된 이름들 파싱
+                family_names = member.family_members.split()
+                for name in family_names:
+                    name = name.strip()
+                    if not name or name == member.name:
+                        continue
+
+                    # 같은 이름의 교인 찾기
+                    related = Member.query.filter_by(name=name).first()
+                    if related and related.id != member.id:
+                        # 이미 관계가 있는지 확인 (모든 유형)
+                        existing = FamilyRelationship.query.filter_by(
+                            member_id=member.id,
+                            related_member_id=related.id
+                        ).first()
+                        if not existing:
+                            # 관계 유형 추론
+                            rel_type = 'extended'  # 기본값
+                            rel_detail = None
+
+                            # partner_id로 배우자 관계인지 확인
+                            if str(member.partner_id) == related.external_id or str(related.partner_id) == member.external_id:
+                                rel_type = 'spouse'
+                            # 나이 차이로 부모/자녀 추론
+                            elif member.birth_date and related.birth_date:
+                                age_diff = (member.birth_date - related.birth_date).days / 365
+                                if age_diff >= 18:  # 내가 18살 이상 어리면 → 상대는 부모
+                                    rel_type = 'child'
+                                    rel_detail = '부모'
+                                elif age_diff <= -18:  # 내가 18살 이상 많으면 → 상대는 자녀
+                                    rel_type = 'parent'
+                                    rel_detail = '자녀'
+
+                            rel = FamilyRelationship(
+                                member_id=member.id,
+                                related_member_id=related.id,
+                                relationship_type=rel_type,
+                                relationship_detail=rel_detail
+                            )
+                            db.session.add(rel)
+                            family_results["created"] += 1
+                        else:
+                            family_results["skipped"] += 1
+            except:
+                pass
+
+        db.session.commit()
+        results["family_created"] = family_results["created"]
+
         # 세션 만료로 부분 동기화된 경우
         if session_expired:
             return jsonify({
@@ -4498,7 +4598,7 @@ def api_sync_god4u_to_registry():
 
         return jsonify({
             "success": True,
-            "message": f"동기화 완료: {results['created']}명 생성, {results['updated']}명 업데이트",
+            "message": f"동기화 완료: {results['created']}명 생성, {results['updated']}명 업데이트, 가족관계 {results.get('family_created', 0)}건 생성",
             "results": results
         })
 

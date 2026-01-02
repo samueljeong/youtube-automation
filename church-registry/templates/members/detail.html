@@ -68,11 +68,6 @@
                             <i class="bi bi-pencil-square" id="memoEditIcon"></i>
                         </button>
                     </div>
-                    <!-- 가족/차량 정보 (god4u 동기화) -->
-                    <div style="font-size: 13px; color: #7c6f5b; margin-bottom: 8px; line-height: 1.5;">
-                        <div><strong>가족:</strong> {{ member.family_members or '' }}</div>
-                        <div><strong>차량:</strong> {{ member.car_number or '' }}</div>
-                    </div>
                     <!-- 메모 표시 (읽기 모드) -->
                     <div id="memoDisplay" style="font-size: 14px; color: #5d4e37; line-height: 1.6; white-space: pre-wrap; max-height: 120px; overflow-y: auto;">{{ member.notes or '' }}</div>
                     <!-- 메모 편집 (편집 모드) -->
@@ -137,6 +132,12 @@
                     <div class="info-label">직업</div>
                     <div class="info-value">{{ member.occupation or '-' }}</div>
                 </div>
+                {% if member.car_number %}
+                <div class="info-item">
+                    <div class="info-label">차량번호</div>
+                    <div class="info-value">{{ member.car_number }}</div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
