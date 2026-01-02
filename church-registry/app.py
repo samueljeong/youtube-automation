@@ -2532,20 +2532,44 @@ def migrate_db():
     from sqlalchemy import text
 
     migrations = [
-        # Member 테이블 새 컬럼들
+        # Member 테이블 기존 컬럼들
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS registration_number VARCHAR(20)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS previous_church VARCHAR(100)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS previous_church_address VARCHAR(200)",
-        "ALTER TABLE members ADD COLUMN IF NOT EXISTS district VARCHAR(20)",
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS district VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS cell_group VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS mission_group VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS barnabas VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS referrer VARCHAR(50)",
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS faith_level VARCHAR(20)",
+
+        # Member 테이블 새 컬럼들 (2025-01 추가)
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS section VARCHAR(50)",  # 구역
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS position_detail VARCHAR(30)",  # 상세 직분
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS age_group VARCHAR(20)",  # 연령대
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS attendance_status VARCHAR(20)",  # 출석 상태
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS birth_lunar BOOLEAN DEFAULT FALSE",  # 음력 생일
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS last_visit_date DATE",  # 마지막 심방일
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS tel VARCHAR(20)",  # 집 전화
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS zipcode VARCHAR(20)",  # 우편번호
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)",  # 직업
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS partner_id INTEGER",  # 배우자 ID
+
         # Group 테이블 새 컬럼들 (계층 구조)
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES groups(id)",
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS level INTEGER DEFAULT 0",
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS description VARCHAR(200)",
+
+        # FamilyRelationship 테이블 생성
+        """CREATE TABLE IF NOT EXISTS family_relationships (
+            id SERIAL PRIMARY KEY,
+            member_id INTEGER NOT NULL REFERENCES members(id),
+            related_member_id INTEGER NOT NULL REFERENCES members(id),
+            relationship_type VARCHAR(20) NOT NULL,
+            relationship_detail VARCHAR(20),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(member_id, related_member_id, relationship_type)
+        )""",
     ]
 
     results = []
@@ -2553,10 +2577,10 @@ def migrate_db():
         try:
             db.session.execute(text(sql))
             db.session.commit()
-            results.append(f"OK: {sql[:50]}...")
+            results.append(f"OK: {sql[:60]}...")
         except Exception as e:
             db.session.rollback()
-            results.append(f"SKIP: {sql[:50]}... ({str(e)[:50]})")
+            results.append(f"SKIP: {sql[:60]}... ({str(e)[:50]})")
 
     return jsonify({
         "message": "마이그레이션 완료",
