@@ -3503,6 +3503,62 @@ def api_get_member_family(member_id):
                 "member_count": len(family.members),
             }
 
+    # 3. 형제자매 가족 정보 (형제의 배우자, 자녀)
+    sibling_families = []
+    for sibling_info in family_data["siblings"]:
+        sibling_id = sibling_info["id"]
+        sibling_family = {
+            "sibling": sibling_info,
+            "spouse": None,
+            "children": []
+        }
+
+        # 형제의 배우자 찾기
+        sibling_spouse_rel = FamilyRelationship.query.filter_by(
+            member_id=sibling_id, relationship_type='spouse'
+        ).first()
+        if not sibling_spouse_rel:
+            sibling_spouse_rel = FamilyRelationship.query.filter_by(
+                related_member_id=sibling_id, relationship_type='spouse'
+            ).first()
+
+        if sibling_spouse_rel:
+            spouse_member = (sibling_spouse_rel.related_member
+                           if sibling_spouse_rel.member_id == sibling_id
+                           else sibling_spouse_rel.member)
+            if spouse_member and spouse_member.id not in existing_ids:
+                sibling_family["spouse"] = {
+                    **member_summary(spouse_member),
+                    "relationship_id": sibling_spouse_rel.id,
+                    "relationship_detail": "형제 배우자",
+                }
+
+        # 형제의 자녀 찾기
+        sibling_children_rels = FamilyRelationship.query.filter_by(
+            member_id=sibling_id, relationship_type='parent'
+        ).all()
+        # 역방향도 확인
+        sibling_children_rels += FamilyRelationship.query.filter_by(
+            related_member_id=sibling_id, relationship_type='child'
+        ).all()
+
+        for rel in sibling_children_rels:
+            child_member = (rel.related_member
+                          if rel.member_id == sibling_id
+                          else rel.member)
+            if child_member and child_member.id not in existing_ids:
+                sibling_family["children"].append({
+                    **member_summary(child_member),
+                    "relationship_id": rel.id,
+                    "relationship_detail": "조카",
+                })
+
+        # 배우자나 자녀가 있으면 추가
+        if sibling_family["spouse"] or sibling_family["children"]:
+            sibling_families.append(sibling_family)
+
+    family_data["sibling_families"] = sibling_families
+
     return jsonify(family_data)
 
 
