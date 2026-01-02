@@ -3,70 +3,90 @@
 {% block title %}심방 기록 {{ '수정' if visit else '등록' }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-house-heart"></i> 심방 기록 {{ '수정' if visit else '등록' }}</h2>
-    <a href="{{ url_for('visit_list') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> 목록으로
-    </a>
-</div>
-
-<div class="row">
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="member_id" class="form-label">대상 교인 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="member_id" name="member_id" required>
-                            <option value="">선택</option>
-                            {% for member in members %}
-                            <option value="{{ member.id }}" {{ 'selected' if visit and visit.member_id == member.id else '' }}>{{ member.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="visit_date" class="form-label">심방 날짜 <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" id="visit_date" name="visit_date"
-                                   value="{{ visit.visit_date.strftime('%Y-%m-%d') if visit and visit.visit_date else '' }}" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="visitor_name" class="form-label">심방자</label>
-                            <input type="text" class="form-control" id="visitor_name" name="visitor_name"
-                                   value="{{ visit.visitor_name if visit and visit.visitor_name else '' }}"
-                                   placeholder="심방한 사람 이름">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="purpose" class="form-label">목적</label>
-                        <select class="form-select" id="purpose" name="purpose">
-                            <option value="">선택</option>
-                            <option value="정기 심방" {{ 'selected' if visit and visit.purpose == '정기 심방' else '' }}>정기 심방</option>
-                            <option value="새신자 심방" {{ 'selected' if visit and visit.purpose == '새신자 심방' else '' }}>새신자 심방</option>
-                            <option value="병문안" {{ 'selected' if visit and visit.purpose == '병문안' else '' }}>병문안</option>
-                            <option value="상담" {{ 'selected' if visit and visit.purpose == '상담' else '' }}>상담</option>
-                            <option value="경조사" {{ 'selected' if visit and visit.purpose == '경조사' else '' }}>경조사</option>
-                            <option value="기타" {{ 'selected' if visit and visit.purpose == '기타' else '' }}>기타</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="notes" class="form-label">심방 내용</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="4"
-                                  placeholder="심방 내용을 기록해주세요">{{ visit.notes if visit and visit.notes else '' }}</textarea>
-                    </div>
-
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-lg"></i> {{ '수정' if visit else '저장' }}
-                        </button>
-                        <a href="{{ url_for('visit_list') }}" class="btn btn-outline-secondary">취소</a>
-                    </div>
-                </form>
-            </div>
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-house-heart"></i>
+                심방 기록 {{ '수정' if visit else '등록' }}
+            </h1>
+            <p class="page-subtitle">교인 심방 내용을 기록합니다</p>
         </div>
+        <a href="{{ url_for('visit_list') }}" class="btn-cancel">
+            <i class="bi bi-arrow-left"></i> 목록으로
+        </a>
+    </div>
+
+    <!-- 폼 -->
+    <div class="form-single">
+        <form method="POST">
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-person"></i>
+                    심방 대상
+                </div>
+
+                <div class="form-group">
+                    <label for="member_id" class="form-label">대상 교인 <span class="required">*</span></label>
+                    <select class="form-select" id="member_id" name="member_id" required>
+                        <option value="">교인을 선택하세요</option>
+                        {% for member in members %}
+                        <option value="{{ member.id }}" {{ 'selected' if (visit and visit.member_id == member.id) or (request.args.get('member_id')|int == member.id) else '' }}>
+                            {{ member.name }}{% if member.member_type %} {{ member.member_type }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">
+                    <i class="bi bi-info-circle"></i>
+                    심방 정보
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="visit_date" class="form-label">심방 날짜 <span class="required">*</span></label>
+                        <input type="date" class="form-control" id="visit_date" name="visit_date"
+                               value="{{ visit.visit_date.strftime('%Y-%m-%d') if visit and visit.visit_date else '' }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="visitor_name" class="form-label">심방자</label>
+                        <input type="text" class="form-control" id="visitor_name" name="visitor_name"
+                               value="{{ visit.visitor_name if visit and visit.visitor_name else '' }}"
+                               placeholder="심방한 사람 이름">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="purpose" class="form-label">목적</label>
+                    <select class="form-select" id="purpose" name="purpose">
+                        <option value="">목적 선택</option>
+                        <option value="정기 심방" {{ 'selected' if visit and visit.purpose == '정기 심방' else '' }}>정기 심방</option>
+                        <option value="새신자 심방" {{ 'selected' if visit and visit.purpose == '새신자 심방' else '' }}>새신자 심방</option>
+                        <option value="병문안" {{ 'selected' if visit and visit.purpose == '병문안' else '' }}>병문안</option>
+                        <option value="상담" {{ 'selected' if visit and visit.purpose == '상담' else '' }}>상담</option>
+                        <option value="경조사" {{ 'selected' if visit and visit.purpose == '경조사' else '' }}>경조사</option>
+                        <option value="기타" {{ 'selected' if visit and visit.purpose == '기타' else '' }}>기타</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes" class="form-label">심방 내용</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="5"
+                              placeholder="심방 내용을 기록해주세요">{{ visit.notes if visit and visit.notes else '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('visit_list') }}" class="btn-cancel">취소</a>
+                <button type="submit" class="btn-submit">
+                    <i class="bi bi-check-lg"></i> {{ '수정' if visit else '저장' }}
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}

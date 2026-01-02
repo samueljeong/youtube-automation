@@ -3,53 +3,68 @@
 {% block title %}출석 통계{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-bar-chart"></i> 출석 통계</h2>
-    <a href="{{ url_for('attendance_list') }}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left"></i> 출석 체크
-    </a>
-</div>
-
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-calendar3"></i> 최근 출석 현황
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-bar-chart"></i>
+                출석 통계
+            </h1>
+            <p class="page-subtitle">예배별 출석 현황을 확인합니다</p>
+        </div>
+        <a href="{{ url_for('attendance_list') }}" class="btn-cancel">
+            <i class="bi bi-arrow-left"></i> 출석 체크
+        </a>
     </div>
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>날짜</th>
-                    <th>예배</th>
-                    <th>출석 인원</th>
-                    <th>상세</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if stats %}
+
+    <!-- 통계 테이블 -->
+    <div class="form-section">
+        <div class="form-section-title">
+            <i class="bi bi-calendar3"></i>
+            최근 출석 현황
+        </div>
+
+        {% if stats %}
+        <div class="apple-table-wrapper">
+            <table class="apple-table">
+                <thead>
+                    <tr>
+                        <th>날짜</th>
+                        <th>예배</th>
+                        <th>출석 인원</th>
+                        <th>상세</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {% for stat in stats %}
                     <tr>
-                        <td>{{ stat.date.strftime('%Y-%m-%d (%a)') }}</td>
+                        <td style="font-weight: 500;">{{ stat.date.strftime('%Y-%m-%d') }}</td>
                         <td>{{ stat.service_type }}</td>
                         <td>
-                            <span class="badge bg-primary">{{ stat.count }}명</span>
+                            <span class="status-badge status-active">{{ stat.count }}명</span>
                         </td>
                         <td>
                             <a href="{{ url_for('attendance_list', date=stat.date.strftime('%Y-%m-%d'), service=stat.service_type) }}"
-                               class="btn btn-sm btn-outline-primary">
+                               class="icon-btn" title="상세보기">
                                 <i class="bi bi-eye"></i>
                             </a>
                         </td>
                     </tr>
                     {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="4" class="text-center py-4 text-muted">
-                            출석 기록이 없습니다.
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-bar-chart"></i>
+            <h3>출석 기록이 없습니다</h3>
+            <p>먼저 출석 체크를 진행해주세요</p>
+            <a href="{{ url_for('attendance_list') }}" class="btn-submit">
+                <i class="bi bi-calendar-check"></i> 출석 체크하기
+            </a>
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

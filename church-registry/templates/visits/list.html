@@ -3,61 +3,78 @@
 {% block title %}심방 기록{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-house-heart"></i> 심방 기록</h2>
-    <a href="{{ url_for('visit_new') }}" class="btn btn-primary">
-        <i class="bi bi-plus-lg"></i> 새 심방 기록
-    </a>
-</div>
-
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>날짜</th>
-                    <th>대상 교인</th>
-                    <th>심방자</th>
-                    <th>목적</th>
-                    <th>내용</th>
-                    <th>관리</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if visits %}
-                    {% for visit in visits %}
-                    <tr>
-                        <td>{{ visit.visit_date.strftime('%Y-%m-%d') }}</td>
-                        <td>
-                            <a href="{{ url_for('member_detail', member_id=visit.member_id) }}">
-                                {{ visit.member.name }}
-                            </a>
-                        </td>
-                        <td>{{ visit.visitor_name or '-' }}</td>
-                        <td>{{ visit.purpose or '-' }}</td>
-                        <td>{{ visit.notes[:50] + '...' if visit.notes and visit.notes|length > 50 else visit.notes or '-' }}</td>
-                        <td>
-                            <a href="{{ url_for('visit_edit', visit_id=visit.id) }}" class="btn btn-sm btn-outline-primary me-1">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            <form action="{{ url_for('visit_delete', visit_id=visit.id) }}" method="POST" class="d-inline"
-                                  onsubmit="return confirm('삭제하시겠습니까?')">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">
-                            심방 기록이 없습니다.
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-house-heart"></i>
+                심방 기록
+            </h1>
+            <p class="page-subtitle">총 {{ visits|length }}건의 심방 기록이 있습니다</p>
+        </div>
+        <a href="{{ url_for('visit_new') }}" class="btn-submit">
+            <i class="bi bi-plus-lg"></i> 새 심방 기록
+        </a>
     </div>
+
+    {% if visits %}
+    <!-- 심방 카드 그리드 -->
+    <div class="card-grid">
+        {% for visit in visits %}
+        <div class="member-card" style="cursor: default;">
+            <div class="member-card-header">
+                <div class="member-avatar" style="background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);">
+                    <i class="bi bi-house-heart" style="font-size: 22px;"></i>
+                </div>
+                <div class="member-info">
+                    <h3>
+                        <a href="{{ url_for('member_detail', member_id=visit.member_id) }}" style="color: inherit; text-decoration: none;">
+                            {{ visit.member.name }}
+                        </a>
+                    </h3>
+                    <p>{{ visit.visit_date.strftime('%Y년 %m월 %d일') }}</p>
+                </div>
+            </div>
+            <div class="member-meta" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                {% if visit.visitor_name %}
+                <span><i class="bi bi-person"></i> 심방자: {{ visit.visitor_name }}</span>
+                {% endif %}
+                {% if visit.purpose %}
+                <span><i class="bi bi-flag"></i> {{ visit.purpose }}</span>
+                {% endif %}
+                {% if visit.notes %}
+                <span style="color: var(--apple-text); line-height: 1.4;">
+                    <i class="bi bi-chat-text"></i> {{ visit.notes[:80] }}{% if visit.notes|length > 80 %}...{% endif %}
+                </span>
+                {% endif %}
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--apple-border);">
+                <a href="{{ url_for('visit_edit', visit_id=visit.id) }}" class="apple-btn apple-btn-secondary" style="flex: 1; justify-content: center;">
+                    <i class="bi bi-pencil"></i> 수정
+                </a>
+                <form action="{{ url_for('visit_delete', visit_id=visit.id) }}" method="POST" style="flex: 1;"
+                      onsubmit="return confirm('삭제하시겠습니까?')">
+                    <button type="submit" class="apple-btn apple-btn-secondary" style="width: 100%; justify-content: center; color: #dc2626;">
+                        <i class="bi bi-trash"></i> 삭제
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- 빈 상태 -->
+    <div class="form-section">
+        <div class="empty-state">
+            <i class="bi bi-house-heart"></i>
+            <h3>심방 기록이 없습니다</h3>
+            <p>첫 번째 심방 기록을 등록해보세요</p>
+            <a href="{{ url_for('visit_new') }}" class="btn-submit">
+                <i class="bi bi-plus-lg"></i> 새 심방 기록
+            </a>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

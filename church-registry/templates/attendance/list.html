@@ -3,23 +3,34 @@
 {% block title %}출석 체크{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-calendar-check"></i> 출석 체크</h2>
-    <a href="{{ url_for('attendance_stats') }}" class="btn btn-outline-primary">
-        <i class="bi bi-bar-chart"></i> 통계
-    </a>
-</div>
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-calendar-check"></i>
+                출석 체크
+            </h1>
+            <p class="page-subtitle">예배 출석을 기록하고 관리합니다</p>
+        </div>
+        <a href="{{ url_for('attendance_stats') }}" class="btn-submit" style="background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%); box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);">
+            <i class="bi bi-bar-chart"></i> 통계
+        </a>
+    </div>
 
-<!-- 날짜 및 예배 선택 -->
-<div class="card mb-4">
-    <div class="card-body">
-        <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-4">
+    <!-- 날짜 및 예배 선택 -->
+    <div class="form-section" style="margin-bottom: 24px;">
+        <div class="form-section-title">
+            <i class="bi bi-calendar3"></i>
+            날짜 및 예배 선택
+        </div>
+        <form method="GET" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
                 <label class="form-label">날짜</label>
                 <input type="date" class="form-control" name="date"
                        value="{{ selected_date.strftime('%Y-%m-%d') }}">
             </div>
-            <div class="col-md-4">
+            <div class="form-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
                 <label class="form-label">예배 종류</label>
                 <select class="form-select" name="service">
                     <option value="주일예배" {{ 'selected' if service_type == '주일예배' else '' }}>주일예배</option>
@@ -28,65 +39,88 @@
                     <option value="새벽기도" {{ 'selected' if service_type == '새벽기도' else '' }}>새벽기도</option>
                 </select>
             </div>
-            <div class="col-md-4">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search"></i> 조회
-                </button>
-            </div>
+            <button type="submit" class="apple-btn apple-btn-primary" style="height: 48px;">
+                <i class="bi bi-search"></i> 조회
+            </button>
         </form>
     </div>
-</div>
 
-<!-- 출석 현황 -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>
-            <strong>{{ selected_date.strftime('%Y년 %m월 %d일') }}</strong> {{ service_type }}
-        </span>
-        <span class="badge bg-primary">{{ attended_ids|length }} / {{ members|length }}명 출석</span>
-    </div>
-    <div class="card-body">
+    <!-- 출석 현황 -->
+    <div class="form-section">
+        <div class="form-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="display: flex; align-items: center; gap: 8px;">
+                <i class="bi bi-check2-square"></i>
+                <strong>{{ selected_date.strftime('%Y년 %m월 %d일') }}</strong> {{ service_type }}
+            </span>
+            <span class="status-badge status-active" style="font-size: 13px;">
+                {{ attended_ids|length }} / {{ members|length }}명 출석
+            </span>
+        </div>
+
         <form method="POST" action="{{ url_for('attendance_check') }}">
             <input type="hidden" name="date" value="{{ selected_date.strftime('%Y-%m-%d') }}">
             <input type="hidden" name="service_type" value="{{ service_type }}">
 
             {% if members %}
-            <div class="row">
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px;">
                 {% for member in members %}
-                <div class="col-6 col-md-4 col-lg-3 mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox"
-                               name="member_ids" value="{{ member.id }}"
-                               id="member_{{ member.id }}"
-                               {{ 'checked' if member.id in attended_ids else '' }}>
-                        <label class="form-check-label" for="member_{{ member.id }}">
+                <label class="attendance-card" for="member_{{ member.id }}" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fafafa; border-radius: var(--apple-radius-sm); cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent;">
+                    <input class="form-check-input" type="checkbox"
+                           name="member_ids" value="{{ member.id }}"
+                           id="member_{{ member.id }}"
+                           style="width: 20px; height: 20px; margin: 0; flex-shrink: 0;"
+                           {{ 'checked' if member.id in attended_ids else '' }}>
+                    <div style="min-width: 0;">
+                        <div style="font-weight: 500; color: var(--apple-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             {{ member.name }}
-                            {% if member.status == 'newcomer' %}
-                                <span class="badge bg-info">새신자</span>
-                            {% endif %}
-                        </label>
+                        </div>
+                        {% if member.status == 'newcomer' %}
+                        <span class="status-badge status-newcomer" style="font-size: 11px; padding: 2px 6px;">새신자</span>
+                        {% endif %}
                     </div>
-                </div>
+                </label>
                 {% endfor %}
             </div>
 
-            <hr>
-
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAll()">전체 선택</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">전체 해제</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 20px; border-top: 1px solid var(--apple-border);">
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="apple-btn apple-btn-secondary" onclick="selectAll()">
+                        <i class="bi bi-check-all"></i> 전체 선택
+                    </button>
+                    <button type="button" class="apple-btn apple-btn-secondary" onclick="deselectAll()">
+                        <i class="bi bi-x-lg"></i> 전체 해제
+                    </button>
                 </div>
-                <button type="submit" class="btn btn-success">
+                <button type="submit" class="btn-submit">
                     <i class="bi bi-check-lg"></i> 출석 저장
                 </button>
             </div>
             {% else %}
-            <p class="text-muted mb-0">등록된 교인이 없습니다.</p>
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <h3>등록된 교인이 없습니다</h3>
+                <p>먼저 교인을 등록해주세요</p>
+                <a href="{{ url_for('member_new') }}" class="btn-submit">
+                    <i class="bi bi-plus-lg"></i> 새 교인 등록
+                </a>
+            </div>
             {% endif %}
         </form>
     </div>
 </div>
+
+<style>
+.attendance-card:hover {
+    background: #f0f0f5 !important;
+}
+.attendance-card:has(input:checked) {
+    background: #e8f5e9 !important;
+    border-color: #4caf50 !important;
+}
+.attendance-card input:checked + div {
+    color: #2e7d32;
+}
+</style>
 
 <script>
 function selectAll() {
