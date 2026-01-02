@@ -93,10 +93,11 @@ class Member(db.Model):
     previous_church = db.Column(db.String(100))  # 이전 교회명
     previous_church_address = db.Column(db.String(200))  # 이전 교회 주소
 
-    # 교회 조직 정보
-    district = db.Column(db.String(20))  # 교구 (1, 2, 3...)
-    cell_group = db.Column(db.String(50))  # 속회
-    mission_group = db.Column(db.String(50))  # 선교회 (14남선교회 등)
+    # 교회 조직 정보 (god4u 매핑)
+    district = db.Column(db.String(50))  # 교구 (range: "3교구[2025]")
+    section = db.Column(db.String(50))  # 구역 (range1: "18구역")
+    cell_group = db.Column(db.String(50))  # 속회 (range2: "서울1속")
+    mission_group = db.Column(db.String(50))  # 선교회 (range3)
     barnabas = db.Column(db.String(50))  # 바나바 (담당 장로/권사)
     referrer = db.Column(db.String(50))  # 인도자/관계
 
@@ -111,15 +112,34 @@ class Member(db.Model):
     status = db.Column(db.String(20), default='active')  # active, inactive, newcomer
     notes = db.Column(db.Text)  # 메모
 
-    # 성도 구분
-    member_type = db.Column(db.String(20))  # 장년: 성도, 집사, 권사, 장로, 전도사, 목사, 명예집사, 명예권사
+    # 성도 구분 (god4u 매핑)
+    member_type = db.Column(db.String(20))  # 직분 (cvname: 권사, 집사 등)
+    position_detail = db.Column(db.String(30))  # 상세 직분 (cvname1: 시무권사, 은퇴권사 등)
     department = db.Column(db.String(20))   # 교회학교: 유아부, 유치부, 아동부, 청소년부, 청년부 (장년은 null)
+    age_group = db.Column(db.String(20))  # 연령대 (state1: 장년, 청년 등)
+    attendance_status = db.Column(db.String(20))  # 출석 상태 (state3: 예배출석, 장기결석 등)
+
+    # 생년월일 추가 정보
+    birth_lunar = db.Column(db.Boolean, default=False)  # 음력 생일 여부 (solar: 음/양)
+
+    # 마지막 심방일 (god4u lastvisitday)
+    last_visit_date = db.Column(db.Date)  # 마지막 심방일
+
+    # 추가 연락처
+    tel = db.Column(db.String(20))  # 집 전화번호
+    zipcode = db.Column(db.String(20))  # 우편번호
+
+    # 직업
+    occupation = db.Column(db.String(100))  # 직업 (occu)
 
     # 사진
     photo_url = db.Column(db.String(500))  # 프로필 사진 URL
 
     # 외부 시스템 연동
     external_id = db.Column(db.String(50))  # 외부 시스템 ID (god4u 교적번호 등)
+
+    # 배우자 연결
+    partner_id = db.Column(db.Integer)  # 배우자 교인 ID (god4u partnerid)
 
     created_at = db.Column(db.DateTime, default=get_seoul_now)
     updated_at = db.Column(db.DateTime, default=get_seoul_now, onupdate=get_seoul_now)
@@ -2855,9 +2875,16 @@ def api_sync_preview():
 
             god4u_data = {
                 "name": person.get("name", ""),
-                "phone": person.get("handphone", "") or person.get("tel", ""),
+                "phone": person.get("handphone", ""),
+                "tel": person.get("tel", ""),
                 "email": person.get("email", ""),
                 "address": person.get("addr", ""),
+                "district": person.get("range", ""),
+                "section": person.get("range1", ""),
+                "cell_group": person.get("range2", ""),
+                "member_type": person.get("cvname", ""),
+                "position_detail": person.get("cvname1", ""),
+                "attendance_status": person.get("state3", ""),
             }
 
             if not existing:
@@ -2865,10 +2892,14 @@ def api_sync_preview():
                     "external_id": external_id,
                     "name": god4u_data["name"],
                     "phone": god4u_data["phone"],
+                    "district": god4u_data["district"],
+                    "member_type": god4u_data["member_type"],
                 })
             else:
-                # 변경된 필드 확인
+                # 변경된 필드 확인 (주요 필드만 비교)
                 changes = []
+
+                # 기본 정보
                 if existing.name != god4u_data["name"] and god4u_data["name"]:
                     changes.append({"field": "이름", "old": existing.name, "new": god4u_data["name"]})
                 if existing.phone != god4u_data["phone"] and god4u_data["phone"]:
@@ -2878,11 +2909,30 @@ def api_sync_preview():
                 if existing.address != god4u_data["address"] and god4u_data["address"]:
                     changes.append({"field": "주소", "old": existing.address, "new": god4u_data["address"]})
 
+                # 교회 조직 정보
+                if (existing.district or "") != god4u_data["district"] and god4u_data["district"]:
+                    changes.append({"field": "교구", "old": existing.district or "", "new": god4u_data["district"]})
+                if (existing.section or "") != god4u_data["section"] and god4u_data["section"]:
+                    changes.append({"field": "구역", "old": existing.section or "", "new": god4u_data["section"]})
+                if (existing.cell_group or "") != god4u_data["cell_group"] and god4u_data["cell_group"]:
+                    changes.append({"field": "속회", "old": existing.cell_group or "", "new": god4u_data["cell_group"]})
+
+                # 직분 정보
+                if (existing.member_type or "") != god4u_data["member_type"] and god4u_data["member_type"]:
+                    changes.append({"field": "직분", "old": existing.member_type or "", "new": god4u_data["member_type"]})
+                if (existing.position_detail or "") != god4u_data["position_detail"] and god4u_data["position_detail"]:
+                    changes.append({"field": "상세직분", "old": existing.position_detail or "", "new": god4u_data["position_detail"]})
+
+                # 출석 상태
+                if (existing.attendance_status or "") != god4u_data["attendance_status"] and god4u_data["attendance_status"]:
+                    changes.append({"field": "출석상태", "old": existing.attendance_status or "", "new": god4u_data["attendance_status"]})
+
                 if changes:
                     changed_members.append({
                         "external_id": external_id,
                         "id": existing.id,
                         "name": existing.name,
+                        "member_type": god4u_data["member_type"],
                         "changes": changes,
                     })
 
@@ -2997,9 +3047,14 @@ def api_sync_god4u_to_registry():
         existing_members = {m.external_id: m for m in Member.query.filter(Member.external_id.isnot(None)).all()}
 
         # god4u 우선 필드 (동기화 시 덮어쓰기)
-        GOD4U_FIELDS = ['name', 'phone', 'email', 'address', 'birth_date', 'gender', 'registration_date', 'member_type']
+        GOD4U_FIELDS = [
+            'name', 'phone', 'email', 'address', 'birth_date', 'gender', 'registration_date',
+            'member_type', 'position_detail', 'district', 'section', 'cell_group', 'mission_group',
+            'age_group', 'attendance_status', 'birth_lunar', 'last_visit_date', 'tel', 'zipcode',
+            'occupation', 'previous_church', 'partner_id'
+        ]
         # 로컬 우선 필드 (기존 값 유지)
-        LOCAL_FIELDS = ['status', 'notes']
+        LOCAL_FIELDS = ['status', 'notes', 'photo_url', 'barnabas', 'referrer']
 
         # 선택적 동기화: 특정 회원만 업데이트
         selected_ids = data.get('selected_ids', None)  # None이면 전체, 리스트면 해당 회원만
@@ -3010,23 +3065,64 @@ def api_sync_god4u_to_registry():
                 external_id = person.get("id")
                 existing = existing_members.get(external_id) if external_id else None
 
-                # god4u에서 가져온 데이터
+                # god4u에서 가져온 데이터 (전체 필드 매핑)
                 god4u_data = {
+                    # 기본 정보
                     "name": person.get("name", ""),
-                    "phone": person.get("handphone", "") or person.get("tel", ""),
+                    "phone": person.get("handphone", ""),
+                    "tel": person.get("tel", ""),  # 집 전화
                     "email": person.get("email", ""),
                     "address": person.get("addr", ""),
+                    "zipcode": person.get("zipcode", ""),
                     "birth_date": _parse_date(person.get("birth", "")),
+                    "birth_lunar": person.get("solar") == "음",  # 음력 여부
                     "gender": "M" if person.get("sex") == "남" else "F" if person.get("sex") == "여" else None,
+
+                    # 등록/심방 정보
                     "registration_date": _parse_date(person.get("regday", "")),
-                    "member_type": person.get("cvname1") or person.get("cvname", ""),
+                    "last_visit_date": _parse_date(person.get("lastvisitday", "")),
+
+                    # 직분 정보
+                    "member_type": person.get("cvname", ""),  # 권사, 집사 등
+                    "position_detail": person.get("cvname1", ""),  # 시무권사, 은퇴권사 등
+
+                    # 교회 조직
+                    "district": person.get("range", ""),  # 교구 (3교구[2025])
+                    "section": person.get("range1", ""),  # 구역 (18구역)
+                    "cell_group": person.get("range2", ""),  # 속회 (서울1속)
+                    "mission_group": person.get("range3", ""),  # 선교회
+
+                    # 상태 정보
+                    "age_group": person.get("state1", ""),  # 장년, 청년 등
+                    "attendance_status": person.get("state3", ""),  # 예배출석, 장기결석 등
+
+                    # 기타 정보
+                    "occupation": person.get("occu") or person.get("occu1", ""),
+                    "previous_church": person.get("prechurch", ""),
                     "external_id": external_id,
                 }
 
+                # 배우자 연결 (partnerid가 있으면 저장)
+                partner_id_str = person.get("partnerid")
+                if partner_id_str:
+                    god4u_data["partner_id"] = partner_id_str  # 나중에 매핑 필요
+
                 # 신규 회원용 로컬 필드 기본값
+                etc_notes = person.get("etc", "").strip()
+                ran1 = person.get("ran1", "").strip()
+                carnum = person.get("carnum", "").strip()
+
+                notes_parts = []
+                if etc_notes:
+                    notes_parts.append(etc_notes)
+                if ran1:
+                    notes_parts.append(f"가족: {ran1}")
+                if carnum:
+                    notes_parts.append(f"차량: {carnum}")
+
                 local_data = {
                     "status": "active" if person.get("state3") == "예배출석" else "inactive",
-                    "notes": f"가족: {person.get('ran1', '')}\n차량: {person.get('carnum', '')}",
+                    "notes": "\n".join(notes_parts) if notes_parts else "",
                 }
 
                 if existing:
