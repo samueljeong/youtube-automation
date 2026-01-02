@@ -2844,24 +2844,44 @@ def api_sync_god4u_to_registry():
 
         total_pages = int(data.get("totalpage", 1))
 
-        # 모든 페이지 크롤링 및 동기화
+        # 모든 페이지 크롤링
         all_persons = data.get("personInfo", [])
+        session_expired = False
 
         for page in range(2, total_pages + 1):
-            time.sleep(0.3)
+            time.sleep(0.5)  # 요청 간격 증가
             payload = _create_god4u_payload(page=page, page_size=100)
-            response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
-            if response.status_code == 200:
-                page_data = response.json()
-                if "d" in page_data:
-                    page_data = json.loads(page_data["d"])
-                all_persons.extend(page_data.get("personInfo", []))
+            try:
+                response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+
+                # 세션 만료 감지: HTML 응답 체크
+                content_type = response.headers.get('Content-Type', '')
+                if 'text/html' in content_type or response.text.strip().startswith('<'):
+                    session_expired = True
+                    break
+
+                if response.status_code == 200:
+                    page_data = response.json()
+                    if "d" in page_data:
+                        page_data = json.loads(page_data["d"])
+                    all_persons.extend(page_data.get("personInfo", []))
+            except json.JSONDecodeError:
+                session_expired = True
+                break
+            except Exception:
+                break
+
+        if session_expired and len(all_persons) == 0:
+            return jsonify({"error": "god4u 세션이 만료되었습니다. 다시 로그인 후 쿠키를 갱신해주세요."}), 401
+
+        # 기존 회원 미리 로드 (배치 처리)
+        existing_members = {m.external_id: m for m in Member.query.filter(Member.external_id.isnot(None)).all()}
 
         # church-registry에 저장
         for person in all_persons:
             try:
                 external_id = person.get("id")
-                existing = Member.query.filter_by(external_id=external_id).first() if external_id else None
+                existing = existing_members.get(external_id) if external_id else None
 
                 member_data = {
                     "name": person.get("name", ""),
@@ -2891,6 +2911,15 @@ def api_sync_god4u_to_registry():
                 results["failed"] += 1
 
         db.session.commit()
+
+        # 세션 만료로 부분 동기화된 경우
+        if session_expired:
+            return jsonify({
+                "success": True,
+                "message": f"부분 동기화 완료 (세션 만료): {results['created']}명 생성, {results['updated']}명 업데이트",
+                "results": results,
+                "warning": "god4u 세션이 만료되어 일부 데이터만 동기화되었습니다."
+            })
 
         return jsonify({
             "success": True,
