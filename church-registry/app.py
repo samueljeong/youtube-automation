@@ -2636,8 +2636,40 @@ def seed_groups():
 
 @app.route('/api/members', methods=['GET'])
 def api_list_members():
-    """교인 목록 조회 API"""
-    members = Member.query.all()
+    """교인 목록 조회 API (검색 지원)"""
+    search = request.args.get('search', '').strip()
+    limit = request.args.get('limit', type=int)
+
+    query = Member.query
+
+    # 검색어가 있으면 이름/전화번호로 검색
+    if search:
+        query = query.filter(
+            db.or_(
+                Member.name.ilike(f'%{search}%'),
+                Member.phone.ilike(f'%{search}%')
+            )
+        )
+
+    # 정렬
+    query = query.order_by(Member.name)
+
+    # 제한
+    if limit:
+        query = query.limit(limit)
+
+    members = query.all()
+
+    # 검색 모드일 때는 간단한 형식으로 반환
+    if search or limit:
+        return jsonify([{
+            "id": m.id,
+            "name": m.name,
+            "phone": m.phone,
+            "member_type": m.member_type,
+            "photo_url": m.photo_url,
+        } for m in members])
+
     return jsonify({
         "members": [_member_to_dict(m) for m in members],
         "total": len(members)
