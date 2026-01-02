@@ -93,10 +93,11 @@ class Member(db.Model):
     previous_church = db.Column(db.String(100))  # 이전 교회명
     previous_church_address = db.Column(db.String(200))  # 이전 교회 주소
 
-    # 교회 조직 정보
-    district = db.Column(db.String(20))  # 교구 (1, 2, 3...)
-    cell_group = db.Column(db.String(50))  # 속회
-    mission_group = db.Column(db.String(50))  # 선교회 (14남선교회 등)
+    # 교회 조직 정보 (god4u 매핑)
+    district = db.Column(db.String(50))  # 교구 (range: "3교구[2025]")
+    section = db.Column(db.String(50))  # 구역 (range1: "18구역")
+    cell_group = db.Column(db.String(50))  # 속회 (range2: "서울1속")
+    mission_group = db.Column(db.String(50))  # 선교회 (range3)
     barnabas = db.Column(db.String(50))  # 바나바 (담당 장로/권사)
     referrer = db.Column(db.String(50))  # 인도자/관계
 
@@ -111,15 +112,34 @@ class Member(db.Model):
     status = db.Column(db.String(20), default='active')  # active, inactive, newcomer
     notes = db.Column(db.Text)  # 메모
 
-    # 성도 구분
-    member_type = db.Column(db.String(20))  # 장년: 성도, 집사, 권사, 장로, 전도사, 목사, 명예집사, 명예권사
+    # 성도 구분 (god4u 매핑)
+    member_type = db.Column(db.String(20))  # 직분 (cvname: 권사, 집사 등)
+    position_detail = db.Column(db.String(30))  # 상세 직분 (cvname1: 시무권사, 은퇴권사 등)
     department = db.Column(db.String(20))   # 교회학교: 유아부, 유치부, 아동부, 청소년부, 청년부 (장년은 null)
+    age_group = db.Column(db.String(20))  # 연령대 (state1: 장년, 청년 등)
+    attendance_status = db.Column(db.String(20))  # 출석 상태 (state3: 예배출석, 장기결석 등)
+
+    # 생년월일 추가 정보
+    birth_lunar = db.Column(db.Boolean, default=False)  # 음력 생일 여부 (solar: 음/양)
+
+    # 마지막 심방일 (god4u lastvisitday)
+    last_visit_date = db.Column(db.Date)  # 마지막 심방일
+
+    # 추가 연락처
+    tel = db.Column(db.String(20))  # 집 전화번호
+    zipcode = db.Column(db.String(20))  # 우편번호
+
+    # 직업
+    occupation = db.Column(db.String(100))  # 직업 (occu)
 
     # 사진
     photo_url = db.Column(db.String(500))  # 프로필 사진 URL
 
     # 외부 시스템 연동
     external_id = db.Column(db.String(50))  # 외부 시스템 ID (god4u 교적번호 등)
+
+    # 배우자 연결
+    partner_id = db.Column(db.Integer)  # 배우자 교인 ID (god4u partnerid)
 
     created_at = db.Column(db.DateTime, default=get_seoul_now)
     updated_at = db.Column(db.DateTime, default=get_seoul_now, onupdate=get_seoul_now)
@@ -157,9 +177,91 @@ class Member(db.Model):
     def __repr__(self):
         return f'<Member {self.name}>'
 
+    # ===== 가족 관계 헬퍼 메서드 =====
+
+    def get_family_relationships(self):
+        """모든 가족 관계 반환"""
+        return FamilyRelationship.query.filter_by(member_id=self.id).all()
+
+    def get_spouse(self):
+        """배우자 반환"""
+        rel = FamilyRelationship.query.filter_by(
+            member_id=self.id,
+            relationship_type='spouse'
+        ).first()
+        return rel.related_member if rel else None
+
+    def get_parents(self):
+        """부모 목록 반환 (나의 부모 = 나를 자녀로 둔 사람)"""
+        rels = FamilyRelationship.query.filter_by(
+            member_id=self.id,
+            relationship_type='child'  # 내가 자녀인 관계
+        ).all()
+        return [rel.related_member for rel in rels]
+
+    def get_children(self):
+        """자녀 목록 반환 (나의 자녀 = 나를 부모로 둔 사람)"""
+        rels = FamilyRelationship.query.filter_by(
+            member_id=self.id,
+            relationship_type='parent'  # 내가 부모인 관계
+        ).all()
+        return [rel.related_member for rel in rels]
+
+    def get_siblings(self):
+        """형제자매 목록 반환"""
+        rels = FamilyRelationship.query.filter_by(
+            member_id=self.id,
+            relationship_type='sibling'
+        ).all()
+        return [rel.related_member for rel in rels]
+
+    def get_family_tree(self):
+        """전체 가족 트리 반환 (딕셔너리 형태)"""
+        return {
+            'spouse': self.get_spouse(),
+            'parents': self.get_parents(),
+            'children': self.get_children(),
+            'siblings': self.get_siblings(),
+        }
+
+    def get_extended_family(self):
+        """대가족 전체 목록 반환 (중복 제거)"""
+        family_members = set()
+
+        # 직계 가족 추가
+        spouse = self.get_spouse()
+        if spouse:
+            family_members.add(spouse)
+
+        for parent in self.get_parents():
+            family_members.add(parent)
+            # 부모의 배우자 (다른 부모)
+            parent_spouse = parent.get_spouse()
+            if parent_spouse:
+                family_members.add(parent_spouse)
+            # 부모의 자녀 (형제자매)
+            for sibling in parent.get_children():
+                if sibling.id != self.id:
+                    family_members.add(sibling)
+
+        for child in self.get_children():
+            family_members.add(child)
+            # 자녀의 배우자
+            child_spouse = child.get_spouse()
+            if child_spouse:
+                family_members.add(child_spouse)
+            # 손주
+            for grandchild in child.get_children():
+                family_members.add(grandchild)
+
+        for sibling in self.get_siblings():
+            family_members.add(sibling)
+
+        return list(family_members)
+
 
 class Family(db.Model):
-    """가족 모델"""
+    """가족 모델 - 대가족 단위 그룹"""
     __tablename__ = 'families'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -167,6 +269,95 @@ class Family(db.Model):
     members = db.relationship('Member', backref='family', lazy=True)
 
     created_at = db.Column(db.DateTime, default=get_seoul_now)
+
+    def get_all_members(self):
+        """가족 구성원 전체 반환"""
+        return Member.query.filter_by(family_id=self.id).all()
+
+
+class FamilyRelationship(db.Model):
+    """가족 관계 모델 - 개별 관계 정의"""
+    __tablename__ = 'family_relationships'
+
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)  # 기준 교인
+    related_member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)  # 관계 대상
+
+    # 관계 유형: spouse(배우자), parent(부모), child(자녀), sibling(형제자매)
+    relationship_type = db.Column(db.String(20), nullable=False)
+
+    # 상세 관계 (선택): 아버지, 어머니, 아들, 딸, 형, 누나, 동생 등
+    relationship_detail = db.Column(db.String(20))
+
+    created_at = db.Column(db.DateTime, default=get_seoul_now)
+
+    # 관계 정의
+    member = db.relationship('Member', foreign_keys=[member_id], backref='relationships_as_member')
+    related_member = db.relationship('Member', foreign_keys=[related_member_id], backref='relationships_as_related')
+
+    # 유니크 제약 (같은 관계 중복 방지)
+    __table_args__ = (
+        db.UniqueConstraint('member_id', 'related_member_id', 'relationship_type', name='unique_relationship'),
+    )
+
+    # 관계 유형 상수
+    SPOUSE = 'spouse'      # 배우자
+    PARENT = 'parent'      # 부모 (member가 related_member의 부모)
+    CHILD = 'child'        # 자녀 (member가 related_member의 자녀)
+    SIBLING = 'sibling'    # 형제자매
+
+    # 관계 역방향 매핑
+    REVERSE_RELATIONSHIPS = {
+        'spouse': 'spouse',
+        'parent': 'child',
+        'child': 'parent',
+        'sibling': 'sibling',
+    }
+
+    # 상세 관계 역방향 매핑
+    REVERSE_DETAILS = {
+        '남편': '아내', '아내': '남편',
+        '아버지': '아들', '아들': '아버지',
+        '아버지': '딸', '딸': '아버지',
+        '어머니': '아들', '어머니': '딸',
+        '형': '동생', '누나': '동생', '오빠': '동생', '언니': '동생',
+        '동생': None,  # 동생은 상대방 성별에 따라 다름
+    }
+
+    @classmethod
+    def create_bidirectional(cls, member_id, related_member_id, relationship_type, detail=None, reverse_detail=None):
+        """양방향 관계 생성"""
+        # 정방향 관계
+        rel1 = cls(
+            member_id=member_id,
+            related_member_id=related_member_id,
+            relationship_type=relationship_type,
+            relationship_detail=detail
+        )
+
+        # 역방향 관계
+        reverse_type = cls.REVERSE_RELATIONSHIPS.get(relationship_type, relationship_type)
+        rel2 = cls(
+            member_id=related_member_id,
+            related_member_id=member_id,
+            relationship_type=reverse_type,
+            relationship_detail=reverse_detail or cls.REVERSE_DETAILS.get(detail)
+        )
+
+        return [rel1, rel2]
+
+    def get_display_text(self):
+        """표시용 텍스트 (예: 배우자, 아버지, 딸 등)"""
+        if self.relationship_detail:
+            return self.relationship_detail
+
+        type_names = {
+            'spouse': '배우자',
+            'parent': '부모',
+            'child': '자녀',
+            'sibling': '형제자매',
+        }
+        return type_names.get(self.relationship_type, self.relationship_type)
 
 
 class Group(db.Model):
@@ -2445,8 +2636,40 @@ def seed_groups():
 
 @app.route('/api/members', methods=['GET'])
 def api_list_members():
-    """교인 목록 조회 API"""
-    members = Member.query.all()
+    """교인 목록 조회 API (검색 지원)"""
+    search = request.args.get('search', '').strip()
+    limit = request.args.get('limit', type=int)
+
+    query = Member.query
+
+    # 검색어가 있으면 이름/전화번호로 검색
+    if search:
+        query = query.filter(
+            db.or_(
+                Member.name.ilike(f'%{search}%'),
+                Member.phone.ilike(f'%{search}%')
+            )
+        )
+
+    # 정렬
+    query = query.order_by(Member.name)
+
+    # 제한
+    if limit:
+        query = query.limit(limit)
+
+    members = query.all()
+
+    # 검색 모드일 때는 간단한 형식으로 반환
+    if search or limit:
+        return jsonify([{
+            "id": m.id,
+            "name": m.name,
+            "phone": m.phone,
+            "member_type": m.member_type,
+            "photo_url": m.photo_url,
+        } for m in members])
+
     return jsonify({
         "members": [_member_to_dict(m) for m in members],
         "total": len(members)
@@ -2657,6 +2880,351 @@ def api_bulk_create_members():
     })
 
 
+# =============================================================================
+# 가족 관계 API
+# =============================================================================
+
+@app.route('/api/members/<int:member_id>/family', methods=['GET'])
+def api_get_member_family(member_id):
+    """교인의 가족 관계 조회"""
+    member = Member.query.get_or_404(member_id)
+
+    def member_summary(m):
+        if not m:
+            return None
+        return {
+            "id": m.id,
+            "name": m.name,
+            "member_type": m.member_type,
+            "photo_url": m.photo_url,
+            "gender": m.gender,
+            "age": m.age,
+        }
+
+    # 관계별 정리
+    relationships = FamilyRelationship.query.filter_by(member_id=member_id).all()
+
+    family_data = {
+        "member": member_summary(member),
+        "spouse": None,
+        "parents": [],
+        "children": [],
+        "siblings": [],
+    }
+
+    for rel in relationships:
+        related = rel.related_member
+        rel_info = {
+            **member_summary(related),
+            "relationship_id": rel.id,
+            "relationship_detail": rel.relationship_detail,
+        }
+
+        if rel.relationship_type == 'spouse':
+            family_data["spouse"] = rel_info
+        elif rel.relationship_type == 'child':  # 내가 자녀 = 상대가 부모
+            family_data["parents"].append(rel_info)
+        elif rel.relationship_type == 'parent':  # 내가 부모 = 상대가 자녀
+            family_data["children"].append(rel_info)
+        elif rel.relationship_type == 'sibling':
+            family_data["siblings"].append(rel_info)
+
+    # 대가족 (Family 모델)
+    if member.family_id:
+        family = Family.query.get(member.family_id)
+        if family:
+            family_data["family_group"] = {
+                "id": family.id,
+                "name": family.family_name,
+                "member_count": len(family.members),
+            }
+
+    return jsonify(family_data)
+
+
+@app.route('/api/members/<int:member_id>/family', methods=['POST'])
+def api_add_family_relationship(member_id):
+    """가족 관계 추가"""
+    member = Member.query.get_or_404(member_id)
+    data = request.get_json() or {}
+
+    related_member_id = data.get('related_member_id')
+    relationship_type = data.get('relationship_type')  # spouse, parent, child, sibling
+    detail = data.get('detail')  # 아버지, 어머니, 아들, 딸 등
+    reverse_detail = data.get('reverse_detail')  # 역방향 상세 관계
+
+    if not related_member_id or not relationship_type:
+        return jsonify({"error": "related_member_id와 relationship_type이 필요합니다"}), 400
+
+    if relationship_type not in ['spouse', 'parent', 'child', 'sibling']:
+        return jsonify({"error": "relationship_type은 spouse, parent, child, sibling 중 하나여야 합니다"}), 400
+
+    related_member = Member.query.get(related_member_id)
+    if not related_member:
+        return jsonify({"error": "관계 대상 교인을 찾을 수 없습니다"}), 404
+
+    # 이미 존재하는 관계 확인
+    existing = FamilyRelationship.query.filter_by(
+        member_id=member_id,
+        related_member_id=related_member_id,
+        relationship_type=relationship_type
+    ).first()
+
+    if existing:
+        return jsonify({"error": "이미 등록된 관계입니다"}), 409
+
+    try:
+        # 양방향 관계 생성
+        relationships = FamilyRelationship.create_bidirectional(
+            member_id=member_id,
+            related_member_id=related_member_id,
+            relationship_type=relationship_type,
+            detail=detail,
+            reverse_detail=reverse_detail
+        )
+
+        for rel in relationships:
+            db.session.add(rel)
+
+        # 같은 Family 그룹으로 연결 (없으면 생성)
+        if not member.family_id and not related_member.family_id:
+            # 둘 다 가족이 없으면 새 가족 생성
+            family = Family(family_name=f"{member.name} 가정")
+            db.session.add(family)
+            db.session.flush()
+            member.family_id = family.id
+            related_member.family_id = family.id
+        elif member.family_id and not related_member.family_id:
+            related_member.family_id = member.family_id
+        elif not member.family_id and related_member.family_id:
+            member.family_id = related_member.family_id
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"{member.name}님과 {related_member.name}님의 관계가 등록되었습니다",
+            "relationship_ids": [rel.id for rel in relationships]
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"관계 등록 실패: {str(e)}"}), 500
+
+
+@app.route('/api/family-relationships/<int:relationship_id>', methods=['DELETE'])
+def api_delete_family_relationship(relationship_id):
+    """가족 관계 삭제 (양방향)"""
+    rel = FamilyRelationship.query.get_or_404(relationship_id)
+
+    member_id = rel.member_id
+    related_member_id = rel.related_member_id
+    relationship_type = rel.relationship_type
+
+    try:
+        # 역방향 관계도 삭제
+        reverse_type = FamilyRelationship.REVERSE_RELATIONSHIPS.get(relationship_type, relationship_type)
+        reverse_rel = FamilyRelationship.query.filter_by(
+            member_id=related_member_id,
+            related_member_id=member_id,
+            relationship_type=reverse_type
+        ).first()
+
+        db.session.delete(rel)
+        if reverse_rel:
+            db.session.delete(reverse_rel)
+
+        db.session.commit()
+
+        return jsonify({"success": True, "message": "관계가 삭제되었습니다"})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"관계 삭제 실패: {str(e)}"}), 500
+
+
+@app.route('/api/families', methods=['GET'])
+def api_get_families():
+    """대가족 목록 조회"""
+    families = Family.query.all()
+
+    result = []
+    for family in families:
+        members = Member.query.filter_by(family_id=family.id).all()
+        result.append({
+            "id": family.id,
+            "family_name": family.family_name,
+            "member_count": len(members),
+            "members": [{
+                "id": m.id,
+                "name": m.name,
+                "member_type": m.member_type,
+                "photo_url": m.photo_url,
+            } for m in members]
+        })
+
+    return jsonify(result)
+
+
+@app.route('/api/families/<int:family_id>', methods=['GET'])
+def api_get_family_detail(family_id):
+    """대가족 상세 조회 (가계도 포함)"""
+    family = Family.query.get_or_404(family_id)
+    members = Member.query.filter_by(family_id=family_id).all()
+
+    # 각 멤버의 관계 정보 포함
+    members_with_relations = []
+    for member in members:
+        relationships = FamilyRelationship.query.filter_by(member_id=member.id).all()
+        members_with_relations.append({
+            "id": member.id,
+            "name": member.name,
+            "member_type": member.member_type,
+            "photo_url": member.photo_url,
+            "gender": member.gender,
+            "age": member.age,
+            "birth_date": member.birth_date.isoformat() if member.birth_date else None,
+            "relationships": [{
+                "related_id": rel.related_member_id,
+                "type": rel.relationship_type,
+                "detail": rel.relationship_detail,
+            } for rel in relationships]
+        })
+
+    return jsonify({
+        "id": family.id,
+        "family_name": family.family_name,
+        "members": members_with_relations,
+    })
+
+
+@app.route('/api/families', methods=['POST'])
+def api_create_family():
+    """대가족 그룹 생성"""
+    data = request.get_json() or {}
+
+    family_name = data.get('family_name')
+    member_ids = data.get('member_ids', [])
+
+    if not family_name:
+        return jsonify({"error": "family_name이 필요합니다"}), 400
+
+    family = Family(family_name=family_name)
+    db.session.add(family)
+    db.session.flush()
+
+    # 멤버들을 가족에 추가
+    for member_id in member_ids:
+        member = Member.query.get(member_id)
+        if member:
+            member.family_id = family.id
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "family_id": family.id,
+        "family_name": family.family_name,
+    })
+
+
+@app.route('/api/families/<int:family_id>/members', methods=['POST'])
+def api_add_family_member(family_id):
+    """대가족에 멤버 추가"""
+    family = Family.query.get_or_404(family_id)
+    data = request.get_json() or {}
+
+    member_id = data.get('member_id')
+    if not member_id:
+        return jsonify({"error": "member_id가 필요합니다"}), 400
+
+    member = Member.query.get(member_id)
+    if not member:
+        return jsonify({"error": "교인을 찾을 수 없습니다"}), 404
+
+    member.family_id = family_id
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": f"{member.name}님이 {family.family_name}에 추가되었습니다"
+    })
+
+
+@app.route('/api/sync/auto-link-families', methods=['POST'])
+def api_auto_link_families():
+    """god4u 데이터 기반 자동 가족 연결"""
+    data = request.get_json() or {}
+
+    results = {
+        "spouse_linked": 0,
+        "families_created": 0,
+        "errors": []
+    }
+
+    try:
+        # 1. partner_id 기반 배우자 연결
+        members_with_partner = Member.query.filter(Member.partner_id.isnot(None)).all()
+
+        for member in members_with_partner:
+            partner_external_id = member.partner_id
+            partner = Member.query.filter_by(external_id=str(partner_external_id)).first()
+
+            if partner:
+                # 이미 배우자 관계가 있는지 확인
+                existing = FamilyRelationship.query.filter_by(
+                    member_id=member.id,
+                    related_member_id=partner.id,
+                    relationship_type='spouse'
+                ).first()
+
+                if not existing:
+                    # 성별에 따라 상세 관계 설정
+                    if member.gender == 'M':
+                        detail, reverse_detail = '남편', '아내'
+                    elif member.gender == 'F':
+                        detail, reverse_detail = '아내', '남편'
+                    else:
+                        detail, reverse_detail = '배우자', '배우자'
+
+                    relationships = FamilyRelationship.create_bidirectional(
+                        member_id=member.id,
+                        related_member_id=partner.id,
+                        relationship_type='spouse',
+                        detail=detail,
+                        reverse_detail=reverse_detail
+                    )
+
+                    for rel in relationships:
+                        db.session.add(rel)
+
+                    # 같은 가족 그룹으로 연결
+                    if not member.family_id and not partner.family_id:
+                        family = Family(family_name=f"{member.name} 가정")
+                        db.session.add(family)
+                        db.session.flush()
+                        member.family_id = family.id
+                        partner.family_id = family.id
+                        results["families_created"] += 1
+                    elif member.family_id and not partner.family_id:
+                        partner.family_id = member.family_id
+                    elif not member.family_id and partner.family_id:
+                        member.family_id = partner.family_id
+
+                    results["spouse_linked"] += 1
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "results": results
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"자동 연결 실패: {str(e)}"}), 500
+
+
 def _member_to_dict(member):
     """Member 객체를 딕셔너리로 변환"""
     return {
@@ -2855,9 +3423,16 @@ def api_sync_preview():
 
             god4u_data = {
                 "name": person.get("name", ""),
-                "phone": person.get("handphone", "") or person.get("tel", ""),
+                "phone": person.get("handphone", ""),
+                "tel": person.get("tel", ""),
                 "email": person.get("email", ""),
                 "address": person.get("addr", ""),
+                "district": person.get("range", ""),
+                "section": person.get("range1", ""),
+                "cell_group": person.get("range2", ""),
+                "member_type": person.get("cvname", ""),
+                "position_detail": person.get("cvname1", ""),
+                "attendance_status": person.get("state3", ""),
             }
 
             if not existing:
@@ -2865,10 +3440,14 @@ def api_sync_preview():
                     "external_id": external_id,
                     "name": god4u_data["name"],
                     "phone": god4u_data["phone"],
+                    "district": god4u_data["district"],
+                    "member_type": god4u_data["member_type"],
                 })
             else:
-                # 변경된 필드 확인
+                # 변경된 필드 확인 (주요 필드만 비교)
                 changes = []
+
+                # 기본 정보
                 if existing.name != god4u_data["name"] and god4u_data["name"]:
                     changes.append({"field": "이름", "old": existing.name, "new": god4u_data["name"]})
                 if existing.phone != god4u_data["phone"] and god4u_data["phone"]:
@@ -2878,11 +3457,30 @@ def api_sync_preview():
                 if existing.address != god4u_data["address"] and god4u_data["address"]:
                     changes.append({"field": "주소", "old": existing.address, "new": god4u_data["address"]})
 
+                # 교회 조직 정보
+                if (existing.district or "") != god4u_data["district"] and god4u_data["district"]:
+                    changes.append({"field": "교구", "old": existing.district or "", "new": god4u_data["district"]})
+                if (existing.section or "") != god4u_data["section"] and god4u_data["section"]:
+                    changes.append({"field": "구역", "old": existing.section or "", "new": god4u_data["section"]})
+                if (existing.cell_group or "") != god4u_data["cell_group"] and god4u_data["cell_group"]:
+                    changes.append({"field": "속회", "old": existing.cell_group or "", "new": god4u_data["cell_group"]})
+
+                # 직분 정보
+                if (existing.member_type or "") != god4u_data["member_type"] and god4u_data["member_type"]:
+                    changes.append({"field": "직분", "old": existing.member_type or "", "new": god4u_data["member_type"]})
+                if (existing.position_detail or "") != god4u_data["position_detail"] and god4u_data["position_detail"]:
+                    changes.append({"field": "상세직분", "old": existing.position_detail or "", "new": god4u_data["position_detail"]})
+
+                # 출석 상태
+                if (existing.attendance_status or "") != god4u_data["attendance_status"] and god4u_data["attendance_status"]:
+                    changes.append({"field": "출석상태", "old": existing.attendance_status or "", "new": god4u_data["attendance_status"]})
+
                 if changes:
                     changed_members.append({
                         "external_id": external_id,
                         "id": existing.id,
                         "name": existing.name,
+                        "member_type": god4u_data["member_type"],
                         "changes": changes,
                     })
 
@@ -2997,9 +3595,14 @@ def api_sync_god4u_to_registry():
         existing_members = {m.external_id: m for m in Member.query.filter(Member.external_id.isnot(None)).all()}
 
         # god4u 우선 필드 (동기화 시 덮어쓰기)
-        GOD4U_FIELDS = ['name', 'phone', 'email', 'address', 'birth_date', 'gender', 'registration_date', 'member_type']
+        GOD4U_FIELDS = [
+            'name', 'phone', 'email', 'address', 'birth_date', 'gender', 'registration_date',
+            'member_type', 'position_detail', 'district', 'section', 'cell_group', 'mission_group',
+            'age_group', 'attendance_status', 'birth_lunar', 'last_visit_date', 'tel', 'zipcode',
+            'occupation', 'previous_church', 'partner_id', 'photo_url'
+        ]
         # 로컬 우선 필드 (기존 값 유지)
-        LOCAL_FIELDS = ['status', 'notes']
+        LOCAL_FIELDS = ['status', 'notes', 'barnabas', 'referrer']
 
         # 선택적 동기화: 특정 회원만 업데이트
         selected_ids = data.get('selected_ids', None)  # None이면 전체, 리스트면 해당 회원만
@@ -3010,23 +3613,67 @@ def api_sync_god4u_to_registry():
                 external_id = person.get("id")
                 existing = existing_members.get(external_id) if external_id else None
 
-                # god4u에서 가져온 데이터
+                # god4u에서 가져온 데이터 (전체 필드 매핑)
                 god4u_data = {
+                    # 기본 정보
                     "name": person.get("name", ""),
-                    "phone": person.get("handphone", "") or person.get("tel", ""),
+                    "phone": person.get("handphone", ""),
+                    "tel": person.get("tel", ""),  # 집 전화
                     "email": person.get("email", ""),
                     "address": person.get("addr", ""),
+                    "zipcode": person.get("zipcode", ""),
                     "birth_date": _parse_date(person.get("birth", "")),
+                    "birth_lunar": person.get("solar") == "음",  # 음력 여부
                     "gender": "M" if person.get("sex") == "남" else "F" if person.get("sex") == "여" else None,
+
+                    # 등록/심방 정보
                     "registration_date": _parse_date(person.get("regday", "")),
-                    "member_type": person.get("cvname1") or person.get("cvname", ""),
+                    "last_visit_date": _parse_date(person.get("lastvisitday", "")),
+
+                    # 직분 정보
+                    "member_type": person.get("cvname", ""),  # 권사, 집사 등
+                    "position_detail": person.get("cvname1", ""),  # 시무권사, 은퇴권사 등
+
+                    # 교회 조직
+                    "district": person.get("range", ""),  # 교구 (3교구[2025])
+                    "section": person.get("range1", ""),  # 구역 (18구역)
+                    "cell_group": person.get("range2", ""),  # 속회 (서울1속)
+                    "mission_group": person.get("range3", ""),  # 선교회
+
+                    # 상태 정보
+                    "age_group": person.get("state1", ""),  # 장년, 청년 등
+                    "attendance_status": person.get("state3", ""),  # 예배출석, 장기결석 등
+
+                    # 기타 정보
+                    "occupation": person.get("occu") or person.get("occu1", ""),
+                    "previous_church": person.get("prechurch", ""),
                     "external_id": external_id,
+
+                    # 사진 URL (god4u에서 직접 링크)
+                    "photo_url": f"{GOD4U_PHOTO_URL}?id={external_id}" if external_id else None,
                 }
 
+                # 배우자 연결 (partnerid가 있으면 저장)
+                partner_id_str = person.get("partnerid")
+                if partner_id_str:
+                    god4u_data["partner_id"] = partner_id_str  # 나중에 매핑 필요
+
                 # 신규 회원용 로컬 필드 기본값
+                etc_notes = person.get("etc", "").strip()
+                ran1 = person.get("ran1", "").strip()
+                carnum = person.get("carnum", "").strip()
+
+                notes_parts = []
+                if etc_notes:
+                    notes_parts.append(etc_notes)
+                if ran1:
+                    notes_parts.append(f"가족: {ran1}")
+                if carnum:
+                    notes_parts.append(f"차량: {carnum}")
+
                 local_data = {
                     "status": "active" if person.get("state3") == "예배출석" else "inactive",
-                    "notes": f"가족: {person.get('ran1', '')}\n차량: {person.get('carnum', '')}",
+                    "notes": "\n".join(notes_parts) if notes_parts else "",
                 }
 
                 if existing:

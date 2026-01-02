@@ -179,6 +179,10 @@
                 <div class="info-value">{{ member.district or '-' }}</div>
             </div>
             <div class="info-item">
+                <div class="info-label">구역</div>
+                <div class="info-value">{{ member.section or '-' }}</div>
+            </div>
+            <div class="info-item">
                 <div class="info-label">속회</div>
                 <div class="info-value">{{ member.cell_group or '-' }}</div>
             </div>
@@ -195,13 +199,42 @@
                 <div class="info-value">{{ member.group.name if member.group else '-' }}</div>
             </div>
             <div class="info-item">
-                <div class="info-label">가족</div>
+                <div class="info-label">직분 상세</div>
+                <div class="info-value">{{ member.position_detail or '-' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">출석 상태</div>
                 <div class="info-value">
-                    {% if member.family %}
-                        {{ member.family.family_name }}
-                        {% if member.family_role %}({{ member.family_role }}){% endif %}
+                    {% if member.attendance_status %}
+                    <span class="status-badge {% if member.attendance_status == '예배출석' %}status-active{% elif '결석' in member.attendance_status %}status-inactive{% else %}status-newcomer{% endif %}">
+                        {{ member.attendance_status }}
+                    </span>
                     {% else %}-{% endif %}
                 </div>
+            </div>
+        </div>
+
+        <!-- 추가 정보 (마지막 심방일, 직업 등) -->
+        <div class="info-grid" style="grid-template-columns: repeat(4, 1fr); margin-top: 16px; padding-top: 16px; border-top: 1px solid #f0f0f5;">
+            <div class="info-item">
+                <div class="info-label">마지막 심방일</div>
+                <div class="info-value">
+                    {% if member.last_visit_date %}
+                        {{ member.last_visit_date.strftime('%Y년 %m월 %d일') }}
+                    {% else %}-{% endif %}
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">직업</div>
+                <div class="info-value">{{ member.occupation or '-' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">집 전화</div>
+                <div class="info-value">{{ member.tel or '-' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">우편번호</div>
+                <div class="info-value">{{ member.zipcode or '-' }}</div>
             </div>
         </div>
 
@@ -213,43 +246,25 @@
         {% endif %}
     </div>
 
-    <!-- 가족 사항 -->
-    {% if member.family and member.family.members|length > 1 %}
+    <!-- 가족 관계 -->
     <div class="form-section" style="margin-top: 24px;">
-        <div class="form-section-title">
-            <i class="bi bi-people"></i>
-            가족 사항
+        <div class="form-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>
+                <i class="bi bi-people"></i>
+                가족 관계
+            </span>
+            <button type="button" class="apple-btn apple-btn-secondary" onclick="showAddFamilyModal()" style="font-size: 13px; padding: 6px 12px;">
+                <i class="bi bi-plus-lg"></i> 관계 추가
+            </button>
         </div>
-        <div class="family-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px;">
-            {% for family_member in member.family.members %}
-            <a href="{{ url_for('member_detail', member_id=family_member.id) }}"
-               class="family-card"
-               style="display: flex; align-items: center; gap: 12px; padding: 16px; background: {% if family_member.id == member.id %}linear-gradient(135deg, #667eea15 0%, #764ba215 100%){% else %}#fafafa{% endif %}; border-radius: var(--apple-radius-sm); text-decoration: none; color: inherit; transition: all 0.2s ease; border: 1px solid {% if family_member.id == member.id %}#667eea30{% else %}transparent{% endif %};">
-                <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; flex-shrink: 0; overflow: hidden;">
-                    {% if family_member.photo_url %}
-                    <img src="{{ family_member.photo_url }}" alt="{{ family_member.name }}" style="width: 100%; height: 100%; object-fit: cover;">
-                    {% else %}
-                    {{ family_member.name[0] }}
-                    {% endif %}
-                </div>
-                <div style="min-width: 0;">
-                    <div style="font-weight: 600; color: var(--apple-text); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {{ family_member.name }}
-                        {% if family_member.member_type %}<span style="font-weight: 400; color: var(--apple-text-secondary);"> {{ family_member.member_type }}</span>{% endif %}
-                    </div>
-                    <div style="font-size: 13px; color: var(--apple-text-secondary);">
-                        {% if family_member.id == member.id %}
-                        <span style="color: var(--apple-blue); font-weight: 500;">본인</span>
-                        {% else %}
-                        {{ family_member.family_role or '-' }}
-                        {% endif %}
-                    </div>
-                </div>
-            </a>
-            {% endfor %}
+
+        <div id="familyRelationships">
+            <!-- JavaScript로 로드 -->
+            <div style="text-align: center; padding: 40px; color: var(--apple-text-secondary);">
+                <i class="bi bi-hourglass-split"></i> 로딩 중...
+            </div>
         </div>
     </div>
-    {% endif %}
 
     <!-- 활동 기록 -->
     <div class="form-section" style="margin-top: 24px;">
@@ -413,6 +428,357 @@ function hideDeleteModal() {
 // 모달 바깥 클릭 시 닫기
 document.getElementById('deleteModal').addEventListener('click', function(e) {
     if (e.target === this) hideDeleteModal();
+});
+
+// ===== 가족 관계 기능 =====
+const MEMBER_ID = {{ member.id }};
+
+// 가족 관계 로드
+async function loadFamilyRelationships() {
+    try {
+        const resp = await fetch(`/api/members/${MEMBER_ID}/family`);
+        const data = await resp.json();
+        renderFamilyRelationships(data);
+    } catch (e) {
+        document.getElementById('familyRelationships').innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-exclamation-circle"></i>
+                <p>가족 관계를 불러오지 못했습니다</p>
+            </div>
+        `;
+    }
+}
+
+function renderFamilyRelationships(data) {
+    const container = document.getElementById('familyRelationships');
+
+    const hasAnyRelation = data.spouse || data.parents.length > 0 || data.children.length > 0 || data.siblings.length > 0;
+
+    if (!hasAnyRelation) {
+        container.innerHTML = `
+            <div class="empty-state" style="padding: 40px;">
+                <i class="bi bi-people" style="font-size: 48px; color: #d1d5db;"></i>
+                <h3 style="margin: 16px 0 8px;">등록된 가족 관계가 없습니다</h3>
+                <p style="color: var(--apple-text-secondary);">위의 "관계 추가" 버튼을 눌러 가족을 등록하세요</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 24px;">';
+
+    // 배우자
+    if (data.spouse) {
+        html += `
+            <div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--apple-text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-heart" style="color: #ec4899;"></i> 배우자
+                </div>
+                ${renderFamilyCard(data.spouse, 'spouse')}
+            </div>
+        `;
+    }
+
+    // 부모
+    if (data.parents.length > 0) {
+        html += `
+            <div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--apple-text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-person-heart" style="color: #8b5cf6;"></i> 부모
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    ${data.parents.map(p => renderFamilyCard(p, 'parent')).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 자녀
+    if (data.children.length > 0) {
+        html += `
+            <div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--apple-text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-person" style="color: #10b981;"></i> 자녀
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    ${data.children.map(c => renderFamilyCard(c, 'child')).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 형제자매
+    if (data.siblings.length > 0) {
+        html += `
+            <div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--apple-text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                    <i class="bi bi-people" style="color: #f59e0b;"></i> 형제자매
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+                    ${data.siblings.map(s => renderFamilyCard(s, 'sibling')).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 대가족 그룹 정보
+    if (data.family_group) {
+        html += `
+            <div style="margin-top: 8px; padding: 12px 16px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+                <span style="color: #0369a1; font-weight: 500;">
+                    <i class="bi bi-house-heart"></i> ${data.family_group.name}
+                </span>
+                <span style="color: #64748b; margin-left: 8px;">(${data.family_group.member_count}명)</span>
+            </div>
+        `;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function renderFamilyCard(member, relationType) {
+    const avatar = member.photo_url
+        ? `<img src="${member.photo_url}" alt="${member.name}" style="width: 100%; height: 100%; object-fit: cover;">`
+        : member.name[0];
+
+    const avatarBg = {
+        'spouse': 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+        'parent': 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+        'child': 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+        'sibling': 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+    }[relationType] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+
+    return `
+        <div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fafafa; border-radius: 12px; position: relative; transition: all 0.2s ease;"
+             onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fafafa'">
+            <a href="/members/${member.id}" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 1;">
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: ${avatarBg}; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; flex-shrink: 0; overflow: hidden;">
+                    ${avatar}
+                </div>
+                <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 600; color: var(--apple-text); font-size: 15px;">
+                        ${member.name}
+                        ${member.member_type ? `<span style="font-weight: 400; color: var(--apple-text-secondary);"> ${member.member_type}</span>` : ''}
+                    </div>
+                    <div style="font-size: 13px; color: var(--apple-text-secondary);">
+                        ${member.relationship_detail || ''}
+                        ${member.age ? ` · ${member.age}세` : ''}
+                    </div>
+                </div>
+            </a>
+            <button onclick="deleteRelationship(${member.relationship_id})"
+                    style="position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border: none; background: transparent; color: #9ca3af; cursor: pointer; border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; transition: all 0.2s;"
+                    onmouseover="this.style.opacity='1'; this.style.color='#ef4444'"
+                    onmouseout="this.style.opacity='0.5'; this.style.color='#9ca3af'"
+                    title="관계 삭제">
+                <i class="bi bi-x-lg" style="font-size: 12px;"></i>
+            </button>
+        </div>
+    `;
+}
+
+// 가족 관계 삭제
+async function deleteRelationship(relationshipId) {
+    if (!confirm('이 가족 관계를 삭제하시겠습니까?')) return;
+
+    try {
+        const resp = await fetch(`/api/family-relationships/${relationshipId}`, {
+            method: 'DELETE'
+        });
+
+        if (resp.ok) {
+            loadFamilyRelationships();
+        } else {
+            const data = await resp.json();
+            alert(data.error || '삭제에 실패했습니다');
+        }
+    } catch (e) {
+        alert('오류가 발생했습니다: ' + e.message);
+    }
+}
+
+// 가족 관계 추가 모달
+function showAddFamilyModal() {
+    document.getElementById('addFamilyModal').style.display = 'flex';
+    document.getElementById('memberSearch').value = '';
+    document.getElementById('searchResults').innerHTML = '';
+}
+
+function hideAddFamilyModal() {
+    document.getElementById('addFamilyModal').style.display = 'none';
+}
+
+// 교인 검색
+let searchTimeout;
+function searchMembers(query) {
+    clearTimeout(searchTimeout);
+    if (query.length < 1) {
+        document.getElementById('searchResults').innerHTML = '';
+        return;
+    }
+
+    searchTimeout = setTimeout(async () => {
+        try {
+            const resp = await fetch(`/api/members?search=${encodeURIComponent(query)}&limit=10`);
+            const members = await resp.json();
+
+            const resultsHtml = members
+                .filter(m => m.id !== MEMBER_ID)
+                .map(m => `
+                    <div onclick="selectMember(${m.id}, '${m.name}', '${m.member_type || ''}')"
+                         style="padding: 12px 16px; cursor: pointer; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f3f4f6;"
+                         onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='white'">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; overflow: hidden;">
+                            ${m.photo_url ? `<img src="${m.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : m.name[0]}
+                        </div>
+                        <div>
+                            <div style="font-weight: 500;">${m.name} ${m.member_type || ''}</div>
+                            <div style="font-size: 12px; color: #9ca3af;">${m.phone || ''}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+            document.getElementById('searchResults').innerHTML = resultsHtml || '<div style="padding: 16px; color: #9ca3af; text-align: center;">검색 결과가 없습니다</div>';
+        } catch (e) {
+            console.error(e);
+        }
+    }, 300);
+}
+
+function selectMember(id, name, memberType) {
+    document.getElementById('selectedMemberId').value = id;
+    document.getElementById('memberSearch').value = `${name} ${memberType}`.trim();
+    document.getElementById('searchResults').innerHTML = '';
+}
+
+// 가족 관계 저장
+async function saveFamilyRelationship() {
+    const relatedMemberId = document.getElementById('selectedMemberId').value;
+    const relationshipType = document.getElementById('relationshipType').value;
+    const detail = document.getElementById('relationshipDetail').value;
+
+    if (!relatedMemberId) {
+        alert('가족 구성원을 선택하세요');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/members/${MEMBER_ID}/family`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                related_member_id: parseInt(relatedMemberId),
+                relationship_type: relationshipType,
+                detail: detail || null
+            })
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok) {
+            hideAddFamilyModal();
+            loadFamilyRelationships();
+        } else {
+            alert(data.error || '저장에 실패했습니다');
+        }
+    } catch (e) {
+        alert('오류가 발생했습니다: ' + e.message);
+    }
+}
+
+// 페이지 로드 시 가족 관계 로드
+document.addEventListener('DOMContentLoaded', loadFamilyRelationships);
+</script>
+
+<!-- 가족 관계 추가 모달 -->
+<div id="addFamilyModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 16px; padding: 28px; max-width: 440px; width: 90%; margin: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h3 style="font-size: 20px; font-weight: 600; margin: 0;">가족 관계 추가</h3>
+            <button onclick="hideAddFamilyModal()" style="border: none; background: none; font-size: 24px; color: #9ca3af; cursor: pointer; padding: 4px;">&times;</button>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px;">가족 구성원 검색</label>
+            <input type="text" id="memberSearch" placeholder="이름으로 검색..."
+                   oninput="searchMembers(this.value)"
+                   style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 15px; box-sizing: border-box;">
+            <input type="hidden" id="selectedMemberId">
+            <div id="searchResults" style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px; display: none;"
+                 onfocus="this.style.display='block'"></div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px;">관계 유형</label>
+            <select id="relationshipType" style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 15px; background: white;">
+                <option value="spouse">배우자</option>
+                <option value="parent">부모 (내가 이 사람의 부모)</option>
+                <option value="child">자녀 (내가 이 사람의 자녀)</option>
+                <option value="sibling">형제자매</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px;">상세 관계 (선택)</label>
+            <select id="relationshipDetail" style="width: 100%; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 15px; background: white;">
+                <option value="">선택하세요</option>
+                <optgroup label="배우자">
+                    <option value="남편">남편</option>
+                    <option value="아내">아내</option>
+                </optgroup>
+                <optgroup label="부모">
+                    <option value="아버지">아버지</option>
+                    <option value="어머니">어머니</option>
+                </optgroup>
+                <optgroup label="자녀">
+                    <option value="아들">아들</option>
+                    <option value="딸">딸</option>
+                </optgroup>
+                <optgroup label="형제자매">
+                    <option value="형">형</option>
+                    <option value="오빠">오빠</option>
+                    <option value="누나">누나</option>
+                    <option value="언니">언니</option>
+                    <option value="남동생">남동생</option>
+                    <option value="여동생">여동생</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button type="button" onclick="hideAddFamilyModal()" class="btn-cancel">취소</button>
+            <button type="button" onclick="saveFamilyRelationship()" class="btn-submit">
+                <i class="bi bi-plus-lg"></i> 추가
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// 검색 결과 표시/숨김
+document.getElementById('memberSearch').addEventListener('focus', function() {
+    const results = document.getElementById('searchResults');
+    if (results.innerHTML.trim()) {
+        results.style.display = 'block';
+    }
+});
+
+document.addEventListener('click', function(e) {
+    const results = document.getElementById('searchResults');
+    const search = document.getElementById('memberSearch');
+    if (!results.contains(e.target) && e.target !== search) {
+        results.style.display = 'none';
+    }
+});
+
+document.getElementById('memberSearch').addEventListener('input', function() {
+    document.getElementById('searchResults').style.display = 'block';
+});
+
+// 모달 바깥 클릭 시 닫기
+document.getElementById('addFamilyModal').addEventListener('click', function(e) {
+    if (e.target === this) hideAddFamilyModal();
 });
 </script>
 {% endblock %}
