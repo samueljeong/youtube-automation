@@ -4676,6 +4676,10 @@ def api_sync_god4u_to_registry():
             except:
                 pass
 
+        # 중간 커밋 (연결 유지)
+        db.session.commit()
+        app.logger.info(f"[가족관계] partner_id 기반 배우자 {family_results['created']}건 생성 완료")
+
         # 2. family_members (ran1)로 가족 관계 생성
         members_with_family = Member.query.filter(
             Member.family_members.isnot(None),
@@ -4683,13 +4687,13 @@ def api_sync_god4u_to_registry():
         ).all()
 
         app.logger.info(f"[가족관계] family_members가 있는 교인 수: {len(members_with_family)}")
+        import re
+        batch_count = 0
 
         for member in members_with_family:
             try:
                 # 공백 또는 쉼표로 구분된 이름들 파싱 (예: "남궁일곤,김혜숙2" 또는 "남궁일곤 김혜숙2")
-                import re
                 family_names = [n.strip() for n in re.split(r'[,\s]+', member.family_members) if n.strip()]
-                app.logger.info(f"[가족관계] {member.name}의 family_members: {family_names}")
 
                 for name in family_names:
                     name = name.strip()
@@ -4805,6 +4809,16 @@ def api_sync_god4u_to_registry():
                             family_results["skipped"] += 1
             except Exception as e:
                 app.logger.error(f"[가족관계] {member.name} 처리 중 오류: {str(e)}")
+
+            # 50명마다 중간 커밋 (연결 타임아웃 방지)
+            batch_count += 1
+            if batch_count % 50 == 0:
+                db.session.commit()
+                app.logger.info(f"[가족관계] ran1 처리 중간 커밋... ({batch_count}명 처리)")
+
+        # ran1 처리 완료 커밋
+        db.session.commit()
+        app.logger.info(f"[가족관계] ran1 처리 완료: {family_results['created']}건 생성")
 
         # 3. 같은 자녀를 둔 부모들을 배우자로 연결
         # 자녀(child role)인 모든 관계를 찾아서 부모들을 그룹화
