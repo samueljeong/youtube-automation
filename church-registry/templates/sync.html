@@ -80,12 +80,59 @@
 
         <div class="apple-alert success" style="background: #dbeafe; color: #1e40af; margin-bottom: 20px;">
             <i class="bi bi-shield-check"></i>
-            <strong>안전 모드:</strong> god4u 데이터는 변경되지 않습니다. 읽기만 합니다.
+            <strong>안전 모드:</strong> 기존 교인의 메모/상태는 유지됩니다. 이름/연락처/주소만 업데이트됩니다.
         </div>
 
-        <button onclick="syncFromGod4u()" class="btn-submit" style="font-size: 16px; padding: 16px 32px;">
-            <i class="bi bi-cloud-download"></i> god4u에서 가져오기
-        </button>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button onclick="previewSync()" class="apple-btn apple-btn-secondary" style="font-size: 15px; padding: 14px 28px;">
+                <i class="bi bi-eye"></i> 미리보기
+            </button>
+            <button onclick="syncFromGod4u()" class="btn-submit" style="font-size: 15px; padding: 14px 28px;">
+                <i class="bi bi-cloud-download"></i> 전체 동기화
+            </button>
+        </div>
+    </div>
+
+    <!-- 미리보기 결과 섹션 -->
+    <div class="form-section" id="previewCard" style="display: none; margin-bottom: 24px;">
+        <div class="form-section-title">
+            <i class="bi bi-list-check"></i>
+            변경 미리보기
+        </div>
+
+        <div id="previewSummary" style="margin-bottom: 20px; padding: 16px; background: #f8fafc; border-radius: 12px;">
+        </div>
+
+        <!-- 신규 교인 -->
+        <div id="newMembersSection" style="margin-bottom: 24px;">
+            <h4 style="margin-bottom: 12px; color: #16a34a;">
+                <i class="bi bi-person-plus"></i> 신규 교인 <span id="newCount" class="badge" style="background: #dcfce7; color: #16a34a;">0</span>
+            </h4>
+            <div id="newMembersList" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+
+        <!-- 변경된 교인 -->
+        <div id="changedMembersSection">
+            <h4 style="margin-bottom: 12px; color: #ea580c;">
+                <i class="bi bi-person-gear"></i> 변경된 교인 <span id="changedCount" class="badge" style="background: #ffedd5; color: #ea580c;">0</span>
+            </h4>
+            <div style="margin-bottom: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="selectAllChanged" onchange="toggleSelectAll(this)">
+                    <span style="font-size: 14px;">전체 선택</span>
+                </label>
+            </div>
+            <div id="changedMembersList" style="max-height: 400px; overflow-y: auto;"></div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 12px;">
+            <button onclick="syncSelected()" class="btn-submit" style="font-size: 15px; padding: 14px 28px;">
+                <i class="bi bi-check2-all"></i> 선택한 항목만 동기화
+            </button>
+            <button onclick="hidePreview()" class="apple-btn apple-btn-secondary">
+                취소
+            </button>
+        </div>
     </div>
 
     <!-- 진행 상황 -->
@@ -223,6 +270,147 @@ async function backupRegistry() {
     }
 }
 
+// 미리보기 데이터 저장
+let previewData = null;
+
+async function previewSync() {
+    const cookies = getCookies();
+    if (!cookies['ASP.NET_SessionId']) {
+        alert('god4u 쿠키를 먼저 입력하세요.');
+        return;
+    }
+
+    showProgress();
+    log('변경사항 미리보기 로딩 중...');
+    updateProgress(10);
+
+    try {
+        const resp = await fetch('/api/sync/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({cookies: cookies})
+        });
+
+        updateProgress(90);
+        const data = await resp.json();
+
+        if (resp.ok) {
+            updateProgress(100);
+            previewData = data;
+            showPreviewResults(data);
+            log('미리보기 완료!', 'success');
+        } else {
+            log('미리보기 실패: ' + data.error, 'error');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+
+function showPreviewResults(data) {
+    document.getElementById('previewCard').style.display = 'block';
+
+    // 요약
+    document.getElementById('previewSummary').innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; text-align: center;">
+            <div><div style="font-size: 24px; font-weight: 600; color: var(--apple-blue);">${data.summary.total_god4u}</div><div style="font-size: 13px; color: var(--apple-text-secondary);">god4u 전체</div></div>
+            <div><div style="font-size: 24px; font-weight: 600; color: #16a34a;">${data.summary.new_count}</div><div style="font-size: 13px; color: var(--apple-text-secondary);">신규</div></div>
+            <div><div style="font-size: 24px; font-weight: 600; color: #ea580c;">${data.summary.changed_count}</div><div style="font-size: 13px; color: var(--apple-text-secondary);">변경</div></div>
+        </div>
+    `;
+
+    // 신규 교인
+    document.getElementById('newCount').textContent = data.summary.new_count;
+    const newList = document.getElementById('newMembersList');
+    if (data.new_members.length === 0) {
+        newList.innerHTML = '<p style="color: var(--apple-text-secondary);">신규 교인 없음</p>';
+    } else {
+        newList.innerHTML = data.new_members.map(m => `
+            <div style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; display: flex; justify-content: space-between;">
+                <span><strong>${m.name}</strong></span>
+                <span style="color: var(--apple-text-secondary);">${m.phone || '-'}</span>
+            </div>
+        `).join('');
+    }
+
+    // 변경된 교인
+    document.getElementById('changedCount').textContent = data.summary.changed_count;
+    const changedList = document.getElementById('changedMembersList');
+    if (data.changed_members.length === 0) {
+        changedList.innerHTML = '<p style="color: var(--apple-text-secondary);">변경된 교인 없음</p>';
+        document.getElementById('changedMembersSection').style.display = 'none';
+    } else {
+        document.getElementById('changedMembersSection').style.display = 'block';
+        changedList.innerHTML = data.changed_members.map(m => `
+            <div style="padding: 12px; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 8px; background: #fff;">
+                <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                    <input type="checkbox" class="member-checkbox" value="${m.external_id}" style="margin-top: 4px;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">${m.name}</div>
+                        <div style="font-size: 13px; color: var(--apple-text-secondary);">
+                            ${m.changes.map(c => `<div>${c.field}: <span style="text-decoration: line-through; color: #dc2626;">${c.old || '(없음)'}</span> → <span style="color: #16a34a;">${c.new}</span></div>`).join('')}
+                        </div>
+                    </div>
+                </label>
+            </div>
+        `).join('');
+    }
+}
+
+function toggleSelectAll(checkbox) {
+    document.querySelectorAll('.member-checkbox').forEach(cb => {
+        cb.checked = checkbox.checked;
+    });
+}
+
+function hidePreview() {
+    document.getElementById('previewCard').style.display = 'none';
+    previewData = null;
+}
+
+async function syncSelected() {
+    const cookies = getCookies();
+    const selectedIds = Array.from(document.querySelectorAll('.member-checkbox:checked')).map(cb => cb.value);
+
+    if (selectedIds.length === 0 && previewData.summary.new_count === 0) {
+        alert('동기화할 항목을 선택하세요.');
+        return;
+    }
+
+    const msg = `신규 ${previewData.summary.new_count}명 + 선택한 ${selectedIds.length}명을 동기화합니다. 계속하시겠습니까?`;
+    if (!confirm(msg)) return;
+
+    showProgress();
+    log('선택한 항목 동기화 시작...');
+    updateProgress(10);
+
+    try {
+        const resp = await fetch('/api/sync/god4u-to-registry', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                cookies: cookies,
+                selected_ids: selectedIds.length > 0 ? selectedIds : null
+            })
+        });
+
+        updateProgress(90);
+        const data = await resp.json();
+
+        if (resp.ok) {
+            updateProgress(100);
+            log(`동기화 완료!`, 'success');
+            log(`- 신규 생성: ${data.results.created}명`, 'success');
+            log(`- 업데이트: ${data.results.updated}명`, 'success');
+            hidePreview();
+        } else {
+            log('동기화 실패: ' + data.error, 'error');
+        }
+    } catch (e) {
+        log('오류: ' + e.message, 'error');
+    }
+}
+
 async function syncFromGod4u() {
     const cookies = getCookies();
     if (!cookies['ASP.NET_SessionId']) {
@@ -230,7 +418,7 @@ async function syncFromGod4u() {
         return;
     }
 
-    if (!confirm('god4u 데이터를 church-registry로 가져옵니다. 계속하시겠습니까?')) {
+    if (!confirm('god4u 데이터 전체를 동기화합니다. 계속하시겠습니까?\n\n* 신규 교인: 전체 데이터 가져오기\n* 기존 교인: 이름/연락처/주소만 업데이트 (메모/상태 유지)')) {
         return;
     }
 
@@ -254,6 +442,9 @@ async function syncFromGod4u() {
             log(`- 신규 생성: ${data.results.created}명`, 'success');
             log(`- 업데이트: ${data.results.updated}명`, 'success');
             log(`- 실패: ${data.results.failed}명`, data.results.failed > 0 ? 'error' : 'info');
+            if (data.warning) {
+                log(`⚠️ ${data.warning}`, 'error');
+            }
         } else {
             log('동기화 실패: ' + data.error, 'error');
         }
