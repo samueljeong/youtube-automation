@@ -4768,6 +4768,22 @@ def run_migrations():
             print('[Migration] Added external_id column to members table')
             db.session.commit()
 
+        # car_number 컬럼 추가 (차량번호)
+        if 'car_number' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE members ADD COLUMN car_number VARCHAR(20)'
+            ))
+            print('[Migration] Added car_number column to members table')
+            db.session.commit()
+
+        # family_members 컬럼 추가 (가족 정보 텍스트)
+        if 'family_members' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE members ADD COLUMN family_members VARCHAR(200)'
+            ))
+            print('[Migration] Added family_members column to members table')
+            db.session.commit()
+
     # groups 테이블 마이그레이션
     if 'groups' in inspector.get_table_names():
         columns = [col['name'] for col in inspector.get_columns('groups')]
