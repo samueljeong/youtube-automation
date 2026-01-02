@@ -117,6 +117,9 @@ class Member(db.Model):
     # 사진
     photo_url = db.Column(db.String(500))  # 프로필 사진 URL
 
+    # 외부 시스템 연동
+    external_id = db.Column(db.String(50))  # 외부 시스템 ID (god4u 교적번호 등)
+
     created_at = db.Column(db.DateTime, default=get_seoul_now)
     updated_at = db.Column(db.DateTime, default=get_seoul_now, onupdate=get_seoul_now)
 
@@ -2436,6 +2439,265 @@ def seed_groups():
 
 
 # =============================================================================
+# REST API (외부 연동용)
+# =============================================================================
+
+@app.route('/api/members', methods=['GET'])
+def api_list_members():
+    """교인 목록 조회 API"""
+    members = Member.query.all()
+    return jsonify({
+        "members": [_member_to_dict(m) for m in members],
+        "total": len(members)
+    })
+
+
+@app.route('/api/members', methods=['POST'])
+def api_create_member():
+    """교인 등록 API (JSON)"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON 데이터가 필요합니다"}), 400
+
+    if not data.get('name'):
+        return jsonify({"error": "이름은 필수입니다"}), 400
+
+    # 외부 ID 중복 체크
+    if data.get('external_id'):
+        existing = Member.query.filter_by(external_id=data['external_id']).first()
+        if existing:
+            return jsonify({
+                "error": "이미 등록된 외부 ID입니다",
+                "existing_id": existing.id
+            }), 409
+
+    member = Member(
+        name=data.get('name'),
+        phone=data.get('phone'),
+        email=data.get('email'),
+        address=data.get('address'),
+        birth_date=_parse_date(data.get('birth_date')),
+        gender=data.get('gender'),
+        baptism_date=_parse_date(data.get('baptism_date')),
+        registration_date=_parse_date(data.get('registration_date')) or get_seoul_today(),
+        member_type=data.get('position') or data.get('member_type'),
+        status=data.get('status', 'active'),
+        notes=data.get('notes'),
+        external_id=data.get('external_id'),
+        photo_url=data.get('photo_url'),
+    )
+
+    db.session.add(member)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "교인이 등록되었습니다",
+        "member": _member_to_dict(member)
+    }), 201
+
+
+@app.route('/api/members/<int:member_id>', methods=['GET'])
+def api_get_member(member_id):
+    """교인 상세 조회 API"""
+    member = Member.query.get_or_404(member_id)
+    return jsonify(_member_to_dict(member))
+
+
+@app.route('/api/members/<int:member_id>', methods=['PUT'])
+def api_update_member(member_id):
+    """교인 수정 API (JSON)"""
+    member = Member.query.get_or_404(member_id)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON 데이터가 필요합니다"}), 400
+
+    # 업데이트 가능한 필드들
+    if 'name' in data:
+        member.name = data['name']
+    if 'phone' in data:
+        member.phone = data['phone']
+    if 'email' in data:
+        member.email = data['email']
+    if 'address' in data:
+        member.address = data['address']
+    if 'birth_date' in data:
+        member.birth_date = _parse_date(data['birth_date'])
+    if 'gender' in data:
+        member.gender = data['gender']
+    if 'baptism_date' in data:
+        member.baptism_date = _parse_date(data['baptism_date'])
+    if 'registration_date' in data:
+        member.registration_date = _parse_date(data['registration_date'])
+    if 'position' in data or 'member_type' in data:
+        member.member_type = data.get('position') or data.get('member_type')
+    if 'status' in data:
+        member.status = data['status']
+    if 'notes' in data:
+        member.notes = data['notes']
+    if 'external_id' in data:
+        member.external_id = data['external_id']
+    if 'photo_url' in data:
+        member.photo_url = data['photo_url']
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "교인 정보가 수정되었습니다",
+        "member": _member_to_dict(member)
+    })
+
+
+@app.route('/api/members/by-external-id/<external_id>', methods=['GET'])
+def api_get_member_by_external_id(external_id):
+    """외부 ID로 교인 조회 API"""
+    member = Member.query.filter_by(external_id=external_id).first()
+    if not member:
+        return jsonify({"error": "교인을 찾을 수 없습니다"}), 404
+    return jsonify(_member_to_dict(member))
+
+
+@app.route('/api/members/<int:member_id>/photo', methods=['POST'])
+def api_upload_member_photo(member_id):
+    """교인 사진 업로드 API (base64)"""
+    member = Member.query.get_or_404(member_id)
+    data = request.get_json()
+
+    if not data or not data.get('photo'):
+        return jsonify({"error": "photo (base64) 데이터가 필요합니다"}), 400
+
+    try:
+        photo_base64 = data['photo']
+
+        # Cloudinary 사용 가능하면 업로드
+        if cloudinary_configured:
+            result = cloudinary.uploader.upload(
+                f"data:image/jpeg;base64,{photo_base64}",
+                folder="church-registry/members",
+                public_id=f"member_{member_id}"
+            )
+            photo_url = result['secure_url']
+        else:
+            # 로컬 저장
+            import base64 as b64
+            photo_data = b64.b64decode(photo_base64)
+            filename = f"member_{member_id}.jpg"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            with open(filepath, 'wb') as f:
+                f.write(photo_data)
+            photo_url = f"/static/uploads/{filename}"
+
+        member.photo_url = photo_url
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "photo_url": photo_url
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"사진 업로드 실패: {str(e)}"}), 500
+
+
+@app.route('/api/members/bulk', methods=['POST'])
+def api_bulk_create_members():
+    """교인 일괄 등록 API"""
+    data = request.get_json()
+    if not data or not data.get('members'):
+        return jsonify({"error": "members 배열이 필요합니다"}), 400
+
+    results = {"created": 0, "updated": 0, "failed": 0, "errors": []}
+
+    for member_data in data['members']:
+        try:
+            external_id = member_data.get('external_id')
+
+            # 기존 회원 확인
+            existing = None
+            if external_id:
+                existing = Member.query.filter_by(external_id=external_id).first()
+
+            if existing:
+                # 업데이트
+                for key, value in member_data.items():
+                    if key in ['birth_date', 'baptism_date', 'registration_date']:
+                        value = _parse_date(value)
+                    if hasattr(existing, key) and value:
+                        setattr(existing, key, value)
+                results["updated"] += 1
+            else:
+                # 새로 생성
+                member = Member(
+                    name=member_data.get('name'),
+                    phone=member_data.get('phone'),
+                    email=member_data.get('email'),
+                    address=member_data.get('address'),
+                    birth_date=_parse_date(member_data.get('birth_date')),
+                    gender=member_data.get('gender'),
+                    registration_date=_parse_date(member_data.get('registration_date')) or get_seoul_today(),
+                    member_type=member_data.get('position') or member_data.get('member_type'),
+                    status=member_data.get('status', 'active'),
+                    notes=member_data.get('notes'),
+                    external_id=member_data.get('external_id'),
+                )
+                db.session.add(member)
+                results["created"] += 1
+
+        except Exception as e:
+            results["failed"] += 1
+            results["errors"].append(f"{member_data.get('name', 'Unknown')}: {str(e)}")
+
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "results": results
+    })
+
+
+def _member_to_dict(member):
+    """Member 객체를 딕셔너리로 변환"""
+    return {
+        "id": member.id,
+        "name": member.name,
+        "phone": member.phone,
+        "email": member.email,
+        "address": member.address,
+        "birth_date": member.birth_date.isoformat() if member.birth_date else None,
+        "gender": member.gender,
+        "age": member.age,
+        "baptism_date": member.baptism_date.isoformat() if member.baptism_date else None,
+        "registration_date": member.registration_date.isoformat() if member.registration_date else None,
+        "member_type": member.member_type,
+        "status": member.status,
+        "notes": member.notes,
+        "external_id": member.external_id,
+        "photo_url": member.photo_url,
+        "created_at": member.created_at.isoformat() if member.created_at else None,
+        "updated_at": member.updated_at.isoformat() if member.updated_at else None,
+    }
+
+
+def _parse_date(date_str):
+    """날짜 문자열을 date 객체로 변환"""
+    if not date_str:
+        return None
+    if isinstance(date_str, date):
+        return date_str
+    try:
+        # 여러 형식 시도
+        for fmt in ['%Y-%m-%d', '%Y/%m/%d', '%Y.%m.%d']:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        return None
+    except:
+        return None
+
+
+# =============================================================================
 # 데이터베이스 초기화 및 마이그레이션
 # =============================================================================
 
@@ -2444,6 +2706,18 @@ def run_migrations():
     from sqlalchemy import text, inspect
 
     inspector = inspect(db.engine)
+
+    # members 테이블 마이그레이션
+    if 'members' in inspector.get_table_names():
+        columns = [col['name'] for col in inspector.get_columns('members')]
+
+        # external_id 컬럼 추가 (god4u 등 외부 시스템 연동용)
+        if 'external_id' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE members ADD COLUMN external_id VARCHAR(50)'
+            ))
+            print('[Migration] Added external_id column to members table')
+            db.session.commit()
 
     # groups 테이블 마이그레이션
     if 'groups' in inspector.get_table_names():
