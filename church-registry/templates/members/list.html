@@ -27,21 +27,36 @@
             </div>
 
             <!-- 1단계 카테고리 -->
-            <select class="form-select" name="cat1" id="cat1Select" style="width: auto; min-width: 140px;" onchange="onCat1Change()">
+            <select class="form-select" name="cat1" id="cat1Select" style="width: auto; min-width: 130px;" onchange="onCat1Change()">
                 <option value="">전체 교인</option>
                 <option value="district" {{ 'selected' if cat1 == 'district' else '' }}>교구별</option>
                 <option value="position" {{ 'selected' if cat1 == 'position' else '' }}>직분별</option>
                 <option value="reg_status" {{ 'selected' if cat1 == 'reg_status' else '' }}>등록상태</option>
                 <option value="attendance" {{ 'selected' if cat1 == 'attendance' else '' }}>출석상태</option>
                 <option value="mission" {{ 'selected' if cat1 == 'mission' else '' }}>선교회별</option>
-                <option value="cell" {{ 'selected' if cat1 == 'cell' else '' }}>속회별</option>
             </select>
 
             <!-- 2단계 카테고리 -->
-            <select class="form-select" name="cat2" id="cat2Select" style="width: auto; min-width: 140px; {% if not cat1 %}display: none;{% endif %}">
+            <select class="form-select" name="cat2" id="cat2Select" style="width: auto; min-width: 120px; {% if not cat1 %}display: none;{% endif %}" onchange="onCat2Change()">
                 <option value="">전체</option>
                 {% for key, value in cat2_options.items() %}
                 <option value="{{ key }}" {{ 'selected' if cat2 == key else '' }}>{{ value }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- 3단계 카테고리 (교구별에서 구역) -->
+            <select class="form-select" name="cat3" id="cat3Select" style="width: auto; min-width: 120px; {% if not cat3_options %}display: none;{% endif %}" onchange="onCat3Change()">
+                <option value="">전체 구역</option>
+                {% for key, value in cat3_options.items() %}
+                <option value="{{ key }}" {{ 'selected' if cat3 == key else '' }}>{{ value }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- 4단계 카테고리 (교구별에서 속회) -->
+            <select class="form-select" name="cat4" id="cat4Select" style="width: auto; min-width: 120px; {% if not cat4_options %}display: none;{% endif %}" onchange="document.getElementById('filterForm').submit()">
+                <option value="">전체 속회</option>
+                {% for key, value in cat4_options.items() %}
+                <option value="{{ key }}" {{ 'selected' if cat4 == key else '' }}>{{ value }}</option>
                 {% endfor %}
             </select>
 
@@ -68,9 +83,14 @@
         {% if cat1 == 'reg_status' %}등록상태{% endif %}
         {% if cat1 == 'attendance' %}출석상태{% endif %}
         {% if cat1 == 'mission' %}선교회별{% endif %}
-        {% if cat1 == 'cell' %}속회별{% endif %}
         {% if cat2 and cat2_options %}
          › <strong>{{ cat2_options.get(cat2, cat2) }}</strong>
+        {% endif %}
+        {% if cat3 and cat3_options %}
+         › <strong>{{ cat3_options.get(cat3, cat3) }}</strong>
+        {% endif %}
+        {% if cat4 and cat4_options %}
+         › <strong>{{ cat4_options.get(cat4, cat4) }}</strong>
         {% endif %}
          · <strong>{{ members|length }}명</strong>
     </div>
@@ -149,17 +169,38 @@
 function onCat1Change() {
     const cat1 = document.getElementById('cat1Select').value;
     const cat2Select = document.getElementById('cat2Select');
+    const cat3Select = document.getElementById('cat3Select');
+    const cat4Select = document.getElementById('cat4Select');
+
+    // 2, 3, 4단계 초기화
+    cat2Select.value = '';
+    cat3Select.style.display = 'none';
+    cat3Select.value = '';
+    cat4Select.style.display = 'none';
+    cat4Select.value = '';
 
     if (!cat1) {
         cat2Select.style.display = 'none';
-        cat2Select.value = '';
+        document.getElementById('filterForm').submit();
         return;
     }
 
-    // 2단계 옵션 데이터
+    // 2단계 옵션 설정
     const cat2Data = {
-        'district': {{ district_options | default({}) | tojson | safe }},
-        'position': {{ position_options | default({}) | tojson | safe }},
+        'district': {
+            '1교구': '1교구',
+            '2교구': '2교구',
+            '3교구': '3교구',
+            '교회학교': '교회학교',
+            '미등록': '미등록'
+        },
+        'position': {
+            '장로': '장로',
+            '권사': '권사',
+            '집사': '집사',
+            '성도': '성도',
+            '교회학교': '교회학교'
+        },
         'reg_status': {
             'active_member': '현재 교인',
             'deceased': '별세',
@@ -170,8 +211,7 @@ function onCat1Change() {
             'inactive': '비활동',
             'newcomer': '새신자'
         },
-        'mission': {{ mission_options | default({}) | tojson | safe }},
-        'cell': {{ cell_options | default({}) | tojson | safe }}
+        'mission': {{ mission_options | default({}) | tojson | safe }}
     };
 
     const options = cat2Data[cat1] || {};
@@ -188,11 +228,49 @@ function onCat1Change() {
     cat2Select.style.display = 'block';
 }
 
-// 2단계 변경 시 자동 제출
-document.getElementById('cat2Select').addEventListener('change', function() {
-    if (this.value) {
+// 2단계 카테고리 변경 시
+function onCat2Change() {
+    const cat1 = document.getElementById('cat1Select').value;
+    const cat2 = document.getElementById('cat2Select').value;
+    const cat3Select = document.getElementById('cat3Select');
+    const cat4Select = document.getElementById('cat4Select');
+
+    // 3, 4단계 초기화
+    cat3Select.style.display = 'none';
+    cat3Select.value = '';
+    cat4Select.style.display = 'none';
+    cat4Select.value = '';
+
+    // 교구별인 경우에만 3단계 표시 (미등록, 교회학교 제외)
+    if (cat1 === 'district' && cat2 && cat2 !== '미등록' && cat2 !== '교회학교') {
+        // 서버에서 구역 목록 가져오기
+        document.getElementById('filterForm').submit();
+    } else if (cat2) {
         document.getElementById('filterForm').submit();
     }
-});
+}
+
+// 3단계 카테고리 변경 시
+function onCat3Change() {
+    const cat3 = document.getElementById('cat3Select').value;
+    const cat4Select = document.getElementById('cat4Select');
+
+    cat4Select.style.display = 'none';
+    cat4Select.value = '';
+
+    if (cat3) {
+        // 서버에서 속회 목록 가져오기
+        document.getElementById('filterForm').submit();
+    }
+}
 </script>
+
+<style>
+/* 선교회 옵션 동적 로드를 위한 임시 데이터 */
+{% if cat1 == 'mission' %}
+<script>
+window.missionOptions = {{ cat2_options | tojson | safe }};
+</script>
+{% endif %}
+</style>
 {% endblock %}
