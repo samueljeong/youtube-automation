@@ -3021,6 +3021,8 @@ def migrate_db():
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS member_status VARCHAR(30)",  # god4u state (재적, 별세, 타교회 등)
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS deceased_date DATE",  # 별세일자
         "ALTER TABLE members ADD COLUMN IF NOT EXISTS transferred_date DATE",  # 타교회 이적일자
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS car_number VARCHAR(20)",  # 차량번호
+        "ALTER TABLE members ADD COLUMN IF NOT EXISTS family_members VARCHAR(200)",  # 가족 정보 (텍스트)
 
         # Group 테이블 새 컬럼들 (계층 구조)
         "ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES groups(id)",
