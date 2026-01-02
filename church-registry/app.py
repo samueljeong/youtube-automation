@@ -2790,6 +2790,7 @@ def api_sync_god4u_to_registry():
 
     data = request.get_json() or {}
     cookies = data.get('cookies', {})
+    test_only = data.get('test_only', False)
 
     if not cookies.get('ASP.NET_SessionId') or not cookies.get('pastorinfo'):
         return jsonify({"error": "god4u 쿠키가 필요합니다 (ASP.NET_SessionId, pastorinfo)"}), 400
@@ -2797,8 +2798,6 @@ def api_sync_god4u_to_registry():
     try:
         session = requests.Session()
         session.cookies.update(cookies)
-
-        results = {"created": 0, "updated": 0, "failed": 0, "total": 0}
 
         # 첫 페이지로 전체 개수 확인
         headers = {
@@ -2808,6 +2807,30 @@ def api_sync_god4u_to_registry():
             "Origin": GOD4U_BASE_URL,
             "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/RangeList.cshtml",
         }
+
+        # 연결 테스트 모드: 첫 페이지만 조회하여 연결 확인
+        payload = _create_god4u_payload(page=1, page_size=10)
+        response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=30)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"god4u API 오류: {response.status_code}"}), 500
+
+        test_data = response.json()
+        if "d" in test_data:
+            test_data = json.loads(test_data["d"])
+
+        total_count = int(test_data.get("totalcount", 0))
+
+        # test_only 모드면 여기서 성공 반환
+        if test_only:
+            return jsonify({
+                "success": True,
+                "message": f"연결 성공! 총 {total_count}명의 교인 데이터가 있습니다.",
+                "total_count": total_count
+            })
+
+        # 전체 동기화: 첫 페이지를 100개로 다시 조회
+        results = {"created": 0, "updated": 0, "failed": 0, "total": total_count}
 
         payload = _create_god4u_payload(page=1, page_size=100)
         response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
@@ -2819,9 +2842,7 @@ def api_sync_god4u_to_registry():
         if "d" in data:
             data = json.loads(data["d"])
 
-        total_count = int(data.get("totalcount", 0))
         total_pages = int(data.get("totalpage", 1))
-        results["total"] = total_count
 
         # 모든 페이지 크롤링 및 동기화
         all_persons = data.get("personInfo", [])
