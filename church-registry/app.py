@@ -3759,6 +3759,21 @@ def api_delete_family_relationship(relationship_id):
         return jsonify({"error": f"관계 삭제 실패: {str(e)}"}), 500
 
 
+@app.route('/api/family-relationships/reset', methods=['POST'])
+def api_reset_family_relationships():
+    """모든 가족 관계 삭제 (재생성 전 초기화용)"""
+    try:
+        count = FamilyRelationship.query.delete()
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"가족 관계 {count}건 삭제 완료. god4u 동기화를 다시 실행하세요."
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"삭제 실패: {str(e)}"}), 500
+
+
 @app.route('/api/families', methods=['GET'])
 def api_get_families():
     """대가족 목록 조회"""
