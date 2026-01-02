@@ -3359,6 +3359,12 @@ def api_natural_search_members():
 
         search_criteria = json.loads(result_text)
 
+        # DB 세션 리프레시 (GPT API 호출 중 SSL 연결이 끊어질 수 있음)
+        try:
+            db.session.remove()  # 세션 완전 제거 후 새 연결 획득
+        except Exception:
+            pass
+
         # 검색 실행
         members = _execute_natural_search(search_criteria)
 
