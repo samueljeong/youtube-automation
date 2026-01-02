@@ -847,7 +847,11 @@ def member_list():
         if not query:
             members_query = members_query.filter(Member.status.notin_(['deceased', 'transferred']))
 
-    members = members_query.order_by(Member.name).all()
+    # 검색어나 필터가 있을 때만 결과 조회 (버퍼링 방지)
+    if query or cat1:
+        members = members_query.order_by(Member.name).all()
+    else:
+        members = []  # 검색 전에는 빈 목록
 
     # 2단계 옵션 데이터 수집
     cat2_options = {}
@@ -3215,6 +3219,282 @@ def api_create_member():
         "message": "교인이 등록되었습니다",
         "member": _member_to_dict(member)
     }), 201
+
+
+@app.route('/api/members/natural-search', methods=['POST'])
+def api_natural_search_members():
+    """
+    자연어 검색 API (GPT-5.1 사용)
+
+    예시 쿼리:
+    - "2025년에 등록한 남자 성도"
+    - "1985년생 남자"
+    - "홍길동 가족 전부"
+    - "차량번호 12가 1234"
+    - "의정부 거주하는 권사님"
+    - "3교구 집사"
+    - "010-1234로 시작하는 번호"
+    """
+    data = request.get_json() or {}
+    query_text = data.get('query', '').strip()
+
+    if not query_text:
+        return jsonify({"error": "검색어(query)가 필요합니다"}), 400
+
+    if not openai_client:
+        return jsonify({"error": "OpenAI API 키가 설정되지 않았습니다"}), 500
+
+    # GPT-5.1에 전달할 시스템 프롬프트 (교인 DB 스키마 설명)
+    system_prompt = """당신은 교회 교인 데이터베이스 검색 도우미입니다.
+사용자의 자연어 검색 요청을 분석하여 JSON 형식의 검색 조건으로 변환해주세요.
+
+## 교인 데이터베이스 필드:
+- name: 이름 (문자열)
+- phone: 전화번호 (010-xxxx-xxxx 형식)
+- address: 주소 (문자열)
+- birth_date: 생년월일 (YYYY-MM-DD)
+- birth_year: 출생연도 (정수, birth_date에서 추출)
+- gender: 성별 ("남" 또는 "여")
+- registration_date: 등록일 (YYYY-MM-DD)
+- registration_year: 등록연도 (정수)
+- member_type: 직분 (장로, 권사, 집사, 성도, 전도사 등)
+- position_detail: 상세 직분 (시무장로, 은퇴권사 등)
+- district: 교구 ("1교구[2025]", "2교구[2025]" 등)
+- section: 구역 ("1구역", "2구역" 등)
+- cell_group: 속회 (문자열)
+- age_group: 연령대 (장년, 청년, 교회학교 등)
+- attendance_status: 출석상태 (예배출석, 장기결석 등)
+- car_number: 차량번호 ("12가 1234" 형식)
+- occupation: 직업
+- family_members: 가족 이름들 (공백/쉼표로 구분된 문자열)
+- notes: 메모
+
+## 출력 JSON 형식:
+{
+  "filters": [
+    {"field": "필드명", "operator": "연산자", "value": "값"}
+  ],
+  "family_search": "가족검색할 이름" (선택사항),
+  "limit": 결과수 (선택사항, 기본 50),
+  "explanation": "검색 조건 설명"
+}
+
+## 연산자 종류:
+- "eq": 정확히 일치
+- "contains": 포함 (부분 일치)
+- "starts_with": ~로 시작
+- "gt": 보다 큼
+- "gte": 이상
+- "lt": 보다 작음
+- "lte": 이하
+- "year_eq": 연도 일치 (날짜 필드용)
+- "in": 여러 값 중 하나 (value는 배열)
+
+## 예시:
+입력: "2025년에 등록한 남자 성도"
+출력: {
+  "filters": [
+    {"field": "registration_year", "operator": "eq", "value": 2025},
+    {"field": "gender", "operator": "eq", "value": "남"},
+    {"field": "member_type", "operator": "eq", "value": "성도"}
+  ],
+  "explanation": "2025년에 등록한 남성 성도를 검색합니다"
+}
+
+입력: "1985년생 남자"
+출력: {
+  "filters": [
+    {"field": "birth_year", "operator": "eq", "value": 1985},
+    {"field": "gender", "operator": "eq", "value": "남"}
+  ],
+  "explanation": "1985년에 태어난 남성을 검색합니다"
+}
+
+입력: "홍길동 가족 전부"
+출력: {
+  "family_search": "홍길동",
+  "explanation": "홍길동의 가족 구성원 전체를 검색합니다"
+}
+
+입력: "의정부 사는 권사님"
+출력: {
+  "filters": [
+    {"field": "address", "operator": "contains", "value": "의정부"},
+    {"field": "member_type", "operator": "eq", "value": "권사"}
+  ],
+  "explanation": "의정부에 거주하는 권사님을 검색합니다"
+}
+
+반드시 유효한 JSON만 출력하세요. 다른 텍스트 없이 JSON만 출력합니다."""
+
+    try:
+        # GPT-5.1 Responses API 호출
+        response = openai_client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": query_text}]}
+            ],
+            temperature=0.3
+        )
+
+        # 응답 텍스트 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱
+        import json
+        # JSON 블록 추출 (마크다운 코드 블록 처리)
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        search_criteria = json.loads(result_text)
+
+        # 검색 실행
+        members = _execute_natural_search(search_criteria)
+
+        return jsonify({
+            "success": True,
+            "query": query_text,
+            "criteria": search_criteria,
+            "count": len(members),
+            "members": [_member_to_dict(m) for m in members]
+        })
+
+    except json.JSONDecodeError as e:
+        app.logger.error(f"[자연어검색] JSON 파싱 실패: {result_text}")
+        return jsonify({
+            "error": "검색 조건 해석에 실패했습니다",
+            "detail": str(e),
+            "raw_response": result_text
+        }), 500
+    except Exception as e:
+        app.logger.error(f"[자연어검색] 오류: {str(e)}")
+        return jsonify({"error": f"검색 실패: {str(e)}"}), 500
+
+
+def _execute_natural_search(criteria: dict) -> list:
+    """GPT가 파싱한 검색 조건으로 실제 DB 검색 수행"""
+    from sqlalchemy import extract, func
+
+    query = Member.query
+
+    # 가족 검색 모드
+    if criteria.get("family_search"):
+        family_name = criteria["family_search"]
+        # 1. 해당 이름의 교인 찾기
+        target_member = Member.query.filter(Member.name.ilike(f'%{family_name}%')).first()
+        if target_member:
+            # 2. 가족 관계로 연결된 모든 교인 찾기
+            family_ids = {target_member.id}
+
+            # FamilyRelationship에서 연결된 모든 교인 ID 수집
+            rels = FamilyRelationship.query.filter(
+                db.or_(
+                    FamilyRelationship.member_id == target_member.id,
+                    FamilyRelationship.related_member_id == target_member.id
+                )
+            ).all()
+
+            for rel in rels:
+                family_ids.add(rel.member_id)
+                family_ids.add(rel.related_member_id)
+
+            # 3. family_members 필드에서도 검색
+            members_with_family = Member.query.filter(
+                Member.family_members.ilike(f'%{family_name}%')
+            ).all()
+            for m in members_with_family:
+                family_ids.add(m.id)
+
+            return Member.query.filter(Member.id.in_(family_ids)).order_by(Member.name).all()
+        else:
+            # 이름으로 못 찾으면 family_members 필드에서 검색
+            return Member.query.filter(
+                Member.family_members.ilike(f'%{family_name}%')
+            ).order_by(Member.name).all()
+
+    # 필터 적용
+    filters = criteria.get("filters", [])
+    for f in filters:
+        field = f.get("field")
+        operator = f.get("operator")
+        value = f.get("value")
+
+        if not field or not operator:
+            continue
+
+        # 특수 필드 처리
+        if field == "birth_year":
+            if operator == "eq":
+                query = query.filter(extract('year', Member.birth_date) == value)
+            elif operator == "gte":
+                query = query.filter(extract('year', Member.birth_date) >= value)
+            elif operator == "lte":
+                query = query.filter(extract('year', Member.birth_date) <= value)
+            continue
+
+        if field == "registration_year":
+            if operator == "eq":
+                query = query.filter(extract('year', Member.registration_date) == value)
+            elif operator == "gte":
+                query = query.filter(extract('year', Member.registration_date) >= value)
+            elif operator == "lte":
+                query = query.filter(extract('year', Member.registration_date) <= value)
+            continue
+
+        if field == "age":
+            # 나이로 검색 (현재 날짜 기준)
+            today = get_seoul_today()
+            if operator == "eq":
+                birth_year = today.year - value
+                query = query.filter(extract('year', Member.birth_date) == birth_year)
+            elif operator == "gte":
+                birth_year = today.year - value
+                query = query.filter(extract('year', Member.birth_date) <= birth_year)
+            elif operator == "lte":
+                birth_year = today.year - value
+                query = query.filter(extract('year', Member.birth_date) >= birth_year)
+            continue
+
+        # 일반 필드
+        column = getattr(Member, field, None)
+        if column is None:
+            continue
+
+        if operator == "eq":
+            query = query.filter(column == value)
+        elif operator == "contains":
+            query = query.filter(column.ilike(f'%{value}%'))
+        elif operator == "starts_with":
+            query = query.filter(column.ilike(f'{value}%'))
+        elif operator == "gt":
+            query = query.filter(column > value)
+        elif operator == "gte":
+            query = query.filter(column >= value)
+        elif operator == "lt":
+            query = query.filter(column < value)
+        elif operator == "lte":
+            query = query.filter(column <= value)
+        elif operator == "in" and isinstance(value, list):
+            query = query.filter(column.in_(value))
+        elif operator == "year_eq":
+            query = query.filter(extract('year', column) == value)
+
+    # 결과 제한
+    limit = criteria.get("limit", 50)
+    query = query.order_by(Member.name).limit(limit)
+
+    return query.all()
 
 
 @app.route('/api/members/<int:member_id>', methods=['GET'])

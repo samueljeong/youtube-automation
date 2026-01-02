@@ -9,19 +9,39 @@
         <div>
             <h1 class="page-title">
                 <i class="bi bi-people-fill"></i>
-                교인 목록
+                교인 검색
             </h1>
-            <p class="page-subtitle">총 {{ members|length }}명의 교인이 등록되어 있습니다</p>
+            <p class="page-subtitle">자연어로 검색하거나 필터를 사용하세요</p>
         </div>
         <a href="{{ url_for('member_new') }}" class="btn-submit">
             <i class="bi bi-plus-lg"></i> 새 교인 등록
         </a>
     </div>
 
-    <!-- 검색 및 필터 -->
+    <!-- 자연어 검색 (AI) -->
+    <div class="form-section" style="margin-bottom: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 20px;">
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div style="flex: 1; position: relative;">
+                <input type="text" id="aiSearchInput" placeholder="예: 2025년 등록한 남자 성도, 1985년생, 홍길동 가족, 의정부 권사님, 차량번호 12가..."
+                       style="width: 100%; padding: 14px 16px 14px 44px; border: none; border-radius: 12px; font-size: 15px; background: rgba(255,255,255,0.95); box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <i class="bi bi-stars" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #667eea; font-size: 18px;"></i>
+            </div>
+            <button type="button" onclick="performAISearch()" class="apple-btn" style="background: white; color: #667eea; font-weight: 600; padding: 14px 24px; border-radius: 12px;">
+                <i class="bi bi-search"></i> AI 검색
+            </button>
+        </div>
+        <div id="aiSearchStatus" style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 8px; display: none;">
+            <i class="bi bi-hourglass-split"></i> 검색 중...
+        </div>
+    </div>
+
+    <!-- 기존 필터 검색 -->
     <div class="form-section" style="margin-bottom: 24px;">
+        <div style="font-size: 13px; color: var(--apple-text-secondary); margin-bottom: 10px;">
+            <i class="bi bi-funnel"></i> 또는 필터로 검색
+        </div>
         <form method="GET" id="filterForm" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
-            <div class="search-bar" style="flex: 1; min-width: 200px; max-width: none;">
+            <div class="search-bar" style="flex: 1; min-width: 200px; max-width: 300px;">
                 <i class="bi bi-search"></i>
                 <input type="text" name="q" placeholder="이름으로 검색..." value="{{ query }}">
             </div>
@@ -138,30 +158,49 @@
         {% endfor %}
     </div>
     {% else %}
-    <!-- 빈 상태 -->
+    <!-- 빈 상태 / 검색 안내 -->
     <div class="form-section">
         <div class="empty-state">
-            <i class="bi bi-people"></i>
-            <h3>
-                {% if query or cat1 %}
-                검색 결과가 없습니다
-                {% else %}
-                등록된 교인이 없습니다
-                {% endif %}
-            </h3>
-            <p>
-                {% if query or cat1 %}
-                다른 검색어나 필터를 시도해보세요
-                {% else %}
-                첫 번째 교인을 등록해보세요
-                {% endif %}
+            {% if query or cat1 %}
+            <i class="bi bi-search"></i>
+            <h3>검색 결과가 없습니다</h3>
+            <p>다른 검색어나 필터를 시도해보세요</p>
+            {% else %}
+            <i class="bi bi-search" style="font-size: 64px; color: #667eea;"></i>
+            <h3>교인을 검색해주세요</h3>
+            <p style="color: var(--apple-text-secondary); max-width: 400px; margin: 0 auto;">
+                위 검색창에서 자연어로 검색하거나<br>필터를 사용해서 원하는 교인을 찾으세요
             </p>
-            <a href="{{ url_for('member_new') }}" class="btn-submit">
-                <i class="bi bi-plus-lg"></i> 새 교인 등록
-            </a>
+            <div style="margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 12px; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto;">
+                <div style="font-size: 13px; font-weight: 600; color: #667eea; margin-bottom: 8px;">
+                    <i class="bi bi-lightbulb"></i> 검색 예시
+                </div>
+                <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: var(--apple-text-secondary); line-height: 1.8;">
+                    <li>2025년에 등록한 남자 성도</li>
+                    <li>1985년생 여자</li>
+                    <li>김진일 가족 전부</li>
+                    <li>의정부 사는 권사님</li>
+                    <li>3교구 집사</li>
+                    <li>차량번호 12가</li>
+                </ul>
+            </div>
+            {% endif %}
         </div>
     </div>
     {% endif %}
+
+    <!-- AI 검색 결과 컨테이너 -->
+    <div id="aiSearchResults" style="display: none;">
+        <div class="apple-alert success" style="background: #e8f5e9; color: #2e7d32; margin-bottom: 16px;">
+            <i class="bi bi-stars"></i>
+            <span id="aiSearchExplanation"></span>
+            · <strong><span id="aiSearchCount">0</span>명</strong>
+            <button onclick="clearAISearch()" style="margin-left: auto; background: none; border: none; color: #2e7d32; cursor: pointer;">
+                <i class="bi bi-x-lg"></i> 초기화
+            </button>
+        </div>
+        <div id="aiSearchGrid" class="card-grid"></div>
+    </div>
 </div>
 
 <script>
@@ -263,6 +302,109 @@ function onCat3Change() {
         document.getElementById('filterForm').submit();
     }
 }
+
+// AI 자연어 검색
+async function performAISearch() {
+    const query = document.getElementById('aiSearchInput').value.trim();
+    if (!query) {
+        alert('검색어를 입력해주세요');
+        return;
+    }
+
+    const statusEl = document.getElementById('aiSearchStatus');
+    const resultsEl = document.getElementById('aiSearchResults');
+    const gridEl = document.getElementById('aiSearchGrid');
+    const countEl = document.getElementById('aiSearchCount');
+    const explanationEl = document.getElementById('aiSearchExplanation');
+
+    // 로딩 표시
+    statusEl.style.display = 'block';
+    resultsEl.style.display = 'none';
+
+    try {
+        const resp = await fetch('/api/members/natural-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+        });
+
+        const data = await resp.json();
+        statusEl.style.display = 'none';
+
+        if (!resp.ok) {
+            alert(data.error || '검색에 실패했습니다');
+            return;
+        }
+
+        // 결과 표시
+        countEl.textContent = data.count;
+        explanationEl.textContent = data.criteria?.explanation || query;
+
+        // 카드 그리드 생성
+        gridEl.innerHTML = data.members.map(m => renderMemberCard(m)).join('');
+        resultsEl.style.display = 'block';
+
+        // 기존 결과 숨기기
+        const existingGrid = document.querySelector('.card-grid:not(#aiSearchGrid)');
+        if (existingGrid) existingGrid.style.display = 'none';
+        const existingEmpty = document.querySelector('.empty-state');
+        if (existingEmpty) existingEmpty.parentElement.style.display = 'none';
+        const existingFilter = document.querySelector('.apple-alert.success:not(#aiSearchResults .apple-alert)');
+        if (existingFilter) existingFilter.style.display = 'none';
+
+    } catch (e) {
+        statusEl.style.display = 'none';
+        alert('검색 중 오류가 발생했습니다: ' + e.message);
+    }
+}
+
+function renderMemberCard(member) {
+    const avatar = member.photo_url
+        ? `<img src="${member.photo_url}" alt="${member.name}">`
+        : member.name[0];
+
+    const orgParts = [member.district, member.section, member.cell_group].filter(Boolean);
+    const org = orgParts.length ? orgParts.join(' ') : '소속 없음';
+
+    return `
+        <a href="/members/${member.id}" class="member-card">
+            <div class="member-card-header">
+                <div class="member-avatar">
+                    ${avatar}
+                </div>
+                <div class="member-info">
+                    <h3>${member.name}${member.member_type ? ' ' + member.member_type : ''}</h3>
+                    <p>${org}</p>
+                </div>
+            </div>
+            <div class="member-meta">
+                ${member.phone ? `<span><i class="bi bi-telephone"></i> ${member.phone}</span>` : ''}
+                ${member.age ? `<span><i class="bi bi-person"></i> ${member.age}세</span>` : ''}
+                ${member.gender ? `<span><i class="bi bi-gender-ambiguous"></i> ${member.gender}</span>` : ''}
+            </div>
+        </a>
+    `;
+}
+
+function clearAISearch() {
+    document.getElementById('aiSearchResults').style.display = 'none';
+    document.getElementById('aiSearchInput').value = '';
+
+    // 기존 요소 복원
+    const existingGrid = document.querySelector('.card-grid:not(#aiSearchGrid)');
+    if (existingGrid) existingGrid.style.display = 'grid';
+    const existingEmpty = document.querySelector('.empty-state');
+    if (existingEmpty) existingEmpty.parentElement.style.display = 'block';
+    const existingFilter = document.querySelector('.apple-alert.success:not(#aiSearchResults .apple-alert)');
+    if (existingFilter) existingFilter.style.display = 'flex';
+}
+
+// Enter 키로 검색
+document.getElementById('aiSearchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        performAISearch();
+    }
+});
 </script>
 
 <style>
