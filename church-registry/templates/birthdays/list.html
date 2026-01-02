@@ -1,64 +1,80 @@
 {% extends "base.html" %}
 
-{% block title %}이번 달 생일자{% endblock %}
+{% block title %}{{ month }}월 생일자{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-gift"></i> {{ month }}월 생일자</h2>
-</div>
-
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>생일</th>
-                    <th>이름</th>
-                    <th>연락처</th>
-                    <th>소속 그룹</th>
-                    <th>관리</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if birthdays %}
-                    {% for member in birthdays %}
-                    <tr>
-                        <td>
-                            <span class="badge bg-danger">{{ member.birth_date.strftime('%m월 %d일') }}</span>
-                        </td>
-                        <td>
-                            <a href="{{ url_for('member_detail', member_id=member.id) }}" class="text-decoration-none fw-bold">
-                                {{ member.name }}
-                            </a>
-                        </td>
-                        <td>
-                            {% if member.phone %}
-                                <a href="tel:{{ member.phone }}">{{ member.phone }}</a>
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>{{ member.group.name if member.group else '-' }}</td>
-                        <td>
-                            <a href="{{ url_for('member_detail', member_id=member.id) }}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">
-                            이번 달 생일자가 없습니다.
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+<div class="container">
+    <!-- 페이지 헤더 -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-gift"></i>
+                {{ month }}월 생일자
+            </h1>
+            <p class="page-subtitle">이번 달 생일을 맞이하는 {{ birthdays|length }}명의 성도님을 축하합니다</p>
+        </div>
     </div>
+
     {% if birthdays %}
-    <div class="card-footer text-muted">
-        총 {{ birthdays|length }}명
+    <!-- 생일자 카드 그리드 -->
+    <div class="card-grid">
+        {% for member in birthdays %}
+        <a href="{{ url_for('member_detail', member_id=member.id) }}" class="member-card">
+            <div class="member-card-header">
+                <div class="member-avatar" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                    {% if member.photo_url %}
+                    <img src="{{ member.photo_url }}" alt="{{ member.name }}">
+                    {% else %}
+                    {{ member.name[0] }}
+                    {% endif %}
+                </div>
+                <div class="member-info">
+                    <h3>{{ member.display_name }}</h3>
+                    <p>{{ member.group.name if member.group else '그룹 없음' }}</p>
+                </div>
+                <span class="status-badge" style="background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%); color: #991b1b;">
+                    <i class="bi bi-cake2"></i> {{ member.birth_date.strftime('%m/%d') }}
+                </span>
+            </div>
+            <div class="member-meta">
+                {% if member.phone %}
+                <span>
+                    <i class="bi bi-telephone"></i>
+                    <a href="tel:{{ member.phone }}" style="color: var(--apple-blue);" onclick="event.stopPropagation();">{{ member.phone }}</a>
+                </span>
+                {% endif %}
+                {% if member.age is not none %}
+                <span><i class="bi bi-person"></i> {{ member.age + 1 }}번째 생일</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- 다가오는 생일 -->
+    <div class="form-section" style="margin-top: 24px;">
+        <div class="form-section-title">
+            <i class="bi bi-calendar-heart"></i>
+            빠른 축하 연락
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            {% for member in birthdays[:5] %}
+            {% if member.phone %}
+            <a href="tel:{{ member.phone }}" class="apple-btn apple-btn-secondary">
+                <i class="bi bi-telephone"></i> {{ member.name }} 전화
+            </a>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <!-- 빈 상태 -->
+    <div class="form-section">
+        <div class="empty-state">
+            <i class="bi bi-gift"></i>
+            <h3>{{ month }}월 생일자가 없습니다</h3>
+            <p>이번 달에는 생일을 맞이하는 성도님이 없습니다</p>
+        </div>
     </div>
     {% endif %}
 </div>
