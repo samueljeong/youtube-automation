@@ -2783,6 +2783,125 @@ def api_backup_god4u():
         return jsonify({"error": f"백업 실패: {str(e)}"}), 500
 
 
+@app.route('/api/sync/preview', methods=['POST'])
+def api_sync_preview():
+    """동기화 미리보기 API - 변경될 내용을 먼저 보여줌"""
+    import time
+
+    data = request.get_json() or {}
+    cookies = data.get('cookies', {})
+
+    if not cookies.get('ASP.NET_SessionId') or not cookies.get('pastorinfo'):
+        return jsonify({"error": "god4u 쿠키가 필요합니다"}), 400
+
+    try:
+        session = requests.Session()
+        session.cookies.update(cookies)
+
+        headers = {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": GOD4U_BASE_URL,
+            "Referer": f"{GOD4U_BASE_URL}/WebMobile/WebChurch/RangeList.cshtml",
+        }
+
+        # 모든 페이지 조회
+        payload = _create_god4u_payload(page=1, page_size=100)
+        response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+
+        if response.status_code != 200:
+            return jsonify({"error": f"god4u API 오류: {response.status_code}"}), 500
+
+        # 세션 만료 감지
+        content_type = response.headers.get('Content-Type', '')
+        if 'text/html' in content_type or response.text.strip().startswith('<'):
+            return jsonify({"error": "god4u 세션이 만료되었습니다. 다시 로그인 후 쿠키를 갱신해주세요."}), 401
+
+        data = response.json()
+        if "d" in data:
+            data = json.loads(data["d"])
+
+        total_pages = int(data.get("totalpage", 1))
+        all_persons = data.get("personInfo", [])
+
+        # 나머지 페이지 조회
+        for page in range(2, total_pages + 1):
+            time.sleep(0.5)
+            payload = _create_god4u_payload(page=page, page_size=100)
+            try:
+                response = session.post(GOD4U_API_URL, json=payload, headers=headers, timeout=60)
+                content_type = response.headers.get('Content-Type', '')
+                if 'text/html' in content_type or response.text.strip().startswith('<'):
+                    break
+                if response.status_code == 200:
+                    page_data = response.json()
+                    if "d" in page_data:
+                        page_data = json.loads(page_data["d"])
+                    all_persons.extend(page_data.get("personInfo", []))
+            except:
+                break
+
+        # 기존 회원 로드
+        existing_members = {m.external_id: m for m in Member.query.filter(Member.external_id.isnot(None)).all()}
+
+        # 변경사항 분석
+        new_members = []
+        changed_members = []
+
+        for person in all_persons:
+            external_id = person.get("id")
+            existing = existing_members.get(external_id) if external_id else None
+
+            god4u_data = {
+                "name": person.get("name", ""),
+                "phone": person.get("handphone", "") or person.get("tel", ""),
+                "email": person.get("email", ""),
+                "address": person.get("addr", ""),
+            }
+
+            if not existing:
+                new_members.append({
+                    "external_id": external_id,
+                    "name": god4u_data["name"],
+                    "phone": god4u_data["phone"],
+                })
+            else:
+                # 변경된 필드 확인
+                changes = []
+                if existing.name != god4u_data["name"] and god4u_data["name"]:
+                    changes.append({"field": "이름", "old": existing.name, "new": god4u_data["name"]})
+                if existing.phone != god4u_data["phone"] and god4u_data["phone"]:
+                    changes.append({"field": "연락처", "old": existing.phone, "new": god4u_data["phone"]})
+                if existing.email != god4u_data["email"] and god4u_data["email"]:
+                    changes.append({"field": "이메일", "old": existing.email, "new": god4u_data["email"]})
+                if existing.address != god4u_data["address"] and god4u_data["address"]:
+                    changes.append({"field": "주소", "old": existing.address, "new": god4u_data["address"]})
+
+                if changes:
+                    changed_members.append({
+                        "external_id": external_id,
+                        "id": existing.id,
+                        "name": existing.name,
+                        "changes": changes,
+                    })
+
+        return jsonify({
+            "success": True,
+            "summary": {
+                "total_god4u": len(all_persons),
+                "total_local": len(existing_members),
+                "new_count": len(new_members),
+                "changed_count": len(changed_members),
+            },
+            "new_members": new_members[:50],  # 최대 50명만 표시
+            "changed_members": changed_members[:50],
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"미리보기 실패: {str(e)}"}), 500
+
+
 @app.route('/api/sync/god4u-to-registry', methods=['POST'])
 def api_sync_god4u_to_registry():
     """god4u → church-registry 동기화 API"""
@@ -2877,13 +2996,22 @@ def api_sync_god4u_to_registry():
         # 기존 회원 미리 로드 (배치 처리)
         existing_members = {m.external_id: m for m in Member.query.filter(Member.external_id.isnot(None)).all()}
 
+        # god4u 우선 필드 (동기화 시 덮어쓰기)
+        GOD4U_FIELDS = ['name', 'phone', 'email', 'address', 'birth_date', 'gender', 'registration_date', 'member_type']
+        # 로컬 우선 필드 (기존 값 유지)
+        LOCAL_FIELDS = ['status', 'notes']
+
+        # 선택적 동기화: 특정 회원만 업데이트
+        selected_ids = data.get('selected_ids', None)  # None이면 전체, 리스트면 해당 회원만
+
         # church-registry에 저장
         for person in all_persons:
             try:
                 external_id = person.get("id")
                 existing = existing_members.get(external_id) if external_id else None
 
-                member_data = {
+                # god4u에서 가져온 데이터
+                god4u_data = {
                     "name": person.get("name", ""),
                     "phone": person.get("handphone", "") or person.get("tel", ""),
                     "email": person.get("email", ""),
@@ -2892,17 +3020,29 @@ def api_sync_god4u_to_registry():
                     "gender": "M" if person.get("sex") == "남" else "F" if person.get("sex") == "여" else None,
                     "registration_date": _parse_date(person.get("regday", "")),
                     "member_type": person.get("cvname1") or person.get("cvname", ""),
-                    "status": "active" if person.get("state3") == "예배출석" else "inactive",
                     "external_id": external_id,
+                }
+
+                # 신규 회원용 로컬 필드 기본값
+                local_data = {
+                    "status": "active" if person.get("state3") == "예배출석" else "inactive",
                     "notes": f"가족: {person.get('ran1', '')}\n차량: {person.get('carnum', '')}",
                 }
 
                 if existing:
-                    for key, value in member_data.items():
+                    # 선택적 동기화: selected_ids가 있으면 해당 회원만 업데이트
+                    if selected_ids is not None and external_id not in selected_ids:
+                        continue
+
+                    # 기존 회원: god4u 필드만 업데이트 (로컬 필드 유지)
+                    for key, value in god4u_data.items():
                         if value is not None:
                             setattr(existing, key, value)
+                    # LOCAL_FIELDS는 건드리지 않음!
                     results["updated"] += 1
                 else:
+                    # 신규 회원: 전체 데이터로 생성
+                    member_data = {**god4u_data, **local_data}
                     member = Member(**{k: v for k, v in member_data.items() if v is not None})
                     db.session.add(member)
                     results["created"] += 1
