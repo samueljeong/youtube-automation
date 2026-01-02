@@ -896,6 +896,13 @@
             background: #fee2e2;
             color: #dc2626;
         }
+
+        /* 가족 카드 */
+        .family-card:hover {
+            background: #f0f0f5 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
     </style>
 </head>
 <body>
@@ -917,6 +924,7 @@
                 <li><a class="nav-link" href="{{ url_for('visit_list') }}">심방</a></li>
                 <li><a class="nav-link" href="{{ url_for('newcomer_list') }}">새신자</a></li>
                 <li><a class="nav-link" href="{{ url_for('birthday_list') }}">생일</a></li>
+                <li><a class="nav-link" href="{{ url_for('sync_page') }}"><i class="bi bi-arrow-repeat"></i> 동기화</a></li>
             </ul>
         </div>
     </nav>
