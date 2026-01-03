@@ -22196,6 +22196,107 @@ def api_history_status():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ========== 무협 파이프라인 API (혈영 시리즈) ==========
+
+@app.route('/api/wuxia/auto-generate', methods=['GET', 'POST'])
+def api_wuxia_auto_generate():
+    """
+    무협 소설 대본 자동 생성 (Claude Opus 4.5)
+
+    ★ '준비' 상태 에피소드를 찾아 대본 자동 생성
+    ★ 생성 후 상태를 '대기'로 변경 → check-and-process가 영상 생성
+
+    파라미터:
+    - max_scripts: 한번에 생성할 최대 대본 수 (기본 1)
+
+    환경변수:
+    - OPENROUTER_API_KEY: Claude Opus 4.5 API 키 (필수)
+    - AUTOMATION_SHEET_ID: 시트 ID
+
+    응답 예시:
+    {
+        "ok": true,
+        "generated": 1,
+        "episodes": [
+            {
+                "episode": "EP001",
+                "title": "운명의 시작",
+                "char_count": 13500,
+                "scenes": 10,
+                "cost": 0.15
+            }
+        ],
+        "total_cost": 0.15
+    }
+
+    Cron 설정 예시:
+    - 매일 오전 8시: curl -X POST https://domain/api/wuxia/auto-generate
+    """
+    print("[WUXIA] ===== auto-generate 호출됨 =====")
+
+    try:
+        from scripts.wuxia_pipeline import run_auto_script_pipeline
+
+        # 서비스 계정 인증
+        service = get_sheets_service_account()
+        if not service:
+            return jsonify({
+                "ok": False,
+                "error": "Google Sheets 서비스 계정이 설정되지 않았습니다"
+            }), 400
+
+        # OpenRouter API 키 확인
+        if not os.environ.get('OPENROUTER_API_KEY'):
+            return jsonify({
+                "ok": False,
+                "error": "OPENROUTER_API_KEY 환경변수가 필요합니다"
+            }), 400
+
+        # 시트 ID 확인
+        sheet_id = os.environ.get('AUTOMATION_SHEET_ID')
+        if not sheet_id:
+            return jsonify({
+                "ok": False,
+                "error": "AUTOMATION_SHEET_ID 환경변수가 필요합니다"
+            }), 400
+
+        # 설정
+        max_scripts = int(request.args.get('max_scripts', '1'))
+
+        print(f"[WUXIA] max_scripts: {max_scripts}")
+
+        # 대본 자동 생성 파이프라인 실행
+        result = run_auto_script_pipeline(max_scripts=max_scripts)
+
+        if result.get("success"):
+            return jsonify({
+                "ok": True,
+                "generated": result.get("generated", 0),
+                "episodes": result.get("episodes", []),
+                "errors": result.get("errors"),
+                "total_cost": result.get("total_cost", 0),
+                "message": f"{result.get('generated', 0)}개 대본 생성 완료"
+            })
+        else:
+            return jsonify({
+                "ok": False,
+                "error": result.get("error", "알 수 없는 오류"),
+            }), 500
+
+    except ImportError as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ok": False,
+            "error": f"모듈 임포트 실패: {e}"
+        }), 500
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ========== 벤치마킹 영상 분석 API ==========
 
 @app.route('/api/benchmark/analyze-video', methods=['GET', 'POST'])

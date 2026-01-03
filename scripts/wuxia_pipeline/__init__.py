@@ -36,8 +36,15 @@ from .sheets import (
     create_wuxia_sheet,
     add_episode_template,
     get_pending_episodes,
+    get_ready_episodes,
     update_episode_status,
+    update_episode_with_script,
     initialize_sheet_with_templates,
+)
+
+from .run import (
+    run_pipeline,
+    run_auto_script_pipeline,
 )
 
 __all__ = [
@@ -66,6 +73,11 @@ __all__ = [
     "create_wuxia_sheet",
     "add_episode_template",
     "get_pending_episodes",
+    "get_ready_episodes",
     "update_episode_status",
+    "update_episode_with_script",
     "initialize_sheet_with_templates",
+    # Run
+    "run_pipeline",
+    "run_auto_script_pipeline",
 ]
