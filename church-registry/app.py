@@ -4003,17 +4003,20 @@ def api_get_member_family(member_id):
                 "member_count": len(family.members),
             }
 
-    # 3. 형제자매 가족 정보 (형제의 배우자, 자녀)
+    # 3. 형제자매 가족 정보 (형제의 배우자, 자녀) + 배우자의 형제 가족
     sibling_families = []
-    for sibling_info in family_data["siblings"]:
+
+    # 헬퍼 함수: 특정 형제의 가족 정보 수집
+    def build_sibling_family(sibling_info, is_spouse_sibling=False):
         sibling_id = sibling_info["id"]
         sibling_family = {
             "sibling": sibling_info,
             "spouse": None,
-            "children": []
+            "children": [],
+            "is_spouse_sibling": is_spouse_sibling  # 배우자의 형제인지 표시
         }
 
-        # 형제의 배우자 찾기 (인척 섹션에 있어도 여기에 표시)
+        # 형제의 배우자 찾기
         sibling_spouse_rel = FamilyRelationship.query.filter_by(
             member_id=sibling_id, relationship_type='spouse'
         ).first()
@@ -4030,7 +4033,7 @@ def api_get_member_family(member_id):
                 sibling_family["spouse"] = {
                     **member_summary(spouse_member),
                     "relationship_id": sibling_spouse_rel.id,
-                    "relationship_detail": "형제 배우자",
+                    "relationship_detail": "형제 배우자" if not is_spouse_sibling else "처남댁/형수" if spouse_member.gender not in ['M', '남', '남성', '남자'] else "매형/매제",
                 }
 
         # 형제의 자녀 찾기 (중복 제거용 set)
@@ -4038,7 +4041,6 @@ def api_get_member_family(member_id):
         sibling_children_rels = FamilyRelationship.query.filter_by(
             member_id=sibling_id, relationship_type='parent'
         ).all()
-        # 역방향도 확인
         sibling_children_rels += FamilyRelationship.query.filter_by(
             related_member_id=sibling_id, relationship_type='child'
         ).all()
@@ -4055,9 +4057,43 @@ def api_get_member_family(member_id):
                     "relationship_detail": "조카",
                 })
 
-        # 배우자나 자녀가 있으면 추가
+        return sibling_family
+
+    # 내 형제 가족
+    for sibling_info in family_data["siblings"]:
+        sibling_family = build_sibling_family(sibling_info, is_spouse_sibling=False)
         if sibling_family["spouse"] or sibling_family["children"]:
             sibling_families.append(sibling_family)
+
+    # 배우자의 형제 가족 (인척 중 형제 관계인 사람들)
+    if family_data["spouse"]:
+        spouse_id = family_data["spouse"]["id"]
+        # 배우자의 형제 찾기
+        spouse_sibling_rels = FamilyRelationship.query.filter(
+            db.or_(
+                db.and_(FamilyRelationship.member_id == spouse_id,
+                       FamilyRelationship.relationship_type == 'sibling'),
+                db.and_(FamilyRelationship.related_member_id == spouse_id,
+                       FamilyRelationship.relationship_type == 'sibling')
+            )
+        ).all()
+
+        seen_spouse_siblings = set()
+        for rel in spouse_sibling_rels:
+            spouse_sibling_id = rel.related_member_id if rel.member_id == spouse_id else rel.member_id
+            if spouse_sibling_id in seen_spouse_siblings or spouse_sibling_id == member_id:
+                continue
+            seen_spouse_siblings.add(spouse_sibling_id)
+
+            spouse_sibling = Member.query.get(spouse_sibling_id)
+            if spouse_sibling:
+                spouse_sibling_info = {
+                    **member_summary(spouse_sibling),
+                    "relationship_detail": rel.relationship_detail or "처남/처제" if family_data["spouse"].get("gender") not in ['M', '남'] else "시누이/시동생"
+                }
+                sibling_family = build_sibling_family(spouse_sibling_info, is_spouse_sibling=True)
+                if sibling_family["spouse"] or sibling_family["children"]:
+                    sibling_families.append(sibling_family)
 
     family_data["sibling_families"] = sibling_families
 
