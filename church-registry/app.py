@@ -5213,6 +5213,88 @@ def api_sync_god4u_to_registry():
         app.logger.info(f"[가족관계] 부모 배우자 추론 완료: {spouse_created}쌍 생성")
 
         db.session.commit()
+
+        # 4. 같은 부모를 둔 자녀들을 형제로 연결
+        app.logger.info("[가족관계] 형제 관계 추론 시작 (같은 부모 공유)...")
+
+        # 부모(parent role)인 모든 관계를 찾아서 자녀들을 그룹화
+        parent_relationships = FamilyRelationship.query.filter_by(relationship_type='parent').all()
+
+        # 부모별 자녀 목록 생성
+        parent_children = {}  # {parent_id: [child_ids]}
+        for rel in parent_relationships:
+            parent_id = rel.member_id
+            child_id = rel.related_member_id
+            if parent_id not in parent_children:
+                parent_children[parent_id] = []
+            if child_id not in parent_children[parent_id]:
+                parent_children[parent_id].append(child_id)
+
+        # 같은 부모를 둔 자녀들끼리 형제 관계 생성
+        sibling_created = 0
+        for parent_id, child_ids in parent_children.items():
+            if len(child_ids) >= 2:
+                # 자녀가 2명 이상이면 서로 형제로 연결
+                for i, c1_id in enumerate(child_ids):
+                    for c2_id in child_ids[i+1:]:
+                        # 이미 관계가 있는지 확인
+                        existing = FamilyRelationship.query.filter_by(
+                            member_id=c1_id,
+                            related_member_id=c2_id,
+                            relationship_type='sibling'
+                        ).first()
+                        if not existing:
+                            existing_reverse = FamilyRelationship.query.filter_by(
+                                member_id=c2_id,
+                                related_member_id=c1_id,
+                                relationship_type='sibling'
+                            ).first()
+                            if not existing_reverse:
+                                c1 = Member.query.get(c1_id)
+                                c2 = Member.query.get(c2_id)
+                                if c1 and c2:
+                                    # 성별과 나이에 따른 호칭 결정
+                                    detail1, detail2 = '형제', '형제'  # 기본값
+                                    c1_male = c1.gender in ['M', '남', '남성', '남자']
+                                    c2_male = c2.gender in ['M', '남', '남성', '남자']
+                                    c1_older = True
+                                    if c1.birth_date and c2.birth_date:
+                                        c1_older = c1.birth_date < c2.birth_date
+
+                                    if c1_male and c2_male:
+                                        detail1 = '형' if not c1_older else '동생'
+                                        detail2 = '형' if c1_older else '동생'
+                                    elif not c1_male and not c2_male:
+                                        detail1 = '언니' if not c1_older else '동생'
+                                        detail2 = '언니' if c1_older else '동생'
+                                    elif c1_male:  # c1 남, c2 여
+                                        detail1 = '오빠' if not c1_older else '남동생'
+                                        detail2 = '누나' if c1_older else '여동생'
+                                    else:  # c1 여, c2 남
+                                        detail1 = '누나' if not c1_older else '여동생'
+                                        detail2 = '오빠' if c1_older else '남동생'
+
+                                    rel1 = FamilyRelationship(
+                                        member_id=c1_id,
+                                        related_member_id=c2_id,
+                                        relationship_type='sibling',
+                                        relationship_detail=detail2
+                                    )
+                                    rel2 = FamilyRelationship(
+                                        member_id=c2_id,
+                                        related_member_id=c1_id,
+                                        relationship_type='sibling',
+                                        relationship_detail=detail1
+                                    )
+                                    db.session.add(rel1)
+                                    db.session.add(rel2)
+                                    sibling_created += 1
+                                    app.logger.info(f"[가족관계] 형제 추론: {c1.name} ↔ {c2.name}")
+
+        family_results["created"] += sibling_created * 2
+        app.logger.info(f"[가족관계] 형제 추론 완료: {sibling_created}쌍 생성")
+
+        db.session.commit()
         results["family_created"] = family_results["created"]
 
         # 세션 만료로 부분 동기화된 경우
