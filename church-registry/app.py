@@ -4097,6 +4097,72 @@ def api_get_member_family(member_id):
 
     family_data["sibling_families"] = sibling_families
 
+    # 4. 인척 가족 정보 (인척의 배우자, 자녀)
+    in_law_families = []
+    for in_law_info in family_data["in_laws"]:
+        in_law_id = in_law_info["id"]
+
+        # 이미 형제 가족에 포함된 경우 스킵
+        already_in_sibling = any(
+            sf["sibling"]["id"] == in_law_id for sf in sibling_families
+        )
+        if already_in_sibling:
+            continue
+
+        in_law_family = {
+            "in_law": in_law_info,
+            "spouse": None,
+            "children": []
+        }
+
+        # 인척의 배우자 찾기
+        in_law_spouse_rel = FamilyRelationship.query.filter_by(
+            member_id=in_law_id, relationship_type='spouse'
+        ).first()
+        if not in_law_spouse_rel:
+            in_law_spouse_rel = FamilyRelationship.query.filter_by(
+                related_member_id=in_law_id, relationship_type='spouse'
+            ).first()
+
+        if in_law_spouse_rel:
+            spouse_member = (in_law_spouse_rel.related_member
+                           if in_law_spouse_rel.member_id == in_law_id
+                           else in_law_spouse_rel.member)
+            # 배우자가 나 자신이거나 이미 표시된 경우 스킵
+            if spouse_member and spouse_member.id != member_id:
+                in_law_family["spouse"] = {
+                    **member_summary(spouse_member),
+                    "relationship_id": in_law_spouse_rel.id,
+                    "relationship_detail": "인척 배우자",
+                }
+
+        # 인척의 자녀 찾기
+        seen_children_ids = set()
+        in_law_children_rels = FamilyRelationship.query.filter_by(
+            member_id=in_law_id, relationship_type='parent'
+        ).all()
+        in_law_children_rels += FamilyRelationship.query.filter_by(
+            related_member_id=in_law_id, relationship_type='child'
+        ).all()
+
+        for rel in in_law_children_rels:
+            child_member = (rel.related_member
+                          if rel.member_id == in_law_id
+                          else rel.member)
+            if child_member and child_member.id not in seen_children_ids:
+                seen_children_ids.add(child_member.id)
+                in_law_family["children"].append({
+                    **member_summary(child_member),
+                    "relationship_id": rel.id,
+                    "relationship_detail": "조카",
+                })
+
+        # 배우자나 자녀가 있으면 추가
+        if in_law_family["spouse"] or in_law_family["children"]:
+            in_law_families.append(in_law_family)
+
+    family_data["in_law_families"] = in_law_families
+
     return jsonify(family_data)
 
 

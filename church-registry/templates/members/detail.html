@@ -632,6 +632,49 @@ function renderFamilyRelationships(data) {
         html += '</div>';
     }
 
+    // 인척 가족들 (인척의 배우자 및 자녀)
+    if (data.in_law_families && data.in_law_families.length > 0) {
+        html += `
+            <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="font-size: 15px; font-weight: 600; color: var(--apple-text); margin-bottom: 16px;">
+                    <i class="bi bi-houses" style="color: #06b6d4;"></i> 인척 가족
+                </div>
+        `;
+
+        data.in_law_families.forEach((family, index) => {
+            const inLawName = family.in_law.name;
+            html += `
+                <div style="margin-bottom: 16px; padding: 16px; background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%); border-radius: 12px; border: 1px solid #a5f3fc;">
+                    <div style="font-size: 14px; font-weight: 600; color: #0e7490; margin-bottom: 12px;">
+                        <i class="bi bi-house-door" style="color: #06b6d4;"></i> ${inLawName}님 가족
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+            `;
+
+            // 인척 본인
+            html += renderFamilyCard(family.in_law, 'in_law');
+
+            // 인척의 배우자
+            if (family.spouse) {
+                html += renderFamilyCard(family.spouse, 'in_law');
+            }
+
+            // 인척의 자녀들
+            if (family.children && family.children.length > 0) {
+                family.children.forEach(child => {
+                    html += renderFamilyCard(child, 'extended');
+                });
+            }
+
+            html += `
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+    }
+
     // 대가족 그룹 정보
     if (data.family_group) {
         html += `
