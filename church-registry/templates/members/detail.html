@@ -754,8 +754,19 @@ function renderFamilyCard(member, relationType) {
         'extended': 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)'
     }[relationType] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
 
+    // 상태에 따른 테두리 색상
+    let borderStyle = '';
+    let statusBadge = '';
+    if (member.status === 'deceased') {
+        borderStyle = 'border: 2px solid #6b7280;';  // 회색 테두리 - 별세
+        statusBadge = '<span style="background: #6b7280; color: white; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px;">별세</span>';
+    } else if (member.status === 'transferred' || member.status === 'inactive') {
+        borderStyle = 'border: 2px solid #3b82f6;';  // 파란색 테두리 - 타교인/비활동
+        statusBadge = '<span style="background: #3b82f6; color: white; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px;">타교인</span>';
+    }
+
     return `
-        <div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fafafa; border-radius: 12px; position: relative; transition: all 0.2s ease;"
+        <div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #fafafa; border-radius: 12px; position: relative; transition: all 0.2s ease; ${borderStyle}"
              onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fafafa'">
             <a href="/members/${member.id}" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 1;">
                 <div style="width: 44px; height: 44px; border-radius: 50%; background: ${avatarBg}; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; flex-shrink: 0; overflow: hidden;">
@@ -765,6 +776,7 @@ function renderFamilyCard(member, relationType) {
                     <div style="font-weight: 600; color: var(--apple-text); font-size: 15px;">
                         ${member.name}
                         ${member.member_type ? `<span style="font-weight: 400; color: var(--apple-text-secondary);"> ${member.member_type}</span>` : ''}
+                        ${statusBadge}
                     </div>
                     <div style="font-size: 13px; color: var(--apple-text-secondary);">
                         ${member.relationship_detail || ''}
@@ -1015,6 +1027,7 @@ async function saveMemo() {
                     <option value="언니">언니</option>
                     <option value="남동생">남동생</option>
                     <option value="여동생">여동생</option>
+                    <option value="남매">남매 (이성 형제)</option>
                 </optgroup>
                 <optgroup label="조부모">
                     <option value="할아버지">할아버지</option>

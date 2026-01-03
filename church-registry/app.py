@@ -4445,6 +4445,7 @@ def api_get_member_family(member_id):
             "photo_url": m.photo_url,
             "gender": m.gender,
             "age": m.age,
+            "status": m.status,  # active, inactive, deceased, transferred 등
         }
 
     # 관계 유형 역방향 매핑
@@ -4645,13 +4646,20 @@ def api_get_member_family(member_id):
     # 3. 형제자매 가족 정보 (형제의 배우자, 자녀) + 배우자의 형제 가족
     sibling_families = []
 
-    # 형제 ID 집합 (중복 체크용)
+    # 내 자녀 ID 집합 (조카 중복 방지용)
+    my_children_ids = {c["id"] for c in family_data["children"]}
+    my_children_ids.update(c["id"] for c in family_data["separated_children"])
+
+    # 형제 ID 집합
     sibling_ids = {s["id"] for s in family_data["siblings"]}
-    processed_sibling_pairs = set()  # 이미 처리된 형제 부부 쌍
+
+    # 배우자의 형제 ID (인척과 구분용)
+    spouse_sibling_ids = set()
 
     # 헬퍼 함수: 특정 형제의 가족 정보 수집
-    def build_sibling_family(sibling_info, is_spouse_sibling=False, skip_spouse_if_sibling=True):
+    def build_sibling_family(sibling_info, is_spouse_sibling=False):
         sibling_id = sibling_info["id"]
+        sibling_member = Member.query.get(sibling_id)
         sibling_family = {
             "sibling": sibling_info,
             "spouse": None,
@@ -4672,29 +4680,44 @@ def api_get_member_family(member_id):
             spouse_member = (sibling_spouse_rel.related_member
                            if sibling_spouse_rel.member_id == sibling_id
                            else sibling_spouse_rel.member)
-            if spouse_member:
-                # 배우자가 나의 형제인 경우 (형제끼리 결혼한 경우) 처리
-                if skip_spouse_if_sibling and spouse_member.id in sibling_ids:
-                    # 이미 처리된 쌍인지 확인
-                    pair_key = tuple(sorted([sibling_id, spouse_member.id]))
-                    if pair_key in processed_sibling_pairs:
-                        # 이미 처리된 쌍이면 이 형제 가족은 추가하지 않음
-                        return None
-                    processed_sibling_pairs.add(pair_key)
-                    # 형제끼리 결혼한 경우 특별 처리
-                    sibling_family["spouse"] = {
-                        **member_summary(spouse_member),
-                        "relationship_id": sibling_spouse_rel.id,
-                        "relationship_detail": family_data["siblings"][[s["id"] for s in family_data["siblings"]].index(spouse_member.id)].get("relationship_detail", "형제자매"),
-                    }
+            if spouse_member and spouse_member.id != member_id:
+                # 나이 기반으로 관계명 결정
+                if is_spouse_sibling:
+                    # 배우자의 형제의 배우자
+                    if spouse_member.gender not in ['M', '남', '남성', '남자']:
+                        # 여성: 형수/제수/올케
+                        if sibling_member and member.age and sibling_member.age:
+                            rel_name = "형수" if sibling_member.age > member.age else "제수댁"
+                        else:
+                            rel_name = "올케"
+                    else:
+                        # 남성: 매형/매제
+                        if sibling_member and member.age and sibling_member.age:
+                            rel_name = "매형" if sibling_member.age > member.age else "매제"
+                        else:
+                            rel_name = "매형/매제"
                 else:
-                    sibling_family["spouse"] = {
-                        **member_summary(spouse_member),
-                        "relationship_id": sibling_spouse_rel.id,
-                        "relationship_detail": "형제 배우자" if not is_spouse_sibling else "처남댁/형수" if spouse_member.gender not in ['M', '남', '남성', '남자'] else "매형/매제",
-                    }
+                    # 내 형제의 배우자
+                    if spouse_member.gender not in ['M', '남', '남성', '남자']:
+                        # 여성: 형수/제수/올케
+                        if sibling_member and member.age and sibling_member.age:
+                            rel_name = "형수" if sibling_member.age > member.age else "제수댁"
+                        else:
+                            rel_name = "올케"
+                    else:
+                        # 남성: 매형/매제/형부/제부
+                        if sibling_member and member.age and sibling_member.age:
+                            rel_name = "형부" if sibling_member.age > member.age else "제부"
+                        else:
+                            rel_name = "매형"
 
-        # 형제의 자녀 찾기 (중복 제거용 set)
+                sibling_family["spouse"] = {
+                    **member_summary(spouse_member),
+                    "relationship_id": sibling_spouse_rel.id,
+                    "relationship_detail": rel_name,
+                }
+
+        # 형제의 자녀 찾기 (내 자녀는 제외 - 조카 중복 방지)
         seen_children_ids = set()
         sibling_children_rels = FamilyRelationship.query.filter_by(
             member_id=sibling_id, relationship_type='parent'
@@ -4707,7 +4730,8 @@ def api_get_member_family(member_id):
             child_member = (rel.related_member
                           if rel.member_id == sibling_id
                           else rel.member)
-            if child_member and child_member.id not in seen_children_ids:
+            # 내 자녀는 조카로 표시하지 않음
+            if child_member and child_member.id not in seen_children_ids and child_member.id not in my_children_ids:
                 seen_children_ids.add(child_member.id)
                 sibling_family["children"].append({
                     **member_summary(child_member),
@@ -4726,6 +4750,9 @@ def api_get_member_family(member_id):
     # 배우자의 형제 가족 (인척 중 형제 관계인 사람들)
     if family_data["spouse"]:
         spouse_id = family_data["spouse"]["id"]
+        spouse_member = Member.query.get(spouse_id)
+        spouse_gender = family_data["spouse"].get("gender")
+
         # 배우자의 형제 찾기
         spouse_sibling_rels = FamilyRelationship.query.filter(
             db.or_(
@@ -4736,35 +4763,71 @@ def api_get_member_family(member_id):
             )
         ).all()
 
-        seen_spouse_siblings = set()
         for rel in spouse_sibling_rels:
             spouse_sibling_id = rel.related_member_id if rel.member_id == spouse_id else rel.member_id
-            if spouse_sibling_id in seen_spouse_siblings or spouse_sibling_id == member_id:
+            if spouse_sibling_id in spouse_sibling_ids or spouse_sibling_id == member_id:
                 continue
-            seen_spouse_siblings.add(spouse_sibling_id)
+            spouse_sibling_ids.add(spouse_sibling_id)
 
             spouse_sibling = Member.query.get(spouse_sibling_id)
             if spouse_sibling:
+                # 나이 기반 관계명 결정
+                # 내 배우자가 남성(남편)이면 배우자의 형제는 시누이/시동생/시형/시제
+                # 내 배우자가 여성(아내)이면 배우자의 형제는 처남/처제/처형
+                if spouse_gender in ['M', '남', '남성', '남자']:
+                    # 남편의 형제 = 시댁
+                    if spouse_sibling.gender in ['M', '남', '남성', '남자']:
+                        # 남편의 남자 형제
+                        if spouse_sibling.age and spouse_member and spouse_member.age:
+                            rel_name = "시형" if spouse_sibling.age > spouse_member.age else "시제"
+                        else:
+                            rel_name = "시동생"
+                    else:
+                        # 남편의 여자 형제
+                        if spouse_sibling.age and spouse_member and spouse_member.age:
+                            rel_name = "시누이" if spouse_sibling.age > spouse_member.age else "시누이"
+                        else:
+                            rel_name = "시누이"
+                else:
+                    # 아내의 형제 = 처가
+                    if spouse_sibling.gender in ['M', '남', '남성', '남자']:
+                        # 아내의 남자 형제
+                        if spouse_sibling.age and spouse_member and spouse_member.age:
+                            rel_name = "처남" if spouse_sibling.age > spouse_member.age else "처남"
+                        else:
+                            rel_name = "처남"
+                    else:
+                        # 아내의 여자 형제
+                        if spouse_sibling.age and spouse_member and spouse_member.age:
+                            rel_name = "처형" if spouse_sibling.age > spouse_member.age else "처제"
+                        else:
+                            rel_name = "처제"
+
                 spouse_sibling_info = {
                     **member_summary(spouse_sibling),
-                    "relationship_detail": rel.relationship_detail or "처남/처제" if family_data["spouse"].get("gender") not in ['M', '남'] else "시누이/시동생"
+                    "relationship_detail": rel_name
                 }
                 sibling_family = build_sibling_family(spouse_sibling_info, is_spouse_sibling=True)
-                if sibling_family["spouse"] or sibling_family["children"]:
+                if sibling_family and (sibling_family["spouse"] or sibling_family["children"]):
                     sibling_families.append(sibling_family)
 
     family_data["sibling_families"] = sibling_families
 
     # 4. 인척 가족 정보 (인척의 배우자, 자녀)
+    # 이미 형제 가족에 포함된 사람들 ID 수집
+    already_shown_ids = set()
+    for sf in sibling_families:
+        already_shown_ids.add(sf["sibling"]["id"])
+        if sf.get("spouse"):
+            already_shown_ids.add(sf["spouse"]["id"])
+    already_shown_ids.update(spouse_sibling_ids)
+
     in_law_families = []
     for in_law_info in family_data["in_laws"]:
         in_law_id = in_law_info["id"]
 
         # 이미 형제 가족에 포함된 경우 스킵
-        already_in_sibling = any(
-            sf["sibling"]["id"] == in_law_id for sf in sibling_families
-        )
-        if already_in_sibling:
+        if in_law_id in already_shown_ids:
             continue
 
         in_law_family = {
@@ -4787,11 +4850,20 @@ def api_get_member_family(member_id):
                            if in_law_spouse_rel.member_id == in_law_id
                            else in_law_spouse_rel.member)
             # 배우자가 나 자신이거나 이미 표시된 경우 스킵
-            if spouse_member and spouse_member.id != member_id:
+            if spouse_member and spouse_member.id != member_id and spouse_member.id not in already_shown_ids:
+                # 관계명을 원래 인척의 관계명에 맞춰서 설정
+                in_law_detail = in_law_info.get("relationship_detail", "")
+                if "올케" in in_law_detail or "형수" in in_law_detail or "제수" in in_law_detail:
+                    spouse_rel_name = in_law_detail  # 올케의 배우자 = 형제
+                elif "동서" in in_law_detail:
+                    spouse_rel_name = "동서 배우자"
+                else:
+                    spouse_rel_name = "인척 배우자"
+
                 in_law_family["spouse"] = {
                     **member_summary(spouse_member),
                     "relationship_id": in_law_spouse_rel.id,
-                    "relationship_detail": "인척 배우자",
+                    "relationship_detail": spouse_rel_name,
                 }
 
         # 인척의 자녀 찾기
@@ -4982,6 +5054,20 @@ def api_add_family_relationship(member_id):
     if not related_member:
         return jsonify({"error": "관계 대상 교인을 찾을 수 없습니다"}), 404
 
+    # 배우자 관계 검증: 동성끼리는 배우자 관계 불가
+    if relationship_type == 'spouse':
+        male_genders = ['M', '남', '남성', '남자']
+        female_genders = ['F', '여', '여성', '여자']
+        member_is_male = member.gender in male_genders
+        member_is_female = member.gender in female_genders
+        related_is_male = related_member.gender in male_genders
+        related_is_female = related_member.gender in female_genders
+
+        if (member_is_male and related_is_male) or (member_is_female and related_is_female):
+            return jsonify({
+                "error": f"배우자 관계 오류: {member.name}({member.gender})님과 {related_member.name}({related_member.gender})님은 같은 성별입니다. 형제자매 관계를 확인해주세요."
+            }), 400
+
     # 이미 존재하는 관계 확인
     existing = FamilyRelationship.query.filter_by(
         member_id=member_id,
@@ -5041,6 +5127,319 @@ def api_add_family_relationship(member_id):
 def api_get_relationship_options():
     """한국 가족 관계 옵션 목록 반환 (UI용)"""
     return jsonify(FamilyRelationship.get_all_relationship_options())
+
+
+@app.route('/api/family/audit', methods=['GET'])
+def api_audit_family_relationships():
+    """잘못된 가족 관계 자동 감지
+
+    감지 항목:
+    1. 동성 배우자 (같은 성별인데 spouse로 등록)
+    2. 비정상 나이차 배우자 (20살 이상 차이나는데 spouse)
+    3. 같은 성씨 + 비슷한 나이인데 spouse (형제일 가능성)
+    """
+    issues = []
+
+    # 모든 배우자 관계 조회
+    spouse_rels = FamilyRelationship.query.filter_by(relationship_type='spouse').all()
+
+    processed_pairs = set()
+    male_genders = ['M', '남', '남성', '남자']
+    female_genders = ['F', '여', '여성', '여자']
+
+    for rel in spouse_rels:
+        # 중복 체크 (양방향 관계이므로)
+        pair_key = tuple(sorted([rel.member_id, rel.related_member_id]))
+        if pair_key in processed_pairs:
+            continue
+        processed_pairs.add(pair_key)
+
+        member = rel.member
+        related = rel.related_member
+
+        if not member or not related:
+            continue
+
+        issue = None
+
+        # 1. 동성 배우자 체크
+        member_is_male = member.gender in male_genders
+        member_is_female = member.gender in female_genders
+        related_is_male = related.gender in male_genders
+        related_is_female = related.gender in female_genders
+
+        if (member_is_male and related_is_male) or (member_is_female and related_is_female):
+            # 같은 성씨인지 확인
+            member_surname = member.name[0] if member.name else ''
+            related_surname = related.name[0] if related.name else ''
+
+            suggested_type = 'sibling'
+            suggested_detail = '형제자매'
+
+            # 나이 차이로 형/동생 결정
+            if member.age and related.age:
+                age_diff = abs(member.age - related.age)
+                if age_diff <= 15:  # 15살 이하 차이면 형제
+                    if member_is_male:
+                        if member.age > related.age:
+                            suggested_detail = '형' if related_is_male else '오빠'
+                        else:
+                            suggested_detail = '남동생'
+                    else:
+                        if member.age > related.age:
+                            suggested_detail = '언니' if related_is_female else '누나'
+                        else:
+                            suggested_detail = '여동생'
+
+            issue = {
+                'type': 'same_gender_spouse',
+                'severity': 'high',
+                'relationship_id': rel.id,
+                'member': {'id': member.id, 'name': member.name, 'gender': member.gender, 'age': member.age},
+                'related': {'id': related.id, 'name': related.name, 'gender': related.gender, 'age': related.age},
+                'current': {'type': 'spouse', 'detail': rel.relationship_detail},
+                'suggested': {'type': suggested_type, 'detail': suggested_detail},
+                'reason': f"동성({member.gender})끼리 배우자로 등록됨"
+            }
+
+        # 2. 같은 성씨 + 비슷한 나이 (7살 이내) = 형제일 가능성
+        elif member.name and related.name and member.name[0] == related.name[0]:
+            if member.age and related.age:
+                age_diff = abs(member.age - related.age)
+                if age_diff <= 7:  # 7살 이내 차이
+                    suggested_detail = '형제자매'
+                    if member_is_male and related_is_male:
+                        suggested_detail = '형' if related.age > member.age else '남동생'
+                    elif member_is_female and related_is_female:
+                        suggested_detail = '언니' if related.age > member.age else '여동생'
+                    else:
+                        suggested_detail = '남매'
+
+                    issue = {
+                        'type': 'likely_sibling',
+                        'severity': 'medium',
+                        'relationship_id': rel.id,
+                        'member': {'id': member.id, 'name': member.name, 'gender': member.gender, 'age': member.age},
+                        'related': {'id': related.id, 'name': related.name, 'gender': related.gender, 'age': related.age},
+                        'current': {'type': 'spouse', 'detail': rel.relationship_detail},
+                        'suggested': {'type': 'sibling', 'detail': suggested_detail},
+                        'reason': f"같은 성씨({member.name[0]}) + 나이차 {age_diff}살 → 형제일 가능성"
+                    }
+
+        # 3. 나이차가 20살 이상이면 부모-자녀일 가능성
+        if not issue and member.age and related.age:
+            age_diff = abs(member.age - related.age)
+            if age_diff >= 20:
+                older = member if member.age > related.age else related
+                younger = related if member.age > related.age else member
+
+                suggested_detail = '아들' if younger.gender in male_genders else '딸'
+
+                issue = {
+                    'type': 'likely_parent_child',
+                    'severity': 'medium',
+                    'relationship_id': rel.id,
+                    'member': {'id': member.id, 'name': member.name, 'gender': member.gender, 'age': member.age},
+                    'related': {'id': related.id, 'name': related.name, 'gender': related.gender, 'age': related.age},
+                    'current': {'type': 'spouse', 'detail': rel.relationship_detail},
+                    'suggested': {
+                        'type': 'parent',
+                        'detail': suggested_detail,
+                        'note': f"{older.name}이(가) 부모, {younger.name}이(가) 자녀"
+                    },
+                    'reason': f"나이차 {age_diff}살 → 부모-자녀일 가능성"
+                }
+
+        if issue:
+            issues.append(issue)
+
+    # 심각도순 정렬 (high > medium > low)
+    severity_order = {'high': 0, 'medium': 1, 'low': 2}
+    issues.sort(key=lambda x: severity_order.get(x['severity'], 3))
+
+    return jsonify({
+        'total_spouse_relationships': len(processed_pairs),
+        'issues_found': len(issues),
+        'issues': issues
+    })
+
+
+@app.route('/api/family/fix', methods=['POST'])
+def api_fix_family_relationship():
+    """잘못된 가족 관계 수정
+
+    Request body:
+    {
+        "relationship_id": 123,
+        "new_type": "sibling",
+        "new_detail": "형"
+    }
+    """
+    data = request.get_json() or {}
+
+    rel_id = data.get('relationship_id')
+    new_type = data.get('new_type')
+    new_detail = data.get('new_detail')
+
+    if not rel_id or not new_type:
+        return jsonify({"error": "relationship_id와 new_type이 필요합니다"}), 400
+
+    rel = FamilyRelationship.query.get(rel_id)
+    if not rel:
+        return jsonify({"error": "관계를 찾을 수 없습니다"}), 404
+
+    member = rel.member
+    related = rel.related_member
+
+    try:
+        # 역방향 관계도 찾기
+        reverse_rel = FamilyRelationship.query.filter_by(
+            member_id=rel.related_member_id,
+            related_member_id=rel.member_id,
+            relationship_type=rel.relationship_type
+        ).first()
+
+        # 기존 관계 삭제
+        old_type = rel.relationship_type
+        old_detail = rel.relationship_detail
+
+        db.session.delete(rel)
+        if reverse_rel:
+            db.session.delete(reverse_rel)
+
+        db.session.flush()
+
+        # 새 관계 생성
+        new_relationships = FamilyRelationship.create_bidirectional(
+            member_id=member.id,
+            related_member_id=related.id,
+            relationship_type=new_type,
+            detail=new_detail
+        )
+
+        for new_rel in new_relationships:
+            db.session.add(new_rel)
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": f"{member.name}님과 {related.name}님의 관계가 {old_type}({old_detail}) → {new_type}({new_detail})로 수정되었습니다",
+            "old": {"type": old_type, "detail": old_detail},
+            "new": {"type": new_type, "detail": new_detail}
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"관계 수정 실패: {str(e)}"}), 500
+
+
+@app.route('/api/family/fix-all', methods=['POST'])
+def api_fix_all_family_relationships():
+    """감지된 모든 문제 자동 수정 (high severity만)
+
+    Request body:
+    {
+        "severity": "high",  // high, medium, all
+        "dry_run": false     // true면 실제 수정 없이 결과만 반환
+    }
+    """
+    data = request.get_json() or {}
+    target_severity = data.get('severity', 'high')
+    dry_run = data.get('dry_run', True)
+
+    # 먼저 문제 감지
+    audit_response = api_audit_family_relationships()
+    audit_data = audit_response.get_json()
+
+    issues = audit_data.get('issues', [])
+
+    # 심각도 필터링
+    if target_severity != 'all':
+        if target_severity == 'high':
+            issues = [i for i in issues if i['severity'] == 'high']
+        elif target_severity == 'medium':
+            issues = [i for i in issues if i['severity'] in ['high', 'medium']]
+
+    results = {
+        'total_issues': len(issues),
+        'fixed': 0,
+        'failed': 0,
+        'details': [],
+        'dry_run': dry_run
+    }
+
+    for issue in issues:
+        rel_id = issue['relationship_id']
+        suggested = issue['suggested']
+
+        if dry_run:
+            results['details'].append({
+                'relationship_id': rel_id,
+                'member': issue['member']['name'],
+                'related': issue['related']['name'],
+                'action': f"{issue['current']['type']} → {suggested['type']}({suggested['detail']})",
+                'status': 'would_fix'
+            })
+            results['fixed'] += 1
+        else:
+            try:
+                rel = FamilyRelationship.query.get(rel_id)
+                if not rel:
+                    results['failed'] += 1
+                    results['details'].append({
+                        'relationship_id': rel_id,
+                        'status': 'not_found'
+                    })
+                    continue
+
+                member = rel.member
+                related = rel.related_member
+
+                # 역방향 관계 찾기
+                reverse_rel = FamilyRelationship.query.filter_by(
+                    member_id=rel.related_member_id,
+                    related_member_id=rel.member_id,
+                    relationship_type=rel.relationship_type
+                ).first()
+
+                # 삭제
+                db.session.delete(rel)
+                if reverse_rel:
+                    db.session.delete(reverse_rel)
+                db.session.flush()
+
+                # 새 관계 생성
+                new_rels = FamilyRelationship.create_bidirectional(
+                    member_id=member.id,
+                    related_member_id=related.id,
+                    relationship_type=suggested['type'],
+                    detail=suggested['detail']
+                )
+                for new_rel in new_rels:
+                    db.session.add(new_rel)
+
+                results['fixed'] += 1
+                results['details'].append({
+                    'relationship_id': rel_id,
+                    'member': member.name,
+                    'related': related.name,
+                    'action': f"{issue['current']['type']} → {suggested['type']}({suggested['detail']})",
+                    'status': 'fixed'
+                })
+
+            except Exception as e:
+                results['failed'] += 1
+                results['details'].append({
+                    'relationship_id': rel_id,
+                    'status': 'error',
+                    'error': str(e)
+                })
+
+    if not dry_run:
+        db.session.commit()
+
+    return jsonify(results)
 
 
 @app.route('/api/members/<int:member_id>/notes', methods=['PUT'])
@@ -6452,9 +6851,86 @@ def run_migrations():
 
         db.session.commit()
 
+def auto_fix_family_relationships():
+    """서버 시작 시 잘못된 가족관계 자동 수정 (동성 배우자만)"""
+    print('[AutoFix] 가족관계 검사 시작...')
+
+    male_genders = ['M', '남', '남성', '남자']
+    female_genders = ['F', '여', '여성', '여자']
+
+    # 모든 배우자 관계 조회
+    spouse_rels = FamilyRelationship.query.filter_by(relationship_type='spouse').all()
+    processed_pairs = set()
+    fixed_count = 0
+
+    for rel in spouse_rels:
+        pair_key = tuple(sorted([rel.member_id, rel.related_member_id]))
+        if pair_key in processed_pairs:
+            continue
+        processed_pairs.add(pair_key)
+
+        member = rel.member
+        related = rel.related_member
+
+        if not member or not related:
+            continue
+
+        member_is_male = member.gender in male_genders
+        member_is_female = member.gender in female_genders
+        related_is_male = related.gender in male_genders
+        related_is_female = related.gender in female_genders
+
+        # 동성 배우자만 자동 수정
+        if (member_is_male and related_is_male) or (member_is_female and related_is_female):
+            # 나이 차이로 형/동생 결정
+            suggested_detail = '형제자매'
+            if member.age and related.age:
+                if member_is_male:
+                    suggested_detail = '형' if related.age > member.age else '남동생'
+                else:
+                    suggested_detail = '언니' if related.age > member.age else '여동생'
+
+            try:
+                # 역방향 관계 찾기
+                reverse_rel = FamilyRelationship.query.filter_by(
+                    member_id=rel.related_member_id,
+                    related_member_id=rel.member_id,
+                    relationship_type='spouse'
+                ).first()
+
+                # 삭제
+                db.session.delete(rel)
+                if reverse_rel:
+                    db.session.delete(reverse_rel)
+                db.session.flush()
+
+                # 새 관계 생성
+                new_rels = FamilyRelationship.create_bidirectional(
+                    member_id=member.id,
+                    related_member_id=related.id,
+                    relationship_type='sibling',
+                    detail=suggested_detail
+                )
+                for new_rel in new_rels:
+                    db.session.add(new_rel)
+
+                fixed_count += 1
+                print(f'[AutoFix] {member.name} ↔ {related.name}: 배우자 → 형제({suggested_detail})')
+
+            except Exception as e:
+                print(f'[AutoFix] 오류: {member.name} ↔ {related.name}: {e}')
+
+    if fixed_count > 0:
+        db.session.commit()
+        print(f'[AutoFix] 완료: {fixed_count}건의 동성 배우자 관계를 형제로 수정')
+    else:
+        print('[AutoFix] 수정할 동성 배우자 관계 없음')
+
+
 with app.app_context():
     db.create_all()
     run_migrations()
+    auto_fix_family_relationships()
 
 
 if __name__ == '__main__':
