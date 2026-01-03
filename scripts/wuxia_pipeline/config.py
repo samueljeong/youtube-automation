@@ -274,7 +274,7 @@ SHEET_HEADERS = COLLECT_HEADERS + VIDEO_AUTOMATION_HEADERS
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4-5-20251101"
+CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 GOOGLE_CLOUD_API_KEY = os.getenv("GOOGLE_CLOUD_API_KEY", "")  # Google Cloud TTS용

@@ -503,7 +503,7 @@ from openai import OpenAI
 
 # OpenRouter 설정
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4-5-20251101"
+CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
 
 client = OpenAI(
     api_key=os.environ.get("OPENROUTER_API_KEY"),
@@ -1019,7 +1019,7 @@ curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON
 ```
 
 **대본 생성 모델 (2026-01 업데이트):**
-- 모델: Claude Opus 4.5 (`anthropic/claude-opus-4-5-20251101`)
+- 모델: Claude Opus 4.5 (`anthropic/claude-opus-4.5`)
 - API: OpenRouter (https://openrouter.ai/api/v1)
 - 환경변수: `OPENROUTER_API_KEY`
 - 비용: $15/1M input, $75/1M output (Prompt Caching 시 System Prompt 90% 할인)

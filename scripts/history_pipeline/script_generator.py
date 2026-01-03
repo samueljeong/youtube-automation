@@ -24,7 +24,7 @@ from openai import OpenAI
 
 # OpenRouter 설정
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4-5-20251101"
+CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
 
 
 # ============================================================
