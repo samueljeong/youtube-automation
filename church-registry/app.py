@@ -3559,6 +3559,12 @@ def api_rebuild_family_relations():
     }
 
     try:
+        # DB 세션 리프레시 (SSL 연결 오류 방지)
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+
         # 1. 같은 자녀를 둔 부모들을 배우자로 연결
         app.logger.info("[가족관계 재구축] 부모 배우자 추론 시작...")
 
