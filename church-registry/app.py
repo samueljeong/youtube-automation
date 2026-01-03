@@ -2704,104 +2704,448 @@ def execute_ai_function(function_name: str, arguments: dict) -> str:
     return json.dumps({"error": "알 수 없는 함수입니다."}, ensure_ascii=False)
 
 
+def _handle_simple_query(user_message: str) -> str:
+    """간단한 쿼리를 AI 모델 없이 직접 처리"""
+    import re
+
+    msg = user_message.strip()
+    msg_lower = msg.lower()
+
+    # 교인 이름 검색 (간단한 이름만 입력한 경우)
+    # 예: "김철수", "김철수 검색", "홍길동 찾기"
+    name_search_patterns = [
+        r'^([가-힣]{2,4})\s*(검색|찾기|조회)?$',  # "김철수" or "김철수 검색"
+        r'^([가-힣]{2,4})\s*(님|교인|집사|권사|장로|목사|성도|전도사)?$',  # "김철수님", "김철수 집사"
+    ]
+
+    for pattern in name_search_patterns:
+        match = re.match(pattern, msg)
+        if match:
+            name = match.group(1)
+            members = Member.query.filter(Member.name.ilike(f'%{name}%')).all()
+
+            if not members:
+                return f"'{name}' 이름의 교인을 찾을 수 없습니다."
+            elif len(members) == 1:
+                m = members[0]
+                response = f"📌 {m.name} {m.member_type or ''}님 정보\n\n"
+                if m.phone: response += f"📞 전화번호: {m.phone}\n"
+                if m.address: response += f"🏠 주소: {m.address}\n"
+                if m.birth_date: response += f"🎂 생년월일: {m.birth_date.strftime('%Y-%m-%d')}\n"
+                if m.gender: response += f"👤 성별: {m.gender}\n"
+                if m.district: response += f"🏢 교구: {m.district}\n"
+                if m.cell_group: response += f"🏠 속회: {m.cell_group}\n"
+                if m.mission_group: response += f"⛪ 선교회: {m.mission_group}\n"
+                return response
+            else:
+                response = f"📋 '{name}' 검색 결과: {len(members)}명\n\n"
+                for m in members[:10]:
+                    response += f"• {m.name} {m.member_type or ''} - {m.phone or '연락처 없음'}\n"
+                if len(members) > 10:
+                    response += f"\n... 외 {len(members) - 10}명 더 있습니다."
+                return response
+
+    # 직분별 목록 조회
+    # 예: "집사 목록", "권사님들", "장로 조회"
+    member_type_patterns = {
+        r'(집사)\s*(목록|명단|조회|분들|님들)?': '집사',
+        r'(권사)\s*(목록|명단|조회|분들|님들)?': '권사',
+        r'(장로)\s*(목록|명단|조회|분들|님들)?': '장로',
+        r'(안수집사)\s*(목록|명단|조회|분들|님들)?': '안수집사',
+        r'(시무장로)\s*(목록|명단|조회|분들|님들)?': '시무장로',
+        r'(전도사)\s*(목록|명단|조회|분들|님들)?': '전도사',
+        r'(목사)\s*(목록|명단|조회|분들|님들)?': '목사',
+        r'(성도)\s*(목록|명단|조회|분들|님들)?': '성도',
+    }
+
+    for pattern, member_type in member_type_patterns.items():
+        if re.search(pattern, msg):
+            members = Member.query.filter(Member.member_type == member_type).all()
+            count = len(members)
+            if count == 0:
+                return f"{member_type} 직분의 교인이 없습니다."
+            response = f"📋 {member_type} 목록: {count}명\n\n"
+            for m in members[:15]:
+                response += f"• {m.name} - {m.phone or '연락처 없음'}\n"
+            if count > 15:
+                response += f"\n... 외 {count - 15}명 더 있습니다."
+            return response
+
+    # 그룹 목록 조회
+    # 예: "그룹 목록", "그룹 조회", "그룹들"
+    if re.search(r'그룹\s*(목록|조회|현황)?$', msg) or msg in ['그룹', '그룹들']:
+        groups = Group.query.all()
+        if not groups:
+            return "등록된 그룹이 없습니다."
+        response = f"📁 그룹 목록: {len(groups)}개\n\n"
+        for g in groups[:15]:
+            member_count = len(g.members) + MemberGroup.query.filter_by(group_id=g.id).count()
+            response += f"• {g.name} ({g.group_type or ''}) - {member_count}명\n"
+        if len(groups) > 15:
+            response += f"\n... 외 {len(groups) - 15}개 더 있습니다."
+        return response
+
+    # 교구/속회/선교회 검색
+    # 예: "1교구", "청년선교회", "마리아속회"
+    org_patterns = [
+        (r'^(\d+교구)$', 'district'),
+        (r'^([가-힣]+선교회)$', 'mission_group'),
+        (r'^([가-힣]+속회)$', 'cell_group'),
+    ]
+
+    for pattern, field in org_patterns:
+        match = re.match(pattern, msg)
+        if match:
+            value = match.group(1)
+            if field == 'district':
+                members = Member.query.filter(Member.district.ilike(f'%{value}%')).all()
+            elif field == 'mission_group':
+                members = Member.query.filter(Member.mission_group.ilike(f'%{value}%')).all()
+            else:
+                members = Member.query.filter(Member.cell_group.ilike(f'%{value}%')).all()
+
+            if not members:
+                return f"'{value}'에 소속된 교인이 없습니다."
+            response = f"📋 {value} 소속: {len(members)}명\n\n"
+            for m in members[:15]:
+                response += f"• {m.name} {m.member_type or ''} - {m.phone or '연락처 없음'}\n"
+            if len(members) > 15:
+                response += f"\n... 외 {len(members) - 15}명 더 있습니다."
+            return response
+
+    # 통계/현황 조회
+    # 예: "통계", "현황", "전체 교인 수"
+    if msg in ['통계', '현황', '교인현황', '교인 현황', '전체 교인 수', '전체교인수', '전체 교인', '전체교인']:
+        total = Member.query.count()
+        active = Member.query.filter(Member.status == 'active').count()
+        inactive = Member.query.filter(Member.status == 'inactive').count()
+        newcomers = Member.query.filter(Member.status == 'newcomer').count()
+
+        return f"""📊 교인 현황
+
+• 전체 교인: {total}명
+• 활동 교인: {active}명
+• 비활동 교인: {inactive}명
+• 새신자: {newcomers}명"""
+
+    # 새신자 목록
+    if re.search(r'새신자\s*(목록|명단|조회)?$', msg) or msg == '새신자':
+        newcomers = Member.query.filter(Member.status == 'newcomer').order_by(Member.registration_date.desc()).all()
+        if not newcomers:
+            return "새신자가 없습니다."
+        response = f"👋 새신자 목록: {len(newcomers)}명\n\n"
+        for n in newcomers[:10]:
+            reg_date = n.registration_date.strftime('%Y-%m-%d') if n.registration_date else '등록일 없음'
+            response += f"• {n.name} - {reg_date}\n"
+        if len(newcomers) > 10:
+            response += f"\n... 외 {len(newcomers) - 10}명 더 있습니다."
+        return response
+
+    # 생일자 조회
+    # 예: "이번달 생일", "1월 생일", "생일자"
+    birthday_match = re.search(r'(\d+)월\s*생일', msg)
+    if birthday_match or re.search(r'(이번\s*달|이번달)\s*생일|생일자', msg):
+        if birthday_match:
+            month = int(birthday_match.group(1))
+        else:
+            month = get_seoul_today().month
+
+        from sqlalchemy import extract
+        birthdays = Member.query.filter(extract('month', Member.birth_date) == month).all()
+        if not birthdays:
+            return f"{month}월 생일자가 없습니다."
+        response = f"🎂 {month}월 생일자: {len(birthdays)}명\n\n"
+        for b in birthdays[:15]:
+            birth_str = b.birth_date.strftime('%m월 %d일') if b.birth_date else ''
+            response += f"• {b.name} {b.member_type or ''} - {birth_str}\n"
+        if len(birthdays) > 15:
+            response += f"\n... 외 {len(birthdays) - 15}명 더 있습니다."
+        return response
+
+    # 간단한 쿼리가 아니면 None 반환 (AI 처리로 넘김)
+    return None
+
+
 def process_ai_chat(user_message: str, image_data: str = None) -> str:
-    """AI 채팅 처리"""
+    """AI 채팅 처리 - GPT-5.1 Responses API 사용"""
 
     if not openai_client:
         return "OpenAI API 키가 설정되지 않았습니다. 환경변수 OPENAI_API_KEY를 설정해주세요."
 
+    # 이미지가 있으면 기존 Vision API 사용 (GPT-4o)
+    if image_data:
+        return _process_image_chat(user_message, image_data)
+
+    # 간단한 쿼리는 AI 없이 직접 처리
+    simple_result = _handle_simple_query(user_message)
+    if simple_result:
+        return simple_result
+
+    system_prompt = """당신은 교회 교적 관리 AI 어시스턴트입니다.
+사용자의 요청을 분석하여 다음 JSON 형식으로 응답하세요:
+
+{
+    "action": "액션타입",
+    "params": { 파라미터들 },
+    "response": "사용자에게 보여줄 자연스러운 응답 (액션이 없거나 conversation일 때만 사용)"
+}
+
+## 액션 타입
+1. register_member - 교인 등록
+   params: { name, phone, address, birth_date, gender, member_type, notes, district, cell_group, mission_group, baptism_year, faith_level, force_new, update_existing_id }
+
+2. search_members - 교인 검색
+   params: { query, status, member_type, group_name }
+
+3. get_member_detail - 교인 상세 정보
+   params: { name }
+
+4. update_member - 교인 정보 수정
+   params: { name, phone, address, birth_date, status, notes, ... }
+
+5. record_visit - 심방 기록
+   params: { member_name, visit_date, notes }
+
+6. get_newcomers - 새신자 목록
+   params: { days }
+
+7. recommend_visits - 심방 추천
+   params: { count }
+
+8. get_absent_members - 장기 결석자
+   params: { weeks }
+
+9. get_birthdays - 생일자 조회
+   params: { month }
+
+10. get_statistics - 통계
+    params: { stat_type }  (overview, attendance, group)
+
+11. manage_group - 그룹 관리
+    params: { action, group_name, group_type, member_name }
+
+12. conversation - 일반 대화 (액션 없음)
+    params: {}
+
+## 예시
+입력: "홍길동 집사님 등록해줘 전화번호 010-1234-5678"
+출력: {"action": "register_member", "params": {"name": "홍길동", "member_type": "집사", "phone": "010-1234-5678"}}
+
+입력: "새신자 목록 보여줘"
+출력: {"action": "get_newcomers", "params": {"days": 30}}
+
+입력: "안녕하세요"
+출력: {"action": "conversation", "params": {}, "response": "안녕하세요! 교적 관리와 관련하여 무엇을 도와드릴까요?"}
+
+입력: "오늘 날씨 어때?"
+출력: {"action": "conversation", "params": {}, "response": "죄송합니다, 저는 교회 교적 관리 어시스턴트입니다. 교인 등록, 검색, 심방 기록 등 교적 관련 업무를 도와드릴 수 있어요. 무엇을 도와드릴까요?"}
+
+반드시 JSON만 출력하세요. 다른 텍스트 없이 JSON만 출력합니다."""
+
+    try:
+        # GPT-5.1 Responses API 호출
+        response = openai_client.responses.create(
+            model="gpt-5.1",
+            input=[
+                {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
+                {"role": "user", "content": [{"type": "input_text", "text": user_message}]}
+            ],
+            temperature=0.5
+        )
+
+        # 응답 텍스트 추출
+        if getattr(response, "output_text", None):
+            result_text = response.output_text.strip()
+        else:
+            text_chunks = []
+            for item in getattr(response, "output", []) or []:
+                for content in getattr(item, "content", []) or []:
+                    if getattr(content, "type", "") == "text":
+                        text_chunks.append(getattr(content, "text", ""))
+            result_text = "\n".join(text_chunks).strip()
+
+        # JSON 파싱
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0].strip()
+
+        parsed = json.loads(result_text)
+        action = parsed.get("action", "conversation")
+        params = parsed.get("params", {})
+
+        # 일반 대화인 경우
+        if action == "conversation":
+            return parsed.get("response", "무엇을 도와드릴까요?")
+
+        # DB 세션 리프레시 (API 호출 중 SSL 연결이 끊어질 수 있음)
+        try:
+            db.session.remove()
+        except Exception:
+            pass
+
+        # 액션 실행
+        function_result = execute_ai_function(action, params)
+        result_data = json.loads(function_result)
+
+        # 결과를 자연스러운 응답으로 변환
+        return _format_action_result(action, params, result_data)
+
+    except json.JSONDecodeError as e:
+        app.logger.error(f"[AI채팅] JSON 파싱 실패: {result_text}")
+        # JSON 파싱 실패 시 원본 응답 반환
+        return result_text if result_text else "죄송합니다, 요청을 처리하는 중 오류가 발생했습니다."
+    except Exception as e:
+        app.logger.error(f"[AI채팅] 오류: {str(e)}")
+        return f"죄송합니다, 오류가 발생했습니다: {str(e)}"
+
+
+def _process_image_chat(user_message: str, image_data: str) -> str:
+    """이미지 첨부 채팅 처리 (GPT-4o Vision 사용)"""
     messages = [
         {
             "role": "system",
             "content": """당신은 교회 교적 관리 AI 어시스턴트입니다.
-
-교인 등록, 검색, 수정, 심방 기록, 출석 관리 등을 도와드립니다.
-
-사용자가 자연어로 요청하면 적절한 도구를 사용하여 작업을 수행하세요.
-
-예시:
-- "홍길동 집사님 등록해줘, 전화번호 010-1234-5678" → register_member 호출
-- "김영희 권사님 정보 알려줘" → get_member_detail 호출
-- "새신자 목록 보여줘" → get_newcomers 호출
-- "이번 주 심방 갈 분 추천해줘" → recommend_visits 호출
-- "지난 3주간 안 나온 분들" → get_absent_members 호출
-- "이번 달 생일자" → get_birthdays 호출
-- "전체 교인 수" → get_statistics 호출
-
-동명이인 처리:
-register_member 호출 시 동명이인이 있으면 duplicate_found: true 응답이 옵니다.
-이 경우 사용자에게 기존 교인 목록을 보여주고 다음을 물어보세요:
-1. 기존 교인 정보 업데이트: "홍길동 생년월일 추가해줘" → update_existing_id 사용
-2. 동명이인으로 새로 등록: "새 홍길동으로 등록해줘" → force_new=true 사용
-
-예시 응답:
-"'홍길동' 이름의 교인이 이미 등록되어 있습니다:
-1. 홍길동 집사 (010-1234-5678, 1985-03-15생)
-2. 홍길동 성도 (연락처 없음, 생년월일 없음)
-
-기존 교인 정보를 업데이트할까요, 아니면 동명이인으로 새로 등록할까요?"
-
-사진이 첨부되면:
-- 명함/등록카드 사진: 정보를 추출하여 등록 제안
-- 인물 사진: 어떤 교인의 프로필 사진으로 등록할지 확인
-
-응답은 친절하고 자연스럽게 해주세요. 한국어로 응답합니다."""
-        }
-    ]
-
-    # 이미지가 있으면 Vision API 사용
-    if image_data:
-        messages.append({
+사진을 분석하여 명함이나 등록카드면 정보를 추출하고, 인물 사진이면 알려주세요.
+응답은 친절하고 자연스럽게 해주세요."""
+        },
+        {
             "role": "user",
             "content": [
                 {"type": "text", "text": user_message if user_message else "이 사진을 분석해주세요. 명함이나 등록카드면 정보를 추출하고, 인물 사진이면 알려주세요."},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
             ]
-        })
-    else:
-        messages.append({"role": "user", "content": user_message})
+        }
+    ]
 
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=messages,
-            tools=AI_TOOLS,
-            tool_choice="auto",
             max_tokens=2000
         )
-
-        assistant_message = response.choices[0].message
-
-        # 도구 호출이 있는 경우
-        if assistant_message.tool_calls:
-            # 도구 실행 결과 수집
-            tool_results = []
-            for tool_call in assistant_message.tool_calls:
-                function_name = tool_call.function.name
-                arguments = json.loads(tool_call.function.arguments)
-                result = execute_ai_function(function_name, arguments)
-                tool_results.append({
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "content": result
-                })
-
-            # 도구 결과를 포함하여 다시 요청
-            messages.append(assistant_message)
-            messages.extend(tool_results)
-
-            final_response = openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                max_tokens=2000
-            )
-
-            return final_response.choices[0].message.content
-
-        return assistant_message.content
-
+        return response.choices[0].message.content
     except Exception as e:
-        return f"죄송합니다, 오류가 발생했습니다: {str(e)}"
+        return f"이미지 분석 중 오류가 발생했습니다: {str(e)}"
+
+
+def _format_action_result(action: str, params: dict, result: dict) -> str:
+    """액션 결과를 자연스러운 응답으로 변환"""
+
+    # 에러 처리
+    if result.get("error"):
+        return f"⚠️ {result['error']}"
+
+    # 액션별 응답 포맷
+    if action == "register_member":
+        if result.get("duplicate_found"):
+            existing = result.get("existing_members", [])
+            response = f"'{params.get('name', '')}' 이름의 교인이 이미 등록되어 있습니다:\n\n"
+            for i, m in enumerate(existing, 1):
+                response += f"{i}. {m.get('name', '')} {m.get('member_type', '')} ({m.get('phone', '연락처 없음')}, {m.get('birth_date', '생년월일 없음')})\n"
+            response += "\n기존 교인 정보를 업데이트할까요, 아니면 동명이인으로 새로 등록할까요?"
+            return response
+        elif result.get("success"):
+            name = result.get("name", params.get("name", ""))
+            member_type = result.get("member_type", "")
+            return f"✅ {name} {member_type}님이 등록되었습니다!"
+        elif result.get("updated"):
+            return f"✅ {result.get('name', '')}님 정보가 업데이트되었습니다."
+
+    elif action == "search_members":
+        members = result.get("members", [])
+        count = result.get("count", 0)
+        if count == 0:
+            return "검색 결과가 없습니다."
+        response = f"📋 검색 결과: {count}명\n\n"
+        for m in members[:10]:  # 최대 10명까지 표시
+            response += f"• {m.get('name', '')} {m.get('member_type', '')} - {m.get('phone', '연락처 없음')}\n"
+        if count > 10:
+            response += f"\n... 외 {count - 10}명 더 있습니다."
+        return response
+
+    elif action == "get_member_detail":
+        member = result.get("member")
+        if not member:
+            return f"'{params.get('name', '')}' 교인을 찾을 수 없습니다."
+        response = f"📌 {member.get('name', '')} {member.get('member_type', '')}님 정보\n\n"
+        if member.get('phone'): response += f"📞 전화번호: {member['phone']}\n"
+        if member.get('address'): response += f"🏠 주소: {member['address']}\n"
+        if member.get('birth_date'): response += f"🎂 생년월일: {member['birth_date']}\n"
+        if member.get('gender'): response += f"👤 성별: {member['gender']}\n"
+        if member.get('district'): response += f"🏢 교구: {member['district']}\n"
+        if member.get('cell_group'): response += f"🏠 속회: {member['cell_group']}\n"
+        if member.get('mission_group'): response += f"⛪ 선교회: {member['mission_group']}\n"
+        return response
+
+    elif action == "update_member":
+        if result.get("success"):
+            return f"✅ {result.get('name', '')}님 정보가 업데이트되었습니다."
+
+    elif action == "record_visit":
+        if result.get("success"):
+            return f"✅ {result.get('message', '심방 기록이 저장되었습니다.')}"
+
+    elif action == "get_newcomers":
+        newcomers = result.get("newcomers", [])
+        count = len(newcomers)
+        if count == 0:
+            return "최근 새신자가 없습니다."
+        response = f"👋 최근 새신자: {count}명\n\n"
+        for n in newcomers[:10]:
+            response += f"• {n.get('name', '')} - {n.get('registration_date', '')}\n"
+        return response
+
+    elif action == "recommend_visits":
+        recommendations = result.get("recommendations", [])
+        if not recommendations:
+            return "현재 심방 추천 대상이 없습니다."
+        response = "🏠 심방 추천 목록:\n\n"
+        for r in recommendations[:5]:
+            response += f"• {r.get('name', '')} {r.get('member_type', '')} - {r.get('reason', '')}\n"
+        return response
+
+    elif action == "get_absent_members":
+        absent = result.get("absent_members", [])
+        if not absent:
+            return "장기 결석자가 없습니다."
+        response = f"⚠️ 장기 결석자: {len(absent)}명\n\n"
+        for a in absent[:10]:
+            response += f"• {a.get('name', '')} - 마지막 출석: {a.get('last_attendance', '기록 없음')}\n"
+        return response
+
+    elif action == "get_birthdays":
+        birthdays = result.get("birthdays", [])
+        month = params.get("month", "이번 달")
+        if not birthdays:
+            return f"{month} 생일자가 없습니다."
+        response = f"🎂 {month} 생일자: {len(birthdays)}명\n\n"
+        for b in birthdays[:10]:
+            response += f"• {b.get('name', '')} {b.get('member_type', '')} - {b.get('birth_date', '')}\n"
+        return response
+
+    elif action == "get_statistics":
+        stat_type = result.get("type", "overview")
+        if stat_type == "overview":
+            return f"""📊 교인 현황
+
+• 전체 교인: {result.get('total', 0)}명
+• 활동 교인: {result.get('active', 0)}명
+• 비활동 교인: {result.get('inactive', 0)}명
+• 새신자: {result.get('newcomers', 0)}명"""
+
+    elif action == "manage_group":
+        if result.get("success"):
+            return f"✅ {result.get('message', '그룹 작업이 완료되었습니다.')}"
+        elif result.get("groups"):
+            groups = result["groups"]
+            response = f"📁 그룹 목록: {len(groups)}개\n\n"
+            for g in groups[:10]:
+                response += f"• {g.get('name', '')} ({g.get('type', '')}) - {g.get('member_count', 0)}명\n"
+            return response
+
+    # 기본 응답
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @app.route('/api/chat', methods=['POST'])

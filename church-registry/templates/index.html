@@ -3,11 +3,15 @@
 {% block title %}의중감 교적{% endblock %}
 
 {% block content %}
+<style>
+/* 메인 페이지에서는 플로팅 채팅 버튼 숨김 (이미 채팅 UI가 있음) */
+.floating-chat-btn, .chat-modal { display: none !important; }
+</style>
 <div class="chat-container">
     <!-- 채팅 메시지 영역 -->
     <div id="chat-messages" class="chat-messages">
         <!-- 환영 메시지 -->
-        <div class="welcome-section">
+        <div class="welcome-section" id="welcome-section">
             <div class="welcome-icon">
                 <i class="bi bi-chat-dots"></i>
             </div>
@@ -62,6 +66,38 @@
                     </button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- 하단 고정 입력창 (대화 시작 후 표시) -->
+    <div id="bottom-input-wrapper" class="bottom-input-wrapper hidden">
+        <div class="bottom-input-container">
+            <!-- 파일 미리보기 -->
+            <div id="bottom-file-preview" class="file-preview hidden">
+                <div class="preview-content">
+                    <img id="bottom-preview-img" src="" alt="첨부 이미지" class="preview-image hidden">
+                    <div id="bottom-preview-file" class="preview-file hidden">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        <span id="bottom-preview-filename"></span>
+                    </div>
+                </div>
+                <button type="button" class="remove-file" id="bottom-remove-file">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+
+            <form id="bottom-chat-form" class="chat-form">
+                <button type="button" class="attach-btn" id="bottom-attach-btn" title="파일 첨부">
+                    <i class="bi bi-plus-circle"></i>
+                </button>
+
+                <input type="text" id="bottom-message-input" class="message-input"
+                       placeholder="메시지를 입력하세요...">
+
+                <button type="submit" class="send-btn" id="bottom-send-btn">
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -724,6 +760,30 @@
     display: none !important;
 }
 
+/* 하단 고정 입력창 */
+.bottom-input-wrapper {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px 24px 24px;
+    background: linear-gradient(to top, var(--apple-bg) 80%, transparent);
+}
+
+.bottom-input-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.bottom-input-wrapper .chat-form {
+    background: white;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+.bottom-input-wrapper .file-preview {
+    margin-bottom: 8px;
+}
+
 /* 애니메이션 */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -798,7 +858,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const previewFile = document.getElementById('preview-file');
     const previewFilename = document.getElementById('preview-filename');
     const removeFileBtn = document.getElementById('remove-file');
-    const welcomeSection = document.querySelector('.welcome-section');
+    const welcomeSection = document.getElementById('welcome-section');
+
+    // 하단 입력창 요소
+    const bottomInputWrapper = document.getElementById('bottom-input-wrapper');
+    const bottomChatForm = document.getElementById('bottom-chat-form');
+    const bottomMessageInput = document.getElementById('bottom-message-input');
+    const bottomAttachBtn = document.getElementById('bottom-attach-btn');
+    const bottomFilePreview = document.getElementById('bottom-file-preview');
+    const bottomPreviewImg = document.getElementById('bottom-preview-img');
+    const bottomPreviewFile = document.getElementById('bottom-preview-file');
+    const bottomPreviewFilename = document.getElementById('bottom-preview-filename');
+    const bottomRemoveFileBtn = document.getElementById('bottom-remove-file');
 
     // 모달
     const modal = document.getElementById('analysis-modal');
@@ -811,6 +882,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentFile = null;
     let currentFileType = null; // 'image' or 'excel'
     let currentAnalysis = null;
+    let isConversationStarted = false;
 
     // 빠른 액션 버튼
     document.querySelectorAll('.quick-btn').forEach(btn => {
@@ -891,11 +963,23 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target === modal) modal.classList.add('hidden');
     });
 
+    // 대화 시작 시 UI 전환
+    function startConversation() {
+        if (!isConversationStarted) {
+            isConversationStarted = true;
+            if (welcomeSection) {
+                welcomeSection.style.display = 'none';
+            }
+            if (bottomInputWrapper) {
+                bottomInputWrapper.classList.remove('hidden');
+                bottomMessageInput.focus();
+            }
+        }
+    }
+
     // 메시지 추가
     function addMessage(content, isUser = false, isRaw = false) {
-        if (welcomeSection) {
-            welcomeSection.style.display = 'none';
-        }
+        startConversation();
 
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isUser ? 'user' : 'assistant'}`;
@@ -1197,11 +1281,9 @@ document.addEventListener('DOMContentLoaded', function() {
         currentAnalysis = null;
     };
 
-    // 폼 제출
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-
-        const message = messageInput.value.trim();
+    // 공통 메시지 전송 함수
+    async function sendMessage(inputElement, filePreviewElement) {
+        const message = inputElement.value.trim();
 
         // 파일이 있으면 분석
         if (currentFile && currentFileType) {
@@ -1218,14 +1300,15 @@ document.addEventListener('DOMContentLoaded', function() {
             imageInput.value = '';
             excelInput.value = '';
             filePreview.classList.add('hidden');
-            messageInput.value = '';
+            if (bottomFilePreview) bottomFilePreview.classList.add('hidden');
+            inputElement.value = '';
             return;
         }
 
         if (!message) return;
 
         addMessage(message, true);
-        messageInput.value = '';
+        inputElement.value = '';
         showTyping();
 
         try {
@@ -1247,6 +1330,18 @@ document.addEventListener('DOMContentLoaded', function() {
             hideTyping();
             addMessage('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
         }
+    }
+
+    // 환영 화면 폼 제출
+    chatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        sendMessage(messageInput, filePreview);
+    });
+
+    // 하단 입력창 폼 제출
+    bottomChatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        sendMessage(bottomMessageInput, bottomFilePreview);
     });
 
     // Enter로 전송 (한글 조합 중에는 무시)
@@ -1255,6 +1350,78 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             chatForm.dispatchEvent(new Event('submit'));
         }
+    });
+
+    bottomMessageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            bottomChatForm.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // 하단 입력창 첨부 버튼
+    bottomAttachBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const rect = bottomAttachBtn.getBoundingClientRect();
+        attachMenu.style.left = rect.left + 'px';
+        attachMenu.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
+        attachMenu.classList.toggle('hidden');
+    });
+
+    // 하단 파일 미리보기 업데이트 함수
+    function updateFilePreview(imgElement, fileElement, filenameElement, previewContainer) {
+        if (currentFileType === 'image' && currentFile) {
+            imgElement.src = 'data:image/jpeg;base64,' + currentFile;
+            imgElement.classList.remove('hidden');
+            fileElement.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+        } else if (currentFileType === 'excel' && currentFile) {
+            filenameElement.textContent = currentFile.name;
+            fileElement.classList.remove('hidden');
+            imgElement.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+        }
+    }
+
+    // 이미지 선택 시 하단 미리보기도 업데이트
+    const originalImageHandler = imageInput.onchange;
+    imageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file && isConversationStarted) {
+            setTimeout(() => {
+                if (bottomPreviewImg && currentFile) {
+                    bottomPreviewImg.src = 'data:image/jpeg;base64,' + currentFile;
+                    bottomPreviewImg.classList.remove('hidden');
+                    bottomPreviewFile.classList.add('hidden');
+                    bottomFilePreview.classList.remove('hidden');
+                }
+            }, 100);
+        }
+    });
+
+    // 엑셀 선택 시 하단 미리보기도 업데이트
+    excelInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file && isConversationStarted) {
+            setTimeout(() => {
+                if (bottomPreviewFilename && currentFile) {
+                    bottomPreviewFilename.textContent = currentFile.name;
+                    bottomPreviewFile.classList.remove('hidden');
+                    bottomPreviewImg.classList.add('hidden');
+                    bottomFilePreview.classList.remove('hidden');
+                }
+            }, 100);
+        }
+    });
+
+    // 하단 파일 제거
+    bottomRemoveFileBtn.addEventListener('click', function() {
+        currentFile = null;
+        currentFileType = null;
+        imageInput.value = '';
+        excelInput.value = '';
+        filePreview.classList.add('hidden');
+        bottomFilePreview.classList.add('hidden');
     });
 });
 </script>
