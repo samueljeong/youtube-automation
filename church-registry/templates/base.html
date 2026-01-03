@@ -979,8 +979,17 @@
                     </div>
                 </div>
             </div>
+            <!-- 이미지 미리보기 -->
+            <div id="chat-modal-image-preview" class="chat-modal-image-preview hidden">
+                <img id="chat-modal-preview-img" src="" alt="첨부 이미지">
+                <button type="button" onclick="removeModalImage()" class="remove-preview-btn">&times;</button>
+            </div>
             <div class="chat-modal-input">
+                <input type="file" id="chat-modal-image-input" accept="image/*" style="display:none" onchange="handleModalImage(this)">
                 <form id="chat-modal-form" onsubmit="sendChatMessage(event)">
+                    <button type="button" class="attach-btn" onclick="document.getElementById('chat-modal-image-input').click()">
+                        <i class="bi bi-paperclip"></i>
+                    </button>
                     <input type="text" id="chat-modal-input-text" placeholder="메시지를 입력하세요..." autocomplete="off">
                     <button type="submit"><i class="bi bi-arrow-up"></i></button>
                 </form>
@@ -1209,6 +1218,54 @@
         transform: scale(1.05);
     }
 
+    .chat-modal-input .attach-btn {
+        background: transparent;
+        color: #667eea;
+        border: 1px solid #e0e0e0;
+    }
+
+    .chat-modal-input .attach-btn:hover {
+        background: #f5f5f7;
+    }
+
+    /* 이미지 미리보기 */
+    .chat-modal-image-preview {
+        padding: 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f5f5f7;
+    }
+
+    .chat-modal-image-preview.hidden {
+        display: none;
+    }
+
+    .chat-modal-image-preview img {
+        max-width: 80px;
+        max-height: 60px;
+        border-radius: 8px;
+        object-fit: cover;
+    }
+
+    .chat-modal-image-preview .remove-preview-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgba(0,0,0,0.5);
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+    }
+
+    .chat-message img {
+        max-width: 150px;
+        border-radius: 8px;
+        margin-bottom: 4px;
+    }
+
     /* 모바일 반응형 */
     @media (max-width: 480px) {
         .chat-modal {
@@ -1233,6 +1290,8 @@
         }
 
         // AI 채팅 모달
+        let modalImageData = null;
+
         function openChatModal() {
             document.getElementById('chat-modal').classList.remove('hidden');
             document.getElementById('chat-modal-input-text').focus();
@@ -1240,11 +1299,32 @@
 
         function closeChatModal() {
             document.getElementById('chat-modal').classList.add('hidden');
+            removeModalImage();
         }
 
         function sendQuickMessage(message) {
             document.getElementById('chat-modal-input-text').value = message;
             sendChatMessage(new Event('submit'));
+        }
+
+        // 이미지 첨부 처리
+        function handleModalImage(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    modalImageData = e.target.result.split(',')[1];
+                    document.getElementById('chat-modal-preview-img').src = e.target.result;
+                    document.getElementById('chat-modal-image-preview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeModalImage() {
+            modalImageData = null;
+            document.getElementById('chat-modal-image-input').value = '';
+            document.getElementById('chat-modal-image-preview').classList.add('hidden');
         }
 
         async function sendChatMessage(e) {
@@ -1253,7 +1333,7 @@
             const messages = document.getElementById('chat-modal-messages');
             const message = input.value.trim();
 
-            if (!message) return;
+            if (!message && !modalImageData) return;
 
             // 환영 메시지 숨기기
             const welcome = messages.querySelector('.chat-welcome');
@@ -1262,10 +1342,24 @@
             // 사용자 메시지 추가
             const userDiv = document.createElement('div');
             userDiv.className = 'chat-message user';
-            userDiv.textContent = message;
+
+            if (modalImageData) {
+                const imgEl = document.createElement('img');
+                imgEl.src = 'data:image/jpeg;base64,' + modalImageData;
+                userDiv.appendChild(imgEl);
+                if (message) {
+                    const msgP = document.createElement('p');
+                    msgP.textContent = message;
+                    userDiv.appendChild(msgP);
+                }
+            } else {
+                userDiv.textContent = message;
+            }
             messages.appendChild(userDiv);
 
+            const imageToSend = modalImageData;
             input.value = '';
+            removeModalImage();
 
             // 타이핑 표시
             const typingDiv = document.createElement('div');
@@ -1275,10 +1369,15 @@
             messages.scrollTop = messages.scrollHeight;
 
             try {
+                const requestBody = { message: message || '이 이미지에 대해 설명해줘' };
+                if (imageToSend) {
+                    requestBody.image = imageToSend;
+                }
+
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();

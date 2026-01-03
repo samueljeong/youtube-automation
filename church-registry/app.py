@@ -2711,6 +2711,57 @@ def _handle_simple_query(user_message: str) -> str:
     msg = user_message.strip()
     msg_lower = msg.lower()
 
+    # 숫자만 입력한 경우 전화번호/차량번호 검색
+    # 예: "4133", "1234", "가1234"
+    number_pattern = r'^[\d\-]+$'  # 숫자와 하이픈만
+    car_number_pattern = r'^[가-힣]?\s*\d{2,4}$'  # 차량번호 패턴 (예: "가1234", "1234")
+
+    if re.match(number_pattern, msg) or re.match(car_number_pattern, msg):
+        search_num = msg.replace('-', '').replace(' ', '')
+
+        # 전화번호 검색
+        phone_members = Member.query.filter(
+            Member.phone.ilike(f'%{search_num}%')
+        ).all()
+
+        # 차량번호 검색 (vehicle_number 필드가 있는 경우)
+        vehicle_members = []
+        if hasattr(Member, 'vehicle_number'):
+            vehicle_members = Member.query.filter(
+                Member.vehicle_number.ilike(f'%{msg}%')
+            ).all()
+
+        # 결과 합치기 (중복 제거)
+        all_members = {m.id: m for m in phone_members}
+        for m in vehicle_members:
+            all_members[m.id] = m
+        members = list(all_members.values())
+
+        if not members:
+            return f"'{msg}' 번호를 가진 교인을 찾을 수 없습니다."
+        elif len(members) == 1:
+            m = members[0]
+            response = f"📌 {m.name} {m.member_type or ''}님 정보\n\n"
+            if m.phone: response += f"📞 전화번호: {m.phone}\n"
+            if hasattr(m, 'vehicle_number') and m.vehicle_number:
+                response += f"🚗 차량번호: {m.vehicle_number}\n"
+            if m.address: response += f"🏠 주소: {m.address}\n"
+            if m.birth_date: response += f"🎂 생년월일: {m.birth_date.strftime('%Y-%m-%d')}\n"
+            if m.district: response += f"🏢 교구: {m.district}\n"
+            if m.cell_group: response += f"🏠 속회: {m.cell_group}\n"
+            return response
+        else:
+            response = f"📋 '{msg}' 검색 결과: {len(members)}명\n\n"
+            for m in members[:10]:
+                info_parts = [m.name, m.member_type or '']
+                if m.phone: info_parts.append(f"📞{m.phone}")
+                if hasattr(m, 'vehicle_number') and m.vehicle_number:
+                    info_parts.append(f"🚗{m.vehicle_number}")
+                response += f"• {' '.join(filter(None, info_parts))}\n"
+            if len(members) > 10:
+                response += f"\n... 외 {len(members) - 10}명 더 있습니다."
+            return response
+
     # 교인 이름 검색 (간단한 이름만 입력한 경우)
     # 예: "김철수", "김철수 검색", "홍길동 찾기"
     name_search_patterns = [
@@ -4594,8 +4645,12 @@ def api_get_member_family(member_id):
     # 3. 형제자매 가족 정보 (형제의 배우자, 자녀) + 배우자의 형제 가족
     sibling_families = []
 
+    # 형제 ID 집합 (중복 체크용)
+    sibling_ids = {s["id"] for s in family_data["siblings"]}
+    processed_sibling_pairs = set()  # 이미 처리된 형제 부부 쌍
+
     # 헬퍼 함수: 특정 형제의 가족 정보 수집
-    def build_sibling_family(sibling_info, is_spouse_sibling=False):
+    def build_sibling_family(sibling_info, is_spouse_sibling=False, skip_spouse_if_sibling=True):
         sibling_id = sibling_info["id"]
         sibling_family = {
             "sibling": sibling_info,
@@ -4618,11 +4673,26 @@ def api_get_member_family(member_id):
                            if sibling_spouse_rel.member_id == sibling_id
                            else sibling_spouse_rel.member)
             if spouse_member:
-                sibling_family["spouse"] = {
-                    **member_summary(spouse_member),
-                    "relationship_id": sibling_spouse_rel.id,
-                    "relationship_detail": "형제 배우자" if not is_spouse_sibling else "처남댁/형수" if spouse_member.gender not in ['M', '남', '남성', '남자'] else "매형/매제",
-                }
+                # 배우자가 나의 형제인 경우 (형제끼리 결혼한 경우) 처리
+                if skip_spouse_if_sibling and spouse_member.id in sibling_ids:
+                    # 이미 처리된 쌍인지 확인
+                    pair_key = tuple(sorted([sibling_id, spouse_member.id]))
+                    if pair_key in processed_sibling_pairs:
+                        # 이미 처리된 쌍이면 이 형제 가족은 추가하지 않음
+                        return None
+                    processed_sibling_pairs.add(pair_key)
+                    # 형제끼리 결혼한 경우 특별 처리
+                    sibling_family["spouse"] = {
+                        **member_summary(spouse_member),
+                        "relationship_id": sibling_spouse_rel.id,
+                        "relationship_detail": family_data["siblings"][[s["id"] for s in family_data["siblings"]].index(spouse_member.id)].get("relationship_detail", "형제자매"),
+                    }
+                else:
+                    sibling_family["spouse"] = {
+                        **member_summary(spouse_member),
+                        "relationship_id": sibling_spouse_rel.id,
+                        "relationship_detail": "형제 배우자" if not is_spouse_sibling else "처남댁/형수" if spouse_member.gender not in ['M', '남', '남성', '남자'] else "매형/매제",
+                    }
 
         # 형제의 자녀 찾기 (중복 제거용 set)
         seen_children_ids = set()
@@ -4650,7 +4720,7 @@ def api_get_member_family(member_id):
     # 내 형제 가족
     for sibling_info in family_data["siblings"]:
         sibling_family = build_sibling_family(sibling_info, is_spouse_sibling=False)
-        if sibling_family["spouse"] or sibling_family["children"]:
+        if sibling_family and (sibling_family["spouse"] or sibling_family["children"]):
             sibling_families.append(sibling_family)
 
     # 배우자의 형제 가족 (인척 중 형제 관계인 사람들)
