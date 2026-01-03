@@ -37,7 +37,7 @@ from .run import (
     run_history_pipeline,
     run_single_episode,
     get_pipeline_status,
-    run_auto_script_pipeline,  # GPT-5.2 대본 자동 생성
+    run_auto_script_pipeline,  # Claude Opus 4.5 대본 자동 생성
 )
 
 from .sheets import (

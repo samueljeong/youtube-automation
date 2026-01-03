@@ -20406,7 +20406,7 @@ def api_sheets_check_and_process():
     - 영상URL: 업로드된 URL (출력)
     - CTR: 클릭률 (출력)
     - 노출수: impressions (출력)
-    - 제목 (GPT 생성): 메인 제목
+    - 제목(GPT생성): 메인 제목
     - 제목2: 대안 제목 (solution)
     - 제목3: 대안 제목 (authority)
     - 제목변경일: CTR 자동화용 (출력)
@@ -20760,7 +20760,7 @@ def api_sheets_check_and_process():
         pipeline_data = {
             'channel_id': channel_id,
             'script': get_row_value(row_data, col_map, '대본'),
-            'title': get_row_value(row_data, col_map, '제목 (GPT 생성)'),
+            'title': get_row_value(row_data, col_map, '제목(GPT생성)'),
             'privacy': get_row_value(row_data, col_map, '공개설정', 'private'),
             'playlist_id': get_row_value(row_data, col_map, '플레이리스트ID'),
             'scheduled_time': get_row_value(row_data, col_map, '예약시간'),
@@ -21006,7 +21006,7 @@ def api_sheets_check_and_process():
 
         # 제목 기록
         if result.get('title'):
-            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목 (GPT 생성)', result['title'])
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목(GPT생성)', result['title'])
         title_options = result.get('title_options', [])
         if len(title_options) >= 1:
             sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '제목2', title_options[0].get('title', ''))
@@ -21275,7 +21275,7 @@ def api_sheets_check_ctr_and_update_titles():
             headers = rows[1]
             col_map = get_column_mapping(headers)
 
-            required_headers = ['상태', '영상URL', '작업시간', '제목 (GPT 생성)', '제목2', '제목3', 'CTR', '노출수', '제목변경일']
+            required_headers = ['상태', '영상URL', '작업시간', '제목(GPT생성)', '제목2', '제목3', 'CTR', '노출수', '제목변경일']
             if not all(h in col_map for h in ['상태', '영상URL', '작업시간']):
                 print(f"[CTR] [{sheet_name}] 필수 헤더 없음, 건너뛰기")
                 continue
@@ -21368,7 +21368,7 @@ def api_sheets_check_ctr_and_update_titles():
 
                     # CTR이 기준 미만이면 제목 변경
                     if ctr < CTR_THRESHOLD and impressions >= 100:  # 최소 100회 노출 이상
-                        current_title = get_row_value(row, col_map, '제목 (GPT 생성)')
+                        current_title = get_row_value(row, col_map, '제목(GPT생성)')
                         title2 = get_row_value(row, col_map, '제목2')
                         title3 = get_row_value(row, col_map, '제목3')
 
@@ -21394,7 +21394,7 @@ def api_sheets_check_ctr_and_update_titles():
                                 ).execute()
 
                                 # 시트에 변경 기록
-                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '제목 (GPT 생성)', new_title)
+                                sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '제목(GPT생성)', new_title)
                                 sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '제목변경일', now.strftime('%Y-%m-%d %H:%M'))
 
                                 updated_count += 1

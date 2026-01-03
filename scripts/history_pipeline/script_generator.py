@@ -1,48 +1,52 @@
 """
-GPT-5.2 기반 대본 자동 생성 모듈
+Claude Opus 4.5 기반 대본 자동 생성 모듈 (OpenRouter 사용)
 
 2025-01 신규:
 - 4개 공신력 있는 소스에서 수집한 자료 기반
-- 20,000자 분량의 역사 다큐멘터리 대본 생성
+- 12,000~15,000자 분량의 역사 다큐멘터리 대본 생성 (약 15분 영상)
 - 학술적 신중함 + 객관적 서술 스타일
 
-2025-01 업데이트:
-- GPT-5.1 → GPT-5.2 모델 업그레이드
-- 비용: $1.75/1M input, $14/1M output
+2026-01 업데이트:
+- GPT-5.2 → Claude Opus 4.5 모델 변경 (OpenRouter 경유)
+- 비용: $15/1M input, $75/1M output
 - Prompt Caching 적용 (System Prompt 90% 할인)
 """
 
 import os
 from typing import Dict, Any, Optional
 
-# GPT-5.2 Responses API 사용
+# OpenRouter API 사용 (OpenAI 호환)
 from openai import OpenAI
+
+# OpenRouter 설정
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4-5-20251101"
 
 
 # ============================================================
 # 대본 설정
 # ============================================================
-SCRIPT_TARGET_LENGTH = 20000  # 목표 글자수
-SCRIPT_MIN_LENGTH = 18000     # 최소 글자수 (20,000 - 10%)
-SCRIPT_MAX_LENGTH = 22000     # 최대 글자수 (20,000 + 10%)
+SCRIPT_TARGET_LENGTH = 13500  # 목표 글자수 (12000-15000 중간값)
+SCRIPT_MIN_LENGTH = 12000     # 최소 글자수
+SCRIPT_MAX_LENGTH = 15000     # 최대 글자수
 
 # 한국어 TTS 기준: 910자 ≈ 1분
-# 20,000자 ≈ 22분 영상
+# 13,500자 ≈ 15분 영상
 
 # 파트별 최소 분량 (강제)
-# - 인트로: 최소 1,500자 (권장 2,000자)
-# - 배경: 최소 3,000자 (권장 4,000자)
-# - 본론1: 최소 5,000자 (권장 6,000자)
-# - 본론2: 최소 6,000자 (권장 7,000자)
-# - 마무리: 최소 3,000자 (권장 4,000자)
-# - 총 최소: 18,500자 → 권장: ~23,000자
+# - 인트로: 최소 1,000자 (권장 1,500자)
+# - 배경: 최소 2,000자 (권장 2,500자)
+# - 본론1: 최소 3,500자 (권장 4,000자)
+# - 본론2: 최소 4,000자 (권장 4,500자)
+# - 마무리: 최소 2,000자 (권장 2,500자)
+# - 총 최소: 12,500자 → 권장: ~15,000자
 
 
 # ============================================================
 # ★★★ MASTER SYSTEM PROMPT (Prompt Caching 최적화) ★★★
 # ============================================================
 # 이 프롬프트는 모든 API 호출에서 System Prompt로 사용됨
-# → 90% 캐싱 할인 적용 (동일한 System Prompt 재사용)
+# → Claude Opus 4.5: 1024 토큰 이상 시 자동 캐싱 (90% 할인)
 # ============================================================
 MASTER_SYSTEM_PROMPT = """당신은 한국어 역사 다큐 유튜브 채널의 최상급 대본 작가입니다.
 목표: 시청자가 "다음 영상도 봐야겠다"고 느끼게 만드는 몰입감 있는 스토리텔링.
@@ -260,7 +264,7 @@ def generate_script_by_parts(
     materials: list = None,                     # ★ 수집된 자료 (제목+내용 포함)
 ) -> Dict[str, Any]:
     """
-    GPT-5.2로 파트별 대본 생성 (API 장점 극대화)
+    Claude Opus 4.5로 파트별 대본 생성 (API 장점 극대화)
 
     ★★★ API 활용 장점 ★★★
     - prev_episode_info: 이전 에피소드 내용 (자연스러운 연결)
@@ -268,18 +272,18 @@ def generate_script_by_parts(
     - series_context: 시리즈 전체 맥락 (위치 인식, 흐름 파악)
 
     파트 구조:
-    1. 인트로 (도입부) - 1,500자 ★ 강조
+    1. 인트로 (도입부) - 1,000~1,500자 ★ 강조
        - 이전 에피소드 연결 ("지난 시간에...")
-    2. 배경 설명 - 3,000자
-    3. 본론 - 12,000자
-    4. 마무리 - 3,500자
+    2. 배경 설명 - 2,000~2,500자
+    3. 본론 - 7,000~8,500자 (전반부 3,500 + 후반부 4,000)
+    4. 마무리 - 2,000~2,500자
        - 다음 에피소드 예고 (자연스러운 연결)
 
-    총 20,000자
+    총 12,000~15,000자 (약 15분 영상)
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        return {"error": "OPENAI_API_KEY 환경변수가 설정되지 않았습니다."}
+        return {"error": "OPENROUTER_API_KEY 환경변수가 설정되지 않았습니다."}
 
     if not full_content or len(full_content) < 500:
         return {"error": f"수집된 자료가 부족합니다. (현재: {len(full_content)}자)"}
@@ -306,7 +310,10 @@ def generate_script_by_parts(
     print(f"[SCRIPT] 다음 에피소드 예고: {'있음' if next_episode_info else '없음(마지막 화)'}")
 
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=OPENROUTER_BASE_URL,
+        )
 
         # ========================================
         # Part 1: 인트로 (도입부) - 1,000자
@@ -335,7 +342,7 @@ def generate_script_by_parts(
 3. Stakes (200자) - 이 사건의 중요성
 4. 로드맵 (200자) - 오늘 다룰 내용 암시
 
-★★★ 분량: 최소 1,500자 이상 필수. 1,500~2,000자 권장. ★★★
+★★★ 분량: 최소 1,000자 이상 필수. 1,000~1,500자 권장. ★★★
 ★ 분량 부족 시 내용을 더 풍부하게 확장하세요.
 ★ 스타일은 System Prompt 참조"""
 
@@ -347,7 +354,7 @@ def generate_script_by_parts(
         print(f"[SCRIPT] Part 1 완료: {len(intro_result['text']):,}자")
 
         # ========================================
-        # Part 2: 배경 설명 - 2,000자
+        # Part 2: 배경 설명 - 2,000~2,500자
         # ========================================
         print(f"[SCRIPT] Part 2: 배경 설명 생성 중...")
         background_prompt = f"""[파트: 배경 설명]
@@ -366,7 +373,7 @@ def generate_script_by_parts(
 3. 사건 배경 (600자) - 왜 이 일이 일어났는가
 
 ★ 리텐션 훅 1개 삽입 (중간 지점)
-★★★ 분량: 최소 3,000자 이상 필수. 3,000~4,000자 권장. ★★★
+★★★ 분량: 최소 2,000자 이상 필수. 2,000~2,500자 권장. ★★★
 ★ 분량 부족 시 시대 상황, 인물 배경을 더 상세히 서술하세요.
 ★ 스타일은 System Prompt 참조"""
 
@@ -378,7 +385,7 @@ def generate_script_by_parts(
         print(f"[SCRIPT] Part 2 완료: {len(bg_result['text']):,}자")
 
         # ========================================
-        # Part 3-1: 본론 전반부 - 4,000자
+        # Part 3-1: 본론 전반부 - 3,500~4,000자
         # ========================================
         print(f"[SCRIPT] Part 3-1: 본론 전반부 생성 중...")
         body1_prompt = f"""[파트: 본론 전반부]
@@ -397,8 +404,8 @@ def generate_script_by_parts(
 - 원인 → 전개 → 결과
 - 긴장감 있게, 확신 있게
 
-★ 리텐션 훅 2개 삽입 (2,000자 / 4,000자 지점)
-★★★ 분량: 최소 5,000자 이상 필수. 5,000~6,000자 권장. ★★★
+★ 리텐션 훅 1개 삽입 (2,000자 지점)
+★★★ 분량: 최소 3,500자 이상 필수. 3,500~4,000자 권장. ★★★
 ★ 분량 부족 시 사건의 전개 과정을 더 상세히 묘사하세요.
 ★ 스타일은 System Prompt 참조"""
 
@@ -421,13 +428,13 @@ def generate_script_by_parts(
 ════════════════════════════════════════
 [본론 후반부 구조]
 ════════════════════════════════════════
-1. 사건 전개 계속 (2,500자) - 긴장 고조
-2. 클라이맥스 (2,000자) - 가장 극적인 순간, 긴장감 있는 서술
-3. 결과와 여파 (2,000자) - 무엇이 바뀌었는가, 후속 영향
+1. 사건 전개 계속 (1,500자) - 긴장 고조
+2. 클라이맥스 (1,500자) - 가장 극적인 순간, 긴장감 있는 서술
+3. 결과와 여파 (1,500자) - 무엇이 바뀌었는가, 후속 영향
 
-★ 리텐션 훅 2개 삽입
+★ 리텐션 훅 1개 삽입
 ★ 클라이맥스: 긴장감 있게 (단, 문장이 너무 짧지 않게)
-★★★ 분량: 최소 6,000자 이상 필수. 6,000~7,000자 권장. ★★★
+★★★ 분량: 최소 4,000자 이상 필수. 4,000~4,500자 권장. ★★★
 ★ 분량 부족 시 클라이맥스와 결과/여파를 더 상세히 서술하세요.
 ★ 스타일은 System Prompt 참조"""
 
@@ -439,7 +446,7 @@ def generate_script_by_parts(
         print(f"[SCRIPT] Part 3-2 완료: {len(body2_result['text']):,}자")
 
         # ========================================
-        # Part 4: 마무리 - 2,000자
+        # Part 4: 마무리 - 2,000~2,500자
         # ========================================
         print(f"[SCRIPT] Part 4: 마무리 생성 중...")
         ending_prompt = f"""[파트: 마무리]
@@ -452,13 +459,13 @@ def generate_script_by_parts(
 ════════════════════════════════════════
 [마무리 구조]
 ════════════════════════════════════════
-1. 역사적 영향 (800자) - 이 사건이 남긴 것
-2. 열린 질문 (600자) - 시청자가 생각해볼 질문
-3. 다음 예고 (600자) - 다음 에피소드로 연결
+1. 역사적 영향 (700자) - 이 사건이 남긴 것
+2. 열린 질문 (500자) - 시청자가 생각해볼 질문
+3. 다음 예고 (500자) - 다음 에피소드로 연결
 
 ★ 여운 있게, 하지만 충분히 서술
 ★ 다음 영상 클릭 유도 (Open Loop)
-★★★ 분량: 최소 3,000자 이상 필수. 3,000~4,000자 권장. ★★★
+★★★ 분량: 최소 2,000자 이상 필수. 2,000~2,500자 권장. ★★★
 ★ 분량 부족 시 역사적 영향과 다음 예고를 더 풍부하게 작성하세요.
 ★ 스타일은 System Prompt 참조"""
 
@@ -500,7 +507,7 @@ def generate_script_by_parts(
         return {
             "script": full_script,
             "length": script_length,
-            "model": "gpt-5.2",
+            "model": "claude-opus-4-5-20251101",
             "cost": total_cost,
             "parts": {
                 "intro": len(all_parts[0]) if len(all_parts) > 0 else 0,
@@ -520,44 +527,32 @@ def generate_script_by_parts(
         return {"error": str(e)}
 
 
-def _call_gpt52_cached(client, user_prompt: str) -> Dict[str, Any]:
-    """GPT-5.2 API 호출 (Prompt Caching 적용)
+def _call_opus45_cached(client, user_prompt: str) -> Dict[str, Any]:
+    """Claude Opus 4.5 API 호출 via OpenRouter (Prompt Caching 적용)
 
     ★★★ Prompt Caching 최적화 ★★★
-    - System Prompt (MASTER_SYSTEM_PROMPT): 캐시됨 → 90% 할인
+    - System Prompt (MASTER_SYSTEM_PROMPT): 1024+ 토큰 시 자동 캐싱 (90% 할인)
     - User Prompt: 정가
 
-    GPT-5.2 가격:
-    - Input (정가): $1.75 / 1M tokens
-    - Input (캐시): $0.175 / 1M tokens (90% 할인)
-    - Output: $14 / 1M tokens
+    Claude Opus 4.5 가격 (OpenRouter):
+    - Input (정가): $15 / 1M tokens
+    - Input (캐시): $1.5 / 1M tokens (90% 할인)
+    - Output: $75 / 1M tokens
     """
     try:
-        # System/User 메시지 구조로 호출 (캐싱 최적화)
-        response = client.responses.create(
-            model="gpt-5.2",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": MASTER_SYSTEM_PROMPT}]
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}]
-                }
+        # OpenRouter API 호출 (OpenAI 호환)
+        response = client.chat.completions.create(
+            model=CLAUDE_OPUS_MODEL,
+            max_tokens=8192,
+            messages=[
+                {"role": "system", "content": MASTER_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt}
             ],
             temperature=0.7,
         )
 
         # 결과 추출
-        text = response.output_text if hasattr(response, 'output_text') else ""
-
-        if not text:
-            # 대체 방식
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text += getattr(content, "text", "")
+        text = response.choices[0].message.content or ""
 
         # ★★★ 비용 계산 (Prompt Caching 적용) ★★★
         # 한국어 약 2자 = 1토큰
@@ -565,11 +560,11 @@ def _call_gpt52_cached(client, user_prompt: str) -> Dict[str, Any]:
         user_tokens = len(user_prompt) // 2              # 정가
         output_tokens = len(text) // 2
 
-        # System Prompt: $0.175/1M (90% 할인), User Prompt: $1.75/1M, Output: $14/1M
+        # System Prompt: $1.5/1M (90% 할인), User Prompt: $15/1M, Output: $75/1M
         cost = (
-            (system_tokens * 0.175 / 1_000_000) +   # 캐시된 System Prompt
-            (user_tokens * 1.75 / 1_000_000) +      # User Prompt (정가)
-            (output_tokens * 14 / 1_000_000)        # Output
+            (system_tokens * 1.5 / 1_000_000) +    # 캐시된 System Prompt
+            (user_tokens * 15 / 1_000_000) +       # User Prompt (정가)
+            (output_tokens * 75 / 1_000_000)       # Output
         )
 
         return {
@@ -586,28 +581,28 @@ def _call_gpt52_cached(client, user_prompt: str) -> Dict[str, Any]:
         return {"error": str(e)}
 
 
-def _call_gpt52(client, prompt: str) -> Dict[str, Any]:
-    """GPT-5.2 API 호출 (이전 버전 호환용 - 캐싱 미적용)
+def _call_opus45(client, prompt: str, system_prompt: str = None) -> Dict[str, Any]:
+    """Claude Opus 4.5 API 호출 via OpenRouter (단일 프롬프트)
 
-    ※ 새 코드는 _call_gpt52_cached() 사용 권장
+    ※ 새 코드는 _call_opus45_cached() 사용 권장
     """
     try:
-        response = client.responses.create(
-            model="gpt-5.2",
-            input=prompt,
+        response = client.chat.completions.create(
+            model=CLAUDE_OPUS_MODEL,
+            max_tokens=8192,
+            messages=[
+                {"role": "system", "content": system_prompt or "당신은 한국사 대본 작가입니다."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
         )
 
-        text = response.output_text if hasattr(response, 'output_text') else ""
-
-        if not text:
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text += getattr(content, "text", "")
+        text = response.choices[0].message.content or ""
 
         input_tokens = len(prompt) // 2
         output_tokens = len(text) // 2
-        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
+        # Claude Opus 4.5 가격: $15/1M input, $75/1M output
+        cost = (input_tokens * 15 / 1_000_000) + (output_tokens * 75 / 1_000_000)
 
         return {"text": text.strip(), "cost": cost}
 
@@ -616,7 +611,9 @@ def _call_gpt52(client, prompt: str) -> Dict[str, Any]:
 
 
 # 이전 버전 호환성을 위한 별칭
-_call_gpt51 = _call_gpt52
+_call_gpt52_cached = _call_opus45_cached
+_call_gpt52 = _call_opus45
+_call_gpt51 = _call_opus45
 
 
 def _build_next_preview(next_info: Dict[str, Any], era_name: str) -> str:
@@ -1024,7 +1021,8 @@ def generate_script_gpt51(
     next_episode_info: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
-    GPT-5.2로 20,000자 대본 생성 (이전 버전 호환용 함수명 유지)
+    Claude Opus 4.5로 12,000~15,000자 대본 생성 (이전 버전 호환용 함수명 유지)
+    ※ OpenRouter API 사용
 
     Args:
         era_name: 시대명 (예: "삼국시대")
@@ -1045,9 +1043,9 @@ def generate_script_gpt51(
             "error": 에러 메시지 (실패 시)
         }
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        return {"error": "OPENAI_API_KEY 환경변수가 설정되지 않았습니다."}
+        return {"error": "OPENROUTER_API_KEY 환경변수가 설정되지 않았습니다."}
 
     if not full_content or len(full_content) < 1000:
         return {"error": f"수집된 자료가 부족합니다. (현재: {len(full_content)}자)"}
@@ -1111,45 +1109,36 @@ def generate_script_gpt51(
 """
 
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=OPENROUTER_BASE_URL,
+        )
 
-        print(f"[SCRIPT] GPT-5.2 대본 생성 시작...")
+        print(f"[SCRIPT] Claude Opus 4.5 대본 생성 시작 (OpenRouter)...")
         print(f"[SCRIPT] 입력 자료: {len(full_content):,}자")
 
-        # GPT-5.2 Responses API 호출
-        response = client.responses.create(
-            model="gpt-5.2",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": SCRIPT_STYLE_PROMPT}]
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}]
-                }
+        # OpenRouter API 호출 (OpenAI 호환)
+        response = client.chat.completions.create(
+            model=CLAUDE_OPUS_MODEL,
+            max_tokens=16384,
+            messages=[
+                {"role": "system", "content": SCRIPT_STYLE_PROMPT},
+                {"role": "user", "content": user_prompt}
             ],
             temperature=0.7,
         )
 
         # 결과 추출
-        if getattr(response, "output_text", None):
-            script = response.output_text.strip()
-        else:
-            text_chunks = []
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text_chunks.append(getattr(content, "text", ""))
-            script = "\n".join(text_chunks).strip()
+        script = response.choices[0].message.content or ""
+        script = script.strip()
 
         script_length = len(script)
 
         # 토큰 계산 (한국어 약 2자 = 1토큰)
-        # GPT-5.2 가격: $1.75/1M input, $14/1M output
+        # Claude Opus 4.5 가격: $15/1M input, $75/1M output
         input_tokens = (len(SCRIPT_STYLE_PROMPT) + len(user_prompt)) // 2
         output_tokens = script_length // 2
-        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
+        cost = (input_tokens * 15 / 1_000_000) + (output_tokens * 75 / 1_000_000)
 
         print(f"[SCRIPT] 대본 생성 완료: {script_length:,}자")
         print(f"[SCRIPT] 예상 비용: ${cost:.4f}")
@@ -1163,14 +1152,14 @@ def generate_script_gpt51(
         return {
             "script": script,
             "length": script_length,
-            "model": "gpt-5.2",
+            "model": "claude-opus-4-5-20251101",
             "cost": cost,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
         }
 
     except Exception as e:
-        print(f"[SCRIPT] GPT-5.2 호출 실패: {e}")
+        print(f"[SCRIPT] Claude Opus 4.5 호출 실패: {e}")
         return {"error": str(e)}
 
 
@@ -1245,10 +1234,11 @@ def _continue_script(
 ) -> Dict[str, Any]:
     """
     대본 이어쓰기 (분량 부족 시)
+    ※ OpenRouter API 사용
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        return {"error": "OPENAI_API_KEY 없음"}
+        return {"error": "OPENROUTER_API_KEY 없음"}
 
     remaining = target_length - len(current_script)
 
@@ -1265,37 +1255,29 @@ def _continue_script(
 """
 
     try:
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(
+            api_key=api_key,
+            base_url=OPENROUTER_BASE_URL,
+        )
 
-        response = client.responses.create(
-            model="gpt-5.2",
-            input=[
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": "한국사 대본 작가입니다. 기존 대본에 이어서 작성합니다."}]
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": prompt}]
-                }
+        # OpenRouter API 호출 (OpenAI 호환)
+        response = client.chat.completions.create(
+            model=CLAUDE_OPUS_MODEL,
+            max_tokens=8192,
+            messages=[
+                {"role": "system", "content": "한국사 대본 작가입니다. 기존 대본에 이어서 작성합니다."},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.7,
         )
 
-        if getattr(response, "output_text", None):
-            continuation = response.output_text.strip()
-        else:
-            text_chunks = []
-            for item in getattr(response, "output", []) or []:
-                for content in getattr(item, "content", []) or []:
-                    if getattr(content, "type", "") == "text":
-                        text_chunks.append(getattr(content, "text", ""))
-            continuation = "\n".join(text_chunks).strip()
+        continuation = response.choices[0].message.content or ""
+        continuation = continuation.strip()
 
-        # 비용 계산 (GPT-5.2 가격: $1.75/1M input, $14/1M output)
+        # 비용 계산 (Claude Opus 4.5 가격: $15/1M input, $75/1M output)
         input_tokens = len(prompt) // 2
         output_tokens = len(continuation) // 2
-        cost = (input_tokens * 1.75 / 1_000_000) + (output_tokens * 14 / 1_000_000)
+        cost = (input_tokens * 15 / 1_000_000) + (output_tokens * 75 / 1_000_000)
 
         print(f"[SCRIPT] 이어쓰기 완료: +{len(continuation):,}자")
 
