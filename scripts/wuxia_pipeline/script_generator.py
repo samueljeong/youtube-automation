@@ -22,18 +22,33 @@ from .config import (
     EPISODE_TEMPLATES,
     OPENROUTER_BASE_URL,
     CLAUDE_OPUS_MODEL,
+    CHARACTER_APPEARANCES,
+    IMAGE_STYLE,
 )
 
 
 # ============================================================
-# 대본 설정
+# 대본 설정 (약 15분 영상 기준)
 # ============================================================
-SCRIPT_TARGET_LENGTH = SCRIPT_CONFIG.get("target_chars", 13000)
-SCRIPT_MIN_LENGTH = SCRIPT_CONFIG.get("min_chars", 11000)
-SCRIPT_MAX_LENGTH = SCRIPT_CONFIG.get("max_chars", 15000)
+# 한국어 TTS 기준: 약 900자 ≈ 1분
+# 12,000~15,000자 ≈ 13~17분 영상
+SCRIPT_TARGET_LENGTH = 13500   # 목표 글자수
+SCRIPT_MIN_LENGTH = 12000      # 최소 글자수
+SCRIPT_MAX_LENGTH = 15000      # 최대 글자수
 
-# 씬당 이미지 수 (대본 길이에 따라 조정)
-IMAGES_PER_EPISODE = 8
+# 씬 이미지 수 (15분 영상 기준 10장)
+IMAGES_PER_EPISODE = 10
+
+
+# ============================================================
+# ★★★ 캐릭터 외모 설명 빌드 (config에서 가져옴) ★★★
+# ============================================================
+def _build_character_descriptions() -> str:
+    """config.py의 CHARACTER_APPEARANCES를 프롬프트용 문자열로 변환"""
+    lines = []
+    for char_name, appearance in CHARACTER_APPEARANCES.items():
+        lines.append(f"- {char_name}: \"{appearance}\"")
+    return "\n".join(lines)
 
 
 # ============================================================
@@ -52,27 +67,29 @@ MASTER_SYSTEM_PROMPT = f"""당신은 한국 무협 소설의 베테랑 작가이
 반드시 아래 JSON 형식으로 출력하세요:
 
 ```json
-{{
-  "script": "[나레이션] 대본 내용...\n\n[무영] \"대사\"...",
+{{{{
+  "script": "[나레이션] 대본 내용...\n\n[무영] \\"대사\\"...",
   "scenes": [
-    {{
+    {{{{
       "scene_number": 1,
       "scene_title": "씬 제목 (한글)",
+      "characters_in_scene": ["무영", "노인"],
       "narration_preview": "이 씬의 나레이션 첫 50자...",
       "image_prompt": "English image prompt for this scene..."
-    }}
+    }}}}
   ],
-  "thumbnail": {{
+  "thumbnail": {{{{
     "text_line1": "메인 문구 (8자 이내)",
     "text_line2": "서브 문구 (10자 이내)",
+    "main_character": "무영",
     "image_prompt": "English thumbnail image prompt..."
-  }},
-  "youtube": {{
+  }}}},
+  "youtube": {{{{
     "title": "영상 제목 (50자 이내)",
     "description": "영상 설명 (300자)",
     "tags": ["태그1", "태그2", "태그3"]
-  }}
-}}
+  }}}}
+}}}}
 ```
 
 ════════════════════════════════════════
@@ -102,37 +119,52 @@ MASTER_SYSTEM_PROMPT = f"""당신은 한국 무협 소설의 베테랑 작가이
 ════════════════════════════════════════
 모든 image_prompt는 영어로 작성:
 
-**스타일 고정**:
-- "Chinese martial arts wuxia illustration style"
-- "Ink wash painting with vibrant accent colors"
-- "Dynamic action poses, flowing robes"
-- "Ancient Chinese fantasy setting"
-- "Dramatic cinematic lighting"
-- "16:9 aspect ratio, high resolution"
-- "No text, no letters, no words"
+**기본 스타일 (모든 이미지에 적용)**:
+{IMAGE_STYLE['base_style']}
 
-**캐릭터 묘사**:
-- 무영: "Young Korean man in his early 20s, short black hair, sharp eyes, wearing worn gray martial arts robes, stoic expression"
-- 설하: "Beautiful young Korean woman, long flowing black hair, elegant white hanbok-style robes, graceful posture, stunning beauty that captivates all"
-- 노인: "Elderly Asian master with long white beard, wise eyes, wearing faded brown robes, mysterious aura"
+**액션 씬 추가**:
+{IMAGE_STYLE['action_style']}
+
+**감정 씬 추가**:
+{IMAGE_STYLE['emotional_style']}
+
+**풍경 씬 추가**:
+{IMAGE_STYLE['landscape_style']}
+
+**제외 요소 (Negative)**:
+{IMAGE_STYLE['negative_prompt']}
+
+════════════════════════════════════════
+★★★ 캐릭터 외모 (일관성 필수!) ★★★
+════════════════════════════════════════
+★★★ 아래 외모 설명을 정확히 따라서 이미지 프롬프트에 반영하세요 ★★★
+캐릭터가 등장하는 씬에서는 반드시 해당 외모 설명을 프롬프트에 포함!
+
+{_build_character_descriptions()}
+
+**이미지 프롬프트 작성 규칙**:
+1. 캐릭터가 등장하면 위 외모 설명을 그대로 포함
+2. 복장이 바뀌어도 얼굴/체형/헤어스타일은 동일하게 유지
+3. characters_in_scene에 등장 캐릭터 명시
 
 **씬별 프롬프트 예시**:
-- 액션씬: "Dynamic sword fight scene, [character], blade glowing with inner energy, motion blur, sparks flying, dramatic low angle shot"
-- 감정씬: "Close-up portrait of [character], emotional expression, soft moonlight, serene atmosphere"
-- 풍경씬: "Vast mountain landscape, ancient Chinese temple on cliff, misty clouds, golden sunset"
+- 액션씬: "[기본 스타일], Dynamic sword fight scene, [캐릭터 외모], blade glowing with inner energy, motion blur, sparks flying, dramatic low angle shot"
+- 감정씬: "[기본 스타일], Close-up portrait of [캐릭터 외모], emotional expression, soft moonlight, serene atmosphere"
+- 풍경씬: "[기본 스타일], Vast mountain landscape, ancient temple on cliff, misty clouds, golden sunset"
 
 ════════════════════════════════════════
 ★★★ 썸네일 규칙 ★★★
 ════════════════════════════════════════
 - text_line1: 강렬한 키워드 (8자 이내) - 예: "절체절명", "각성의 순간"
 - text_line2: 호기심 유발 (10자 이내) - 예: "노비에서 고수로"
+- main_character: 썸네일 주인공 (외모 설명 자동 적용)
 - image_prompt: 가장 임팩트 있는 장면, 인물 클로즈업 권장
 
 ════════════════════════════════════════
-★ 캐릭터 설정
+★ 캐릭터 성격/설정
 ════════════════════════════════════════
 【무영】
-- 노비 출신 청년 (20대 초반), 과묵하고 냉정
+- 노비 출신 청년 (18세), 과묵하고 냉정
 - 의문의 노인에게 절세무공 전수받음
 - 여자에게 관심 없음
 
@@ -152,6 +184,7 @@ MASTER_SYSTEM_PROMPT = f"""당신은 한국 무협 소설의 베테랑 작가이
 ❌ 한글 이미지 프롬프트 (영문만!)
 ❌ 격식체 ("~습니다") - 구어체만
 ❌ 감정 과장 ("놀랍게도")
+❌ 캐릭터 외모 임의 변경 (위 설명 그대로 사용!)
 
 반드시 위 JSON 형식으로만 출력하세요."""
 

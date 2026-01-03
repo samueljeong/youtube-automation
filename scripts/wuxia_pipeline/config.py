@@ -70,18 +70,94 @@ MAIN_CHARACTER_TAGS = ["무영", "설하", "노인", "각주", "악역"]
 EXTRA_TAGS = ["남자", "여자", "남자1", "남자2", "여자1", "여자2"]
 
 # =====================================================
+# 캐릭터 외모 설정 (이미지 프롬프트용)
+# =====================================================
+# ★ 씬 이미지 생성 시 캐릭터 일관성 유지를 위한 외모 설명
+# ★ 영문으로 작성 (이미지 생성 모델용)
+
+CHARACTER_APPEARANCES: Dict[str, str] = {
+    # 주인공 - 무영
+    "무영": (
+        "young Korean man, 18 years old, sharp angular jawline, intense dark piercing eyes, "
+        "messy black hair tied in a loose topknot, lean muscular build from hard labor, "
+        "wearing worn gray hemp servant clothes (노비 복장), determined expression, "
+        "subtle scars on hands from years of work"
+    ),
+
+    # 여주인공 - 설하 (절세미녀)
+    "설하": (
+        "breathtakingly beautiful Korean woman, early 20s, flawless porcelain skin, "
+        "delicate graceful features, long flowing jet-black hair reaching her waist, "
+        "elegant arched eyebrows, gentle almond-shaped eyes, "
+        "wearing elegant white silk hanbok with subtle peach blossom embroidery, "
+        "ethereal presence, moves with natural grace"
+    ),
+
+    # 스승 - 노인 (의문의 고수)
+    "노인": (
+        "elderly Korean martial arts master, 70s, long white beard flowing to mid-chest, "
+        "wise penetrating eyes that seem to see through everything, deeply weathered face, "
+        "wearing faded brown hemp martial arts robes, thin but radiates hidden power, "
+        "calm serene expression, mysterious aura"
+    ),
+
+    # 각주 (조연 - 무영의 동료 노비)
+    "각주": (
+        "sturdy Korean man, mid 20s, broad shoulders, honest round face, "
+        "short cropped black hair, friendly eyes, wearing worn servant clothes, "
+        "calloused hands, loyal dependable appearance"
+    ),
+
+    # 악역 (일반 악역 템플릿)
+    "악역": (
+        "menacing martial artist, cold calculating eyes, sharp angular features, "
+        "black or dark red martial arts robes with ornate patterns, "
+        "arrogant stance, dangerous aura, carries a distinctive weapon"
+    ),
+}
+
+# 이미지 스타일 설정 (일관된 화풍)
+IMAGE_STYLE = {
+    "base_style": (
+        "Chinese martial arts wuxia illustration style, "
+        "ink wash painting with vibrant accent colors, "
+        "dramatic cinematic lighting, "
+        "traditional East Asian aesthetic, "
+        "16:9 aspect ratio, high detail"
+    ),
+    "action_style": (
+        "dynamic action composition, motion blur effects, "
+        "energy trails, dramatic poses"
+    ),
+    "emotional_style": (
+        "intimate framing, soft lighting, "
+        "focus on facial expressions and emotions"
+    ),
+    "landscape_style": (
+        "wide panoramic shot, misty mountains, "
+        "traditional Korean architecture, atmospheric perspective"
+    ),
+    "negative_prompt": (
+        "text, letters, words, watermark, signature, "
+        "modern elements, anime style, cartoon, "
+        "low quality, blurry, deformed"
+    ),
+}
+
+# =====================================================
 # 대본 설정
 # =====================================================
 
 SCRIPT_CONFIG = {
-    # 에피소드당 목표 글자수 (약 13~15분 영상)
-    "target_chars": 13000,
-    "min_chars": 11000,
+    # 에피소드당 목표 글자수 (약 15분 영상)
+    # 한국어 TTS 기준: 약 900자 ≈ 1분
+    "target_chars": 13500,
+    "min_chars": 12000,
     "max_chars": 15000,
 
     # 씬 설정
-    "scenes_per_episode": 8,  # 에피소드당 씬 수
-    "chars_per_scene": 1500,  # 씬당 평균 글자수
+    "scenes_per_episode": 10,  # 에피소드당 씬 수 (10장)
+    "chars_per_scene": 1350,   # 씬당 평균 글자수 (13500 / 10)
 
     # TTS 설정
     "speaking_rate": 0.9,  # 음성 속도

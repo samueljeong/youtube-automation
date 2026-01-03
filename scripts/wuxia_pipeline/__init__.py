@@ -16,6 +16,8 @@ from .config import (
     SHEET_HEADERS,
     COLLECT_HEADERS,
     VIDEO_AUTOMATION_HEADERS,
+    CHARACTER_APPEARANCES,
+    IMAGE_STYLE,
 )
 
 from .multi_voice_tts import (
@@ -50,6 +52,8 @@ __all__ = [
     "SHEET_HEADERS",
     "COLLECT_HEADERS",
     "VIDEO_AUTOMATION_HEADERS",
+    "CHARACTER_APPEARANCES",
+    "IMAGE_STYLE",
     # Multi-voice TTS
     "parse_script_to_segments",
     "generate_multi_voice_tts",
