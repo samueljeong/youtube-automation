@@ -978,8 +978,8 @@
     let messages = [];
     let isLoading = false;
     let currentConversationId = null;
-    let currentUserId = localStorage.getItem('gpt-current-user') || 'default';
-    let users = JSON.parse(localStorage.getItem('gpt-users') || '["default"]');
+    let currentUserId = localStorage.getItem('gpt-current-user') || '';
+    let users = [];
     let currentImage = null;
 
     // Speech Recognition
@@ -1016,13 +1016,38 @@
     }
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-      renderUsers();
-      loadConversations();
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadUsers();
+      await loadConversations();
       document.getElementById('messageInput').focus();
     });
 
-    // User Management
+    // User Management - Load from server
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/gpt/users');
+        const data = await response.json();
+
+        if (data.ok && data.users) {
+          users = data.users.map(u => u.id);
+
+          // 현재 사용자가 없거나 목록에 없으면 첫 번째 사용자로 설정
+          if (!currentUserId || !users.includes(currentUserId)) {
+            currentUserId = users[0] || '아빠';
+            localStorage.setItem('gpt-current-user', currentUserId);
+          }
+
+          renderUsers();
+        }
+      } catch (err) {
+        console.error('Failed to load users:', err);
+        // 기본 사용자 설정
+        users = ['아빠', '엄마', '재하', '하윤'];
+        if (!currentUserId) currentUserId = users[0];
+        renderUsers();
+      }
+    }
+
     function renderUsers() {
       const select = document.getElementById('userSelect');
       select.innerHTML = '';
@@ -1030,14 +1055,14 @@
       users.forEach(user => {
         const option = document.createElement('option');
         option.value = user;
-        option.textContent = user === 'default' ? '기본 사용자' : user;
+        option.textContent = user;
         if (user === currentUserId) option.selected = true;
         select.appendChild(option);
       });
 
       // Update welcome message
       const welcomeUser = document.getElementById('welcomeUser');
-      welcomeUser.textContent = currentUserId === 'default' ? '기본 사용자' : currentUserId;
+      welcomeUser.textContent = currentUserId || '사용자';
     }
 
     function switchUser() {
@@ -1066,22 +1091,35 @@
       document.getElementById('newUserName').value = '';
     }
 
-    function addUser() {
+    async function addUser() {
       const name = document.getElementById('newUserName').value.trim();
       if (!name) return;
 
-      if (!users.includes(name)) {
-        users.push(name);
-        localStorage.setItem('gpt-users', JSON.stringify(users));
+      try {
+        const response = await fetch('/api/gpt/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          users = data.users;
+          currentUserId = name;
+          localStorage.setItem('gpt-current-user', currentUserId);
+
+          hideAddUserModal();
+          renderUsers();
+          loadConversations();
+          newChat();
+        } else {
+          alert(data.error || '사용자 추가 실패');
+        }
+      } catch (err) {
+        console.error('Failed to add user:', err);
+        alert('사용자 추가 중 오류가 발생했습니다.');
       }
-
-      currentUserId = name;
-      localStorage.setItem('gpt-current-user', currentUserId);
-
-      hideAddUserModal();
-      renderUsers();
-      loadConversations();
-      newChat();
     }
 
     // Model Selection
@@ -1138,6 +1176,11 @@
       document.getElementById('sidebarOverlay').classList.toggle('show');
     }
 
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebarOverlay').classList.remove('show');
+    }
+
     // Conversations
     async function loadConversations() {
       try {
@@ -1189,7 +1232,7 @@
       document.getElementById('messagesScroll').innerHTML = '';
 
       loadConversations();
-      toggleSidebar();
+      closeSidebar();
     }
 
     async function loadConversation(id) {
@@ -1211,7 +1254,7 @@
           });
 
           loadConversations();
-          toggleSidebar();
+          closeSidebar();
         }
       } catch (err) {
         console.error('Failed to load conversation:', err);

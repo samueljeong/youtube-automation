@@ -24911,8 +24911,39 @@ def api_ai_tools_chat():
 
 # ===== GPT Chat API (가족 공용 GPT) =====
 
-# 대화 저장소 (메모리 + 파일 백업)
-GPT_CONVERSATIONS_FILE = os.path.join(os.path.dirname(__file__), 'data', 'gpt_conversations.json')
+# 데이터 저장 경로
+GPT_DATA_DIR = os.path.join(os.path.dirname(__file__), 'data', 'gpt_chat')
+GPT_CONVERSATIONS_FILE = os.path.join(GPT_DATA_DIR, 'conversations.json')
+GPT_USERS_FILE = os.path.join(GPT_DATA_DIR, 'users.json')
+
+# 기본 사용자 목록
+DEFAULT_USERS = ["아빠", "엄마", "재하", "하윤"]
+
+def ensure_gpt_data_dir():
+    """GPT 데이터 디렉토리 생성"""
+    os.makedirs(GPT_DATA_DIR, exist_ok=True)
+
+def load_gpt_users():
+    """사용자 목록 로드"""
+    try:
+        if os.path.exists(GPT_USERS_FILE):
+            with open(GPT_USERS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[GPT] 사용자 로드 실패: {e}")
+    return DEFAULT_USERS.copy()
+
+def save_gpt_users(users):
+    """사용자 목록 저장"""
+    try:
+        ensure_gpt_data_dir()
+        with open(GPT_USERS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(users, f, ensure_ascii=False, indent=2)
+        print(f"[GPT] 사용자 저장 완료: {users}")
+        return True
+    except Exception as e:
+        print(f"[GPT] 사용자 저장 실패: {e}")
+        return False
 
 def load_gpt_conversations():
     """저장된 대화 로드"""
@@ -24927,11 +24958,16 @@ def load_gpt_conversations():
 def save_gpt_conversations(data):
     """대화 저장"""
     try:
-        os.makedirs(os.path.dirname(GPT_CONVERSATIONS_FILE), exist_ok=True)
+        ensure_gpt_data_dir()
         with open(GPT_CONVERSATIONS_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"[GPT] 대화 저장 완료: {len(data)} users")
+        return True
     except Exception as e:
         print(f"[GPT] 대화 저장 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def analyze_question_complexity(message: str, has_image: bool = False) -> str:
     """질문 복잡도 분석하여 적절한 모델 선택
@@ -25251,8 +25287,8 @@ def api_gpt_delete_conversation(conversation_id):
 def api_gpt_get_users():
     """등록된 사용자 목록 조회"""
     try:
+        users = load_gpt_users()
         conversations = load_gpt_conversations()
-        users = list(conversations.keys())
 
         result = []
         for user_id in users:
@@ -25265,6 +25301,55 @@ def api_gpt_get_users():
             })
 
         return jsonify({"ok": True, "users": result})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/gpt/users', methods=['POST'])
+def api_gpt_add_user():
+    """사용자 추가"""
+    try:
+        data = request.get_json() or {}
+        user_name = data.get('name', '').strip()
+
+        if not user_name:
+            return jsonify({"ok": False, "error": "사용자 이름을 입력하세요"})
+
+        users = load_gpt_users()
+
+        if user_name in users:
+            return jsonify({"ok": False, "error": "이미 존재하는 사용자입니다"})
+
+        users.append(user_name)
+        save_gpt_users(users)
+
+        return jsonify({"ok": True, "users": users})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@app.route('/api/gpt/users/<user_id>', methods=['DELETE'])
+def api_gpt_delete_user(user_id):
+    """사용자 삭제 (대화 기록도 함께 삭제)"""
+    try:
+        users = load_gpt_users()
+
+        if user_id not in users:
+            return jsonify({"ok": False, "error": "사용자를 찾을 수 없습니다"})
+
+        # 사용자 삭제
+        users.remove(user_id)
+        save_gpt_users(users)
+
+        # 해당 사용자의 대화 기록도 삭제
+        conversations = load_gpt_conversations()
+        if user_id in conversations:
+            del conversations[user_id]
+            save_gpt_conversations(conversations)
+
+        return jsonify({"ok": True, "users": users})
 
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
