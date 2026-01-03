@@ -659,11 +659,36 @@ class Group(db.Model):
 
     def get_member_count(self, include_children=True):
         """소속 인원 수 (하위 그룹 포함 옵션)"""
-        count = len(self.members)
+        # 기존 group_id 기반 멤버 + 새로운 member_groups 테이블 기반 멤버 합산
+        count = len(self.members)  # group_id 관계
+        # member_groups 테이블에서 추가 멤버 계산
+        additional = MemberGroup.query.filter_by(group_id=self.id).count()
+        count += additional
         if include_children:
             for child in self.get_all_children():
                 count += len(child.members)
+                additional_child = MemberGroup.query.filter_by(group_id=child.id).count()
+                count += additional_child
         return count
+
+
+# 회원-그룹 다대다 관계 테이블 (여러 그룹에 소속 가능)
+class MemberGroup(db.Model):
+    """회원-그룹 연결 모델 (다중 그룹 소속 지원)"""
+    __tablename__ = 'member_groups'
+
+    id = db.Column(db.Integer, primary_key=True)
+    member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('groups.id'), nullable=False)
+    role = db.Column(db.String(50))  # 그룹 내 역할 (리더, 부리더, 멤버 등)
+    joined_at = db.Column(db.DateTime, default=get_seoul_now)
+
+    member = db.relationship('Member', backref='member_groups')
+    group = db.relationship('Group', backref='member_group_entries')
+
+    __table_args__ = (
+        db.UniqueConstraint('member_id', 'group_id', name='unique_member_group'),
+    )
 
 
 class Attendance(db.Model):
@@ -1019,11 +1044,22 @@ def member_new():
         db.session.add(member)
         db.session.commit()
 
+        # 다중 그룹 처리
+        group_ids_str = request.form.get('group_ids', '').strip()
+        if group_ids_str:
+            group_ids = [int(gid) for gid in group_ids_str.split(',') if gid.strip()]
+            for gid in group_ids:
+                mg = MemberGroup(member_id=member.id, group_id=gid)
+                db.session.add(mg)
+            db.session.commit()
+
         flash(f'{member.display_name}이(가) 등록되었습니다.', 'success')
         return redirect(url_for('member_detail', member_id=member.id))
 
+    # 그룹 목록 (full_path 포함)
     groups = Group.query.all()
-    return render_template('members/form.html', groups=groups, member=None)
+    groups_data = [{'id': g.id, 'name': g.name, 'full_path': g.get_full_path()} for g in groups]
+    return render_template('members/form.html', groups=groups_data, member=None)
 
 
 @app.route('/members/<int:member_id>')
@@ -1048,8 +1084,8 @@ def member_edit(member_id):
         member.status = request.form.get('status', 'active')
         member.notes = request.form.get('notes', '').strip()
 
-        group_id = request.form.get('group_id')
-        member.group_id = int(group_id) if group_id else None
+        # 기존 단일 그룹은 None으로 설정 (다중 그룹 사용)
+        member.group_id = None
 
         # 성도 구분
         member_type = request.form.get('member_type', '')
@@ -1117,15 +1153,29 @@ def member_edit(member_id):
         # 유효성 검사
         if not member.name:
             flash('이름은 필수 입력 항목입니다.', 'danger')
-            return render_template('members/form.html', groups=Group.query.all(), member=member)
+            groups = Group.query.all()
+            groups_data = [{'id': g.id, 'name': g.name, 'full_path': g.get_full_path()} for g in groups]
+            return render_template('members/form.html', groups=groups_data, member=member)
+
+        # 다중 그룹 처리 - 기존 연결 삭제 후 새로 추가
+        MemberGroup.query.filter_by(member_id=member.id).delete()
+
+        group_ids_str = request.form.get('group_ids', '').strip()
+        if group_ids_str:
+            group_ids = [int(gid) for gid in group_ids_str.split(',') if gid.strip()]
+            for gid in group_ids:
+                mg = MemberGroup(member_id=member.id, group_id=gid)
+                db.session.add(mg)
 
         db.session.commit()
 
         flash(f'{member.display_name} 정보가 수정되었습니다.', 'success')
         return redirect(url_for('member_detail', member_id=member.id))
 
+    # 그룹 목록 (full_path 포함)
     groups = Group.query.all()
-    return render_template('members/form.html', groups=groups, member=member)
+    groups_data = [{'id': g.id, 'name': g.name, 'full_path': g.get_full_path()} for g in groups]
+    return render_template('members/form.html', groups=groups_data, member=member)
 
 
 @app.route('/members/<int:member_id>/delete', methods=['POST'])
@@ -1266,9 +1316,11 @@ def group_delete(group_id):
         # 하위 그룹 먼저 삭제
         for child in g.children:
             delete_group_recursive(child)
-        # 소속 교인들의 그룹 해제
+        # 소속 교인들의 그룹 해제 (기존 group_id)
         for member in g.members:
             member.group_id = None
+        # 다중 그룹 연결 삭제 (member_groups 테이블)
+        MemberGroup.query.filter_by(group_id=g.id).delete()
         db.session.delete(g)
 
     delete_group_recursive(group)
@@ -1276,6 +1328,134 @@ def group_delete(group_id):
 
     flash(f'{name} 그룹이 삭제되었습니다.', 'success')
     return redirect(url_for('group_list'))
+
+
+@app.route('/api/groups/<int:group_id>/duplicate', methods=['POST'])
+def api_group_duplicate(group_id):
+    """그룹 복제 API"""
+    group = Group.query.get_or_404(group_id)
+    data = request.get_json() or {}
+    new_name = data.get('new_name', f'{group.name} (복사)')
+
+    # 새 그룹 생성
+    new_group = Group(
+        name=new_name,
+        group_type=group.group_type,
+        parent_id=group.parent_id,
+        level=group.level,
+        description=group.description
+    )
+    db.session.add(new_group)
+    db.session.commit()
+
+    return jsonify({'ok': True, 'group_id': new_group.id, 'name': new_group.name})
+
+
+@app.route('/api/groups/generate-from-organization', methods=['POST'])
+def api_generate_groups_from_organization():
+    """기존 교회 조직 정보(교구, 속회, 선교회)에서 그룹 자동 생성"""
+    import re
+
+    created_groups = []
+    stats = {'districts': 0, 'cells': 0, 'missions': 0}
+
+    # 1. 교구 그룹 생성 (년도 제외하고 통합)
+    # 예: "3교구[2025]", "3교구[2020]" → "3교구"
+    districts = db.session.query(Member.district).filter(
+        Member.district.isnot(None),
+        Member.district != ''
+    ).distinct().all()
+
+    # 년도 제거하고 유니크한 교구명 추출
+    district_names = set()
+    for (d,) in districts:
+        # [2025] 같은 년도 패턴 제거
+        clean_name = re.sub(r'\s*\[\d{4}\]', '', d).strip()
+        if clean_name:
+            district_names.add(clean_name)
+
+    # 교구 상위 그룹 찾기 또는 생성
+    district_parent = Group.query.filter_by(name='교구', group_type='district', parent_id=None).first()
+    if not district_parent:
+        district_parent = Group(name='교구', group_type='district', level=0)
+        db.session.add(district_parent)
+        db.session.commit()
+
+    for name in sorted(district_names):
+        existing = Group.query.filter_by(name=name, parent_id=district_parent.id).first()
+        if not existing:
+            new_group = Group(
+                name=name,
+                group_type='district',
+                parent_id=district_parent.id,
+                level=1
+            )
+            db.session.add(new_group)
+            created_groups.append(name)
+            stats['districts'] += 1
+
+    # 2. 속회 그룹 생성
+    cells = db.session.query(Member.cell_group).filter(
+        Member.cell_group.isnot(None),
+        Member.cell_group != ''
+    ).distinct().all()
+
+    # 속회 상위 그룹 찾기 또는 생성
+    cell_parent = Group.query.filter_by(name='속회', group_type='mission', parent_id=None).first()
+    if not cell_parent:
+        cell_parent = Group(name='속회', group_type='mission', level=0)
+        db.session.add(cell_parent)
+        db.session.commit()
+
+    for (cell_name,) in cells:
+        if cell_name:
+            existing = Group.query.filter_by(name=cell_name, parent_id=cell_parent.id).first()
+            if not existing:
+                new_group = Group(
+                    name=cell_name,
+                    group_type='mission',
+                    parent_id=cell_parent.id,
+                    level=1
+                )
+                db.session.add(new_group)
+                created_groups.append(cell_name)
+                stats['cells'] += 1
+
+    # 3. 선교회 그룹 생성
+    missions = db.session.query(Member.mission_group).filter(
+        Member.mission_group.isnot(None),
+        Member.mission_group != ''
+    ).distinct().all()
+
+    # 선교회 상위 그룹 찾기 또는 생성
+    mission_parent = Group.query.filter_by(name='선교회', group_type='mission', parent_id=None).first()
+    if not mission_parent:
+        mission_parent = Group(name='선교회', group_type='mission', level=0)
+        db.session.add(mission_parent)
+        db.session.commit()
+
+    for (mission_name,) in missions:
+        if mission_name:
+            existing = Group.query.filter_by(name=mission_name, parent_id=mission_parent.id).first()
+            if not existing:
+                new_group = Group(
+                    name=mission_name,
+                    group_type='mission',
+                    parent_id=mission_parent.id,
+                    level=1
+                )
+                db.session.add(new_group)
+                created_groups.append(mission_name)
+                stats['missions'] += 1
+
+    db.session.commit()
+
+    return jsonify({
+        'ok': True,
+        'created': created_groups,
+        'stats': stats,
+        'message': f"교구 {stats['districts']}개, 속회 {stats['cells']}개, 선교회 {stats['missions']}개 그룹이 생성되었습니다."
+    })
 
 
 # =============================================================================

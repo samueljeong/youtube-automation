@@ -147,6 +147,87 @@
 .type-icon-position { color: #f5576c; }
 .type-icon-school { color: #ff9a56; }
 .type-icon-newcomer { color: #4facfe; }
+
+/* 그룹 액션 버튼 */
+.group-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.group-item-wrapper:hover .group-actions {
+    opacity: 1;
+}
+
+.group-action-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.group-action-btn.edit {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.group-action-btn.edit:hover {
+    background: #2563eb;
+    color: white;
+}
+
+.group-action-btn.duplicate {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.group-action-btn.duplicate:hover {
+    background: #059669;
+    color: white;
+}
+
+.group-action-btn.delete {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.group-action-btn.delete:hover {
+    background: #dc2626;
+    color: white;
+}
+
+/* 카테고리 헤더 액션 */
+.category-actions {
+    display: flex;
+    gap: 8px;
+    margin-right: 16px;
+}
+
+.category-action-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.category-action-btn:hover {
+    background: var(--apple-blue);
+    color: white;
+}
 </style>
 
 <div class="container">
@@ -160,6 +241,9 @@
             <p class="page-subtitle">교구, 선교회, 직분, 교회학교, 새가족 그룹을 관리합니다</p>
         </div>
         <div style="display: flex; gap: 12px;">
+            <button type="button" class="btn-cancel" onclick="generateGroupsFromOrganization()" style="display: flex; align-items: center; gap: 6px;">
+                <i class="bi bi-magic"></i> 조직 정보로 자동 생성
+            </button>
             <a href="{{ url_for('group_new') }}" class="btn-submit">
                 <i class="bi bi-plus-lg"></i> 새 그룹 등록
             </a>
@@ -188,27 +272,55 @@
             <div class="group-children">
                 {% for child in category.children|sort(attribute='name') %}
                 <div class="group-item-wrapper">
-                    <a href="{{ url_for('group_detail', group_id=child.id) }}" class="group-item">
-                        <div class="group-item-info">
+                    <div class="group-item" style="cursor: default;">
+                        <a href="{{ url_for('group_detail', group_id=child.id) }}" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 1;">
                             <i class="bi bi-folder2"></i>
                             <div>
                                 <div class="group-name">{{ child.name }}</div>
                             </div>
+                        </a>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="group-actions">
+                                <a href="{{ url_for('group_edit', group_id=child.id) }}" class="group-action-btn edit" title="수정" onclick="event.stopPropagation()">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="group-action-btn duplicate" title="복제" onclick="event.stopPropagation(); duplicateGroup({{ child.id }}, '{{ child.name }}')">
+                                    <i class="bi bi-copy"></i>
+                                </button>
+                                <button type="button" class="group-action-btn delete" title="삭제" onclick="event.stopPropagation(); deleteGroup({{ child.id }}, '{{ child.name }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <span class="member-count">{{ child.get_member_count() }}명</span>
                         </div>
-                        <span class="member-count">{{ child.get_member_count() }}명 <i class="bi bi-chevron-right"></i></span>
-                    </a>
+                    </div>
                     {% if child.children %}
                     <div class="sub-group-item">
                         {% for subchild in child.children|sort(attribute='name') %}
-                        <a href="{{ url_for('group_detail', group_id=subchild.id) }}" class="group-item">
-                            <div class="group-item-info">
-                                <i class="bi bi-folder"></i>
-                                <div>
-                                    <div class="group-name">{{ subchild.name }}</div>
+                        <div class="group-item-wrapper">
+                            <div class="group-item" style="cursor: default;">
+                                <a href="{{ url_for('group_detail', group_id=subchild.id) }}" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; flex: 1;">
+                                    <i class="bi bi-folder"></i>
+                                    <div>
+                                        <div class="group-name">{{ subchild.name }}</div>
+                                    </div>
+                                </a>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div class="group-actions">
+                                        <a href="{{ url_for('group_edit', group_id=subchild.id) }}" class="group-action-btn edit" title="수정" onclick="event.stopPropagation()">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <button type="button" class="group-action-btn duplicate" title="복제" onclick="event.stopPropagation(); duplicateGroup({{ subchild.id }}, '{{ subchild.name }}')">
+                                            <i class="bi bi-copy"></i>
+                                        </button>
+                                        <button type="button" class="group-action-btn delete" title="삭제" onclick="event.stopPropagation(); deleteGroup({{ subchild.id }}, '{{ subchild.name }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    <span class="member-count">{{ subchild.get_member_count() }}명</span>
                                 </div>
                             </div>
-                            <span class="member-count">{{ subchild.get_member_count() }}명 <i class="bi bi-chevron-right"></i></span>
-                        </a>
+                        </div>
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -238,6 +350,85 @@
 <script>
 function toggleCategory(element) {
     element.classList.toggle('collapsed');
+}
+
+async function deleteGroup(groupId, groupName) {
+    if (!confirm(`"${groupName}" 그룹을 삭제하시겠습니까?\n하위 그룹과 소속 멤버 연결도 함께 삭제됩니다.`)) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/groups/${groupId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            const data = await resp.json();
+            alert(data.error || '삭제에 실패했습니다.');
+        }
+    } catch (e) {
+        alert('오류가 발생했습니다: ' + e.message);
+    }
+}
+
+async function duplicateGroup(groupId, groupName) {
+    const newName = prompt(`"${groupName}" 그룹을 복제합니다.\n새 그룹 이름을 입력하세요:`, groupName + ' (복사)');
+    if (!newName || newName.trim() === '') {
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/api/groups/${groupId}/duplicate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ new_name: newName.trim() })
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok) {
+            window.location.reload();
+        } else {
+            alert(data.error || '복제에 실패했습니다.');
+        }
+    } catch (e) {
+        alert('오류가 발생했습니다: ' + e.message);
+    }
+}
+
+async function generateGroupsFromOrganization() {
+    if (!confirm('교인 정보의 교구, 속회, 선교회 데이터를 기반으로 그룹을 자동 생성합니다.\n\n이미 존재하는 그룹은 건너뛰고, 새로운 그룹만 생성됩니다.\n계속하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/groups/generate-from-organization', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok) {
+            alert(data.message);
+            if (data.created.length > 0) {
+                window.location.reload();
+            }
+        } else {
+            alert(data.error || '그룹 생성에 실패했습니다.');
+        }
+    } catch (e) {
+        alert('오류가 발생했습니다: ' + e.message);
+    }
 }
 </script>
 {% endblock %}
