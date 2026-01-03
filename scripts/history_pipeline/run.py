@@ -389,9 +389,9 @@ def run_auto_script_pipeline(
     1. 4개 공신력 있는 소스에서 자료 수집
     2. Claude Opus 4.5로 12,000~15,000자 대본 생성 (약 15분 영상)
     3. 시트의 "대본" 컬럼에 저장
-    4. 상태를 "대본완료"로 변경 (수동 검토 후 "대기"로 변경 필요)
+    4. 상태를 "대기"로 변경 → 영상 생성 파이프라인 자동 시작
 
-    ★ 현재 수동 검토 모드: 대본 품질 확인 후 "대기" 상태로 변경해야 영상 생성 시작
+    ★ 완전 자동화 모드: 대본 생성 → 바로 영상 생성으로 이어짐
 
     Args:
         sheet_id: Google Sheets ID
@@ -524,15 +524,15 @@ def run_auto_script_pipeline(
 
             print(f"[AUTO-SCRIPT] 대본 생성 완료: {script_length:,}자, ${cost:.4f}")
 
-            # 2d) 시트에 대본 저장 + 상태 "대본완료"로 변경 + SEO 메타데이터
-            # ★ 대본 품질 확인 전까지는 "대본완료" 상태 유지 (수동 검토 후 "대기"로 변경)
+            # 2d) 시트에 대본 저장 + 상태 "대기"로 변경 + SEO 메타데이터
+            # ★ 완전 자동화: 대본 저장 후 바로 "대기" 상태 → 영상 생성 자동 시작
             print(f"[AUTO-SCRIPT] 시트 저장 중...")
             update_result = update_script_and_status(
                 service=service,
                 spreadsheet_id=sheet_id,
                 row_index=row_index,
                 script=script,
-                new_status="대본완료",  # ★ 자동화 중지: 검토 후 수동으로 "대기" 전환 필요
+                new_status="대기",  # ★ 완전 자동화: 바로 영상 생성 파이프라인으로 전달
                 youtube_title=script_result.get("youtube_title"),        # ★ SEO 제목
                 thumbnail_text=script_result.get("thumbnail_text"),      # ★ 썸네일 문구
                 youtube_sources=script_result.get("youtube_sources"),    # ★ 출처 링크

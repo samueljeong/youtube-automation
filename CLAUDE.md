@@ -1004,17 +1004,18 @@ curl -X POST "https://drama-s2ns.onrender.com/api/news/run-pipeline?channel=ECON
 - `scripts/history_pipeline/script_generator.py` - **Claude Opus 4.5 대본 자동 생성 (OpenRouter, 12,000~15,000자)**
 - `scripts/history_pipeline/sheets.py` - HISTORY 시트 CRUD
 
-**히스토리 파이프라인 워크플로우:**
+**히스토리 파이프라인 워크플로우 (완전 자동화):**
 ```
 1. HISTORY 시트에서 '준비' 상태 에피소드 확인
 2. PENDING_TARGET_COUNT (1개) 미만이면:
    - 다음 에피소드 자료 수집 (Gemini, 한국민족문화대백과, e뮤지엄, 한국사DB)
    - Opus 프롬프트 생성 → 시트 저장 (상태: '준비')
-3. (선택) /api/history/auto-generate 호출 시:
+3. /api/history/auto-generate 호출 시:
    - Claude Opus 4.5로 대본 자동 생성 (OpenRouter 경유, 12,000~15,000자, 약 15분 영상)
-   - 시트 업데이트 (상태: '대본완료')
-4. 사용자가 상태를 '대기'로 변경
-5. /api/sheets/check-and-process가 자동 감지 → 영상 생성 시작
+   - 시트 업데이트 (상태: '대기') ★ 자동으로 영상 생성 대기열에 추가
+4. /api/sheets/check-and-process가 자동 감지 → 영상 생성 시작
+
+★ 2026-01 업데이트: 대본 생성 후 수동 검토 단계 제거 → 완전 자동화
 ```
 
 **대본 생성 모델 (2026-01 업데이트):**
