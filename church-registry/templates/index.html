@@ -50,7 +50,7 @@
                         </button>
                     </form>
                 </div>
-                <p class="input-hint">예: "홍길동 집사님 등록해줘" | 엑셀이나 사진을 첨부하면 자동으로 분석합니다</p>
+                <p class="input-hint">💡 사진 첨부 후 메시지 입력 → AI에게 질문 | 사진만 첨부 → 등록 분석</p>
             </div>
 
             <div class="upload-section">
@@ -337,6 +337,16 @@
 .message-content img {
     max-width: 200px;
     border-radius: 12px;
+}
+
+.image-message {
+    display: flex;
+    flex-direction: column;
+}
+
+.image-message p {
+    margin: 0;
+    font-size: 15px;
 }
 
 /* 분석 결과 카드 */
@@ -1285,24 +1295,77 @@ document.addEventListener('DOMContentLoaded', function() {
     async function sendMessage(inputElement, filePreviewElement) {
         const message = inputElement.value.trim();
 
-        // 파일이 있으면 분석
+        // 파일이 있는 경우
         if (currentFile && currentFileType) {
             if (currentFileType === 'excel') {
+                // 엑셀 파일은 항상 분석 모드
                 addMessage(`📎 ${currentFile.name}`, true);
                 analyzeExcel(currentFile);
+                currentFile = null;
+                currentFileType = null;
+                imageInput.value = '';
+                excelInput.value = '';
+                filePreview.classList.add('hidden');
+                if (bottomFilePreview) bottomFilePreview.classList.add('hidden');
+                inputElement.value = '';
+                return;
             } else if (currentFileType === 'image') {
-                addMessage(`<img src="data:image/jpeg;base64,${currentFile}" style="max-width: 200px; border-radius: 12px;">`, true, true);
-                analyzeImage(currentFile);
-            }
+                const imageData = currentFile;
 
-            currentFile = null;
-            currentFileType = null;
-            imageInput.value = '';
-            excelInput.value = '';
-            filePreview.classList.add('hidden');
-            if (bottomFilePreview) bottomFilePreview.classList.add('hidden');
-            inputElement.value = '';
-            return;
+                // 이미지와 함께 메시지가 있으면 AI 채팅으로 전송
+                if (message) {
+                    const imgHtml = `<div class="image-message">
+                        <img src="data:image/jpeg;base64,${imageData}" style="max-width: 200px; border-radius: 12px; margin-bottom: 8px;">
+                        <p>${message}</p>
+                    </div>`;
+                    addMessage(imgHtml, true, true);
+                    inputElement.value = '';
+
+                    // 파일 상태 초기화
+                    currentFile = null;
+                    currentFileType = null;
+                    imageInput.value = '';
+                    excelInput.value = '';
+                    filePreview.classList.add('hidden');
+                    if (bottomFilePreview) bottomFilePreview.classList.add('hidden');
+
+                    showTyping();
+
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message, image: imageData })
+                        });
+
+                        const data = await response.json();
+                        hideTyping();
+
+                        if (data.error) {
+                            addMessage('오류가 발생했습니다: ' + data.error);
+                        } else {
+                            addMessage(data.response);
+                        }
+                    } catch (error) {
+                        hideTyping();
+                        addMessage('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
+                    }
+                    return;
+                } else {
+                    // 이미지만 있으면 분석 모드 (등록용)
+                    addMessage(`<img src="data:image/jpeg;base64,${imageData}" style="max-width: 200px; border-radius: 12px;">`, true, true);
+                    analyzeImage(imageData);
+
+                    currentFile = null;
+                    currentFileType = null;
+                    imageInput.value = '';
+                    excelInput.value = '';
+                    filePreview.classList.add('hidden');
+                    if (bottomFilePreview) bottomFilePreview.classList.add('hidden');
+                    inputElement.value = '';
+                    return;
+                }
+            }
         }
 
         if (!message) return;
