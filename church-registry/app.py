@@ -3884,6 +3884,28 @@ def api_get_member_family(member_id):
         'extended': 'extended',
     }
 
+    # 역방향 조회 시 detail 변환 (상대 관점 → 내 관점)
+    def get_reverse_detail(rel_type, original_detail, related_member):
+        """역방향 관계의 detail을 내 관점으로 변환"""
+        if rel_type == 'child':
+            # 원본: 상대가 child (나의 자녀) → 역방향: 상대가 parent (나의 부모)
+            # detail '부모' 유지
+            return original_detail
+        elif rel_type == 'parent':
+            # 원본: 상대가 parent (나의 부모) → 역방향: 상대가 child (나의 자녀)
+            # detail을 성별에 따라 '아들/딸'로 변환
+            if related_member and related_member.gender:
+                if related_member.gender in ['M', '남', '남성', '남자']:
+                    return '아들'
+                else:
+                    return '딸'
+            return '자녀'
+        elif rel_type == 'sibling':
+            # 형제 관계는 양방향으로 다를 수 있음
+            return original_detail
+        else:
+            return original_detail
+
     family_data = {
         "member": member_summary(member),
         "spouse": None,
@@ -3942,10 +3964,13 @@ def api_get_member_family(member_id):
         related = rel.member  # 역방향이므로 member가 상대방
         reversed_type = REVERSE_TYPE.get(rel.relationship_type, 'extended')
 
+        # 역방향 관계의 detail을 내 관점으로 변환
+        reversed_detail = get_reverse_detail(rel.relationship_type, rel.relationship_detail, related)
+
         rel_info = {
             **member_summary(related),
             "relationship_id": rel.id,
-            "relationship_detail": rel.relationship_detail,
+            "relationship_detail": reversed_detail,
             "relationship_type": reversed_type,
         }
 
