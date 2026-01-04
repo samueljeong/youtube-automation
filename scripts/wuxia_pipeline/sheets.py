@@ -198,7 +198,17 @@ def add_episode_template(episode: int) -> Dict[str, Any]:
 
 
 def get_pending_episodes() -> List[Dict[str, Any]]:
-    """상태가 '대기'인 에피소드 목록 조회"""
+    """상태가 '대기'인 에피소드 목록 조회 (영상 생성 대기)"""
+    return _get_episodes_by_status("대기")
+
+
+def get_ready_episodes() -> List[Dict[str, Any]]:
+    """상태가 '준비'인 에피소드 목록 조회 (대본 생성 대기)"""
+    return _get_episodes_by_status("준비")
+
+
+def _get_episodes_by_status(status: str) -> List[Dict[str, Any]]:
+    """특정 상태의 에피소드 목록 조회"""
     service = get_sheets_service()
     if not service:
         return []
@@ -218,20 +228,114 @@ def get_pending_episodes() -> List[Dict[str, Any]]:
             return []
 
         headers = rows[1]
-        pending = []
+        episodes = []
 
         for i, row in enumerate(rows[2:], start=3):
             row_dict = {headers[j]: row[j] if j < len(row) else "" for j in range(len(headers))}
 
-            if row_dict.get("상태", "").strip() == "대기":
+            if row_dict.get("상태", "").strip() == status:
                 row_dict["_row_index"] = i
-                pending.append(row_dict)
+                episodes.append(row_dict)
 
-        return pending
+        return episodes
 
     except Exception as e:
         print(f"[WUXIA-SHEETS] 조회 실패: {e}")
         return []
+
+
+def update_episode_with_script(
+    row_index: int,
+    script: str,
+    youtube_title: str = None,
+    thumbnail_text: str = None,
+    scenes: list = None,
+    cost: float = None,
+) -> Dict[str, Any]:
+    """
+    대본 생성 결과로 에피소드 업데이트
+
+    - 상태를 '대기'로 변경 (영상 생성 대기)
+    - 대본, 제목, 썸네일 문구 등 저장
+    """
+    service = get_sheets_service()
+    if not service:
+        return {"ok": False, "error": "Sheets 서비스 연결 실패"}
+
+    sheet_id = get_sheet_id()
+    if not sheet_id:
+        return {"ok": False, "error": "AUTOMATION_SHEET_ID 환경변수 필요"}
+
+    try:
+        # 헤더 조회
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{SHEET_NAME}!A2:Z2"
+        ).execute()
+        headers = result.get('values', [[]])[0]
+
+        # 열 인덱스 매핑
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        # 업데이트할 데이터
+        updates = []
+
+        # 상태를 '대기'로 변경
+        if "상태" in col_map:
+            col_letter = chr(ord('A') + col_map["상태"])
+            updates.append({
+                "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                "values": [["대기"]]
+            })
+
+        # 대본
+        if script and "대본" in col_map:
+            col_letter = chr(ord('A') + col_map["대본"])
+            updates.append({
+                "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                "values": [[script]]
+            })
+
+        # 제목(GPT생성)
+        if youtube_title and "제목(GPT생성)" in col_map:
+            col_letter = chr(ord('A') + col_map["제목(GPT생성)"])
+            updates.append({
+                "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                "values": [[youtube_title]]
+            })
+
+        # 썸네일문구(입력) - 생성된 값으로 채움 (사용자가 수정 가능)
+        if thumbnail_text and "썸네일문구(입력)" in col_map:
+            col_letter = chr(ord('A') + col_map["썸네일문구(입력)"])
+            updates.append({
+                "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                "values": [[thumbnail_text]]
+            })
+
+        # 비용
+        if cost is not None and "비용" in col_map:
+            col_letter = chr(ord('A') + col_map["비용"])
+            updates.append({
+                "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                "values": [[f"${cost:.4f}"]]
+            })
+
+        if updates:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={
+                    "valueInputOption": "RAW",
+                    "data": updates
+                }
+            ).execute()
+
+            print(f"[WUXIA-SHEETS] 행 {row_index} 대본 업데이트 완료, 상태 → '대기'")
+
+        return {"ok": True, "row_index": row_index, "status": "대기"}
+
+    except Exception as e:
+        print(f"[WUXIA-SHEETS] 업데이트 실패: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 def update_episode_status(
@@ -242,7 +346,7 @@ def update_episode_status(
     error_msg: str = None,
     cost: float = None,
 ) -> Dict[str, Any]:
-    """에피소드 상태 업데이트"""
+    """에피소드 상태 업데이트 (일반)"""
     service = get_sheets_service()
     if not service:
         return {"ok": False, "error": "Sheets 서비스 연결 실패"}

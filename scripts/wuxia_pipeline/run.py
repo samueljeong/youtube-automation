@@ -26,6 +26,11 @@ from .multi_voice_tts import (
     generate_multi_voice_tts,
     generate_srt_from_timeline,
 )
+from .sheets import (
+    get_ready_episodes,
+    update_episode_with_script,
+    update_episode_status,
+)
 
 
 # 출력 디렉토리
@@ -214,21 +219,185 @@ def run_pipeline(
     return result
 
 
+def run_auto_script_pipeline(max_scripts: int = 1) -> Dict[str, Any]:
+    """
+    자동 대본 생성 파이프라인 (Cron Job용)
+
+    ★ Google Sheets에서 '준비' 상태 에피소드를 찾아 대본 자동 생성
+    ★ 생성 후 상태를 '대기'로 변경 (영상 생성 파이프라인이 자동으로 처리)
+
+    Args:
+        max_scripts: 한 번에 생성할 최대 대본 수 (기본 1)
+
+    Returns:
+        {
+            "success": True,
+            "generated": 1,
+            "episodes": [...],
+            "total_cost": 0.15
+        }
+    """
+    print(f"\n{'='*60}")
+    print(f"[WUXIA] 자동 대본 생성 파이프라인 시작")
+    print(f"[WUXIA] max_scripts: {max_scripts}")
+    print(f"{'='*60}\n")
+
+    # 1) '준비' 상태 에피소드 조회
+    ready_episodes = get_ready_episodes()
+
+    if not ready_episodes:
+        print("[WUXIA] '준비' 상태 에피소드 없음")
+        return {
+            "success": True,
+            "generated": 0,
+            "episodes": [],
+            "total_cost": 0,
+            "message": "생성할 에피소드 없음"
+        }
+
+    print(f"[WUXIA] '준비' 상태 에피소드 {len(ready_episodes)}개 발견")
+
+    # 2) max_scripts 개수만큼 처리
+    generated = []
+    total_cost = 0.0
+    errors = []
+
+    for ep_data in ready_episodes[:max_scripts]:
+        row_index = ep_data.get("_row_index")
+        episode_id = ep_data.get("episode", "")
+        title = ep_data.get("title", "")
+        summary = ep_data.get("summary", "")
+        characters_str = ep_data.get("characters", "")
+        key_events_str = ep_data.get("key_events", "")
+
+        # 에피소드 번호 추출 (EP001 → 1)
+        try:
+            ep_num = int(episode_id.replace("EP", ""))
+        except:
+            ep_num = 1
+
+        print(f"\n[WUXIA] === {episode_id}: {title} (행 {row_index}) ===")
+
+        # 상태를 '처리중'으로 변경
+        update_episode_status(row_index, status="처리중")
+
+        try:
+            # 이전/다음 에피소드 정보
+            prev_template = EPISODE_TEMPLATES.get(ep_num - 1)
+            next_template = EPISODE_TEMPLATES.get(ep_num + 1)
+
+            prev_summary = prev_template.get("summary") if prev_template else None
+            next_preview = next_template.get("summary") if next_template else None
+
+            # 대본 생성 (통합: 대본 + 이미지 프롬프트 + 메타데이터)
+            script_result = generate_episode_script(
+                episode=ep_num,
+                title=title,
+                summary=summary,
+                key_events=key_events_str.split("\n") if key_events_str else None,
+                characters=characters_str.split(", ") if characters_str else None,
+                prev_episode_summary=prev_summary,
+                next_episode_preview=next_preview,
+            )
+
+            if not script_result.get("ok"):
+                error_msg = script_result.get("error", "알 수 없는 오류")
+                print(f"[WUXIA] ❌ 대본 생성 실패: {error_msg}")
+                update_episode_status(row_index, status="실패", error_msg=error_msg)
+                errors.append({"episode": episode_id, "error": error_msg})
+                continue
+
+            # 결과 추출
+            script = script_result.get("script", "")
+            char_count = script_result.get("char_count", len(script))
+            cost = script_result.get("cost", 0)
+            total_cost += cost
+
+            # YouTube 메타데이터
+            youtube_data = script_result.get("youtube", {})
+            youtube_title = youtube_data.get("title", f"[{SERIES_INFO['title']}] {title}")
+
+            # 썸네일 정보
+            thumbnail_data = script_result.get("thumbnail", {})
+            thumbnail_text = f"{thumbnail_data.get('text_line1', '')}\n{thumbnail_data.get('text_line2', '')}"
+
+            # 씬 이미지 프롬프트
+            scenes = script_result.get("scenes", [])
+
+            print(f"[WUXIA] ✅ 대본 생성 완료: {char_count:,}자, 씬 {len(scenes)}개")
+            print(f"[WUXIA] 비용: ${cost:.4f}")
+
+            # 시트 업데이트 (상태 → '대기')
+            update_result = update_episode_with_script(
+                row_index=row_index,
+                script=script,
+                youtube_title=youtube_title,
+                thumbnail_text=thumbnail_text,
+                scenes=scenes,
+                cost=cost,
+            )
+
+            if update_result.get("ok"):
+                generated.append({
+                    "episode": episode_id,
+                    "title": title,
+                    "char_count": char_count,
+                    "scenes": len(scenes),
+                    "cost": cost,
+                    "row_index": row_index,
+                })
+                print(f"[WUXIA] ✅ 시트 업데이트 완료 → 상태: '대기'")
+            else:
+                error_msg = update_result.get("error", "시트 업데이트 실패")
+                update_episode_status(row_index, status="실패", error_msg=error_msg)
+                errors.append({"episode": episode_id, "error": error_msg})
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            error_msg = str(e)
+            print(f"[WUXIA] ❌ 예외 발생: {error_msg}")
+            update_episode_status(row_index, status="실패", error_msg=error_msg)
+            errors.append({"episode": episode_id, "error": error_msg})
+
+    # 3) 결과 정리
+    print(f"\n{'='*60}")
+    print(f"[WUXIA] 자동 대본 생성 완료!")
+    print(f"[WUXIA] 생성: {len(generated)}개, 실패: {len(errors)}개")
+    print(f"[WUXIA] 총 비용: ${total_cost:.4f}")
+    print(f"{'='*60}\n")
+
+    return {
+        "success": True,
+        "generated": len(generated),
+        "episodes": generated,
+        "errors": errors if errors else None,
+        "total_cost": round(total_cost, 4),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=f"{SERIES_INFO['title']} 무협 파이프라인")
     parser.add_argument("--episode", "-e", type=int, default=1, help="에피소드 번호")
     parser.add_argument("--video", "-v", action="store_true", help="영상 생성")
     parser.add_argument("--upload", "-u", action="store_true", help="YouTube 업로드")
     parser.add_argument("--privacy", choices=["private", "unlisted", "public"], default="private")
+    parser.add_argument("--auto", action="store_true", help="자동 대본 생성 (시트 기반)")
+    parser.add_argument("--max-scripts", type=int, default=1, help="자동 생성 시 최대 대본 수")
 
     args = parser.parse_args()
 
-    result = run_pipeline(
-        episode=args.episode,
-        generate_video=args.video,
-        upload_youtube=args.upload,
-        privacy_status=args.privacy,
-    )
+    if args.auto:
+        # 자동 대본 생성 모드
+        result = run_auto_script_pipeline(max_scripts=args.max_scripts)
+    else:
+        # 수동 파이프라인 모드
+        result = run_pipeline(
+            episode=args.episode,
+            generate_video=args.video,
+            upload_youtube=args.upload,
+            privacy_status=args.privacy,
+        )
 
     print("\n=== 결과 ===")
     print(json.dumps(result, ensure_ascii=False, indent=2))
