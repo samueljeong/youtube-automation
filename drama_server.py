@@ -22427,7 +22427,7 @@ def run_wuxia_video_pipeline(
     service,
     sheet_id: str,
     selected_project: str = ''
-) -> Dict[str, Any]:
+) -> dict:
     """
     혈영 시리즈 전용 영상 생성 파이프라인
 
