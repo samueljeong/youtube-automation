@@ -117,30 +117,44 @@ CHARACTER_APPEARANCES: Dict[str, str] = {
 }
 
 # 이미지 스타일 설정 (일관된 화풍)
+# ★ 2026-01 업데이트: 현대 의상 방지, 텍스트 삽입 방지 강화
 IMAGE_STYLE = {
     "base_style": (
-        "Chinese martial arts wuxia illustration style, "
+        "Traditional Korean historical wuxia manhwa illustration style, "
         "ink wash painting with vibrant accent colors, "
         "dramatic cinematic lighting, "
-        "traditional East Asian aesthetic, "
-        "16:9 aspect ratio, high detail"
+        "Joseon Dynasty era Korean aesthetic, "
+        "MUST wear traditional Korean hanbok or martial arts robes, "
+        "NO modern clothing NO hoodies NO jeans NO t-shirts, "
+        "16:9 aspect ratio, high detail, masterpiece quality"
     ),
     "action_style": (
         "dynamic action composition, motion blur effects, "
-        "energy trails, dramatic poses"
+        "energy trails, dramatic poses, sword fighting"
     ),
     "emotional_style": (
         "intimate framing, soft lighting, "
-        "focus on facial expressions and emotions"
+        "focus on facial expressions and emotions, "
+        "traditional Korean interior setting"
     ),
     "landscape_style": (
         "wide panoramic shot, misty mountains, "
-        "traditional Korean architecture, atmospheric perspective"
+        "traditional Korean architecture with curved tile roofs, "
+        "Joseon Dynasty buildings, atmospheric perspective"
     ),
     "negative_prompt": (
-        "text, letters, words, watermark, signature, "
-        "modern elements, anime style, cartoon, "
-        "low quality, blurry, deformed"
+        # ★★★ 텍스트 삽입 방지 (최우선) ★★★
+        "text, letters, words, writing, caption, subtitle, speech bubble, dialogue box, "
+        "watermark, signature, logo, username, copyright, "
+        # ★★★ 현대 의상 방지 (필수) ★★★
+        "modern clothes, hoodie, jeans, t-shirt, sneakers, modern shoes, "
+        "contemporary fashion, casual wear, sportswear, jacket, "
+        # ★★★ 스타일 방지 ★★★
+        "anime style, Japanese anime, cartoon, chibi, "
+        "3D render, CGI, photorealistic, photograph, "
+        # ★★★ 품질 방지 ★★★
+        "low quality, blurry, deformed, ugly, bad anatomy, "
+        "extra limbs, missing limbs, disfigured"
     ),
 }
 

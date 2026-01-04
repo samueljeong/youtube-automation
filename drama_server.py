@@ -21051,6 +21051,41 @@ def api_sheets_check_and_process():
                     "type": "bible"
                 }
 
+            elif sheet_name == "혈영":
+                # ★ 혈영 (무협) 전용 파이프라인
+                print(f"[WUXIA] 혈영 파이프라인 시작: 행 {row_num}")
+
+                # row_data를 딕셔너리로 변환 (혈영 형식)
+                wuxia_row_data = {}
+                for header, col_info in col_map.items():
+                    idx = col_info['index'] if isinstance(col_info, dict) else col_info
+                    if idx < len(row_data):
+                        wuxia_row_data[header] = row_data[idx]
+                    else:
+                        wuxia_row_data[header] = ""
+                wuxia_row_data['채널ID'] = channel_id
+
+                # 에피소드 정보 추출 (EP001 → 1화)
+                episode_col = wuxia_row_data.get('에피소드', wuxia_row_data.get('episode', ''))
+                if episode_col:
+                    try:
+                        ep_num = int(episode_col.replace('EP', '').replace('ep', ''))
+                        wuxia_row_data['episode_num'] = ep_num
+                    except:
+                        wuxia_row_data['episode_num'] = 1
+                else:
+                    wuxia_row_data['episode_num'] = 1
+
+                result = run_wuxia_video_pipeline(
+                    row_data=wuxia_row_data,
+                    row_index=row_num,
+                    sheet_name=sheet_name,
+                    col_map=col_map,
+                    service=service,
+                    sheet_id=sheet_id,
+                    selected_project=project_suffix
+                )
+
             else:
                 # ★ 일반 파이프라인 (NEWS, HISTORY, MYSTERY 등)
                 print(f"[SHEETS]   - 대본 길이: {len(pipeline_data.get('script', ''))}자")
@@ -22380,6 +22415,665 @@ def api_wuxia_auto_generate():
         import traceback
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+# ========== 혈영 전용 영상 생성 파이프라인 ==========
+
+def run_wuxia_video_pipeline(
+    row_data: dict,
+    row_index: int,
+    sheet_name: str,
+    col_map: dict,
+    service,
+    sheet_id: str,
+    selected_project: str = ''
+) -> Dict[str, Any]:
+    """
+    혈영 시리즈 전용 영상 생성 파이프라인
+
+    일반 파이프라인과 차이점:
+    1. 다중 음성 TTS (캐릭터별 음성)
+    2. 무협 전용 BGM (WUXIA_BGM_MAP)
+    3. 시트에 저장된 씬 이미지 프롬프트 사용 (캐릭터 외모 일관성)
+    4. 전통 한복/무협 의상 강제
+
+    Args:
+        row_data: 시트 행 데이터 (딕셔너리)
+        row_index: 행 번호
+        sheet_name: 시트 이름 ("혈영")
+        col_map: 열 매핑
+        service: Google Sheets 서비스
+        sheet_id: 시트 ID
+        selected_project: YouTube 프로젝트
+
+    Returns:
+        {"ok": True, "video_url": "...", "cost": 0.xx}
+    """
+    import time as time_module
+    from datetime import datetime, timedelta, timezone
+
+    print(f"\n[WUXIA-VIDEO] ========== 혈영 전용 파이프라인 시작 ==========")
+    print(f"[WUXIA-VIDEO] 행 {row_index}, 시트 '{sheet_name}'")
+
+    try:
+        # 필요한 모듈 임포트
+        from scripts.wuxia_pipeline.config import (
+            VOICE_MAP, CHARACTER_APPEARANCES, IMAGE_STYLE,
+            WUXIA_BGM_MAP, BGM_KEYWORD_MAP, DEFAULT_BGM, BGM_DIR
+        )
+        from scripts.wuxia_pipeline.multi_voice_tts import (
+            parse_script_to_segments,
+            generate_multi_voice_tts,
+            generate_srt_from_timeline,
+        )
+
+        # 데이터 추출
+        script = row_data.get('대본', '').strip()
+        title = row_data.get('제목(입력)', '').strip() or row_data.get('제목(GPT생성)', '').strip()
+        channel_id = row_data.get('채널ID', '').strip()
+        visibility = row_data.get('공개설정', 'private').strip() or 'private'
+        scheduled_time = row_data.get('예약시간', '').strip()
+        playlist_id = row_data.get('플레이리스트ID', '').strip()
+        thumbnail_text = row_data.get('썸네일문구(입력)', '').strip()
+
+        if not script:
+            return {"ok": False, "error": "대본이 없습니다", "video_url": None, "cost": 0}
+
+        if not channel_id:
+            return {"ok": False, "error": "채널ID가 없습니다", "video_url": None, "cost": 0}
+
+        # 에피소드 번호 추출
+        ep_num = row_data.get('episode_num', 1)
+        ep_title = row_data.get('title', row_data.get('제목', '')).strip() or '무제'
+
+        # 기본 제목 설정 (검색 최적화)
+        # 형식: [무협 오디오북 1화] 혈영 - 운명의 시작 | 웹소설 낭독
+        if not title:
+            title = f"[무협 오디오북 {ep_num}화] 혈영 - {ep_title} | 웹소설 낭독"
+        elif "[혈영]" in title and "화]" not in title:
+            # 기존 형식 → 검색 최적화 형식으로 변환
+            title = f"[무협 오디오북 {ep_num}화] 혈영 - {ep_title} | 웹소설 낭독"
+
+        print(f"[WUXIA-VIDEO] 대본: {len(script)}자")
+        print(f"[WUXIA-VIDEO] 제목: {title}")
+        print(f"[WUXIA-VIDEO] 채널: {channel_id}")
+
+        total_cost = 0.0
+        kst = timezone(timedelta(hours=9))
+        now = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S')
+
+        # 상태를 '처리중'으로 변경
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '처리중')
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '작업시간', now)
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', '')
+
+        # ========== 1. 대본 정제 ==========
+        print(f"\n[WUXIA-VIDEO] 1. 대본 정제...")
+
+        # JSON escape 문자 제거
+        import re
+        script = script.replace('\\"', '"')
+        script = re.sub(r'"{2,}', '"', script)
+        script = script.replace('\\n', '\n')
+        script = script.replace('\\\\', '')
+
+        print(f"[WUXIA-VIDEO] 정제 후: {len(script)}자")
+
+        # ========== 2. 다중 음성 TTS 생성 ==========
+        print(f"\n[WUXIA-VIDEO] 2. 다중 음성 TTS 생성...")
+
+        # 스크립트 파싱
+        segments = parse_script_to_segments(script)
+        print(f"[WUXIA-VIDEO] 세그먼트: {len(segments)}개")
+
+        # 캐릭터별 통계
+        char_stats = {}
+        for seg in segments:
+            char_stats[seg.tag] = char_stats.get(seg.tag, 0) + 1
+        print(f"[WUXIA-VIDEO] 캐릭터 분포: {char_stats}")
+
+        # TTS 생성
+        episode_id = row_data.get('episode', f'row{row_index}')
+        tts_output_dir = f"outputs/wuxia/audio/{episode_id}"
+        os.makedirs(tts_output_dir, exist_ok=True)
+
+        tts_result = generate_multi_voice_tts(
+            segments=segments,
+            output_dir=tts_output_dir,
+            episode_id=episode_id.replace('EP', 'ep')
+        )
+
+        if not tts_result.get("ok"):
+            error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        audio_path = tts_result.get("merged_audio")
+        total_duration = tts_result.get("total_duration", 0)
+        timeline = tts_result.get("timeline", [])
+
+        print(f"[WUXIA-VIDEO] TTS 완료: {total_duration:.1f}초 ({total_duration/60:.1f}분)")
+
+        # ========== 3. SRT 자막 생성 ==========
+        print(f"\n[WUXIA-VIDEO] 3. SRT 자막 생성...")
+
+        srt_output_dir = f"outputs/wuxia/subtitles"
+        os.makedirs(srt_output_dir, exist_ok=True)
+        srt_path = os.path.join(srt_output_dir, f"{episode_id.replace('EP', 'ep')}.srt")
+
+        generate_srt_from_timeline(timeline, srt_path)
+        print(f"[WUXIA-VIDEO] 자막 완료: {len(timeline)}개 항목")
+
+        # ========== 4. 이미지 생성 (무협 스타일 강제) ==========
+        print(f"\n[WUXIA-VIDEO] 4. 이미지 생성 (무협 스타일)...")
+
+        # 씬 수 결정 (대본 길이 기반)
+        image_count, estimated_minutes = get_image_count_by_script(len(script))
+        print(f"[WUXIA-VIDEO] 이미지 {image_count}개 생성 예정")
+
+        # 이미지 프롬프트에 무협 스타일 강제 추가
+        wuxia_style_prefix = IMAGE_STYLE.get('base_style', '')
+        wuxia_negative = IMAGE_STYLE.get('negative_prompt', '')
+
+        # 대본에서 씬 분할 (간단한 분할)
+        # [나레이션] 태그 기준으로 분할
+        scene_texts = []
+        current_scene = []
+        for line in script.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            current_scene.append(line)
+            # 일정 길이마다 씬 분할
+            if len('\n'.join(current_scene)) > len(script) // image_count:
+                scene_texts.append('\n'.join(current_scene))
+                current_scene = []
+        if current_scene:
+            scene_texts.append('\n'.join(current_scene))
+
+        # 씬 수 조정
+        while len(scene_texts) < image_count and scene_texts:
+            # 가장 긴 씬을 분할
+            longest_idx = max(range(len(scene_texts)), key=lambda i: len(scene_texts[i]))
+            longest = scene_texts.pop(longest_idx)
+            mid = len(longest) // 2
+            scene_texts.insert(longest_idx, longest[:mid])
+            scene_texts.insert(longest_idx + 1, longest[mid:])
+
+        scene_texts = scene_texts[:image_count]
+
+        # 이미지 생성
+        image_paths = []
+        for i, scene_text in enumerate(scene_texts):
+            print(f"[WUXIA-VIDEO] 씬 {i+1}/{len(scene_texts)} 이미지 생성 중...")
+
+            # 씬에서 등장 캐릭터 추출
+            characters_in_scene = []
+            for char_name in CHARACTER_APPEARANCES.keys():
+                if f"[{char_name}]" in scene_text:
+                    characters_in_scene.append(char_name)
+
+            # 캐릭터 외모 설명 추가
+            char_desc = ""
+            for char in characters_in_scene[:2]:  # 최대 2명
+                if char in CHARACTER_APPEARANCES:
+                    char_desc += CHARACTER_APPEARANCES[char] + ", "
+
+            # 씬 내용에서 프롬프트 힌트 추출
+            scene_keywords = []
+            if "전투" in scene_text or "검" in scene_text or "대결" in scene_text:
+                scene_keywords.append(IMAGE_STYLE.get('action_style', ''))
+            if "눈물" in scene_text or "슬픔" in scene_text or "마음" in scene_text:
+                scene_keywords.append(IMAGE_STYLE.get('emotional_style', ''))
+            if "산" in scene_text or "숲" in scene_text or "하늘" in scene_text:
+                scene_keywords.append(IMAGE_STYLE.get('landscape_style', ''))
+
+            # 최종 프롬프트 구성
+            final_prompt = f"{wuxia_style_prefix}, {char_desc} {' '.join(scene_keywords)}".strip(', ')
+
+            # 이미지 생성 (기존 함수 사용)
+            try:
+                img_result = generate_scene_image_gemini(
+                    prompt=final_prompt,
+                    negative_prompt=wuxia_negative,
+                    scene_index=i,
+                    output_dir=f"outputs/wuxia/images/{episode_id}"
+                )
+
+                if img_result.get("ok"):
+                    image_paths.append(img_result.get("image_path"))
+                    total_cost += img_result.get("cost", 0.02)
+                else:
+                    print(f"[WUXIA-VIDEO] ⚠️ 씬 {i+1} 이미지 생성 실패: {img_result.get('error')}")
+                    # 폴백: 기본 이미지 사용
+                    image_paths.append(None)
+            except Exception as img_err:
+                print(f"[WUXIA-VIDEO] ⚠️ 씬 {i+1} 이미지 예외: {img_err}")
+                image_paths.append(None)
+
+        print(f"[WUXIA-VIDEO] 이미지 생성 완료: {len([p for p in image_paths if p])}개 성공")
+
+        # ========== 5. BGM 선택 (무협 전용) ==========
+        print(f"\n[WUXIA-VIDEO] 5. BGM 선택 (무협 전용)...")
+
+        # 대본에서 분위기 감지
+        detected_mood = "main"  # 기본
+        for mood, keywords in BGM_KEYWORD_MAP.items():
+            for keyword in keywords:
+                if keyword in script:
+                    detected_mood = mood
+                    break
+
+        # BGM 파일 경로
+        bgm_filename = WUXIA_BGM_MAP.get(detected_mood, DEFAULT_BGM)
+        bgm_path = os.path.join(BGM_DIR, bgm_filename)
+
+        if not os.path.exists(bgm_path):
+            # 폴백: main BGM
+            bgm_path = os.path.join(BGM_DIR, DEFAULT_BGM)
+
+        print(f"[WUXIA-VIDEO] BGM: {detected_mood} → {bgm_filename}")
+
+        # ========== 6. 영상 렌더링 (기존 함수 사용) ==========
+        print(f"\n[WUXIA-VIDEO] 6. 영상 렌더링...")
+
+        # 기존 영상 생성 함수 호출
+        video_output_dir = f"outputs/wuxia/videos"
+        os.makedirs(video_output_dir, exist_ok=True)
+        video_path = os.path.join(video_output_dir, f"{episode_id}.mp4")
+
+        try:
+            # 이미지 + 오디오 + BGM 합성
+            render_result = render_video_with_bgm(
+                image_paths=[p for p in image_paths if p],
+                audio_path=audio_path,
+                srt_path=srt_path,
+                bgm_path=bgm_path if os.path.exists(bgm_path) else None,
+                output_path=video_path,
+                duration=total_duration
+            )
+
+            if not render_result.get("ok"):
+                error_msg = f"영상 렌더링 실패: {render_result.get('error')}"
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+            video_path = render_result.get("video_path", video_path)
+            print(f"[WUXIA-VIDEO] 영상 완료: {video_path}")
+
+        except Exception as render_err:
+            error_msg = f"영상 렌더링 예외: {render_err}"
+            print(f"[WUXIA-VIDEO] ❌ {error_msg}")
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        # ========== 7. 무협 전용 썸네일 생성 ==========
+        print(f"\n[WUXIA-VIDEO] 7. 무협 전용 썸네일 생성...")
+
+        thumbnail_path = None
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+
+            # 썸네일 출력 디렉토리
+            thumbnail_dir = f"outputs/wuxia/thumbnails"
+            os.makedirs(thumbnail_dir, exist_ok=True)
+
+            # 썸네일 문구 (시트에서 가져오거나 기본값)
+            thumbnail_text_raw = thumbnail_text or f"혈영 {ep_num}화\n{ep_title}"
+            thumbnail_lines = thumbnail_text_raw.replace('\\n', '\n').split('\n')
+
+            # 무협 스타일 썸네일 이미지 생성
+            wuxia_thumbnail_prompt = (
+                "Traditional Korean wuxia martial arts manhwa illustration, "
+                "dramatic close-up of young Korean martial artist with intense expression, "
+                "wearing traditional hemp martial arts robes, "
+                "ink wash painting style with vibrant accent colors, "
+                "cinematic lighting, misty mountain background, "
+                "16:9 YouTube thumbnail composition, "
+                "NO text NO letters NO writing, high quality masterpiece"
+            )
+
+            img_result = generate_scene_image_gemini(
+                prompt=wuxia_thumbnail_prompt,
+                negative_prompt=wuxia_negative,
+                scene_index=99,  # 썸네일용
+                output_dir=thumbnail_dir
+            )
+
+            if img_result.get("ok"):
+                base_thumbnail = img_result.get("image_path")
+                total_cost += img_result.get("cost", 0.02)
+
+                # PIL로 텍스트 오버레이
+                img = Image.open(base_thumbnail)
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
+
+                width, height = img.size
+                draw = ImageDraw.Draw(img)
+
+                # 폰트 로드
+                font_path = "static/fonts/NanumSquareRoundB.ttf"
+                if not os.path.exists(font_path):
+                    font_path = "static/fonts/NotoSansKR-Bold.ttf"
+
+                # 메인 폰트 (큰 글씨)
+                try:
+                    font_size = int(height * 0.12)  # 썸네일 높이의 12%
+                    font = ImageFont.truetype(font_path, font_size)
+                except:
+                    font = ImageFont.load_default()
+                    font_size = 40
+
+                # 텍스트 위치 계산 (중앙 하단)
+                total_text_height = len(thumbnail_lines) * (font_size + 10)
+                y_start = height - total_text_height - int(height * 0.15)
+
+                for i, line in enumerate(thumbnail_lines[:3]):  # 최대 3줄
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # 텍스트 크기 계산
+                    bbox = draw.textbbox((0, 0), line, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    x = (width - text_width) // 2
+                    y = y_start + i * (font_size + 15)
+
+                    # 검은색 테두리 (가독성)
+                    for dx in [-3, -2, 0, 2, 3]:
+                        for dy in [-3, -2, 0, 2, 3]:
+                            draw.text((x + dx, y + dy), line, font=font, fill=(0, 0, 0, 255))
+
+                    # 흰색 또는 금색 텍스트
+                    if i == 0:
+                        text_color = (255, 215, 0, 255)  # 금색 (제목)
+                    else:
+                        text_color = (255, 255, 255, 255)  # 흰색
+
+                    draw.text((x, y), line, font=font, fill=text_color)
+
+                # 저장
+                thumbnail_path = os.path.join(thumbnail_dir, f"thumb_ep{ep_num:03d}.png")
+                img.save(thumbnail_path)
+                print(f"[WUXIA-VIDEO] 썸네일 생성 완료: {thumbnail_path}")
+            else:
+                print(f"[WUXIA-VIDEO] ⚠️ 썸네일 이미지 생성 실패, 스킵")
+
+        except Exception as thumb_err:
+            print(f"[WUXIA-VIDEO] ⚠️ 썸네일 생성 예외: {thumb_err}")
+            import traceback
+            traceback.print_exc()
+
+        # ========== 8. YouTube 업로드 ==========
+        print(f"\n[WUXIA-VIDEO] 8. YouTube 업로드...")
+
+        # 설명 생성
+        description = f"""무협 소설 「혈영」 오디오북 - {ep_num}화
+
+{row_data.get('summary', '')}
+
+🎧 다음 화도 기대해주세요!
+📚 창작 무협 소설 | 매주 업데이트
+
+#무협 #오디오북 #혈영 #무협소설 #한국무협 #웹소설낭독
+"""
+
+        try:
+            upload_result = upload_to_youtube(
+                video_path=video_path,
+                title=title,
+                description=description,
+                tags=["무협", "오디오북", "혈영", "무협소설", "한국무협", "웹소설", "웹소설낭독", f"{ep_num}화"],
+                channel_id=channel_id,
+                privacy_status=visibility,
+                scheduled_time=scheduled_time if scheduled_time else None,
+                playlist_id=playlist_id if playlist_id else None,
+                thumbnail_path=thumbnail_path,
+                selected_project=selected_project
+            )
+
+            if upload_result.get("ok"):
+                video_url = upload_result.get("video_url")
+                print(f"[WUXIA-VIDEO] ✅ 업로드 완료: {video_url}")
+
+                # 시트 업데이트
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '완료')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '영상URL', video_url)
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '비용', f'${total_cost:.4f}')
+
+                return {"ok": True, "video_url": video_url, "cost": total_cost}
+            else:
+                error_msg = f"업로드 실패: {upload_result.get('error')}"
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        except Exception as upload_err:
+            error_msg = f"업로드 예외: {upload_err}"
+            print(f"[WUXIA-VIDEO] ❌ {error_msg}")
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = f"파이프라인 오류: {e}"
+        try:
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+        except:
+            pass
+        return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
+
+
+def generate_scene_image_gemini(prompt: str, negative_prompt: str, scene_index: int, output_dir: str) -> Dict[str, Any]:
+    """
+    Gemini로 씬 이미지 생성 (무협 스타일)
+    """
+    import google.generativeai as genai
+    from PIL import Image
+    import io
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
+
+    try:
+        genai.configure(api_key=api_key)
+
+        # Imagen 모델 사용
+        model = genai.ImageGenerationModel("imagen-3.0-generate-002")
+
+        # 프롬프트에 negative 내용 추가 (Imagen은 negative_prompt 미지원)
+        full_prompt = f"{prompt}. Style: traditional Korean historical illustration. Avoid: {negative_prompt}"
+
+        result = model.generate_images(
+            prompt=full_prompt,
+            number_of_images=1,
+            aspect_ratio="16:9",
+            safety_filter_level="block_only_high",
+        )
+
+        if result.images:
+            image_path = os.path.join(output_dir, f"scene_{scene_index:02d}.png")
+            result.images[0]._pil_image.save(image_path)
+            return {"ok": True, "image_path": image_path, "cost": 0.02}
+        else:
+            return {"ok": False, "error": "이미지 생성 결과 없음"}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def render_video_with_bgm(
+    image_paths: list,
+    audio_path: str,
+    srt_path: str,
+    bgm_path: str,
+    output_path: str,
+    duration: float
+) -> Dict[str, Any]:
+    """
+    이미지 + 오디오 + BGM + 자막으로 영상 렌더링
+    """
+    import subprocess
+    import tempfile
+
+    if not image_paths:
+        return {"ok": False, "error": "이미지가 없습니다"}
+
+    if not os.path.exists(audio_path):
+        return {"ok": False, "error": f"오디오 파일 없음: {audio_path}"}
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    try:
+        # 이미지당 표시 시간
+        image_duration = duration / len(image_paths)
+
+        # 이미지 리스트 파일 생성
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            for img_path in image_paths:
+                f.write(f"file '{os.path.abspath(img_path)}'\n")
+                f.write(f"duration {image_duration}\n")
+            # 마지막 이미지 한번 더 (FFmpeg 요구사항)
+            f.write(f"file '{os.path.abspath(image_paths[-1])}'\n")
+            image_list_file = f.name
+
+        # FFmpeg 명령어 구성
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0", "-i", image_list_file,
+            "-i", audio_path,
+        ]
+
+        # BGM 추가 (있으면)
+        if bgm_path and os.path.exists(bgm_path):
+            ffmpeg_cmd.extend(["-i", bgm_path])
+            # 오디오 믹싱: TTS 볼륨 1.0, BGM 볼륨 0.15
+            ffmpeg_cmd.extend([
+                "-filter_complex",
+                "[1:a]volume=1.0[tts];[2:a]volume=0.15,aloop=loop=-1:size=2e+09[bgm];[tts][bgm]amix=inputs=2:duration=first[aout]",
+                "-map", "0:v",
+                "-map", "[aout]"
+            ])
+        else:
+            ffmpeg_cmd.extend(["-map", "0:v", "-map", "1:a"])
+
+        # 자막 burn-in (있으면)
+        if srt_path and os.path.exists(srt_path):
+            # 자막 스타일: 무협풍 (검은 테두리, 흰 글씨)
+            subtitle_style = "FontName=NanumGothic,FontSize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=2,Shadow=1"
+            ffmpeg_cmd.extend([
+                "-vf", f"subtitles={srt_path}:force_style='{subtitle_style}'"
+            ])
+
+        # 출력 설정
+        ffmpeg_cmd.extend([
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ar", "44100",
+            "-movflags", "+faststart",
+            "-t", str(duration),
+            output_path
+        ])
+
+        print(f"[RENDER] FFmpeg 실행 중...")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, timeout=1800)  # 30분 타임아웃
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode('utf-8', errors='ignore')[-500:]
+            return {"ok": False, "error": f"FFmpeg 오류: {stderr}"}
+
+        # 임시 파일 정리
+        try:
+            os.unlink(image_list_file)
+        except:
+            pass
+
+        if os.path.exists(output_path):
+            return {"ok": True, "video_path": output_path}
+        else:
+            return {"ok": False, "error": "영상 파일 생성 실패"}
+
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "FFmpeg 타임아웃 (30분 초과)"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def upload_to_youtube(
+    video_path: str,
+    title: str,
+    description: str,
+    tags: list,
+    channel_id: str,
+    privacy_status: str = "private",
+    scheduled_time: str = None,
+    playlist_id: str = None,
+    thumbnail_path: str = None,
+    selected_project: str = ""
+) -> Dict[str, Any]:
+    """
+    YouTube 업로드 래퍼 함수 (기존 API 활용)
+
+    Args:
+        video_path: 영상 파일 경로
+        title: 영상 제목
+        description: 영상 설명
+        tags: 태그 목록
+        channel_id: 채널 ID
+        privacy_status: 공개 설정 (private/unlisted/public)
+        scheduled_time: 예약 시간 (ISO 8601)
+        playlist_id: 플레이리스트 ID
+        thumbnail_path: 썸네일 이미지 경로
+        selected_project: YouTube 프로젝트 접미사
+    """
+    try:
+        import requests as req
+
+        # 내부 업로드 API 호출 (썸네일 포함)
+        upload_data = {
+            "videoPath": video_path,
+            "title": title,
+            "description": description,
+            "tags": tags,
+            "channelId": channel_id,
+            "privacyStatus": privacy_status,
+            "playlistId": playlist_id,
+            "projectSuffix": selected_project,
+        }
+
+        if scheduled_time:
+            upload_data["publish_at"] = scheduled_time
+
+        if thumbnail_path:
+            upload_data["thumbnailPath"] = thumbnail_path
+
+        # 로컬 API 호출
+        response = req.post(
+            "http://localhost:5059/api/youtube/upload",
+            json=upload_data,
+            timeout=300
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"ok": False, "error": f"업로드 API 오류: {response.status_code}"}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ========== 벤치마킹 영상 분석 API ==========
