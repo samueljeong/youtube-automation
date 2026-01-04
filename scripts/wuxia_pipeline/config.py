@@ -257,10 +257,10 @@ THUMBNAIL_CONFIG = {
 
 SCRIPT_CONFIG = {
     # 에피소드당 목표 글자수 (약 28분 영상)
-    # 한국어 TTS 기준: 약 900자 ≈ 1분
-    "target_chars": 25000,       # 28분 분량
-    "min_chars": 22000,          # 최소 24분
-    "max_chars": 28000,          # 최대 31분
+    # 한국어 TTS 실측 기준: 약 500자 ≈ 1분
+    "target_chars": 14000,       # 28분 분량
+    "min_chars": 12000,          # 최소 24분
+    "max_chars": 16000,          # 최대 32분
 
     # 이미지 설정 (A안: 1개 대표 이미지)
     "image_count": 1,            # ★ 1개 고퀄리티 대표 이미지
@@ -268,7 +268,7 @@ SCRIPT_CONFIG = {
 
     # 챕터 구조 (장편용)
     "chapters_per_episode": 5,   # 에피소드당 챕터 수
-    "chars_per_chapter": 5000,   # 챕터당 평균 글자수 (25000 / 5)
+    "chars_per_chapter": 2800,   # 챕터당 평균 글자수 (14000 / 5)
 
     # TTS 설정
     "speaking_rate": 0.95,       # 약간 빠르게 (장편이라 지루하지 않게)
