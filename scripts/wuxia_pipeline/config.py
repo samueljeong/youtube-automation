@@ -33,15 +33,15 @@ SERIES_INFO = {
 #   - gemini:pro:* : Gemini Pro 모델 (고품질)
 
 VOICE_MAP: Dict[str, str] = {
-    # ★ 주인공 (비중 높음 → Flash)
+    # ★ 주인공 + 조연 → Flash
     "무영": "gemini:Puck",           # 주인공
     "설하": "gemini:Kore",           # 여주인공
+    "노인": "gemini:Charon",         # 조연 (스승)
+    "각주": "gemini:Fenrir",         # 조연
+    "악역": "gemini:Fenrir",         # 조연 (악역)
 
-    # 나머지 전부 Chirp3 (빠름)
+    # 엑스트라 → Chirp3
     "나레이션": "chirp3:Charon",     # 나레이션
-    "노인": "chirp3:Charon",         # 스승
-    "각주": "chirp3:Fenrir",         # 조연
-    "악역": "chirp3:Fenrir",         # 악역
     "남자": "chirp3:Charon",         # 엑스트라
     "여자": "chirp3:Aoede",          # 엑스트라
 }
