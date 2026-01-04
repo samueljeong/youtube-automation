@@ -22834,7 +22834,7 @@ def run_wuxia_video_pipeline(
         return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
 
 
-def generate_scene_image_gemini(prompt: str, negative_prompt: str, scene_index: int, output_dir: str) -> Dict[str, Any]:
+def generate_scene_image_gemini(prompt: str, negative_prompt: str, scene_index: int, output_dir: str) -> dict:
     """
     Gemini로 씬 이미지 생성 (무협 스타일)
     """
@@ -22882,7 +22882,7 @@ def render_video_with_bgm(
     bgm_path: str,
     output_path: str,
     duration: float
-) -> Dict[str, Any]:
+) -> dict:
     """
     이미지 + 오디오 + BGM + 자막으로 영상 렌더링
     """
@@ -22986,7 +22986,7 @@ def upload_to_youtube(
     playlist_id: str = None,
     thumbnail_path: str = None,
     selected_project: str = ""
-) -> Dict[str, Any]:
+) -> dict:
     """
     YouTube 업로드 래퍼 함수 (기존 API 활용)
 
