@@ -459,7 +459,9 @@ SHEET_HEADERS = COLLECT_HEADERS + VIDEO_AUTOMATION_HEADERS
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
+CLAUDE_MODEL = "anthropic/claude-sonnet-4"  # Sonnet 4 (비용 효율적)
+# 호환성을 위한 alias
+CLAUDE_OPUS_MODEL = CLAUDE_MODEL
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 GOOGLE_CLOUD_API_KEY = os.getenv("GOOGLE_CLOUD_API_KEY", "")  # Google Cloud TTS용
