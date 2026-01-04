@@ -55,6 +55,33 @@
 - **해결**: `dict`로 변경
 - **커밋**: `03140ba`
 
+### 7. TTS 음성 중복 해결 (chirp3/Flash/Pro 혼합)
+- **파일**: `scripts/wuxia_pipeline/config.py`
+- **문제**: 나레이션=노인, 각주=남자 음성 중복
+- **해결**: chirp3 / gemini(Flash) / gemini:pro 세 모델 혼합
+- **수정된 VOICE_MAP**:
+  | 캐릭터 | 음성 | 모델 |
+  |--------|------|------|
+  | 나레이션 | Charon | chirp3 |
+  | 무영 | Orus | chirp3 |
+  | 설하 | Aoede | gemini:pro (고품질) |
+  | 노인 | Charon | gemini:pro (차별화) |
+  | 각주 | Puck | gemini (Flash) |
+  | 악역 | Fenrir | chirp3 |
+  | 남자 | Charon | gemini (Flash) |
+  | 여자 | Kore | gemini (Flash) |
+
+### 8. BGM 볼륨 설정 추가
+- **파일**: `scripts/wuxia_pipeline/config.py`
+- **설정**:
+  ```python
+  BGM_CONFIG = {
+      "volume": 0.10,    # 10% (TTS 우선)
+      "fade_in": 2.0,    # 초
+      "fade_out": 3.0,   # 초
+  }
+  ```
+
 ---
 
 ## 시트 구조
