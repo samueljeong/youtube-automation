@@ -33,21 +33,23 @@ SERIES_INFO = {
 #   - gemini:pro:* : Gemini Pro 모델 (고품질)
 
 VOICE_MAP: Dict[str, str] = {
-    # 나레이션 (남성, 깊고 차분한 톤)
-    "나레이션": "chirp3:Charon",
+    # ★ chirp3 / gemini(Flash) / gemini:pro 혼합하여 모든 캐릭터 음성 차별화
 
-    # 주인공들
-    "무영": "gemini:Puck",           # 젊은 남성, 활기차고 친근한 톤
-    "설하": "gemini:pro:Kore",       # ★ 절세미녀 여주인공, 부드럽고 우아한 톤 (Pro 고품질)
-    "노인": "gemini:pro:Charon",     # 노인, 깊고 지혜로운 톤 (Pro 모델로 차별화)
-    "각주": "chirp3:Fenrir",         # 남성 조연, 힘있고 웅장한 톤
+    # 나레이션 (chirp3 - 기본 내레이터)
+    "나레이션": "chirp3:Charon",      # 남성, 깊고 차분한 톤
 
-    # 엑스트라 (성별 구분)
-    "남자": "gemini:Charon",         # 남자 엑스트라
-    "여자": "gemini:Kore",           # 여자 엑스트라
+    # 주인공들 (각각 다른 모델/음성)
+    "무영": "chirp3:Orus",            # 젊은 남성, 냉정하고 과묵한 톤
+    "설하": "gemini:pro:Aoede",       # ★ 절세미녀 여주인공 (Pro 고품질, 부드럽고 우아함)
+    "노인": "gemini:pro:Charon",      # 스승, 깊고 지혜로운 톤 (Pro로 나레이션과 차별화)
+    "각주": "gemini:Puck",            # 남성 조연, 활기차고 친근함 (Flash)
 
-    # 특수 캐릭터 (확장용)
-    "악역": "chirp3:Fenrir",         # 악역, 웅장하고 위협적
+    # 특수 캐릭터
+    "악역": "chirp3:Fenrir",          # 악역, 힘있고 위협적인 톤
+
+    # 엑스트라 (Flash 모델)
+    "남자": "gemini:Charon",          # 남자 엑스트라 (Flash)
+    "여자": "gemini:Kore",            # 여자 엑스트라 (Flash)
 }
 
 # 기본 음성 (태그가 없거나 매칭 안될 때)
@@ -193,6 +195,13 @@ WUXIA_BGM_MAP: Dict[str, str] = {
 
 # 기본 BGM (씬 분위기가 지정되지 않았을 때)
 DEFAULT_BGM = "bgm_wuxia_main.mp3"
+
+# BGM 설정
+BGM_CONFIG = {
+    "volume": 0.10,      # BGM 볼륨 10% (TTS 나레이션 우선)
+    "fade_in": 2.0,      # 페이드인 (초)
+    "fade_out": 3.0,     # 페이드아웃 (초)
+}
 
 # 씬 키워드 → 분위기 자동 감지
 BGM_KEYWORD_MAP: Dict[str, List[str]] = {
@@ -459,7 +468,9 @@ SHEET_HEADERS = COLLECT_HEADERS + VIDEO_AUTOMATION_HEADERS
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
+CLAUDE_MODEL = "anthropic/claude-sonnet-4"  # Sonnet 4 (비용 효율적)
+# 호환성을 위한 alias
+CLAUDE_OPUS_MODEL = CLAUDE_MODEL
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 GOOGLE_CLOUD_API_KEY = os.getenv("GOOGLE_CLOUD_API_KEY", "")  # Google Cloud TTS용
