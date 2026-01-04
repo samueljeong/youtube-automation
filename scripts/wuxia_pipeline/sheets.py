@@ -244,6 +244,42 @@ def _get_episodes_by_status(status: str) -> List[Dict[str, Any]]:
         return []
 
 
+def _clean_script_for_tts(script: str) -> str:
+    """
+    TTS용 대본 정제 - JSON escape 문자 및 불필요한 부호 제거
+
+    문제: Claude가 JSON 형식으로 대본을 생성하면 escape 문자가 포함됨
+    예: [무영] \""안녕하세요.\"" → [무영] "안녕하세요."
+
+    Returns:
+        정제된 대본 텍스트
+    """
+    if not script:
+        return script
+
+    import re
+
+    # 1) JSON escape 따옴표 정리: \""  →  "
+    cleaned = script.replace('\\"', '"')
+
+    # 2) 이중 따옴표 정리: ""  →  "
+    cleaned = re.sub(r'"{2,}', '"', cleaned)
+
+    # 3) 역슬래시+n을 실제 줄바꿈으로: \\n → \n
+    cleaned = cleaned.replace('\\n', '\n')
+
+    # 4) 남은 불필요한 역슬래시 제거: \\ → (공백)
+    cleaned = cleaned.replace('\\\\', '')
+
+    # 5) 대괄호 안 태그와 내용 사이 공백 정리
+    # [나레이션]   내용 → [나레이션] 내용
+    cleaned = re.sub(r'\[([^\]]+)\]\s+', r'[\1] ', cleaned)
+
+    print(f"[WUXIA-SHEETS] 대본 정제 완료: {len(script)}자 → {len(cleaned)}자")
+
+    return cleaned
+
+
 def update_episode_with_script(
     row_index: int,
     script: str,
@@ -257,7 +293,11 @@ def update_episode_with_script(
 
     - 상태를 '대기'로 변경 (영상 생성 대기)
     - 대본, 제목, 썸네일 문구 등 저장
+    - ★ 대본에서 JSON escape 문자 제거 (TTS 문제 방지)
     """
+    # ★ 대본 정제 (TTS가 부호를 읽는 문제 해결)
+    script = _clean_script_for_tts(script)
+
     service = get_sheets_service()
     if not service:
         return {"ok": False, "error": "Sheets 서비스 연결 실패"}

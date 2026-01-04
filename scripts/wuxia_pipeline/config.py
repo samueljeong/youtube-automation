@@ -117,30 +117,44 @@ CHARACTER_APPEARANCES: Dict[str, str] = {
 }
 
 # 이미지 스타일 설정 (일관된 화풍)
+# ★ 2026-01 업데이트: 현대 의상 방지, 텍스트 삽입 방지 강화
 IMAGE_STYLE = {
     "base_style": (
-        "Chinese martial arts wuxia illustration style, "
+        "Traditional Korean historical wuxia manhwa illustration style, "
         "ink wash painting with vibrant accent colors, "
         "dramatic cinematic lighting, "
-        "traditional East Asian aesthetic, "
-        "16:9 aspect ratio, high detail"
+        "Joseon Dynasty era Korean aesthetic, "
+        "MUST wear traditional Korean hanbok or martial arts robes, "
+        "NO modern clothing NO hoodies NO jeans NO t-shirts, "
+        "16:9 aspect ratio, high detail, masterpiece quality"
     ),
     "action_style": (
         "dynamic action composition, motion blur effects, "
-        "energy trails, dramatic poses"
+        "energy trails, dramatic poses, sword fighting"
     ),
     "emotional_style": (
         "intimate framing, soft lighting, "
-        "focus on facial expressions and emotions"
+        "focus on facial expressions and emotions, "
+        "traditional Korean interior setting"
     ),
     "landscape_style": (
         "wide panoramic shot, misty mountains, "
-        "traditional Korean architecture, atmospheric perspective"
+        "traditional Korean architecture with curved tile roofs, "
+        "Joseon Dynasty buildings, atmospheric perspective"
     ),
     "negative_prompt": (
-        "text, letters, words, watermark, signature, "
-        "modern elements, anime style, cartoon, "
-        "low quality, blurry, deformed"
+        # ★★★ 텍스트 삽입 방지 (최우선) ★★★
+        "text, letters, words, writing, caption, subtitle, speech bubble, dialogue box, "
+        "watermark, signature, logo, username, copyright, "
+        # ★★★ 현대 의상 방지 (필수) ★★★
+        "modern clothes, hoodie, jeans, t-shirt, sneakers, modern shoes, "
+        "contemporary fashion, casual wear, sportswear, jacket, "
+        # ★★★ 스타일 방지 ★★★
+        "anime style, Japanese anime, cartoon, chibi, "
+        "3D render, CGI, photorealistic, photograph, "
+        # ★★★ 품질 방지 ★★★
+        "low quality, blurry, deformed, ugly, bad anatomy, "
+        "extra limbs, missing limbs, disfigured"
     ),
 }
 
@@ -196,23 +210,74 @@ BGM_KEYWORD_MAP: Dict[str, List[str]] = {
 }
 
 # =====================================================
-# 대본 설정
+# 썸네일 설정 (시리즈 통일)
 # =====================================================
+# ★ 시리즈 전체에서 동일한 대표 이미지 사용
+# ★ 에피소드마다 텍스트(화 번호, 부제목)만 변경
+
+THUMBNAIL_CONFIG = {
+    # 시리즈 대표 이미지 (1개 고정)
+    "series_image_path": "static/images/wuxia/hyulyoung_series_thumb.png",
+
+    # 시리즈 대표 이미지 프롬프트 (최초 1회만 생성)
+    "series_image_prompt": (
+        "Traditional Korean wuxia martial arts manhwa illustration, "
+        "dramatic portrait of young Korean martial artist in flowing dark robes, "
+        "intense piercing eyes, messy black hair in topknot, "
+        "standing on misty mountain cliff at sunrise, "
+        "ink wash painting style with vibrant red and gold accent colors, "
+        "epic cinematic composition, 16:9 aspect ratio, "
+        "NO text NO letters NO writing, masterpiece quality"
+    ),
+
+    # 썸네일 레이아웃
+    "layout": {
+        "series_logo_position": "top-left",     # 시리즈 로고 위치
+        "channel_logo_position": "top-right",   # 채널 로고 위치
+        "title_position": "bottom-center",      # 제목 위치
+        "waveform_position": "bottom",          # 오디오 파형 위치
+    },
+
+    # 텍스트 스타일
+    "text_style": {
+        "series_title": "혈영 [血影]",          # 시리즈명 (한자 병기)
+        "series_font_color": (255, 215, 0),     # 금색
+        "episode_font_color": (255, 255, 255),  # 흰색
+        "outline_color": (0, 0, 0),             # 검은 테두리
+        "outline_width": 4,
+    },
+}
+
+# =====================================================
+# 대본 설정 (A안: 장편 오디오북 스타일)
+# =====================================================
+# ★ 2026-01 업데이트: 벤치마킹 결과 반영
+# - 1개 고퀄리티 이미지 + 오디오 파형 오버레이
+# - 50분 장편 오디오북 (몰입감 + 정주행 유도)
 
 SCRIPT_CONFIG = {
-    # 에피소드당 목표 글자수 (약 15분 영상)
-    # 한국어 TTS 기준: 약 900자 ≈ 1분
-    "target_chars": 13500,
-    "min_chars": 12000,
-    "max_chars": 15000,
+    # 에피소드당 목표 글자수 (약 50분 영상)
+    # 한국어 TTS 실측 기준: 약 500자 ≈ 1분
+    "target_chars": 25000,       # 50분 분량
+    "min_chars": 22000,          # 최소 44분
+    "max_chars": 28000,          # 최대 56분
 
-    # 씬 설정
-    "scenes_per_episode": 10,  # 에피소드당 씬 수 (10장)
-    "chars_per_scene": 1350,   # 씬당 평균 글자수 (13500 / 10)
+    # 이미지 설정 (A안: 1개 대표 이미지)
+    "image_count": 1,            # ★ 1개 고퀄리티 대표 이미지
+    "use_audio_waveform": True,  # ★ 오디오 파형 오버레이 사용
+
+    # 챕터 구조 (장편용)
+    "chapters_per_episode": 5,   # 에피소드당 챕터 수
+    "chars_per_chapter": 5000,   # 챕터당 평균 글자수 (25000 / 5)
 
     # TTS 설정
-    "speaking_rate": 0.9,  # 음성 속도
+    "speaking_rate": 0.95,       # 약간 빠르게 (장편이라 지루하지 않게)
     "language": "ko-KR",
+
+    # 스토리텔링 설정
+    "storytelling_style": "immersive",  # 몰입형 서술
+    "dialogue_ratio": 0.4,              # 대사 비율 40% (긴장감 유지)
+    "cliffhanger": True,                # 에피소드 끝 긴장감 유지
 }
 
 # =====================================================
