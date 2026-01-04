@@ -144,6 +144,7 @@ def generate_multi_voice_tts(
 
         # TTS 생성
         audio_data = None
+        used_voice = seg.voice  # 실제 사용된 음성 추적
 
         if is_chirp3_voice(seg.voice):
             # Chirp3 TTS
@@ -154,6 +155,14 @@ def generate_multi_voice_tts(
             )
             if result.get("ok"):
                 audio_data = result['audio_data']
+            else:
+                # ★ Chirp3 실패 시 Google Cloud TTS 폴백
+                print(f"[MULTI-TTS] Chirp3 실패, Google Cloud TTS 폴백: [{seg.tag}]", flush=True)
+                fallback_voice = "ko-KR-Neural2-C" if seg.tag in ["나레이션", "노인", "남자"] else "ko-KR-Neural2-A"
+                result = generate_google_cloud_tts(seg.text, fallback_voice)
+                if result.get("ok"):
+                    audio_data = result['audio_data']
+                    used_voice = fallback_voice
 
         elif is_gemini_voice(seg.voice):
             # Gemini TTS
@@ -165,6 +174,14 @@ def generate_multi_voice_tts(
             )
             if result.get("ok"):
                 audio_data = result['audio_data']
+            else:
+                # ★ Gemini 실패 시 Google Cloud TTS 폴백
+                print(f"[MULTI-TTS] Gemini 실패, Google Cloud TTS 폴백: [{seg.tag}]", flush=True)
+                fallback_voice = "ko-KR-Neural2-C" if seg.tag in ["나레이션", "노인", "남자"] else "ko-KR-Neural2-A"
+                result = generate_google_cloud_tts(seg.text, fallback_voice)
+                if result.get("ok"):
+                    audio_data = result['audio_data']
+                    used_voice = fallback_voice
 
         else:
             # Google Cloud TTS (Neural2) - 기본
@@ -194,7 +211,7 @@ def generate_multi_voice_tts(
             "text": seg.text,
             "start_sec": current_time,
             "end_sec": current_time + duration,
-            "voice": seg.voice
+            "voice": used_voice  # 실제 사용된 음성
         })
 
         audio_files.append(audio_path)
