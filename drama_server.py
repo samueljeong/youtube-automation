@@ -20664,6 +20664,57 @@ def api_sheets_check_and_process():
                 import traceback
                 traceback.print_exc()
 
+        # ========== 2.6 혈영 시트 '준비' → 대본 생성 → '대기' ==========
+        # 무협 소설 대본 자동 생성
+        if '혈영' in sheet_names:
+            try:
+                wuxia_rows = sheets_read_rows(service, sheet_id, "'혈영'!A:Z")
+                if wuxia_rows and len(wuxia_rows) >= 3:
+                    wuxia_headers = wuxia_rows[1]
+                    wuxia_col_map = get_column_mapping(wuxia_headers)
+
+                    # '준비' 상태이고 대본이 없는 에피소드 찾기
+                    has_ready_without_script = False
+                    for i, row in enumerate(wuxia_rows[2:], start=3):
+                        status = get_row_value(row, wuxia_col_map, '상태')
+                        script = get_row_value(row, wuxia_col_map, '대본')
+
+                        if status == '준비' and not script:
+                            has_ready_without_script = True
+                            print(f"[WUXIA] 행 {i}: '준비' 상태, 대본 없음 → 대본 자동 생성 시작")
+                            break
+
+                    if has_ready_without_script:
+                        # OpenRouter API 키 확인 (Claude Opus 4.5 사용)
+                        if not os.environ.get('OPENROUTER_API_KEY'):
+                            print("[WUXIA] OPENROUTER_API_KEY 없음, 대본 생성 스킵")
+                        else:
+                            from scripts.wuxia_pipeline.run import run_auto_script_pipeline as run_wuxia_auto_script
+
+                            script_result = run_wuxia_auto_script(max_scripts=1)
+
+                            if script_result.get("success"):
+                                generated = script_result.get("generated", 0)
+                                cost = script_result.get("total_cost", 0)
+                                print(f"[WUXIA] 대본 생성 완료: {generated}개, 비용 ${cost:.4f}")
+
+                                if generated > 0:
+                                    # 대본 생성 완료 → 다음 cron에서 영상 생성
+                                    return jsonify({
+                                        "ok": True,
+                                        "message": f"혈영 대본 {generated}개 생성 완료, 다음 사이클에서 영상 생성",
+                                        "processed": 0,
+                                        "script_generated": generated,
+                                        "script_cost": cost,
+                                        "episodes": script_result.get("episodes", [])
+                                    })
+                            else:
+                                print(f"[WUXIA] 대본 생성 실패: {script_result.get('error')}")
+            except Exception as wuxia_err:
+                print(f"[WUXIA] 대본 자동 생성 오류 (무시하고 계속): {wuxia_err}")
+                import traceback
+                traceback.print_exc()
+
         # ========== 3. 모든 시트에서 대기 작업 수집 ==========
         pending_tasks = []  # [(예약시간, 시트순서, 시트이름, 행번호, 행데이터, 채널ID, col_map)]
 
