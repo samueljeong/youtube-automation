@@ -387,6 +387,8 @@ def update_episode_status(
     cost: float = None,
 ) -> Dict[str, Any]:
     """에피소드 상태 업데이트 (일반)"""
+    from datetime import datetime, timedelta, timezone
+
     service = get_sheets_service()
     if not service:
         return {"ok": False, "error": "Sheets 서비스 연결 실패"}
@@ -415,6 +417,16 @@ def update_episode_status(
                 "range": f"{SHEET_NAME}!{col_letter}{row_index}",
                 "values": [[status]]
             })
+
+            # ★ "처리중"으로 변경 시 작업시간 설정 (check-and-process 호환)
+            if status == "처리중" and "작업시간" in col_map:
+                kst = timezone(timedelta(hours=9))
+                now_str = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S')
+                col_letter = chr(ord('A') + col_map["작업시간"])
+                updates.append({
+                    "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                    "values": [[now_str]]
+                })
 
         if script and "대본" in col_map:
             col_letter = chr(ord('A') + col_map["대본"])

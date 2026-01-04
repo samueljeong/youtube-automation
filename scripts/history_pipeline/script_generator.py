@@ -1,5 +1,5 @@
 """
-Claude Opus 4.5 기반 대본 + 이미지 프롬프트 통합 생성 모듈 (OpenRouter 사용)
+Claude Sonnet 4.5 기반 대본 + 이미지 프롬프트 통합 생성 모듈 (OpenRouter 사용)
 
 2025-01 신규:
 - 4개 공신력 있는 소스에서 수집한 자료 기반
@@ -7,9 +7,8 @@ Claude Opus 4.5 기반 대본 + 이미지 프롬프트 통합 생성 모듈 (Ope
 - 학술적 신중함 + 객관적 서술 스타일
 
 2026-01 업데이트:
-- GPT-5.2 → Claude Opus 4.5 모델 변경 (OpenRouter 경유)
-- 비용: $15/1M input, $75/1M output
-- Prompt Caching 적용 (System Prompt 90% 할인)
+- GPT-5.2 → Claude Sonnet 4.5 모델 변경 (OpenRouter 경유)
+- 비용: $3/1M input, $15/1M output (Opus 대비 5배 저렴)
 - 대본 생성과 동시에 씬별 이미지 프롬프트 생성 (GPT 분석 단계 제거)
 - 썸네일 이미지 프롬프트 통합 출력
 """
@@ -24,7 +23,7 @@ from openai import OpenAI
 
 # OpenRouter 설정
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_OPUS_MODEL = "anthropic/claude-opus-4.5"
+CLAUDE_MODEL = "anthropic/claude-sonnet-4-5-20250514"  # Sonnet 4.5 (Opus 대비 5배 저렴)
 
 
 # ============================================================
@@ -580,7 +579,7 @@ def _call_opus45_cached(client, user_prompt: str, system_prompt: str = None) -> 
     try:
         # OpenRouter API 호출 (OpenAI 호환)
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=8192,
             messages=[
                 {"role": "system", "content": sys_prompt},
@@ -592,25 +591,21 @@ def _call_opus45_cached(client, user_prompt: str, system_prompt: str = None) -> 
         # 결과 추출
         text = response.choices[0].message.content or ""
 
-        # ★★★ 비용 계산 (Prompt Caching 적용) ★★★
+        # ★★★ 비용 계산 (Sonnet 4.5: Input $3/1M, Output $15/1M) ★★★
         # 한국어 약 2자 = 1토큰
-        system_tokens = len(sys_prompt) // 2  # 캐시됨 (90% 할인)
-        user_tokens = len(user_prompt) // 2              # 정가
+        input_tokens = (len(sys_prompt) + len(user_prompt)) // 2
         output_tokens = len(text) // 2
 
-        # System Prompt: $1.5/1M (90% 할인), User Prompt: $15/1M, Output: $75/1M
         cost = (
-            (system_tokens * 1.5 / 1_000_000) +    # 캐시된 System Prompt
-            (user_tokens * 15 / 1_000_000) +       # User Prompt (정가)
-            (output_tokens * 75 / 1_000_000)       # Output
+            (input_tokens * 3 / 1_000_000) +       # Input
+            (output_tokens * 15 / 1_000_000)       # Output
         )
 
         return {
             "text": text.strip(),
             "cost": cost,
             "tokens": {
-                "system_cached": system_tokens,
-                "user": user_tokens,
+                "input": input_tokens,
                 "output": output_tokens,
             }
         }
@@ -626,7 +621,7 @@ def _call_opus45(client, prompt: str, system_prompt: str = None) -> Dict[str, An
     """
     try:
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=8192,
             messages=[
                 {"role": "system", "content": system_prompt or "당신은 한국사 대본 작가입니다."},
@@ -1361,7 +1356,7 @@ def generate_script_gpt51(
 
         # OpenRouter API 호출 (OpenAI 호환)
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=16384,
             messages=[
                 {"role": "system", "content": SCRIPT_STYLE_PROMPT},
@@ -1504,7 +1499,7 @@ def _continue_script(
 
         # OpenRouter API 호출 (OpenAI 호환)
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=8192,
             messages=[
                 {"role": "system", "content": "한국사 대본 작가입니다. 기존 대본에 이어서 작성합니다."},
@@ -1516,10 +1511,10 @@ def _continue_script(
         continuation = response.choices[0].message.content or ""
         continuation = continuation.strip()
 
-        # 비용 계산 (Claude Opus 4.5 가격: $15/1M input, $75/1M output)
+        # 비용 계산 (Sonnet 4.5: Input $3/1M, Output $15/1M)
         input_tokens = len(prompt) // 2
         output_tokens = len(continuation) // 2
-        cost = (input_tokens * 15 / 1_000_000) + (output_tokens * 75 / 1_000_000)
+        cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
 
         print(f"[SCRIPT] 이어쓰기 완료: +{len(continuation):,}자")
 

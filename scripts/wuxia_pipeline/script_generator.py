@@ -21,7 +21,7 @@ from .config import (
     SCRIPT_CONFIG,
     EPISODE_TEMPLATES,
     OPENROUTER_BASE_URL,
-    CLAUDE_OPUS_MODEL,
+    CLAUDE_MODEL,
     CHARACTER_APPEARANCES,
     IMAGE_STYLE,
 )
@@ -427,7 +427,7 @@ def generate_episode_script(
         )
 
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=20000,  # 대본 + 이미지 프롬프트 + 메타데이터
             messages=[
                 {"role": "system", "content": MASTER_SYSTEM_PROMPT},
@@ -439,11 +439,11 @@ def generate_episode_script(
         result_text = response.choices[0].message.content or ""
         result_text = result_text.strip()
 
-        # 비용 계산
+        # 비용 계산 (Sonnet 4.5: Input $3/1M, Output $15/1M)
         input_tokens = response.usage.prompt_tokens if response.usage else 0
         output_tokens = response.usage.completion_tokens if response.usage else 0
-        input_cost = input_tokens * 1.5 / 1_000_000  # Prompt Caching 가정
-        output_cost = output_tokens * 75 / 1_000_000
+        input_cost = input_tokens * 3 / 1_000_000
+        output_cost = output_tokens * 15 / 1_000_000
         total_cost = input_cost + output_cost
 
         # JSON 파싱
@@ -543,7 +543,7 @@ def _continue_script(client: OpenAI, current_script: str, current_length: int) -
 
     try:
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=8192,
             messages=[
                 {"role": "system", "content": "무협 소설 작가입니다. [태그] 형식으로 대본을 이어 작성합니다."},
@@ -555,11 +555,11 @@ def _continue_script(client: OpenAI, current_script: str, current_length: int) -
         continuation = response.choices[0].message.content or ""
         continuation = continuation.strip()
 
-        # 비용 계산
+        # 비용 계산 (Sonnet 4.5: Input $3/1M, Output $15/1M)
         input_tokens = response.usage.prompt_tokens if response.usage else 0
         output_tokens = response.usage.completion_tokens if response.usage else 0
-        input_cost = input_tokens * 1.5 / 1_000_000
-        output_cost = output_tokens * 75 / 1_000_000
+        input_cost = input_tokens * 3 / 1_000_000
+        output_cost = output_tokens * 15 / 1_000_000
 
         # 합치기
         full_script = current_script + "\n\n" + continuation
@@ -607,7 +607,7 @@ def generate_youtube_metadata(script: str, episode: int, title: str) -> Dict[str
         )
 
         response = client.chat.completions.create(
-            model=CLAUDE_OPUS_MODEL,
+            model=CLAUDE_MODEL,
             max_tokens=1024,
             messages=[
                 {"role": "user", "content": prompt}

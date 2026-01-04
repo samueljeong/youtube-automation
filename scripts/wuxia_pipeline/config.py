@@ -33,23 +33,22 @@ SERIES_INFO = {
 #   - gemini:pro:* : Gemini Pro 모델 (고품질)
 
 VOICE_MAP: Dict[str, str] = {
-    # ★ chirp3 / gemini(Flash) / gemini:pro 혼합하여 모든 캐릭터 음성 차별화
+    # ★ 비중 높음 → Chirp3 (상위 모델)
+    "나레이션": "chirp3:Charon",     # 가장 많이 등장
+    "무영": "chirp3:Puck",           # 주인공
+    "설하": "chirp3:Kore",           # 여주인공
 
-    # 나레이션 (chirp3 - 기본 내레이터)
-    "나레이션": "chirp3:Charon",      # 남성, 깊고 차분한 톤
+    # 비중 낮음 → Flash
+    "노인": "gemini:Charon",         # 조연 (스승) - 속도 느리게
+    "각주": "gemini:Fenrir",         # 조연
+    "악역": "gemini:Fenrir",         # 악역
+    "남자": "gemini:Charon",         # 엑스트라
+    "여자": "gemini:Kore",           # 엑스트라
+}
 
-    # 주인공들 (각각 다른 모델/음성)
-    "무영": "chirp3:Orus",            # 젊은 남성, 냉정하고 과묵한 톤
-    "설하": "gemini:pro:Aoede",       # ★ 절세미녀 여주인공 (Pro 고품질, 부드럽고 우아함)
-    "노인": "gemini:pro:Charon",      # 스승, 깊고 지혜로운 톤 (Pro로 나레이션과 차별화)
-    "각주": "gemini:Puck",            # 남성 조연, 활기차고 친근함 (Flash)
-
-    # 특수 캐릭터
-    "악역": "chirp3:Fenrir",          # 악역, 힘있고 위협적인 톤
-
-    # 엑스트라 (Flash 모델)
-    "남자": "gemini:Charon",          # 남자 엑스트라 (Flash)
-    "여자": "gemini:Kore",            # 여자 엑스트라 (Flash)
+# 캐릭터별 음성 속도 (기본값: 0.9)
+CHARACTER_SPEAKING_RATE: Dict[str, float] = {
+    "노인": 0.8,  # 느리게 (지혜로운 노인 느낌)
 }
 
 # 기본 음성 (태그가 없거나 매칭 안될 때)
@@ -468,9 +467,7 @@ SHEET_HEADERS = COLLECT_HEADERS + VIDEO_AUTOMATION_HEADERS
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_MODEL = "anthropic/claude-sonnet-4"  # Sonnet 4 (비용 효율적)
-# 호환성을 위한 alias
-CLAUDE_OPUS_MODEL = CLAUDE_MODEL
+CLAUDE_MODEL = "anthropic/claude-sonnet-4-5-20250514"  # Sonnet 4.5 (Opus 대비 5배 저렴)
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")  # Gemini TTS용
 GOOGLE_CLOUD_API_KEY = os.getenv("GOOGLE_CLOUD_API_KEY", "")  # Google Cloud TTS용

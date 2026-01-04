@@ -19,6 +19,7 @@ from .config import (
     MAIN_CHARACTER_TAGS,
     EXTRA_TAGS,
     SCRIPT_CONFIG,
+    CHARACTER_SPEAKING_RATE,
 )
 
 
@@ -30,6 +31,7 @@ class VoiceSegment:
     text: str             # 대사 또는 나레이션
     voice: str            # TTS 음성 ID
     is_main_char: bool    # 주인공 여부 (나레이터 소개 필요)
+    speaking_rate: float = 0.9  # 음성 속도 (캐릭터별)
     audio_path: Optional[str] = None
     duration: float = 0.0
 
@@ -67,12 +69,16 @@ def parse_script_to_segments(script: str) -> List[VoiceSegment]:
         # 주인공 여부 확인
         is_main_char = tag in MAIN_CHARACTER_TAGS
 
+        # 캐릭터별 음성 속도 (기본 0.9)
+        speaking_rate = CHARACTER_SPEAKING_RATE.get(tag, SCRIPT_CONFIG.get("speaking_rate", 0.9))
+
         segments.append(VoiceSegment(
             index=idx,
             tag=tag,
             text=text,
             voice=voice,
-            is_main_char=is_main_char
+            is_main_char=is_main_char,
+            speaking_rate=speaking_rate
         ))
 
     return segments
@@ -144,6 +150,7 @@ def generate_multi_voice_tts(
 
         # TTS 생성
         audio_data = None
+        used_voice = seg.voice  # 실제 사용된 음성 추적
 
         if is_chirp3_voice(seg.voice):
             # Chirp3 TTS
@@ -154,6 +161,14 @@ def generate_multi_voice_tts(
             )
             if result.get("ok"):
                 audio_data = result['audio_data']
+            else:
+                # ★ Chirp3 실패 시 Google Cloud TTS 폴백
+                print(f"[MULTI-TTS] Chirp3 실패, Google Cloud TTS 폴백: [{seg.tag}]", flush=True)
+                fallback_voice = "ko-KR-Neural2-C" if seg.tag in ["나레이션", "노인", "남자"] else "ko-KR-Neural2-A"
+                result = generate_google_cloud_tts(seg.text, fallback_voice, seg.speaking_rate)
+                if result.get("ok"):
+                    audio_data = result['audio_data']
+                    used_voice = fallback_voice
 
         elif is_gemini_voice(seg.voice):
             # Gemini TTS
@@ -165,10 +180,18 @@ def generate_multi_voice_tts(
             )
             if result.get("ok"):
                 audio_data = result['audio_data']
+            else:
+                # ★ Gemini 실패 시 Google Cloud TTS 폴백
+                print(f"[MULTI-TTS] Gemini 실패, Google Cloud TTS 폴백: [{seg.tag}]", flush=True)
+                fallback_voice = "ko-KR-Neural2-C" if seg.tag in ["나레이션", "노인", "남자"] else "ko-KR-Neural2-A"
+                result = generate_google_cloud_tts(seg.text, fallback_voice, seg.speaking_rate)
+                if result.get("ok"):
+                    audio_data = result['audio_data']
+                    used_voice = fallback_voice
 
         else:
             # Google Cloud TTS (Neural2) - 기본
-            result = generate_google_cloud_tts(seg.text, seg.voice)
+            result = generate_google_cloud_tts(seg.text, seg.voice, seg.speaking_rate)
             if result.get("ok"):
                 audio_data = result['audio_data']
 
@@ -194,7 +217,7 @@ def generate_multi_voice_tts(
             "text": seg.text,
             "start_sec": current_time,
             "end_sec": current_time + duration,
-            "voice": seg.voice
+            "voice": used_voice  # 실제 사용된 음성
         })
 
         audio_files.append(audio_path)
@@ -225,7 +248,7 @@ def generate_multi_voice_tts(
     }
 
 
-def generate_google_cloud_tts(text: str, voice: str) -> Dict[str, Any]:
+def generate_google_cloud_tts(text: str, voice: str, speaking_rate: float = 0.9) -> Dict[str, Any]:
     """Google Cloud TTS (Neural2) 생성"""
     import requests
     import base64
@@ -244,7 +267,7 @@ def generate_google_cloud_tts(text: str, voice: str) -> Dict[str, Any]:
         },
         "audioConfig": {
             "audioEncoding": "MP3",
-            "speakingRate": SCRIPT_CONFIG.get("speaking_rate", 0.9)
+            "speakingRate": speaking_rate
         }
     }
 
