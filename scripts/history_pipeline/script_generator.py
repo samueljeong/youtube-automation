@@ -23,7 +23,7 @@ from openai import OpenAI
 
 # OpenRouter 설정
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-CLAUDE_MODEL = "anthropic/claude-sonnet-4-5-20250514"  # Sonnet 4.5 (Opus 대비 5배 저렴)
+CLAUDE_MODEL = "anthropic/claude-sonnet-4.5"  # Sonnet 4.5
 
 
 # ============================================================
