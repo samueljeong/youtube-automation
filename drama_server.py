@@ -24947,6 +24947,70 @@ def api_bible_check_and_process():
         pipeline_lock.release()
 
 
+# ============================================================================
+# 혈영 이세계편 파이프라인 API
+# ============================================================================
+
+@app.route('/api/isekai/create-sheet', methods=['GET', 'POST'])
+def api_isekai_create_sheet():
+    """
+    혈영이세계 시트 생성
+
+    GET/POST /api/isekai/create-sheet?channel_id=UCxxx
+    """
+    from scripts.isekai_pipeline import create_isekai_sheet
+
+    channel_id = request.args.get('channel_id') or request.json.get('channel_id', '') if request.is_json else ''
+    result = create_isekai_sheet(channel_id=channel_id)
+
+    status_code = 200 if result.get('ok') else 400
+    return jsonify(result), status_code
+
+
+@app.route('/api/isekai/sync-episode', methods=['POST'])
+def api_isekai_sync_episode():
+    """
+    특정 에피소드를 시트에 동기화
+
+    POST /api/isekai/sync-episode
+    {"episode": 1}
+
+    outputs/isekai/EP001/ 폴더의 파일들을 읽어 시트에 기록
+    """
+    from scripts.isekai_pipeline import sync_episode_from_files
+
+    data = request.get_json() or {}
+    episode = data.get('episode')
+
+    if not episode:
+        return jsonify({"ok": False, "error": "episode 파라미터가 필요합니다"}), 400
+
+    try:
+        episode_num = int(episode)
+    except ValueError:
+        return jsonify({"ok": False, "error": "episode은 숫자여야 합니다"}), 400
+
+    result = sync_episode_from_files(episode_num)
+    status_code = 200 if result.get('ok') else 400
+    return jsonify(result), status_code
+
+
+@app.route('/api/isekai/sync-all', methods=['POST'])
+def api_isekai_sync_all():
+    """
+    모든 에피소드를 시트에 동기화
+
+    POST /api/isekai/sync-all
+
+    outputs/isekai/ 디렉토리의 모든 EP* 폴더를 스캔하여 시트에 동기화
+    """
+    from scripts.isekai_pipeline import sync_all_episodes
+
+    result = sync_all_episodes()
+    status_code = 200 if result.get('ok') else 400
+    return jsonify(result), status_code
+
+
 # 기존 시트 → 새 시트 매핑
 MIGRATION_MAPPING = {
     "NEWS": {
