@@ -22572,6 +22572,69 @@ def _detect_mood_from_text(text: str, keyword_map: dict) -> str:
     return best_mood
 
 
+def _generate_youtube_chapters(script: str, total_duration: float) -> str:
+    """
+    대본에서 챕터를 파싱하여 YouTube 챕터 타임스탬프 문자열 생성
+
+    YouTube 챕터 형식:
+    0:00 인트로
+    2:30 제1장: 운명의 밤
+    12:45 제2장: 첫 번째 시련
+    ...
+
+    Returns:
+        YouTube 설명란에 넣을 챕터 타임스탬프 문자열
+    """
+    import re
+
+    # 챕터 마커 패턴
+    chapter_patterns = [
+        r'【제(\d+)장[:\s]*([^】]*)】',  # 【제1장: 운명의 밤】
+        r'제(\d+)장[:\s]*([^\n\[]+)',    # 제1장: 운명의 밤
+    ]
+
+    chapters = []
+    for pattern in chapter_patterns:
+        for match in re.finditer(pattern, script):
+            chapter_num = int(match.group(1))
+            chapter_title = match.group(2).strip() if match.group(2) else f"제{chapter_num}장"
+            char_pos = match.start()
+            chapters.append((chapter_num, chapter_title, char_pos))
+
+        if chapters:
+            break
+
+    if not chapters:
+        # 챕터 마커가 없으면 기본 타임스탬프만
+        return "0:00 시작"
+
+    # 챕터 번호 순으로 정렬
+    chapters.sort(key=lambda x: x[0])
+
+    # 전체 글자수
+    total_chars = len(script)
+
+    # 타임스탬프 생성
+    timestamps = ["0:00 인트로"]
+
+    for ch_num, ch_title, char_pos in chapters:
+        # 시간 계산 (글자 수 비율)
+        time_seconds = (char_pos / total_chars) * total_duration
+
+        # MM:SS 형식으로 변환
+        minutes = int(time_seconds // 60)
+        seconds = int(time_seconds % 60)
+        timestamp = f"{minutes}:{seconds:02d}"
+
+        # 챕터 제목 정리
+        if ch_title:
+            timestamps.append(f"{timestamp} 제{ch_num}장: {ch_title}")
+        else:
+            timestamps.append(f"{timestamp} 제{ch_num}장")
+
+    return "\n".join(timestamps)
+
+
 def run_wuxia_video_pipeline(
     row_data: dict,
     row_index: int,
@@ -22967,23 +23030,57 @@ def run_wuxia_video_pipeline(
         # ========== 8. YouTube 업로드 ==========
         print(f"\n[WUXIA-VIDEO] 8. YouTube 업로드...")
 
-        # 설명 생성
-        description = f"""무협 소설 「혈영」 오디오북 - {ep_num}화
+        # ★ YouTube 챕터 타임스탬프 생성 (SEO 최적화)
+        chapter_timestamps = _generate_youtube_chapters(script, total_duration)
+
+        # 설명 생성 (SEO 최적화)
+        description = f"""🗡️ 무협 오디오북 「혈영(血影)」 제{ep_num}화: {ep_title}
 
 {row_data.get('summary', '')}
 
-🎧 다음 화도 기대해주세요!
-📚 창작 무협 소설 | 매주 업데이트
+{'─' * 40}
+📖 챕터 바로가기
+{'─' * 40}
+{chapter_timestamps}
 
-#무협 #오디오북 #혈영 #무협소설 #한국무협 #웹소설낭독
+{'─' * 40}
+📚 시리즈 정보
+{'─' * 40}
+• 장르: 무협 판타지 오디오북
+• 주인공: 무영 - 노비 출신의 절세 고수
+• 여주인공: 설하 - 명문 세가의 절세미녀
+• 업데이트: 매주 새로운 에피소드
+
+{'─' * 40}
+🔔 구독과 좋아요는 큰 힘이 됩니다!
+{'─' * 40}
+👍 좋아요 누르시면 더 좋은 콘텐츠로 보답하겠습니다
+🔔 알림 설정하시면 새 에피소드를 놓치지 않습니다
+💬 댓글로 여러분의 이야기를 들려주세요
+
+#무협 #오디오북 #혈영 #무협소설 #한국무협 #웹소설 #웹소설낭독 #판타지 #무협판타지 #ASMR무협 #잠들기전듣기좋은 #혈영{ep_num}화
 """
+
+        # SEO 최적화 태그 (검색 노출 극대화)
+        seo_tags = [
+            # 핵심 키워드
+            "무협", "오디오북", "혈영", "무협소설",
+            # 관련 키워드
+            "한국무협", "웹소설", "웹소설낭독", "판타지소설",
+            # 검색 의도 키워드
+            "무협판타지", "ASMR", "잠들기전듣기좋은", "귀로듣는소설",
+            # 시리즈 키워드
+            f"혈영{ep_num}화", f"제{ep_num}화", ep_title,
+            # 롱테일 키워드
+            "무협소설추천", "오디오북추천", "무협오디오북", "한국무협소설",
+        ]
 
         try:
             upload_result = upload_to_youtube(
                 video_path=video_path,
                 title=title,
                 description=description,
-                tags=["무협", "오디오북", "혈영", "무협소설", "한국무협", "웹소설", "웹소설낭독", f"{ep_num}화"],
+                tags=seo_tags,
                 channel_id=channel_id,
                 privacy_status=visibility,
                 scheduled_time=scheduled_time if scheduled_time else None,

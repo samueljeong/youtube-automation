@@ -60,6 +60,10 @@ def parse_script_to_segments(script: str) -> List[VoiceSegment]:
         tag = tag.strip()
         text = text.strip()
 
+        # ★ 챕터 마커 제거 (TTS가 읽지 않도록)
+        # 【제1장: 운명의 밤】 형식
+        text = re.sub(r'【제\d+장[^】]*】\s*', '', text)
+
         if not text:
             continue
 
