@@ -23061,9 +23061,11 @@ def upload_to_youtube(
         if thumbnail_path:
             upload_data["thumbnailPath"] = thumbnail_path
 
-        # 로컬 API 호출
+        # API 호출 (Render 환경에서는 PORT 환경변수 사용)
+        port = os.environ.get("PORT", "5059")
+        base_url = f"http://127.0.0.1:{port}"
         response = req.post(
-            "http://localhost:5059/api/youtube/upload",
+            f"{base_url}/api/youtube/upload",
             json=upload_data,
             timeout=300
         )
