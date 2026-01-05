@@ -22888,13 +22888,8 @@ def run_wuxia_video_pipeline(
                 )
 
                 if img_result.get("ok"):
-                    # 생성된 이미지 URL에서 파일 경로 추출
-                    image_url = img_result.get("image_url", "")
-                    if image_url.startswith("/"):
-                        # /static/... 형태 → 파일 경로로 변환
-                        generated_path = image_url.lstrip("/")
-                    else:
-                        generated_path = image_url
+                    # 생성된 이미지 경로 (절대 경로로 반환됨)
+                    generated_path = img_result.get("image_url", "")
 
                     # 시리즈 이미지 경로로 복사
                     import shutil
@@ -22902,6 +22897,7 @@ def run_wuxia_video_pipeline(
                         shutil.copy(generated_path, series_image_path)
                         main_image_path = series_image_path
                     else:
+                        # 절대 경로가 아닌 경우 (fallback)
                         main_image_path = generated_path
 
                     total_cost += img_result.get("cost", 0.05)
