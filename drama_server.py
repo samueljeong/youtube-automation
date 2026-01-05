@@ -20579,9 +20579,11 @@ def api_sheets_check_and_process():
                                 sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '작업시간', '')
                                 continue  # 다음 행 확인
 
-                            if elapsed_minutes > 40:
-                                # 40분 초과 → 실패로 변경
-                                print(f"[SHEETS] [{sheet_name}] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리")
+                            # 환경변수로 타임아웃 설정 가능 (기본 90분)
+                            processing_timeout_minutes = int(os.environ.get('PROCESSING_TIMEOUT_MINUTES', '90'))
+                            if elapsed_minutes > processing_timeout_minutes:
+                                # 타임아웃 초과 → 실패로 변경
+                                print(f"[SHEETS] [{sheet_name}] 행 {i}: 처리중 상태 {elapsed_minutes:.1f}분 경과 - 타임아웃으로 실패 처리 (제한: {processing_timeout_minutes}분)")
                                 sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '상태', '실패')
                                 sheets_update_cell_by_header(service, sheet_id, sheet_name, i, col_map, '에러메시지', f'타임아웃: {elapsed_minutes:.0f}분 경과')
                                 continue

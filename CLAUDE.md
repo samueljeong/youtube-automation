@@ -433,8 +433,8 @@ curl "https://drama-s2ns.onrender.com/api/sheets/create-unified?channel_id_NEWS=
 | 썸네일 생성 | 180초 |
 | 영상 생성 폴링 | 40분 (1200 * 2초) |
 | YouTube 업로드 | 300초 |
-| 처리중 상태 타임아웃 | 40분 |
-| gunicorn timeout | 45분 |
+| 처리중 상태 타임아웃 | 90분 (환경변수로 조정 가능) |
+| gunicorn timeout | 90분 |
 
 **참고**: 10분 영상 생성에 ~20분 소요 (Render 1vCPU 환경)
 
@@ -446,6 +446,7 @@ curl "https://drama-s2ns.onrender.com/api/sheets/create-unified?channel_id_NEWS=
 |---------|-------|------|
 | `VIDEO_PARALLEL_WORKERS` | `1` | 씬 클립 생성 병렬 워커 수 |
 | `OPENROUTER_API_KEY` | - | OpenRouter API 키 (Claude Opus 4.5 대본 생성용) |
+| `PROCESSING_TIMEOUT_MINUTES` | `90` | 처리중 상태 타임아웃 (분) |
 
 ### VIDEO_PARALLEL_WORKERS 설정 가이드
 
