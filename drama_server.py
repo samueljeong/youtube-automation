@@ -22959,10 +22959,10 @@ def render_video_with_bgm(
         # BGM 추가 (있으면)
         if bgm_path and os.path.exists(bgm_path):
             ffmpeg_cmd.extend(["-i", bgm_path])
-            # 오디오 믹싱: TTS 볼륨 1.0, BGM 볼륨 0.15
+            # 오디오 믹싱: TTS 볼륨 1.0, BGM 볼륨 0.07 (7%)
             ffmpeg_cmd.extend([
                 "-filter_complex",
-                "[1:a]volume=1.0[tts];[2:a]volume=0.15,aloop=loop=-1:size=2e+09[bgm];[tts][bgm]amix=inputs=2:duration=first[aout]",
+                "[1:a]volume=1.0[tts];[2:a]volume=0.07,aloop=loop=-1:size=2e+09[bgm];[tts][bgm]amix=inputs=2:duration=first[aout]",
                 "-map", "0:v",
                 "-map", "[aout]"
             ])
