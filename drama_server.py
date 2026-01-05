@@ -22516,7 +22516,7 @@ def run_wuxia_video_pipeline(
         )
         from scripts.wuxia_pipeline.multi_voice_tts import (
             parse_script_to_segments,
-            generate_multi_voice_tts,
+            generate_single_voice_tts,  # 단일 음성 TTS (자막 싱크 안정)
             generate_srt_from_timeline,
         )
 
@@ -22586,15 +22586,16 @@ def run_wuxia_video_pipeline(
             char_stats[seg.tag] = char_stats.get(seg.tag, 0) + 1
         print(f"[WUXIA-VIDEO] 캐릭터 분포: {char_stats}")
 
-        # TTS 생성
+        # TTS 생성 (단일 음성 - 자막 싱크 안정성)
         episode_id = row_data.get('episode', f'row{row_index}')
         tts_output_dir = f"outputs/wuxia/audio/{episode_id}"
         os.makedirs(tts_output_dir, exist_ok=True)
 
-        tts_result = generate_multi_voice_tts(
+        tts_result = generate_single_voice_tts(
             segments=segments,
             output_dir=tts_output_dir,
-            episode_id=episode_id.replace('EP', 'ep')
+            episode_id=episode_id.replace('EP', 'ep'),
+            voice="chirp3:Charon"  # 나레이션 음성
         )
 
         if not tts_result.get("ok"):

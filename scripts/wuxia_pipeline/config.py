@@ -32,23 +32,21 @@ SERIES_INFO = {
 #   - gemini:* : Gemini Flash 모델 (저렴)
 #   - gemini:pro:* : Gemini Pro 모델 (고품질)
 
+# ★ 단일 나레이션 음성으로 통일 (품질 일관성 + 자막 싱크 안정성)
 VOICE_MAP: Dict[str, str] = {
-    # ★ 비중 높음 → Chirp3 (상위 모델)
-    "나레이션": "chirp3:Charon",     # 가장 많이 등장
-    "무영": "chirp3:Puck",           # 주인공
-    "설하": "chirp3:Kore",           # 여주인공
-
-    # ★ 비중 낮음 → Google Cloud TTS (안정성 - Gemini Rate Limit 회피)
-    "노인": "ko-KR-Neural2-C",       # 조연 (스승) - 남성
-    "각주": "ko-KR-Neural2-B",       # 조연 - 남성
-    "악역": "ko-KR-Neural2-B",       # 악역 - 남성
-    "남자": "ko-KR-Neural2-C",       # 엑스트라 - 남성
-    "여자": "ko-KR-Neural2-A",       # 엑스트라 - 여성
+    "나레이션": "chirp3:Charon",
+    "무영": "chirp3:Charon",
+    "설하": "chirp3:Charon",
+    "노인": "chirp3:Charon",
+    "각주": "chirp3:Charon",
+    "악역": "chirp3:Charon",
+    "남자": "chirp3:Charon",
+    "여자": "chirp3:Charon",
 }
 
-# 캐릭터별 음성 속도 (기본값: 0.9)
+# 캐릭터별 음성 속도 (단일 음성이므로 모두 동일)
 CHARACTER_SPEAKING_RATE: Dict[str, float] = {
-    "노인": 0.8,  # 느리게 (지혜로운 노인 느낌)
+    # 모든 캐릭터 동일 속도
 }
 
 # 기본 음성 (태그가 없거나 매칭 안될 때)

@@ -1,8 +1,8 @@
 """
-다중 음성 TTS 모듈
+TTS 모듈
 - 태그 기반 스크립트 파싱
-- 캐릭터별 음성 매핑
-- FFmpeg 오디오 병합
+- 단일 나레이션 음성 TTS (자막 싱크 안정성)
+- 문장 단위 자막 생성
 """
 
 import os
@@ -369,6 +369,131 @@ def sec_to_srt_time(sec: float) -> str:
     s = int(sec % 60)
     ms = int((sec - int(sec)) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+# =====================================================
+# 단일 음성 TTS (자막 싱크 안정성)
+# =====================================================
+
+def generate_single_voice_tts(
+    segments: List[VoiceSegment],
+    output_dir: str,
+    episode_id: str = None,
+    voice: str = "chirp3:Charon"
+) -> Dict[str, Any]:
+    """
+    단일 음성으로 전체 대본 TTS 생성 (자막 싱크 안정성)
+
+    - 모든 세그먼트의 텍스트를 합쳐서 1회 TTS 호출
+    - 병합 과정 없음 → 프레임 딜레이 문제 해결
+    - 자막은 글자 수 비례로 타이밍 계산
+
+    Args:
+        segments: 파싱된 세그먼트 목록
+        output_dir: 출력 디렉토리
+        episode_id: 에피소드 ID
+        voice: TTS 음성 (기본: chirp3:Charon)
+
+    Returns:
+        {
+            "ok": True,
+            "merged_audio": "path/to/audio.mp3",
+            "total_duration": 123.45,
+            "timeline": [...]  # SRT용 타임라인
+        }
+    """
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+    from drama_server import (
+        is_chirp3_voice,
+        parse_chirp3_voice,
+        generate_chirp3_tts,
+    )
+
+    if not episode_id:
+        episode_id = str(uuid.uuid4())[:8]
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # 1. 모든 텍스트 합치기 (태그 제거, 텍스트만)
+    all_texts = []
+    segment_info = []  # 각 세그먼트의 텍스트 길이 저장
+
+    for seg in segments:
+        text = seg.text.strip()
+        if text:
+            all_texts.append(text)
+            segment_info.append({
+                "tag": seg.tag,
+                "text": text,
+                "char_count": len(text)
+            })
+
+    if not all_texts:
+        return {"ok": False, "error": "텍스트가 없습니다"}
+
+    # 전체 텍스트 (문장 사이에 공백 추가)
+    full_text = " ".join(all_texts)
+    total_chars = sum(info["char_count"] for info in segment_info)
+
+    print(f"[SINGLE-TTS] 시작: {len(segment_info)}개 세그먼트, 총 {total_chars:,}자", flush=True)
+
+    # 2. 단일 TTS 생성
+    if is_chirp3_voice(voice):
+        chirp3_config = parse_chirp3_voice(voice)
+        result = generate_chirp3_tts(
+            text=full_text,
+            voice_name=chirp3_config['voice']
+        )
+    else:
+        return {"ok": False, "error": f"지원하지 않는 음성: {voice}"}
+
+    if not result.get("ok"):
+        return {"ok": False, "error": result.get("error", "TTS 생성 실패")}
+
+    audio_data = result.get("audio_data")
+    if not audio_data:
+        return {"ok": False, "error": "오디오 데이터 없음"}
+
+    # 3. 오디오 저장
+    audio_path = os.path.join(output_dir, f"{episode_id}_full.mp3")
+    with open(audio_path, "wb") as f:
+        f.write(audio_data)
+
+    # 4. 전체 duration 측정
+    total_duration = get_audio_duration(audio_path)
+    print(f"[SINGLE-TTS] TTS 완료: {total_duration:.1f}초 ({total_duration/60:.1f}분)", flush=True)
+
+    # 5. 타임라인 생성 (글자 수 비례)
+    timeline = []
+    current_time = 0.0
+
+    for i, info in enumerate(segment_info):
+        # 글자 수 비례로 duration 계산
+        ratio = info["char_count"] / total_chars
+        duration = total_duration * ratio
+
+        timeline.append({
+            "index": i,
+            "tag": info["tag"],
+            "text": info["text"],
+            "start_sec": current_time,
+            "end_sec": current_time + duration,
+            "voice": voice
+        })
+
+        current_time += duration
+
+    print(f"[SINGLE-TTS] 완료: {len(timeline)}개 세그먼트, 총 {total_duration:.1f}초", flush=True)
+
+    return {
+        "ok": True,
+        "segments": segments,
+        "merged_audio": audio_path,
+        "total_duration": total_duration,
+        "timeline": timeline
+    }
 
 
 # =====================================================
