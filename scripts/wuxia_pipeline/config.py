@@ -163,7 +163,10 @@ IMAGE_STYLE = {
 # ★ 씬 분위기에 따라 자동 선택되는 BGM 매핑
 # ★ 12개의 무협 전용 BGM 파일
 
-BGM_DIR = "static/audio/bgm"
+# BGM 디렉토리 (절대 경로로 변환)
+_config_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_config_dir))
+BGM_DIR = os.path.join(_project_root, "static", "audio", "bgm")
 
 # 씬 분위기 → BGM 파일 매핑
 WUXIA_BGM_MAP: Dict[str, str] = {
@@ -222,8 +225,8 @@ BGM_KEYWORD_MAP: Dict[str, List[str]] = {
 # ★ 에피소드마다 텍스트(화 번호, 부제목)만 변경
 
 THUMBNAIL_CONFIG = {
-    # 시리즈 대표 이미지 (1개 고정)
-    "series_image_path": "static/images/wuxia/hyulyoung_series_thumb.png",
+    # 시리즈 대표 이미지 (1개 고정) - 절대 경로
+    "series_image_path": os.path.join(_project_root, "static", "images", "wuxia", "hyulyoung_series_thumb.png"),
 
     # 시리즈 대표 이미지 프롬프트 (최초 1회만 생성)
     "series_image_prompt": (

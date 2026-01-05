@@ -22774,7 +22774,9 @@ def run_wuxia_video_pipeline(
 
         # TTS 생성 (단일 음성 - 자막 싱크 안정성)
         episode_id = row_data.get('episode', f'row{row_index}')
-        tts_output_dir = f"outputs/wuxia/audio/{episode_id}"
+        # ★ 절대 경로로 변환 (서버 실행 위치와 무관하게 동작)
+        script_dir_base = os.path.dirname(os.path.abspath(__file__))
+        tts_output_dir = os.path.join(script_dir_base, "outputs", "wuxia", "audio", episode_id)
         os.makedirs(tts_output_dir, exist_ok=True)
 
         tts_result = generate_single_voice_tts(
@@ -22799,7 +22801,7 @@ def run_wuxia_video_pipeline(
         # ========== 3. SRT 자막 생성 ==========
         print(f"\n[WUXIA-VIDEO] 3. SRT 자막 생성...")
 
-        srt_output_dir = f"outputs/wuxia/subtitles"
+        srt_output_dir = os.path.join(script_dir_base, "outputs", "wuxia", "subtitles")
         os.makedirs(srt_output_dir, exist_ok=True)
         srt_path = os.path.join(srt_output_dir, f"{episode_id.replace('EP', 'ep')}.srt")
 
@@ -22908,8 +22910,8 @@ def run_wuxia_video_pipeline(
         # ========== 6. 영상 렌더링 (기존 함수 사용) ==========
         print(f"\n[WUXIA-VIDEO] 6. 영상 렌더링...")
 
-        # 기존 영상 생성 함수 호출
-        video_output_dir = f"outputs/wuxia/videos"
+        # 기존 영상 생성 함수 호출 (절대 경로)
+        video_output_dir = os.path.join(script_dir_base, "outputs", "wuxia", "videos")
         os.makedirs(video_output_dir, exist_ok=True)
         video_path = os.path.join(video_output_dir, f"{episode_id}.mp4")
 
@@ -22948,8 +22950,8 @@ def run_wuxia_video_pipeline(
         try:
             from PIL import Image, ImageDraw, ImageFont
 
-            # 썸네일 출력 디렉토리
-            thumbnail_dir = f"outputs/wuxia/thumbnails"
+            # 썸네일 출력 디렉토리 (절대 경로)
+            thumbnail_dir = os.path.join(script_dir_base, "outputs", "wuxia", "thumbnails")
             os.makedirs(thumbnail_dir, exist_ok=True)
 
             # ★ 시리즈 대표 이미지 재사용 (이미 4단계에서 준비됨)
@@ -22969,10 +22971,11 @@ def run_wuxia_video_pipeline(
                 width, height = img.size
                 draw = ImageDraw.Draw(img)
 
-                # 폰트 로드 (한글 지원 폰트 필수)
+                # 폰트 로드 (한글 지원 폰트 필수) - 절대 경로로 변환
+                script_dir_fonts = os.path.dirname(os.path.abspath(__file__))
                 font_paths = [
-                    "static/fonts/NotoSansKR-Bold.ttf",
-                    "static/fonts/NanumSquareRoundB.ttf",
+                    os.path.join(script_dir_fonts, "static", "fonts", "NotoSansKR-Bold.ttf"),
+                    os.path.join(script_dir_fonts, "static", "fonts", "NanumSquareRoundB.ttf"),
                     "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",  # Linux 시스템 폰트
                     "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",  # Noto CJK
                 ]
