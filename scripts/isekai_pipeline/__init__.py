@@ -65,6 +65,8 @@ from .sheets import (
     update_episode_with_result,
     initialize_sheet_with_episodes,
     get_prev_episode_summary,
+    sync_episode_from_files,
+    sync_all_episodes,
 )
 
 # Run (실행 오케스트레이션)
@@ -109,6 +111,8 @@ __all__ = [
     "update_episode_with_result",
     "initialize_sheet_with_episodes",
     "get_prev_episode_summary",
+    "sync_episode_from_files",
+    "sync_all_episodes",
     # Run
     "execute_episode",
     "execute_from_json",

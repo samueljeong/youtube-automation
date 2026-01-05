@@ -563,6 +563,220 @@ def get_prev_episode_summary(episode: int) -> str:
     return ""
 
 
+def sync_episode_from_files(episode: int) -> Dict[str, Any]:
+    """
+    outputs/isekai/EP00X/ 폴더의 파일들을 읽어 시트에 동기화
+
+    파일 구조:
+    - EP001_brief.json      → summary, scenes
+    - EP001_script.txt      → 대본
+    - EP001_metadata.json   → 제목(GPT생성), 썸네일문구
+    - EP001_image_prompts.json
+    - EP001_tts_config.json
+    - EP001_edit_config.json
+    - EP001_subtitle_config.json
+    - EP001_review.json     → review_status, review_score
+
+    Returns:
+        {"ok": True, "episode": 1, "status": "대기"}
+    """
+    import json
+    from .config import OUTPUT_BASE
+
+    episode_id = f"EP{episode:03d}"
+    episode_dir = os.path.join(OUTPUT_BASE, episode_id)
+
+    if not os.path.exists(episode_dir):
+        return {"ok": False, "error": f"에피소드 디렉토리 없음: {episode_dir}"}
+
+    # 파일 경로
+    files = {
+        "brief": os.path.join(episode_dir, f"{episode_id}_brief.json"),
+        "script": os.path.join(episode_dir, f"{episode_id}_script.txt"),
+        "metadata": os.path.join(episode_dir, f"{episode_id}_metadata.json"),
+        "image_prompts": os.path.join(episode_dir, f"{episode_id}_image_prompts.json"),
+        "tts_config": os.path.join(episode_dir, f"{episode_id}_tts_config.json"),
+        "edit_config": os.path.join(episode_dir, f"{episode_id}_edit_config.json"),
+        "subtitle_config": os.path.join(episode_dir, f"{episode_id}_subtitle_config.json"),
+        "review": os.path.join(episode_dir, f"{episode_id}_review.json"),
+    }
+
+    # 데이터 수집
+    data = {}
+
+    # brief.json
+    if os.path.exists(files["brief"]):
+        with open(files["brief"], "r", encoding="utf-8") as f:
+            brief = json.load(f)
+            data["title"] = brief.get("title", "")
+            data["summary"] = brief.get("summary", "")
+            data["scenes"] = json.dumps(brief.get("scenes", []), ensure_ascii=False)
+            data["part"] = brief.get("part", 1)
+
+    # script.txt
+    if os.path.exists(files["script"]):
+        with open(files["script"], "r", encoding="utf-8") as f:
+            data["script"] = f.read()
+
+    # metadata.json
+    if os.path.exists(files["metadata"]):
+        with open(files["metadata"], "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+            youtube = metadata.get("youtube", {})
+            thumbnail = metadata.get("thumbnail", {})
+
+            data["youtube_title"] = youtube.get("title", "")
+            data["youtube_description"] = youtube.get("description", "")
+
+            # 썸네일 문구 (줄바꿈 구분)
+            thumb_lines = [
+                thumbnail.get("text_line1", ""),
+                thumbnail.get("text_line2", ""),
+                thumbnail.get("text_line3", ""),
+            ]
+            data["thumbnail_text"] = "\n".join([l for l in thumb_lines if l])
+
+    # review.json
+    if os.path.exists(files["review"]):
+        with open(files["review"], "r", encoding="utf-8") as f:
+            review = json.load(f)
+            data["review_status"] = review.get("status", "")
+            data["review_score"] = review.get("quality_metrics", {}).get("overall_score", 0)
+
+    # 시트에 동기화
+    service = get_sheets_service()
+    if not service:
+        return {"ok": False, "error": "Sheets 서비스 연결 실패"}
+
+    sheet_id = get_sheet_id()
+    if not sheet_id:
+        return {"ok": False, "error": "AUTOMATION_SHEET_ID 환경변수 필요"}
+
+    try:
+        # 에피소드 행 찾기 또는 생성
+        existing = get_episode_by_number(episode)
+
+        if existing:
+            row_index = existing["_row_index"]
+        else:
+            # 새로 추가
+            add_result = add_episode(
+                episode=episode,
+                title=data.get("title", f"제{episode}화"),
+                summary=data.get("summary", ""),
+            )
+            if not add_result.get("ok"):
+                return add_result
+            row_index = add_result["row_index"]
+
+        # 헤더 조회
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{SHEET_NAME}!A2:Z2"
+        ).execute()
+        headers = result.get('values', [[]])[0]
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        # 업데이트할 데이터 준비
+        updates = []
+
+        def add_update(header: str, value: str):
+            if header in col_map and value:
+                col_letter = chr(ord('A') + col_map[header])
+                updates.append({
+                    "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                    "values": [[value]]
+                })
+
+        # 기본 정보
+        add_update("title", data.get("title", ""))
+        add_update("summary", data.get("summary", ""))
+        add_update("scenes", data.get("scenes", ""))
+        add_update("part", str(data.get("part", 1)))
+
+        # 대본 (정제 후)
+        script = data.get("script", "")
+        if script:
+            script = _clean_script_for_tts(script)
+            add_update("대본", script)
+
+        # 메타데이터
+        add_update("제목(GPT생성)", data.get("youtube_title", ""))
+        add_update("썸네일문구(입력)", data.get("thumbnail_text", ""))
+
+        # 리뷰 상태가 approved면 '대기'로 설정
+        if data.get("review_status") == "approved":
+            add_update("상태", "대기")
+        else:
+            add_update("상태", "준비")
+
+        # 일괄 업데이트
+        if updates:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={
+                    "valueInputOption": "RAW",
+                    "data": updates
+                }
+            ).execute()
+
+        status = "대기" if data.get("review_status") == "approved" else "준비"
+        print(f"[ISEKAI-SHEETS] EP{episode:03d} 동기화 완료: 상태={status}")
+
+        return {
+            "ok": True,
+            "episode": episode,
+            "episode_id": episode_id,
+            "row_index": row_index,
+            "status": status,
+            "title": data.get("title", ""),
+            "script_chars": len(data.get("script", "")),
+        }
+
+    except Exception as e:
+        print(f"[ISEKAI-SHEETS] 동기화 실패: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def sync_all_episodes() -> Dict[str, Any]:
+    """
+    outputs/isekai/ 디렉토리의 모든 에피소드를 시트에 동기화
+    """
+    from .config import OUTPUT_BASE
+
+    if not os.path.exists(OUTPUT_BASE):
+        return {"ok": False, "error": f"출력 디렉토리 없음: {OUTPUT_BASE}"}
+
+    # 시트 생성 확인
+    create_result = create_isekai_sheet()
+    if not create_result.get("ok") and create_result.get("status") != "already_exists":
+        return create_result
+
+    # EP로 시작하는 디렉토리 찾기
+    synced = []
+    failed = []
+
+    for item in sorted(os.listdir(OUTPUT_BASE)):
+        if item.startswith("EP") and os.path.isdir(os.path.join(OUTPUT_BASE, item)):
+            try:
+                ep_num = int(item[2:])
+                result = sync_episode_from_files(ep_num)
+                if result.get("ok"):
+                    synced.append(result)
+                else:
+                    failed.append({"episode": ep_num, "error": result.get("error")})
+            except ValueError:
+                continue
+
+    return {
+        "ok": True,
+        "synced": len(synced),
+        "failed": len(failed),
+        "episodes": synced,
+        "errors": failed if failed else None,
+    }
+
+
 # =====================================================
 # 테스트
 # =====================================================
