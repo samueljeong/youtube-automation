@@ -28,6 +28,7 @@ from .config import (
 from .multi_voice_tts import (
     parse_script_to_segments,
     generate_multi_voice_tts,
+    generate_single_voice_tts,  # 단일 음성 TTS (자막 싱크 안정)
     generate_srt_from_timeline,
     VoiceSegment,
 )
@@ -71,9 +72,10 @@ __all__ = [
     "WUXIA_BGM_MAP",
     "DEFAULT_BGM",
     "BGM_KEYWORD_MAP",
-    # Multi-voice TTS
+    # TTS
     "parse_script_to_segments",
     "generate_multi_voice_tts",
+    "generate_single_voice_tts",
     "generate_srt_from_timeline",
     "VoiceSegment",
     # Script Generator

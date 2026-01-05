@@ -22472,6 +22472,106 @@ def api_wuxia_auto_generate():
 
 # ========== 혈영 전용 영상 생성 파이프라인 ==========
 
+def _parse_chapters_for_bgm(
+    script: str,
+    total_duration: float,
+    bgm_map: dict,
+    keyword_map: dict,
+    bgm_dir: str
+) -> list:
+    """
+    대본에서 챕터를 파싱하고 챕터별 BGM 리스트 생성
+
+    대본 형식:
+    - 【제1장】, 【제2장】 등의 마커로 챕터 구분
+    - 또는 "제1장:", "제2장:" 형태
+
+    Returns:
+        [(시작초, 종료초, BGM파일경로), ...]
+    """
+    import re
+
+    # 챕터 마커 패턴
+    chapter_patterns = [
+        r'【제(\d+)장[^】]*】',      # 【제1장: 운명의 밤】
+        r'제(\d+)장[:\s]',           # 제1장: 운명의 밤
+        r'\[제(\d+)장\]',            # [제1장]
+    ]
+
+    # 챕터 위치 찾기
+    chapters = []
+    for pattern in chapter_patterns:
+        for match in re.finditer(pattern, script):
+            chapter_num = int(match.group(1))
+            char_pos = match.start()
+            chapters.append((chapter_num, char_pos, match.end()))
+
+        if chapters:
+            break
+
+    if not chapters:
+        # 챕터 마커가 없으면 빈 리스트 반환 (기본 BGM 사용)
+        return []
+
+    # 챕터 번호 순으로 정렬
+    chapters.sort(key=lambda x: x[0])
+
+    # 전체 글자수
+    total_chars = len(script)
+
+    # 챕터별 텍스트 추출 및 분위기 감지
+    chapter_bgm_list = []
+
+    for i, (ch_num, start_pos, end_pos) in enumerate(chapters):
+        # 챕터 종료 위치
+        if i < len(chapters) - 1:
+            next_start = chapters[i + 1][1]
+        else:
+            next_start = total_chars
+
+        # 챕터 텍스트
+        chapter_text = script[start_pos:next_start]
+
+        # 시간 계산 (글자 수 비율)
+        start_time = (start_pos / total_chars) * total_duration
+        end_time = (next_start / total_chars) * total_duration
+
+        # 챕터 분위기 감지 (키워드 기반)
+        detected_mood = _detect_mood_from_text(chapter_text, keyword_map)
+
+        # BGM 파일 경로
+        bgm_filename = bgm_map.get(detected_mood, bgm_map.get("main", "bgm_wuxia_main.mp3"))
+        bgm_path = os.path.join(bgm_dir, bgm_filename)
+
+        if os.path.exists(bgm_path):
+            chapter_bgm_list.append((start_time, end_time, bgm_path))
+
+    return chapter_bgm_list
+
+
+def _detect_mood_from_text(text: str, keyword_map: dict) -> str:
+    """
+    텍스트에서 분위기 감지 (키워드 매칭 빈도 기반)
+    """
+    mood_scores = {}
+
+    for mood, keywords in keyword_map.items():
+        score = 0
+        for keyword in keywords:
+            count = text.count(keyword)
+            score += count
+
+        if score > 0:
+            mood_scores[mood] = score
+
+    if not mood_scores:
+        return "main"  # 기본
+
+    # 가장 점수 높은 분위기 반환
+    best_mood = max(mood_scores, key=mood_scores.get)
+    return best_mood
+
+
 def run_wuxia_video_pipeline(
     row_data: dict,
     row_index: int,
@@ -22516,7 +22616,7 @@ def run_wuxia_video_pipeline(
         )
         from scripts.wuxia_pipeline.multi_voice_tts import (
             parse_script_to_segments,
-            generate_multi_voice_tts,
+            generate_single_voice_tts,  # 단일 음성 TTS (자막 싱크 안정)
             generate_srt_from_timeline,
         )
 
@@ -22586,15 +22686,16 @@ def run_wuxia_video_pipeline(
             char_stats[seg.tag] = char_stats.get(seg.tag, 0) + 1
         print(f"[WUXIA-VIDEO] 캐릭터 분포: {char_stats}")
 
-        # TTS 생성
+        # TTS 생성 (단일 음성 - 자막 싱크 안정성)
         episode_id = row_data.get('episode', f'row{row_index}')
         tts_output_dir = f"outputs/wuxia/audio/{episode_id}"
         os.makedirs(tts_output_dir, exist_ok=True)
 
-        tts_result = generate_multi_voice_tts(
+        tts_result = generate_single_voice_tts(
             segments=segments,
             output_dir=tts_output_dir,
-            episode_id=episode_id.replace('EP', 'ep')
+            episode_id=episode_id.replace('EP', 'ep'),
+            voice="chirp3:Charon"  # 나레이션 음성
         )
 
         if not tts_result.get("ok"):
@@ -22694,26 +22795,29 @@ def run_wuxia_video_pipeline(
         image_paths = [main_image_path]
         print(f"[WUXIA-VIDEO] 영상용 이미지: {len(image_paths)}개")
 
-        # ========== 5. BGM 선택 (무협 전용) ==========
+        # ========== 5. BGM 선택 (무협 전용 - 챕터별) ==========
         print(f"\n[WUXIA-VIDEO] 5. BGM 선택 (무협 전용)...")
 
-        # 대본에서 분위기 감지
-        detected_mood = "main"  # 기본
-        for mood, keywords in BGM_KEYWORD_MAP.items():
-            for keyword in keywords:
-                if keyword in script:
-                    detected_mood = mood
-                    break
+        # ★ 챕터별 BGM 리스트 생성
+        chapter_bgm_list = _parse_chapters_for_bgm(
+            script=script,
+            total_duration=total_duration,
+            bgm_map=WUXIA_BGM_MAP,
+            keyword_map=BGM_KEYWORD_MAP,
+            bgm_dir=BGM_DIR
+        )
 
-        # BGM 파일 경로
-        bgm_filename = WUXIA_BGM_MAP.get(detected_mood, DEFAULT_BGM)
-        bgm_path = os.path.join(BGM_DIR, bgm_filename)
+        if chapter_bgm_list and len(chapter_bgm_list) > 1:
+            print(f"[WUXIA-VIDEO] 챕터별 BGM: {len(chapter_bgm_list)}개")
+            for start, end, bgm_file in chapter_bgm_list:
+                print(f"  - {start:.0f}초~{end:.0f}초: {os.path.basename(bgm_file)}")
+        else:
+            print(f"[WUXIA-VIDEO] 챕터 감지 실패, 기본 BGM 사용")
 
+        # 기본 BGM 경로 (폴백용)
+        bgm_path = os.path.join(BGM_DIR, DEFAULT_BGM)
         if not os.path.exists(bgm_path):
-            # 폴백: main BGM
-            bgm_path = os.path.join(BGM_DIR, DEFAULT_BGM)
-
-        print(f"[WUXIA-VIDEO] BGM: {detected_mood} → {bgm_filename}")
+            bgm_path = None
 
         # ========== 6. 영상 렌더링 (기존 함수 사용) ==========
         print(f"\n[WUXIA-VIDEO] 6. 영상 렌더링...")
@@ -22724,14 +22828,15 @@ def run_wuxia_video_pipeline(
         video_path = os.path.join(video_output_dir, f"{episode_id}.mp4")
 
         try:
-            # 이미지 + 오디오 + BGM 합성
+            # 이미지 + 오디오 + BGM 합성 (챕터별 BGM 포함)
             render_result = render_video_with_bgm(
                 image_paths=[p for p in image_paths if p],
                 audio_path=audio_path,
                 srt_path=srt_path,
-                bgm_path=bgm_path if os.path.exists(bgm_path) else None,
+                bgm_path=bgm_path if bgm_path and os.path.exists(bgm_path) else None,
                 output_path=video_path,
-                duration=total_duration
+                duration=total_duration,
+                chapter_bgm_list=chapter_bgm_list  # ★ 챕터별 BGM
             )
 
             if not render_result.get("ok"):
@@ -22792,12 +22897,21 @@ def run_wuxia_video_pipeline(
                 outline_width = text_style.get("outline_width", 4)
 
                 # 썸네일 텍스트 구성
-                # Line 1: 시리즈명 (금색)
-                # Line 2: 에피소드 정보 (흰색)
-                thumbnail_lines = [
-                    series_title,
-                    f"제{ep_num}화: {ep_title}"
-                ]
+                # ★ 사용자 입력 썸네일 문구 우선 사용
+                if thumbnail_text:
+                    # 줄바꿈으로 line1/line2 분리
+                    lines = thumbnail_text.split('\n')
+                    thumbnail_lines = [
+                        lines[0].strip() if len(lines) > 0 else f"제{ep_num}화",
+                        lines[1].strip() if len(lines) > 1 else ep_title
+                    ]
+                    print(f"[WUXIA-VIDEO] 사용자 썸네일 문구 사용: {thumbnail_lines}")
+                else:
+                    # 기본값: 시리즈명 + 에피소드 정보
+                    thumbnail_lines = [
+                        series_title,
+                        f"제{ep_num}화: {ep_title}"
+                    ]
 
                 # 폰트 크기
                 try:
@@ -22919,10 +23033,15 @@ def render_video_with_bgm(
     srt_path: str,
     bgm_path: str,
     output_path: str,
-    duration: float
+    duration: float,
+    chapter_bgm_list: list = None  # ★ 챕터별 BGM [(start_time, end_time, bgm_path), ...]
 ) -> dict:
     """
     이미지 + 오디오 + BGM + 자막으로 영상 렌더링
+
+    Args:
+        chapter_bgm_list: 챕터별 BGM 리스트 [(시작초, 종료초, BGM경로), ...]
+                          예: [(0, 600, "fight.mp3"), (600, 1200, "calm.mp3"), ...]
     """
     import subprocess
     import tempfile
@@ -22948,6 +23067,19 @@ def render_video_with_bgm(
             f.write(f"file '{os.path.abspath(image_paths[-1])}'\n")
             image_list_file = f.name
 
+        # ========== 챕터별 BGM 믹싱 ==========
+        if chapter_bgm_list and len(chapter_bgm_list) > 1:
+            # 챕터 기반 BGM 믹싱 (crossfade 전환)
+            print(f"[RENDER] 챕터별 BGM 믹싱: {len(chapter_bgm_list)}개 챕터")
+
+            mixed_bgm_path = _create_chapter_bgm_mix(chapter_bgm_list, duration, output_path)
+
+            if mixed_bgm_path and os.path.exists(mixed_bgm_path):
+                bgm_path = mixed_bgm_path
+                print(f"[RENDER] 챕터 BGM 믹스 완료: {bgm_path}")
+            else:
+                print(f"[RENDER] 챕터 BGM 믹스 실패, 기본 BGM 사용")
+
         # FFmpeg 명령어 구성
         ffmpeg_cmd = [
             "ffmpeg", "-y",
@@ -22958,10 +23090,10 @@ def render_video_with_bgm(
         # BGM 추가 (있으면)
         if bgm_path and os.path.exists(bgm_path):
             ffmpeg_cmd.extend(["-i", bgm_path])
-            # 오디오 믹싱: TTS 볼륨 1.0, BGM 볼륨 0.15
+            # 오디오 믹싱: TTS 볼륨 1.0, BGM 볼륨 0.07 (7%)
             ffmpeg_cmd.extend([
                 "-filter_complex",
-                "[1:a]volume=1.0[tts];[2:a]volume=0.15,aloop=loop=-1:size=2e+09[bgm];[tts][bgm]amix=inputs=2:duration=first[aout]",
+                "[1:a]volume=1.0[tts];[2:a]volume=0.07,aloop=loop=-1:size=2e+09[bgm];[tts][bgm]amix=inputs=2:duration=first[aout]",
                 "-map", "0:v",
                 "-map", "[aout]"
             ])
@@ -23011,6 +23143,94 @@ def render_video_with_bgm(
         return {"ok": False, "error": "FFmpeg 타임아웃 (30분 초과)"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def _create_chapter_bgm_mix(chapter_bgm_list: list, total_duration: float, output_path: str) -> str:
+    """
+    챕터별 BGM을 크로스페이드로 믹싱하여 단일 오디오 파일 생성
+
+    Args:
+        chapter_bgm_list: [(시작초, 종료초, BGM경로), ...]
+        total_duration: 총 영상 길이 (초)
+        output_path: 출력 영상 경로 (BGM 파일명 생성용)
+
+    Returns:
+        믹싱된 BGM 파일 경로
+    """
+    import subprocess
+
+    if not chapter_bgm_list:
+        return None
+
+    # 출력 경로
+    bgm_output = output_path.replace('.mp4', '_bgm_mixed.mp3')
+
+    # 유효한 BGM만 필터링
+    valid_chapters = []
+    for start, end, bgm_file in chapter_bgm_list:
+        if bgm_file and os.path.exists(bgm_file):
+            valid_chapters.append((start, end, bgm_file))
+
+    if not valid_chapters:
+        return None
+
+    if len(valid_chapters) == 1:
+        # 챕터가 1개면 그냥 복사
+        return valid_chapters[0][2]
+
+    try:
+        # FFmpeg 복합 필터로 챕터별 BGM 연결 + 크로스페이드
+        # 각 챕터 BGM을 해당 구간 길이만큼 트림 후 concat
+
+        inputs = []
+        filter_parts = []
+        crossfade_duration = 3.0  # 3초 크로스페이드
+
+        for i, (start, end, bgm_file) in enumerate(valid_chapters):
+            chapter_duration = end - start
+            inputs.extend(["-i", bgm_file])
+
+            # 해당 구간 길이만큼 트림 + 페이드
+            if i < len(valid_chapters) - 1:
+                # 마지막이 아니면 끝에 페이드아웃
+                filter_parts.append(
+                    f"[{i}:a]atrim=0:{chapter_duration},asetpts=PTS-STARTPTS,"
+                    f"afade=t=in:st=0:d=2,afade=t=out:st={chapter_duration-crossfade_duration}:d={crossfade_duration}[a{i}]"
+                )
+            else:
+                # 마지막 챕터는 페이드인만
+                filter_parts.append(
+                    f"[{i}:a]atrim=0:{chapter_duration},asetpts=PTS-STARTPTS,"
+                    f"afade=t=in:st=0:d=2[a{i}]"
+                )
+
+        # 모든 오디오 concat
+        audio_labels = "".join([f"[a{i}]" for i in range(len(valid_chapters))])
+        filter_parts.append(f"{audio_labels}concat=n={len(valid_chapters)}:v=0:a=1[aout]")
+
+        filter_complex = ";".join(filter_parts)
+
+        ffmpeg_cmd = ["ffmpeg", "-y"] + inputs + [
+            "-filter_complex", filter_complex,
+            "-map", "[aout]",
+            "-c:a", "libmp3lame",
+            "-b:a", "192k",
+            bgm_output
+        ]
+
+        print(f"[RENDER] 챕터 BGM 믹싱 중... ({len(valid_chapters)}개)")
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, timeout=300)
+
+        if result.returncode == 0 and os.path.exists(bgm_output):
+            return bgm_output
+        else:
+            stderr = result.stderr.decode('utf-8', errors='ignore')[-200:]
+            print(f"[RENDER] BGM 믹싱 실패: {stderr}")
+            return None
+
+    except Exception as e:
+        print(f"[RENDER] BGM 믹싱 예외: {e}")
+        return None
 
 
 def upload_to_youtube(
