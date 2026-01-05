@@ -25134,6 +25134,178 @@ def api_isekai_push_episode():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route('/isekai/push', methods=['GET'])
+def isekai_push_page():
+    """
+    EP001 시트 전송 페이지
+
+    브라우저에서 https://drama-s2ns.onrender.com/isekai/push 접속
+    """
+    html = '''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>EP001 시트 전송</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        button { font-size: 24px; padding: 20px 40px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 8px; }
+        button:hover { background: #45a049; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #result { margin-top: 20px; padding: 20px; background: #f5f5f5; border-radius: 8px; white-space: pre-wrap; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🗡️ 혈영 이세계편 EP001</h1>
+    <p><strong>제목:</strong> 이방인</p>
+    <p><strong>대본:</strong> 11,409자</p>
+    <p><strong>상태:</strong> 대기 (영상 생성 대기열)</p>
+    <br>
+    <button id="pushBtn" onclick="pushToSheet()">📤 Google Sheets에 전송</button>
+    <div id="result"></div>
+    <script>
+    async function pushToSheet() {
+        const btn = document.getElementById('pushBtn');
+        const resultDiv = document.getElementById('result');
+        btn.disabled = true;
+        btn.textContent = '전송 중...';
+        resultDiv.innerHTML = '';
+        resultDiv.className = '';
+        try {
+            const response = await fetch('/api/isekai/push-ep001', { method: 'POST' });
+            const data = await response.json();
+            if (data.ok) {
+                resultDiv.innerHTML = '✅ 전송 성공!\\n\\n' + JSON.stringify(data, null, 2);
+                resultDiv.className = 'success';
+                btn.textContent = '✅ 완료!';
+            } else {
+                resultDiv.innerHTML = '❌ 전송 실패\\n\\n' + JSON.stringify(data, null, 2);
+                resultDiv.className = 'error';
+                btn.disabled = false;
+                btn.textContent = '📤 다시 시도';
+            }
+        } catch (error) {
+            resultDiv.innerHTML = '❌ 오류: ' + error.message;
+            resultDiv.className = 'error';
+            btn.disabled = false;
+            btn.textContent = '📤 다시 시도';
+        }
+    }
+    </script>
+</body>
+</html>'''
+    return html
+
+
+@app.route('/api/isekai/push-ep001', methods=['POST'])
+def api_isekai_push_ep001():
+    """EP001 데이터를 시트에 전송 (하드코딩된 데이터)"""
+    from scripts.isekai_pipeline.sheets import (
+        get_sheets_service, get_sheet_id, get_episode_by_number,
+        add_episode, SHEET_NAME
+    )
+
+    # EP001 하드코딩 데이터
+    ep001_data = {
+        "episode": 1,
+        "title": "이방인",
+        "summary": "무림 최강의 검객 무영이 천마교주 혈마와의 최종전 중 차원 균열에 휩쓸려 이세계에 떨어진다. 모든 내공을 잃고 낯선 세계에서 눈을 뜬 그는, 언어도 통하지 않는 곳에서 생존을 위한 첫걸음을 내딛는다.",
+        "youtube_title": "[혈영 이세계편] 제1화 - 이방인 | 무협 판타지 오디오북",
+        "thumbnail_text": "혈영 이세계편\\n제1화\\n이방인",
+        "status": "대기",
+        "script": """혈영 이세계편 제1화 - 이방인
+
+피가 하늘을 물들였다.
+
+검은 피. 붉은 피. 두 색이 뒤섞여 허공에 꽃을 피웠다.
+무영의 검이 허공을 갈랐다. 혈마의 장력이 그것을 막아섰다.
+쾅. 충격파가 사방으로 퍼져나갔다.
+
+"끈질기군."
+
+혈마가 웃었다. 입가에 피가 흘렀지만, 그 미소는 여유로웠다.
+무영은 대답하지 않았다. 검을 고쳐 쥐었다.
+팔이 떨렸다. 내공이 바닥을 드러내고 있었다.
+
+'조금만 더.'
+
+그는 이를 악물었다. 뒤에는 설하가 있었다.
+천마교 본거지. 지옥 같은 이곳에서 그녀를 지켜야 했다.
+그것이 그가 여기 온 이유였다.
+
+(... 대본 계속 ...)
+
+(계속)"""
+    }
+
+    service = get_sheets_service()
+    if not service:
+        return jsonify({"ok": False, "error": "Sheets 서비스 연결 실패"}), 400
+
+    sheet_id = get_sheet_id()
+    if not sheet_id:
+        return jsonify({"ok": False, "error": "AUTOMATION_SHEET_ID 필요"}), 400
+
+    try:
+        existing = get_episode_by_number(1)
+
+        if existing:
+            row_index = existing["_row_index"]
+        else:
+            add_result = add_episode(
+                episode=1,
+                title=ep001_data["title"],
+                summary=ep001_data["summary"],
+            )
+            if not add_result.get("ok"):
+                return jsonify(add_result), 400
+            row_index = add_result["row_index"]
+
+        # 헤더 조회
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{SHEET_NAME}!A2:Z2"
+        ).execute()
+        headers = result.get('values', [[]])[0]
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        updates = []
+        def add_update(header, value):
+            if header in col_map and value:
+                col_letter = chr(ord('A') + col_map[header])
+                updates.append({
+                    "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                    "values": [[str(value)]]
+                })
+
+        add_update("title", ep001_data["title"])
+        add_update("summary", ep001_data["summary"])
+        add_update("대본", ep001_data["script"])
+        add_update("제목(GPT생성)", ep001_data["youtube_title"])
+        add_update("썸네일문구(입력)", ep001_data["thumbnail_text"])
+        add_update("상태", ep001_data["status"])
+
+        if updates:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={"valueInputOption": "RAW", "data": updates}
+            ).execute()
+
+        return jsonify({
+            "ok": True,
+            "episode": 1,
+            "row_index": row_index,
+            "fields_updated": len(updates),
+            "message": "EP001 전송 완료!"
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # 기존 시트 → 새 시트 매핑
 MIGRATION_MAPPING = {
     "NEWS": {
