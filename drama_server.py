@@ -22485,6 +22485,7 @@ def _parse_chapters_for_bgm(
     대본 형식:
     - 【제1장】, 【제2장】 등의 마커로 챕터 구분
     - 또는 "제1장:", "제2장:" 형태
+    - 마커가 없으면 시간 기반으로 5등분 후 키워드 감지
 
     Returns:
         [(시작초, 종료초, BGM파일경로), ...]
@@ -22509,15 +22510,37 @@ def _parse_chapters_for_bgm(
         if chapters:
             break
 
+    total_chars = len(script)
+
+    # ★ 챕터 마커가 없으면 시간 기반 5등분
     if not chapters:
-        # 챕터 마커가 없으면 빈 리스트 반환 (기본 BGM 사용)
-        return []
+        print("[BGM] 챕터 마커 없음 → 시간 기반 5등분 + 키워드 감지")
+        num_sections = 5
+        section_duration = total_duration / num_sections
+        section_chars = total_chars // num_sections
+
+        chapter_bgm_list = []
+        for i in range(num_sections):
+            start_time = i * section_duration
+            end_time = (i + 1) * section_duration
+
+            # 해당 구간 텍스트에서 분위기 감지
+            start_char = i * section_chars
+            end_char = (i + 1) * section_chars if i < num_sections - 1 else total_chars
+            section_text = script[start_char:end_char]
+
+            detected_mood = _detect_mood_from_text(section_text, keyword_map)
+            bgm_filename = bgm_map.get(detected_mood, bgm_map.get("main", "bgm_wuxia_main.mp3"))
+            bgm_path = os.path.join(bgm_dir, bgm_filename)
+
+            if os.path.exists(bgm_path):
+                chapter_bgm_list.append((start_time, end_time, bgm_path))
+                print(f"  구간 {i+1}: {detected_mood} → {bgm_filename}")
+
+        return chapter_bgm_list
 
     # 챕터 번호 순으로 정렬
     chapters.sort(key=lambda x: x[0])
-
-    # 전체 글자수
-    total_chars = len(script)
 
     # 챕터별 텍스트 추출 및 분위기 감지
     chapter_bgm_list = []
@@ -22946,10 +22969,21 @@ def run_wuxia_video_pipeline(
                 width, height = img.size
                 draw = ImageDraw.Draw(img)
 
-                # 폰트 로드
-                font_path = "static/fonts/NanumSquareRoundB.ttf"
-                if not os.path.exists(font_path):
-                    font_path = "static/fonts/NotoSansKR-Bold.ttf"
+                # 폰트 로드 (한글 지원 폰트 필수)
+                font_paths = [
+                    "static/fonts/NotoSansKR-Bold.ttf",
+                    "static/fonts/NanumSquareRoundB.ttf",
+                    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",  # Linux 시스템 폰트
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",  # Noto CJK
+                ]
+
+                font_path = None
+                for fp in font_paths:
+                    if os.path.exists(fp):
+                        font_path = fp
+                        break
+
+                print(f"[WUXIA-VIDEO] 폰트 경로: {font_path}")
 
                 # config에서 텍스트 스타일 가져오기
                 text_style = THUMBNAIL_CONFIG.get("text_style", {})
@@ -22975,52 +23009,62 @@ def run_wuxia_video_pipeline(
                         series_title,
                         f"제{ep_num}화: {ep_title}"
                     ]
+                    print(f"[WUXIA-VIDEO] 기본 썸네일 문구 사용: {thumbnail_lines}")
 
                 # 폰트 크기
-                try:
-                    title_font_size = int(height * 0.10)
-                    episode_font_size = int(height * 0.08)
-                    title_font = ImageFont.truetype(font_path, title_font_size)
-                    episode_font = ImageFont.truetype(font_path, episode_font_size)
-                except:
-                    title_font = ImageFont.load_default()
-                    episode_font = ImageFont.load_default()
-                    title_font_size = 40
-                    episode_font_size = 32
+                title_font_size = int(height * 0.10)
+                episode_font_size = int(height * 0.08)
 
-                # 텍스트 위치 계산 (하단 중앙)
-                y_start = height - int(height * 0.25)
+                if font_path:
+                    try:
+                        title_font = ImageFont.truetype(font_path, title_font_size)
+                        episode_font = ImageFont.truetype(font_path, episode_font_size)
+                        print(f"[WUXIA-VIDEO] 폰트 로드 성공: {font_path}")
+                    except Exception as font_err:
+                        print(f"[WUXIA-VIDEO] 폰트 로드 실패: {font_err}")
+                        font_path = None
 
-                # 시리즈명 (금색)
-                line1 = thumbnail_lines[0]
-                bbox1 = draw.textbbox((0, 0), line1, font=title_font)
-                x1 = (width - (bbox1[2] - bbox1[0])) // 2
-                y1 = y_start
+                if not font_path:
+                    # 폰트가 없으면 텍스트 없이 저장
+                    print(f"[WUXIA-VIDEO] ⚠️ 한글 폰트 없음 - 텍스트 없이 저장")
+                    thumbnail_path = os.path.join(thumbnail_dir, f"thumb_ep{ep_num:03d}.png")
+                    img.save(thumbnail_path)
+                    print(f"[WUXIA-VIDEO] ✅ 썸네일 저장 (텍스트 없음): {thumbnail_path}")
+                else:
+                    # ★ 폰트가 있으면 텍스트 오버레이
+                    # 텍스트 위치 계산 (하단 중앙)
+                    y_start = height - int(height * 0.25)
 
-                # 테두리
-                for dx in range(-outline_width, outline_width + 1):
-                    for dy in range(-outline_width, outline_width + 1):
-                        if dx != 0 or dy != 0:
-                            draw.text((x1 + dx, y1 + dy), line1, font=title_font, fill=(*outline_color, 255))
-                draw.text((x1, y1), line1, font=title_font, fill=(*series_color, 255))
+                    # 시리즈명 (금색)
+                    line1 = thumbnail_lines[0]
+                    bbox1 = draw.textbbox((0, 0), line1, font=title_font)
+                    x1 = (width - (bbox1[2] - bbox1[0])) // 2
+                    y1 = y_start
 
-                # 에피소드 정보 (흰색)
-                line2 = thumbnail_lines[1]
-                bbox2 = draw.textbbox((0, 0), line2, font=episode_font)
-                x2 = (width - (bbox2[2] - bbox2[0])) // 2
-                y2 = y1 + title_font_size + 15
+                    # 테두리
+                    for dx in range(-outline_width, outline_width + 1):
+                        for dy in range(-outline_width, outline_width + 1):
+                            if dx != 0 or dy != 0:
+                                draw.text((x1 + dx, y1 + dy), line1, font=title_font, fill=(*outline_color, 255))
+                    draw.text((x1, y1), line1, font=title_font, fill=(*series_color, 255))
 
-                # 테두리
-                for dx in range(-outline_width, outline_width + 1):
-                    for dy in range(-outline_width, outline_width + 1):
-                        if dx != 0 or dy != 0:
-                            draw.text((x2 + dx, y2 + dy), line2, font=episode_font, fill=(*outline_color, 255))
-                draw.text((x2, y2), line2, font=episode_font, fill=(*episode_color, 255))
+                    # 에피소드 정보 (흰색)
+                    line2 = thumbnail_lines[1]
+                    bbox2 = draw.textbbox((0, 0), line2, font=episode_font)
+                    x2 = (width - (bbox2[2] - bbox2[0])) // 2
+                    y2 = y1 + title_font_size + 15
 
-                # 저장
-                thumbnail_path = os.path.join(thumbnail_dir, f"thumb_ep{ep_num:03d}.png")
-                img.save(thumbnail_path)
-                print(f"[WUXIA-VIDEO] ✅ 썸네일 완료: {thumbnail_path}")
+                    # 테두리
+                    for dx in range(-outline_width, outline_width + 1):
+                        for dy in range(-outline_width, outline_width + 1):
+                            if dx != 0 or dy != 0:
+                                draw.text((x2 + dx, y2 + dy), line2, font=episode_font, fill=(*outline_color, 255))
+                    draw.text((x2, y2), line2, font=episode_font, fill=(*episode_color, 255))
+
+                    # 저장
+                    thumbnail_path = os.path.join(thumbnail_dir, f"thumb_ep{ep_num:03d}.png")
+                    img.save(thumbnail_path)
+                    print(f"[WUXIA-VIDEO] ✅ 썸네일 완료: {thumbnail_path}")
 
         except Exception as thumb_err:
             print(f"[WUXIA-VIDEO] ⚠️ 썸네일 생성 예외: {thumb_err}")
