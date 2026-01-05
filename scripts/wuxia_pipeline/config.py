@@ -38,12 +38,12 @@ VOICE_MAP: Dict[str, str] = {
     "무영": "chirp3:Puck",           # 주인공
     "설하": "chirp3:Kore",           # 여주인공
 
-    # 비중 낮음 → Flash
-    "노인": "gemini:Charon",         # 조연 (스승) - 속도 느리게
-    "각주": "gemini:Fenrir",         # 조연
-    "악역": "gemini:Fenrir",         # 악역
-    "남자": "gemini:Charon",         # 엑스트라
-    "여자": "gemini:Kore",           # 엑스트라
+    # ★ 비중 낮음 → Google Cloud TTS (안정성 - Gemini Rate Limit 회피)
+    "노인": "ko-KR-Neural2-C",       # 조연 (스승) - 남성
+    "각주": "ko-KR-Neural2-B",       # 조연 - 남성
+    "악역": "ko-KR-Neural2-B",       # 악역 - 남성
+    "남자": "ko-KR-Neural2-C",       # 엑스트라 - 남성
+    "여자": "ko-KR-Neural2-A",       # 엑스트라 - 여성
 }
 
 # 캐릭터별 음성 속도 (기본값: 0.9)
