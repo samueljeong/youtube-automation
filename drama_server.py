@@ -22634,67 +22634,62 @@ def run_wuxia_video_pipeline(
             print(f"[WUXIA-VIDEO] ✅ 시리즈 이미지 재사용: {series_image_path}")
             main_image_path = series_image_path
         else:
-            # ★ 최초 1회만 생성
-            print(f"[WUXIA-VIDEO] 시리즈 이미지 없음 → 1회 생성 중...")
-            wuxia_negative = IMAGE_STYLE.get('negative_prompt', '')
+            # ★ 최초 1회만 생성 (OpenRouter 경유 Gemini 사용)
+            print(f"[WUXIA-VIDEO] 시리즈 이미지 없음 → OpenRouter Gemini로 생성 중...")
 
             try:
-                img_result = generate_scene_image_gemini(
-                    prompt=series_image_prompt,
-                    negative_prompt=wuxia_negative,
-                    scene_index=0,
-                    output_dir=os.path.dirname(series_image_path)
+                # image/gemini.py 모듈 사용 (안정적인 OpenRouter 경유)
+                from image.gemini import generate_image, GEMINI_PRO
+
+                # 무협 스타일 프롬프트 강화
+                wuxia_negative = IMAGE_STYLE.get('negative_prompt', '')
+                full_prompt = f"{series_image_prompt}. Avoid: {wuxia_negative}"
+
+                img_result = generate_image(
+                    prompt=full_prompt,
+                    size="1920x1080",
+                    output_dir=os.path.dirname(series_image_path),
+                    model=GEMINI_PRO,  # 고품질 Pro 모델 사용
+                    add_aspect_instruction=True
                 )
 
                 if img_result.get("ok"):
-                    # 생성된 이미지를 시리즈 이미지 경로로 복사
-                    generated_path = img_result.get("image_path")
+                    # 생성된 이미지 URL에서 파일 경로 추출
+                    image_url = img_result.get("image_url", "")
+                    if image_url.startswith("/"):
+                        # /static/... 형태 → 파일 경로로 변환
+                        generated_path = image_url.lstrip("/")
+                    else:
+                        generated_path = image_url
+
+                    # 시리즈 이미지 경로로 복사
                     import shutil
-                    shutil.copy(generated_path, series_image_path)
-                    main_image_path = series_image_path
-                    total_cost += img_result.get("cost", 0.02)
-                    print(f"[WUXIA-VIDEO] ✅ 시리즈 이미지 생성 완료: {series_image_path}")
-                    print(f"[WUXIA-VIDEO] ⚠️ Git 커밋 필요: git add {series_image_path}")
+                    if os.path.exists(generated_path):
+                        shutil.copy(generated_path, series_image_path)
+                        main_image_path = series_image_path
+                    else:
+                        main_image_path = generated_path
+
+                    total_cost += img_result.get("cost", 0.05)
+                    print(f"[WUXIA-VIDEO] ✅ 시리즈 이미지 생성 완료: {main_image_path}")
                 else:
-                    print(f"[WUXIA-VIDEO] ⚠️ Gemini 이미지 생성 실패")
-                    main_image_path = None
+                    error_msg = f"이미지 생성 실패: {img_result.get('error', '알 수 없는 오류')}"
+                    print(f"[WUXIA-VIDEO] ❌ {error_msg}")
+                    sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                    sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                    return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
             except Exception as img_err:
-                print(f"[WUXIA-VIDEO] ⚠️ 이미지 예외: {img_err}")
-                main_image_path = None
-
-        # ★ 폴백: Gemini 실패 시 PIL로 그라데이션 배경 이미지 생성
-        if not main_image_path:
-            print(f"[WUXIA-VIDEO] 폴백: PIL 그라데이션 배경 생성...")
-            try:
-                from PIL import Image, ImageDraw
-
-                # 1920x1080 (16:9) 무협 분위기 그라데이션
-                width, height = 1920, 1080
-                img = Image.new('RGB', (width, height))
-                draw = ImageDraw.Draw(img)
-
-                # 상단: 진한 남색 → 하단: 검은색 (무협 분위기)
-                top_color = (15, 25, 45)      # 진한 남색
-                bottom_color = (5, 5, 15)     # 거의 검은색
-
-                for y in range(height):
-                    ratio = y / height
-                    r = int(top_color[0] + (bottom_color[0] - top_color[0]) * ratio)
-                    g = int(top_color[1] + (bottom_color[1] - top_color[1]) * ratio)
-                    b = int(top_color[2] + (bottom_color[2] - top_color[2]) * ratio)
-                    draw.line([(0, y), (width, y)], fill=(r, g, b))
-
-                # 저장
-                fallback_path = series_image_path.replace('.png', '_fallback.png')
-                os.makedirs(os.path.dirname(fallback_path), exist_ok=True)
-                img.save(fallback_path)
-                main_image_path = fallback_path
-                print(f"[WUXIA-VIDEO] ✅ 폴백 이미지 생성: {fallback_path}")
-            except Exception as fallback_err:
-                print(f"[WUXIA-VIDEO] ❌ 폴백 이미지 생성 실패: {fallback_err}")
+                import traceback
+                traceback.print_exc()
+                error_msg = f"이미지 생성 예외: {img_err}"
+                print(f"[WUXIA-VIDEO] ❌ {error_msg}")
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
 
         # 이미지 리스트 (A안: 1개만)
-        image_paths = [main_image_path] if main_image_path else []
+        image_paths = [main_image_path]
         print(f"[WUXIA-VIDEO] 영상용 이미지: {len(image_paths)}개")
 
         # ========== 5. BGM 선택 (무협 전용) ==========
@@ -22914,47 +22909,6 @@ def run_wuxia_video_pipeline(
         except:
             pass
         return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
-
-
-def generate_scene_image_gemini(prompt: str, negative_prompt: str, scene_index: int, output_dir: str) -> dict:
-    """
-    Gemini로 씬 이미지 생성 (무협 스타일)
-    """
-    import google.generativeai as genai
-    from PIL import Image
-    import io
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
-
-    try:
-        genai.configure(api_key=api_key)
-
-        # Imagen 모델 사용
-        model = genai.ImageGenerationModel("imagen-3.0-generate-002")
-
-        # 프롬프트에 negative 내용 추가 (Imagen은 negative_prompt 미지원)
-        full_prompt = f"{prompt}. Style: traditional Korean historical illustration. Avoid: {negative_prompt}"
-
-        result = model.generate_images(
-            prompt=full_prompt,
-            number_of_images=1,
-            aspect_ratio="16:9",
-            safety_filter_level="block_only_high",
-        )
-
-        if result.images:
-            image_path = os.path.join(output_dir, f"scene_{scene_index:02d}.png")
-            result.images[0]._pil_image.save(image_path)
-            return {"ok": True, "image_path": image_path, "cost": 0.02}
-        else:
-            return {"ok": False, "error": "이미지 생성 결과 없음"}
-
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 def render_video_with_bgm(
