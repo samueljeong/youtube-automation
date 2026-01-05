@@ -25159,7 +25159,7 @@ def isekai_push_page():
 <body>
     <h1>🗡️ 혈영 이세계편 EP001</h1>
     <p><strong>제목:</strong> 이방인</p>
-    <p><strong>대본:</strong> 11,409자</p>
+    <p><strong>대본:</strong> 26,079자</p>
     <p><strong>상태:</strong> 대기 (영상 생성 대기열)</p>
     <br>
     <button id="pushBtn" onclick="pushToSheet()">📤 Google Sheets에 전송</button>
@@ -25200,43 +25200,29 @@ def isekai_push_page():
 
 @app.route('/api/isekai/push-ep001', methods=['POST'])
 def api_isekai_push_ep001():
-    """EP001 데이터를 시트에 전송 (하드코딩된 데이터)"""
+    """EP001 데이터를 시트에 전송 (파일에서 대본 읽기)"""
     from scripts.isekai_pipeline.sheets import (
         get_sheets_service, get_sheet_id, get_episode_by_number,
         add_episode, SHEET_NAME
     )
 
-    # EP001 하드코딩 데이터
+    # 대본 파일 읽기
+    script_path = os.path.join(os.path.dirname(__file__), 'static', 'isekai', 'EP001_script.txt')
+    try:
+        with open(script_path, 'r', encoding='utf-8') as f:
+            script_content = f.read()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"대본 파일 읽기 실패: {e}"}), 400
+
+    # EP001 데이터
     ep001_data = {
         "episode": 1,
         "title": "이방인",
         "summary": "무림 최강의 검객 무영이 천마교주 혈마와의 최종전 중 차원 균열에 휩쓸려 이세계에 떨어진다. 모든 내공을 잃고 낯선 세계에서 눈을 뜬 그는, 언어도 통하지 않는 곳에서 생존을 위한 첫걸음을 내딛는다.",
         "youtube_title": "[혈영 이세계편] 제1화 - 이방인 | 무협 판타지 오디오북",
-        "thumbnail_text": "혈영 이세계편\\n제1화\\n이방인",
+        "thumbnail_text": "혈영 이세계편\n제1화\n이방인",
         "status": "대기",
-        "script": """혈영 이세계편 제1화 - 이방인
-
-피가 하늘을 물들였다.
-
-검은 피. 붉은 피. 두 색이 뒤섞여 허공에 꽃을 피웠다.
-무영의 검이 허공을 갈랐다. 혈마의 장력이 그것을 막아섰다.
-쾅. 충격파가 사방으로 퍼져나갔다.
-
-"끈질기군."
-
-혈마가 웃었다. 입가에 피가 흘렀지만, 그 미소는 여유로웠다.
-무영은 대답하지 않았다. 검을 고쳐 쥐었다.
-팔이 떨렸다. 내공이 바닥을 드러내고 있었다.
-
-'조금만 더.'
-
-그는 이를 악물었다. 뒤에는 설하가 있었다.
-천마교 본거지. 지옥 같은 이곳에서 그녀를 지켜야 했다.
-그것이 그가 여기 온 이유였다.
-
-(... 대본 계속 ...)
-
-(계속)"""
+        "script": script_content
     }
 
     service = get_sheets_service()
