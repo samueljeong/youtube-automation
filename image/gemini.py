@@ -284,9 +284,10 @@ def _process_and_save_image(
         img.save(filepath, 'JPEG', quality=85, optimize=True)
 
         final_size = os.path.getsize(filepath)
-        print(f"[GEMINI] 저장 완료: {final_size/1024:.1f}KB")
+        print(f"[GEMINI] 저장 완료: {filepath} ({final_size/1024:.1f}KB)")
 
-        return f"/static/images/{filename}"
+        # 실제 파일 경로 반환 (기존: 항상 /static/images/ 반환하던 버그 수정)
+        return filepath
 
     except Exception as e:
         print(f"[GEMINI][ERROR] 이미지 처리 실패: {e}")

@@ -261,12 +261,10 @@ def generate_book_background(
         print(f"[BIBLE-BG] {book_name} 생성 실패: {result.get('error')}")
         return result
 
-    # 파일 이름 변경 (gemini_xxx.jpg → book_name.jpg)
-    generated_path = result.get("image_url", "").replace("/static/images/bible_backgrounds/", "")
-    if generated_path:
-        old_path = os.path.join(output_dir, os.path.basename(generated_path.replace("/static/images/", "")))
-        if os.path.exists(old_path) and old_path != filepath:
-            os.rename(old_path, filepath)
+    # 파일 이름 변경 (thumbnail_xxx.jpg → book_name.jpg)
+    generated_path = result.get("image_url", "")
+    if generated_path and os.path.exists(generated_path) and generated_path != filepath:
+        os.rename(generated_path, filepath)
 
     print(f"[BIBLE-BG] {book_name} 생성 완료: {filepath}")
 
