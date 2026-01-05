@@ -25011,6 +25011,129 @@ def api_isekai_sync_all():
     return jsonify(result), status_code
 
 
+@app.route('/api/isekai/push-episode', methods=['POST'])
+def api_isekai_push_episode():
+    """
+    에피소드 데이터를 직접 받아서 시트에 기록
+
+    POST /api/isekai/push-episode
+    {
+        "episode": 1,
+        "title": "이방인의 눈",
+        "summary": "무영이 이세계에 깨어나다...",
+        "script": "대본 전문...",
+        "youtube_title": "[혈영 이세계편] 제1화...",
+        "youtube_description": "설명...",
+        "thumbnail_text": "혈영 이세계편\\n제1화\\n이방인",
+        "status": "대기"
+    }
+    """
+    from scripts.isekai_pipeline.sheets import (
+        get_sheets_service, get_sheet_id, get_episode_by_number,
+        add_episode, SHEET_NAME, _clean_script_for_tts
+    )
+    from scripts.isekai_pipeline.config import SHEET_HEADERS
+
+    data = request.get_json() or {}
+    episode = data.get('episode')
+
+    if not episode:
+        return jsonify({"ok": False, "error": "episode 파라미터 필요"}), 400
+
+    try:
+        episode_num = int(episode)
+    except ValueError:
+        return jsonify({"ok": False, "error": "episode은 숫자여야 합니다"}), 400
+
+    service = get_sheets_service()
+    if not service:
+        return jsonify({"ok": False, "error": "Sheets 서비스 연결 실패"}), 400
+
+    sheet_id = get_sheet_id()
+    if not sheet_id:
+        return jsonify({"ok": False, "error": "AUTOMATION_SHEET_ID 필요"}), 400
+
+    try:
+        # 에피소드 행 찾기 또는 생성
+        existing = get_episode_by_number(episode_num)
+
+        if existing:
+            row_index = existing["_row_index"]
+        else:
+            add_result = add_episode(
+                episode=episode_num,
+                title=data.get("title", f"제{episode_num}화"),
+                summary=data.get("summary", ""),
+            )
+            if not add_result.get("ok"):
+                return jsonify(add_result), 400
+            row_index = add_result["row_index"]
+
+        # 헤더 조회
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{SHEET_NAME}!A2:Z2"
+        ).execute()
+        headers = result.get('values', [[]])[0]
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        # 업데이트 준비
+        updates = []
+
+        def add_update(header: str, value):
+            if header in col_map and value:
+                col_letter = chr(ord('A') + col_map[header])
+                updates.append({
+                    "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                    "values": [[str(value)]]
+                })
+
+        # 데이터 매핑
+        add_update("title", data.get("title"))
+        add_update("summary", data.get("summary"))
+        add_update("part", data.get("part", 1))
+
+        # 대본 (TTS용 정제)
+        script = data.get("script", "")
+        if script:
+            try:
+                script = _clean_script_for_tts(script)
+            except:
+                pass
+            add_update("대본", script)
+
+        # 메타데이터
+        add_update("제목(GPT생성)", data.get("youtube_title"))
+        add_update("썸네일문구(입력)", data.get("thumbnail_text"))
+
+        # 상태
+        status = data.get("status", "대기")
+        add_update("상태", status)
+
+        # 배치 업데이트 실행
+        if updates:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={
+                    "valueInputOption": "RAW",
+                    "data": updates
+                }
+            ).execute()
+
+        return jsonify({
+            "ok": True,
+            "episode": episode_num,
+            "row_index": row_index,
+            "fields_updated": len(updates),
+            "status": status
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # 기존 시트 → 새 시트 매핑
 MIGRATION_MAPPING = {
     "NEWS": {
