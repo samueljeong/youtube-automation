@@ -440,6 +440,7 @@ SHEET_HEADERS = [
     "title",            # 에피소드 제목
     "summary",          # 요약
     "scenes",           # 씬 구조 (JSON)
+    "image_prompt",     # 이미지 프롬프트 (Claude가 생성)
     # 영상 자동화 영역
     "상태",             # 대기/처리중/완료/실패
     "대본",             # 생성된 대본

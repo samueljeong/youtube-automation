@@ -21147,6 +21147,41 @@ def api_sheets_check_and_process():
                     "type": "bible"
                 }
 
+            elif sheet_name == "혈영이세계":
+                # ★ 혈영 이세계편 전용 파이프라인 (GPT 분석 스킵, 이미지 1장)
+                print(f"[ISEKAI] 혈영 이세계편 파이프라인 시작: 행 {row_num}")
+
+                # row_data를 딕셔너리로 변환
+                isekai_row_data = {}
+                for header, col_info in col_map.items():
+                    idx = col_info['index'] if isinstance(col_info, dict) else col_info
+                    if idx < len(row_data):
+                        isekai_row_data[header] = row_data[idx]
+                    else:
+                        isekai_row_data[header] = ""
+                isekai_row_data['채널ID'] = channel_id
+
+                # 에피소드 정보 추출 (EP001 → 1화)
+                episode_col = isekai_row_data.get('episode', '')
+                if episode_col:
+                    try:
+                        ep_num = int(episode_col.replace('EP', '').replace('ep', ''))
+                        isekai_row_data['episode_num'] = ep_num
+                    except:
+                        isekai_row_data['episode_num'] = 1
+                else:
+                    isekai_row_data['episode_num'] = 1
+
+                result = run_isekai_video_pipeline(
+                    row_data=isekai_row_data,
+                    row_index=row_num,
+                    sheet_name=sheet_name,
+                    col_map=col_map,
+                    service=service,
+                    sheet_id=sheet_id,
+                    selected_project=project_suffix
+                )
+
             elif sheet_name == "혈영":
                 # ★ 혈영 (무협) 전용 파이프라인
                 print(f"[WUXIA] 혈영 파이프라인 시작: 행 {row_num}")
@@ -23210,6 +23245,368 @@ def run_wuxia_video_pipeline(
         return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
 
 
+def run_isekai_video_pipeline(
+    row_data: dict,
+    row_index: int,
+    sheet_name: str,
+    col_map: dict,
+    service,
+    sheet_id: str,
+    selected_project: str = ''
+) -> dict:
+    """
+    혈영 이세계편 전용 영상 생성 파이프라인
+
+    핵심 특징:
+    1. GPT 대본 분석 스킵 (이미 Claude가 모든 것 생성)
+    2. 시트의 image_prompt로 이미지 1장만 생성
+    3. TTS (chirp3:Charon)
+    4. 썸네일 (이미지 재사용)
+    5. 비용 최소화 (~100원)
+    """
+    import time as time_module
+    from datetime import datetime, timedelta, timezone
+
+    print(f"\n[ISEKAI] ========== 혈영 이세계편 파이프라인 시작 ==========")
+    print(f"[ISEKAI] 행 {row_index}, 시트 '{sheet_name}'")
+
+    try:
+        # 데이터 추출
+        script = row_data.get('대본', '').strip()
+        image_prompt = row_data.get('image_prompt', '').strip()
+        title = row_data.get('제목(입력)', '').strip() or row_data.get('제목(GPT생성)', '').strip()
+        channel_id = row_data.get('채널ID', '').strip()
+        visibility = row_data.get('공개설정', 'private').strip() or 'private'
+        scheduled_time = row_data.get('예약시간', '').strip()
+        playlist_id = row_data.get('플레이리스트ID', '').strip()
+        thumbnail_text = row_data.get('썸네일문구(입력)', '').strip()
+        summary = row_data.get('summary', '').strip()
+
+        if not script:
+            return {"ok": False, "error": "대본이 없습니다", "video_url": None, "cost": 0}
+
+        if not channel_id:
+            return {"ok": False, "error": "채널ID가 없습니다", "video_url": None, "cost": 0}
+
+        # 에피소드 정보
+        ep_num = row_data.get('episode_num', 1)
+        ep_title = row_data.get('title', '').strip() or '무제'
+
+        # 기본 제목
+        if not title:
+            title = f"[혈영 이세계편] 제{ep_num}화 - {ep_title} | 무협 판타지 오디오북"
+
+        print(f"[ISEKAI] 대본: {len(script)}자")
+        print(f"[ISEKAI] 이미지 프롬프트: {len(image_prompt)}자")
+        print(f"[ISEKAI] 제목: {title}")
+
+        total_cost = 0.0
+        kst = timezone(timedelta(hours=9))
+        now = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S')
+
+        # 상태 업데이트
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '처리중')
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '작업시간', now)
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', '')
+
+        # 절대 경로 설정
+        script_dir_base = os.path.dirname(os.path.abspath(__file__))
+        episode_id = row_data.get('episode', f'EP{ep_num:03d}')
+
+        # ========== 1. TTS 생성 (단일 음성) ==========
+        print(f"\n[ISEKAI] 1. TTS 생성 (chirp3:Charon)...")
+
+        tts_output_dir = os.path.join(script_dir_base, "outputs", "isekai", "audio", episode_id)
+        os.makedirs(tts_output_dir, exist_ok=True)
+
+        # 대본 정제
+        import re
+        clean_script = script.replace('\\"', '"')
+        clean_script = re.sub(r'"{2,}', '"', clean_script)
+        clean_script = clean_script.replace('\\n', '\n')
+
+        # Gemini TTS 호출
+        from scripts.wuxia_pipeline.multi_voice_tts import (
+            parse_script_to_segments,
+            generate_single_voice_tts,
+            generate_srt_from_timeline,
+        )
+
+        segments = parse_script_to_segments(clean_script)
+        print(f"[ISEKAI] 세그먼트: {len(segments)}개")
+
+        tts_result = generate_single_voice_tts(
+            segments=segments,
+            output_dir=tts_output_dir,
+            episode_id=episode_id.lower(),
+            voice="chirp3:Charon"
+        )
+
+        if not tts_result.get("ok"):
+            error_msg = f"TTS 생성 실패: {tts_result.get('error')}"
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        audio_path = tts_result.get("merged_audio")
+        total_duration = tts_result.get("total_duration", 0)
+        timeline = tts_result.get("timeline", [])
+        total_cost += tts_result.get("cost", 0.03)
+
+        print(f"[ISEKAI] TTS 완료: {total_duration:.1f}초 ({total_duration/60:.1f}분)")
+
+        # ========== 2. SRT 자막 생성 ==========
+        print(f"\n[ISEKAI] 2. SRT 자막 생성...")
+
+        srt_output_dir = os.path.join(script_dir_base, "outputs", "isekai", "subtitles")
+        os.makedirs(srt_output_dir, exist_ok=True)
+        srt_path = os.path.join(srt_output_dir, f"{episode_id.lower()}.srt")
+
+        generate_srt_from_timeline(timeline, srt_path)
+        print(f"[ISEKAI] 자막 완료: {len(timeline)}개 항목")
+
+        # ========== 3. 이미지 1장 생성 (시트의 image_prompt 사용) ==========
+        print(f"\n[ISEKAI] 3. 이미지 1장 생성...")
+
+        image_output_dir = os.path.join(script_dir_base, "outputs", "isekai", "images", episode_id)
+        os.makedirs(image_output_dir, exist_ok=True)
+        main_image_path = os.path.join(image_output_dir, "main.png")
+
+        # 이미 이미지가 있으면 재사용
+        if os.path.exists(main_image_path):
+            print(f"[ISEKAI] ✅ 기존 이미지 재사용: {main_image_path}")
+        elif image_prompt:
+            # 이미지 생성
+            try:
+                from image.gemini import generate_image, GEMINI_PRO
+
+                img_result = generate_image(
+                    prompt=image_prompt,
+                    size="1920x1080",
+                    output_dir=image_output_dir,
+                    model=GEMINI_PRO,
+                    add_aspect_instruction=True
+                )
+
+                if img_result.get("ok"):
+                    generated_path = img_result.get("image_url", "")
+                    if os.path.exists(generated_path) and generated_path != main_image_path:
+                        import shutil
+                        shutil.copy(generated_path, main_image_path)
+                    total_cost += img_result.get("cost", 0.05)
+                    print(f"[ISEKAI] ✅ 이미지 생성 완료: {main_image_path}")
+                else:
+                    error_msg = f"이미지 생성 실패: {img_result.get('error')}"
+                    print(f"[ISEKAI] ❌ {error_msg}")
+                    sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                    sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                    return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+            except Exception as img_err:
+                error_msg = f"이미지 생성 예외: {img_err}"
+                print(f"[ISEKAI] ❌ {error_msg}")
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+        else:
+            error_msg = "이미지 프롬프트가 없습니다"
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        # ========== 4. 썸네일 생성 (이미지 재사용 + 텍스트) ==========
+        print(f"\n[ISEKAI] 4. 썸네일 생성...")
+
+        thumbnail_path = None
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+
+            thumbnail_dir = os.path.join(script_dir_base, "outputs", "isekai", "thumbnails")
+            os.makedirs(thumbnail_dir, exist_ok=True)
+
+            if os.path.exists(main_image_path):
+                img = Image.open(main_image_path)
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
+
+                width, height = img.size
+                draw = ImageDraw.Draw(img)
+
+                # 폰트 로드
+                font_paths = [
+                    os.path.join(script_dir_base, "static", "fonts", "NotoSansKR-Bold.ttf"),
+                    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+                ]
+                font_path = None
+                for fp in font_paths:
+                    if os.path.exists(fp):
+                        font_path = fp
+                        break
+
+                if font_path:
+                    # 썸네일 텍스트
+                    if thumbnail_text:
+                        lines = thumbnail_text.split('\n')
+                    else:
+                        lines = ["혈영 이세계편", f"제{ep_num}화", ep_title]
+
+                    title_font_size = int(height * 0.08)
+                    title_font = ImageFont.truetype(font_path, title_font_size)
+
+                    y_start = height - int(height * 0.30)
+                    outline_color = (0, 0, 0)
+                    outline_width = 4
+
+                    for i, line in enumerate(lines[:3]):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        bbox = draw.textbbox((0, 0), line, font=title_font)
+                        x = (width - (bbox[2] - bbox[0])) // 2
+                        y = y_start + i * (title_font_size + 10)
+
+                        # 금색 (첫 줄) 또는 흰색
+                        fill_color = (255, 215, 0, 255) if i == 0 else (255, 255, 255, 255)
+
+                        # 테두리
+                        for dx in range(-outline_width, outline_width + 1):
+                            for dy in range(-outline_width, outline_width + 1):
+                                if dx != 0 or dy != 0:
+                                    draw.text((x + dx, y + dy), line, font=title_font, fill=(*outline_color, 255))
+                        draw.text((x, y), line, font=title_font, fill=fill_color)
+
+                thumbnail_path = os.path.join(thumbnail_dir, f"thumb_{episode_id.lower()}.png")
+                img.save(thumbnail_path)
+                print(f"[ISEKAI] ✅ 썸네일 완료: {thumbnail_path}")
+
+        except Exception as thumb_err:
+            print(f"[ISEKAI] ⚠️ 썸네일 생성 예외 (계속 진행): {thumb_err}")
+
+        # ========== 5. 영상 렌더링 ==========
+        print(f"\n[ISEKAI] 5. 영상 렌더링...")
+
+        video_output_dir = os.path.join(script_dir_base, "outputs", "isekai", "videos")
+        os.makedirs(video_output_dir, exist_ok=True)
+        video_path = os.path.join(video_output_dir, f"{episode_id}.mp4")
+
+        try:
+            render_result = render_video_with_bgm(
+                image_paths=[main_image_path],
+                audio_path=audio_path,
+                srt_path=srt_path,
+                bgm_path=None,  # BGM 없음 (추후 추가 가능)
+                output_path=video_path,
+                duration=total_duration
+            )
+
+            if not render_result.get("ok"):
+                error_msg = f"영상 렌더링 실패: {render_result.get('error')}"
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+            video_path = render_result.get("video_path", video_path)
+            print(f"[ISEKAI] ✅ 영상 완료: {video_path}")
+
+        except Exception as render_err:
+            error_msg = f"영상 렌더링 예외: {render_err}"
+            print(f"[ISEKAI] ❌ {error_msg}")
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        # ========== 6. YouTube 업로드 ==========
+        print(f"\n[ISEKAI] 6. YouTube 업로드...")
+
+        description = f"""🗡️ 혈영 이세계편 제{ep_num}화 - {ep_title}
+
+{summary}
+
+{'─' * 40}
+📖 시리즈 소개
+{'─' * 40}
+무림 최강의 검객이 이세계로 떨어졌다.
+모든 내공을 잃었지만, 그의 검술과 심법 지식은 남아있다.
+마나라는 새로운 힘을 만난 그는, 다시 최강을 향해 나아간다.
+
+{'─' * 40}
+🔔 구독과 좋아요는 큰 힘이 됩니다!
+{'─' * 40}
+
+#이세계 #무협 #판타지 #오디오북 #웹소설 #혈영 #소드마스터 #무협소설
+"""
+
+        try:
+            import requests as req
+            port = os.environ.get("PORT", "5002")
+            base_url = f"http://127.0.0.1:{port}"
+
+            upload_payload = {
+                "videoPath": video_path,
+                "title": title,
+                "description": description,
+                "privacyStatus": visibility,
+                "channelId": channel_id,
+                "selectedProject": selected_project
+            }
+
+            if thumbnail_path and os.path.exists(thumbnail_path):
+                upload_payload["thumbnailPath"] = thumbnail_path
+
+            if playlist_id:
+                upload_payload["playlistId"] = playlist_id
+
+            # 예약 업로드
+            if scheduled_time and visibility == "private":
+                try:
+                    parsed_dt = datetime.strptime(scheduled_time, '%Y-%m-%d %H:%M')
+                    utc_dt = parsed_dt - timedelta(hours=9)
+                    upload_payload["publishAt"] = utc_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                    upload_payload["privacyStatus"] = "private"
+                except:
+                    pass
+
+            upload_resp = req.post(
+                f"{base_url}/api/youtube/upload",
+                json=upload_payload,
+                timeout=600
+            )
+
+            upload_result = upload_resp.json()
+
+            if upload_result.get('ok'):
+                video_url = upload_result.get('videoUrl', '')
+                print(f"[ISEKAI] ✅ 업로드 완료: {video_url}")
+
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '완료')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '영상URL', video_url)
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '비용', f'${total_cost:.4f}')
+
+                return {"ok": True, "video_url": video_url, "cost": total_cost, "title": title}
+            else:
+                error_msg = f"업로드 실패: {upload_result.get('error')}"
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+                sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+                return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        except Exception as upload_err:
+            error_msg = f"업로드 예외: {upload_err}"
+            print(f"[ISEKAI] ❌ {error_msg}")
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        error_msg = f"파이프라인 오류: {e}"
+        try:
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+        except:
+            pass
+        return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
+
+
 def render_video_with_bgm(
     image_paths: list,
     audio_path: str,
@@ -25200,19 +25597,33 @@ def isekai_push_page():
 
 @app.route('/api/isekai/push-ep001', methods=['POST'])
 def api_isekai_push_ep001():
-    """EP001 데이터를 시트에 전송 (파일에서 대본 읽기)"""
+    """EP001 데이터를 시트에 전송 (파일에서 대본/이미지프롬프트 읽기)"""
+    import json
     from scripts.isekai_pipeline.sheets import (
         get_sheets_service, get_sheet_id, get_episode_by_number,
         add_episode, SHEET_NAME
     )
 
+    base_dir = os.path.dirname(__file__)
+
     # 대본 파일 읽기
-    script_path = os.path.join(os.path.dirname(__file__), 'static', 'isekai', 'EP001_script.txt')
+    script_path = os.path.join(base_dir, 'static', 'isekai', 'EP001_script.txt')
     try:
         with open(script_path, 'r', encoding='utf-8') as f:
             script_content = f.read()
     except Exception as e:
         return jsonify({"ok": False, "error": f"대본 파일 읽기 실패: {e}"}), 400
+
+    # 이미지 프롬프트 파일 읽기
+    image_prompt_path = os.path.join(base_dir, 'outputs', 'isekai', 'EP001', 'EP001_image_prompts.json')
+    image_prompt = ""
+    try:
+        with open(image_prompt_path, 'r', encoding='utf-8') as f:
+            prompts_data = json.load(f)
+            # main_image.prompt 추출
+            image_prompt = prompts_data.get("main_image", {}).get("prompt", "")
+    except Exception as e:
+        print(f"[ISEKAI] 이미지 프롬프트 파일 읽기 실패 (무시): {e}")
 
     # EP001 데이터
     ep001_data = {
@@ -25222,7 +25633,8 @@ def api_isekai_push_ep001():
         "youtube_title": "[혈영 이세계편] 제1화 - 이방인 | 무협 판타지 오디오북",
         "thumbnail_text": "혈영 이세계편\n제1화\n이방인",
         "status": "대기",
-        "script": script_content
+        "script": script_content,
+        "image_prompt": image_prompt
     }
 
     service = get_sheets_service()
@@ -25268,6 +25680,7 @@ def api_isekai_push_ep001():
         add_update("title", ep001_data["title"])
         add_update("summary", ep001_data["summary"])
         add_update("대본", ep001_data["script"])
+        add_update("image_prompt", ep001_data["image_prompt"])
         add_update("제목(GPT생성)", ep001_data["youtube_title"])
         add_update("썸네일문구(입력)", ep001_data["thumbnail_text"])
         add_update("상태", ep001_data["status"])
