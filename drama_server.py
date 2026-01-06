@@ -20549,6 +20549,19 @@ def api_sheets_check_and_process():
     try:
         from datetime import datetime, timedelta, timezone
 
+        # ========== 이세계 파이프라인 자동 동기화 ==========
+        try:
+            from scripts.isekai_pipeline.sheets import sync_all_episodes
+            isekai_result = sync_all_episodes()
+            if isekai_result.get("ok"):
+                synced = isekai_result.get("synced", 0)
+                if synced > 0:
+                    print(f"[ISEKAI] 자동 동기화 완료: {synced}개 에피소드")
+            else:
+                print(f"[ISEKAI] 동기화 실패: {isekai_result.get('error')}")
+        except Exception as e:
+            print(f"[ISEKAI] 동기화 예외 (무시): {e}")
+
         # 서비스 계정 인증
         service = get_sheets_service_account()
         if not service:
