@@ -627,6 +627,8 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
             data["summary"] = brief.get("summary", "")
             data["scenes"] = json.dumps(brief.get("scenes", []), ensure_ascii=False)
             data["part"] = brief.get("part", 1)
+            data["cliffhanger"] = brief.get("cliffhanger", "")
+            data["next_preview"] = brief.get("next_preview", "")
 
     # script.txt
     if os.path.exists(files["script"]):
@@ -642,14 +644,15 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
 
             data["youtube_title"] = youtube.get("title", "")
             data["youtube_description"] = youtube.get("description", "")
+            data["youtube_tags"] = json.dumps(youtube.get("tags", []), ensure_ascii=False)
+            data["thumbnail_hook"] = thumbnail.get("hook_text", "")
 
-            # 썸네일 문구 (줄바꿈 구분)
-            thumb_lines = [
-                thumbnail.get("text_line1", ""),
-                thumbnail.get("text_line2", ""),
-                thumbnail.get("text_line3", ""),
-            ]
-            data["thumbnail_text"] = "\n".join([l for l in thumb_lines if l])
+    # image_prompts.json
+    if os.path.exists(files["image_prompts"]):
+        with open(files["image_prompts"], "r", encoding="utf-8") as f:
+            image_prompts = json.load(f)
+            main_image = image_prompts.get("main_image", {})
+            data["image_prompt"] = main_image.get("prompt", "")
 
     # review.json
     if os.path.exists(files["review"]):
@@ -703,21 +706,26 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
                     "values": [[value]]
                 })
 
-        # 기본 정보
+        # 기본 정보 (시트 헤더 이름 그대로)
         add_update("title", data.get("title", ""))
         add_update("summary", data.get("summary", ""))
         add_update("scenes", data.get("scenes", ""))
         add_update("part", str(data.get("part", 1)))
+        add_update("image_prompt", data.get("image_prompt", ""))
+        add_update("cliffhanger", data.get("cliffhanger", ""))
+        add_update("next_preview", data.get("next_preview", ""))
+
+        # 메타데이터 (시트 헤더 이름 그대로)
+        add_update("youtube_title", data.get("youtube_title", ""))
+        add_update("youtube_description", data.get("youtube_description", ""))
+        add_update("youtube_tags", data.get("youtube_tags", ""))
+        add_update("thumbnail_hook", data.get("thumbnail_hook", ""))
 
         # 대본 (정제 후)
         script = data.get("script", "")
         if script:
             script = _clean_script_for_tts(script)
             add_update("대본", script)
-
-        # 메타데이터
-        add_update("제목(GPT생성)", data.get("youtube_title", ""))
-        add_update("썸네일문구(입력)", data.get("thumbnail_text", ""))
 
         # 리뷰 상태가 approved면 '대기'로 설정
         if data.get("review_status") == "approved":
