@@ -23269,28 +23269,27 @@ def _generate_isekai_tts(
 
     문단 단위로 TTS를 생성하고 병합합니다.
     태그 파싱 없이 직접 처리합니다.
+
+    기존 generate_gemini_tts() 함수의 REST API 방식을 사용합니다.
     """
     import subprocess
     import tempfile
     import struct
+    import base64
+    import time as time_module
 
     print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작")
 
     try:
-        from google import genai
-        from google.genai import types
-
         api_key = os.environ.get("GOOGLE_API_KEY", "")
         if not api_key:
             return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
-
-        client = genai.Client(api_key=api_key)
 
         # 전체 텍스트를 하나로 합침 (자연스러운 흐름)
         full_text = "\n\n".join(paragraphs)
         print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자")
 
-        # Gemini TTS 호출 (chirp3 모델)
+        # Gemini TTS 호출 (REST API 방식)
         # 긴 텍스트는 청크로 분할
         MAX_CHARS = 4000  # Gemini TTS 제한
         chunks = []
@@ -23309,37 +23308,77 @@ def _generate_isekai_tts(
 
         print(f"[ISEKAI-TTS] 청크 수: {len(chunks)}개")
 
+        # 음성 이름 추출 (chirp3:Charon → Charon)
+        voice_name = voice.replace("chirp3:", "") if ":" in voice else voice
+        valid_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede"]
+        if voice_name not in valid_voices:
+            print(f"[ISEKAI-TTS] 잘못된 음성: {voice_name}, 기본값 Charon 사용")
+            voice_name = "Charon"
+
         audio_files = []
         timeline = []
         current_time = 0.0
         total_cost = 0.0
 
+        # REST API 엔드포인트
+        model = "gemini-2.5-flash-preview-tts"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+
         for i, chunk in enumerate(chunks):
             print(f"[ISEKAI-TTS] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk)}자)")
 
             try:
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash-preview-tts",
-                    contents=chunk,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                    voice_name=voice.replace("chirp3:", "") if ":" in voice else voice
-                                )
-                            )
-                        )
-                    )
-                )
+                # REST API 요청
+                payload = {
+                    "contents": [{"parts": [{"text": chunk}]}],
+                    "generationConfig": {
+                        "responseModalities": ["AUDIO"],
+                        "speechConfig": {
+                            "voiceConfig": {
+                                "prebuiltVoiceConfig": {
+                                    "voiceName": voice_name
+                                }
+                            }
+                        }
+                    }
+                }
 
-                # 오디오 데이터 추출
+                # Rate Limit 재시도 로직
+                max_retries = 3
                 audio_data = None
-                if response.candidates:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'inline_data') and part.inline_data:
-                            audio_data = part.inline_data.data
+
+                for attempt in range(max_retries):
+                    response = requests.post(url, json=payload, timeout=120)
+
+                    if response.status_code == 429:
+                        # Rate limit - 대기 후 재시도
+                        import re
+                        retry_match = re.search(r'retry in (\d+\.?\d*)', response.text)
+                        wait_time = float(retry_match.group(1)) if retry_match else 45.0
+                        wait_time = min(wait_time + 5, 60)
+
+                        if attempt < max_retries - 1:
+                            print(f"[ISEKAI-TTS] Rate limit (429), {wait_time:.0f}초 대기 후 재시도 ({attempt + 1}/{max_retries})...")
+                            time_module.sleep(wait_time)
+                            continue
+                        else:
+                            print(f"[ISEKAI-TTS] Rate limit 재시도 초과")
                             break
+
+                    elif response.status_code != 200:
+                        print(f"[ISEKAI-TTS] API 오류: {response.status_code} - {response.text[:200]}")
+                        break
+
+                    # 성공 - 오디오 데이터 추출
+                    result = response.json()
+                    if result.get("candidates") and result["candidates"][0].get("content", {}).get("parts"):
+                        for part in result["candidates"][0]["content"]["parts"]:
+                            if "inlineData" in part:
+                                audio_b64 = part["inlineData"].get("data", "")
+                                if audio_b64:
+                                    audio_data = base64.b64decode(audio_b64)
+                                    break
+                    break
 
                 if not audio_data:
                     print(f"[ISEKAI-TTS] 청크 {i+1} 오디오 데이터 없음")

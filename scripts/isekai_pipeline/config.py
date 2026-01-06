@@ -328,26 +328,67 @@ POWER_LEVELS = {
 }
 
 # =====================================================
-# 문체 설정
+# 문체 설정 (웹소설 스타일 - 광마회귀 참고)
 # =====================================================
 
 WRITING_STYLE = {
-    "format": "novel",  # 소설체 (태그 없음)
+    "format": "webnovel",  # 웹소설체
     "pov": "third_person_limited",  # 3인칭 제한적 (무영 중심)
-    "sentence_length": {
-        "default": (15, 25),  # 기본 15~25자
-        "max": 40,            # 최대 40자
-        "dialogue_max": 30,   # 대사 최대 30자
+
+    # 문장 스타일
+    "sentence": {
+        "length": (10, 25),      # 짧은 문장 (10~25자)
+        "max": 35,               # 최대 35자
+        "one_line_break": True,  # 한 문장 = 한 줄 (줄바꿈)
     },
+
+    # 문단 스타일
     "paragraph": {
-        "sentences": (3, 5),  # 문단당 3~5문장
+        "sentences": (1, 3),     # 문단당 1~3문장 (짧게)
+        "action_single": True,   # 액션/심리는 한 문장씩
     },
-    "dialogue_ratio": (0.30, 0.40),  # 대사 비율 30~40%
+
+    # 대화 비율
+    "dialogue_ratio": (0.45, 0.55),  # 대사 비율 45~55% (높임)
+
+    # 내면 독백 스타일
+    "inner_monologue": {
+        "style": "cynical_humor",     # 냉소적 유머
+        "muhyup_terms": True,         # 무협 용어로 현대/판타지 해석
+        "culture_shock": True,        # 이세계 문화 당황 표현
+        "format": "single_quote",     # '이런 식으로' 표현
+    },
+
+    # 완급 조절
+    "pacing": {
+        "serious_to_humor": True,     # 진지 → 유머 전환
+        "rhythm_variation": True,     # 단문-중문-장문 리듬
+        "cliffhanger_per_scene": True,  # 씬마다 작은 훅
+    },
+
+    # 효과 표현
+    "effects": {
+        "onomatopoeia_solo": True,    # 효과음 단독 줄 ("쾅.", "철컥.")
+        "ellipsis_emotion": True,     # 말줄임표로 감정 표현
+        "silence_dots": "......",     # 침묵 표현
+    },
+
+    # 금지 사항
     "forbidden": [
         "태그 사용 ([나레이션], [무영] 등)",
         "미사여구 반복",
-        "설명조 서술",
-        "장문 남발",
+        "설명조 서술 (장황한 배경 설명)",
+        "장문 남발 (40자 이상)",
+        "인터넷 밈/드립 직접 사용",  # 무영 캐릭터에 안 맞음
+    ],
+
+    # 권장 사항
+    "recommended": [
+        "짧고 임팩트 있는 문장",
+        "대화만 읽어도 상황 파악 가능",
+        "무영의 냉소적 내면 독백",
+        "무협 용어를 이세계에 적용하는 유머",
+        "액션씬은 짧은 문장으로 속도감",
     ],
 }
 
