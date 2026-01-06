@@ -20589,7 +20589,7 @@ def api_sheets_check_and_process():
         # ========== 2. 모든 시트에서 처리중 상태 확인 ==========
         # 어떤 시트에서든 처리중이면 새 작업 시작 안함
         for sheet_name in sheet_names:
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:AZ")
             if rows is None or len(rows) < 3:  # 행1: 채널설정, 행2: 헤더, 행3~: 데이터
                 continue
 
@@ -20657,7 +20657,7 @@ def api_sheets_check_and_process():
         # 영상 생성 전에 먼저 대본이 없는 에피소드의 대본을 자동 생성
         if 'HISTORY' in sheet_names:
             try:
-                history_rows = sheets_read_rows(service, sheet_id, "'HISTORY'!A:Z")
+                history_rows = sheets_read_rows(service, sheet_id, "'HISTORY'!A:AZ")
                 if history_rows and len(history_rows) >= 3:
                     history_headers = history_rows[1]
                     history_col_map = get_column_mapping(history_headers)
@@ -20713,7 +20713,7 @@ def api_sheets_check_and_process():
         # 무협 소설 대본 자동 생성
         if '혈영' in sheet_names:
             try:
-                wuxia_rows = sheets_read_rows(service, sheet_id, "'혈영'!A:Z")
+                wuxia_rows = sheets_read_rows(service, sheet_id, "'혈영'!A:AZ")
                 if wuxia_rows and len(wuxia_rows) >= 3:
                     wuxia_headers = wuxia_rows[1]
                     wuxia_col_map = get_column_mapping(wuxia_headers)
@@ -20764,7 +20764,7 @@ def api_sheets_check_and_process():
         pending_tasks = []  # [(예약시간, 시트순서, 시트이름, 행번호, 행데이터, 채널ID, col_map)]
 
         for sheet_order, sheet_name in enumerate(sheet_names):
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:AZ")
             if rows is None or len(rows) < 3:
                 continue
 
@@ -20845,7 +20845,7 @@ def api_sheets_check_and_process():
                     if current_hour in collection_hours:
                         # 이번 시간대에 이미 수집했는지 확인
                         time_slot = f"{today}_{current_hour}"
-                        shorts_rows = sheets_read_rows(service, sheet_id, "'SHORTS'!A:Z")
+                        shorts_rows = sheets_read_rows(service, sheet_id, "'SHORTS'!A:AZ")
 
                         already_collected = False
                         if shorts_rows and len(shorts_rows) > 2:
@@ -21434,7 +21434,7 @@ def api_sheets_check_ctr_and_update_titles():
         results = []
 
         for sheet_name in sheet_names:
-            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:Z")
+            rows = sheets_read_rows(service, sheet_id, f"'{sheet_name}'!A:AZ")
             if rows is None or len(rows) < 3:
                 continue
 
