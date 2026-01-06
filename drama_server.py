@@ -23425,9 +23425,10 @@ def _generate_isekai_tts(
             for sent in sentences:
                 if sent:
                     timeline.append({
-                        "start": current_time,
-                        "end": current_time + sent_duration,
-                        "text": sent + "." if not sent.endswith(('.', '?', '!')) else sent
+                        "start_sec": current_time,
+                        "end_sec": current_time + sent_duration,
+                        "text": sent + "." if not sent.endswith(('.', '?', '!')) else sent,
+                        "tag": "나레이션"  # generate_srt_from_timeline 호환성
                     })
                     current_time += sent_duration
 
