@@ -20905,6 +20905,13 @@ def api_sheets_check_and_process():
         sort_key, sheet_name, row_num, row_data, channel_id, col_map = pending_tasks[0]
         print(f"[SHEETS] [{sheet_name}] 행 {row_num} 처리 시작 (채널: {channel_id})")
 
+        # ★★★ Race Condition 방지: 상태를 즉시 '처리중'으로 변경 ★★★
+        # 다른 워커/cron이 같은 작업을 중복 처리하지 않도록
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '처리중')
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '작업시간', now.strftime('%Y-%m-%d %H:%M:%S'))
+        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '에러메시지', '')  # 이전 에러 클리어
+        print(f"[SHEETS] 상태 '처리중' 설정 완료 (중복 실행 방지)")
+
         # ========== 5.1 YouTube 할당량/토큰 체크 (파이프라인 시작 전) ==========
         # 영상 생성 후 업로드 실패를 방지하기 위해 미리 체크
         print(f"[SHEETS] YouTube 토큰/할당량 체크 중... (채널: {channel_id})")
@@ -20926,10 +20933,6 @@ def api_sheets_check_and_process():
             }), 503
 
         print(f"[SHEETS] YouTube 체크 완료 - 프로젝트: {project_suffix or '기본'}")
-
-        # 상태를 '처리중'으로 변경 + 시작 시간 기록
-        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '상태', '처리중')
-        sheets_update_cell_by_header(service, sheet_id, sheet_name, row_num, col_map, '작업시간', now.strftime('%Y-%m-%d %H:%M:%S'))
 
         # 파이프라인 실행 (새 구조에 맞게 데이터 전달)
         # ★ 사용자 입력값 우선: '제목(입력)', '썸네일문구(입력)' 컬럼이 있으면 GPT 생성값 대신 사용
