@@ -23278,7 +23278,7 @@ def _generate_isekai_tts(
     import base64
     import time as time_module
 
-    print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작")
+    print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작", flush=True)
 
     try:
         api_key = os.environ.get("GOOGLE_API_KEY", "")
@@ -23287,7 +23287,7 @@ def _generate_isekai_tts(
 
         # 전체 텍스트를 하나로 합침 (자연스러운 흐름)
         full_text = "\n\n".join(paragraphs)
-        print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자")
+        print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자", flush=True)
 
         # Gemini TTS 호출 (REST API 방식)
         # 긴 텍스트는 청크로 분할
@@ -23306,13 +23306,13 @@ def _generate_isekai_tts(
         if current_chunk:
             chunks.append(current_chunk.strip())
 
-        print(f"[ISEKAI-TTS] 청크 수: {len(chunks)}개")
+        print(f"[ISEKAI-TTS] 청크 수: {len(chunks)}개", flush=True)
 
         # 음성 이름 추출 (chirp3:Charon → Charon)
         voice_name = voice.replace("chirp3:", "") if ":" in voice else voice
         valid_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede"]
         if voice_name not in valid_voices:
-            print(f"[ISEKAI-TTS] 잘못된 음성: {voice_name}, 기본값 Charon 사용")
+            print(f"[ISEKAI-TTS] 잘못된 음성: {voice_name}, 기본값 Charon 사용", flush=True)
             voice_name = "Charon"
 
         audio_files = []
@@ -23325,7 +23325,7 @@ def _generate_isekai_tts(
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
         for i, chunk in enumerate(chunks):
-            print(f"[ISEKAI-TTS] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk)}자)")
+            print(f"[ISEKAI-TTS] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk)}자)", flush=True)
 
             try:
                 # REST API 요청
@@ -23358,15 +23358,15 @@ def _generate_isekai_tts(
                         wait_time = min(wait_time + 5, 60)
 
                         if attempt < max_retries - 1:
-                            print(f"[ISEKAI-TTS] Rate limit (429), {wait_time:.0f}초 대기 후 재시도 ({attempt + 1}/{max_retries})...")
+                            print(f"[ISEKAI-TTS] Rate limit (429), {wait_time:.0f}초 대기 후 재시도 ({attempt + 1}/{max_retries})...", flush=True)
                             time_module.sleep(wait_time)
                             continue
                         else:
-                            print(f"[ISEKAI-TTS] Rate limit 재시도 초과")
+                            print(f"[ISEKAI-TTS] Rate limit 재시도 초과", flush=True)
                             break
 
                     elif response.status_code != 200:
-                        print(f"[ISEKAI-TTS] API 오류: {response.status_code} - {response.text[:200]}")
+                        print(f"[ISEKAI-TTS] API 오류: {response.status_code} - {response.text[:200]}", flush=True)
                         break
 
                     # 성공 - 오디오 데이터 추출
@@ -23381,7 +23381,7 @@ def _generate_isekai_tts(
                     break
 
                 if not audio_data:
-                    print(f"[ISEKAI-TTS] 청크 {i+1} 오디오 데이터 없음")
+                    print(f"[ISEKAI-TTS] 청크 {i+1} 오디오 데이터 없음", flush=True)
                     continue
 
                 # WAV 파일로 저장
@@ -23418,7 +23418,7 @@ def _generate_isekai_tts(
                 total_cost += 0.001 * len(chunk) / 1000  # 대략적 비용
 
             except Exception as chunk_err:
-                print(f"[ISEKAI-TTS] 청크 {i+1} 오류: {chunk_err}")
+                print(f"[ISEKAI-TTS] 청크 {i+1} 오류: {chunk_err}", flush=True)
                 continue
 
         if not audio_files:
@@ -23455,7 +23455,7 @@ def _generate_isekai_tts(
         except:
             total_duration = current_time
 
-        print(f"[ISEKAI-TTS] 완료: {total_duration:.1f}초, 파일 {len(audio_files)}개")
+        print(f"[ISEKAI-TTS] 완료: {total_duration:.1f}초, 파일 {len(audio_files)}개", flush=True)
 
         return {
             "ok": True,
