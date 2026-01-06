@@ -23245,6 +23245,180 @@ def run_wuxia_video_pipeline(
         return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
 
 
+def _generate_isekai_tts(
+    paragraphs: list,
+    output_dir: str,
+    episode_id: str,
+    voice: str = "chirp3:Charon"
+) -> dict:
+    """
+    이세계 소설체 대본용 TTS 생성
+
+    문단 단위로 TTS를 생성하고 병합합니다.
+    태그 파싱 없이 직접 처리합니다.
+    """
+    import subprocess
+    import tempfile
+    import struct
+
+    print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작")
+
+    try:
+        from google import genai
+        from google.genai import types
+
+        api_key = os.environ.get("GOOGLE_API_KEY", "")
+        if not api_key:
+            return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
+
+        client = genai.Client(api_key=api_key)
+
+        # 전체 텍스트를 하나로 합침 (자연스러운 흐름)
+        full_text = "\n\n".join(paragraphs)
+        print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자")
+
+        # Gemini TTS 호출 (chirp3 모델)
+        # 긴 텍스트는 청크로 분할
+        MAX_CHARS = 4000  # Gemini TTS 제한
+        chunks = []
+        current_chunk = ""
+
+        for para in paragraphs:
+            if len(current_chunk) + len(para) + 2 > MAX_CHARS:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = para
+            else:
+                current_chunk += "\n\n" + para if current_chunk else para
+
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+
+        print(f"[ISEKAI-TTS] 청크 수: {len(chunks)}개")
+
+        audio_files = []
+        timeline = []
+        current_time = 0.0
+        total_cost = 0.0
+
+        for i, chunk in enumerate(chunks):
+            print(f"[ISEKAI-TTS] 청크 {i+1}/{len(chunks)} 처리 중... ({len(chunk)}자)")
+
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash-preview-tts",
+                    contents=chunk,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                    voice_name=voice.replace("chirp3:", "") if ":" in voice else voice
+                                )
+                            )
+                        )
+                    )
+                )
+
+                # 오디오 데이터 추출
+                audio_data = None
+                if response.candidates:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            audio_data = part.inline_data.data
+                            break
+
+                if not audio_data:
+                    print(f"[ISEKAI-TTS] 청크 {i+1} 오디오 데이터 없음")
+                    continue
+
+                # WAV 파일로 저장
+                chunk_path = os.path.join(output_dir, f"chunk_{i:03d}.wav")
+                with open(chunk_path, 'wb') as f:
+                    f.write(audio_data)
+
+                # 길이 계산 (WAV 헤더 파싱)
+                try:
+                    with open(chunk_path, 'rb') as f:
+                        f.seek(24)
+                        sample_rate = struct.unpack('<I', f.read(4))[0]
+                        f.seek(40)
+                        data_size = struct.unpack('<I', f.read(4))[0]
+                        duration = data_size / (sample_rate * 2)  # 16-bit mono
+                except:
+                    duration = len(chunk) / 15  # fallback: 15자/초
+
+                audio_files.append(chunk_path)
+
+                # 타임라인 (문장 단위)
+                sentences = [s.strip() for s in chunk.replace('\n', ' ').split('.') if s.strip()]
+                sent_duration = duration / max(len(sentences), 1)
+
+                for sent in sentences:
+                    if sent:
+                        timeline.append({
+                            "start": current_time,
+                            "end": current_time + sent_duration,
+                            "text": sent + "." if not sent.endswith(('.', '?', '!')) else sent
+                        })
+                        current_time += sent_duration
+
+                total_cost += 0.001 * len(chunk) / 1000  # 대략적 비용
+
+            except Exception as chunk_err:
+                print(f"[ISEKAI-TTS] 청크 {i+1} 오류: {chunk_err}")
+                continue
+
+        if not audio_files:
+            return {"ok": False, "error": "오디오 파일 생성 실패"}
+
+        # 오디오 파일 병합 (FFmpeg)
+        merged_path = os.path.join(output_dir, f"{episode_id}_merged.wav")
+
+        if len(audio_files) == 1:
+            import shutil
+            shutil.copy(audio_files[0], merged_path)
+        else:
+            # concat 파일 생성
+            concat_file = os.path.join(output_dir, "concat.txt")
+            with open(concat_file, 'w') as f:
+                for af in audio_files:
+                    f.write(f"file '{af}'\n")
+
+            subprocess.run([
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+                "-i", concat_file, "-c", "copy", merged_path
+            ], capture_output=True, timeout=300)
+
+        if not os.path.exists(merged_path):
+            return {"ok": False, "error": "오디오 병합 실패"}
+
+        # 최종 길이 계산
+        try:
+            result = subprocess.run([
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", merged_path
+            ], capture_output=True, text=True, timeout=30)
+            total_duration = float(result.stdout.strip())
+        except:
+            total_duration = current_time
+
+        print(f"[ISEKAI-TTS] 완료: {total_duration:.1f}초, 파일 {len(audio_files)}개")
+
+        return {
+            "ok": True,
+            "merged_audio": merged_path,
+            "total_duration": total_duration,
+            "timeline": timeline,
+            "cost": total_cost
+        }
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
 def run_isekai_video_pipeline(
     row_data: dict,
     row_index: int,
@@ -23325,18 +23499,26 @@ def run_isekai_video_pipeline(
         clean_script = re.sub(r'"{2,}', '"', clean_script)
         clean_script = clean_script.replace('\\n', '\n')
 
-        # Gemini TTS 호출
-        from scripts.wuxia_pipeline.multi_voice_tts import (
-            parse_script_to_segments,
-            generate_single_voice_tts,
-            generate_srt_from_timeline,
-        )
+        # ★ 이세계 대본은 소설체 → 태그 파싱 없이 직접 TTS 호출
+        # 문단 단위로 분할 (빈 줄 기준)
+        paragraphs = [p.strip() for p in clean_script.split('\n\n') if p.strip()]
+        if not paragraphs:
+            # 문단 분할 실패 시 줄 단위
+            paragraphs = [p.strip() for p in clean_script.split('\n') if p.strip()]
 
-        segments = parse_script_to_segments(clean_script)
-        print(f"[ISEKAI] 세그먼트: {len(segments)}개")
+        print(f"[ISEKAI] 문단 수: {len(paragraphs)}개")
 
-        tts_result = generate_single_voice_tts(
-            segments=segments,
+        if not paragraphs:
+            error_msg = "대본에서 텍스트를 추출할 수 없습니다"
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '상태', '실패')
+            sheets_update_cell_by_header(service, sheet_id, sheet_name, row_index, col_map, '에러메시지', error_msg)
+            return {"ok": False, "error": error_msg, "video_url": None, "cost": total_cost}
+
+        # Gemini TTS 직접 호출 (문단 단위)
+        from scripts.wuxia_pipeline.multi_voice_tts import generate_srt_from_timeline
+
+        tts_result = _generate_isekai_tts(
+            paragraphs=paragraphs,
             output_dir=tts_output_dir,
             episode_id=episode_id.lower(),
             voice="chirp3:Charon"
