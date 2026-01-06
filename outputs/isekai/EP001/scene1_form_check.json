@@ -1,0 +1,99 @@
+{
+  "episode": "EP001",
+  "scene": 1,
+  "checker": "FORM_CHECKER",
+  "score": 75,
+  "statistics": {
+    "total_chars": 3971,
+    "total_content_lines": 362,
+    "total_sentences": 359,
+    "avg_sentence_length": 11.1,
+    "dialogue_sentences": 65,
+    "dialogue_ratio": 18.1
+  },
+  "violations": {
+    "over_35_chars": [],
+    "over_35_total": 0,
+    "multi_sentence_lines": [
+      {
+        "line": 156,
+        "count": 2,
+        "text": "'이놈.'"
+      },
+      {
+        "line": 235,
+        "count": 2,
+        "text": "'죽여버린다.'"
+      },
+      {
+        "line": 244,
+        "count": 2,
+        "text": "'진정해.'"
+      },
+      {
+        "line": 250,
+        "count": 2,
+        "text": "'감정에 휘둘리면 진다.'"
+      },
+      {
+        "line": 486,
+        "count": 2,
+        "text": "'센 건 알고 있었지만.'"
+      },
+      {
+        "line": 510,
+        "count": 2,
+        "text": "'나도 최종오의를 쓸 수밖에 없다.'"
+      },
+      {
+        "line": 665,
+        "count": 2,
+        "text": "'크으.'"
+      },
+      {
+        "line": 676,
+        "count": 2,
+        "text": "'씨발.'"
+      },
+      {
+        "line": 732,
+        "count": 2,
+        "text": "'놈도 상처를 입었다.'"
+      },
+      {
+        "line": 734,
+        "count": 2,
+        "text": "'지금이 기회다.'"
+      }
+    ],
+    "multi_sentence_total": 15,
+    "multi_sentence_ratio": 4.1
+  },
+  "scores": {
+    "sentence_length": {
+      "score": 30,
+      "max": 30,
+      "avg_length": 11.1
+    },
+    "over_35_chars": {
+      "score": 20,
+      "max": 20,
+      "count": 0
+    },
+    "line_break": {
+      "score": 25,
+      "max": 25,
+      "multi_sentence_ratio": 4.1
+    },
+    "dialogue_ratio": {
+      "score": 0,
+      "max": 25,
+      "ratio": 18.1
+    }
+  },
+  "total_score": 75,
+  "verdict": "REVISE",
+  "fix_priority": [
+    "3. 대사 비율 18.1% → 45~55% 범위로 조정 필요"
+  ]
+}
