@@ -50,8 +50,11 @@ def run_form_checker(script: str, episode: str = "EP001") -> Dict[str, Any]:
     total_lines = len(lines)
 
     # 문장 추출 (마침표, 물음표, 느낌표로 분리)
-    sentences = re.split(r'[.?!。？！]\s*', script)
-    sentences = [s.strip() for s in sentences if s.strip()]
+    # 생략 부호(..., ..)를 임시 토큰으로 치환하여 과도 분리 방지
+    script_cleaned = re.sub(r'\.{2,}', '<ELLIPSIS>', script)
+    sentences = re.split(r'[.?!。？！]\s*', script_cleaned)
+    # 원복 및 정리
+    sentences = [s.replace('<ELLIPSIS>', '...').strip() for s in sentences if s.strip()]
 
     # 문장 길이 분석
     sentence_lengths = [len(s) for s in sentences]
@@ -385,25 +388,28 @@ def auto_review_script(
 
     # 결과 저장
     if save_results:
-        if output_dir is None:
-            output_dir = os.path.join(_project_root, "outputs", "isekai", episode)
+        try:
+            if output_dir is None:
+                output_dir = os.path.join(_project_root, "outputs", "isekai", episode)
 
-        os.makedirs(output_dir, exist_ok=True)
+            os.makedirs(output_dir, exist_ok=True)
 
-        # 종합 결과 저장
-        review_path = os.path.join(output_dir, f"{episode}_review.json")
-        with open(review_path, "w", encoding="utf-8") as f:
-            # 체크리스트 텍스트는 별도 저장
-            save_data = {
-                "episode": episode,
-                "form_check": form_result,
-                "voice_character_mentions": voice_result["character_mentions"],
-                "voice_dialogue_count": voice_result["dialogue_count"],
-                "feel_statistics": feel_result["statistics"],
-                "needs_manual_review": True,
-            }
-            json.dump(save_data, f, ensure_ascii=False, indent=2)
-        print(f"[SAVE] {review_path}")
+            # 종합 결과 저장
+            review_path = os.path.join(output_dir, f"{episode}_review.json")
+            with open(review_path, "w", encoding="utf-8") as f:
+                # 체크리스트 텍스트는 별도 저장
+                save_data = {
+                    "episode": episode,
+                    "form_check": form_result,
+                    "voice_character_mentions": voice_result["character_mentions"],
+                    "voice_dialogue_count": voice_result["dialogue_count"],
+                    "feel_statistics": feel_result["statistics"],
+                    "needs_manual_review": True,
+                }
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+            print(f"[SAVE] {review_path}")
+        except Exception as e:
+            print(f"[WARNING] 리뷰 결과 저장 실패: {e}")
 
     return results
 
