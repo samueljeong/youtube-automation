@@ -4,7 +4,9 @@ import os
 bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
 
 # Worker processes
-workers = int(os.environ.get('GUNICORN_WORKERS', '2'))
+# ★ Race Condition 방지: 파이프라인 동시 실행 문제로 워커 1개로 제한
+# threading.Lock()은 프로세스 간에 공유되지 않음
+workers = int(os.environ.get('GUNICORN_WORKERS', '1'))
 worker_class = 'sync'
 worker_connections = 1000
 timeout = int(os.environ.get('GUNICORN_TIMEOUT', '7200'))  # 환경변수 사용 (기본 2시간)

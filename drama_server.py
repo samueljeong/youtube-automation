@@ -23447,19 +23447,30 @@ def _generate_isekai_tts(
             import shutil
             shutil.copy(audio_files[0], merged_path)
         else:
-            # concat 파일 생성
-            concat_file = os.path.join(output_dir, "concat.txt")
+            # concat 파일 생성 (고유 파일명으로 Race Condition 방지)
+            import uuid
+            concat_file = os.path.join(output_dir, f"concat_{uuid.uuid4().hex[:8]}.txt")
             with open(concat_file, 'w') as f:
                 for af in audio_files:
                     f.write(f"file '{af}'\n")
 
-            subprocess.run([
+            print(f"[ISEKAI-TTS] 오디오 병합 시작: {len(audio_files)}개 파일", flush=True)
+            merge_result = subprocess.run([
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_file, "-c", "copy", merged_path
-            ], capture_output=True, timeout=300)
+            ], capture_output=True, text=True, timeout=300)
+
+            # concat 파일 정리
+            if os.path.exists(concat_file):
+                os.unlink(concat_file)
+
+            # FFmpeg 에러 체크
+            if merge_result.returncode != 0:
+                print(f"[ISEKAI-TTS] FFmpeg 병합 실패: {merge_result.stderr}", flush=True)
+                return {"ok": False, "error": f"오디오 병합 실패: {merge_result.stderr[:200]}"}
 
         if not os.path.exists(merged_path):
-            return {"ok": False, "error": "오디오 병합 실패"}
+            return {"ok": False, "error": "오디오 병합 실패: 출력 파일 없음"}
 
         # 최종 길이 계산
         try:
