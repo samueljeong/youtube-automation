@@ -516,6 +516,134 @@ def update_episode_status(
         return {"ok": False, "error": str(e)}
 
 
+def save_episode_direct(
+    episode: int,
+    script: str,
+    title: str = "",
+    summary: str = "",
+    scenes: str = "",
+    youtube_title: str = "",
+    youtube_description: str = "",
+    thumbnail_hook: str = "",
+    cliffhanger: str = "",
+    next_preview: str = "",
+    status: str = "대기",
+) -> Dict[str, Any]:
+    """
+    대본 에이전트가 직접 Google Sheets에 에피소드 저장
+
+    로컬 파일 없이 바로 Sheets에 저장 → Cron이 자동으로 영상 생성
+
+    Args:
+        episode: 에피소드 번호 (1~60)
+        script: 대본 전문 (필수, 22,000자 이상 권장)
+        title: 에피소드 제목
+        summary: 에피소드 요약
+        scenes: 씬 구조 (JSON 문자열)
+        youtube_title: YouTube 제목
+        youtube_description: YouTube 설명
+        thumbnail_hook: 썸네일 훅 문구
+        cliffhanger: 클리프행어 (다음화 예고용)
+        next_preview: 다음화 미리보기
+        status: 상태 (기본값: '대기' → 영상 생성 대기열)
+
+    Returns:
+        {"ok": True, "episode": 1, "row_index": 3, "script_chars": 25000}
+    """
+    service = get_sheets_service()
+    if not service:
+        return {"ok": False, "error": "Sheets 서비스 연결 실패"}
+
+    sheet_id = get_sheet_id()
+    if not sheet_id:
+        return {"ok": False, "error": "AUTOMATION_SHEET_ID 환경변수 필요"}
+
+    # 대본 길이 검증
+    script_chars = len(script) if script else 0
+    if script_chars < 20000:
+        print(f"[ISEKAI-SHEETS] ⚠️ 대본 길이 경고: {script_chars}자 (권장: 22,000자 이상)")
+
+    # 대본 정제
+    if script:
+        script = _clean_script_for_tts(script)
+
+    episode_id = f"EP{episode:03d}"
+
+    try:
+        # 에피소드 행 찾기
+        existing = get_episode_by_number(episode)
+
+        if existing:
+            row_index = existing["_row_index"]
+        else:
+            # 새로 추가
+            add_result = add_episode(episode=episode, title=title or f"제{episode}화")
+            if not add_result.get("ok"):
+                return add_result
+            row_index = add_result["row_index"]
+
+        # 헤더 조회
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range=f"{SHEET_NAME}!A2:AZ2"
+        ).execute()
+        headers = result.get('values', [[]])[0]
+        col_map = {h: i for i, h in enumerate(headers)}
+
+        # 업데이트할 데이터 준비
+        updates = []
+
+        def add_update(header: str, value: str):
+            if header in col_map and value:
+                col_idx = col_map[header]
+                if col_idx < 26:
+                    col_letter = chr(ord('A') + col_idx)
+                else:
+                    col_letter = chr(ord('A') + col_idx // 26 - 1) + chr(ord('A') + col_idx % 26)
+                updates.append({
+                    "range": f"{SHEET_NAME}!{col_letter}{row_index}",
+                    "values": [[value]]
+                })
+
+        # 필드 업데이트
+        add_update("title", title)
+        add_update("summary", summary)
+        add_update("scenes", scenes)
+        add_update("youtube_title", youtube_title)
+        add_update("youtube_description", youtube_description)
+        add_update("thumbnail_hook", thumbnail_hook)
+        add_update("cliffhanger", cliffhanger)
+        add_update("next_preview", next_preview)
+        add_update("대본", script)
+        add_update("상태", status)
+
+        # 일괄 업데이트
+        if updates:
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=sheet_id,
+                body={
+                    "valueInputOption": "RAW",
+                    "data": updates
+                }
+            ).execute()
+
+        print(f"[ISEKAI-SHEETS] ✓ EP{episode:03d} 직접 저장 완료 ({script_chars:,}자), 상태='{status}'")
+
+        return {
+            "ok": True,
+            "episode": episode,
+            "episode_id": episode_id,
+            "row_index": row_index,
+            "script_chars": script_chars,
+            "status": status,
+            "message": f"EP{episode:03d} 저장 완료. Cron이 5분 내 영상 생성 시작."
+        }
+
+    except Exception as e:
+        print(f"[ISEKAI-SHEETS] 직접 저장 실패: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 def initialize_sheet_with_episodes(
     channel_id: str = "",
     start_episode: int = 1,
