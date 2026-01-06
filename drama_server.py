@@ -18206,11 +18206,19 @@ def get_all_sheet_names(service, sheet_id):
     - _설정, _템플릿 등 언더스코어로 시작하는 시트
     - SHORTS (별도 파이프라인 사용)
     - BIBLE (별도 파이프라인 사용)
+    - 뉴스 수집용 시트 (OPUS_INPUT_*, RAW_FEED, CANDIDATES_*)
 
     반환: ['채널A', '채널B', ...] 또는 None (실패 시)
     """
-    # 메인 파이프라인에서 제외할 시트 목록 (별도 파이프라인 사용)
-    EXCLUDED_SHEETS = {'SHORTS', 'BIBLE'}
+    # 메인 파이프라인에서 제외할 시트 목록
+    EXCLUDED_SHEETS = {
+        'SHORTS', 'BIBLE',
+        # 뉴스 수집용 시트 (삭제됨 또는 영상 자동화 비대상)
+        'OPUS_INPUT_ECON', 'RAW_FEED', 'CANDIDATES_ECON',
+        'HISTORY_OPUS_INPUT', 'MYSTERY_OPUS_INPUT',
+        # 기본 시트
+        '시트2', 'Sheet1',
+    }
 
     try:
         spreadsheet = service.spreadsheets().get(spreadsheetId=sheet_id).execute()
