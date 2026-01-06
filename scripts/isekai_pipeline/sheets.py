@@ -716,8 +716,8 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
             add_update("대본", script)
 
         # 메타데이터
-        add_update("제목(GPT생성)", data.get("youtube_title", ""))
-        add_update("썸네일문구(입력)", data.get("thumbnail_text", ""))
+        add_update("youtube_title", data.get("youtube_title", ""))
+        add_update("thumbnail_hook", data.get("thumbnail_text", ""))
 
         # 리뷰 상태가 approved면 '대기'로 설정
         if data.get("review_status") == "approved":
