@@ -23269,33 +23269,24 @@ def _generate_isekai_tts(
     voice: str = "chirp3:Charon"
 ) -> dict:
     """
-    이세계 소설체 대본용 TTS 생성
+    이세계 소설체 대본용 TTS 생성 (Chirp3 HD 사용)
 
     문단 단위로 TTS를 생성하고 병합합니다.
-    태그 파싱 없이 직접 처리합니다.
-
-    기존 generate_gemini_tts() 함수의 REST API 방식을 사용합니다.
+    Google Cloud TTS Chirp3 HD API를 사용합니다.
     """
     import subprocess
-    import tempfile
     import struct
-    import base64
     import time as time_module
 
-    print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작", flush=True)
+    print(f"[ISEKAI-TTS] 문단 {len(paragraphs)}개 TTS 생성 시작 (Chirp3 HD)", flush=True)
 
     try:
-        api_key = os.environ.get("GOOGLE_API_KEY", "")
-        if not api_key:
-            return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
-
-        # 전체 텍스트를 하나로 합침 (자연스러운 흐름)
+        # 전체 텍스트를 하나로 합침
         full_text = "\n\n".join(paragraphs)
         print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자", flush=True)
 
-        # Gemini TTS 호출 (REST API 방식)
-        # 긴 텍스트는 청크로 분할 (4000자는 타임아웃 발생 → 2000자로 축소)
-        MAX_CHARS = 2000  # Gemini TTS 제한 (타임아웃 방지)
+        # Chirp3 청크 분할 (5000 bytes ≈ 1500 한글자)
+        MAX_CHARS = 1500  # Chirp3 HD 바이트 제한 고려
         chunks = []
         current_chunk = ""
 
@@ -23312,92 +23303,40 @@ def _generate_isekai_tts(
 
         print(f"[ISEKAI-TTS] 청크 수: {len(chunks)}개", flush=True)
 
-        # 음성 이름 추출 (chirp3:Charon → Charon)
-        voice_name = voice.replace("chirp3:", "") if ":" in voice else voice
-        valid_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede"]
-        if voice_name not in valid_voices:
-            print(f"[ISEKAI-TTS] 잘못된 음성: {voice_name}, 기본값 Charon 사용", flush=True)
-            voice_name = "Charon"
+        # Chirp3 HD 음성 이름 생성 (chirp3:Charon → ko-KR-Chirp3-HD-Charon)
+        voice_short = voice.replace("chirp3:", "") if ":" in voice else voice
+        valid_voices = ["Kore", "Charon", "Puck", "Fenrir", "Aoede", "Orus", "Leda", "Zephyr"]
+        if voice_short not in valid_voices:
+            print(f"[ISEKAI-TTS] 잘못된 음성: {voice_short}, 기본값 Charon 사용", flush=True)
+            voice_short = "Charon"
 
-        # REST API 엔드포인트
-        model = "gemini-2.5-flash-preview-tts"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        chirp3_voice_name = f"ko-KR-Chirp3-HD-{voice_short}"
+        print(f"[ISEKAI-TTS] Chirp3 음성: {chirp3_voice_name}", flush=True)
 
         # ★ 병렬 처리용 청크 처리 함수
         def process_single_chunk(chunk_idx, chunk_text):
-            """단일 청크를 처리하고 (인덱스, 파일경로, 길이, 텍스트) 반환"""
+            """단일 청크를 Chirp3 TTS로 처리하고 (인덱스, 파일경로, 길이, 텍스트) 반환"""
             print(f"[ISEKAI-TTS] 청크 {chunk_idx+1}/{len(chunks)} 처리 중... ({len(chunk_text)}자)", flush=True)
 
             try:
-                payload = {
-                    "contents": [{"parts": [{"text": chunk_text}]}],
-                    "generationConfig": {
-                        "responseModalities": ["AUDIO"],
-                        "speechConfig": {
-                            "voiceConfig": {
-                                "prebuiltVoiceConfig": {
-                                    "voiceName": voice_name
-                                }
-                            }
-                        }
-                    }
-                }
+                # generate_chirp3_tts() 함수 호출
+                tts_result = generate_chirp3_tts(
+                    text=chunk_text,
+                    voice_name=chirp3_voice_name,
+                    language_code="ko-KR"
+                )
 
-                # Rate Limit + Timeout 재시도 로직
-                max_retries = 3
-                audio_data = None
-                audio_b64 = None
-                request_timeout = 180
+                if not tts_result.get("ok"):
+                    print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} TTS 실패: {tts_result.get('error')}", flush=True)
+                    return None
 
-                for attempt in range(max_retries):
-                    try:
-                        response = requests.post(url, json=payload, timeout=request_timeout)
-                    except requests.exceptions.Timeout:
-                        if attempt < max_retries - 1:
-                            print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 타임아웃, 재시도 ({attempt + 1}/{max_retries})...", flush=True)
-                            time_module.sleep(5)
-                            continue
-                        else:
-                            print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 타임아웃 재시도 초과", flush=True)
-                            return None
-                    except requests.exceptions.RequestException as req_err:
-                        print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 요청 오류: {req_err}", flush=True)
-                        return None
-
-                    if response.status_code == 429:
-                        retry_match = re.search(r'retry in (\d+\.?\d*)', response.text)
-                        wait_time = float(retry_match.group(1)) if retry_match else 45.0
-                        wait_time = min(wait_time + 5, 60)
-
-                        if attempt < max_retries - 1:
-                            print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} Rate limit, {wait_time:.0f}초 대기...", flush=True)
-                            time_module.sleep(wait_time)
-                            continue
-                        else:
-                            print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} Rate limit 재시도 초과", flush=True)
-                            return None
-
-                    elif response.status_code != 200:
-                        print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} API 오류: {response.status_code}", flush=True)
-                        return None
-
-                    # 성공 - 오디오 데이터 추출
-                    result = response.json()
-                    if result.get("candidates") and result["candidates"][0].get("content", {}).get("parts"):
-                        for part in result["candidates"][0]["content"]["parts"]:
-                            if "inlineData" in part:
-                                audio_b64 = part["inlineData"].get("data", "")
-                                if audio_b64:
-                                    audio_data = base64.b64decode(audio_b64)
-                                    break
-                    break
-
+                audio_data = tts_result.get("audio_data")
                 if not audio_data:
                     print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 오디오 데이터 없음", flush=True)
                     return None
 
-                # WAV 파일로 저장
-                chunk_path = os.path.join(output_dir, f"chunk_{chunk_idx:03d}.wav")
+                # MP3 파일로 저장 (Chirp3는 MP3 반환)
+                chunk_path = os.path.join(output_dir, f"chunk_{chunk_idx:03d}.mp3")
                 audio_size = len(audio_data)
                 print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 저장 시작: {audio_size:,} bytes", flush=True)
 
@@ -23420,21 +23359,20 @@ def _generate_isekai_tts(
 
                 # 메모리 정리
                 del audio_data
-                if audio_b64:
-                    del audio_b64
                 gc.collect()
 
-                # 길이 계산 (WAV 헤더 파싱)
+                # 길이 계산 (ffprobe 사용)
                 duration = len(chunk_text) / 15  # fallback 기본값
                 try:
-                    with open(chunk_path, 'rb') as f:
-                        f.seek(24)
-                        sample_rate = struct.unpack('<I', f.read(4))[0]
-                        f.seek(40)
-                        data_size = struct.unpack('<I', f.read(4))[0]
-                        duration = data_size / (sample_rate * 2)
-                except Exception as wav_err:
-                    print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} WAV 파싱 오류: {wav_err}", flush=True)
+                    probe_result = subprocess.run(
+                        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                         "-of", "default=noprint_wrappers=1:nokey=1", chunk_path],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    if probe_result.returncode == 0 and probe_result.stdout.strip():
+                        duration = float(probe_result.stdout.strip())
+                except Exception as probe_err:
+                    print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 길이 측정 오류: {probe_err}", flush=True)
 
                 return (chunk_idx, chunk_path, duration, chunk_text)
 
@@ -23442,9 +23380,9 @@ def _generate_isekai_tts(
                 print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 오류: {chunk_err}", flush=True)
                 return None
 
-        # ★ 병렬 처리 (2워커 - Rate Limit 고려)
+        # ★ 병렬 처리 (2워커 - API Rate Limit 고려)
         TTS_PARALLEL_WORKERS = 2
-        print(f"[ISEKAI-TTS] 병렬 처리 시작 ({TTS_PARALLEL_WORKERS}워커)", flush=True)
+        print(f"[ISEKAI-TTS] 병렬 처리 시작 ({TTS_PARALLEL_WORKERS}워커, Chirp3 HD)", flush=True)
 
         chunk_results = []
         with ThreadPoolExecutor(max_workers=TTS_PARALLEL_WORKERS) as executor:
@@ -23487,8 +23425,8 @@ def _generate_isekai_tts(
         if not audio_files:
             return {"ok": False, "error": "오디오 파일 생성 실패"}
 
-        # 오디오 파일 병합 (FFmpeg)
-        merged_path = os.path.join(output_dir, f"{episode_id}_merged.wav")
+        # 오디오 파일 병합 (FFmpeg) - Chirp3는 MP3 출력
+        merged_path = os.path.join(output_dir, f"{episode_id}_merged.mp3")
 
         if len(audio_files) == 1:
             import shutil
@@ -23501,10 +23439,13 @@ def _generate_isekai_tts(
                 for af in audio_files:
                     f.write(f"file '{af}'\n")
 
-            print(f"[ISEKAI-TTS] 오디오 병합 시작: {len(audio_files)}개 파일", flush=True)
+            print(f"[ISEKAI-TTS] 오디오 병합 시작: {len(audio_files)}개 MP3 파일", flush=True)
+            # MP3 concat은 재인코딩 필요 (코덱 호환성)
             merge_result = subprocess.run([
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
-                "-i", concat_file, "-c", "copy", merged_path
+                "-i", concat_file,
+                "-c:a", "libmp3lame", "-b:a", "192k",  # MP3 재인코딩
+                merged_path
             ], capture_output=True, text=True, timeout=300)
 
             # concat 파일 정리
