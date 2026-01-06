@@ -434,28 +434,34 @@ BGM_CONFIG = {
 SHEET_NAME = "혈영이세계"
 
 SHEET_HEADERS = [
-    # 수집/기획 영역
-    "episode",          # EP001
-    "part",             # 1~6부
-    "title",            # 에피소드 제목
-    "summary",          # 요약
-    "scenes",           # 씬 구조 (JSON)
-    "image_prompt",     # 이미지 프롬프트 (Claude가 생성)
+    # 수집/기획 영역 (에이전트가 생성)
+    "episode",              # EP001
+    "part",                 # 1~6부
+    "title",                # 에피소드 제목
+    "summary",              # 요약
+    "scenes",               # 씬 구조 (JSON) - BGM/챕터용
+    "image_prompt",         # 메인 이미지 프롬프트
+
+    # 메타데이터 영역 (METADATA 에이전트가 생성)
+    "youtube_title",        # YouTube 제목
+    "youtube_description",  # YouTube 설명 (타임스탬프 포함)
+    "youtube_tags",         # YouTube 태그 (JSON)
+    "thumbnail_hook",       # 썸네일 훅 텍스트
+    "cliffhanger",          # 클리프행어 (다음화 예고)
+    "next_preview",         # 다음화 예고 문구
+
     # 영상 자동화 영역
-    "상태",             # 대기/처리중/완료/실패
-    "대본",             # 생성된 대본
+    "상태",                 # 대기/처리중/완료/실패
+    "대본",                 # 생성된 대본 (26,000자)
     "인용링크",
-    "제목(GPT생성)",
-    "제목(입력)",
-    "썸네일문구(입력)",
+    "제목(입력)",           # 사용자 수정 제목 (없으면 youtube_title 사용)
+    "썸네일문구(입력)",     # 사용자 수정 썸네일
     "공개설정",
     "예약시간",
     "플레이리스트ID",
     "음성",
     "영상URL",
     "쇼츠URL",
-    "제목2",
-    "제목3",
     "비용",
     "에러메시지",
     "작업시간",

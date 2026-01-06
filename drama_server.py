@@ -25810,26 +25810,55 @@ def api_isekai_push_ep001():
     # 씬 데이터 읽기 (BGM 전환, 챕터용)
     brief_path = os.path.join(base_dir, 'static', 'isekai', 'EP001_brief.json')
     scenes_json = ""
+    cliffhanger = ""
+    next_preview = ""
     try:
         with open(brief_path, 'r', encoding='utf-8') as f:
             brief_data = json.load(f)
             scenes = brief_data.get("scenes", [])
             if scenes:
                 scenes_json = json.dumps(scenes, ensure_ascii=False)
+            cliffhanger = brief_data.get("cliffhanger", "")
+            next_preview = brief_data.get("next_preview", "")
     except Exception as e:
         print(f"[ISEKAI] 씬 데이터 파일 읽기 실패 (무시): {e}")
 
-    # EP001 데이터
+    # 메타데이터 파일 읽기 (YouTube 설명, 태그, 썸네일 훅)
+    metadata_path = os.path.join(base_dir, 'static', 'isekai', 'EP001_metadata.json')
+    youtube_title = ""
+    youtube_description = ""
+    youtube_tags = ""
+    thumbnail_hook = ""
+    try:
+        with open(metadata_path, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+            yt = metadata.get("youtube", {})
+            youtube_title = yt.get("title", "")
+            youtube_description = yt.get("description", "")
+            tags = yt.get("tags", [])
+            if tags:
+                youtube_tags = json.dumps(tags, ensure_ascii=False)
+            thumb = metadata.get("thumbnail", {})
+            thumbnail_hook = thumb.get("hook_text", "")
+    except Exception as e:
+        print(f"[ISEKAI] 메타데이터 파일 읽기 실패 (무시): {e}")
+
+    # EP001 데이터 (에이전트 생성 메타데이터 포함)
     ep001_data = {
         "episode": 1,
         "title": "이방인",
         "summary": "무림 최강의 검객 무영이 천마교주 혈마와의 최종전 중 차원 균열에 휩쓸려 이세계에 떨어진다. 모든 내공을 잃고 낯선 세계에서 눈을 뜬 그는, 언어도 통하지 않는 곳에서 생존을 위한 첫걸음을 내딛는다.",
-        "youtube_title": "[혈영 이세계편] 제1화 - 이방인 | 무협 판타지 오디오북",
-        "thumbnail_text": "혈영 이세계편\n제1화\n이방인",
         "status": "대기",
         "script": script_content,
         "image_prompt": image_prompt,
-        "scenes": scenes_json
+        "scenes": scenes_json,
+        # 메타데이터 에이전트 생성 필드
+        "youtube_title": youtube_title or "[혈영 이세계편] 제1화 - 이방인 | 무협 판타지 오디오북",
+        "youtube_description": youtube_description,
+        "youtube_tags": youtube_tags,
+        "thumbnail_hook": thumbnail_hook,
+        "cliffhanger": cliffhanger,
+        "next_preview": next_preview,
     }
 
     service = get_sheets_service()
@@ -25872,14 +25901,21 @@ def api_isekai_push_ep001():
                     "values": [[str(value)]]
                 })
 
+        # 기본 정보
         add_update("title", ep001_data["title"])
         add_update("summary", ep001_data["summary"])
         add_update("scenes", ep001_data["scenes"])
         add_update("대본", ep001_data["script"])
         add_update("image_prompt", ep001_data["image_prompt"])
-        add_update("제목(GPT생성)", ep001_data["youtube_title"])
-        add_update("썸네일문구(입력)", ep001_data["thumbnail_text"])
         add_update("상태", ep001_data["status"])
+
+        # 메타데이터 에이전트 생성 필드
+        add_update("youtube_title", ep001_data["youtube_title"])
+        add_update("youtube_description", ep001_data["youtube_description"])
+        add_update("youtube_tags", ep001_data["youtube_tags"])
+        add_update("thumbnail_hook", ep001_data["thumbnail_hook"])
+        add_update("cliffhanger", ep001_data["cliffhanger"])
+        add_update("next_preview", ep001_data["next_preview"])
 
         if updates:
             service.spreadsheets().values().batchUpdate(
