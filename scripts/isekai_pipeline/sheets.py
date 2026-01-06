@@ -727,11 +727,22 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
             script = _clean_script_for_tts(script)
             add_update("대본", script)
 
-        # 리뷰 상태가 approved면 '대기'로 설정
-        if data.get("review_status") == "approved":
-            add_update("상태", "대기")
+        # ★★★ 상태 업데이트 - 기존 상태 확인 후 조건부 업데이트 ★★★
+        # '처리중', '완료', '실패' 상태는 덮어쓰지 않음 (Race Condition 방지)
+        current_status = existing.get("상태", "") if existing else ""
+        protected_statuses = ["처리중", "완료", "실패"]
+
+        if current_status not in protected_statuses:
+            # 상태가 보호 대상이 아닐 때만 업데이트
+            if data.get("review_status") == "approved":
+                add_update("상태", "대기")
+            else:
+                add_update("상태", "준비")
+            new_status = "대기" if data.get("review_status") == "approved" else "준비"
         else:
-            add_update("상태", "준비")
+            # 보호 대상 상태는 유지
+            new_status = current_status
+            print(f"[ISEKAI-SHEETS] 상태 '{current_status}' 유지 (덮어쓰기 방지)")
 
         # 일괄 업데이트
         if updates:
@@ -743,15 +754,14 @@ def sync_episode_from_files(episode: int) -> Dict[str, Any]:
                 }
             ).execute()
 
-        status = "대기" if data.get("review_status") == "approved" else "준비"
-        print(f"[ISEKAI-SHEETS] EP{episode:03d} 동기화 완료: 상태={status}")
+        print(f"[ISEKAI-SHEETS] EP{episode:03d} 동기화 완료: 상태={new_status}")
 
         return {
             "ok": True,
             "episode": episode,
             "episode_id": episode_id,
             "row_index": row_index,
-            "status": status,
+            "status": new_status,
             "title": data.get("title", ""),
             "script_chars": len(data.get("script", "")),
         }
