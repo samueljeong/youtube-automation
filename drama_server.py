@@ -23357,9 +23357,8 @@ def _generate_isekai_tts(
 
                 print(f"[ISEKAI-TTS] 청크 {chunk_idx+1} 저장 완료 ({saved_size:,} bytes)", flush=True)
 
-                # 메모리 정리
+                # 메모리 정리 (gc.collect()는 병렬 처리 완료 후 한 번만)
                 del audio_data
-                gc.collect()
 
                 # 길이 계산 (ffprobe 사용)
                 duration = len(chunk_text) / 15  # fallback 기본값
@@ -23398,6 +23397,18 @@ def _generate_isekai_tts(
         chunk_results.sort(key=lambda x: x[0])
         print(f"[ISEKAI-TTS] 병렬 처리 완료: {len(chunk_results)}/{len(chunks)}개 성공", flush=True)
 
+        # ★ 메모리 정리 (병렬 처리 완료 후 한 번만)
+        gc.collect()
+
+        # ★ 부분 실패 감지 - 대본 누락 방지
+        if len(chunk_results) < len(chunks):
+            failed_count = len(chunks) - len(chunk_results)
+            print(f"[ISEKAI-TTS] 오류: {failed_count}개 청크 TTS 생성 실패", flush=True)
+            return {
+                "ok": False,
+                "error": f"TTS 부분 실패: {failed_count}/{len(chunks)}개 청크 실패 (대본 누락 위험)"
+            }
+
         # 결과 집계
         audio_files = []
         timeline = []
@@ -23434,6 +23445,7 @@ def _generate_isekai_tts(
         else:
             # concat 파일 생성 (고유 파일명으로 Race Condition 방지)
             import uuid
+            from subprocess import DEVNULL, PIPE
             concat_file = os.path.join(output_dir, f"concat_{uuid.uuid4().hex[:8]}.txt")
             with open(concat_file, 'w') as f:
                 for af in audio_files:
@@ -23441,12 +23453,13 @@ def _generate_isekai_tts(
 
             print(f"[ISEKAI-TTS] 오디오 병합 시작: {len(audio_files)}개 MP3 파일", flush=True)
             # MP3 concat은 재인코딩 필요 (코덱 호환성)
+            # ★ stdout=DEVNULL로 버퍼 오버플로우 방지 (OOM 크래시 방지)
             merge_result = subprocess.run([
                 "ffmpeg", "-y", "-f", "concat", "-safe", "0",
                 "-i", concat_file,
-                "-c:a", "libmp3lame", "-b:a", "192k",  # MP3 재인코딩
+                "-c:a", "libmp3lame", "-b:a", "192k",
                 merged_path
-            ], capture_output=True, text=True, timeout=300)
+            ], stdout=DEVNULL, stderr=PIPE, text=True, timeout=300)
 
             # concat 파일 정리
             if os.path.exists(concat_file):
@@ -23454,11 +23467,25 @@ def _generate_isekai_tts(
 
             # FFmpeg 에러 체크
             if merge_result.returncode != 0:
-                print(f"[ISEKAI-TTS] FFmpeg 병합 실패: {merge_result.stderr}", flush=True)
-                return {"ok": False, "error": f"오디오 병합 실패: {merge_result.stderr[:200]}"}
+                error_msg = merge_result.stderr[-500:] if merge_result.stderr else ""
+                print(f"[ISEKAI-TTS] FFmpeg 병합 실패: {error_msg}", flush=True)
+                return {"ok": False, "error": f"오디오 병합 실패: {error_msg[:200]}"}
 
         if not os.path.exists(merged_path):
             return {"ok": False, "error": "오디오 병합 실패: 출력 파일 없음"}
+
+        # ★ 병합 파일 크기 검증
+        merged_size = os.path.getsize(merged_path)
+        if merged_size < 10000:  # 10KB 미만이면 의심
+            print(f"[ISEKAI-TTS] 경고: 병합 파일 크기 의심 ({merged_size} bytes)", flush=True)
+
+        # ★ 임시 청크 파일 정리 (디스크 절약)
+        for chunk_path in audio_files:
+            try:
+                if os.path.exists(chunk_path):
+                    os.unlink(chunk_path)
+            except Exception:
+                pass  # 정리 실패는 무시
 
         # 최종 길이 계산
         try:
