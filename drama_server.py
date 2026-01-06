@@ -23290,8 +23290,8 @@ def _generate_isekai_tts(
         print(f"[ISEKAI-TTS] 전체 텍스트: {len(full_text)}자", flush=True)
 
         # Gemini TTS 호출 (REST API 방식)
-        # 긴 텍스트는 청크로 분할
-        MAX_CHARS = 4000  # Gemini TTS 제한
+        # 긴 텍스트는 청크로 분할 (4000자는 타임아웃 발생 → 2000자로 축소)
+        MAX_CHARS = 2000  # Gemini TTS 제한 (타임아웃 방지)
         chunks = []
         current_chunk = ""
 
@@ -23343,12 +23343,25 @@ def _generate_isekai_tts(
                     }
                 }
 
-                # Rate Limit 재시도 로직
+                # Rate Limit + Timeout 재시도 로직
                 max_retries = 3
                 audio_data = None
+                request_timeout = 180  # 120초 → 180초로 증가
 
                 for attempt in range(max_retries):
-                    response = requests.post(url, json=payload, timeout=120)
+                    try:
+                        response = requests.post(url, json=payload, timeout=request_timeout)
+                    except requests.exceptions.Timeout:
+                        if attempt < max_retries - 1:
+                            print(f"[ISEKAI-TTS] 타임아웃 ({request_timeout}초), 재시도 ({attempt + 1}/{max_retries})...", flush=True)
+                            time_module.sleep(5)
+                            continue
+                        else:
+                            print(f"[ISEKAI-TTS] 타임아웃 재시도 초과", flush=True)
+                            break
+                    except requests.exceptions.RequestException as req_err:
+                        print(f"[ISEKAI-TTS] 요청 오류: {req_err}", flush=True)
+                        break
 
                     if response.status_code == 429:
                         # Rate limit - 대기 후 재시도
