@@ -26003,6 +26003,7 @@ def api_isekai_push_ep001():
             "episode": 1,
             "row_index": row_index,
             "fields_updated": len(updates),
+            "script_length": len(script_content),  # 실제 파일에서 읽은 글자수
             "message": "EP001 전송 완료!"
         })
 
