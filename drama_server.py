@@ -19269,63 +19269,6 @@ def run_automation_pipeline(row_data, row_index, selected_project=''):
     import time as time_module
 
     try:
-        # ========== 에이전트 파이프라인 분기 (환경변수: USE_AGENT_PIPELINE=1) ==========
-        if os.environ.get("USE_AGENT_PIPELINE", "0") == "1":
-            try:
-                import asyncio
-                from scripts.video_pipeline import run_agent_pipeline
-
-                # row_data를 딕셔너리로 변환
-                row_dict = {
-                    "상태": row_data[0] if len(row_data) > 0 else '',
-                    "작업시간": row_data[1] if len(row_data) > 1 else '',
-                    "채널ID": (row_data[2] if len(row_data) > 2 else '').strip(),
-                    "채널명": row_data[3] if len(row_data) > 3 else '',
-                    "예약시간": row_data[4] if len(row_data) > 4 else '',
-                    "대본": row_data[5] if len(row_data) > 5 else '',
-                    "제목": row_data[6] if len(row_data) > 6 else '',
-                    "공개설정": (row_data[10] if len(row_data) > 10 else '').strip() or 'private',
-                    "음성": (row_data[13] if len(row_data) > 13 else '').strip() or 'chirp3:Charon',  # ★ 기본 음성 변경
-                    "타겟": (row_data[14] if len(row_data) > 14 else '').strip() or 'senior',
-                    "카테고리": (row_data[15] if len(row_data) > 15 else '').strip(),
-                    "플레이리스트ID": (row_data[17] if len(row_data) > 17 else '').strip(),
-                    "제목(입력)": (row_data[18] if len(row_data) > 18 else '').strip(),
-                    "썸네일문구(입력)": (row_data[19] if len(row_data) > 19 else '').strip(),
-                    "인용링크": (row_data[20] if len(row_data) > 20 else '').strip(),  # ★ 인용링크 추가
-                }
-
-                print(f"[AGENT] ========== 에이전트 파이프라인 시작 ==========", flush=True)
-                print(f"[AGENT] 행 {row_index}, 대본 {len(row_dict['대본'])}자, 프로젝트={selected_project or '기본'}", flush=True)
-
-                # ★ 음성 사전 검증 (비싼 작업 전에 확인)
-                agent_voice = row_dict.get("음성", "chirp3:Charon")
-                print(f"[AGENT] 음성 사전 검증: {agent_voice}", flush=True)
-                voice_validation = validate_tts_voice(agent_voice)
-                if not voice_validation["ok"]:
-                    error_msg = f"음성 설정 오류: {voice_validation['error']}"
-                    print(f"[AGENT] ❌ {error_msg}", flush=True)
-                    return {"ok": False, "error": error_msg, "video_url": None, "cost": 0}
-                print(f"[AGENT] ✅ 음성 검증 통과: {voice_validation['voice_type']}", flush=True)
-
-                # 비동기 실행
-                video_url, error, cost = asyncio.run(
-                    run_agent_pipeline(row_dict, row_index, sheet_name="", selected_project=selected_project)
-                )
-
-                if video_url:
-                    print(f"[AGENT] ✅ 완료: {video_url}, 비용=${cost:.4f}", flush=True)
-                    return {"ok": True, "video_url": video_url, "cost": cost}
-                else:
-                    print(f"[AGENT] ❌ 실패: {error}", flush=True)
-                    return {"ok": False, "error": error, "video_url": None, "cost": cost}
-
-            except Exception as agent_err:
-                # ★ 폴백 제거: 에이전트 실패 시 완전히 실패 (에러 숨기지 않음)
-                print(f"[AGENT] ❌ 에이전트 파이프라인 예외 발생: {agent_err}", flush=True)
-                import traceback
-                traceback.print_exc()
-                return {"ok": False, "error": f"에이전트 파이프라인 오류: {agent_err}", "video_url": None, "cost": 0}
-
         # 시트 컬럼 구조:
         # ===== Google Sheets 컬럼 구조 (CLAUDE.md 기준) =====
         # A(0): 상태, B(1): 작업시간, C(2): 채널ID, D(3): 채널명(참고용)
