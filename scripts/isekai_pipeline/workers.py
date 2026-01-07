@@ -88,19 +88,15 @@ def generate_tts(
 
     try:
         # 자체 TTS 모듈 사용
-        audio_path = os.path.join(AUDIO_DIR, f"{episode_id}.mp3")
-        srt_path = os.path.join(SUBTITLE_DIR, f"{episode_id}.srt")
-
+        # tts.py의 generate_tts 시그니처:
+        # generate_tts(episode_id, script, output_dir, voice, speed)
         result = _generate_tts(
-            text=script,
-            output_path=audio_path,
+            episode_id=episode_id,
+            script=script,
+            output_dir=AUDIO_DIR,
             voice=voice,
-            srt_output_path=srt_path,
+            speed=speed or 1.0,
         )
-
-        if result.get("ok"):
-            result["audio_path"] = audio_path
-            result["srt_path"] = srt_path
 
         return result
 

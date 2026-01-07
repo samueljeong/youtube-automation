@@ -91,9 +91,9 @@ def generate_gemini_chunk(
     model: str = DEFAULT_MODEL,
 ) -> Dict[str, Any]:
     """Gemini TTS로 단일 청크 생성"""
-    api_key = os.environ.get('GOOGLE_API_KEY')
+    api_key = os.environ.get('GOOGLE_API_KEY') or os.environ.get('GOOGLE_CLOUD_API_KEY')
     if not api_key:
-        return {"ok": False, "error": "GOOGLE_API_KEY 환경변수가 필요합니다"}
+        return {"ok": False, "error": "GOOGLE_API_KEY 또는 GOOGLE_CLOUD_API_KEY 환경변수가 필요합니다"}
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 
