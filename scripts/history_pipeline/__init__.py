@@ -1,25 +1,35 @@
 """
-한국사 자동화 파이프라인 (주제 기반 구조)
+한국사 파이프라인 (역할 분리 구조)
 
-2024-12 개편:
-- HISTORY_TOPICS에 정의된 주제별로 자료 수집
-- 한국민족문화대백과, e뮤지엄 등에서 실제 자료 추출
-- 수집된 내용을 Opus에게 전달하여 대본 작성
+## 2026-01 개편: 창작/실행 분리
 
-시트 구조:
-- HISTORY_OPUS_INPUT: 에피소드 관리 (단일 통합 시트)
-  - episode: 전체 에피소드 번호
-  - era_episode: 시대 내 에피소드 번호
-  - opus_prompt_pack: 실제 자료가 포함된 Opus 프롬프트
-  - status: 준비/완료
+창작 작업 (Claude가 대화에서 직접 수행):
+- 자료 조사 및 검증
+- 에피소드 기획 (구조, 흐름)
+- 대본 작성 (12,000~15,000자)
+- 이미지 프롬프트 생성
+- YouTube 메타데이터 (제목, 설명, 태그)
+- 썸네일 문구 설계
+- 품질 검수
+
+실행 작업 (workers.py에서 API 호출):
+- TTS 생성 → Gemini/Google TTS
+- 이미지 생성 → Gemini Imagen
+- 영상 렌더링 → FFmpeg
+- YouTube 업로드 → YouTube API
 
 사용법:
-    from scripts.history_pipeline import run_history_pipeline
+    # Claude가 대화에서 대본 작성 후:
+    from scripts.history_pipeline import execute_episode
 
-    # 자동으로 '준비' 10개 유지
-    result = run_history_pipeline(
-        sheet_id="YOUR_SHEET_ID",
-        service=sheets_service
+    result = execute_episode(
+        episode_id="ep001",
+        title="광개토왕의 정복전쟁",
+        script="대본 내용...",
+        image_prompts=[{"prompt": "...", "scene_index": 1}],
+        metadata={"title": "...", "description": "...", "tags": [...]},
+        generate_video=True,
+        upload=True,
     )
 """
 
@@ -37,7 +47,20 @@ from .run import (
     run_history_pipeline,
     run_single_episode,
     get_pipeline_status,
-    run_auto_script_pipeline,  # Claude Opus 4.5 대본 자동 생성
+    run_auto_script_pipeline,  # DEPRECATED: Claude가 대화에서 직접 작성
+)
+
+# ★ Workers (실행 담당) - 주요 사용 함수
+from .workers import (
+    execute_episode,      # 통합 실행 함수
+    generate_tts,         # TTS 생성
+    generate_image,       # 단일 이미지 생성
+    generate_images_batch,  # 다중 이미지 생성
+    render_video,         # 영상 렌더링
+    upload_youtube,       # YouTube 업로드
+    save_script,          # 대본 파일 저장
+    save_brief,           # 기획서 저장
+    save_metadata,        # 메타데이터 저장
 )
 
 from .sheets import (
@@ -60,11 +83,21 @@ from .opus import (
 )
 
 __all__ = [
-    # 메인 함수
+    # ★ Workers (실행 담당) - 주요 사용 함수
+    "execute_episode",      # 통합 실행 함수
+    "generate_tts",         # TTS 생성
+    "generate_image",       # 단일 이미지 생성
+    "generate_images_batch",  # 다중 이미지 생성
+    "render_video",         # 영상 렌더링
+    "upload_youtube",       # YouTube 업로드
+    "save_script",          # 대본 파일 저장
+    "save_brief",           # 기획서 저장
+    "save_metadata",        # 메타데이터 저장
+    # 레거시 함수 (참고용)
     "run_history_pipeline",
     "run_single_episode",
     "get_pipeline_status",
-    "run_auto_script_pipeline",  # GPT-5.2 대본 자동 생성
+    "run_auto_script_pipeline",  # DEPRECATED
     # 설정
     "ERAS",
     "ERA_ORDER",

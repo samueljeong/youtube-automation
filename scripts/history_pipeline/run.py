@@ -1,24 +1,40 @@
 """
-한국사 자동화 파이프라인 메인 오케스트레이션 (주제 기반)
+한국사 파이프라인 - 실행 모듈
 
-2024-12 개편:
-- HISTORY_TOPICS에 정의된 주제별로 자료 수집
-- 실제 API 자료를 Opus에게 전달
-- HISTORY_OPUS_INPUT 단일 시트 사용
+## 역할 분리 (2026-01 개편)
 
-워크플로우:
-1. 현재 '준비' 상태 개수 확인
-2. 10개 미만이면 다음 에피소드 추가
-3. 주제별 자료 수집 (한국민족문화대백과, e뮤지엄 등)
-4. 수집된 내용을 포함한 Opus 프롬프트 생성
+창작 작업 (Claude가 대화에서 직접 수행):
+- 자료 조사 및 검증
+- 에피소드 기획 (구조, 흐름)
+- 대본 작성 (12,000~15,000자)
+- 이미지 프롬프트 생성
+- YouTube 메타데이터 (제목, 설명, 태그)
+- 썸네일 문구 설계
+- 품질 검수
+
+실행 작업 (이 모듈 + workers.py에서 API 호출):
+- TTS 생성 → Gemini/Google TTS
+- 이미지 생성 → Gemini Imagen
+- 영상 렌더링 → FFmpeg
+- YouTube 업로드 → YouTube API
 
 사용법:
-    from scripts.history_pipeline import run_history_pipeline
-    result = run_history_pipeline(sheet_id, service)
+    # Claude가 대화에서 대본 작성 후:
+    from scripts.history_pipeline.workers import execute_episode
+
+    result = execute_episode(
+        episode_id="ep001",
+        title="광개토왕의 정복전쟁",
+        script="대본 내용...",
+        image_prompts=[{"prompt": "...", "scene_index": 1}],
+        metadata={"title": "...", "description": "...", "tags": [...]},
+        generate_video=True,
+        upload=True,
+    )
 
 API:
-    GET /api/history/run-pipeline
-    → 자동으로 '준비' 10개 유지
+    POST /api/history/execute-episode
+    → Claude가 생성한 대본을 받아서 영상 생성/업로드
 """
 
 import os
@@ -43,7 +59,23 @@ from .sheets import (
 )
 from .collector import collect_topic_materials
 from .opus import generate_topic_opus_input, HISTORY_OPUS_FIELDS
-from .script_generator import generate_script_with_retry
+
+# Workers 모듈 (실행 담당)
+from .workers import (
+    execute_episode,
+    generate_tts,
+    generate_image,
+    generate_images_batch,
+    render_video,
+    upload_youtube,
+    save_script,
+    save_brief,
+    save_metadata,
+)
+
+# ★ DEPRECATED: 자동 대본 생성은 더 이상 사용하지 않음
+# Claude가 대화에서 직접 대본을 작성합니다.
+# from .script_generator import generate_script_with_retry
 
 
 def run_history_pipeline(
@@ -374,7 +406,12 @@ def get_pipeline_status(
 
 
 # ============================================================
-# GPT-5.1 대본 자동 생성 파이프라인 (2025-01 신규)
+# ★★★ DEPRECATED ★★★
+# 자동 대본 생성 파이프라인은 더 이상 사용하지 않습니다.
+# Claude가 대화에서 직접 대본을 작성합니다.
+#
+# 대신 workers.py의 execute_episode() 함수를 사용하세요:
+#   from scripts.history_pipeline.workers import execute_episode
 # ============================================================
 
 def run_auto_script_pipeline(
@@ -383,6 +420,15 @@ def run_auto_script_pipeline(
     max_scripts: int = 1,
 ) -> Dict[str, Any]:
     """
+    ★★★ DEPRECATED ★★★
+
+    이 함수는 더 이상 사용하지 않습니다.
+    Claude가 대화에서 직접 대본을 작성합니다.
+
+    대신 workers.py의 execute_episode() 함수를 사용하세요.
+
+    ---
+    (기존 기능 - 참고용)
     Claude Opus 4.5 기반 대본 자동 생성 파이프라인
 
     '준비' 상태의 에피소드를 찾아서:
@@ -390,8 +436,6 @@ def run_auto_script_pipeline(
     2. Claude Opus 4.5로 12,000~15,000자 대본 생성 (약 15분 영상)
     3. 시트의 "대본" 컬럼에 저장
     4. 상태를 "대기"로 변경 → 영상 생성 파이프라인 자동 시작
-
-    ★ 완전 자동화 모드: 대본 생성 → 바로 영상 생성으로 이어짐
 
     Args:
         sheet_id: Google Sheets ID
@@ -406,6 +450,15 @@ def run_auto_script_pipeline(
             "details": [...]
         }
     """
+    # ★ DEPRECATED 경고
+    import warnings
+    warnings.warn(
+        "run_auto_script_pipeline()은 deprecated입니다. "
+        "Claude가 대화에서 직접 대본을 작성합니다. "
+        "workers.py의 execute_episode()를 사용하세요.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     from .sheets import (
         get_pending_episodes_for_script,
         update_script_and_status,
