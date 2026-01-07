@@ -9,7 +9,7 @@
 - 썸네일 정보
 """
 
-from scripts.history_pipeline.episodes.ep019_scenes import FULL_SCRIPT
+from scripts.history_pipeline.episodes.ep019_balhae import SCRIPT as FULL_SCRIPT
 
 # ============================================================
 # 에피소드 정보

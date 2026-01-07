@@ -220,13 +220,15 @@ def render_multi_image_video(
         with tempfile.TemporaryDirectory() as temp_dir:
             width, height = resolution.split('x')
 
-            # 이미지 리스트 파일 생성
+            # 이미지 리스트 파일 생성 (절대 경로 사용)
             list_path = os.path.join(temp_dir, "images.txt")
             with open(list_path, 'w') as f:
                 for img_path in image_paths:
-                    f.write(f"file '{img_path}'\n")
+                    abs_path = os.path.abspath(img_path)
+                    f.write(f"file '{abs_path}'\n")
                     f.write(f"duration {image_duration}\n")
-                f.write(f"file '{image_paths[-1]}'\n")  # 마지막 이미지 한번 더
+                abs_last = os.path.abspath(image_paths[-1])
+                f.write(f"file '{abs_last}'\n")  # 마지막 이미지 한번 더
 
             # 기본 필터
             vf_filter = f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"
@@ -260,6 +262,11 @@ def render_multi_image_video(
             ]
 
             print(f"[HISTORY-RENDERER] FFmpeg 실행 중... ({len(image_paths)}개 이미지)")
+
+            # 디버깅: 이미지 리스트 파일 확인
+            with open(list_path, 'r') as f:
+                print(f"[HISTORY-RENDERER] 이미지 리스트:\n{f.read()[:500]}")
+
             process = subprocess.run(
                 ffmpeg_cmd,
                 stdout=subprocess.DEVNULL,
@@ -268,8 +275,9 @@ def render_multi_image_video(
             )
 
             if process.returncode != 0:
-                error_msg = process.stderr.decode('utf-8', errors='ignore')[:500]
-                return {"ok": False, "error": f"FFmpeg 오류: {error_msg[:200]}"}
+                error_msg = process.stderr.decode('utf-8', errors='ignore')
+                print(f"[HISTORY-RENDERER] FFmpeg 전체 에러:\n{error_msg}")
+                return {"ok": False, "error": f"FFmpeg 오류: {error_msg[:500]}"}
 
             if os.path.exists(output_path):
                 file_size = os.path.getsize(output_path)
