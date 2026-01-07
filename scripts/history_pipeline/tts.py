@@ -13,6 +13,7 @@ import json
 import base64
 import tempfile
 import subprocess
+import time
 import requests
 from typing import Dict, Any, List, Tuple
 
@@ -226,8 +227,8 @@ def generate_tts(
     sentences = split_into_sentences(script)
     print(f"[HISTORY-TTS] {len(sentences)}개 문장 처리 중...")
 
-    # 청크 병합 (API 제한 대응)
-    MAX_CHARS = 2000
+    # 청크 병합 (API 제한 대응) - 타임아웃 방지로 1000자로 줄임
+    MAX_CHARS = 1000
     chunks = []
     current_chunk = ""
 
@@ -254,8 +255,19 @@ def generate_tts(
             if not chunk:
                 continue
 
-            # TTS 생성
-            result = generate_gemini_chunk(chunk, voice_name)
+            # TTS 생성 (타임아웃 시 재시도)
+            result = None
+            for retry in range(3):
+                result = generate_gemini_chunk(chunk, voice_name)
+                if result.get("ok"):
+                    break
+                error_msg = result.get('error', '')
+                if 'timeout' in error_msg.lower() or 'timed out' in error_msg.lower():
+                    print(f"[HISTORY-TTS] 청크 {i+1} 타임아웃, 재시도 {retry+1}/3...")
+                    time.sleep(2)  # 잠시 대기 후 재시도
+                else:
+                    break  # 타임아웃이 아니면 재시도 안함
+
             if not result.get("ok"):
                 print(f"[HISTORY-TTS] 청크 {i+1} 실패: {result.get('error')}")
                 failed_count += 1
