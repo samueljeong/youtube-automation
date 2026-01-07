@@ -3,10 +3,23 @@
 
 창작 작업은 Claude가 대화에서 직접 수행.
 이 모듈은 실행만 담당:
-- TTS 생성 (Gemini/Google TTS)
+- TTS 생성 (Gemini TTS)
 - 이미지 생성 (Gemini Imagen)
 - 영상 렌더링 (FFmpeg)
 - YouTube 업로드
+
+사용법:
+    from scripts.isekai_pipeline.workers import execute_episode
+
+    result = execute_episode(
+        episode=1,
+        title="이방인",
+        script="대본...",
+        image_prompt="무림 검객이 이세계 숲에서...",
+        metadata={"title": "...", "description": "...", "tags": [...]},
+        generate_video=True,
+        upload=False,
+    )
 """
 
 import os
@@ -20,6 +33,10 @@ from .config import (
     TTS_CONFIG,
     IMAGE_STYLE,
 )
+
+# 자체 모듈 사용
+from .tts import generate_tts as _generate_tts, generate_srt
+from .renderer import render_video as _render_video
 
 
 # 출력 디렉토리
@@ -48,7 +65,7 @@ def generate_tts(
     speed: float = None,
 ) -> Dict[str, Any]:
     """
-    TTS 생성 (Gemini/Google TTS)
+    TTS 생성 (Gemini TTS)
 
     Args:
         episode: 에피소드 번호
@@ -61,43 +78,32 @@ def generate_tts(
             "ok": True,
             "audio_path": "outputs/isekai/audio/ep001.mp3",
             "srt_path": "outputs/isekai/subtitles/ep001.srt",
-            "duration": 3000.5
+            "duration": 900.5
         }
     """
     ensure_directories()
 
-    voice = voice or TTS_CONFIG.get("voice", "chirp3:Charon")
-    speed = speed or TTS_CONFIG.get("speed", 0.95)
+    voice = voice or TTS_CONFIG.get("voice", "Charon")
+    episode_id = f"ep{episode:03d}"
 
     try:
-        # wuxia_pipeline의 TTS 모듈 재사용
-        from scripts.wuxia_pipeline.multi_voice_tts import (
-            generate_multi_voice_tts_simple,
-            generate_srt_from_timeline,
-        )
+        # 자체 TTS 모듈 사용
+        audio_path = os.path.join(AUDIO_DIR, f"{episode_id}.mp3")
+        srt_path = os.path.join(SUBTITLE_DIR, f"{episode_id}.srt")
 
-        episode_id = f"ep{episode:03d}"
-        tts_result = generate_multi_voice_tts_simple(
+        result = _generate_tts(
             text=script,
-            output_dir=AUDIO_DIR,
-            episode_id=episode_id,
+            output_path=audio_path,
             voice=voice,
-            speed=speed,
+            srt_output_path=srt_path,
         )
 
-        if tts_result.get("ok"):
-            # SRT 생성
-            srt_path = os.path.join(SUBTITLE_DIR, f"{episode_id}.srt")
-            if tts_result.get("timeline"):
-                generate_srt_from_timeline(tts_result["timeline"], srt_path)
-                tts_result["srt_path"] = srt_path
+        if result.get("ok"):
+            result["audio_path"] = audio_path
+            result["srt_path"] = srt_path
 
-            tts_result["audio_path"] = tts_result.get("merged_audio")
+        return result
 
-        return tts_result
-
-    except ImportError:
-        return {"ok": False, "error": "TTS 모듈 없음 (wuxia_pipeline 필요)"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -109,6 +115,7 @@ def generate_tts(
 def generate_image(
     episode: int,
     prompt: str,
+    scene_index: int = 0,
     negative_prompt: str = None,
     style: str = "realistic",
     ratio: str = "16:9",
@@ -119,6 +126,7 @@ def generate_image(
     Args:
         episode: 에피소드 번호
         prompt: 이미지 프롬프트 (영문)
+        scene_index: 씬 인덱스 (0 = 메인/썸네일)
         negative_prompt: 제외할 요소
         style: 스타일 (realistic, artistic, etc.)
         ratio: 비율 (16:9, 1:1, 9:16)
@@ -126,7 +134,7 @@ def generate_image(
     Returns:
         {
             "ok": True,
-            "image_path": "outputs/isekai/images/ep001_main.png"
+            "image_path": "outputs/isekai/images/ep001_scene_01.png"
         }
     """
     ensure_directories()
@@ -142,10 +150,14 @@ def generate_image(
         if negative_prompt:
             full_negative = f"{full_negative}, {negative_prompt}"
 
+        # 이세계 스타일 추가
+        base_prompt = IMAGE_STYLE.get("base_prompt", "")
+        full_prompt = f"{base_prompt}, {prompt}" if base_prompt else prompt
+
         response = requests.post(
             api_url,
             json={
-                "prompt": prompt,
+                "prompt": full_prompt,
                 "negative_prompt": full_negative,
                 "style": style,
                 "ratio": ratio,
@@ -157,7 +169,14 @@ def generate_image(
             data = response.json()
             if data.get("success"):
                 image_url = data.get("image_url")
-                image_path = os.path.join(IMAGE_DIR, f"ep{episode:03d}_main.png")
+
+                # 파일명 생성
+                if scene_index == 0:
+                    filename = f"ep{episode:03d}_thumbnail.png"
+                else:
+                    filename = f"ep{episode:03d}_scene_{scene_index:02d}.png"
+
+                image_path = os.path.join(IMAGE_DIR, filename)
 
                 # 이미지 다운로드
                 img_response = requests.get(image_url, timeout=60)
@@ -170,6 +189,53 @@ def generate_image(
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def generate_images_batch(
+    episode: int,
+    prompts: List[Dict[str, str]],
+) -> Dict[str, Any]:
+    """
+    여러 이미지 일괄 생성
+
+    Args:
+        episode: 에피소드 번호
+        prompts: [{"prompt": "...", "scene_index": 1}, ...]
+
+    Returns:
+        {
+            "ok": True,
+            "images": [{"scene_index": 1, "path": "..."}, ...],
+            "failed": []
+        }
+    """
+    results = {"ok": True, "images": [], "failed": []}
+
+    for item in prompts:
+        prompt = item.get("prompt", "")
+        scene_index = item.get("scene_index", 0)
+
+        result = generate_image(
+            episode=episode,
+            prompt=prompt,
+            scene_index=scene_index,
+        )
+
+        if result.get("ok"):
+            results["images"].append({
+                "scene_index": scene_index,
+                "path": result["image_path"],
+            })
+        else:
+            results["failed"].append({
+                "scene_index": scene_index,
+                "error": result.get("error"),
+            })
+
+    if results["failed"]:
+        results["ok"] = len(results["images"]) > 0
+
+    return results
 
 
 # =====================================================
@@ -197,30 +263,25 @@ def render_video(
         {
             "ok": True,
             "video_path": "outputs/isekai/videos/ep001.mp4",
-            "duration": 3000.5
+            "duration": 900.5
         }
     """
     ensure_directories()
 
     try:
-        # wuxia_pipeline의 렌더러 재사용 시도
-        from scripts.wuxia_pipeline.renderer import render_episode_video
-
         episode_id = f"ep{episode:03d}"
         video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
 
-        result = render_episode_video(
+        # 자체 렌더러 사용
+        result = _render_video(
             audio_path=audio_path,
             image_path=image_path,
-            srt_path=srt_path,
             output_path=video_path,
-            bgm_mood=bgm_mood,
+            srt_path=srt_path,
         )
 
         return result
 
-    except ImportError:
-        return {"ok": False, "error": "렌더러 모듈 없음 (wuxia_pipeline 필요)"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -260,7 +321,6 @@ def upload_youtube(
         }
     """
     try:
-        # drama_server의 YouTube 업로드 함수 사용
         from drama_server import upload_to_youtube
 
         result = upload_to_youtube(
@@ -292,6 +352,7 @@ def save_script(episode: int, title: str, script: str) -> str:
     script_path = os.path.join(SCRIPT_DIR, f"ep{episode:03d}_{title}.txt")
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(script)
+    print(f"[ISEKAI] 대본 저장: {script_path}")
     return script_path
 
 
@@ -301,6 +362,7 @@ def save_brief(episode: int, brief: Dict[str, Any]) -> str:
     brief_path = os.path.join(BRIEF_DIR, f"ep{episode:03d}_brief.json")
     with open(brief_path, "w", encoding="utf-8") as f:
         json.dump(brief, f, ensure_ascii=False, indent=2)
+    print(f"[ISEKAI] 기획서 저장: {brief_path}")
     return brief_path
 
 
@@ -310,4 +372,144 @@ def save_metadata(episode: int, metadata: Dict[str, Any]) -> str:
     meta_path = os.path.join(BRIEF_DIR, f"ep{episode:03d}_metadata.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
+    print(f"[ISEKAI] 메타데이터 저장: {meta_path}")
     return meta_path
+
+
+# =====================================================
+# 에피소드 실행 (통합)
+# =====================================================
+
+def execute_episode(
+    episode: int,
+    title: str,
+    script: str,
+    image_prompts: List[Dict[str, str]] = None,
+    metadata: Dict[str, Any] = None,
+    brief: Dict[str, Any] = None,
+    bgm_mood: str = "epic",
+    generate_video: bool = False,
+    upload: bool = False,
+    privacy_status: str = "private",
+) -> Dict[str, Any]:
+    """
+    에피소드 실행 (Workers 호출)
+
+    Claude가 대화에서 생성한 창작물을 받아서 실제 파일 생성
+
+    Args:
+        episode: 에피소드 번호 (1~60)
+        title: 에피소드 제목
+        script: 대본 (12,000~15,000자)
+        image_prompts: 이미지 프롬프트 목록 [{"prompt": "...", "scene_index": 1}, ...]
+        metadata: YouTube 메타데이터 (title, description, tags)
+        brief: 기획서 (선택)
+        bgm_mood: BGM 분위기 (epic, tense, calm, etc.)
+        generate_video: 영상 렌더링 여부
+        upload: YouTube 업로드 여부
+        privacy_status: 공개 설정
+
+    Returns:
+        {
+            "ok": True,
+            "episode": 1,
+            "title": "이방인",
+            "script_path": "...",
+            "audio_path": "...",
+            "image_paths": [...],
+            "video_path": "...",
+            "youtube_url": "..."
+        }
+    """
+    print(f"\n{'='*60}")
+    print(f"[ISEKAI] EP{episode:03d} '{title}' 실행 시작")
+    print(f"{'='*60}")
+
+    result = {
+        "ok": False,
+        "episode": episode,
+        "title": title,
+    }
+
+    # 1. 대본 저장
+    print(f"\n[ISEKAI] 1. 대본 저장...")
+    script_path = save_script(episode, title, script)
+    result["script_path"] = script_path
+    print(f"    ✓ {len(script):,}자 저장 완료")
+
+    # 2. 기획서 저장 (선택)
+    if brief:
+        print(f"\n[ISEKAI] 2. 기획서 저장...")
+        brief_path = save_brief(episode, brief)
+        result["brief_path"] = brief_path
+
+    # 3. 메타데이터 저장
+    if metadata:
+        print(f"\n[ISEKAI] 3. 메타데이터 저장...")
+        meta_path = save_metadata(episode, metadata)
+        result["metadata_path"] = meta_path
+
+    # 4. TTS 생성
+    print(f"\n[ISEKAI] 4. TTS 생성 중...")
+    tts_result = generate_tts(episode, script)
+    if not tts_result.get("ok"):
+        result["error"] = f"TTS 실패: {tts_result.get('error')}"
+        print(f"    ✗ TTS 실패: {result['error']}")
+        return result
+
+    result["audio_path"] = tts_result.get("audio_path")
+    result["srt_path"] = tts_result.get("srt_path")
+    result["duration"] = tts_result.get("duration")
+    print(f"    ✓ TTS 완료: {result.get('duration', 0):.1f}초")
+
+    # 5. 이미지 생성
+    print(f"\n[ISEKAI] 5. 이미지 생성 중...")
+    if image_prompts:
+        img_result = generate_images_batch(episode, image_prompts)
+        result["image_paths"] = [img["path"] for img in img_result.get("images", [])]
+        print(f"    ✓ {len(result['image_paths'])}개 이미지 생성")
+        if img_result.get("failed"):
+            print(f"    ⚠ {len(img_result['failed'])}개 실패")
+    else:
+        result["image_paths"] = []
+        print(f"    - 이미지 프롬프트 없음 (스킵)")
+
+    # 6. 영상 렌더링 (선택)
+    if generate_video and result.get("image_paths"):
+        print(f"\n[ISEKAI] 6. 영상 렌더링 중...")
+        video_result = render_video(
+            episode=episode,
+            audio_path=result["audio_path"],
+            image_path=result["image_paths"][0],  # 첫 번째 이미지 사용
+            srt_path=result.get("srt_path"),
+            bgm_mood=bgm_mood,
+        )
+        if video_result.get("ok"):
+            result["video_path"] = video_result.get("video_path")
+            print(f"    ✓ 영상 생성 완료: {result['video_path']}")
+        else:
+            print(f"    ✗ 영상 생성 실패: {video_result.get('error')}")
+
+    # 7. YouTube 업로드 (선택)
+    if upload and result.get("video_path") and metadata:
+        print(f"\n[ISEKAI] 7. YouTube 업로드 중...")
+        yt_result = upload_youtube(
+            video_path=result["video_path"],
+            title=metadata.get("title", f"혈영 이세계편 EP{episode:03d}"),
+            description=metadata.get("description", ""),
+            tags=metadata.get("tags", []),
+            thumbnail_path=result["image_paths"][0] if result.get("image_paths") else None,
+            privacy_status=privacy_status,
+        )
+        if yt_result.get("ok"):
+            result["youtube_url"] = yt_result.get("video_url")
+            print(f"    ✓ 업로드 완료: {result['youtube_url']}")
+        else:
+            print(f"    ✗ 업로드 실패: {yt_result.get('error')}")
+
+    result["ok"] = True
+    print(f"\n{'='*60}")
+    print(f"[ISEKAI] EP{episode:03d} '{title}' 실행 완료")
+    print(f"{'='*60}")
+
+    return result
