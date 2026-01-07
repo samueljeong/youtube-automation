@@ -5,7 +5,7 @@
 
 창작 작업 (Claude가 대화에서 직접 수행):
 - 기획 (씬 구조, 클리프행어)
-- 대본 작성 (25,000자)
+- 대본 작성 (12,000~15,000자)
 - 이미지 프롬프트 생성
 - TTS 연출 지시
 - 자막 스타일 설계
@@ -44,6 +44,7 @@ from .workers import (
     IMAGE_DIR,
 )
 from .sheets import sync_episode_from_files
+from .reviewers import auto_review_script
 
 
 def get_part_for_episode(episode: int) -> Dict[str, Any]:
@@ -75,7 +76,7 @@ def execute_episode(
     Args:
         episode: 에피소드 번호
         title: 에피소드 제목
-        script: 대본 (25,000자)
+        script: 대본 (12,000~15,000자)
         image_prompt: 이미지 프롬프트 (영문)
         metadata: YouTube 메타데이터 (title, description, tags)
         brief: 기획서 (선택)
@@ -128,6 +129,26 @@ def execute_episode(
         meta_path = save_metadata(episode, metadata)
         result["metadata_path"] = meta_path
         print(f"  - 메타데이터 저장: {meta_path}")
+
+    # ========================================
+    # Step 1.5: 대본 자동 리뷰
+    # ========================================
+    print("\n[STEP 1.5] 대본 자동 리뷰...")
+
+    try:
+        episode_str = f"EP{episode:03d}"
+        review_result = auto_review_script(script, episode_str, save_results=True)
+        result["review"] = {
+            "form_score": review_result.get("form_score", 0),
+            "form_verdict": review_result.get("form_verdict", "N/A"),
+            "needs_manual_review": review_result.get("needs_manual_review", True),
+        }
+        print(f"  - FORM 점수: {result['review']['form_score']}점 ({result['review']['form_verdict']})")
+        if result['review']['needs_manual_review']:
+            print("  - ⚠️  VOICE/FEEL 체크리스트 검토 필요")
+    except Exception as e:
+        print(f"  - 리뷰 실패: {e}")
+        result["review_error"] = str(e)
 
     # ========================================
     # Step 2: TTS 생성
@@ -238,6 +259,8 @@ def execute_episode(
     print(f"[ISEKAI] 제{episode}화 '{title}' 실행 완료!")
     print(f"{'='*60}")
     print(f"  대본: {result['char_count']:,}자")
+    if result.get("review"):
+        print(f"  리뷰: FORM {result['review']['form_score']}점 ({result['review']['form_verdict']})")
     if result.get("duration"):
         print(f"  오디오: {result['duration']:.1f}초 ({result['duration']/60:.1f}분)")
     if result.get("video_path"):

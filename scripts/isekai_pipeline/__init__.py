@@ -5,7 +5,7 @@
 
 창작 작업 (Claude가 대화에서 직접 수행):
 - 기획 (씬 구조, 클리프행어)
-- 대본 작성 (25,000자)
+- 대본 작성 (12,000~15,000자)
 - 이미지 프롬프트 생성
 - TTS 연출 지시
 - 자막 스타일 설계
@@ -91,6 +91,17 @@ from .script_writer import (
     SCENE_CONFIG,
 )
 
+# Reviewers (대본 자동 리뷰)
+from .reviewers import (
+    auto_review_script,
+    review_script_file,
+    run_form_checker,
+    run_voice_checker,
+    run_feel_checker,
+    get_review_checklists,
+    print_checklists,
+)
+
 __all__ = [
     # Config
     "SERIES_INFO",
@@ -143,4 +154,12 @@ __all__ = [
     "get_scene_prompt",
     "SCENE_STRUCTURE",
     "SCENE_CONFIG",
+    # Reviewers
+    "auto_review_script",
+    "review_script_file",
+    "run_form_checker",
+    "run_voice_checker",
+    "run_feel_checker",
+    "get_review_checklists",
+    "print_checklists",
 ]

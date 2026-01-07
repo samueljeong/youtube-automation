@@ -1,8 +1,8 @@
 """
 혈영 이세계편 - 대본 분할 작성 도구
 
-25,000자 대본을 6개 씬으로 분할하여 작성합니다.
-Claude 출력 한계(~16,000자)를 우회합니다.
+12,000~15,000자 대본을 5개 씬으로 분할하여 작성합니다.
+Claude 출력 한계를 우회하고 씬별 품질 검수가 가능합니다.
 
 사용법:
 1. 기획 에이전트가 씬별로 대본 작성
@@ -68,47 +68,42 @@ def ensure_directories():
 # =====================================================
 
 SCENE_CONFIG = {
-    "scenes_per_episode": 6,
-    "chars_per_scene": 4200,  # 25,000 / 6 ≈ 4,167
-    "min_chars_per_scene": 3800,
-    "max_chars_per_scene": 4600,
+    "scenes_per_episode": 5,
+    "chars_per_scene": 2800,  # 14,000 / 5 = 2,800
+    "min_chars_per_scene": 2400,
+    "max_chars_per_scene": 3200,
 }
 
 SCENE_STRUCTURE = {
     1: {
         "name": "오프닝",
         "purpose": "이전 화 연결 + 상황 설정",
-        "ratio": 0.12,  # 약 3,000자
+        "ratio": 0.15,  # 약 2,100자
     },
     2: {
-        "name": "전개1",
-        "purpose": "사건 발생 + 갈등 시작",
-        "ratio": 0.18,  # 약 4,500자
+        "name": "전개",
+        "purpose": "사건 발생 + 갈등 시작/심화",
+        "ratio": 0.22,  # 약 3,100자
     },
     3: {
-        "name": "전개2",
-        "purpose": "갈등 심화 + 긴장 고조",
-        "ratio": 0.20,  # 약 5,000자
-    },
-    4: {
         "name": "클라이맥스",
         "purpose": "절정 + 전투/대결/결정적 순간",
-        "ratio": 0.22,  # 약 5,500자
+        "ratio": 0.28,  # 약 3,900자
     },
-    5: {
+    4: {
         "name": "해결",
         "purpose": "문제 해결 + 결과",
-        "ratio": 0.16,  # 약 4,000자
+        "ratio": 0.20,  # 약 2,800자
     },
-    6: {
+    5: {
         "name": "엔딩",
         "purpose": "마무리 + 다음 화 떡밥",
-        "ratio": 0.12,  # 약 3,000자
+        "ratio": 0.15,  # 약 2,100자
     },
 }
 
 
-def get_scene_target_chars(scene_num: int, total_target: int = 25000) -> int:
+def get_scene_target_chars(scene_num: int, total_target: int = 14000) -> int:
     """씬별 목표 글자수 계산"""
     ratio = SCENE_STRUCTURE.get(scene_num, {}).get("ratio", 1/6)
     return int(total_target * ratio)
