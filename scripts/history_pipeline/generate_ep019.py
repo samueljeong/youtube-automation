@@ -69,25 +69,27 @@ def main():
         srt_path = tts_result.get("srt_path", srt_path)
         print(f"✓ TTS 생성 완료: {tts_result.get('duration', 0):.1f}초")
 
-    # 2. 이미지 생성
-    print(f"\n[2/4] 이미지 생성 중... ({len(IMAGE_PROMPTS)}컷)")
+    # 2. 이미지 생성 (테스트: 2개만)
+    TEST_IMAGE_COUNT = 2  # 테스트용 - 전체는 len(IMAGE_PROMPTS)
+    test_prompts = IMAGE_PROMPTS[:TEST_IMAGE_COUNT]
+    print(f"\n[2/4] 이미지 생성 중... ({len(test_prompts)}컷 테스트)")
 
     # 이미 생성된 이미지 확인
     existing_images = []
-    for i in range(1, len(IMAGE_PROMPTS) + 1):
+    for i in range(1, len(test_prompts) + 1):
         img_path = f"{image_dir}/{episode_id}_scene_{i:02d}.png"
         if os.path.exists(img_path):
             existing_images.append(img_path)
 
-    if len(existing_images) == len(IMAGE_PROMPTS):
+    if len(existing_images) == len(test_prompts):
         print(f"✓ 모든 이미지 이미 존재 ({len(existing_images)}개)")
         image_paths = existing_images
     else:
-        print(f"  기존 이미지: {len(existing_images)}개, 생성 필요: {len(IMAGE_PROMPTS) - len(existing_images)}개")
+        print(f"  기존 이미지: {len(existing_images)}개, 생성 필요: {len(test_prompts) - len(existing_images)}개")
 
         img_result = generate_scene_images(
             episode_id=episode_id,
-            prompts=IMAGE_PROMPTS,
+            prompts=test_prompts,
             output_dir=image_dir,
             style="historical",
         )

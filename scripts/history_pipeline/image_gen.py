@@ -18,8 +18,8 @@ RENDER_API_URL = os.environ.get(
     "https://drama-s2ns.onrender.com"
 )
 
-# Gemini 모델
-GEMINI_PRO = "imagen-3.0-generate-002"
+# Gemini 이미지 생성 모델
+IMAGEN_MODEL = "imagen-3.0-generate-001"
 
 
 def _generate_image_via_render(
@@ -81,7 +81,7 @@ def _generate_image_via_gemini(
     if not api_key:
         return {"ok": False, "error": "GOOGLE_API_KEY 없음"}
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_PRO}:generateImages?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{IMAGEN_MODEL}:predict?key={api_key}"
 
     # 스타일 힌트 추가
     style_hints = {
@@ -93,10 +93,11 @@ def _generate_image_via_gemini(
     style_suffix = style_hints.get(style, style_hints["realistic"])
     enhanced_prompt = f"{prompt}, {style_suffix}"
 
+    # Imagen 3.0 predict API 형식
     payload = {
-        "prompt": enhanced_prompt,
-        "config": {
-            "numberOfImages": 1,
+        "instances": [{"prompt": enhanced_prompt}],
+        "parameters": {
+            "sampleCount": 1,
             "aspectRatio": aspect_ratio,
         }
     }
@@ -106,9 +107,13 @@ def _generate_image_via_gemini(
 
         if response.status_code == 200:
             result = response.json()
-            images = result.get("generatedImages", [])
-            if images:
-                image_data = base64.b64decode(images[0].get("image", {}).get("imageBytes", ""))
+            # Imagen 3.0 응답 형식
+            predictions = result.get("predictions", [])
+            if predictions:
+                image_b64 = predictions[0].get("bytesBase64Encoded", "")
+                if not image_b64:
+                    return {"ok": False, "error": "이미지 데이터 없음 (빈 응답)"}
+                image_data = base64.b64decode(image_b64)
 
                 if output_path:
                     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
