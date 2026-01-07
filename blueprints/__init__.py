@@ -8,6 +8,7 @@ Flask Blueprint를 사용한 drama_server.py 모듈화
 - shorts.py: Shorts Pipeline Blueprint (/api/shorts/*)
 - isekai.py: Isekai Pipeline Blueprint (/api/isekai/*)
 - bible.py: Bible Pipeline Blueprint (/api/bible/*, /api/sheets/create-bible)
+- history.py: History Pipeline Blueprint (/api/history/*)
 
 사용법:
     from blueprints.gpt import gpt_bp
