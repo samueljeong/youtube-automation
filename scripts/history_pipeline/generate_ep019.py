@@ -24,6 +24,7 @@ from scripts.history_pipeline.episodes.ep019_balhae_data import (
 )
 from scripts.history_pipeline.image_gen import generate_scene_images
 from scripts.history_pipeline.renderer import render_multi_image_video
+from scripts.history_pipeline.tts import generate_tts
 
 
 def main():
@@ -44,18 +45,32 @@ def main():
     image_dir = f"outputs/history/images"
     video_path = f"outputs/history/videos/{episode_id}.mp4"
 
-    # 1. TTS 확인
-    print(f"\n[1/3] TTS 확인...")
+    # 1. TTS 생성/확인
+    print(f"\n[1/4] TTS 확인...")
     if os.path.exists(audio_path):
         size_mb = os.path.getsize(audio_path) / (1024 * 1024)
         print(f"✓ TTS 존재: {audio_path} ({size_mb:.1f}MB)")
     else:
-        print(f"✗ TTS 없음: {audio_path}")
-        print("  먼저 TTS를 생성해주세요.")
-        return
+        print(f"  TTS 없음, 생성 중...")
+        os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+
+        tts_result = generate_tts(
+            episode_id=episode_id,
+            script=SCRIPT,
+            output_dir=os.path.dirname(audio_path),
+            voice="ko-KR-Neural2-C",
+        )
+
+        if not tts_result.get("ok"):
+            print(f"✗ TTS 생성 실패: {tts_result.get('error')}")
+            return
+
+        audio_path = tts_result.get("audio_path", audio_path)
+        srt_path = tts_result.get("srt_path", srt_path)
+        print(f"✓ TTS 생성 완료: {tts_result.get('duration', 0):.1f}초")
 
     # 2. 이미지 생성
-    print(f"\n[2/3] 이미지 생성 중... ({len(IMAGE_PROMPTS)}컷)")
+    print(f"\n[2/4] 이미지 생성 중... ({len(IMAGE_PROMPTS)}컷)")
 
     # 이미 생성된 이미지 확인
     existing_images = []
@@ -85,7 +100,7 @@ def main():
         print(f"✓ 이미지 생성 완료: {len(image_paths)}개")
 
     # 3. 영상 렌더링
-    print(f"\n[3/3] 영상 렌더링 중...")
+    print(f"\n[3/4] 영상 렌더링 중...")
     os.makedirs(os.path.dirname(video_path), exist_ok=True)
 
     render_result = render_multi_image_video(
