@@ -30,6 +30,15 @@ def split_into_sentences(text: str) -> List[str]:
 
 def get_audio_duration(audio_path: str) -> float:
     """오디오 파일의 재생 시간(초) 반환"""
+    # mutagen 사용 (ffprobe 불필요)
+    try:
+        from mutagen.mp3 import MP3
+        audio = MP3(audio_path)
+        return audio.info.length
+    except Exception:
+        pass
+
+    # fallback: ffprobe
     try:
         result = subprocess.run(
             ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
@@ -51,6 +60,19 @@ def merge_audio_files(audio_paths: List[str], output_path: str) -> bool:
         shutil.copy(audio_paths[0], output_path)
         return True
 
+    # 방법 1: pydub 사용 (권장)
+    try:
+        from pydub import AudioSegment
+        combined = AudioSegment.empty()
+        for path in audio_paths:
+            audio = AudioSegment.from_mp3(path)
+            combined += audio
+        combined.export(output_path, format="mp3", bitrate="128k")
+        return os.path.exists(output_path)
+    except Exception:
+        pass
+
+    # 방법 2: ffmpeg concat
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             for path in audio_paths:
@@ -63,6 +85,16 @@ def merge_audio_files(audio_paths: List[str], output_path: str) -> bool:
             capture_output=True, timeout=300
         )
         os.unlink(list_path)
+        return os.path.exists(output_path)
+    except Exception:
+        pass
+
+    # 방법 3: 단순 바이너리 병합 (fallback)
+    try:
+        with open(output_path, 'wb') as outfile:
+            for path in audio_paths:
+                with open(path, 'rb') as infile:
+                    outfile.write(infile.read())
         return os.path.exists(output_path)
     except Exception:
         return False
