@@ -121,7 +121,8 @@ def _generate_image_via_gemini(
             else:
                 return {"ok": False, "error": "이미지 생성 결과 없음"}
         else:
-            return {"ok": False, "error": f"Gemini API 오류: {response.status_code}"}
+            error_body = response.text[:300] if response.text else ""
+            return {"ok": False, "error": f"Gemini API 오류 {response.status_code}: {error_body}"}
 
     except Exception as e:
         return {"ok": False, "error": f"Gemini API 예외: {str(e)}"}
@@ -158,6 +159,8 @@ def generate_image(
     result = _generate_image_via_gemini(prompt, output_path, style, aspect_ratio)
     if result.get("ok"):
         return result
+    else:
+        print(f"[HISTORY-IMAGE] Gemini 직접 호출 실패: {result.get('error')}")
 
     # 3. 둘 다 실패
     return {"ok": False, "error": "이미지 생성 실패 (Render/Gemini 모두 실패)"}
