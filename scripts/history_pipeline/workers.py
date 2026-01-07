@@ -348,14 +348,14 @@ def render_video(
     bgm_mood: str = "calm",
 ) -> Dict[str, Any]:
     """
-    영상 렌더링 (FFmpeg)
+    영상 렌더링 (독립 모듈 - FFmpeg만 필요)
 
     Args:
         episode_id: 에피소드 ID
         audio_path: TTS 오디오 파일 경로
         image_paths: 배경 이미지 경로 목록 (시간순)
         srt_path: 자막 파일 경로 (선택)
-        bgm_mood: BGM 분위기
+        bgm_mood: BGM 분위기 (현재 미사용)
 
     Returns:
         {
@@ -366,40 +366,36 @@ def render_video(
     """
     ensure_directories()
 
-    try:
-        video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
+    video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
 
-        # 단일 이미지인 경우 기존 렌더러 사용
-        if len(image_paths) == 1:
-            from scripts.wuxia_pipeline.renderer import render_episode_video
+    # 독립 렌더러 모듈 사용 (서버/wuxia_pipeline 불필요)
+    from .renderer import render_video as render_single, render_multi_image_video
 
-            result = render_episode_video(
-                audio_path=audio_path,
-                image_path=image_paths[0],
-                srt_path=srt_path,
-                output_path=video_path,
-                bgm_mood=bgm_mood,
-            )
-            return result
-
-        # 여러 이미지인 경우 씬별 렌더링 (추후 구현)
-        # TODO: 씬별 이미지 전환 렌더링
-        # 현재는 첫 번째 이미지만 사용
-        from scripts.wuxia_pipeline.renderer import render_episode_video
-
-        result = render_episode_video(
+    if len(image_paths) == 1:
+        # 단일 이미지
+        result = render_single(
             audio_path=audio_path,
             image_path=image_paths[0],
-            srt_path=srt_path,
             output_path=video_path,
-            bgm_mood=bgm_mood,
+            srt_path=srt_path,
         )
-        return result
+    else:
+        # 여러 이미지 (시간 균등 분배)
+        result = render_multi_image_video(
+            audio_path=audio_path,
+            image_paths=image_paths,
+            output_path=video_path,
+            srt_path=srt_path,
+        )
 
-    except ImportError:
-        return {"ok": False, "error": "렌더러 모듈 없음 (wuxia_pipeline 필요)"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    if result.get("ok"):
+        return {
+            "ok": True,
+            "video_path": result.get("video_path", video_path),
+            "duration": result.get("duration", 0),
+        }
+    else:
+        return {"ok": False, "error": result.get("error", "렌더링 실패")}
 
 
 # =====================================================
