@@ -58,7 +58,7 @@ def main():
             episode_id=episode_id,
             script=SCRIPT,
             output_dir=os.path.dirname(audio_path),
-            voice="ko-KR-Neural2-C",
+            voice="chirp3:Charon",  # Chirp 3 HD
         )
 
         if not tts_result.get("ok"):

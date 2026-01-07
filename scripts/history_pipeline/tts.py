@@ -1,67 +1,28 @@
 """
-한국사 파이프라인 - TTS 모듈 (Google Cloud TTS)
+한국사 파이프라인 - TTS 모듈 (Chirp 3 HD)
 
-- 단일 음성 나레이션 (역사 다큐멘터리용)
+- Chirp 3 HD: 고품질 한국어 음성 (기본)
 - 문장 단위 자막 생성
-- 독립 실행 가능 (외부 의존성 없음)
+- 독립 실행 가능
 """
 
 import os
 import re
-import base64
-import requests
+import json
 import tempfile
 import subprocess
 from typing import Dict, Any, List, Tuple
 
 
 # TTS 설정
-DEFAULT_VOICE = "ko-KR-Neural2-C"  # 차분한 남성 목소리
-DEFAULT_SPEED = 0.95
+DEFAULT_VOICE = "chirp3:Charon"  # Chirp 3 HD 남성 (깊고 신뢰감)
+DEFAULT_SPEED = 1.0
 
 
 def split_into_sentences(text: str) -> List[str]:
     """텍스트를 문장 단위로 분할"""
-    # 문장 끝 패턴: .!? 뒤에 공백이나 줄바꿈
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    # 빈 문장 제거
     return [s.strip() for s in sentences if s.strip()]
-
-
-def generate_tts_chunk(
-    text: str,
-    voice: str = DEFAULT_VOICE,
-    speed: float = DEFAULT_SPEED,
-) -> Dict[str, Any]:
-    """단일 텍스트에 대해 TTS 생성"""
-    api_key = os.environ.get("GOOGLE_CLOUD_API_KEY", "")
-    if not api_key:
-        return {"ok": False, "error": "GOOGLE_CLOUD_API_KEY 환경변수가 설정되지 않았습니다."}
-
-    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
-
-    payload = {
-        "input": {"text": text},
-        "voice": {
-            "languageCode": "ko-KR",
-            "name": voice,
-        },
-        "audioConfig": {
-            "audioEncoding": "MP3",
-            "speakingRate": speed,
-        }
-    }
-
-    try:
-        response = requests.post(url, json=payload, timeout=60)
-        if response.status_code == 200:
-            result = response.json()
-            audio_content = base64.b64decode(result.get("audioContent", ""))
-            return {"ok": True, "audio_data": audio_content}
-        else:
-            return {"ok": False, "error": f"TTS API 오류: {response.status_code} - {response.text[:200]}"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 def get_audio_duration(audio_path: str) -> float:
@@ -120,6 +81,68 @@ def generate_srt(timeline: List[Tuple[float, float, str]], output_path: str):
             f.write(f"{text}\n\n")
 
 
+def generate_chirp3_chunk(
+    text: str,
+    voice_name: str = "ko-KR-Chirp3-HD-Charon",
+    language_code: str = "ko-KR",
+) -> Dict[str, Any]:
+    """Chirp 3 HD TTS로 단일 청크 생성"""
+    try:
+        from google.cloud import texttospeech
+        from google.oauth2 import service_account
+
+        # 서비스 계정 인증
+        service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if not service_account_json:
+            return {"ok": False, "error": "GOOGLE_SERVICE_ACCOUNT_JSON 환경변수가 필요합니다"}
+
+        try:
+            service_account_info = json.loads(service_account_json)
+        except json.JSONDecodeError as e:
+            return {"ok": False, "error": f"서비스 계정 JSON 파싱 실패: {e}"}
+
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info,
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+
+        client = texttospeech.TextToSpeechClient(credentials=credentials)
+
+        voice = texttospeech.VoiceSelectionParams(
+            language_code=language_code,
+            name=voice_name,
+        )
+
+        audio_config = texttospeech.AudioConfig(
+            audio_encoding=texttospeech.AudioEncoding.MP3
+        )
+
+        input_text = texttospeech.SynthesisInput(text=text)
+        response = client.synthesize_speech(
+            input=input_text,
+            voice=voice,
+            audio_config=audio_config,
+        )
+
+        return {"ok": True, "audio_data": response.audio_content}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def parse_voice(voice: str) -> tuple:
+    """음성 설정 파싱 → (voice_name, language_code)"""
+    if voice.startswith("chirp3:"):
+        # chirp3:Charon → ko-KR-Chirp3-HD-Charon
+        voice_short = voice.split(":")[1]
+        return f"ko-KR-Chirp3-HD-{voice_short}", "ko-KR"
+    elif voice.startswith("ko-KR-"):
+        return voice, "ko-KR"
+    else:
+        # 기본값
+        return "ko-KR-Chirp3-HD-Charon", "ko-KR"
+
+
 def generate_tts(
     episode_id: str,
     script: str,
@@ -128,43 +151,63 @@ def generate_tts(
     speed: float = DEFAULT_SPEED,
 ) -> Dict[str, Any]:
     """
-    대본에 대해 TTS 생성 (문장별로 처리)
+    대본에 대해 TTS 생성 (Chirp 3 HD 사용)
 
     Args:
         episode_id: 에피소드 ID (예: "ep019")
         script: 대본 텍스트
         output_dir: 출력 디렉토리
-        voice: 음성 (기본: ko-KR-Neural2-C)
-        speed: 속도 (기본: 0.95)
+        voice: 음성 (기본: chirp3:Charon)
+        speed: 속도 (현재 미사용)
 
     Returns:
-        {
-            "ok": True,
-            "audio_path": "outputs/history/audio/ep019.mp3",
-            "srt_path": "outputs/history/subtitles/ep019.srt",
-            "duration": 900.5,
-            "timeline": [(0, 3.5, "문장1"), ...]
-        }
+        {"ok": True, "audio_path": "...", "srt_path": "...", "duration": 900.5}
     """
     os.makedirs(output_dir, exist_ok=True)
+
+    # 음성 설정 파싱
+    voice_name, language_code = parse_voice(voice)
+    print(f"[HISTORY-TTS] 음성: {voice_name}")
 
     # 문장 분할
     sentences = split_into_sentences(script)
     print(f"[HISTORY-TTS] {len(sentences)}개 문장 처리 중...")
 
+    # 청크 병합 (5000바이트 제한 대응)
+    MAX_CHARS = 1400
+    chunks = []
+    current_chunk = ""
+
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) + 1 <= MAX_CHARS:
+            current_chunk += " " + sentence if current_chunk else sentence
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence
+
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    print(f"[HISTORY-TTS] {len(chunks)}개 청크로 병합")
+
     audio_paths = []
     timeline = []
     current_time = 0.0
+    failed_count = 0
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for i, sentence in enumerate(sentences):
-            if not sentence:
+        for i, chunk in enumerate(chunks):
+            if not chunk:
                 continue
 
             # TTS 생성
-            result = generate_tts_chunk(sentence, voice, speed)
+            result = generate_chirp3_chunk(chunk, voice_name, language_code)
             if not result.get("ok"):
-                print(f"[HISTORY-TTS] 문장 {i+1} 실패: {result.get('error')}")
+                print(f"[HISTORY-TTS] 청크 {i+1} 실패: {result.get('error')}")
+                failed_count += 1
+                if failed_count >= 3:
+                    return {"ok": False, "error": f"TTS 생성 연속 실패: {result.get('error')}"}
                 continue
 
             # 임시 파일 저장
@@ -176,12 +219,13 @@ def generate_tts(
             duration = get_audio_duration(chunk_path)
             if duration > 0:
                 audio_paths.append(chunk_path)
-                timeline.append((current_time, current_time + duration, sentence))
+                timeline.append((current_time, current_time + duration, chunk))
                 current_time += duration
+                failed_count = 0  # 성공하면 실패 카운트 리셋
 
             # 진행률 표시
-            if (i + 1) % 10 == 0:
-                print(f"[HISTORY-TTS] {i+1}/{len(sentences)} 완료 ({current_time:.1f}초)")
+            if (i + 1) % 5 == 0 or i == len(chunks) - 1:
+                print(f"[HISTORY-TTS] {i+1}/{len(chunks)} 완료 ({current_time:.1f}초)")
 
         if not audio_paths:
             return {"ok": False, "error": "TTS 생성 실패 - 오디오 없음"}
@@ -210,5 +254,5 @@ def generate_tts(
 
 
 if __name__ == "__main__":
-    # 테스트
     print("history_pipeline/tts.py 로드 완료")
+    print(f"기본 음성: {DEFAULT_VOICE}")
