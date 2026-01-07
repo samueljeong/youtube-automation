@@ -368,7 +368,7 @@ def render_video(
 
     video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
 
-    # 독립 렌더러 모듈 사용 (서버/wuxia_pipeline 불필요)
+    # 독립 렌더러 모듈 사용
     from .renderer import render_video as render_single, render_multi_image_video
 
     if len(image_paths) == 1:
