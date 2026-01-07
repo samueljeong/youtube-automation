@@ -482,3 +482,97 @@ def calculate_image_count(script: str) -> int:
     """대본 기반 이미지 개수 계산"""
     agent = ImageAgent()
     return agent._calculate_image_count(script)
+
+
+def get_era_style(era_name: str) -> Dict[str, str]:
+    """시대별 스타일 프리셋 가져오기"""
+    agent = ImageAgent()
+    return agent._get_era_style(era_name)
+
+
+def enhance_prompt_with_era_style(prompt: str, era_name: str) -> str:
+    """
+    프롬프트에 시대 스타일 강제 적용
+
+    Args:
+        prompt: 원본 이미지 프롬프트
+        era_name: 시대명 (고조선, 삼국시대, 발해, 고려, 조선 등)
+
+    Returns:
+        시대 스타일이 적용된 프롬프트
+    """
+    era_style = get_era_style(era_name)
+
+    style_prefix = f"{era_style['style']}, {era_style['mood']} atmosphere, {era_style['color_palette']}"
+    negative_suffix = ", no text, no watermark, no modern elements, historically accurate"
+
+    enhanced = f"{style_prefix}, {prompt}{negative_suffix}"
+
+    return enhanced
+
+
+def validate_image_prompts(prompts: List[Dict[str, Any]], era_name: str) -> Dict[str, Any]:
+    """
+    이미지 프롬프트 검증
+
+    Args:
+        prompts: 이미지 프롬프트 목록
+        era_name: 시대명
+
+    Returns:
+        {"valid": bool, "issues": [...], "warnings": [...]}
+    """
+    issues = []
+    warnings = []
+
+    # 개수 검증
+    if len(prompts) < 5:
+        issues.append(f"이미지 개수 부족: {len(prompts)}개 (최소 5개)")
+    elif len(prompts) > 12:
+        warnings.append(f"이미지 개수 과다: {len(prompts)}개 (권장 최대 12개)")
+
+    # 시대 스타일 검증
+    era_style = get_era_style(era_name)
+    style_keywords = era_style["style"].lower().split(", ")
+
+    for i, prompt_data in enumerate(prompts):
+        prompt_text = prompt_data.get("prompt", "").lower()
+
+        # 시대 스타일 키워드 포함 여부
+        has_style = any(kw in prompt_text for kw in style_keywords)
+        if not has_style:
+            warnings.append(f"씬 {i+1}: 시대 스타일 키워드 없음")
+
+        # 금지 키워드 체크
+        forbidden = ["text", "watermark", "modern", "photo"]
+        for word in forbidden:
+            if word in prompt_text and "no " + word not in prompt_text:
+                issues.append(f"씬 {i+1}: 금지 키워드 '{word}' 포함")
+
+    return {
+        "valid": len(issues) == 0,
+        "issues": issues,
+        "warnings": warnings,
+        "era_style": era_style,
+    }
+
+
+def validate_image_prompts_strict(prompts: List[Dict[str, Any]], era_name: str) -> Dict[str, Any]:
+    """
+    이미지 프롬프트 엄격 검증 (블로킹)
+
+    Raises:
+        ValueError: 필수 기준 미충족 시
+    """
+    result = validate_image_prompts(prompts, era_name)
+
+    if not result["valid"]:
+        issues_str = "\n".join(f"  - {issue}" for issue in result["issues"])
+        raise ValueError(f"이미지 프롬프트 검증 실패:\n{issues_str}")
+
+    if result["warnings"]:
+        warnings_str = "\n".join(f"  ⚠️ {w}" for w in result["warnings"])
+        print(f"[ImageAgent] 경고:\n{warnings_str}")
+
+    print(f"[ImageAgent] ✓ 이미지 프롬프트 검증 통과: {len(prompts)}개")
+    return result

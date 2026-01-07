@@ -550,3 +550,155 @@ def quick_review(script: str) -> Tuple[str, int, List[str]]:
         return data["grade"], data["total_score"], issues
     else:
         return "F", 0, [result.error]
+
+
+def review_script_strict(script: str, min_length: int = 12000) -> Dict[str, Any]:
+    """
+    대본 엄격 검수 (블로킹)
+
+    C/D 등급 또는 글자수 미달 시 ValueError 발생 - 파이프라인 진행 차단
+
+    Args:
+        script: 대본 텍스트
+        min_length: 최소 글자수 (기본 12,000자)
+
+    Returns:
+        검수 결과 (통과 시)
+
+    Raises:
+        ValueError: C/D 등급 또는 필수 기준 미충족 시
+    """
+    grade, score, issues = quick_review(script)
+    length = len(script)
+
+    # 1. 글자수 필수 검증 (절대 통과 불가)
+    if length < min_length:
+        raise ValueError(
+            f"대본 검수 실패 - 글자수 미달 (진행 불가)\n"
+            f"  현재: {length:,}자\n"
+            f"  최소: {min_length:,}자\n"
+            f"  부족: {min_length - length:,}자"
+        )
+
+    # 2. C/D 등급 차단
+    if grade in ["C", "D"]:
+        blocking_issues = [f"  - {issue}" for issue in issues if issue]
+        issues_str = "\n".join(blocking_issues) if blocking_issues else "  - 전체적인 품질 미달"
+        raise ValueError(
+            f"대본 검수 실패 - {grade}등급 (진행 불가)\n"
+            f"  점수: {score}/100\n"
+            f"  등급: {grade} (최소 B등급 필요)\n"
+            f"  문제점:\n{issues_str}"
+        )
+
+    # 3. B등급 경고 (통과하지만 로깅)
+    if grade == "B":
+        warnings_str = "\n".join(f"  ⚠️ {issue}" for issue in issues if issue)
+        print(f"[ReviewAgent] 경고 - B등급 (통과하지만 개선 권장):\n{warnings_str}")
+
+    # 4. 통과
+    print(f"[ReviewAgent] ✓ 대본 검수 통과: {length:,}자, {grade}등급 ({score}/100점)")
+
+    return {
+        "passed": True,
+        "grade": grade,
+        "score": score,
+        "length": length,
+        "issues": issues,
+    }
+
+
+def review_image_prompts_strict(
+    prompts: List[Dict[str, Any]],
+    era_name: str,
+    script_length: int = 13000
+) -> Dict[str, Any]:
+    """
+    이미지 프롬프트 엄격 검수 (블로킹)
+
+    시대 스타일 미적용, 개수 부족 시 ValueError 발생
+
+    Args:
+        prompts: 이미지 프롬프트 목록
+        era_name: 시대명 (발해, 고려, 조선 등)
+        script_length: 대본 길이 (이미지 개수 계산용)
+
+    Returns:
+        검수 결과 (통과 시)
+
+    Raises:
+        ValueError: 검수 실패 시
+    """
+    issues = []
+    warnings = []
+
+    # 1. 최소 개수 검증
+    # 한국어 TTS 기준: 910자 ≈ 1분
+    estimated_minutes = script_length / 910
+    if estimated_minutes < 8:
+        min_count = 5
+    elif estimated_minutes < 10:
+        min_count = 8
+    elif estimated_minutes < 15:
+        min_count = 11
+    else:
+        min_count = 12
+
+    if len(prompts) < min_count:
+        issues.append(
+            f"이미지 개수 부족: {len(prompts)}개 (대본 {estimated_minutes:.1f}분 기준 최소 {min_count}개 필요)"
+        )
+
+    # 2. 시대 스타일 키워드 검증
+    era_keywords = {
+        "고조선": ["ancient", "bronze age", "korean"],
+        "삼국시대": ["three kingdoms", "goguryeo", "baekje", "silla"],
+        "발해": ["balhae", "northern", "manchuria", "tang"],
+        "통일신라": ["unified silla", "buddhist", "gyeongju"],
+        "고려": ["goryeo", "buddhist", "celadon"],
+        "조선": ["joseon", "confucian", "hanbok"],
+        "일제강점기": ["japanese occupation", "colonial", "1910"],
+        "대한민국": ["korean war", "modern korea", "republic"],
+    }
+
+    keywords = era_keywords.get(era_name, [era_name.lower()])
+
+    for i, prompt_item in enumerate(prompts):
+        prompt_text = prompt_item.get("prompt", "").lower()
+
+        # 시대 키워드 포함 여부
+        has_era_keyword = any(kw in prompt_text for kw in keywords)
+        if not has_era_keyword:
+            warnings.append(f"씬 {i+1}: 시대 키워드 미포함 (권장: {', '.join(keywords[:3])})")
+
+        # 현대적 요소 체크
+        modern_keywords = ["modern", "contemporary", "city", "car", "phone", "computer"]
+        has_modern = any(mk in prompt_text for mk in modern_keywords)
+        if has_modern:
+            issues.append(f"씬 {i+1}: 현대적 요소 포함 (역사적 고증 위반)")
+
+        # 네거티브 프롬프트 확인
+        negative = prompt_item.get("negative_prompt", "")
+        if not negative or "text" not in negative.lower():
+            warnings.append(f"씬 {i+1}: 네거티브 프롬프트에 'text' 미포함")
+
+    # 3. 검증 결과
+    if issues:
+        issues_str = "\n".join(f"  - {issue}" for issue in issues)
+        raise ValueError(
+            f"이미지 프롬프트 검수 실패 (진행 불가):\n{issues_str}"
+        )
+
+    # 4. 경고 로깅
+    if warnings:
+        warnings_str = "\n".join(f"  ⚠️ {w}" for w in warnings)
+        print(f"[ReviewAgent] 이미지 프롬프트 경고 (통과하지만 개선 권장):\n{warnings_str}")
+
+    print(f"[ReviewAgent] ✓ 이미지 프롬프트 검수 통과: {len(prompts)}개, 시대={era_name}")
+
+    return {
+        "passed": True,
+        "prompt_count": len(prompts),
+        "era_name": era_name,
+        "warnings": warnings,
+    }

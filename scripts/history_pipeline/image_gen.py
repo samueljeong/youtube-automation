@@ -18,8 +18,11 @@ RENDER_API_URL = os.environ.get(
     "https://drama-s2ns.onrender.com"
 )
 
-# Gemini 이미지 생성 모델 (Gemini 2.0 Flash - 실험적 이미지 생성)
-GEMINI_IMAGE_MODEL = "gemini-2.0-flash-exp"
+# Gemini 이미지 생성 모델
+# - gemini-2.0-flash-exp: 빠르고 저렴, 기본 품질
+# - imagen-3.0-generate-002: Imagen 3 (고품질, Vertex AI 필요)
+# - gemini-exp-image-generation: Gemini 실험적 이미지 생성 (고품질)
+GEMINI_IMAGE_MODEL = "gemini-exp-image-generation"  # Gemini 실험적 이미지 생성 (고품질)
 
 
 def _generate_image_via_render(

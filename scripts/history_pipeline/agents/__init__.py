@@ -23,6 +23,11 @@
 - 특징: 이미지만 봐도 내용이 이해될 수 있게 함
 - 책임: 씬별 이미지 프롬프트 생성, 썸네일 가이드
 
+### 유튜브 에이전트 (YouTubeAgent)
+- 역할: SEO 전문가이자 YouTube 알고리즘 마스터
+- 특징: 시청자의 클릭을 유도하는 메타데이터 생성
+- 책임: SEO 최적화된 제목, 설명, 태그, 썸네일 텍스트 생성
+
 ### 코드 리뷰 에이전트 (CodeReviewAgent)
 - 역할: 기획 에이전트를 감시하는 최상위 감시자
 - 특징: 어떤 코드가 작성되도 커밋 전에 검수
@@ -39,8 +44,11 @@
 │  │                    ↓ 지시                              │  │
 │  │  ┌─────────────────────────────────────────────────┐  │  │
 │  │  │                                                  │  │  │
-│  │  │  ScriptAgent ──→ ReviewAgent ──→ ImageAgent    │  │  │
-│  │  │   (대본 작성)     (검수/피드백)   (이미지 생성)   │  │  │
+│  │  │  ScriptAgent ──→ ReviewAgent ──→ ImageAgent     │  │  │
+│  │  │   (대본 작성)     (검수/피드백)   (이미지 생성)    │  │  │
+│  │  │                       ↓                          │  │  │
+│  │  │                YouTubeAgent                      │  │  │
+│  │  │               (SEO 메타데이터)                   │  │  │
 │  │  │                                                  │  │  │
 │  │  └─────────────────────────────────────────────────┘  │  │
 │  └───────────────────────────────────────────────────────┘  │
@@ -102,6 +110,7 @@ from .script_agent import (
     ScriptAgent,
     generate_script_guide,
     validate_script,
+    validate_script_strict,  # 엄격 검증 (블로킹)
     SCRIPT_STYLE_GUIDE,
 )
 
@@ -109,6 +118,8 @@ from .review_agent import (
     ReviewAgent,
     review_script,
     quick_review,
+    review_script_strict,  # 엄격 검증 (블로킹)
+    review_image_prompts_strict,  # 이미지 프롬프트 엄격 검증
     REVIEW_CRITERIA,
 )
 
@@ -116,8 +127,19 @@ from .image_agent import (
     ImageAgent,
     generate_image_guide,
     calculate_image_count,
+    validate_image_prompts_strict,  # 엄격 검증 (블로킹)
+    enhance_prompt_with_era_style,  # 시대 스타일 강화
+    get_era_style,  # 시대 스타일 조회
     IMAGE_STYLE_GUIDE,
     ERA_STYLE_PRESETS,
+)
+
+from .youtube_agent import (
+    YouTubeAgent,
+    generate_youtube_metadata,
+    quick_metadata,
+    TITLE_TEMPLATES,
+    ERA_KEYWORDS,
 )
 
 from .code_review_agent import (
@@ -271,16 +293,25 @@ __all__ = [
     "ScriptAgent",
     "ReviewAgent",
     "ImageAgent",
+    "YouTubeAgent",
     "CodeReviewAgent",
 
     # Sync wrappers
     "plan_episode",
     "generate_script_guide",
     "validate_script",
+    "validate_script_strict",  # 엄격 검증
     "review_script",
     "quick_review",
+    "review_script_strict",  # 엄격 검증
+    "review_image_prompts_strict",  # 이미지 프롬프트 엄격 검증
     "generate_image_guide",
     "calculate_image_count",
+    "validate_image_prompts_strict",  # 이미지 프롬프트 엄격 검증
+    "enhance_prompt_with_era_style",
+    "get_era_style",
+    "generate_youtube_metadata",
+    "quick_metadata",
     "review_pipeline",
     "can_commit",
 
@@ -292,5 +323,7 @@ __all__ = [
     "REVIEW_CRITERIA",
     "IMAGE_STYLE_GUIDE",
     "ERA_STYLE_PRESETS",
+    "TITLE_TEMPLATES",
+    "ERA_KEYWORDS",
     "CODE_REVIEW_CHECKLIST",
 ]

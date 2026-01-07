@@ -357,3 +357,33 @@ def validate_script(script: str) -> Dict[str, Any]:
     """대본 유효성 검사 (동기 버전)"""
     agent = ScriptAgent()
     return agent.validate_script(script)
+
+
+def validate_script_strict(script: str) -> Dict[str, Any]:
+    """
+    대본 유효성 엄격 검사 (블로킹)
+
+    기준 미달 시 ValueError 발생 - 파이프라인 진행 차단
+
+    Raises:
+        ValueError: 글자수 미달 등 필수 기준 미충족 시
+    """
+    agent = ScriptAgent()
+    result = agent.validate_script(script)
+
+    if not result["valid"]:
+        issues_str = "\n".join(f"  - {issue}" for issue in result["issues"])
+        raise ValueError(
+            f"대본 검증 실패 (진행 불가):\n{issues_str}\n"
+            f"현재 길이: {result['length']:,}자 / 최소: {agent.min_length:,}자"
+        )
+
+    # 경고가 있어도 통과하지만 로깅
+    if result["warnings"]:
+        warnings_str = "\n".join(f"  ⚠️ {w}" for w in result["warnings"])
+        print(f"[ScriptAgent] 경고 (통과하지만 개선 권장):\n{warnings_str}")
+
+    print(f"[ScriptAgent] ✓ 대본 검증 통과: {result['length']:,}자, 점수 {result['score']}/100")
+    return result
+
+
