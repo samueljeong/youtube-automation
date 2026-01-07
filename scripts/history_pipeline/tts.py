@@ -138,16 +138,36 @@ def generate_gemini_chunk(
         return {"ok": False, "error": str(e)}
 
 
-def convert_to_mp3(input_path: str, output_path: str, is_raw_pcm: bool = False) -> bool:
+def detect_audio_format(data: bytes) -> str:
+    """오디오 데이터의 형식 감지"""
+    if data[:4] == b'RIFF' and data[8:12] == b'WAVE':
+        return 'wav'
+    elif data[:4] == b'OggS':
+        return 'ogg'
+    elif data[:3] == b'ID3' or data[:2] == b'\xff\xfb':
+        return 'mp3'
+    elif data[:4] == b'fLaC':
+        return 'flac'
+    else:
+        return 'raw'  # 알 수 없으면 raw PCM으로 가정
+
+
+def convert_to_mp3(input_path: str, output_path: str, audio_format: str = 'auto') -> bool:
     """오디오를 MP3로 변환
 
     Args:
         input_path: 입력 파일 경로
         output_path: 출력 MP3 경로
-        is_raw_pcm: True면 Gemini TTS raw PCM 형식 (24kHz, 16-bit, mono)
+        audio_format: 'auto', 'wav', 'raw', 'ogg' 등
     """
     try:
-        if is_raw_pcm:
+        # 형식 자동 감지
+        if audio_format == 'auto':
+            with open(input_path, 'rb') as f:
+                header = f.read(12)
+            audio_format = detect_audio_format(header)
+
+        if audio_format == 'raw':
             # Gemini TTS: raw PCM (24kHz, 16-bit signed little-endian, mono)
             cmd = [
                 'ffmpeg', '-y',
@@ -159,11 +179,20 @@ def convert_to_mp3(input_path: str, output_path: str, is_raw_pcm: bool = False) 
                 output_path
             ]
         else:
+            # WAV, OGG 등 컨테이너 형식은 ffmpeg가 자동 감지
             cmd = ['ffmpeg', '-y', '-i', input_path, '-c:a', 'libmp3lame', '-b:a', '128k', output_path]
 
-        subprocess.run(cmd, capture_output=True, timeout=60)
-        return os.path.exists(output_path)
-    except Exception:
+        result = subprocess.run(cmd, capture_output=True, timeout=60)
+
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            return True
+
+        # 실패 시 에러 출력
+        if result.stderr:
+            print(f"[FFmpeg 에러] {result.stderr.decode()[:200]}")
+        return False
+    except Exception as e:
+        print(f"[변환 예외] {e}")
         return False
 
 
@@ -241,8 +270,13 @@ def generate_tts(
             with open(raw_path, 'wb') as f:
                 f.write(result["audio_data"])
 
-            # MP3로 변환 (Gemini TTS는 raw PCM 반환)
-            if not convert_to_mp3(raw_path, mp3_path, is_raw_pcm=True):
+            # 형식 확인 (첫 청크만)
+            if i == 0:
+                detected = detect_audio_format(result["audio_data"][:12])
+                print(f"[HISTORY-TTS] 오디오 형식: {detected}, 크기: {len(result['audio_data'])} bytes")
+
+            # MP3로 변환 (형식 자동 감지)
+            if not convert_to_mp3(raw_path, mp3_path, audio_format='auto'):
                 print(f"[HISTORY-TTS] 청크 {i+1} 변환 실패")
                 continue
 
