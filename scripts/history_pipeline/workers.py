@@ -94,7 +94,7 @@ def generate_tts(
     speed: float = None,
 ) -> Dict[str, Any]:
     """
-    TTS 생성 (Gemini/Google TTS)
+    TTS 생성 (독립 모듈 사용 - 서버 불필요)
 
     Args:
         episode_id: 에피소드 ID (예: "ep001_광개토왕")
@@ -110,41 +110,122 @@ def generate_tts(
             "duration": 900.5  # 약 15분
         }
     """
+    import re
+
     ensure_directories()
 
     voice = voice or TTS_CONFIG.get("voice", "chirp3:Charon")
     speed = speed or TTS_CONFIG.get("speed", 0.95)
 
+    # 대본 정리 (구분선 제거)
+    clean_script = re.sub(r'\n---+\n', '\n\n', script)
+    clean_script = clean_script.strip()
+
+    print(f"[HISTORY TTS] 시작: {len(clean_script):,}자, 음성: {voice}", flush=True)
+
+    # 독립 TTS 모듈 사용 (서버 불필요, GOOGLE_API_KEY만 필요)
+    from .tts import generate_tts as tts_gemini
+
+    result = tts_gemini(
+        episode_id=episode_id,
+        script=clean_script,
+        output_dir=AUDIO_DIR,
+        voice=voice,
+        speed=speed,
+    )
+
+    # 결과 반환 (기존 형식 유지)
+    if result.get("ok"):
+        return {
+            "ok": True,
+            "audio_path": result.get("audio_path"),
+            "merged_audio": result.get("audio_path"),
+            "srt_path": result.get("srt_path"),
+            "duration": result.get("duration", 0),
+            "timeline": result.get("timeline", []),
+        }
+    else:
+        return {"ok": False, "error": result.get("error", "TTS 실패")}
+
+
+def _get_audio_duration(audio_path: str) -> float:
+    """ffprobe로 오디오 길이 측정"""
+    import subprocess
+
+    if not os.path.exists(audio_path):
+        return 0.0
+
     try:
-        # wuxia_pipeline의 TTS 모듈 재사용
-        from scripts.wuxia_pipeline.multi_voice_tts import (
-            generate_multi_voice_tts_simple,
-            generate_srt_from_timeline,
-        )
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            audio_path
+        ]
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        return float(out)
+    except Exception:
+        # 파일 크기 기반 추정 (MP3 128kbps 기준)
+        try:
+            return os.path.getsize(audio_path) / 16000
+        except:
+            return 0.0
 
-        tts_result = generate_multi_voice_tts_simple(
-            text=script,
-            output_dir=AUDIO_DIR,
-            episode_id=episode_id,
-            voice=voice,
-            speed=speed,
-        )
 
-        if tts_result.get("ok"):
-            # SRT 생성
-            srt_path = os.path.join(SUBTITLE_DIR, f"{episode_id}.srt")
-            if tts_result.get("timeline"):
-                generate_srt_from_timeline(tts_result["timeline"], srt_path)
-                tts_result["srt_path"] = srt_path
+def _generate_sentence_timeline(script: str, total_duration: float) -> List[Dict]:
+    """문장 단위로 타임라인 생성 (글자 수 비례)"""
+    import re
 
-            tts_result["audio_path"] = tts_result.get("merged_audio")
+    # 문장 분리 (마침표, 물음표, 느낌표 기준)
+    sentences = re.split(r'(?<=[.?!])\s+', script)
+    sentences = [s.strip() for s in sentences if s.strip()]
 
-        return tts_result
+    if not sentences:
+        return []
 
-    except ImportError:
-        return {"ok": False, "error": "TTS 모듈 없음 (wuxia_pipeline 필요)"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    total_chars = sum(len(s) for s in sentences)
+    timeline = []
+    current_time = 0.0
+
+    for i, sentence in enumerate(sentences):
+        # 글자 수 비례로 duration 계산
+        ratio = len(sentence) / total_chars
+        duration = total_duration * ratio
+
+        timeline.append({
+            "index": i,
+            "text": sentence,
+            "start_sec": current_time,
+            "end_sec": current_time + duration,
+        })
+
+        current_time += duration
+
+    return timeline
+
+
+def _write_srt_file(timeline: List[Dict], srt_path: str) -> bool:
+    """타임라인에서 SRT 파일 생성"""
+    os.makedirs(os.path.dirname(srt_path), exist_ok=True)
+
+    def sec_to_srt(sec: float) -> str:
+        h = int(sec // 3600)
+        m = int((sec % 3600) // 60)
+        s = int(sec % 60)
+        ms = int((sec - int(sec)) * 1000)
+        return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+    with open(srt_path, "w", encoding="utf-8") as f:
+        for i, entry in enumerate(timeline, 1):
+            start = sec_to_srt(entry['start_sec'])
+            end = sec_to_srt(entry['end_sec'])
+            text = entry['text']
+
+            f.write(f"{i}\n")
+            f.write(f"{start} --> {end}\n")
+            f.write(f"{text}\n\n")
+
+    return True
 
 
 # =====================================================
@@ -160,7 +241,7 @@ def generate_image(
     ratio: str = "16:9",
 ) -> Dict[str, Any]:
     """
-    이미지 생성 (Gemini Imagen)
+    이미지 생성 (독립 모듈 사용 - 서버 불필요)
 
     Args:
         episode_id: 에피소드 ID
@@ -178,55 +259,31 @@ def generate_image(
     """
     ensure_directories()
 
-    try:
-        api_url = os.getenv(
-            "IMAGE_API_URL",
-            "http://localhost:5059/api/ai-tools/image-generate"
-        )
+    # 파일명 생성
+    if scene_index == 0:
+        filename = f"{episode_id}_thumbnail.png"
+    else:
+        filename = f"{episode_id}_scene_{scene_index:02d}.png"
 
-        # 기본 negative prompt 추가
-        full_negative = IMAGE_STYLE.get("negative_prompt", "")
-        if negative_prompt:
-            full_negative = f"{full_negative}, {negative_prompt}"
+    image_path = os.path.join(IMAGE_DIR, filename)
 
-        # 히스토리 기본 스타일 추가
-        full_prompt = f"{IMAGE_STYLE.get('base_prompt', '')}, {prompt}"
+    # 히스토리 기본 스타일 추가
+    full_prompt = f"{IMAGE_STYLE.get('base_prompt', '')}, {prompt}"
 
-        response = requests.post(
-            api_url,
-            json={
-                "prompt": full_prompt,
-                "negative_prompt": full_negative,
-                "style": style,
-                "ratio": ratio,
-            },
-            timeout=120,
-        )
+    # 독립 이미지 생성 모듈 사용 (서버 불필요)
+    from .image_gen import generate_image as img_gen
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("success"):
-                image_url = data.get("image_url")
+    result = img_gen(
+        prompt=full_prompt,
+        output_path=image_path,
+        style=style,
+        aspect_ratio=ratio,
+    )
 
-                # 파일명 생성
-                if scene_index == 0:
-                    filename = f"{episode_id}_thumbnail.png"
-                else:
-                    filename = f"{episode_id}_scene_{scene_index:02d}.png"
-
-                image_path = os.path.join(IMAGE_DIR, filename)
-
-                # 이미지 다운로드
-                img_response = requests.get(image_url, timeout=60)
-                if img_response.status_code == 200:
-                    with open(image_path, "wb") as f:
-                        f.write(img_response.content)
-                    return {"ok": True, "image_path": image_path}
-
-        return {"ok": False, "error": "이미지 생성 실패"}
-
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    if result.get("ok"):
+        return {"ok": True, "image_path": result.get("image_path", image_path)}
+    else:
+        return {"ok": False, "error": result.get("error", "이미지 생성 실패")}
 
 
 def generate_images_batch(
@@ -291,14 +348,14 @@ def render_video(
     bgm_mood: str = "calm",
 ) -> Dict[str, Any]:
     """
-    영상 렌더링 (FFmpeg)
+    영상 렌더링 (독립 모듈 - FFmpeg만 필요)
 
     Args:
         episode_id: 에피소드 ID
         audio_path: TTS 오디오 파일 경로
         image_paths: 배경 이미지 경로 목록 (시간순)
         srt_path: 자막 파일 경로 (선택)
-        bgm_mood: BGM 분위기
+        bgm_mood: BGM 분위기 (현재 미사용)
 
     Returns:
         {
@@ -309,40 +366,36 @@ def render_video(
     """
     ensure_directories()
 
-    try:
-        video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
+    video_path = os.path.join(VIDEO_DIR, f"{episode_id}.mp4")
 
-        # 단일 이미지인 경우 기존 렌더러 사용
-        if len(image_paths) == 1:
-            from scripts.wuxia_pipeline.renderer import render_episode_video
+    # 독립 렌더러 모듈 사용 (서버/wuxia_pipeline 불필요)
+    from .renderer import render_video as render_single, render_multi_image_video
 
-            result = render_episode_video(
-                audio_path=audio_path,
-                image_path=image_paths[0],
-                srt_path=srt_path,
-                output_path=video_path,
-                bgm_mood=bgm_mood,
-            )
-            return result
-
-        # 여러 이미지인 경우 씬별 렌더링 (추후 구현)
-        # TODO: 씬별 이미지 전환 렌더링
-        # 현재는 첫 번째 이미지만 사용
-        from scripts.wuxia_pipeline.renderer import render_episode_video
-
-        result = render_episode_video(
+    if len(image_paths) == 1:
+        # 단일 이미지
+        result = render_single(
             audio_path=audio_path,
             image_path=image_paths[0],
-            srt_path=srt_path,
             output_path=video_path,
-            bgm_mood=bgm_mood,
+            srt_path=srt_path,
         )
-        return result
+    else:
+        # 여러 이미지 (시간 균등 분배)
+        result = render_multi_image_video(
+            audio_path=audio_path,
+            image_paths=image_paths,
+            output_path=video_path,
+            srt_path=srt_path,
+        )
 
-    except ImportError:
-        return {"ok": False, "error": "렌더러 모듈 없음 (wuxia_pipeline 필요)"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    if result.get("ok"):
+        return {
+            "ok": True,
+            "video_path": result.get("video_path", video_path),
+            "duration": result.get("duration", 0),
+        }
+    else:
+        return {"ok": False, "error": result.get("error", "렌더링 실패")}
 
 
 # =====================================================
