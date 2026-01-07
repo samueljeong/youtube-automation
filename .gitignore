@@ -218,5 +218,4 @@ __marimo__/
 # Pipeline outputs (generated files)
 outputs/*.json
 output/
-# Shorts pipeline cache\nscripts/shorts_pipeline/.cache/
 outputs/

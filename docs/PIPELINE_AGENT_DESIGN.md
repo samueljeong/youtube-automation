@@ -561,7 +561,7 @@ scripts/video_pipeline/agents/
 
 ## 다음 단계
 
-1. 기존 에이전트 코드(`scripts/shorts_pipeline/agents/`) 재사용
-2. `scripts/video_pipeline/agents/` 폴더 생성
+1. 공통 에이전트 코드(`scripts/common/`) 활용
+2. `scripts/video_pipeline/agents/` 폴더 활용
 3. 각 에이전트 순차 구현
 4. `run_automation_pipeline()` 함수 리팩토링

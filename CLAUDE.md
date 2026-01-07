@@ -101,7 +101,6 @@ Task(
 |------|------|
 | [docs/pipelines/NEWS.md](docs/pipelines/NEWS.md) | 뉴스 자동화 파이프라인 |
 | [docs/pipelines/BIBLE.md](docs/pipelines/BIBLE.md) | 성경통독 파이프라인 |
-| [docs/pipelines/SHORTS.md](docs/pipelines/SHORTS.md) | 쇼츠 바이럴 파이프라인 |
 
 ### 변경 이력
 | 문서 | 설명 |
@@ -116,12 +115,13 @@ Task(
 ```
 drama_server.py          # 메인 서버 (모든 API)
 scripts/
+├── common/              # 공통 모듈 (에이전트 기본 클래스)
 ├── history_pipeline/    # 한국사 파이프라인
 ├── isekai_pipeline/     # 이세계 파이프라인
-├── shorts_pipeline/     # 쇼츠 파이프라인
 ├── bible_pipeline/      # 성경통독 파이프라인
 ├── news_pipeline/       # 뉴스 파이프라인
 ├── mystery_pipeline/    # 미스터리 파이프라인
 ├── wuxia_pipeline/      # 무협지 파이프라인
+├── video_pipeline/      # 영상 생성 파이프라인
 └── migrations/          # DB 마이그레이션 스크립트
 ```
