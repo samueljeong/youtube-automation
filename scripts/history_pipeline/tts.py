@@ -55,8 +55,27 @@ def get_audio_duration(audio_path: str) -> float:
     return 0.0
 
 
+def _strip_id3_tags(data: bytes) -> bytes:
+    """MP3 데이터에서 ID3 태그 제거 (순수 오디오 프레임만 추출)"""
+    start = 0
+    # ID3v2 태그 건너뛰기 (파일 시작 부분)
+    if data[:3] == b'ID3':
+        # ID3v2 헤더: 10바이트, 크기는 syncsafe integer
+        if len(data) >= 10:
+            size = ((data[6] & 0x7f) << 21) | ((data[7] & 0x7f) << 14) | \
+                   ((data[8] & 0x7f) << 7) | (data[9] & 0x7f)
+            start = 10 + size
+
+    # ID3v1 태그 제거 (파일 끝 128바이트)
+    end = len(data)
+    if len(data) >= 128 and data[-128:-125] == b'TAG':
+        end = len(data) - 128
+
+    return data[start:end]
+
+
 def merge_audio_files(audio_paths: List[str], output_path: str) -> bool:
-    """여러 오디오 파일을 하나로 합침"""
+    """여러 오디오 파일을 하나로 합침 (ffmpeg 또는 순수 Python)"""
     if not audio_paths:
         return False
 
@@ -65,21 +84,50 @@ def merge_audio_files(audio_paths: List[str], output_path: str) -> bool:
         shutil.copy(audio_paths[0], output_path)
         return True
 
+    # 방법 1: ffmpeg 사용 (있으면)
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            for path in audio_paths:
-                f.write(f"file '{path}'\n")
-            list_path = f.name
+        # ffmpeg 존재 확인
+        result = subprocess.run(['which', 'ffmpeg'], capture_output=True, timeout=5)
+        if result.returncode == 0:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                for path in audio_paths:
+                    f.write(f"file '{path}'\n")
+                list_path = f.name
 
-        subprocess.run(
-            ['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', list_path,
-             '-c:a', 'libmp3lame', '-b:a', '128k', output_path],
-            capture_output=True, timeout=300
-        )
-        os.unlink(list_path)
-        return os.path.exists(output_path)
+            subprocess.run(
+                ['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', list_path,
+                 '-c:a', 'libmp3lame', '-b:a', '128k', output_path],
+                capture_output=True, timeout=300
+            )
+            os.unlink(list_path)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return True
     except Exception:
-        return False
+        pass
+
+    # 방법 2: 순수 Python으로 MP3 바이너리 병합 (ffmpeg 없을 때)
+    try:
+        print("[HISTORY-TTS] ffmpeg 없음, 순수 Python으로 MP3 병합...")
+        with open(output_path, 'wb') as out_f:
+            for i, path in enumerate(audio_paths):
+                with open(path, 'rb') as in_f:
+                    data = in_f.read()
+                    # 첫 번째 파일은 ID3v2 태그 유지, 나머지는 제거
+                    if i > 0:
+                        data = _strip_id3_tags(data)
+                    else:
+                        # 첫 파일도 ID3v1 태그만 제거 (끝부분)
+                        if len(data) >= 128 and data[-128:-125] == b'TAG':
+                            data = data[:-128]
+                    out_f.write(data)
+
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+            print(f"[HISTORY-TTS] MP3 병합 완료: {os.path.getsize(output_path)} bytes")
+            return True
+    except Exception as e:
+        print(f"[HISTORY-TTS] MP3 병합 실패: {e}")
+
+    return False
 
 
 def generate_srt(timeline: List[Tuple[float, float, str]], output_path: str):
