@@ -113,6 +113,14 @@ Task(
 
 ```
 drama_server.py          # 메인 서버 (모든 API)
+blueprints/              # Flask Blueprint 모듈
+├── gpt.py               # GPT Chat API
+├── ai_tools.py          # AI 도구 API
+├── shorts.py            # Shorts Pipeline
+├── isekai.py            # Isekai Pipeline
+├── bible.py             # Bible Pipeline
+├── history.py           # History Pipeline
+└── tts.py               # TTS API
 scripts/
 ├── common/              # 공통 모듈 (에이전트 기본 클래스, SRT 유틸리티)
 ├── history_pipeline/    # 한국사 파이프라인
@@ -120,3 +128,66 @@ scripts/
 ├── bible_pipeline/      # 성경통독 파이프라인
 └── migrations/          # DB 마이그레이션 스크립트
 ```
+
+---
+
+## 🎯 자가 검증 방법 (Self-Verification)
+
+작업 완료 후 반드시 아래 방법으로 검증:
+
+### Python 문법 검사
+```bash
+python -m py_compile drama_server.py
+python -m py_compile blueprints/*.py
+```
+
+### API 테스트
+```bash
+# 헬스체크
+curl http://localhost:5000/health
+
+# TTS 테스트
+curl -X POST http://localhost:5000/api/drama/generate-tts \
+  -H "Content-Type: application/json" \
+  -d '{"text": "테스트", "speaker": "ko-KR-Neural2-C"}'
+```
+
+### 린터 실행
+```bash
+ruff check drama_server.py --fix
+```
+
+---
+
+## ⚠️ 과거 실수 기록 (반복 금지)
+
+| 날짜 | 실수 | 교훈 |
+|------|------|------|
+| 2025-12 | FFmpeg `capture_output=True` → OOM | `stdout=DEVNULL, stderr=PIPE` 사용 |
+| 2025-12 | 함수 내부 import → 성능 저하 | 파일 상단에서 import |
+| 2025-12 | 전역 변수 미확인 → 런타임 에러 | 의존성 주입 패턴 사용 |
+| 2026-01 | 존재하지 않는 함수 import → 서버 크래시 | import 전 함수 존재 확인 |
+
+---
+
+## 🔧 커스텀 커맨드 (/.claude/commands/)
+
+| 커맨드 | 설명 |
+|--------|------|
+| `/deploy` | Render 배포 |
+| `/fix-bug` | 버그 수정 워크플로우 |
+| `/code-review` | 코드 리뷰 실행 |
+| `/test-local` | 로컬 테스트 |
+| `/simplify` | 코드 정리 (불필요 코드 제거, 최적화) |
+| `/verify` | 코드 검증 (문법, import, 린터) |
+| `/pipeline-run` | 파이프라인 실행 |
+| `/video-status` | 영상 생성 상태 확인 |
+
+---
+
+## 💡 작업 팁
+
+1. **Plan Mode 활용**: 복잡한 작업은 Shift+Tab으로 Plan Mode 진입 후 계획 수립
+2. **Thinking Mode**: 항상 활성화 (더 정확한 결과)
+3. **병렬 작업**: 독립적인 작업은 여러 세션에서 동시 진행 가능
+4. **백그라운드 실행**: 긴 작업은 `/end`로 백그라운드 전환
