@@ -10,12 +10,15 @@ Flask Blueprint를 사용한 drama_server.py 모듈화
 - bible.py: Bible Pipeline Blueprint (/api/bible/*, /api/sheets/create-bible)
 - history.py: History Pipeline Blueprint (/api/history/*)
 - tts.py: TTS API Blueprint (/api/drama/generate-tts, /api/drama/step3/tts, /api/drama/generate-subtitle)
+- sermon.py: Sermon Pipeline Blueprint (/api/sermon/*)
 
 사용법:
     from blueprints.gpt import gpt_bp
     from blueprints.bible import bible_bp
+    from blueprints.sermon import sermon_bp
     app.register_blueprint(gpt_bp)
     app.register_blueprint(bible_bp)
+    app.register_blueprint(sermon_bp)
 """
 
 __version__ = '1.0.0'

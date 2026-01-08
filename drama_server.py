@@ -73,6 +73,11 @@ from blueprints.history import (
     history_bp,
     set_sheets_service_getter as history_set_sheets_service,
 )
+# Sermon Pipeline Blueprint
+from blueprints.sermon import (
+    sermon_bp,
+    set_sheets_service_getter as sermon_set_sheets_service,
+)
 # TTS API Blueprint
 from blueprints.tts import (
     tts_bp,
@@ -115,6 +120,8 @@ app.register_blueprint(isekai_bp)
 app.register_blueprint(bible_bp)
 # History Pipeline Blueprint 등록
 app.register_blueprint(history_bp)
+# Sermon Pipeline Blueprint 등록
+app.register_blueprint(sermon_bp)
 # TTS API Blueprint 등록
 app.register_blueprint(tts_bp)
 
@@ -15551,6 +15558,9 @@ bible_set_pipeline_lock(pipeline_lock)
 
 # History Blueprint 의존성 주입
 history_set_sheets_service(get_sheets_service_account)
+
+# Sermon Blueprint 의존성 주입
+sermon_set_sheets_service(get_sheets_service_account)
 
 # TTS Blueprint 의존성 주입
 tts_set_lang_ko(lang_ko)
