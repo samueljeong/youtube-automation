@@ -4600,7 +4600,7 @@ def parse_chirp3_voice(voice_name, language_code="ko-KR"):
     }
 
 
-def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code="ko-KR"):
+def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code="ko-KR", speaking_rate=1.0):
     """
     Google Cloud TTS Chirp 3 HD를 사용하여 음성 생성
 
@@ -4610,6 +4610,11 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
         text: 변환할 텍스트
         voice_name: 전체 음성 이름 (예: ko-KR-Chirp3-HD-Charon)
         language_code: 언어 코드 (예: ko-KR)
+        speaking_rate: 말하기 속도 (0.25 ~ 4.0, 기본 1.0)
+                      - 0.8~0.85: 느리게 (긴장, 슬픔, 회상)
+                      - 0.9~0.95: 약간 느리게 (담담)
+                      - 1.0: 기본
+                      - 1.05~1.1: 빠르게 (분노, 급박)
 
     Returns:
         dict: {"ok": True, "audio_data": bytes} 또는 {"ok": False, "error": str}
@@ -4652,8 +4657,13 @@ def generate_chirp3_tts(text, voice_name="ko-KR-Chirp3-HD-Charon", language_code
             name=voice_name,
         )
 
+        # speaking_rate 범위 검증 (0.25 ~ 4.0)
+        speaking_rate = max(0.25, min(4.0, speaking_rate))
+        print(f"[CHIRP3-TTS] speaking_rate: {speaking_rate}", flush=True)
+
         audio_config = texttospeech.AudioConfig(
-            audio_encoding=texttospeech.AudioEncoding.MP3
+            audio_encoding=texttospeech.AudioEncoding.MP3,
+            speaking_rate=speaking_rate
         )
 
         # 청크 분할 (한글 3바이트 기준, 5000바이트 제한 → 약 1,500자)
