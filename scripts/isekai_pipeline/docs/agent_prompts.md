@@ -539,7 +539,7 @@ wearing ornate black and red armor
 ## 출력 (JSON)
 {
   "episode": "EP001",
-  "voice": "chirp3:Charon",
+  "voice": "chirp3:Puck",
   "default_speed": 0.95,
   "segments": [
     {

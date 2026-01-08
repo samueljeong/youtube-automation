@@ -586,7 +586,7 @@ dark fantasy setting
 
 | 항목 | 설정 |
 |------|------|
-| 음성 | chirp3:Charon |
+| 음성 | chirp3:Puck |
 | 속도 | 0.95 |
 | 언어 | ko-KR |
 
