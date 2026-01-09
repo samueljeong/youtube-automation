@@ -6,7 +6,8 @@
 """
 
 import os
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 
 # =====================================================
 # 프로젝트 경로
@@ -14,6 +15,16 @@ from typing import Dict, List
 
 _config_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_config_dir))
+
+# =====================================================
+# 문서 경로 (창작 에이전트용)
+# =====================================================
+
+DOCS_DIR = os.path.join(_config_dir, "docs")
+SCRIPT_MASTER_PATH = os.path.join(DOCS_DIR, "SCRIPT_MASTER.md")
+EPISODE_SUMMARIES_PATH = os.path.join(DOCS_DIR, "EPISODE_SUMMARIES.md")
+AGENT_PROMPTS_PATH = os.path.join(DOCS_DIR, "agent_prompts.md")
+SERIES_BIBLE_PATH = os.path.join(DOCS_DIR, "series_bible.md")
 
 # =====================================================
 # 시리즈 설정
@@ -520,3 +531,157 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # =====================================================
 
 OUTPUT_BASE = os.path.join(_project_root, "outputs", "isekai")
+
+
+# =====================================================
+# 에피소드 서머리 로더 (★ 대본 작성 전 필수 호출)
+# =====================================================
+
+def load_episode_summary(episode: int) -> Optional[Dict]:
+    """
+    EPISODE_SUMMARIES.md에서 특정 에피소드 서머리 추출
+
+    대본 작성 전에 반드시 호출하여 일관성 유지!
+
+    Args:
+        episode: 에피소드 번호 (1~60)
+
+    Returns:
+        {
+            "episode": 1,
+            "title": "이방인",
+            "part": 1,
+            "key_events": [...],
+            "characters": [...],
+            "status": "...",
+            "emotional_arc": "...",
+            "foreshadowing": [...],
+            "hook_cliffhanger": "...",
+            "connection_from_prev": "...",
+        }
+        또는 None (찾지 못한 경우)
+
+    Example:
+        >>> summary = load_episode_summary(1)
+        >>> print(summary["key_events"])
+        ["이세계 전이", "내공 소실 자각", "생존 시작"]
+    """
+    if not os.path.exists(EPISODE_SUMMARIES_PATH):
+        print(f"[WARNING] EPISODE_SUMMARIES.md not found: {EPISODE_SUMMARIES_PATH}")
+        return None
+
+    with open(EPISODE_SUMMARIES_PATH, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 에피소드 섹션 찾기 (### EP001 - 이방인 형식)
+    episode_str = f"EP{episode:03d}"
+    pattern = rf"### {episode_str}\s*-\s*(.+?)(?=\n### EP\d|---\n\n### EP|\Z)"
+    match = re.search(pattern, content, re.DOTALL)
+
+    if not match:
+        print(f"[WARNING] Episode {episode} not found in EPISODE_SUMMARIES.md")
+        return None
+
+    section = match.group(0)
+    title_match = re.search(rf"### {episode_str}\s*-\s*(.+)", section)
+    title = title_match.group(1).strip() if title_match else f"제{episode}화"
+
+    # 필드 파싱
+    result = {
+        "episode": episode,
+        "episode_id": episode_str,
+        "title": title,
+        "part": (episode - 1) // 10 + 1,
+    }
+
+    # 테이블 형식 파싱 함수
+    def parse_table_field(field_name: str) -> Optional[str]:
+        """마크다운 테이블에서 필드 값 추출"""
+        pattern = rf"\|\s*\*\*{re.escape(field_name)}\*\*\s*\|\s*(.+?)\s*\|"
+        match = re.search(pattern, section)
+        return match.group(1).strip() if match else None
+
+    # 테이블 필드 파싱
+    key_events = parse_table_field("핵심 사건")
+    if key_events:
+        result["key_events"] = [e.strip() for e in key_events.split(",")]
+
+    characters = parse_table_field("등장인물")
+    if characters:
+        result["characters"] = [c.strip() for c in characters.split(",")]
+
+    status = parse_table_field("무영 상태")
+    if status:
+        result["status"] = status
+
+    emotional_arc = parse_table_field("감정선")
+    if emotional_arc:
+        result["emotional_arc"] = emotional_arc
+
+    foreshadowing = parse_table_field("복선")
+    if foreshadowing:
+        result["foreshadowing"] = [f.strip() for f in foreshadowing.split(",")]
+
+    hook = parse_table_field("훅/클리프행어")
+    if hook:
+        result["hook_cliffhanger"] = hook
+
+    # 이전 화 연결 (별도 섹션 형식: **이전 화 연결:**)
+    from_prev_match = re.search(r"\*\*이전 화 연결:\*\*\s*\n-\s*(.+?)(?=\n\n|\*\*|\Z)", section, re.DOTALL)
+    if from_prev_match:
+        result["connection_from_prev"] = from_prev_match.group(1).strip()
+
+    # 주의사항
+    notes_match = re.search(r"\*\*주의사항:\*\*\s*\n(.+?)(?=\n---|\n###|\Z)", section, re.DOTALL)
+    if notes_match:
+        notes_text = notes_match.group(1).strip()
+        result["notes"] = [n.strip().lstrip("- ") for n in notes_text.split("\n") if n.strip().startswith("-")]
+
+    return result
+
+
+def get_episode_summary_text(episode: int) -> str:
+    """
+    에피소드 서머리를 프롬프트용 텍스트로 반환
+
+    Args:
+        episode: 에피소드 번호
+
+    Returns:
+        프롬프트에 바로 사용할 수 있는 포맷된 텍스트
+    """
+    summary = load_episode_summary(episode)
+    if not summary:
+        return f"[에피소드 {episode} 서머리를 찾을 수 없습니다]"
+
+    lines = [
+        f"## EP{episode:03d}: {summary.get('title', '')} 서머리",
+        f"**파트**: {summary.get('part', '')}부",
+        "",
+    ]
+
+    if summary.get("key_events"):
+        lines.append(f"**핵심 사건**: {', '.join(summary['key_events'])}")
+
+    if summary.get("characters"):
+        lines.append(f"**등장인물**: {', '.join(summary['characters'])}")
+
+    if summary.get("status"):
+        lines.append(f"**무영 상태**: {summary['status']}")
+
+    if summary.get("emotional_arc"):
+        lines.append(f"**감정선**: {summary['emotional_arc']}")
+
+    if summary.get("foreshadowing"):
+        lines.append(f"**복선**: {', '.join(summary['foreshadowing'])}")
+
+    if summary.get("hook_cliffhanger"):
+        lines.append(f"**훅/클리프행어**: {summary['hook_cliffhanger']}")
+
+    if summary.get("connection_from_prev"):
+        lines.append(f"**이전 화 연결**: {summary['connection_from_prev']}")
+
+    if summary.get("notes"):
+        lines.append(f"**주의사항**: {', '.join(summary['notes'])}")
+
+    return "\n".join(lines)
