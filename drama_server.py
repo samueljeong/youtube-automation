@@ -2,6 +2,7 @@ import os
 import re
 import json
 import gc
+import base64
 import sqlite3
 import subprocess
 import threading
@@ -7055,6 +7056,75 @@ def upload_youtube():
         })
     except Exception as e:
         print(f"[YOUTUBE-UPLOAD][ERROR] {str(e)}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route('/api/drama/upload-youtube-thumbnail', methods=['POST'])
+def upload_youtube_thumbnail():
+    """YouTube 영상에 썸네일 업로드"""
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+
+        data = request.get_json()
+        video_id = data.get('video_id')
+        thumbnail_data = data.get('thumbnail_data')  # base64
+        thumbnail_path = data.get('thumbnail_path')  # 또는 파일 경로
+        channel_id = data.get('channel_id')
+
+        if not video_id:
+            return jsonify({"success": False, "error": "video_id가 필요합니다."})
+
+        if not thumbnail_data and not thumbnail_path:
+            return jsonify({"success": False, "error": "thumbnail_data 또는 thumbnail_path가 필요합니다."})
+
+        # 토큰 로드
+        token_data = load_youtube_token_from_db(channel_id) if channel_id else load_youtube_token_from_db()
+        if not token_data:
+            return jsonify({"success": False, "error": "YouTube 인증이 필요합니다."})
+
+        credentials = Credentials.from_authorized_user_info(token_data)
+
+        # 토큰 갱신
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+            token_data['token'] = credentials.token
+            save_youtube_token_to_db(token_data, channel_id=channel_id)
+
+        youtube = build('youtube', 'v3', credentials=credentials)
+
+        # 썸네일 파일 준비
+        with tempfile.TemporaryDirectory() as temp_dir:
+            if thumbnail_data:
+                # base64 디코딩
+                thumb_path = os.path.join(temp_dir, 'thumbnail.png')
+                thumb_bytes = base64.b64decode(thumbnail_data)
+                with open(thumb_path, 'wb') as f:
+                    f.write(thumb_bytes)
+            else:
+                thumb_path = thumbnail_path
+
+            print(f"[YOUTUBE-THUMBNAIL] 썸네일 업로드 중: {video_id}")
+
+            # 썸네일 업로드
+            media = MediaFileUpload(thumb_path, mimetype='image/png')
+            response = youtube.thumbnails().set(
+                videoId=video_id,
+                media_body=media
+            ).execute()
+
+            print(f"[YOUTUBE-THUMBNAIL] 업로드 완료: {response}")
+
+            return jsonify({
+                "success": True,
+                "message": "썸네일 업로드 완료",
+                "video_id": video_id
+            })
+
+    except Exception as e:
+        print(f"[YOUTUBE-THUMBNAIL][ERROR] {str(e)}")
         return jsonify({"success": False, "error": str(e)})
 
 
