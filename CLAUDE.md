@@ -112,7 +112,6 @@ Task(
 
 | 파일 | 목적 |
 |------|------|
-| `docs/SERMON_CHANGELOG.md` | Sermon 페이지 작업 로그 |
 | `docs/BUGFIX_CHANGELOG.md` | 버그 수정 이력 |
 
 작업 완료 후 해당 로그 파일에 기록 (날짜, 문제, 수정 내용, 커밋 해시)
@@ -145,7 +144,6 @@ Task(
 | 문서 | 설명 |
 |------|------|
 | [docs/BUGFIX_CHANGELOG.md](docs/BUGFIX_CHANGELOG.md) | 버그 수정 이력 |
-| [docs/SERMON_CHANGELOG.md](docs/SERMON_CHANGELOG.md) | Sermon 페이지 변경 이력 |
 
 ---
 
@@ -160,7 +158,6 @@ blueprints/              # Flask Blueprint 모듈
 ├── isekai.py            # Isekai Pipeline
 ├── bible.py             # Bible Pipeline
 ├── history.py           # History Pipeline
-├── sermon.py            # Sermon API
 └── tts.py               # TTS API
 scripts/
 ├── common/              # 공통 모듈 (에이전트 기본 클래스, SRT 유틸리티)
@@ -172,7 +169,6 @@ scripts/
 ├── wuxia_pipeline/      # 무협 파이프라인
 └── migrations/          # DB 마이그레이션 스크립트
 tts/                     # TTS 관련 모듈
-sermon_modules/          # Sermon API 모듈
 image/                   # 이미지 생성 모듈
 lang/                    # 언어별 설정 (ko, ja, en)
 prompts/                 # GPT 프롬프트 템플릿

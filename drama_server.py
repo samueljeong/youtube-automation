@@ -43,9 +43,6 @@ from image import generate_image as image_generate, generate_image_base64, gener
 # TTS 청킹 모듈 (문장별 TTS 개선)
 from tts.tts_chunking import split_korean_sentences as tts_split_sentences
 
-# Sermon API Blueprint
-from sermon_modules.api_sermon import api_sermon_bp
-
 # GPT Chat Blueprint
 from blueprints.gpt import gpt_bp, set_db_connection as gpt_set_db_connection, set_openai_client as gpt_set_openai_client, set_use_postgres as gpt_set_use_postgres
 # AI Tools Blueprint
@@ -69,11 +66,6 @@ from blueprints.history import (
     history_bp,
     set_sheets_service_getter as history_set_sheets_service,
 )
-# Sermon Pipeline Blueprint
-from blueprints.sermon import (
-    sermon_bp,
-    set_sheets_service_getter as sermon_set_sheets_service,
-)
 # TTS API Blueprint
 from blueprints.tts import (
     tts_bp,
@@ -96,8 +88,6 @@ from scripts.common.tts import (
 
 app = Flask(__name__)
 
-# Sermon API Blueprint 등록
-app.register_blueprint(api_sermon_bp)
 # Routes Blueprint 등록 (products, drama, youtube 등)
 register_blueprints(app)
 # GPT Chat Blueprint 등록
@@ -112,8 +102,6 @@ app.register_blueprint(isekai_bp)
 app.register_blueprint(bible_bp)
 # History Pipeline Blueprint 등록
 app.register_blueprint(history_bp)
-# Sermon Pipeline Blueprint 등록
-app.register_blueprint(sermon_bp)
 # TTS API Blueprint 등록
 app.register_blueprint(tts_bp)
 
@@ -15606,9 +15594,6 @@ bible_set_pipeline_lock(pipeline_lock)
 
 # History Blueprint 의존성 주입
 history_set_sheets_service(get_sheets_service_account)
-
-# Sermon Blueprint 의존성 주입
-sermon_set_sheets_service(get_sheets_service_account)
 
 # TTS Blueprint 의존성 주입
 tts_set_lang_ko(lang_ko)
