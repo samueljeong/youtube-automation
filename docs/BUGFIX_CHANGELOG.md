@@ -103,3 +103,34 @@
 - **`api_sheets_check_and_process()` (19432-19444행)**: API 실패와 빈 시트 구분
   - `None` (API 실패) → HTTP 503 에러 반환
   - `[]` (빈 시트) → 정상 응답 (처리할 작업 없음)
+
+---
+
+## 2026-01-10: FFmpeg concat + 자막 싱크 불일치 수정
+
+**증상**: 한국사 EP018 영상에서 자막이 음성과 점점 더 어긋남 (뒤로 갈수록 심해짐)
+
+**원인**:
+1. FFmpeg `concat` demuxer로 이미지 슬라이드쇼 생성 시 `-shortest` 옵션이 제대로 작동하지 않음
+2. 비디오 스트림: **1072초**, 오디오 스트림: **998초** → 73초 차이
+3. 자막은 오디오 타이밍 기준인데 비디오가 더 느리게 진행 → 자막이 점점 빨리 나타남
+
+**수정** (`scripts/history_pipeline/renderer.py` 또는 수동 렌더링 시):
+- `-shortest` 옵션 대신 `-t` 옵션으로 오디오 길이에 맞춰 명시적으로 비디오 길이 제한
+```bash
+# 기존 (문제)
+ffmpeg -f concat -safe 0 -i images.txt -i audio.mp3 -shortest ...
+
+# 수정 (해결)
+DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 audio.mp3)
+ffmpeg -f concat -safe 0 -i images.txt -i audio.mp3 -t $DURATION ...
+```
+
+**검증 방법**:
+```bash
+# 비디오와 오디오 스트림 길이가 일치하는지 확인
+ffprobe -v error -select_streams v:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1 output.mp4
+ffprobe -v error -select_streams a:0 -show_entries stream=duration -of default=noprint_wrappers=1:nokey=1 output.mp4
+```
+
+**교훈**: FFmpeg `concat` demuxer와 `-shortest` 조합은 신뢰할 수 없음. 항상 `-t` 옵션으로 명시적 길이 제한 필요.

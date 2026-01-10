@@ -45,7 +45,7 @@ PlayResY: 1080
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},40,&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,4,1,0,2,20,20,50,1
+Style: Default,{font_name},80,&HFFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,4,3,1,2,20,20,120,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -247,15 +247,16 @@ def render_multi_image_video(
                 vf_filter = f"{vf_filter},ass={escaped_ass_path}"
 
             # FFmpeg 명령어
+            # 주의: -shortest 대신 -t 사용 (concat demuxer와 -shortest 조합 시 싱크 문제 발생)
             ffmpeg_cmd = [
                 'ffmpeg', '-y',
                 '-f', 'concat', '-safe', '0', '-i', list_path,
                 '-i', audio_path,
+                '-t', str(duration),  # 오디오 길이로 명시적 제한 (싱크 보장)
                 '-vf', vf_filter,
                 '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
                 '-c:a', 'aac', '-b:a', '128k',
                 '-r', str(fps),
-                '-shortest',
                 '-pix_fmt', 'yuv420p',
                 '-threads', '2',
                 output_path
@@ -294,6 +295,77 @@ def render_multi_image_video(
         return {"ok": False, "error": "FFmpeg 타임아웃"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def mix_audio_with_bgm(
+    voice_path: str,
+    bgm_path: str,
+    output_path: str,
+    bgm_volume: float = 0.15,
+) -> Dict[str, Any]:
+    """
+    음성과 BGM 믹싱
+
+    Args:
+        voice_path: 음성 파일 경로
+        bgm_path: BGM 파일 경로
+        output_path: 출력 파일 경로
+        bgm_volume: BGM 볼륨 (0.0 ~ 1.0, 기본 0.15)
+
+    Returns:
+        {"ok": True, "audio_path": "..."}
+    """
+    try:
+        # BGM 볼륨 dB 계산 (0.15 ≈ -16dB)
+        import math
+        bgm_db = 20 * math.log10(max(bgm_volume, 0.01))
+
+        # 음성 길이 확인
+        voice_duration = get_audio_duration(voice_path)
+
+        # FFmpeg로 믹싱
+        # BGM을 음성 길이에 맞게 루프하고 페이드 아웃
+        ffmpeg_cmd = [
+            'ffmpeg', '-y',
+            '-i', voice_path,
+            '-stream_loop', '-1', '-i', bgm_path,  # BGM 무한 루프
+            '-filter_complex',
+            f'[1:a]volume={bgm_volume},afade=t=out:st={voice_duration-3}:d=3[bgm];'
+            f'[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[out]',
+            '-map', '[out]',
+            '-c:a', 'libmp3lame', '-b:a', '192k',
+            '-t', str(voice_duration),
+            output_path
+        ]
+
+        print(f"[HISTORY-RENDERER] BGM 믹싱 중... (볼륨: {bgm_volume*100:.0f}%)")
+
+        process = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=300
+        )
+
+        if process.returncode != 0:
+            error_msg = process.stderr.decode('utf-8', errors='ignore')[:300]
+            return {"ok": False, "error": f"BGM 믹싱 오류: {error_msg}"}
+
+        if os.path.exists(output_path):
+            print(f"[HISTORY-RENDERER] BGM 믹싱 완료: {output_path}")
+            return {"ok": True, "audio_path": output_path}
+        else:
+            return {"ok": False, "error": "믹싱 출력 파일 없음"}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# 기본 BGM 경로
+DEFAULT_BGM_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "static", "audio", "bgm", "epic_01.mp3"
+)
 
 
 if __name__ == "__main__":
