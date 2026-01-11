@@ -1,6 +1,6 @@
 """
 Gemini 이미지 생성 모듈
-OpenRouter API를 통한 Gemini 이미지 생성
+Google AI Studio API 또는 OpenRouter API를 통한 Gemini 이미지 생성
 
 지원 모델:
 - gemini-2.5-flash: 씬 이미지 생성 (빠르고 저렴)
@@ -21,18 +21,83 @@ from PIL import Image as PILImage
 
 # 상수
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+GOOGLE_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 DEFAULT_TIMEOUT = 120
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 5
 
-# 모델 상수
+# Google API 키 로테이션 관리
+_google_api_key_index = 0
+_exhausted_keys = set()  # quota 초과된 키 추적
+
+
+def _get_google_api_keys() -> list:
+    """환경변수에서 Google API 키 목록 가져오기
+
+    지원 형식:
+    - GOOGLE_API_KEY: 단일 키
+    - GOOGLE_API_KEY_1, GOOGLE_API_KEY_2, ...: 여러 키
+    """
+    keys = []
+
+    # 기본 키
+    base_key = os.getenv("GOOGLE_API_KEY", "")
+    if base_key:
+        keys.append(base_key)
+
+    # 번호 붙은 키들 (1부터 10까지)
+    for i in range(1, 11):
+        key = os.getenv(f"GOOGLE_API_KEY_{i}", "")
+        if key and key not in keys:
+            keys.append(key)
+
+    return keys
+
+
+def _get_next_google_api_key() -> Optional[str]:
+    """다음 사용 가능한 Google API 키 반환 (로테이션)"""
+    global _google_api_key_index
+
+    keys = _get_google_api_keys()
+    if not keys:
+        return None
+
+    # 모든 키가 소진되었으면 초기화
+    available_keys = [k for k in keys if k not in _exhausted_keys]
+    if not available_keys:
+        print("[GEMINI][INFO] 모든 Google API 키 quota 소진, 초기화 후 재시도")
+        _exhausted_keys.clear()
+        available_keys = keys
+
+    # 라운드 로빈 방식으로 키 선택
+    _google_api_key_index = _google_api_key_index % len(available_keys)
+    key = available_keys[_google_api_key_index]
+    _google_api_key_index += 1
+
+    return key
+
+
+def _mark_key_exhausted(api_key: str):
+    """quota 초과된 키 표시"""
+    _exhausted_keys.add(api_key)
+    key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+    remaining = len(_get_google_api_keys()) - len(_exhausted_keys)
+    print(f"[GEMINI][QUOTA] 키 {key_preview} quota 초과, 남은 키: {remaining}개")
+
+# OpenRouter 모델 상수
 GEMINI_FLASH = "google/gemini-2.5-flash-image-preview"  # 씬 이미지용
 GEMINI_PRO = "google/gemini-3-pro-image-preview"        # 썸네일용 (고품질)
+
+# Google API 모델 상수
+GOOGLE_GEMINI_FLASH = "gemini-2.5-flash-image-preview"
+GOOGLE_GEMINI_PRO = "gemini-3-pro-image-preview"
 
 # 모델별 비용 (USD)
 MODEL_COSTS = {
     GEMINI_FLASH: 0.039,
     GEMINI_PRO: 0.05,
+    GOOGLE_GEMINI_FLASH: 0.02,  # Google API 직접 호출은 더 저렴
+    GOOGLE_GEMINI_PRO: 0.03,
 }
 
 
@@ -146,6 +211,92 @@ def _call_openrouter_api(prompt: str, api_key: str, model: str = GEMINI_FLASH) -
             continue
 
     return {"ok": False, "error": f"API 호출 실패 (재시도 {MAX_RETRIES}회): {last_error}"}
+
+
+def _call_google_api(prompt: str, api_key: str, model: str = GOOGLE_GEMINI_FLASH) -> Dict[str, Any]:
+    """Google AI Studio API 직접 호출 (재시도 로직 포함)"""
+    if not api_key:
+        print("[GEMINI][ERROR] Google API 키가 비어있습니다!")
+        return {"ok": False, "error": "GOOGLE_API_KEY가 설정되지 않았습니다"}
+
+    key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+    print(f"[GEMINI][DEBUG] Google API 호출 시작 - 모델: {model}, 키: {key_preview}")
+
+    url = f"{GOOGLE_API_URL}/{model}:generateContent?key={api_key}"
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE", "TEXT"],
+        }
+    }
+
+    retry_delay = INITIAL_RETRY_DELAY
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            print(f"[GEMINI][DEBUG] Google API 요청 시도 {attempt + 1}/{MAX_RETRIES}...")
+            response = requests.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
+
+            print(f"[GEMINI][DEBUG] 응답 상태: {response.status_code}")
+
+            if response.status_code == 200:
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    print(f"[GEMINI][DEBUG] Google API 응답 - candidates: {len(candidates)}, parts: {len(parts)}")
+                return {"ok": True, "data": data}
+            elif response.status_code == 429:
+                # quota 초과 - 키 소진 표시하고 즉시 반환 (다른 키로 재시도하도록)
+                last_error = response.text
+                print(f"[GEMINI][QUOTA] Google API quota 초과 ({response.status_code})")
+                _mark_key_exhausted(api_key)
+                return {"ok": False, "error": "quota_exceeded", "quota_exceeded": True}
+            elif response.status_code in [502, 503, 504]:
+                last_error = response.text
+                print(f"[GEMINI][RETRY] 서버 오류 ({response.status_code}) (시도 {attempt + 1}/{MAX_RETRIES})")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                print(f"[GEMINI][ERROR] Google API 오류 ({response.status_code}): {response.text[:500]}")
+                return {"ok": False, "error": f"Google API 오류 ({response.status_code}): {response.text[:200]}"}
+
+        except requests.exceptions.Timeout:
+            last_error = "요청 시간 초과"
+            print(f"[GEMINI][RETRY] 타임아웃 (시도 {attempt + 1}/{MAX_RETRIES})")
+            time.sleep(retry_delay)
+            continue
+        except Exception as e:
+            last_error = str(e)
+            print(f"[GEMINI][RETRY] 오류: {e} (시도 {attempt + 1}/{MAX_RETRIES})")
+            time.sleep(retry_delay)
+            continue
+
+    return {"ok": False, "error": f"Google API 호출 실패 (재시도 {MAX_RETRIES}회): {last_error}"}
+
+
+def _extract_image_from_google_response(result: Dict[str, Any]) -> Optional[str]:
+    """Google API 응답에서 base64 이미지 데이터 추출"""
+    candidates = result.get("candidates", [])
+    if not candidates:
+        print("[GEMINI][DEBUG] _extract_google: candidates 없음")
+        return None
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    for part in parts:
+        if "inlineData" in part:
+            mime_type = part["inlineData"].get("mimeType", "")
+            if "image" in mime_type:
+                image_b64 = part["inlineData"].get("data", "")
+                if image_b64:
+                    print(f"[GEMINI][DEBUG] Google API 이미지 추출 성공 - {len(image_b64)} chars")
+                    return image_b64
+
+    print("[GEMINI][DEBUG] _extract_google: 이미지 추출 실패")
+    return None
 
 
 def _extract_image_from_response(result: Dict[str, Any]) -> Optional[str]:
@@ -299,7 +450,8 @@ def generate_image(
     size: str = "1280x720",
     output_dir: Optional[str] = None,
     model: str = GEMINI_FLASH,
-    add_aspect_instruction: bool = True
+    add_aspect_instruction: bool = True,
+    use_google_api: bool = True  # Google API 우선 사용 (OpenRouter fallback)
 ) -> Dict[str, Any]:
     """
     Gemini를 사용하여 이미지 생성
@@ -310,15 +462,12 @@ def generate_image(
         output_dir: 이미지 저장 디렉토리 (기본: static/images)
         model: 사용할 모델 (GEMINI_FLASH 또는 GEMINI_PRO)
         add_aspect_instruction: 비율 지시문 자동 추가 여부
+        use_google_api: Google API 우선 사용 (기본: True)
 
     Returns:
         {"ok": True, "image_url": str, "cost": float} 또는
         {"ok": False, "error": str}
     """
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
-    if not api_key:
-        return {"ok": False, "error": "OPENROUTER_API_KEY 환경변수가 설정되지 않았습니다."}
-
     if not prompt:
         return {"ok": False, "error": "프롬프트가 없습니다."}
 
@@ -332,33 +481,64 @@ def generate_image(
     model_name = "Pro" if "pro" in model.lower() else "Flash"
     print(f"[GEMINI-{model_name}] 이미지 생성 시작 - 크기: {size}")
 
-    # API 호출
-    result = _call_openrouter_api(enhanced_prompt, api_key, model)
-    if not result.get("ok"):
-        return result
+    base64_data = None
+    used_google_api = False
 
-    # 이미지 추출
-    base64_data = _extract_image_from_response(result["data"])
+    # 1. Google API 우선 시도 (키 로테이션 지원)
+    if use_google_api:
+        google_model = GOOGLE_GEMINI_PRO if "pro" in model.lower() else GOOGLE_GEMINI_FLASH
+        max_key_attempts = len(_get_google_api_keys()) or 1
+
+        for key_attempt in range(max_key_attempts):
+            google_api_key = _get_next_google_api_key()
+            if not google_api_key:
+                break
+
+            result = _call_google_api(enhanced_prompt, google_api_key, google_model)
+
+            if result.get("ok"):
+                base64_data = _extract_image_from_google_response(result["data"])
+                if base64_data:
+                    used_google_api = True
+                    model = google_model  # 비용 계산용
+                    break
+
+            # quota 초과가 아닌 다른 에러면 다음 키로 시도하지 않음
+            if not result.get("quota_exceeded"):
+                break
+
+            print(f"[GEMINI] 키 {key_attempt + 1}/{max_key_attempts} quota 초과, 다음 키 시도...")
+
+        if not base64_data:
+            print(f"[GEMINI] Google API 실패, OpenRouter로 fallback...")
+
+    # 2. OpenRouter fallback
     if not base64_data:
-        # 디버그: API 응답 구조 로깅
-        choices = result["data"].get("choices", [])
-        if choices:
-            message = choices[0].get("message", {})
-            content = message.get("content", [])
-            print(f"[GEMINI][DEBUG] 이미지 추출 실패 - content 타입: {type(content)}, 길이: {len(content) if isinstance(content, list) else 'N/A'}")
-            if isinstance(content, list) and content:
-                print(f"[GEMINI][DEBUG] 첫 번째 content: {str(content[0])[:200]}")
-            elif isinstance(content, str):
-                print(f"[GEMINI][DEBUG] content (text): {content[:200]}")
-        else:
-            print(f"[GEMINI][DEBUG] choices 없음 - 응답: {str(result['data'])[:300]}")
-        return {"ok": False, "error": "Gemini에서 이미지를 생성하지 못했습니다. (응답에 이미지 없음)"}
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+        if not openrouter_api_key:
+            if not use_google_api or not os.getenv("GOOGLE_API_KEY"):
+                return {"ok": False, "error": "API 키가 설정되지 않았습니다 (GOOGLE_API_KEY 또는 OPENROUTER_API_KEY)"}
+            return {"ok": False, "error": "Google API 실패, OpenRouter 키도 없음"}
+
+        result = _call_openrouter_api(enhanced_prompt, openrouter_api_key, model)
+        if not result.get("ok"):
+            return result
+
+        base64_data = _extract_image_from_response(result["data"])
+        if not base64_data:
+            # 디버그: API 응답 구조 로깅
+            choices = result["data"].get("choices", [])
+            if choices:
+                message = choices[0].get("message", {})
+                content = message.get("content", [])
+                print(f"[GEMINI][DEBUG] 이미지 추출 실패 - content 타입: {type(content)}, 길이: {len(content) if isinstance(content, list) else 'N/A'}")
+            return {"ok": False, "error": "Gemini에서 이미지를 생성하지 못했습니다. (응답에 이미지 없음)"}
 
     # 이미지 처리 및 저장
     if output_dir is None:
         output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'images')
 
-    prefix = "thumbnail" if model == GEMINI_PRO else "gemini"
+    prefix = "thumbnail" if "pro" in model.lower() else "gemini"
     image_url = _process_and_save_image(
         base64_data, target_width, target_height, output_dir, prefix
     )
@@ -368,15 +548,17 @@ def generate_image(
         image_url = f"data:image/png;base64,{base64_data}"
 
     # 모델별 비용
-    cost = MODEL_COSTS.get(model, 0.039)
-    print(f"[GEMINI-{model_name}] 완료 - 비용: ${cost}")
+    cost = MODEL_COSTS.get(model, 0.02 if used_google_api else 0.039)
+    api_type = "Google" if used_google_api else "OpenRouter"
+    print(f"[GEMINI-{model_name}] 완료 ({api_type}) - 비용: ${cost}")
 
     return {
         "ok": True,
         "image_url": image_url,
         "cost": cost,
         "provider": "gemini",
-        "model": model_name.lower()
+        "model": model_name.lower(),
+        "api_type": "google" if used_google_api else "openrouter"
     }
 
 

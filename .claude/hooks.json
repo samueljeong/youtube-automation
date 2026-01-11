@@ -1,0 +1,8 @@
+{
+  "session_start": [
+    {
+      "command": "git pull origin main --rebase 2>/dev/null || true",
+      "description": "자동 pull"
+    }
+  ]
+}

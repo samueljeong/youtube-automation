@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/settings.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(git *)",
@@ -30,26 +30,5 @@
       "Bash(git push --force)",
       "Bash(git reset --hard)"
     ]
-  },
-  "hooks": {
-    "SessionStart": [
-      {
-        "command": "bash .claude/hooks/session-start.sh",
-        "description": "세션 시작 시 코드 상태 자동 점검"
-      }
-    ],
-    "postToolUse": [
-      {
-        "matcher": {
-          "toolName": "Edit",
-          "filePath": "**/*.py"
-        },
-        "command": "ruff check --fix --quiet $FILE_PATH 2>/dev/null || true"
-      }
-    ]
-  },
-  "model": {
-    "default": "claude-opus-4-5-20251101",
-    "thinking": true
   }
 }
