@@ -1365,6 +1365,7 @@ _WHISK_KEY_CHARS = string.ascii_uppercase.replace('O', '').replace('I', '').repl
                    string.digits.replace('0', '').replace('1', '')
 
 @app.route("/api/whisk/validate", methods=["POST"])
+@cross_origin()
 def whisk_validate():
     # Rate limit: 10 requests per 5 minutes per IP
     ip = request.remote_addr
