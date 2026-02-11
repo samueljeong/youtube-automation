@@ -1408,6 +1408,7 @@ def whisk_validate():
     return jsonify({"valid": True, "expires": expires})
 
 @app.route("/api/whisk/generate", methods=["POST"])
+@cross_origin()
 def whisk_generate_key():
     data = request.get_json(silent=True) or {}
     secret = data.get("secret", "")
