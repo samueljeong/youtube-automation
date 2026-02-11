@@ -1358,6 +1358,7 @@ def health():
 import string
 import secrets as _secrets
 import time as _time
+from flask_cors import cross_origin
 
 _whisk_rate_limits = {}
 _WHISK_KEY_CHARS = string.ascii_uppercase.replace('O', '').replace('I', '').replace('L', '') + \
