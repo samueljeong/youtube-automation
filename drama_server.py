@@ -87,6 +87,8 @@ except Exception as e:
 
 # Dashboard Blueprint
 from blueprints.dashboard import dashboard_bp
+from blueprints.gpu_studio import gpu_studio_bp
+from blueprints.youtube_trends import youtube_trends_bp
 
 # TTS 공통 모듈 (scripts/common/tts.py)
 from scripts.common.tts import (
@@ -125,6 +127,10 @@ if _telegram_available and telegram_bp:
     print("[TELEGRAM] Blueprint 등록 완료")
 # Dashboard Blueprint 등록
 app.register_blueprint(dashboard_bp)
+# GPU Studio Blueprint 등록
+app.register_blueprint(gpu_studio_bp)
+# YouTube Trends Blueprint 등록
+app.register_blueprint(youtube_trends_bp)
 
 # ===== 전역 에러 핸들러 (항상 JSON 반환) =====
 @app.errorhandler(500)
@@ -166,6 +172,7 @@ def serve_uploads(filename):
 
 # ===== outputs 폴더 정적 파일 서빙 =====
 @app.route('/output/<path:filename>')
+@app.route('/outputs/<path:filename>')
 def serve_output(filename):
     """outputs 폴더의 파일을 제공 (썸네일, 이미지 등)"""
     output_dir = os.path.join(os.path.dirname(__file__), 'outputs')
@@ -1346,6 +1353,82 @@ def product_manage():
 @app.route("/health")
 def health():
     return jsonify({"ok": True})
+
+# ===== Whisk 라이센스 키 검증 API =====
+import string
+import secrets as _secrets
+import time as _time
+
+_whisk_rate_limits = {}
+_WHISK_KEY_CHARS = string.ascii_uppercase.replace('O', '').replace('I', '').replace('L', '') + \
+                   string.digits.replace('0', '').replace('1', '')
+
+@app.route("/api/whisk/validate", methods=["POST"])
+def whisk_validate():
+    # Rate limit: 10 requests per 5 minutes per IP
+    ip = request.remote_addr
+    now = _time.time()
+    timestamps = _whisk_rate_limits.get(ip, [])
+    timestamps = [t for t in timestamps if now - t < 300]
+    if len(timestamps) >= 10:
+        return jsonify({"valid": False, "error": "Too many requests"}), 429
+    timestamps.append(now)
+    _whisk_rate_limits[ip] = timestamps
+
+    data = request.get_json(silent=True) or {}
+    key = data.get("key", "").strip().upper()
+    if not key:
+        return jsonify({"valid": False, "error": "Key required"})
+
+    parts = key.split("-")
+    if len(parts) != 3 or parts[0] != "WHISK" or len(parts[1]) != 4 or len(parts[2]) != 4:
+        return jsonify({"valid": False, "error": "Invalid format"})
+
+    active_keys = {}
+    raw = os.environ.get("WHISK_ACTIVE_KEYS", "")
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if ":" not in entry:
+            continue
+        k, exp = entry.split(":", 1)
+        active_keys[k.strip()] = exp.strip()
+
+    if key not in active_keys:
+        return jsonify({"valid": False, "error": "Invalid key"})
+
+    expires = active_keys[key]
+    try:
+        if dt.now() > dt.strptime(expires, "%Y-%m-%d"):
+            return jsonify({"valid": False, "error": "Key expired", "expires": expires})
+    except ValueError:
+        pass
+
+    return jsonify({"valid": True, "expires": expires})
+
+@app.route("/api/whisk/generate", methods=["POST"])
+def whisk_generate_key():
+    data = request.get_json(silent=True) or {}
+    secret = data.get("secret", "")
+    admin_secret = os.environ.get("WHISK_ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    expires = data.get("expires", "")
+    if not expires:
+        return jsonify({"error": "expires required (YYYY-MM-DD)"}), 400
+    try:
+        dt.strptime(expires, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    p1 = "".join(_secrets.choice(_WHISK_KEY_CHARS) for _ in range(4))
+    p2 = "".join(_secrets.choice(_WHISK_KEY_CHARS) for _ in range(4))
+    new_key = f"WHISK-{p1}-{p2}"
+
+    current = os.environ.get("WHISK_ACTIVE_KEYS", "")
+    new_env = f"{current},{new_key}:{expires}" if current else f"{new_key}:{expires}"
+
+    return jsonify({"key": new_key, "expires": expires, "add_to_env": new_env})
 
 # ===== JSON 지침 API =====
 @app.route("/api/drama/guidelines", methods=["GET"])
@@ -12465,7 +12548,7 @@ def _generate_outro_video(output_path, duration=5, fonts_dir=None):
                 f"fade=t=in:st=0:d=0.5,fade=t=out:st={duration-0.5}:d=0.5"
             ),
             # 메인 영상과 동일한 인코딩 설정 (concat demuxer 호환)
-            "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
+            "-c:v", "h264_videotoolbox", "-q:v", "60", "-profile:v", "high", "-level", "4.0",
             "-pix_fmt", "yuv420p", "-r", "24",  # 24fps (메인 영상과 동일)
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-movflags", "+faststart",
@@ -13050,7 +13133,7 @@ OUTPUT: 1080x1920 vertical Korean webtoon style illustration with centered chara
                     "-loop", "1", "-i", bd['image_path'],
                     "-i", bd['audio_path'],
                     "-vf", subtitle_filter,
-                    "-c:v", "libx264", "-preset", "fast",
+                    "-c:v", "h264_videotoolbox", "-q:v", "60",
                     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                     "-pix_fmt", "yuv420p",
                     "-t", str(bd['duration']),
@@ -13089,7 +13172,7 @@ OUTPUT: 1080x1920 vertical Korean webtoon style illustration with centered chara
                 "ffmpeg", "-y",
                 "-f", "concat", "-safe", "0",
                 "-i", concat_list,
-                "-c:v", "libx264", "-preset", "fast",
+                "-c:v", "h264_videotoolbox", "-q:v", "60",
                 "-c:a", "aac", "-b:a", "128k",
                 "-movflags", "+faststart",
                 output_path
@@ -13228,7 +13311,7 @@ def _generate_shorts_video(main_video_path, scenes, highlight_scenes, hook_text,
                     "-i", main_video_path,
                     "-t", str(clip['duration']),
                     "-vf", vf_filter,
-                    "-c:v", "libx264", "-preset", "fast",
+                    "-c:v", "h264_videotoolbox", "-q:v", "60",
                     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                     "-pix_fmt", "yuv420p",
                     clip_path
@@ -13287,7 +13370,7 @@ def _generate_shorts_video(main_video_path, scenes, highlight_scenes, hook_text,
                     "ffmpeg", "-y",
                     "-i", merged_path,
                     "-vf", hook_filter,
-                    "-c:v", "libx264", "-preset", "fast",
+                    "-c:v", "h264_videotoolbox", "-q:v", "60",
                     "-c:a", "copy",
                     output_path
                 ]
@@ -13397,7 +13480,7 @@ def _apply_transitions(clip_paths, output_path, transition_style="crossfade", du
             *input_args,
             "-filter_complex", filter_complex,
             "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "h264_videotoolbox", "-q:v", "60",
             "-c:a", "aac", "-b:a", "128k",
             output_path
         ]
@@ -13648,7 +13731,7 @@ def _create_scene_clip_worker(task):
             "-i", img_path,
             "-i", audio_path,
             "-vf", ken_burns_filter,
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "h264_videotoolbox", "-q:v", "60",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-pix_fmt", "yuv420p",
             "-shortest", "-t", str(duration),
@@ -13662,7 +13745,7 @@ def _create_scene_clip_worker(task):
             "-i", img_path,
             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
             "-vf", ken_burns_filter,
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "h264_videotoolbox", "-q:v", "60",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-pix_fmt", "yuv420p",
             "-t", str(duration), "-shortest",
@@ -13696,7 +13779,7 @@ def _create_scene_clip_worker(task):
             "-i", img_path,
             "-i", audio_path,
             "-vf", simple_filter,
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "h264_videotoolbox", "-q:v", "60",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-pix_fmt", "yuv420p",
             "-shortest", "-t", str(duration),
@@ -13709,7 +13792,7 @@ def _create_scene_clip_worker(task):
             "-i", img_path,
             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
             "-vf", simple_filter,
-            "-c:v", "libx264", "-preset", "fast",
+            "-c:v", "h264_videotoolbox", "-q:v", "60",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-pix_fmt", "yuv420p",
             "-t", str(duration), "-shortest",
@@ -13946,7 +14029,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                             "-i", img_path,
                             "-i", audio_path,
                             "-vf", ken_burns_filter,
-                            "-c:v", "libx264", "-preset", "fast",
+                            "-c:v", "h264_videotoolbox", "-q:v", "60",
                             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                             "-pix_fmt", "yuv420p",
                             "-shortest", "-t", str(duration),
@@ -13960,7 +14043,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                             "-i", img_path,
                             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
                             "-vf", ken_burns_filter,
-                            "-c:v", "libx264", "-preset", "fast",
+                            "-c:v", "h264_videotoolbox", "-q:v", "60",
                             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                             "-pix_fmt", "yuv420p",
                             "-t", str(duration), "-shortest",
@@ -13995,7 +14078,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                                 "-i", img_path,
                                 "-i", audio_path,
                                 "-vf", simple_filter,
-                                "-c:v", "libx264", "-preset", "fast",
+                                "-c:v", "h264_videotoolbox", "-q:v", "60",
                                 "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                                 "-pix_fmt", "yuv420p",
                                 "-shortest", "-t", str(duration),
@@ -14008,7 +14091,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                                 "-i", img_path,
                                 "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
                                 "-vf", simple_filter,
-                                "-c:v", "libx264", "-preset", "fast",
+                                "-c:v", "h264_videotoolbox", "-q:v", "60",
                                 "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                                 "-pix_fmt", "yuv420p",
                                 "-t", str(duration), "-shortest",
@@ -14149,7 +14232,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
             result = subprocess.run([
                 "ffmpeg", "-y", "-i", merged_path,
                 "-vf", vf_filter,
-                "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
+                "-c:v", "h264_videotoolbox", "-q:v", "60", "-profile:v", "high", "-level", "4.0",
                 "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                 "-movflags", "+faststart",
                 final_path
@@ -14167,7 +14250,7 @@ def _generate_video_worker(job_id, session_id, scenes, detected_lang, video_effe
                 print(f"[VIDEO-WORKER] 자막 없이 YouTube 호환 재인코딩 시도...")
                 fallback_result = subprocess.run([
                     "ffmpeg", "-y", "-i", merged_path,
-                    "-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-level", "4.0",
+                    "-c:v", "h264_videotoolbox", "-q:v", "60", "-profile:v", "high", "-level", "4.0",
                     "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
                     "-movflags", "+faststart",
                     final_path
