@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Trends - AI 대본 카테고리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .loader { border-top-color: #ef4444; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hot-1 { color: #fbbf24; }
+        .hot-2 { color: #f97316; }
+        .hot-3 { color: #ef4444; }
+        .hot-4 { color: #dc2626; }
+        .hot-5 { color: #b91c1c; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen" x-data="trendsDashboard()">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+        <div class="flex items-center justify-between max-w-7xl mx-auto">
+            <div>
+                <h1 class="text-2xl font-bold">YouTube Trends</h1>
+                <p class="text-gray-400 text-sm">AI 대본으로 만들 수 있는 카테고리 트렌드</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <select x-model="period" @change="loadAllCategories()"
+                        class="bg-gray-700 rounded-lg px-4 py-2 text-sm">
+                    <option value="1">최근 1일</option>
+                    <option value="3">최근 3일</option>
+                    <option value="7" selected>최근 7일</option>
+                    <option value="14">최근 14일</option>
+                    <option value="30">최근 30일</option>
+                </select>
+                <button @click="loadAllCategories()"
+                        :disabled="loading"
+                        class="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                    <span x-show="loading" class="loader w-4 h-4 border-2 border-white rounded-full"></span>
+                    <span x-text="loading ? '분석 중...' : '전체 분석'"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6">
+        <!-- Category Overview -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">카테고리별 현황</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <template x-for="(cat, catId) in categories" :key="catId">
+                    <div @click="selectCategory(catId)"
+                         :class="selectedCategory === catId ? 'ring-2 ring-red-500' : ''"
+                         class="bg-gray-800 rounded-xl p-4 cursor-pointer hover:bg-gray-750 transition-all">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-2xl" x-text="cat.icon"></span>
+                            <template x-if="categoryData[catId]?.hotLevel">
+                                <span :class="'hot-' + categoryData[catId].hotLevel" class="text-lg font-bold">
+                                    <template x-for="i in categoryData[catId].hotLevel">
+                                        <span>🔥</span>
+                                    </template>
+                                </span>
+                            </template>
+                        </div>
+                        <h3 class="font-semibold text-sm" x-text="cat.name"></h3>
+                        <template x-if="categoryData[catId]?.avgViews">
+                            <p class="text-xs text-gray-400 mt-1">
+                                평균 <span x-text="formatNumber(categoryData[catId].avgViews)"></span>회
+                            </p>
+                        </template>
+                        <template x-if="categoryData[catId]?.topVideo">
+                            <p class="text-xs text-gray-500 mt-1 truncate"
+                               x-text="categoryData[catId].topVideo.title"></p>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- Selected Category Detail -->
+        <section x-show="selectedCategory" x-cloak class="mb-8">
+            <div class="bg-gray-800 rounded-xl p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl" x-text="categories[selectedCategory]?.icon"></span>
+                        <div>
+                            <h2 class="text-xl font-bold" x-text="categories[selectedCategory]?.name"></h2>
+                            <p class="text-gray-400 text-sm" x-text="categories[selectedCategory]?.description"></p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="extractKeywords(selectedCategory)"
+                                :disabled="keywordLoading"
+                                class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 px-4 py-2 rounded-lg text-sm">
+                            키워드 분석
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 롱폼/숏폼 필터 탭 -->
+                <div class="flex items-center gap-2 mb-4">
+                    <button @click="videoType = 'all'; searchCategory(selectedCategory)"
+                            :class="videoType === 'all' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                        전체
+                    </button>
+                    <button @click="videoType = 'long'; searchCategory(selectedCategory)"
+                            :class="videoType === 'long' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                        📺 롱폼 (10분+)
+                    </button>
+                    <button @click="videoType = 'short'; searchCategory(selectedCategory)"
+                            :class="videoType === 'short' ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                        📱 숏폼 (60초-)
+                    </button>
+
+                    <!-- 캐시 표시 및 새로고침 -->
+                    <div class="ml-auto flex items-center gap-2">
+                        <span x-show="isCached" class="text-xs text-gray-500">
+                            💾 캐시됨
+                        </span>
+                        <button @click="forceRefresh()"
+                                :disabled="searchLoading"
+                                class="text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-600">
+                            🔄 새로고침
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Keywords -->
+                <div x-show="trendingKeywords.length > 0" class="mb-6">
+                    <h3 class="font-semibold mb-3">뜨는 키워드</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="kw in trendingKeywords.slice(0, 15)" :key="kw.word">
+                            <span @click="searchKeyword(kw.word)"
+                                  class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full text-sm cursor-pointer">
+                                <span x-text="kw.word"></span>
+                                <span class="text-gray-400 ml-1" x-text="'(' + kw.count + ')'"></span>
+                            </span>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Videos -->
+                <div x-show="searchLoading" class="text-center py-8">
+                    <div class="loader w-8 h-8 border-4 border-white rounded-full mx-auto mb-2"></div>
+                    <p class="text-gray-400">영상 검색 중...</p>
+                </div>
+
+                <div x-show="!searchLoading && videos.length > 0">
+                    <h3 class="font-semibold mb-3">
+                        인기 영상 TOP <span x-text="videos.length"></span>
+                        <span class="text-gray-400 text-sm font-normal ml-2">(시간당 조회수 기준)</span>
+                    </h3>
+                    <div class="space-y-3 max-h-[600px] overflow-y-auto">
+                        <template x-for="(video, index) in videos" :key="video.id">
+                            <div class="flex gap-4 bg-gray-750 rounded-lg p-3 hover:bg-gray-700 transition-all">
+                                <div class="flex-shrink-0 w-8 text-center">
+                                    <span class="text-lg font-bold"
+                                          :class="index < 3 ? 'text-red-500' : 'text-gray-500'"
+                                          x-text="index + 1"></span>
+                                </div>
+                                <a :href="'https://youtube.com/watch?v=' + video.id" target="_blank"
+                                   class="flex-shrink-0">
+                                    <img :src="video.thumbnail" class="w-32 h-20 object-cover rounded">
+                                </a>
+                                <div class="flex-1 min-w-0">
+                                    <a :href="'https://youtube.com/watch?v=' + video.id" target="_blank"
+                                       class="font-medium hover:text-red-400 line-clamp-2" x-text="video.title"></a>
+                                    <p class="text-sm text-gray-400 mt-1" x-text="video.channel"></p>
+                                    <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                        <span :class="video.isShort ? 'text-purple-400' : 'text-blue-400'">
+                                            <span x-text="video.isShort ? '📱' : '📺'"></span>
+                                            <span x-text="video.durationFormatted"></span>
+                                        </span>
+                                        <span>조회수 <span class="text-white" x-text="formatNumber(video.viewCount)"></span></span>
+                                        <span>업로드 <span class="text-white" x-text="formatHours(video.hoursSinceUpload)"></span> 전</span>
+                                        <span class="text-red-400 font-medium">
+                                            시간당 <span x-text="formatNumber(video.viewsPerHour)"></span>회
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Custom Search -->
+        <section class="bg-gray-800 rounded-xl p-6">
+            <h2 class="text-xl font-bold mb-4">키워드 직접 검색</h2>
+            <div class="flex gap-4">
+                <input type="text" x-model="customKeyword"
+                       @keyup.enter="searchKeyword(customKeyword)"
+                       placeholder="검색할 키워드 입력..."
+                       class="flex-1 bg-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-red-500 focus:outline-none">
+                <button @click="searchKeyword(customKeyword)"
+                        :disabled="!customKeyword || searchLoading"
+                        class="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-medium">
+                    검색
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast -->
+    <div x-show="toast.show" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:leave="transition ease-in duration-200"
+         :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
+         class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50">
+        <span x-text="toast.message"></span>
+    </div>
+
+    <script>
+        function trendsDashboard() {
+            return {
+                // Data
+                categories: {{ categories | tojson }},
+                categoryData: {},
+                selectedCategory: null,
+                videos: [],
+                trendingKeywords: [],
+                customKeyword: '',
+                period: '7',
+
+                // Loading states
+                loading: false,
+                searchLoading: false,
+                keywordLoading: false,
+
+                // Toast
+                toast: { show: false, message: '', type: 'success' },
+
+                // Video type filter
+                videoType: 'all',  // 'all', 'long', 'short'
+
+                // Cache status
+                isCached: false,
+                categoriesCached: false,
+
+                async init() {
+                    // 초기 로드
+                    await this.loadAllCategories();
+                },
+
+                showToast(message, type = 'success') {
+                    this.toast = { show: true, message, type };
+                    setTimeout(() => this.toast.show = false, 3000);
+                },
+
+                formatNumber(num) {
+                    if (num >= 100000000) return (num / 100000000).toFixed(1) + '억';
+                    if (num >= 10000) return (num / 10000).toFixed(1) + '만';
+                    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                    return num.toLocaleString();
+                },
+
+                formatHours(hours) {
+                    if (hours < 1) return Math.round(hours * 60) + '분';
+                    if (hours < 24) return Math.round(hours) + '시간';
+                    return Math.round(hours / 24) + '일';
+                },
+
+                async loadAllCategories() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch(`/api/youtube/trends/all-categories?days=${this.period}`);
+                        const data = await res.json();
+                        if (data.ok) {
+                            this.categoryData = data.categories;
+                            this.showToast('전체 카테고리 분석 완료');
+                        } else {
+                            this.showToast(data.error || '분석 실패', 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('오류: ' + e.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                selectCategory(catId) {
+                    this.selectedCategory = catId;
+                    this.videos = [];
+                    this.trendingKeywords = [];
+                    // 자동으로 검색 시작
+                    this.searchCategory(catId);
+                },
+
+                async searchCategory(catId, forceRefresh = false) {
+                    this.searchLoading = true;
+                    this.videos = [];
+                    this.isCached = false;
+                    try {
+                        const res = await fetch('/api/youtube/trends/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                category: catId,
+                                days: parseInt(this.period),
+                                max_results: 30,
+                                video_type: this.videoType,
+                                force_refresh: forceRefresh
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            this.videos = data.videos;
+                            this.isCached = data.cached || false;
+                            if (data.cached) {
+                                this.showToast('캐시된 데이터 로드', 'success');
+                            }
+                        } else {
+                            this.showToast(data.error || '검색 실패', 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('오류: ' + e.message, 'error');
+                    } finally {
+                        this.searchLoading = false;
+                    }
+                },
+
+                async forceRefresh() {
+                    if (this.selectedCategory) {
+                        this.showToast('새로운 데이터 가져오는 중...', 'success');
+                        await this.searchCategory(this.selectedCategory, true);
+                    }
+                },
+
+                async extractKeywords(catId) {
+                    this.keywordLoading = true;
+                    try {
+                        const res = await fetch('/api/youtube/trends/keywords', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                category: catId,
+                                days: parseInt(this.period)
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            this.trendingKeywords = data.keywords;
+                            this.showToast(`${data.totalTitles}개 영상에서 키워드 추출 완료`);
+                        } else {
+                            this.showToast(data.error || '키워드 추출 실패', 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('오류: ' + e.message, 'error');
+                    } finally {
+                        this.keywordLoading = false;
+                    }
+                },
+
+                async searchKeyword(keyword) {
+                    if (!keyword) return;
+
+                    this.selectedCategory = null;
+                    this.searchLoading = true;
+                    this.videos = [];
+                    this.trendingKeywords = [];
+
+                    try {
+                        const res = await fetch('/api/youtube/trends/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                keyword: keyword,
+                                days: parseInt(this.period),
+                                max_results: 30,
+                                video_type: this.videoType
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.ok) {
+                            this.videos = data.videos;
+                            // 검색 결과 표시를 위해 임시 카테고리 선택
+                            this.selectedCategory = 'custom';
+                            this.categories['custom'] = {
+                                name: `"${keyword}" 검색 결과`,
+                                icon: '🔎',
+                                description: `키워드 "${keyword}"로 검색한 결과`
+                            };
+                        } else {
+                            this.showToast(data.error || '검색 실패', 'error');
+                        }
+                    } catch (e) {
+                        this.showToast('오류: ' + e.message, 'error');
+                    } finally {
+                        this.searchLoading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
